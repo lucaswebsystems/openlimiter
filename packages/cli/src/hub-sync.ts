@@ -24,6 +24,7 @@ import path from "node:path";
 import {
   canonicalJson,
   freshness,
+  meterReading,
   prepareStateDirectory,
   readJsonFileSafely,
   resolveStateDirectory,
@@ -136,8 +137,9 @@ function accountIdOf(snapshot: Snapshot): string | null {
  * Every usage row this device would upload, from the cache it already writes
  * for the terminal and the tray.
  *
- * Only `PERCENT` rows are usage: a credit or token count is not a usage
- * fraction and does not belong beside one. `API_BUDGET_PERCENT` is excluded
+ * Only a used share is usage, as the meter contract reads it: a credit or
+ * token count is not a usage fraction and does not belong beside one, and an
+ * availability (unlimited included) is an answer rather than a 0% reading. `API_BUDGET_PERCENT` is excluded
  * too, porting the same rule `usage_samples_from_cache` in account.rs reads
  * its own cache by: it is a budget reading at PERCENT unit, not a usage
  * window, and sending it is exactly what gets a whole envelope rejected
@@ -159,9 +161,14 @@ export function usageSamplesFromSnapshots(
 ): UsageSample[] {
   const rows: UsageSample[] = [];
   for (const snapshot of snapshots) {
-    if (snapshot.unit !== "PERCENT") continue;
+    /* The meter contract decides what a usage percentage is, as the desktop's
+       upload does: an availability (unlimited included) is never a 0% usage,
+       an amount waits for the negotiated wire v3, and a legacy credits row with
+       its money pair is the used share it always was. */
+    const usagePercent = meterReading(snapshot)?.usedPercent ?? null;
+    if (usagePercent === null) continue;
     if (snapshot.meter === EXCLUDED_USAGE_METER) continue;
-    if (!Number.isFinite(snapshot.value) || snapshot.value < 0 || snapshot.value > 100) continue;
+    if (!Number.isFinite(usagePercent) || usagePercent < 0 || usagePercent > 100) continue;
     const accountId = accountIdOf(snapshot);
     if (accountId === null) continue;
     rows.push({
@@ -169,7 +176,7 @@ export function usageSamplesFromSnapshots(
       provider: snapshot.provider,
       meter: snapshot.meter,
       window_id: snapshot.meter,
-      usage_percent: snapshot.value,
+      usage_percent: usagePercent,
       reset_at: snapshot.resetAt,
       observed_at: snapshot.observedAt,
       stale: freshness(snapshot.observedAt, snapshot.expiresAt, now) !== "fresh"

@@ -712,6 +712,48 @@
           </section>
 
           <!--
+            One editor for every other provider read from a key a person holds.
+            connections.js names it for whichever provider opened it, from that
+            provider's registry entry, so no provider writes markup here.
+          -->
+          <section id="key-add" class="surface conn-block provider-editor" hidden aria-labelledby="key-add-title" tabindex="-1">
+            <div class="conn-head">
+              <h2 id="key-add-title"></h2>
+            </div>
+            <div class="conn-expanded-content">
+              <label class="field-label" for="key-alias">
+                Account alias, so two accounts stay apart
+              </label>
+              <input
+                id="key-alias"
+                class="field"
+                type="text"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="default"
+              />
+              <label class="field-label" for="key-secret">Paste the key</label>
+              <input
+                id="key-secret"
+                class="field"
+                type="password"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
+              />
+              <div class="conn-actions">
+                <button type="button" id="key-submit">Save</button>
+              </div>
+              <p id="key-note" class="conn-note" role="status"></p>
+              <p class="field-note">
+                The field is cleared the moment you submit. The key goes to the
+                operating system credential store, and after that only a masked
+                label is ever shown.
+              </p>
+            </div>
+          </section>
+
+          <!--
             The accounts that exist, what the plan allows, and why any of them is
             paused, after the tools that create them.
           -->

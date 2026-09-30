@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import { PENDING_PROVIDER_CODES, WAVE_PROVIDERS } from "../../../packages/core/dist/index.js";
+import { WAVE_PROVIDER_CODES } from "./names.js";
 import {
   CODEX_SIGN_IN_TIMEOUT_MILLISECONDS,
   CODEX_DEVICE_LINK_FALLBACK,
@@ -22,9 +24,13 @@ import {
   rowAction,
   runCodexSignIn,
   signInWay,
+  waveConnectRows,
 } from "./first-run.js";
 
 const read = (name) => readFileSync(new URL("./" + name, import.meta.url), "utf8");
+/* The rows this build shows: the eight providers that shipped before the 2.1
+   wave, then one for each 2.1 provider its registry has switched on. */
+const SHOWN_ROWS = CONNECT_PROVIDERS.length + waveConnectRows().length;
 const firstRunSection = () => {
   const markup = read("index.html");
   const start = markup.indexOf('<section\n      id="first-run"');
@@ -825,7 +831,7 @@ test("stale detected accounts name the CLI recovery without exposing identity", 
 test("an unavailable backend never becomes a false absent claim", () => {
   const result = normalizeDetections(null);
   assert.equal(result.available, false);
-  assert.equal(result.providers.length, 8);
+  assert.equal(result.providers.length, SHOWN_ROWS);
   assert.equal(result.providers.every((entry) => entry.state === "unavailable"), true);
   assert.equal(result.providers.some((entry) => entry.code === "MANUAL"), false);
 });
@@ -844,7 +850,7 @@ test("a successful empty scan is a coherent fresh machine state", () => {
     ].map((provider_id) => ({ provider_id, state: "absent", accounts: [] })),
   });
   assert.equal(result.available, true);
-  assert.equal(result.providers.length, 8);
+  assert.equal(result.providers.length, SHOWN_ROWS);
   assert.equal(result.providers.every((entry) => entry.state === "absent"), true);
 });
 
@@ -871,8 +877,37 @@ test("unknown providers never enter the first run rows", () => {
   const result = normalizeDetections({
     providers: [{ provider_id: "other", state: "present", accounts: [] }],
   });
-  assert.equal(result.providers.length, 8);
+  assert.equal(result.providers.length, SHOWN_ROWS);
   assert.equal(result.providers.some((entry) => entry.code === "OTHER"), false);
+});
+
+test("a 2.1 provider takes a first run row only from its switched on registry entry", () => {
+  // The window's list of the wave is core's list.
+  assert.deepEqual([...WAVE_PROVIDER_CODES].sort(), WAVE_PROVIDERS.map((provider) => provider.code).sort());
+  // A row joins only for a provider core has switched on too, and a
+  // detection naming a pending provider draws nothing.
+  for (const row of waveConnectRows()) assert.equal(PENDING_PROVIDER_CODES.includes(row.code), false, row.code);
+  assert.equal(CONNECT_PROVIDERS.length, 8);
+  const result = normalizeDetections({
+    providers: PENDING_PROVIDER_CODES.map((code) => ({ provider_id: code.toLowerCase(), state: "present", accounts: [{}] })),
+  });
+  assert.equal(result.providers.length, SHOWN_ROWS);
+  assert.equal(result.providers.some((entry) => PENDING_PROVIDER_CODES.includes(entry.code)), false);
+  // Switched on, the row comes from the directory row alone.
+  const spec = (connectorId, label, access, reader = "implemented") =>
+    ({ directory: { connectorId, label, access }, support: { reader } });
+  const rows = waveConnectRows({ providers: [
+    spec("synthetic", "Synthetic", "key"), spec("amp", "Amp", "automatic"),
+    spec("kilo", "Kilo Code", "automatic", "absent"), spec("cursor", "Cursor", "automatic"),
+  ] });
+  assert.deepEqual(rows, [
+    { code: "SYNTHETIC", name: "Synthetic", line: "Reads your quota from your own Synthetic key.", keyOnly: true },
+    { code: "AMP", name: "Amp", line: "Reads the Amp login on this machine.", verifiedOnInstall: true },
+  ]);
+  assert.equal(rowAction(rows[0], { state: "absent" }, {}).note,
+    "Add your Synthetic key in Connections when you want this bar.");
+  assert.deepEqual(rowAction(rows[1], { state: "absent" }, {}), { kind: "note", note: "Verified on install" });
+  for (const row of rows) assert.doesNotMatch(row.line, DASH);
 });
 
 test("accepts the future detector aliases for Grok and Kimi", () => {

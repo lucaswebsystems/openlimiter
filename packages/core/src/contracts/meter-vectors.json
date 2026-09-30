@@ -1,0 +1,529 @@
+[
+  {
+    "name": "a percent is the used share",
+    "row": {
+      "provider": "KIMI",
+      "meter": "WEEKLY",
+      "value": 42,
+      "unit": "PERCENT",
+      "window": {
+        "kind": "rolling",
+        "durationSeconds": 604800
+      },
+      "resetAt": null,
+      "source": "internal_payload",
+      "precision": "exact",
+      "observedAt": "2026-09-29T12:00:00.000Z",
+      "expiresAt": "2026-09-29T12:07:00.000Z",
+      "labels": {
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "accountId": "fixture-account-a"
+    },
+    "expected": {
+      "measure": "percent",
+      "direction": "used",
+      "usedPercent": 42,
+      "currency": null
+    }
+  },
+  {
+    "name": "a quota percent states its kind",
+    "row": {
+      "provider": "KIMI",
+      "meter": "WEEKLY",
+      "value": 17.5,
+      "unit": "PERCENT",
+      "window": {
+        "kind": "rolling",
+        "durationSeconds": 604800
+      },
+      "resetAt": null,
+      "source": "internal_payload",
+      "precision": "exact",
+      "observedAt": "2026-09-29T12:00:00.000Z",
+      "expiresAt": "2026-09-29T12:07:00.000Z",
+      "labels": {
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "accountId": "fixture-account-a",
+      "kind": "quota_percent"
+    },
+    "expected": {
+      "measure": "percent",
+      "direction": "used",
+      "usedPercent": 17.5,
+      "currency": null
+    }
+  },
+  {
+    "name": "a percent with a dollar pair is spend of that limit",
+    "row": {
+      "provider": "OPENROUTER",
+      "meter": "CREDITS",
+      "value": 62.35,
+      "unit": "PERCENT",
+      "window": {
+        "kind": "lifetime"
+      },
+      "resetAt": null,
+      "source": "internal_payload",
+      "precision": "exact",
+      "observedAt": "2026-09-29T12:00:00.000Z",
+      "expiresAt": "2026-09-29T12:07:00.000Z",
+      "labels": {
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "accountId": "fixture-account-a",
+      "usedAmount": 12.47,
+      "limitAmount": 20,
+      "currency": "USD"
+    },
+    "expected": {
+      "measure": "percent",
+      "direction": "used",
+      "usedPercent": 62.35,
+      "currency": "USD"
+    }
+  },
+  {
+    "name": "credits with a pair and no kind keep the shape written before the contract",
+    "row": {
+      "provider": "OPENROUTER",
+      "meter": "CREDITS",
+      "value": 62,
+      "unit": "CREDITS",
+      "window": {
+        "kind": "lifetime"
+      },
+      "resetAt": null,
+      "source": "internal_payload",
+      "precision": "exact",
+      "observedAt": "2026-09-29T12:00:00.000Z",
+      "expiresAt": "2026-09-29T12:07:00.000Z",
+      "labels": {
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "accountId": "fixture-account-a",
+      "usedAmount": 12.4,
+      "limitAmount": 20,
+      "currency": "USD"
+    },
+    "expected": {
+      "measure": "percent",
+      "direction": "used",
+      "usedPercent": 62,
+      "currency": "USD"
+    }
+  },
+  {
+    "name": "a credit balance is what is left",
+    "row": {
+      "provider": "KIMI",
+      "meter": "BALANCE",
+      "value": 45.2,
+      "unit": "CREDITS",
+      "window": {
+        "kind": "rolling",
+        "durationSeconds": 604800
+      },
+      "resetAt": null,
+      "source": "internal_payload",
+      "precision": "exact",
+      "observedAt": "2026-09-29T12:00:00.000Z",
+      "expiresAt": "2026-09-29T12:07:00.000Z",
+      "labels": {
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "accountId": "fixture-account-a",
+      "kind": "money_balance"
+    },
+    "expected": {
+      "measure": "balance",
+      "direction": "remaining",
+      "usedPercent": null,
+      "currency": null
+    }
+  },
+  {
+    "name": "a dollar balance keeps its currency",
+    "row": {
+      "provider": "KIMI",
+      "meter": "BALANCE",
+      "value": 12.34,
+      "unit": "CREDITS",
+      "window": {
+        "kind": "rolling",
+        "durationSeconds": 604800
+      },
+      "resetAt": null,
+      "source": "internal_payload",
+      "precision": "exact",
+      "observedAt": "2026-09-29T12:00:00.000Z",
+      "expiresAt": "2026-09-29T12:07:00.000Z",
+      "labels": {
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "accountId": "fixture-account-a",
+      "kind": "money_balance",
+      "currency": "USD"
+    },
+    "expected": {
+      "measure": "balance",
+      "direction": "remaining",
+      "usedPercent": null,
+      "currency": "USD"
+    }
+  },
+  {
+    "name": "a yuan spend keeps its currency",
+    "row": {
+      "provider": "KIMI",
+      "meter": "SPENT",
+      "value": 3.2,
+      "unit": "CREDITS",
+      "window": {
+        "kind": "rolling",
+        "durationSeconds": 604800
+      },
+      "resetAt": null,
+      "source": "internal_payload",
+      "precision": "exact",
+      "observedAt": "2026-09-29T12:00:00.000Z",
+      "expiresAt": "2026-09-29T12:07:00.000Z",
+      "labels": {
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "accountId": "fixture-account-a",
+      "kind": "spend",
+      "currency": "CNY"
+    },
+    "expected": {
+      "measure": "spend",
+      "direction": "used",
+      "usedPercent": null,
+      "currency": "CNY"
+    }
+  },
+  {
+    "name": "a request count is what was used",
+    "row": {
+      "provider": "KIMI",
+      "meter": "REQUESTS",
+      "value": 120,
+      "unit": "REQUESTS",
+      "window": {
+        "kind": "rolling",
+        "durationSeconds": 604800
+      },
+      "resetAt": null,
+      "source": "internal_payload",
+      "precision": "exact",
+      "observedAt": "2026-09-29T12:00:00.000Z",
+      "expiresAt": "2026-09-29T12:07:00.000Z",
+      "labels": {
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "accountId": "fixture-account-a",
+      "kind": "token_count"
+    },
+    "expected": {
+      "measure": "count",
+      "direction": "used",
+      "usedPercent": null,
+      "currency": null
+    }
+  },
+  {
+    "name": "a request allowance left is a balance",
+    "row": {
+      "provider": "KIMI",
+      "meter": "PREMIUM",
+      "value": 30,
+      "unit": "REQUESTS",
+      "window": {
+        "kind": "rolling",
+        "durationSeconds": 604800
+      },
+      "resetAt": null,
+      "source": "internal_payload",
+      "precision": "exact",
+      "observedAt": "2026-09-29T12:00:00.000Z",
+      "expiresAt": "2026-09-29T12:07:00.000Z",
+      "labels": {
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "accountId": "fixture-account-a",
+      "kind": "money_balance"
+    },
+    "expected": {
+      "measure": "balance",
+      "direction": "remaining",
+      "usedPercent": null,
+      "currency": null
+    }
+  },
+  {
+    "name": "credits with no kind point nowhere",
+    "row": {
+      "provider": "KIMI",
+      "meter": "CREDITS",
+      "value": 7.5,
+      "unit": "CREDITS",
+      "window": {
+        "kind": "rolling",
+        "durationSeconds": 604800
+      },
+      "resetAt": null,
+      "source": "internal_payload",
+      "precision": "exact",
+      "observedAt": "2026-09-29T12:00:00.000Z",
+      "expiresAt": "2026-09-29T12:07:00.000Z",
+      "labels": {
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "accountId": "fixture-account-a"
+    },
+    "expected": {
+      "measure": "amount",
+      "direction": null,
+      "usedPercent": null,
+      "currency": null
+    }
+  },
+  {
+    "name": "tokens with no kind point nowhere",
+    "row": {
+      "provider": "KIMI",
+      "meter": "TOKENS",
+      "value": 900,
+      "unit": "TOKENS",
+      "window": {
+        "kind": "rolling",
+        "durationSeconds": 604800
+      },
+      "resetAt": null,
+      "source": "internal_payload",
+      "precision": "exact",
+      "observedAt": "2026-09-29T12:00:00.000Z",
+      "expiresAt": "2026-09-29T12:07:00.000Z",
+      "labels": {
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "accountId": "fixture-account-a"
+    },
+    "expected": {
+      "measure": "amount",
+      "direction": null,
+      "usedPercent": null,
+      "currency": null
+    }
+  },
+  {
+    "name": "a percent stated as a spend is the used share",
+    "row": {
+      "provider": "KIMI",
+      "meter": "WEEKLY",
+      "value": 40,
+      "unit": "PERCENT",
+      "window": {
+        "kind": "rolling",
+        "durationSeconds": 604800
+      },
+      "resetAt": null,
+      "source": "internal_payload",
+      "precision": "exact",
+      "observedAt": "2026-09-29T12:00:00.000Z",
+      "expiresAt": "2026-09-29T12:07:00.000Z",
+      "labels": {
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "accountId": "fixture-account-a",
+      "kind": "spend"
+    },
+    "expected": {
+      "measure": "percent",
+      "direction": "used",
+      "usedPercent": 40,
+      "currency": null
+    }
+  },
+  {
+    "name": "a percent of a money limit may name its balance kind",
+    "row": {
+      "provider": "OPENROUTER",
+      "meter": "CREDITS",
+      "value": 25,
+      "unit": "PERCENT",
+      "window": {
+        "kind": "lifetime"
+      },
+      "resetAt": null,
+      "source": "internal_payload",
+      "precision": "exact",
+      "observedAt": "2026-09-29T12:00:00.000Z",
+      "expiresAt": "2026-09-29T12:07:00.000Z",
+      "labels": {
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "accountId": "fixture-account-a",
+      "kind": "money_balance",
+      "usedAmount": 12.5,
+      "limitAmount": 50,
+      "currency": "USD"
+    },
+    "expected": {
+      "measure": "percent",
+      "direction": "used",
+      "usedPercent": 25,
+      "currency": "USD"
+    }
+  },
+  {
+    "name": "a percent claiming to be a balance is not a reading",
+    "row": {
+      "provider": "KIMI",
+      "meter": "WEEKLY",
+      "value": 40,
+      "unit": "PERCENT",
+      "window": {
+        "kind": "rolling",
+        "durationSeconds": 604800
+      },
+      "resetAt": null,
+      "source": "internal_payload",
+      "precision": "exact",
+      "observedAt": "2026-09-29T12:00:00.000Z",
+      "expiresAt": "2026-09-29T12:07:00.000Z",
+      "labels": {
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "accountId": "fixture-account-a",
+      "kind": "money_balance"
+    },
+    "expected": null
+  },
+  {
+    "name": "a quota percent stated in credits is not a reading",
+    "row": {
+      "provider": "KIMI",
+      "meter": "WEEKLY",
+      "value": 40,
+      "unit": "CREDITS",
+      "window": {
+        "kind": "rolling",
+        "durationSeconds": 604800
+      },
+      "resetAt": null,
+      "source": "internal_payload",
+      "precision": "exact",
+      "observedAt": "2026-09-29T12:00:00.000Z",
+      "expiresAt": "2026-09-29T12:07:00.000Z",
+      "labels": {
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "accountId": "fixture-account-a",
+      "kind": "quota_percent"
+    },
+    "expected": null
+  },
+  {
+    "name": "unlimited is never a meter",
+    "row": {
+      "provider": "KIMI",
+      "meter": "CREDITS",
+      "value": 0,
+      "unit": "PERCENT",
+      "window": {
+        "kind": "rolling",
+        "durationSeconds": 604800
+      },
+      "resetAt": null,
+      "source": "internal_payload",
+      "precision": "exact",
+      "observedAt": "2026-09-29T12:00:00.000Z",
+      "expiresAt": "2026-09-29T12:07:00.000Z",
+      "labels": {
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "accountId": "fixture-account-a",
+      "availability": "unlimited"
+    },
+    "expected": null
+  },
+  {
+    "name": "runtime information is never a meter",
+    "row": {
+      "provider": "KIMI",
+      "meter": "WEEKLY",
+      "value": 1,
+      "unit": "PERCENT",
+      "window": {
+        "kind": "rolling",
+        "durationSeconds": 604800
+      },
+      "resetAt": null,
+      "source": "internal_payload",
+      "precision": "exact",
+      "observedAt": "2026-09-29T12:00:00.000Z",
+      "expiresAt": "2026-09-29T12:07:00.000Z",
+      "labels": {
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "accountId": "fixture-account-a",
+      "kind": "runtime_info"
+    },
+    "expected": null
+  }
+]

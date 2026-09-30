@@ -144,7 +144,9 @@ impl From<NetError> for CommandFailure {
 impl From<RouteError> for CommandFailure {
     fn from(error: RouteError) -> Self {
         match error {
-            RouteError::CredentialProviderMismatch => CommandFailure::RouteRefused,
+            RouteError::CredentialProviderMismatch | RouteError::ProviderNotEnabled => {
+                CommandFailure::RouteRefused
+            }
         }
     }
 }
@@ -356,6 +358,10 @@ pub enum ProbeOutcome {
     Response {
         connection_id: String,
         reader_id: ReaderId,
+        /// The account the credential this request sent names, which every
+        /// reading and suppression from it is filed under. Native only.
+        #[serde(skip)]
+        account_id: String,
         attempt_generation: u64,
         status: u16,
         /// Present only for a status in the 200 range. Every other body is
@@ -730,6 +736,9 @@ pub(crate) async fn probe_core<T: Transport>(
     let secret = secrets.read_secret(&record.id)?;
     let migrated = migrate_codex_credential_if_needed(connections, secrets, &mut record, &secret)?;
     let request_secret = migrated.as_deref().unwrap_or(&secret);
+    let account_id = crate::poll_identity::identity_for_secret(&record, Some(request_secret))
+        .account_id()
+        .to_string();
     let opened = open_attempt(connections, &record.id)?;
     let attempt_generation = opened.attempt_generation;
     let fetched = fetch_endpoint(
@@ -759,6 +768,7 @@ pub(crate) async fn probe_core<T: Transport>(
             Ok(ProbeOutcome::Response {
                 connection_id: record.id,
                 reader_id: route.reader_id,
+                account_id,
                 attempt_generation,
                 status: outcome.status,
                 body: outcome.body,
@@ -1637,7 +1647,12 @@ mod tests {
                 }
             }
         }
-        assert_eq!(accepted, crate::reader_registry::ReaderId::ALL.len());
+        /* A switched off provider accepts nothing: its pairings are refused. */
+        let routed = crate::reader_registry::ReaderId::ALL
+            .into_iter()
+            .filter(|reader| reader.provider().enabled())
+            .count();
+        assert_eq!(accepted, routed);
         assert_eq!(
             secrets.stored_count(),
             accepted,

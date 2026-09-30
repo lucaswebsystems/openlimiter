@@ -67,7 +67,15 @@ describe("provider catalogue", () => {
 
 describe("catalogue rows", () => {
   it("derives all twenty one catalogue rows in document order", () => {
-    const rows = queryCatalogueRows(providerSpecs);
+    /* The seven new 2.1 specs join the compiled registry as their lanes switch
+       them on; the twenty one rows of everything else, Copilot's long planned
+       entry among them, stay pinned exactly. */
+    const added = new Set([
+      "synthetic/subscription", "zai/coding-plan", "minimax/token-plan", "cline/hosted",
+      "augment/auggie", "amp/cli", "kilo/cli"
+    ]);
+    const rows = queryCatalogueRows(providerSpecs)
+      .filter((row) => !(row.availability === "planned" && added.has(row.specId)));
     expect(rows).toHaveLength(21);
 
     const connectableRows = rows.slice(0, 7);

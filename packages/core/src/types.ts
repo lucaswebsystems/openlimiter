@@ -1,7 +1,9 @@
 import type { ConnectionStatus, SnapshotAvailability } from "./connection-state.js";
+import { WAVE_PROVIDERS, type WaveProviderCode } from "./providers/index.js";
 export type { SnapshotAvailability } from "./connection-state.js";
 
-export const PROVIDER_CODES = [
+/** The providers that shipped before the 2.1 wave, always switched on. */
+const SHIPPED_PROVIDER_CODES = [
   "CLAUDE",
   "OPENROUTER",
   "CODEX",
@@ -10,11 +12,43 @@ export const PROVIDER_CODES = [
   "OPENCODE",
   "GROK",
   "KIMI",
-  "CURSOR",
-  "MANUAL"
+  "CURSOR"
 ] as const;
 
-export type ProviderCode = (typeof PROVIDER_CODES)[number];
+/**
+ * Every provider code the product knows. The 2.1 providers are part of it, so
+ * every table keyed by provider already names them and the lanes that build
+ * them write only their own files.
+ */
+export type ProviderCode = (typeof SHIPPED_PROVIDER_CODES)[number] | WaveProviderCode | "MANUAL";
+
+/**
+ * The providers this build has switched on: the ones it stores, shows, polls,
+ * advises on and names on the status line. Every "which providers are there"
+ * question in the product reads this list. A 2.1 provider joins it when its
+ * own descriptor in `providers/` says `enabled: true`, and nowhere else.
+ */
+export const PROVIDER_CODES: readonly ProviderCode[] = [
+  ...SHIPPED_PROVIDER_CODES,
+  ...WAVE_PROVIDERS.filter((provider) => provider.enabled).map((provider) => provider.code),
+  "MANUAL"
+];
+
+/**
+ * The 2.1 providers still switched off. None of them is stored, displayed or
+ * polled: the normalizer, the advice policy and the status line read
+ * PROVIDER_CODES, so a row naming one of these is refused like an unknown
+ * code, and refused anonymously. Its switch lives in three places, each the
+ * provider lane's own file and held together by tests: `enabled` in its
+ * descriptor here, `ENABLED` in its Rust module, and `enabled` in its spec.
+ */
+export const PENDING_PROVIDER_CODES: readonly ProviderCode[] =
+  WAVE_PROVIDERS.filter((provider) => !provider.enabled).map((provider) => provider.code);
+
+/** Whether a code names a provider this build has switched on. */
+export function isEnabledProviderCode(value: unknown): value is ProviderCode {
+  return typeof value === "string" && (PROVIDER_CODES as readonly string[]).includes(value);
+}
 export type SnapshotState = "fresh" | "stale" | "unknown";
 export type SnapshotUnit = "PERCENT" | "CREDITS" | "TOKENS" | "REQUESTS";
 export type SnapshotPrecision = "exact" | "estimated" | "manual";
@@ -197,6 +231,11 @@ export interface Snapshot {
   /** Present only when the provider's own documented payload carried money. */
   usedAmount?: number;
   limitAmount?: number;
+  /**
+   * With the pair above, the currency of both. Alone, only on a money_balance
+   * or spend reading that is not a percent, where it is the currency of `value`
+   * itself: a balance has no denominator to travel in a pair with.
+   */
   currency?: SnapshotCurrency;
   /**
    * Which account this reading belongs to, when a source names one.

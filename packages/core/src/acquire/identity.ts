@@ -33,6 +33,39 @@ export function opaqueAccountId(provider: ProviderCode, material: string): strin
 
 export const PROVIDER_SINGLETON_MATERIAL = "one-active-account-without-stable-identity";
 
+/*
+ * The account identity contract, per route. Rust twin: account_identity.rs,
+ * which also owns precedence, deduplication and switching, because the desktop
+ * is where saved keys, client configurations and vendor CLIs meet.
+ *
+ * "Only the account signed in now" needs an identity decided from the
+ * credential alone, before any reading is taken, and the same answer in both
+ * processes:
+ *
+ *   api_key        the key's fingerprint, never the key. Two keys are two
+ *                  accounts, because nothing about a key proves otherwise
+ *                  without a request.
+ *   account_token  the account the credential itself states (an explicit
+ *                  account field, then a token subject), never the token: a
+ *                  vendor tool rotates its token and the account stays.
+ *   local_cli      the account the vendor's own CLI reports, with its scope.
+ *                  Personal and organisation never share an identity.
+ *
+ * A route that cannot name an account falls back to the provider singleton.
+ */
+export type AccountRoute = "api_key" | "account_token" | "local_cli";
+export type AccountScope = "personal" | "organization";
+
+/** Identity material for an API key: a one way fingerprint of the trimmed key. */
+export function keyFingerprintMaterial(key: string): string {
+  return "api-key-sha256:" + createHash("sha256").update(key.trim()).digest("hex");
+}
+
+/** Identity material for the account a vendor CLI reports, scope included. */
+export function cliAccountMaterial(reported: string, scope: AccountScope): string {
+  return "cli-" + scope + ":" + reported.trim();
+}
+
 function object(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown> : {};

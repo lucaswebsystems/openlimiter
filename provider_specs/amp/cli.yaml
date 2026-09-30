@@ -1,0 +1,66 @@
+# Amp. Registered for the 2.1 providers wave, switched off.
+#
+# Route, from the providers research of 2026-09-29: the documented usage
+# command of the installed Amp CLI, run as the vendor's own executable with no
+# shell and a bounded timeout. The CLI's own secrets file is the credential and
+# is only ever a presence marker to OpenLimiter. Balance first: included usage,
+# purchased credits and the orb allowance stay three distinct readings, and no
+# percentage is shown unless the output states a denominator.
+#
+# Behind the live gate: until a supported runtime has been observed live on an
+# account Lucas has, this provider ships as detection plus Needs attention
+# only, never a number.
+#
+# Skeleton: nothing below claims a reader, a meter or a surface, and the
+# compiled registry does not contain it.
+
+provider_id: amp
+product_id: cli
+display_name: Amp
+enabled: false
+
+headlineMeter: null
+acquisitionSurfaces: []
+displaySurfaces: []
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: local_command
+d5Review: Documented usage command of the installed CLI; live gate pending; no reader yet.
+maturity: planned
+
+source:
+  docs_url: https://ampcode.com/docs/pricing
+  reviewed_at: "2026-09-29"
+  source_status: official
+
+mark:
+  file: amp.svg
+  source_url: https://ampcode.com/app-icon.svg
+
+availability:
+  requires_plan: any
+  appears_after: local_cli_login
+  absence_is_error: false
+
+support:
+  parser: absent
+  reader: absent
+  auth: absent
+
+connections:
+  - reader: local_command
+    auth_mode: existing_local_cli
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: planned
+  last_verified_at: null
+  fixture_ids:
+    - amp.live.pending
+
+meters: []

@@ -73,6 +73,45 @@ describe("Lucas reference layout", () => {
     expect(render([credit], { color: true })).toBe(`or \x1b[${code}m$${Number(balance).toFixed(2)}\x1b[0m`);
   });
 
+  it("draws a balance for any provider in its own unit, and never a percentage for another unit", () => {
+    const at = { meter: "BALANCE", window: { kind: "lifetime" as const }, resetAt: null };
+    const balance = (overrides: Partial<Snapshot>) => row({ provider: "KIMI", ...at, unit: "CREDITS", kind: "money_balance", ...overrides });
+    // A dollar balance is banded in dollars, as OpenRouter's has always been.
+    expect(render([balance({ value: 4.2, currency: "USD" })], { color: true })).toBe("km \x1b[33m$4.20\x1b[0m");
+    // Any other balance is itself, unbanded: yuan, credits and a request allowance.
+    expect(render([balance({ value: 8, currency: "CNY" })], { color: true })).toBe("km CN¥8.00");
+    expect(render([balance({ value: 12.47 })])).toBe("km 12.47 credits");
+    expect(render([balance({ unit: "REQUESTS", value: 30 })])).toBe("km 30 requests");
+    // A spend, a count or an amount nobody gave a direction has no cell to sit in.
+    const amount: Snapshot = { ...balance({ value: 7.5 }) };
+    delete amount.kind;
+    for (const other of [
+      balance({ kind: "spend", value: 3.5, currency: "USD" }),
+      balance({ unit: "REQUESTS", kind: "token_count", value: 120 }),
+      amount
+    ]) expect(render([other])).toBe("OpenLimiter UNKNOWN");
+    // Beside a percent, the percent is the provider's headline.
+    expect(render([balance({ value: 4.2, currency: "USD" }), row({ provider: "KIMI", value: 30 })])).toMatch(/^km5h \[███░░░░░░░\] 30%/u);
+  });
+
+  it("keeps a legacy OpenRouter credits row and draws balances in both layouts", () => {
+    /* Credits with a money pair and no kind are the used share of that money
+       under the meter contract: the bar layout's OpenRouter cell and the cells
+       layout's bar both keep drawing them, and a balance has a cell in both. */
+    const legacy: Snapshot = row({
+      provider: "OPENROUTER", meter: "CREDITS", unit: "CREDITS", value: 62, window: { kind: "lifetime" },
+      usedAmount: 12.4, limitAmount: 20, currency: "USD", resetAt: null
+    });
+    expect(render([legacy])).toBe("or $7.60");
+    const balance = row({
+      provider: "KIMI", meter: "BALANCE", unit: "CREDITS", kind: "money_balance", value: 12.47,
+      window: { kind: "lifetime" }, resetAt: null
+    });
+    const cells = render([row({}), legacy, balance], { config: { ...DEFAULT_STATUSLINE, style: "cells" } });
+    expect(cells).toMatch(/OPENROUTER:CREDITS \S+ 62(\.0)?%/u);
+    expect(cells).toContain("KIMI:BALANCE 12.47 credits left");
+  });
+
   it("never draws unknown markers, even for a selected provider, and leaves dormant accounts out", () => {
     expect(render([])).toBe("OpenLimiter UNKNOWN");
     const config = { ...DEFAULT_STATUSLINE, visibility: { codex: true } };

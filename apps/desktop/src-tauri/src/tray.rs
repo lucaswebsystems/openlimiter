@@ -5,9 +5,44 @@ use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::{AppHandle, Runtime};
 
+use crate::provider_detection::DetectedProviderId;
+
 pub const ID: &str = "openlimiter-tray";
 
-const PROVIDER_LIMIT: usize = 9;
+/// Every provider the tray can name, and the detected provider each one is.
+const TRAY_PROVIDERS: [(&str, DetectedProviderId); 17] = [
+    ("CLAUDE", DetectedProviderId::Claude),
+    ("OPENROUTER", DetectedProviderId::Openrouter),
+    ("CODEX", DetectedProviderId::Codex),
+    ("ANTIGRAVITY", DetectedProviderId::Antigravity),
+    ("GEMINI_CLI", DetectedProviderId::GeminiCli),
+    ("OPENCODE", DetectedProviderId::Opencode),
+    ("GROK", DetectedProviderId::Grok),
+    ("KIMI", DetectedProviderId::Kimi),
+    ("CURSOR", DetectedProviderId::Cursor),
+    ("SYNTHETIC", DetectedProviderId::Synthetic),
+    ("ZAI", DetectedProviderId::Zai),
+    ("MINIMAX", DetectedProviderId::Minimax),
+    ("CLINE", DetectedProviderId::Cline),
+    ("AUGMENT", DetectedProviderId::Augment),
+    ("AMP", DetectedProviderId::Amp),
+    ("KILO", DetectedProviderId::Kilo),
+    ("COPILOT", DetectedProviderId::Copilot),
+];
+
+/// The tray's bound: every provider it can name that this build switched on,
+/// so it grows by one as each 2.1 provider is switched on.
+const PROVIDER_LIMIT: usize = {
+    let mut count = 0;
+    let mut index = 0;
+    while index < TRAY_PROVIDERS.len() {
+        if TRAY_PROVIDERS[index].1.enabled() {
+            count += 1;
+        }
+        index += 1;
+    }
+    count
+};
 
 const ICON_UNKNOWN: &[u8] = include_bytes!("../icons/tray-unknown-32.png");
 const ICON_OK: &[u8] = include_bytes!("../icons/tray-ok-32.png");
@@ -71,19 +106,39 @@ pub struct View {
 /// A provider the tray lists, by code, named the way the registry names it
 /// everywhere else (the window reads the same directory label).
 fn provider(code: &str) -> Option<(&'static str, &'static str)> {
-    let code = match code.to_ascii_uppercase().as_str() {
-        "CLAUDE" => "CLAUDE",
-        "OPENROUTER" => "OPENROUTER",
-        "CODEX" => "CODEX",
-        "ANTIGRAVITY" => "ANTIGRAVITY",
-        "GEMINI_CLI" => "GEMINI_CLI",
-        "OPENCODE" => "OPENCODE",
-        "GROK" => "GROK",
-        "KIMI" => "KIMI",
-        "CURSOR" => "CURSOR",
-        _ => return None,
-    };
+    let code = code.to_ascii_uppercase();
+    let (code, detected) = TRAY_PROVIDERS
+        .into_iter()
+        .find(|(known, _)| *known == code)?;
+    /* A switched off provider is not one the tray can name; its rows never
+    reach a projection anyway, because the cache drops them first. */
+    if !detected.enabled() {
+        return None;
+    }
     Some((code, crate::rail::provider_display_name(code)?))
+}
+
+/// One used percentage per provider, for the tray: the highest reading each
+/// provider states as a used share, by the meter contract (data_rules::measure).
+/// A balance, a spend, a count or an amount has no percentage, so it never
+/// reaches the tray as one.
+pub fn statuses(rows: &[crate::native_snapshot::Snapshot]) -> Vec<ProviderStatus> {
+    let mut values = std::collections::BTreeMap::<String, f64>::new();
+    for row in rows {
+        if let Some(percent) = crate::data_rules::measure(row).and_then(|found| found.used_percent) {
+            values
+                .entry(row.provider.clone())
+                .and_modify(|value| *value = value.max(percent))
+                .or_insert(percent);
+        }
+    }
+    values
+        .into_iter()
+        .map(|(provider, value)| ProviderStatus {
+            provider,
+            usage_percent: Some(value),
+        })
+        .collect()
 }
 
 fn pressure_of(percent: Option<f64>) -> Pressure {
@@ -155,6 +210,14 @@ pub fn view_with_trial(
         "OPENCODE" => 5,
         "GROK" => 6,
         "KIMI" => 7,
+        "SYNTHETIC" => 8,
+        "ZAI" => 9,
+        "MINIMAX" => 10,
+        "CLINE" => 11,
+        "AUGMENT" => 12,
+        "AMP" => 13,
+        "KILO" => 14,
+        "COPILOT" => 15,
         _ => usize::MAX,
     });
 
@@ -280,6 +343,57 @@ mod tests {
         }
     }
 
+    fn row(provider: &str, extra: serde_json::Value) -> crate::native_snapshot::Snapshot {
+        let mut value = serde_json::json!({
+            "provider": provider, "meter": "WEEKLY", "value": 40, "unit": "PERCENT",
+            "window": { "kind": "rolling", "durationSeconds": 604800 }, "resetAt": null,
+            "source": "internal_payload", "precision": "exact",
+            "observedAt": "2026-09-29T12:00:00.000Z", "expiresAt": "2026-09-29T12:07:00.000Z",
+            "labels": { "credentialOrigin": "official-local-tool", "dataInterfaceStatus": "internal-endpoint",
+                "automationRisk": "high", "verification": "UNVERIFIED" }
+        });
+        for (key, field) in extra.as_object().expect("fields") {
+            value[key] = field.clone();
+        }
+        serde_json::from_value(value).expect("a cache row")
+    }
+
+    #[test]
+    fn only_a_used_share_reaches_the_tray_as_a_percentage() {
+        /* The meter contract on the tray: OpenRouter's spend of its limit is
+        the percentage it always was, the highest window of a provider leads,
+        and a balance, a count or a directionless amount never becomes one. */
+        let found = statuses(&[
+            row("OPENROUTER", serde_json::json!({ "meter": "CREDITS", "value": 62.35, "usedAmount": 12.47,
+                "limitAmount": 20, "currency": "USD", "window": { "kind": "lifetime" } })),
+            row("KIMI", serde_json::json!({ "value": 30 })),
+            row("KIMI", serde_json::json!({ "meter": "FIVE_HOUR", "value": 55 })),
+            row("CODEX", serde_json::json!({ "meter": "BALANCE", "unit": "CREDITS", "value": 45.2,
+                "kind": "money_balance" })),
+            row("CURSOR", serde_json::json!({ "meter": "REQUESTS", "unit": "REQUESTS", "value": 120,
+                "kind": "token_count" })),
+            row("GROK", serde_json::json!({ "meter": "CREDITS", "unit": "CREDITS", "value": 7.5 })),
+        ]);
+        assert_eq!(
+            found,
+            vec![status("KIMI", Some(55.0)), status("OPENROUTER", Some(62.35))]
+        );
+    }
+
+    #[test]
+    fn the_tray_names_no_provider_that_is_switched_off() {
+        let mut switched_on = 0;
+        for (code, detected) in TRAY_PROVIDERS {
+            if detected.enabled() {
+                switched_on += 1;
+            } else {
+                assert_eq!(provider(code), None, "{code}");
+                assert!(view(vec![status(code, Some(10.0))]).is_err(), "{code}");
+            }
+        }
+        assert_eq!(PROVIDER_LIMIT, switched_on);
+    }
+
     #[test]
     fn worst_provider_drives_headroom_and_pressure() {
         let rendered = view(vec![
@@ -305,17 +419,15 @@ mod tests {
 
     #[test]
     fn every_supported_provider_reaches_the_tray() {
-        let rendered = view(vec![
-            status("CLAUDE", None),
-            status("OPENROUTER", None),
-            status("CODEX", None),
-            status("ANTIGRAVITY", None),
-            status("GEMINI_CLI", None),
-            status("OPENCODE", None),
-            status("GROK", None),
-            status("KIMI", None),
-            status("CURSOR", None),
-        ])
+        /* Every provider this build has switched on, a 2.1 provider included
+        once its module says so. */
+        let rendered = view(
+            TRAY_PROVIDERS
+                .iter()
+                .filter(|(_, detected)| detected.enabled())
+                .map(|(code, _)| status(code, None))
+                .collect(),
+        )
         .expect("every provider is valid");
         assert_eq!(rendered.providers.len(), PROVIDER_LIMIT);
         assert_eq!(rendered.providers[6].name, "Grok (xAI)");

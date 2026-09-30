@@ -60,6 +60,16 @@ const MIRROR = {
       "normalizer.ts",
       "policy.ts",
       "schedule.ts",
+      /* The 2.1 provider descriptors: whether each is switched on, and its cadence. */
+      "providers/index.ts",
+      "providers/synthetic.ts",
+      "providers/zai.ts",
+      "providers/minimax.ts",
+      "providers/cline.ts",
+      "providers/augment.ts",
+      "providers/amp.ts",
+      "providers/kilo.ts",
+      "providers/copilot.ts",
     ],
   },
   connectors: {
@@ -78,6 +88,15 @@ const MIRROR = {
       "manual.ts",
       "opencode.ts",
       "openrouter.ts",
+      /* The 2.1 providers, registered and switched off until their lanes land. */
+      "synthetic.ts",
+      "zai.ts",
+      "minimax.ts",
+      "cline.ts",
+      "augment.ts",
+      "amp.ts",
+      "kilo.ts",
+      "copilot.ts",
       "index.ts",
     ],
   },
@@ -87,7 +106,7 @@ const MIRROR = {
   },
   ui: {
     from: path.join(REPOSITORY, "packages", "ui", "src"),
-    files: ["provider-connect.ts", "provider-row.ts", "tokens.css"],
+    files: ["provider-connect.ts", "provider-row.ts", "marks/official.ts", "tokens.css"],
   },
 };
 

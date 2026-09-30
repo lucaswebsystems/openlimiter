@@ -136,7 +136,14 @@ fn run_provider(provider: &str) {
             ("openrouter", "key") => {
                 parse_body(ReaderId::OpenrouterKey, &body, now, "synthetic-parity")
             }
-            _ => panic!("{id}: unsupported reader"),
+            /* A 2.1 provider's cases name its reader by id, so its lane adds
+            folders and nothing here. */
+            (_, reader) => match serde_json::from_value::<ReaderId>(json!(reader)) {
+                Ok(reader_id) if reader_id.provider().code().eq_ignore_ascii_case(provider) => {
+                    parse_body(reader_id, &body, now, "synthetic-parity")
+                }
+                _ => panic!("{id}: unsupported reader"),
+            },
         };
         if provider == "cursor" {
             if let Some(rows) = &rows {
@@ -179,4 +186,25 @@ fn kimi_shared_corpus() {
 #[test]
 fn cursor_shared_corpus() {
     run_provider("cursor");
+}
+
+/// Every 2.1 HTTP provider whose lane has added its corpus folders. Nothing
+/// here names one: the folder is the registration.
+#[test]
+fn every_2_1_provider_shared_corpus() {
+    /* A case names its reader by id, the way the routing table spells it. */
+    assert_eq!(
+        serde_json::from_value::<ReaderId>(json!("synthetic_quotas")).ok(),
+        Some(ReaderId::SyntheticQuotas)
+    );
+    for reader in ReaderId::ALL {
+        let provider = reader.provider();
+        if crate::poll_identity::detected_provider(provider).footprint().is_none() {
+            continue;
+        }
+        let folder = provider.code().to_lowercase();
+        if fixture_root().join("cases").join(&folder).is_dir() {
+            run_provider(&folder);
+        }
+    }
 }

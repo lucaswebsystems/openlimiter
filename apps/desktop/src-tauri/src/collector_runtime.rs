@@ -13,6 +13,7 @@ use crate::connections::{now_epoch_ms, ConnectionRecord, ConnectionsStore};
 use crate::credentials::{KeyringStore, SecretStore};
 use crate::net::{ReqwestTransport, Transport};
 use crate::poll_identity::detected_provider;
+use crate::account_identity::automatic_account_limit;
 use crate::poll_identity::{resolve_connection, PollIdentity};
 use crate::provider_detection::DetectedProviderId;
 use crate::request_policy::{provider_interval_seconds, RequestPolicy, BLOCKED_PROVIDER_SECONDS};
@@ -293,20 +294,6 @@ fn collection_plan(
     }
 }
 
-fn automatic_account_limit(
-    multi_account: bool,
-    known_providers: &HashSet<DetectedProviderId>,
-    provider: DetectedProviderId,
-) -> usize {
-    if multi_account {
-        usize::MAX
-    } else if known_providers.contains(&provider) {
-        0
-    } else {
-        1
-    }
-}
-
 fn synchronize_schedule(
     connections: &ConnectionsStore,
     secrets: &impl SecretStore,
@@ -347,8 +334,11 @@ pub async fn run_pass(
     selected: Option<&[DetectedProviderId]>,
 ) -> HomeRefreshOutcome {
     let detection = app.state::<crate::provider_detection::DetectionStore>();
-    let allowed =
-        |provider| detection.switches.enabled(provider) && requested_provider(selected, provider);
+    let allowed = |provider: DetectedProviderId| {
+        provider.enabled()
+            && detection.switches.enabled(provider)
+            && requested_provider(selected, provider)
+    };
     // Detection rereads credentials before use; expose known expiry in the cache too.
     for provider in detection.report().providers {
         if !allowed(provider.provider_id) {
@@ -376,9 +366,10 @@ pub async fn run_pass(
     let multi_account = crate::pro::multi_account_enabled(&*secrets);
     let _ = connections.apply_plan(multi_account, &[]);
     let records = connections.list().map(|mut records| {
+        /* Every record, paused ones too: a paused connection still claims its
+        identity from the automatic pass, so projection needs it as well. */
         let identities = records
             .iter()
-            .filter(|record| record.is_active())
             .map(|record| {
                 let identity = resolve_connection(record, &*secrets);
                 (
@@ -395,9 +386,17 @@ pub async fn run_pass(
             .collect();
         if let Some(state) = app.try_state::<crate::data_rules::ConnectionIdentities>() {
             if let Ok(mut held) = state.0.lock() {
-                *held = identities;
+                *held = crate::data_rules::IdentityPlan {
+                    saved: identities,
+                    multi_account,
+                };
             }
         }
+        let _ = crate::data_rules::write_active_accounts(
+            crate::state::state_directory().as_deref(),
+            &crate::data_rules::active_accounts(app),
+            now_epoch_ms(),
+        );
         records.retain(|record| allowed(detected_provider(record.provider_id)));
         if selected.is_some() {
             for record in &mut records {
@@ -556,6 +555,30 @@ pub async fn run_pass(
                         .await
                     {
                         failed_providers.push(DetectedProviderId::GeminiCli);
+                    }
+                    /* The 2.1 providers, each through its own module, under
+                    the same Free limit and the same saved connection
+                    coverage. `allowed` refuses every one that is switched
+                    off, so today none of these runs. */
+                    for provider in DetectedProviderId::ALL
+                        .into_iter()
+                        .filter(|provider| provider.footprint().is_some())
+                    {
+                        if allowed(provider)
+                            && !crate::providers::run_pass(
+                                provider,
+                                app,
+                                &coverage.covered,
+                                automatic_account_limit(
+                                    multi_account,
+                                    &coverage.known_providers,
+                                    provider,
+                                ),
+                            )
+                            .await
+                        {
+                            failed_providers.push(provider);
+                        }
                     }
                 }
                 Err(_) => last_failure = Some(CollectorFailure::Internal),
@@ -900,6 +923,72 @@ mod tests {
         assert_eq!(
             automatic_account_limit(false, &known, DetectedProviderId::Codex),
             0
+        );
+    }
+
+    #[test]
+    fn a_saved_key_covers_its_twin_in_a_configuration_under_the_plan_limit() {
+        use crate::account_identity::{automatic_account_ids, key_account_id};
+        let synthetic = DetectedProviderId::Synthetic;
+        let secrets = InMemorySecrets::new();
+        secrets
+            .store_secret("saved-key", "fixture-key-one")
+            .expect("secret");
+        let plan = collection_plan(
+            vec![record(
+                "saved-key",
+                ProviderId::Synthetic,
+                ReaderId::SyntheticQuotas,
+                CredentialKind::SyntheticKey,
+                None,
+                1,
+                None,
+            )],
+            &secrets,
+            NOW,
+        );
+        let one = key_account_id(synthetic, "fixture-key-one");
+        let two = key_account_id(synthetic, "fixture-key-two");
+        /* The saved key is its fingerprint, the same identity detection gives
+        the same key found in a client configuration. */
+        assert!(plan
+            .covered
+            .contains(&PollIdentity::detected(ProviderId::Synthetic, one.clone())));
+        /* Found twice in configurations, beside a second key. */
+        let detected = [one.clone(), one, two.clone()];
+        /* Free: the saved connection holds the provider's one account. */
+        assert!(automatic_account_ids(
+            synthetic,
+            detected.clone(),
+            &plan.covered,
+            automatic_account_limit(false, &plan.known_providers, synthetic),
+        )
+        .is_empty());
+        /* Pro: the saved key is read once, through its connection, and only
+        the other key automatically. */
+        assert_eq!(
+            automatic_account_ids(
+                synthetic,
+                detected.clone(),
+                &plan.covered,
+                automatic_account_limit(true, &plan.known_providers, synthetic),
+            ),
+            vec![two]
+        );
+        /* Free with nothing saved: one active account, the same every pass. */
+        let nothing_saved = HashSet::new();
+        let free = automatic_account_ids(
+            synthetic,
+            detected.clone(),
+            &nothing_saved,
+            automatic_account_limit(false, &HashSet::new(), synthetic),
+        );
+        assert_eq!(free.len(), 1);
+        let mut reversed = detected;
+        reversed.reverse();
+        assert_eq!(
+            automatic_account_ids(synthetic, reversed, &nothing_saved, 1),
+            free
         );
     }
 }

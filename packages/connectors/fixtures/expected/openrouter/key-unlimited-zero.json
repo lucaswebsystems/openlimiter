@@ -14,7 +14,7 @@
         "resetAt": null,
         "precision": "exact",
         "source": "documented_api",
-        "kind": "availability",
+        "kind": null,
         "availability": "unlimited",
         "currency": null,
         "usedAmount": null,

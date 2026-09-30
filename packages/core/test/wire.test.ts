@@ -109,6 +109,32 @@ describe("Snapshot to wire v3", () => {
     expect(wire.usage_percent).toBeUndefined();
   });
 
+  it("carries a balance as its amount, its currency and its direction", () => {
+    const wire = toWireSampleV3({ ...snapshot, unit: "CREDITS", value: 12.34, kind: "money_balance", currency: "USD" });
+    expect(wire).toMatchObject({ amount: 12.34, currency: "USD", kind: "money_balance" });
+    expect(wire).not.toHaveProperty("usage_percent");
+    expect(readWireSample(wire)).toMatchObject({ amount: 12.34, currency: "USD", kind: "money_balance" });
+  });
+
+  it("carries a balance as what is left, never the money used beside it", () => {
+    const balance = toWireSampleV3({
+      ...snapshot, unit: "CREDITS", value: 80, kind: "money_balance", currency: "USD", usedAmount: 20, limitAmount: 100
+    });
+    expect(balance).toMatchObject({ amount: 80, currency: "USD", kind: "money_balance" });
+    expect(balance).not.toHaveProperty("usage_percent");
+    /* A used share keeps its money pair's used amount, as it always did. */
+    const share = toWireSampleV3({
+      ...snapshot, value: 20, usedAmount: 20, limitAmount: 100, currency: "USD"
+    });
+    expect(share).toMatchObject({ usage_percent: 20, amount: 20, currency: "USD" });
+  });
+
+  it("never turns unlimited into a percentage", () => {
+    const wire = toWireSampleV3({ ...snapshot, value: 0, availability: "unlimited" });
+    expect(wire).not.toHaveProperty("usage_percent");
+    expect(wire.availability).toBe("unlimited");
+  });
+
   it("rejects nonpercent snapshots without an explicit representable amount", () => {
     expect(() => toWireSampleV3({ ...snapshot, unit: "TOKENS", kind: "token_count" })).toThrow("unit has no v2 usage representation");
   });

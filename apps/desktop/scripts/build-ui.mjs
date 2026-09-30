@@ -65,6 +65,16 @@ const COPY = {
       "normalizer.js",
       "policy.js",
       "schedule.js",
+      /* The 2.1 provider descriptors: whether each is switched on, and its cadence. */
+      "providers/index.js",
+      "providers/synthetic.js",
+      "providers/zai.js",
+      "providers/minimax.js",
+      "providers/cline.js",
+      "providers/augment.js",
+      "providers/amp.js",
+      "providers/kilo.js",
+      "providers/copilot.js",
     ],
   },
   connectors: {
@@ -82,6 +92,15 @@ const COPY = {
       "manual.js",
       "opencode.js",
       "openrouter.js",
+      /* The 2.1 providers, registered and switched off until their lanes land. */
+      "synthetic.js",
+      "zai.js",
+      "minimax.js",
+      "cline.js",
+      "augment.js",
+      "amp.js",
+      "kilo.js",
+      "copilot.js",
       "index.js",
     ],
   },
@@ -91,7 +110,7 @@ const COPY = {
   },
   ui: {
     from: path.join(REPOSITORY, "packages", "ui", "dist"),
-    files: ["provider-connect.js", "provider-row.js"],
+    files: ["provider-connect.js", "provider-row.js", "marks/official.js"],
   },
   /* The QR encoder the command line tool already ships. It has no imports and
      no node surface at all, so the phone pairing panel draws the same symbol
@@ -229,6 +248,7 @@ for (const [name, spec] of Object.entries(COPY)) {
     );
     const browserSource = name === "adapters" ? browserSafeAdapter(rewritten) : rewritten;
     const output = path.join(target, file);
+    mkdirSync(path.dirname(output), { recursive: true });
     writeFileSync(output, browserJsonImports(browserSource, path.join(spec.from, file), output), "utf8");
   }
 }

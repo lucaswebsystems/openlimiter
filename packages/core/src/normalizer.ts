@@ -151,6 +151,23 @@ function normalizeAmounts(raw: RawMeter): SnapshotAmounts | null {
 }
 
 /**
+ * The one currency a balance or a spend may carry without a used and limit pair.
+ *
+ * A balance has no denominator, so it has no pair to travel in, and without its
+ * currency "12.34" would lose the fact that it is dollars. Only a money kind on
+ * a unit other than PERCENT may carry it; anywhere else it is dropped exactly as
+ * a broken pair is, and the reading survives.
+ */
+function readLoneCurrency(raw: RawMeter): SnapshotCurrency | null {
+  if (raw.usedAmount !== undefined || raw.limitAmount !== undefined) return null;
+  if (raw.kind !== "money_balance" && raw.kind !== "spend") return null;
+  if (raw.unit === "PERCENT") return null;
+  return typeof raw.currency === "string" && currencies.has(raw.currency as SnapshotCurrency)
+    ? raw.currency as SnapshotCurrency
+    : null;
+}
+
+/**
  * Read the account this reading belongs to.
  *
  * Absent is the ordinary case and means one unnamed account. Present but
@@ -252,6 +269,7 @@ export function normalizeMeter(raw: RawMeter): Snapshot | null {
   const writer = readWriter(raw.writer);
   const accountLabel = readAccountLabel(raw.accountLabel);
   const amounts = normalizeAmounts(raw);
+  const loneCurrency = amounts === null ? readLoneCurrency(raw) : null;
   return {
     provider: raw.provider as Snapshot["provider"],
     meter: raw.meter,
@@ -265,6 +283,7 @@ export function normalizeMeter(raw: RawMeter): Snapshot | null {
     expiresAt: raw.expiresAt,
     labels,
     ...(amounts === null ? {} : amounts),
+    ...(loneCurrency === null ? {} : { currency: loneCurrency }),
     ...(account.accountId === null ? {} : { accountId: account.accountId }),
     ...(accountLabel === null || account.accountId === null
       ? {}

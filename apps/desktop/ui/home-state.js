@@ -1,4 +1,4 @@
-import { providerCode } from "./names.js";
+import { providerCode, switchedOnWave } from "./names.js";
 
 /*
  * Which providers Home refreshes and reports to the tray.
@@ -7,7 +7,11 @@ import { providerCode } from "./names.js";
  * keeps only displayable rows, and the one freshness policy lives in the data
  * rules. This list only answers which providers a person has in play.
  */
-const KNOWN = new Set(["CLAUDE", "CODEX", "ANTIGRAVITY", "GEMINI_CLI", "GROK", "KIMI", "OPENROUTER", "OPENCODE", "CURSOR"]);
+const KNOWN = new Set([
+  "CLAUDE", "CODEX", "ANTIGRAVITY", "GEMINI_CLI", "GROK", "KIMI", "OPENROUTER", "OPENCODE", "CURSOR",
+  /* A 2.1 provider joins once its registry entry is switched on. */
+  ...switchedOnWave().map((provider) => provider.code),
+]);
 
 function code(value) {
   const normalized = providerCode(value);

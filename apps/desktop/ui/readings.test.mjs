@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { normalizeMetersReport, projectSnapshots } from "../../../packages/core/dist/index.js";
+import { parseOpenrouterPayload } from "../../../packages/connectors/dist/openrouter.js";
 import { messyFixtures, ACCOUNTS } from "./messy-fixtures.mjs";
 import { agentName, meterLabel, providerCode, providerName, READINGS_COPY, say } from "./names.js";
 import { fakeDocument, leaks, spoken } from "./test-dom.mjs";
@@ -195,6 +196,105 @@ test("drawn limits show names and words only, with a shape past green", () => {
     assert.equal(mount.all((node) => node.className === "q-colhead").length, compact ? 1 : 0);
     assert.doesNotMatch(JSON.stringify(spoken(mount)), new RegExp(Object.values(ACCOUNTS).join("|")));
   }
+});
+
+test("Home and the edge panel draw every unit the way the meter contract reads it", () => {
+  const template = fixtures.projected.snapshots[0];
+  const reading = (meter, fields) => ({ ...template, provider: "FIXTURE", meter, accountId: undefined, kind: undefined, ...fields });
+  const cases = [
+    // [meter, fields, value column text, bar spoken text]
+    ["BALANCE", { unit: "CREDITS", kind: "money_balance", value: 12.349, currency: "USD" }, "$12.34 left", "$12.34 left"],
+    ["TOKEN_PLAN", { unit: "CREDITS", kind: "money_balance", value: 8, currency: "CNY" }, "CN¥8.00 left", "CN¥8.00 left"],
+    ["CREDITS", { unit: "CREDITS", kind: "money_balance", value: 12.47 }, "12.47 credits left", "12.47 credits left"],
+    ["MONTHLY", { unit: "CREDITS", kind: "spend", value: 3.5, currency: "USD" }, "$3.50 used", "$3.50 used"],
+    ["DAILY", { unit: "REQUESTS", kind: "token_count", value: 120 }, "120 requests used", "120 requests used"],
+    ["HOURLY", { unit: "TOKENS", kind: "token_count", value: 1500 }, "1500 tokens used", "1500 tokens used"],
+    // A number whose reader never said which way it points gets no direction word.
+    ["SESSION", { unit: "CREDITS", value: 7.5 }, "7.50 credits", "7.50 credits"],
+  ];
+  for (const [meter, fields, text, valueText] of cases) {
+    const [window] = limitsModel([reading(meter, fields)], now)[0].windows;
+    assert.deepEqual([window.usedPercent, window.band, window.limit], [null, "none", null], meter);
+    for (const compact of [false, true]) {
+      const doc = fakeDocument();
+      const mount = doc.createElement("div");
+      renderLimits(doc, mount, limitsModel([reading(meter, fields)], now), { compact });
+      const bar = mount.all((node) => node.getAttribute("role") === "progressbar")[0];
+      assert.equal(bar.getAttribute("aria-valuenow"), null, meter);
+      assert.equal(bar.getAttribute("aria-valuetext"), valueText, meter);
+      assert.equal(mount.all((node) => node.className === "q-val")[0].textContent, text, `${meter} ${compact ? "panel" : "Home"}`);
+      assert.equal(mount.all((node) => node.className === "q-shape").length, 0, meter);
+      // A remaining balance is never read as spent, and nothing claims a percentage.
+      assert.doesNotMatch(JSON.stringify(spoken(mount)), /spent|%/u, meter);
+    }
+  }
+  // A used share keeps its bar and band, and OpenRouter's money stays as it was.
+  const [percent] = limitsModel([reading("WEEKLY", { unit: "PERCENT", value: 81.9 })], now)[0].windows;
+  assert.deepEqual([percent.value, percent.usedPercent, percent.band, percent.direction], ["81%", 81.9, "orange", null]);
+  const openrouter = { ...template, provider: "OPENROUTER", meter: "CREDITS", unit: "PERCENT", value: 25,
+    usedAmount: 12.5, limitAmount: 50, currency: "USD", accountId: undefined };
+  const [money] = limitsModel([openrouter], now)[0].windows;
+  assert.deepEqual([money.value, money.limit, money.usedPercent, money.band], ["$12.50", "$50.00", 25, "green"]);
+  for (const compact of [false, true]) {
+    const doc = fakeDocument();
+    const mount = doc.createElement("div");
+    renderLimits(doc, mount, limitsModel([openrouter], now), { compact });
+    const bar = mount.all((node) => node.getAttribute("role") === "progressbar")[0];
+    assert.deepEqual([bar.getAttribute("aria-valuenow"), bar.getAttribute("aria-valuetext")], ["25", "$12.50 used"]);
+    assert.equal(mount.all((node) => node.className === "q-rst")[0].textContent, "of $50.00");
+  }
+});
+
+test("unlimited is a note on Connected, never a meter and never something to fix", () => {
+  const unlimited = { provider: "CURSOR", reason: "unlimited", fixKind: "unsupported" };
+  const detections = { providers: [{ provider_id: "cursor", state: "present" }] };
+  assert.deepEqual(attentionFlags([unlimited], []), []);
+  const connected = connectedProviders({ snapshots: [], detections, flags: [unlimited], attention: [] });
+  assert.deepEqual(connected.map((provider) => [provider.code, provider.note]), [["CURSOR", "unlimited"]]);
+  // A saved key that answered unlimited carries the note on its Connected row.
+  assert.deepEqual(connectedProviders({
+    snapshots: [], connections: [{ provider: "openrouter", state: "CONNECTED" }],
+    flags: [{ ...unlimited, provider: "OPENROUTER" }],
+  }).map((provider) => [provider.code, provider.note]), [["OPENROUTER", "unlimited"]]);
+  // A provider still measuring other windows shows those, with no plan wide note.
+  const measured = { ...fixtures.projected.snapshots[0], provider: "CURSOR" };
+  assert.deepEqual(connectedProviders({ snapshots: [measured], flags: [unlimited] })
+    .map((provider) => [provider.code, provider.note]), [["CURSOR", null]]);
+  // A real problem beside the note still reaches Needs attention.
+  assert.deepEqual(attentionFlags([unlimited, { provider: "CURSOR", reason: "stale", fixKind: "open_app" }], [])
+    .map((flag) => flag.fixKind), ["open_app"]);
+  const doc = fakeDocument();
+  const mount = doc.createElement("div");
+  renderConnected(doc, mount, connected);
+  const name = providerName("CURSOR");
+  assert.equal(mount.all((node) => "connectedRow" in node.dataset)[0].textContent,
+    `${name}${say("sourceLocal", { name })}${say("unlimitedNote")}${say("connected")}`);
+  assert.equal(mount.all((node) => node.dataset.note === "unlimited").length, 1);
+  assert.deepEqual(leaks(spoken(mount)), []);
+  // The unlimited row itself never becomes a meter.
+  const row = { ...fixtures.projected.snapshots[0], provider: "CURSOR", availability: "unlimited", value: 0 };
+  assert.deepEqual(projectReadings(JSON.stringify({ snapshots: [row], flags: [] }), null, now).snapshots, []);
+});
+
+test("an unlimited key answer reaches Connected as a note through the real parser", () => {
+  const report = normalizeMetersReport(parseOpenrouterPayload({ data: { limit: null, limit_remaining: null, usage: 12.47 } }, now));
+  assert.deepEqual(report.rejected, []);
+  const rows = report.snapshots.map((row) => ({ ...row, accountId: "openrouter-key" }));
+  const projected = projectSnapshots(rows, now, new Map([["OPENROUTER", new Set(["openrouter-key"])]]));
+  assert.deepEqual(projected.snapshots, []);
+  const attention = attentionFlags(projected.flags, projected.snapshots);
+  assert.deepEqual(attention, []);
+  const connected = connectedProviders({
+    snapshots: projected.snapshots, connections: [{ provider: "openrouter", state: "CONNECTED" }],
+    flags: projected.flags, attention,
+  });
+  assert.deepEqual(connected.map((provider) => [provider.code, provider.note]), [["OPENROUTER", "unlimited"]]);
+});
+
+test("an unlimited answer alone never makes a provider Connected", () => {
+  const unlimited = { provider: "OPENROUTER", reason: "unlimited", fixKind: "unsupported" };
+  assert.deepEqual(connectedProviders({ snapshots: [], flags: [unlimited] }), []);
+  assert.deepEqual(connectedProviders({ snapshots: [], detections: { providers: [] }, connections: [], flags: [unlimited] }), []);
 });
 
 test("a fix reads by its route: this window's own flow, or sign in in the tool and check again", () => {

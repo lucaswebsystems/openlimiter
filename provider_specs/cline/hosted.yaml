@@ -1,0 +1,66 @@
+# Cline hosted account balance. Registered for the 2.1 providers wave,
+# switched off.
+#
+# Route, from the providers research of 2026-09-29: the documented account
+# and balance endpoints, read with the account token Cline already stores. The
+# account endpoint names the account, the balance endpoint answers for it. The
+# token is read only from a Cline provider configuration proven to be Cline's
+# own hosted account, never from an arbitrary external provider. Cline's token
+# refresh and configuration migration are never invoked: an expired token is
+# unavailable. This is the hosted credit balance only. Cline with external API
+# keys has no allowance of its own, and ClinePass windows need their own
+# documented fields; neither is measured here.
+#
+# Skeleton: nothing below claims a reader, a meter or a surface, and the
+# compiled registry does not contain it.
+
+provider_id: cline
+product_id: hosted
+display_name: Cline
+enabled: false
+
+headlineMeter: null
+acquisitionSurfaces: []
+displaySurfaces: []
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: remote_http_official
+d5Review: Documented balance API with the token Cline already stores; no refresh; no reader yet.
+maturity: planned
+
+source:
+  docs_url: https://docs.cline.bot/enterprise-solutions/api-reference
+  reviewed_at: "2026-09-29"
+  source_status: official
+
+mark:
+  file: cline.svg
+  source_url: https://cline.bot/assets/branding/brand/General%20Logos/Bot/SVG/BOT_LIGHT.svg
+
+availability:
+  requires_plan: any
+  appears_after: local_cli_login
+  absence_is_error: false
+
+support:
+  parser: absent
+  reader: absent
+  auth: absent
+
+connections:
+  - reader: official_remote_api
+    auth_mode: existing_local_cli
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: planned
+  last_verified_at: null
+  fixture_ids:
+    - cline.documented.balance
+
+meters: []

@@ -1,3 +1,4 @@
+import { switchedOnWave } from "./names.js";
 export const CONFIGURED_PROVIDERS_STORAGE_KEY =
   "openlimiter-configured-providers-v1";
 export const REMOVED_PROVIDERS_STORAGE_KEY = "openlimiter-removed-providers-v1";
@@ -82,6 +83,9 @@ const ALLOWED = new Set([
   "GROK",
   "KIMI",
   "CURSOR",
+  /* A 2.1 provider joins once its registry entry is switched on, never
+     before, so a stored list can never name one early. */
+  ...switchedOnWave().map((provider) => provider.code),
 ]);
 
 function normalized(provider) {

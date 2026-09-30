@@ -1,7 +1,11 @@
 import {
   PROVIDER_CODES,
+  WAVE_PROVIDERS,
   floorFixed,
   freshness,
+  freshnessPolicy,
+  meterAmountText,
+  meterReading,
   type Advice,
   type ProviderCode,
   type Snapshot,
@@ -40,8 +44,12 @@ const PROVIDER_CLASS: Record<ProviderCode, "subscription" | "api"> = {
   KIMI: "subscription",
   CURSOR: "subscription",
   MANUAL: "subscription",
-  OPENROUTER: "api"
-};
+  OPENROUTER: "api",
+  /* The 2.1 providers, from their own descriptors. None is ordered, drawn or
+     advised on while it is switched off, because DEFAULT_PROVIDER_ORDER reads
+     PROVIDER_CODES. */
+  ...Object.fromEntries(WAVE_PROVIDERS.map((provider) => [provider.code, provider.statuslineClass]))
+} as Record<ProviderCode, "subscription" | "api">;
 
 export const DEFAULT_PROVIDER_ORDER: readonly ProviderCode[] = [
   ...PROVIDER_CODES.filter((code) => PROVIDER_CLASS[code] === "subscription"),
@@ -214,6 +222,49 @@ interface Reading {
   state: "fresh" | "stale";
 }
 
+/* What a status line can draw, by the meter contract: a used share (a bar,
+   whatever unit it was stated in) or a balance (its amount). A spend, a count
+   and an amount nobody gave a direction have no cell. */
+function drawable(snapshot: Snapshot): boolean {
+  const measure = meterReading(snapshot)?.measure;
+  return measure === "percent" || measure === "balance";
+}
+
+/* How close a reading is to its limit: a used share, or nothing at all for a
+   balance, which has no percentage to compare and so never outranks one. */
+function pressure(snapshot: Snapshot): number {
+  return meterReading(snapshot)?.usedPercent ?? -1;
+}
+
+/* A balance as a cell: its amount in its own unit, and the word that says it
+   is what is left. */
+function balanceCell(label: string, snapshot: Snapshot, state: "fresh" | "stale"): StatuslineCell {
+  const reading = meterReading(snapshot)!;
+  const text = label + " " + (state === "stale" ? "~" : "") + meterAmountText(reading) + " left";
+  return { plain: text, painted: text, percent: -1 };
+}
+
+/**
+ * The rows of the accounts that are active now, when something authoritative
+ * says which they are: a row of any other account of that provider is a
+ * previous account's leftover and is not drawn. A measured row with no
+ * account cannot be attributed, so it stays, exactly as before; an answer
+ * about an account (unlimited) naming none cannot speak for the active one,
+ * so it goes, as it does on the desktop.
+ */
+export function activeAccountRows(
+  snapshots: readonly Snapshot[],
+  active: ReadonlyMap<string, ReadonlySet<string>> | null | undefined
+): Snapshot[] {
+  if (!active) return [...snapshots];
+  return snapshots.filter((snapshot) => {
+    const accounts = active.get(snapshot.provider);
+    if (accounts === undefined) return true;
+    if (snapshot.accountId === undefined) return snapshot.availability === undefined;
+    return accounts.has(snapshot.accountId);
+  });
+}
+
 function readingsFor(
   snapshots: readonly Snapshot[],
   provider: ProviderCode,
@@ -229,7 +280,7 @@ function readingsFor(
   }
   // Dormant accounts remain in the cache, but cannot displace an active account.
   const readings = providerRows
-    .filter((snapshot) => (snapshot.unit === "PERCENT" || snapshot.provider === "OPENROUTER" && snapshot.unit === "CREDITS" || isAvailabilitySnapshot(snapshot)) &&
+    .filter((snapshot) => (drawable(snapshot) || isAvailabilitySnapshot(snapshot)) &&
       Date.parse(now) - (latestAccount.get(snapshot.accountId) ?? 0) <= ONE_DAY * 1000)
     .map((snapshot) => ({
       snapshot,
@@ -249,10 +300,12 @@ function readingsFor(
   );
   // Only measured readings are drawn: a provider that cannot be measured right
   // now is left out of the line entirely, exactly as it is left off Home.
-  // Unlimited is an answer, not a failure, so it stays.
+  // Unlimited is an answer, not a failure, so it stays, but only while the one
+  // freshness policy the desktop uses calls it fresh: an old answer is stale.
   return readings.filter((reading) =>
     !isAvailabilitySnapshot(reading.snapshot) ||
-    reading.snapshot.availability === "unlimited" && !measuredAccounts.has(reading.snapshot.accountId)
+    reading.snapshot.availability === "unlimited" && !measuredAccounts.has(reading.snapshot.accountId) &&
+      freshnessPolicy({ ...reading.snapshot, sourceClass: reading.snapshot.source, now }).availability === "fresh"
   );
 }
 
@@ -279,34 +332,22 @@ export function statuslineCells(
   wide?: boolean
 ): readonly StatuslineCell[] {
   const cells: StatuslineCell[] = [];
+  const cell = (label: string, reading: Reading): StatuslineCell =>
+    isAvailabilitySnapshot(reading.snapshot) ? availabilityCell(label, reading.snapshot, now)
+      : meterReading(reading.snapshot)?.measure === "balance" ? balanceCell(label, reading.snapshot, reading.state)
+      : buildCell(label, reading.snapshot, reading.state, color, wide);
   for (const provider of order) {
-    const readings = readingsFor(snapshots.filter((snapshot) => snapshot.unit === "PERCENT" || isAvailabilitySnapshot(snapshot)), provider, now);
+    const readings = readingsFor(snapshots, provider, now);
     if (readings.length === 0) continue;
     if (meters === "all") {
-      for (const reading of readings) {
-        if (isAvailabilitySnapshot(reading.snapshot)) {
-          cells.push(availabilityCell(provider, reading.snapshot, now));
-          continue;
-        }
-        cells.push(buildCell(
-          provider + ":" + reading.snapshot.meter,
-          reading.snapshot,
-          reading.state,
-          color,
-          wide
-        ));
-      }
+      for (const reading of readings) cells.push(cell(provider + ":" + reading.snapshot.meter, reading));
       continue;
     }
     let worst = readings[0]!;
     for (const reading of readings.slice(1)) {
-      if (reading.snapshot.value > worst.snapshot.value) worst = reading;
+      if (pressure(reading.snapshot) > pressure(worst.snapshot)) worst = reading;
     }
-    if (isAvailabilitySnapshot(worst.snapshot)) {
-      cells.push(availabilityCell(provider, worst.snapshot, now));
-      continue;
-    }
-    cells.push(buildCell(provider, worst.snapshot, worst.state, color, wide));
+    cells.push(cell(provider, worst));
   }
   return cells;
 }
@@ -437,8 +478,9 @@ export const PROVIDER_SHORT_TAGS: Readonly<Record<ProviderCode, string>> = {
   CURSOR: "cu",
   OPENCODE: "oc",
   OPENROUTER: "or",
-  MANUAL: "mn"
-};
+  MANUAL: "mn",
+  ...Object.fromEntries(WAVE_PROVIDERS.map((provider) => [provider.code, provider.statuslineTag]))
+} as Record<ProviderCode, string>;
 
 export const HOST_PROVIDER: Readonly<Record<StatuslineHost, ProviderCode | null>> = {
   claude: "CLAUDE",
@@ -551,9 +593,11 @@ export function barStyleCells(
     } else if (metersSetting === "all") {
       selectedReadings = readings;
     } else {
+      /* A balance has no percentage to compare, so any percent outranks it
+         and it is chosen only when a provider states nothing else. */
       let worst = readings[0]!;
       for (const r of readings.slice(1)) {
-        if (r.snapshot.value > worst.snapshot.value) worst = r;
+        if (pressure(r.snapshot) > pressure(worst.snapshot)) worst = r;
       }
       selectedReadings = [worst];
     }
@@ -575,12 +619,20 @@ export function barStyleCells(
         continue;
       }
 
-      if (provider === "OPENROUTER" && (snapshot.unit === "CREDITS" ||
-          snapshot.currency === "USD" && snapshot.limitAmount !== undefined && snapshot.usedAmount !== undefined)) {
-        const balance = snapshot.unit === "CREDITS" ? snapshot.value : snapshot.limitAmount! - snapshot.usedAmount!;
-        const amount = (stale ? "~" : "") + "$" + balance.toFixed(2);
-        const band = balance < 1 ? 95 : balance < 5 ? 65 : 0;
-        cells.push({ plain: "or " + amount, painted: "or " + (color ? paintBand(amount, band, "fresh") : amount), percent: band });
+      const measured = meterReading(snapshot);
+      /* Balance cells, for any provider. A priced provider's spend against a
+         dollar limit is shown as what is left of it, which is how OpenRouter
+         has always read; a stated balance is shown as itself. Only a dollar
+         balance is banded, because the thresholds are dollars. */
+      const moneyLeft = PROVIDER_CLASS[provider] === "api" && measured?.measure === "percent" &&
+        measured.money?.currency === "USD" ? measured.money.limitAmount - measured.money.usedAmount : null;
+      if (moneyLeft !== null || measured?.measure === "balance") {
+        const dollars = moneyLeft ?? (measured?.currency === "USD" ? measured.value : null);
+        const amount = (stale ? "~" : "") + (moneyLeft !== null ? "$" + moneyLeft.toFixed(2) : meterAmountText(measured!));
+        const band = dollars === null ? 0 : dollars < 1 ? 95 : dollars < 5 ? 65 : 0;
+        const tag = providerTag || shortTag;
+        cells.push({ plain: tag + " " + amount, painted: tag + " " +
+          (color && dollars !== null ? paintBand(amount, band, "fresh") : amount), percent: band });
         continue;
       }
 

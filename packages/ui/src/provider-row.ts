@@ -3,6 +3,9 @@ import {
   failureSentence,
   floorFixed,
   freshness,
+  meterAmountText,
+  meterReading,
+  moneyText,
   type ProviderCode,
   type ProviderFailure,
   type Snapshot,
@@ -10,6 +13,7 @@ import {
   type SnapshotSource,
   type SnapshotState,
 } from "@openlimiter/core";
+import { OFFICIAL_MARKS } from "./marks/official.js";
 import { PROVIDER_RECOGNITION_ORDER } from "./provider-connect.js";
 
 // Home and Connections consume the same projection as the native Rail and tray.
@@ -23,7 +27,11 @@ export interface ProviderWindowView {
   state: SnapshotState;
   stateLabel: string;
   tone: HeadroomTone;
-  metricKind: "percent" | "bounded_spend" | "unbounded_spend";
+  /**
+   * The meter contract's measure, as this row draws it. Only a percent (with
+   * or without money behind it) has a bar; every other kind is its amount.
+   */
+  metricKind: "percent" | "bounded_spend" | "unbounded_spend" | "balance" | "count" | "amount";
   usedPercent: number | null;
   readout: string;
   detail: string;
@@ -65,6 +73,16 @@ const PROVIDER_NAMES: Record<ProviderCode, string> = {
   KIMI: "Kimi",
   CURSOR: "Cursor",
   MANUAL: "Manual",
+  /* The 2.1 providers, named now so no lane edits this table. None of them has
+     a row while its code is pending (see PENDING_PROVIDER_CODES in core). */
+  SYNTHETIC: "Synthetic",
+  ZAI: "Z.ai",
+  MINIMAX: "MiniMax",
+  CLINE: "Cline",
+  AUGMENT: "Augment Code",
+  AMP: "Amp",
+  KILO: "Kilo Code",
+  COPILOT: "GitHub Copilot",
 };
 
 const PROVIDER_CODE_BY_SPEC_ID: Readonly<
@@ -80,6 +98,16 @@ const PROVIDER_CODE_BY_SPEC_ID: Readonly<
   "opencode/opencode": "OPENCODE",
   "openrouter/api": "OPENROUTER",
   "openlimiter/manual": "MANUAL",
+  /* The 2.1 registry skeletons. A spec only reaches the directory once its
+     lane gives it a directory row, so these change nothing until then. */
+  "synthetic/subscription": "SYNTHETIC",
+  "zai/coding-plan": "ZAI",
+  "minimax/token-plan": "MINIMAX",
+  "cline/hosted": "CLINE",
+  "augment/auggie": "AUGMENT",
+  "amp/cli": "AMP",
+  "kilo/cli": "KILO",
+  "github/copilot": "COPILOT",
 };
 
 const DEFAULT_PROVIDER_CODES: readonly ProviderCode[] =
@@ -88,8 +116,27 @@ const DEFAULT_PROVIDER_CODES: readonly ProviderCode[] =
     return provider === undefined ? [] : [provider];
   });
 
+/**
+ * A 2.1 provider's official mark: the vendor's own file, unmodified, drawn as
+ * an image inside the same 24 unit box every mark fills. An image keeps the
+ * file's own stylesheet and ids to itself, so no vendor file can restyle the
+ * page around it, and no provider lane decides how its mark is drawn.
+ */
+function officialMark(code: keyof typeof OFFICIAL_MARKS): string {
+  return '<svg viewBox="0 0 24 24" aria-hidden="true"><image href="' + OFFICIAL_MARKS[code] +
+    '" width="24" height="24"/></svg>';
+}
+
 const PROVIDER_MARKS: Record<ProviderCode, string> = {
   CURSOR: "C",
+  SYNTHETIC: officialMark("SYNTHETIC"),
+  ZAI: officialMark("ZAI"),
+  MINIMAX: officialMark("MINIMAX"),
+  CLINE: officialMark("CLINE"),
+  AUGMENT: officialMark("AUGMENT"),
+  AMP: officialMark("AMP"),
+  KILO: officialMark("KILO"),
+  COPILOT: officialMark("COPILOT"),
   CLAUDE:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"/></svg>',
   OPENROUTER:
@@ -372,13 +419,47 @@ function sourceLine(snapshot: Snapshot): string {
     : SOURCE_LABELS[snapshot.source] + ", " + precision;
 }
 
+/** Words for a measure with no bar: what is left, spent, used, or just the amount. */
+const DIRECTION_WORDS: Readonly<Record<"balance" | "spend" | "count" | "amount", string>> = {
+  balance: " left",
+  spend: " spent",
+  count: " used",
+  amount: "",
+};
+
 function toWindowView(snapshot: Snapshot, now: string): ProviderWindowView {
   const state = freshness(snapshot.observedAt, snapshot.expiresAt, now);
   const label = windowName(snapshot.meter, snapshot.provider);
-  const usedPercent = state === "unknown" ? null : clampPercent(snapshot.value);
-  const tone = usedPercent === null ? "none" : headroomTone(usedPercent);
+  const reading = meterReading(snapshot);
   const resetLabel =
     state === "unknown" ? null : resetCountdown(snapshot.resetAt, now);
+
+  /* The meter contract decides what the number is. Anything but a percent is
+     drawn as its amount, in its own unit, with no bar and no band: only a
+     percent has a denominator to draw against. */
+  if (state !== "unknown" && reading !== null && reading.measure !== "percent") {
+    const amount = meterAmountText(reading);
+    const readout = amount + DIRECTION_WORDS[reading.measure];
+    const detail = reading.measure === "spend" ? "No budget ceiling" : "No stated limit";
+    const reset = resetLabel === null ? "" : ", " + resetLabel.toLowerCase();
+    return {
+      key: snapshot.meter,
+      label,
+      state,
+      stateLabel: STATE_LABELS[state],
+      tone: "none",
+      metricKind: reading.measure === "spend" ? "unbounded_spend" : reading.measure,
+      usedPercent: null,
+      readout,
+      detail,
+      resetLabel,
+      accessibleLabel: label + ", " + readout + ", " + detail + reset,
+    };
+  }
+
+  const usedPercent =
+    state === "unknown" || reading === null ? null : clampPercent(reading.value);
+  const tone = usedPercent === null ? "none" : headroomTone(usedPercent);
 
   if (usedPercent === null) {
     return {
@@ -398,29 +479,11 @@ function toWindowView(snapshot: Snapshot, now: string): ProviderWindowView {
 
   const used = floorFixed(usedPercent, 1);
   const available = floorFixed(100 - usedPercent, 1);
-  const hasMoney =
-    snapshot.usedAmount !== undefined &&
-    snapshot.limitAmount !== undefined &&
-    snapshot.currency !== undefined;
-  const unboundedSpend = snapshot.unit === "CREDITS" && !hasMoney;
-  const metricKind = hasMoney
-    ? "bounded_spend"
-    : unboundedSpend
-    ? "unbounded_spend"
-    : "percent";
-  const readout = hasMoney
-    ? "$" + floorFixed(snapshot.usedAmount ?? 0, 2)
-    : unboundedSpend
-    ? floorFixed(snapshot.value, 2) + " credits spent"
-    : used + "%";
-  const detail = hasMoney
-    ? "$" +
-      floorFixed(snapshot.limitAmount ?? 0, 2) +
-      " limit, " +
-      available +
-      "% free"
-    : unboundedSpend
-    ? "No budget ceiling"
+  const money = reading?.money ?? null;
+  const metricKind = money !== null ? "bounded_spend" : "percent";
+  const readout = money !== null ? moneyText(money.usedAmount, money.currency) : used + "%";
+  const detail = money !== null
+    ? moneyText(money.limitAmount, money.currency) + " limit, " + available + "% free"
     : available + "% free";
   const reset = resetLabel === null ? "" : ", " + resetLabel.toLowerCase();
 
@@ -429,9 +492,9 @@ function toWindowView(snapshot: Snapshot, now: string): ProviderWindowView {
     label,
     state,
     stateLabel: STATE_LABELS[state],
-    tone: unboundedSpend ? "none" : tone,
+    tone,
     metricKind,
-    usedPercent: unboundedSpend ? null : usedPercent,
+    usedPercent,
     readout,
     detail,
     resetLabel,
@@ -600,12 +663,17 @@ export function windowForMetric(
 }
 
 function meterMarkup(window: ProviderWindowView, className: string): string {
-  if (window.metricKind === "unbounded_spend") {
+  /* No bar for anything that is not a percent: a bar would claim a
+     denominator the provider never stated. */
+  if (window.metricKind !== "percent" && window.metricKind !== "bounded_spend") {
     return (
       '<span class="' +
       className +
       ' neutral" aria-label="' +
-      escapeText(window.label + ", no budget ceiling") +
+      escapeText(
+        window.label +
+          (window.metricKind === "unbounded_spend" ? ", no budget ceiling" : ", " + window.readout)
+      ) +
       '"></span>'
     );
   }

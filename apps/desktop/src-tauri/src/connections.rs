@@ -1226,7 +1226,12 @@ mod tests {
                 }
             }
         }
-        assert_eq!(stored, crate::reader_registry::ReaderId::ALL.len());
+        /* A switched off provider stores nothing: its pairings are refused. */
+        let routed = crate::reader_registry::ReaderId::ALL
+            .into_iter()
+            .filter(|reader| reader.provider().enabled())
+            .count();
+        assert_eq!(stored, routed);
         assert_eq!(store.list().expect("list").len(), stored);
     }
 

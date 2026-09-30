@@ -1,4 +1,4 @@
-import { freshness, normalizeMeters, type RawMeter } from "@openlimiter/core";
+import { WAVE_PROVIDERS, freshness, normalizeMeters, type RawMeter } from "@openlimiter/core";
 import { describe, expect, it } from "vitest";
 import providerSpecs from "../../../provider_specs/provider-specs.json" with { type: "json" };
 import {
@@ -191,11 +191,19 @@ describe.each(cases)("$name parser", ({ parser, fixture, provider, huge }) => {
 });
 
 describe("connector contracts", () => {
+  /* A 2.1 connector is registered once its provider is switched on; its
+     labels are its registry entry's, which the honesty test below holds. */
+  const wave = new Set(WAVE_PROVIDERS.map((provider) => provider.code.toLowerCase()));
+
   it("ships ten connectors with only Cursor verified on fixtures", () => {
-    expect(connectors).toHaveLength(10);
-    expect(connectors.every((connector) => connector.labels.verification ===
+    const shipped = connectors.filter((connector) => !wave.has(connector.id));
+    expect(shipped).toHaveLength(10);
+    expect(shipped.every((connector) => connector.labels.verification ===
       (connector.id === "cursor" ? "VERIFIED_FIXTURES" : "UNVERIFIED")))
       .toBe(true);
+    expect(connectors.filter((connector) => wave.has(connector.id)).map((connector) => connector.id).sort())
+      .toEqual(WAVE_PROVIDERS.filter((provider) => provider.enabled)
+        .map((provider) => provider.code.toLowerCase()).sort());
   });
 
   it("detects using only explicit environment markers", () => {
@@ -273,6 +281,11 @@ describe("connector contracts", () => {
        assuming JSON. Assuming it made the OpenCode reader unreachable from the
        ingest command entirely, because a logged in HTML page is not JSON. */
     for (const connector of connectors) {
+      /* A 2.1 connector declares whichever its vendor's answer is. */
+      if (wave.has(connector.id)) {
+        expect(["json", "text"]).toContain(connector.encoding);
+        continue;
+      }
       const expected = connector.id === "opencode" ? "text" : "json";
       expect(connector.encoding).toBe(expected);
     }

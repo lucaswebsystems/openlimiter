@@ -269,6 +269,16 @@ const PROVIDER_NAMES: Record<ProviderCode, string> = {
   KIMI: "Kimi",
   CURSOR: "Cursor",
   MANUAL: "Manual",
+  /* The 2.1 providers. The engine drops their rows until each is switched on,
+     so these words wait here and no lane edits this table. */
+  SYNTHETIC: "Synthetic",
+  ZAI: "Z.ai",
+  MINIMAX: "MiniMax",
+  CLINE: "Cline",
+  AUGMENT: "Augment Code",
+  AMP: "Amp",
+  KILO: "Kilo Code",
+  COPILOT: "GitHub Copilot",
 };
 
 export function providerName(code: string): string {
@@ -287,6 +297,14 @@ const PROVIDER_ORIGIN: Record<ProviderCode, string> = {
   KIMI: "Official local CLI session",
   CURSOR: "Local editor session",
   MANUAL: "Written down by you",
+  SYNTHETIC: "Your own Synthetic key",
+  ZAI: "Your own Z.ai key",
+  MINIMAX: "Your own MiniMax key",
+  CLINE: "Cline account session",
+  AUGMENT: "Official local CLI session",
+  AMP: "Official local CLI session",
+  KILO: "Official local CLI session",
+  COPILOT: "Official local CLI session",
 };
 
 export function providerOrigin(code: string): string {
@@ -345,6 +363,14 @@ const PROVIDER_DEFAULT_SOURCE: Record<ProviderCode, SourceState> = {
   KIMI: "CONNECTED",
   CURSOR: "CONNECTED",
   MANUAL: "MANUAL",
+  SYNTHETIC: "IMPORT_ONLY",
+  ZAI: "IMPORT_ONLY",
+  MINIMAX: "IMPORT_ONLY",
+  CLINE: "IMPORT_ONLY",
+  AUGMENT: "IMPORT_ONLY",
+  AMP: "IMPORT_ONLY",
+  KILO: "IMPORT_ONLY",
+  COPILOT: "IMPORT_ONLY",
 };
 
 /**

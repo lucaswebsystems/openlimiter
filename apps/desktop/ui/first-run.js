@@ -1,5 +1,6 @@
 export const FIRST_RUN_STORAGE_KEY = "openlimiter-first-run-complete-v1";
 
+import { switchedOnWave } from "./names.js";
 import {
   configureProvider,
   readRemovedProviders,
@@ -203,7 +204,24 @@ export const INSTALL_LINES = Object.freeze(
   ),
 );
 
-const PROVIDERS = CONNECT_PROVIDERS;
+/**
+ * The first run row of each 2.1 provider switched on in a registry, built
+ * from its directory row alone: a key provider is added in Connections, a
+ * command line provider is verified on install, like Grok and Kimi. No
+ * provider writes a row here.
+ */
+export function waveConnectRows(registry) {
+  return switchedOnWave(registry).map(({ code, name, access }) => Object.freeze(access === "key"
+    ? { code, name, line: "Reads your quota from your own " + name + " key.", keyOnly: true }
+    : { code, name, line: "Reads the " + name + " login on this machine.", verifiedOnInstall: true }));
+}
+
+/* The rows this build shows: the providers that shipped before the 2.1 wave,
+   then every 2.1 provider this build has switched on. */
+const PROVIDERS = [...CONNECT_PROVIDERS, ...waveConnectRows()];
+
+/* One sentence for every provider read from a key the person adds. */
+const keyNote = (name) => "Add your " + name + " key in Connections when you want this bar.";
 
 const KNOWN_CODES_BY_COMPACT = new Map(
   PROVIDERS.map((provider) => [provider.code.replaceAll("_", ""), provider.code]),
@@ -598,7 +616,7 @@ export function rowAction(provider, detection, signals, quota = null) {
     return { kind: "note", note: VERIFIED_ON_INSTALL };
   }
   if (provider.keyOnly === true) {
-    return { kind: "note", note: "Add your OpenRouter key in Connections when you want this bar." };
+    return { kind: "note", note: keyNote(provider.name) };
   }
   if (state === "logged_out" && provider.deviceSignIn === true) {
     return { kind: "signin", label: SIGN_IN };
@@ -643,7 +661,6 @@ export function firstRunCopyStrings() {
     CLAUDE_POLL_NOTE,
     "Run this in your terminal.",
     "Open this in your browser.",
-    "Add your OpenRouter key in Connections when you want this bar.",
     "Sign in inside the CLI, then reopen OpenLimiter.",
     "Connect this one in Connections when you want its bar.",
   ];
@@ -655,8 +672,9 @@ export function firstRunCopyStrings() {
     strings.push(signInWayFailureSentence({ reason: "unconfigured" }, way.label));
     strings.push(signInWayFailureSentence({ reason: "network" }, way.label));
   }
-  for (const provider of CONNECT_PROVIDERS) {
+  for (const provider of PROVIDERS) {
     strings.push(provider.name, provider.line);
+    if (provider.keyOnly === true) strings.push(keyNote(provider.name));
   }
   for (const signals of [
     { statuslineWired: true },

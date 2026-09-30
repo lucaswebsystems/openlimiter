@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ProviderCode, Snapshot } from "@openlimiter/core";
+import { PENDING_PROVIDER_CODES, type ProviderCode, type Snapshot } from "@openlimiter/core";
 import {
   buildProviderAccountRows,
   closestToLimit,
@@ -286,9 +286,13 @@ describe("provider account rows", () => {
   });
 
   it("keeps spend without a ceiling neutral", () => {
+    /* The meter contract: a non percent reading says which way it points
+       through its kind. A spend says so; see the next test for one that does
+       not. */
     const spend: Snapshot = {
       ...snapshot("OPENROUTER", "CREDITS", 12.47),
       unit: "CREDITS",
+      kind: "spend",
     };
     const row = buildProviderAccountRows([spend], NOW, [], {
       providers: ["OPENROUTER"],
@@ -303,6 +307,62 @@ describe("provider account rows", () => {
     const markup = providerRowMarkup(row!);
     expect(markup).toContain('class="window-meter neutral"');
     expect(markup).not.toContain('role="progressbar"');
+  });
+
+  it("says no direction for credits whose reader never stated one", () => {
+    const bare: Snapshot = { ...snapshot("OPENROUTER", "CREDITS", 12.47), unit: "CREDITS" };
+    const window = buildProviderAccountRows([bare], NOW, [], { providers: ["OPENROUTER"] })[0]?.windows[0];
+    expect(window).toMatchObject({ readout: "12.47 credits", metricKind: "amount", tone: "none", usedPercent: null });
+    expect(window?.readout).not.toMatch(/spent|left/u);
+  });
+
+  it("draws every unit of the meter contract in its own words, and only a percent as a bar", () => {
+    /* Any provider: the contract is per reading. KIMI stands in for a provider
+       that states one reading in each unit. */
+    const at = (meter: string, value: number, extra: Partial<Snapshot>): Snapshot =>
+      ({ ...snapshot("KIMI", meter, value), ...extra });
+    const row = buildProviderAccountRows([
+      at("WEEKLY", 42, {}),
+      at("BALANCE", 45.2, { unit: "CREDITS", kind: "money_balance" }),
+      at("WALLET", 12.34, { unit: "CREDITS", kind: "money_balance", currency: "USD" }),
+      at("YUAN_WALLET", 8, { unit: "CREDITS", kind: "money_balance", currency: "CNY" }),
+      at("SPENT", 3.2, { unit: "CREDITS", kind: "spend", currency: "USD" }),
+      at("REQUESTS", 120, { unit: "REQUESTS", kind: "token_count" }),
+      at("PREMIUM_LEFT", 30, { unit: "REQUESTS", kind: "money_balance" }),
+    ], NOW, [], { providers: ["KIMI"] })[0]!;
+    const byKey = new Map(row.windows.map((window) => [window.key, window]));
+    expect(byKey.get("WEEKLY")).toMatchObject({ metricKind: "percent", readout: "42.0%", usedPercent: 42, tone: "ok" });
+    expect(byKey.get("BALANCE")).toMatchObject({ metricKind: "balance", readout: "45.20 credits left", usedPercent: null, tone: "none" });
+    expect(byKey.get("WALLET")).toMatchObject({ metricKind: "balance", readout: "$12.34 left", usedPercent: null });
+    expect(byKey.get("YUAN_WALLET")).toMatchObject({ metricKind: "balance", readout: "CN¥8.00 left", usedPercent: null });
+    expect(byKey.get("SPENT")).toMatchObject({ metricKind: "unbounded_spend", readout: "$3.20 spent", detail: "No budget ceiling" });
+    expect(byKey.get("REQUESTS")).toMatchObject({ metricKind: "count", readout: "120 requests used", usedPercent: null });
+    expect(byKey.get("PREMIUM_LEFT")).toMatchObject({ metricKind: "balance", readout: "30 requests left" });
+    const markup = providerRowMarkup(row);
+    /* One bar, for the one percent. Every other reading is its amount. */
+    expect(markup.match(/role="progressbar"/gu)).toHaveLength(1);
+    expect(markup).not.toContain("45.2%");
+    expect(markup).not.toContain("120%");
+  });
+
+  it("never draws an unlimited account as a zero percent meter", () => {
+    const unlimited: Snapshot = { ...snapshot("CURSOR", "CREDITS", 0), availability: "unlimited" };
+    const window = buildProviderAccountRows([unlimited], NOW, [], { providers: ["CURSOR"] })[0]?.windows[0];
+    expect(window).toMatchObject({ usedPercent: null, readout: "Unknown" });
+    expect(providerRowMarkup(buildProviderAccountRows([unlimited], NOW, [], { providers: ["CURSOR"] })[0]!))
+      .not.toContain("0.0%");
+  });
+
+  it("names every 2.1 provider without a code, before any of them is switched on", () => {
+    for (const provider of ["SYNTHETIC", "ZAI", "MINIMAX", "CLINE", "AUGMENT", "AMP", "KILO", "COPILOT"] as const) {
+      const row = buildProviderAccountRows([], NOW, [], { providers: [provider] })[0]!;
+      expect(row.providerLabel).not.toBe(provider);
+      expect(row.providerLabel).toMatch(/^[A-Z][A-Za-z. ]+$/u);
+    }
+    /* And none still pending is on the default list, which is how Home stays empty of them. */
+    for (const provider of PENDING_PROVIDER_CODES) {
+      expect(buildProviderAccountRows([snapshot(provider, "WEEKLY", 10)], NOW, [])).toEqual([]);
+    }
   });
 
   it("labels every Grok, Kimi, and Gemini window after their connectors land", () => {

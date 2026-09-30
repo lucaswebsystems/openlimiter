@@ -25,6 +25,7 @@
  * differently from this one is a spec this script refuses.
  */
 
+import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -242,12 +243,18 @@ function parseSequence(tokens, start, indent) {
 const URL_LITERAL = /\bhttps?:\/\//giu;
 const SINGLE_HTTPS_URL = /^https:\/\/[^\s"']+$/u;
 
+/*
+ * The second key allowed to hold a link: where a provider's official mark was
+ * fetched from, inside the `mark` block. Like a docs_url it is the opposite of
+ * a runtime address, it tells a reviewer where to check the artwork by hand,
+ * and it is held to the same rule: its value is exactly one https address.
+ */
 export function refuseUrlLiterals(text, file) {
   const lines = text.split(/\r?\n/u);
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
     const where = file + " line " + String(index + 1);
-    const documentation = /^\s*docs_url:\s*(.*)$/u.exec(line);
+    const documentation = /^\s*(?:docs_url|source_url):\s*(.*)$/u.exec(line);
     if (documentation !== null) {
       /* Quotes are stripped the way the scalar reader strips them, so a quoted
          and an unquoted docs_url are held to the same rule. */
@@ -267,7 +274,7 @@ export function refuseUrlLiterals(text, file) {
       if (literalCount !== 1 || !SINGLE_HTTPS_URL.test(value)) {
         fail(
           where,
-          "docs_url must be exactly one https address and nothing else. A value " +
+          "docs_url and source_url must be exactly one https address and nothing else. A value " +
             "carrying a second address, a trailing comment or any other text is " +
             "how a runtime URL reaches a specification through the one key that " +
             "is allowed to hold a link"
@@ -419,6 +426,13 @@ const AUTH_SUPPORT = new Set(["implemented", "not_required", "absent"]);
  * registry that could redirect a credential, and this file is edited far more
  * often, and reviewed far less carefully, than the network layer.
  */
+/*
+ * The 2.1 HTTP providers own the last four entries of each set: Synthetic,
+ * Z.ai, MiniMax and Cline hosted. They exist in the Rust enums too, routed and
+ * closed until each provider is switched on. The command line providers
+ * (Augment, Amp, Kilo, Copilot) read locally and have no entry, like every
+ * local reader.
+ */
 const READER_IDS = new Set([
   "cursor_usage",
   "openrouter_key",
@@ -428,7 +442,11 @@ const READER_IDS = new Set([
   "gemini_cli_quota",
   "opencode_usage",
   "grok_usage",
-  "kimi_usage"
+  "kimi_usage",
+  "synthetic_quotas",
+  "zai_quota",
+  "minimax_token_plan",
+  "cline_balance"
 ]);
 const ENDPOINT_IDS = new Set([
   "cursor_usage",
@@ -439,7 +457,11 @@ const ENDPOINT_IDS = new Set([
   "gemini_cli_quota",
   "opencode_usage",
   "grok_usage",
-  "kimi_usage"
+  "kimi_usage",
+  "synthetic_quotas",
+  "zai_quota",
+  "minimax_token_plan",
+  "cline_balance"
 ]);
 const CREDENTIAL_KINDS = new Set([
   "cursor_session",
@@ -450,7 +472,11 @@ const CREDENTIAL_KINDS = new Set([
   "gemini_cli_session",
   "opencode_browser_session",
   "grok_session",
-  "kimi_session"
+  "kimi_session",
+  "synthetic_key",
+  "zai_key",
+  "minimax_key",
+  "cline_account_token"
 ]);
 const COLLECTION_SUPPORT = new Set(["implemented"]);
 
@@ -484,7 +510,16 @@ const CONNECTOR_IDS = new Set([
   "opencode",
   "grok",
   "kimi",
-  "manual"
+  "manual",
+  /* The 2.1 providers, closed here before any of them ships a connector. */
+  "synthetic",
+  "zai",
+  "minimax",
+  "cline",
+  "augment",
+  "amp",
+  "kilo",
+  "copilot"
 ]);
 const HONESTY_KEYS = new Set([
   "connector_id",
@@ -700,7 +735,64 @@ function validateMeter(meter, where) {
   };
 }
 
+/*
+ * Where a provider's official mark came from.
+ *
+ * `file` names the vendor's own SVG in packages/ui/src/marks, kept unmodified,
+ * and `source_url` the one https address it was fetched from. Both null
+ * records that no official SVG exists, which is a finding rather than a gap:
+ * the provider then shows no mark, and nobody draws one. Optional, because the
+ * marks the product already shipped are recorded in that folder's LICENSES.md.
+ */
+const MARK_FILE = /^[a-z0-9][a-z0-9-]*\.svg$/u;
+export const MARKS_DIRECTORY = path.join(repositoryRoot, "packages", "ui", "src", "marks");
+
+function validateMark(document, file) {
+  const block = document["mark"];
+  if (block === undefined) return null;
+  const where = file + " mark";
+  if (!isPlainObject(block)) fail(where, "mark must be a block");
+  for (const key of Object.keys(block)) {
+    if (key !== "file" && key !== "source_url") fail(where, "mark may not carry " + key);
+  }
+  const markFile = block["file"];
+  const sourceUrl = block["source_url"];
+  if (markFile === null && sourceUrl === null) return { file: null, sourceUrl: null };
+  if (typeof markFile !== "string" || !MARK_FILE.test(markFile)) {
+    fail(where, "file must name one svg in packages/ui/src/marks, or be null");
+  }
+  if (!existsSync(path.join(MARKS_DIRECTORY, markFile))) {
+    fail(where, "file " + markFile + " is not in packages/ui/src/marks");
+  }
+  if (typeof sourceUrl !== "string" || !SINGLE_HTTPS_URL.test(sourceUrl)) {
+    fail(where, "source_url must be the one https address the mark was fetched from");
+  }
+  return { file: markFile, sourceUrl };
+}
+
+/*
+ * source_url is a link only as the direct child of a top level `mark` block;
+ * anywhere else it would be an address smuggled past the literal check above.
+ */
+function refuseStraySourceUrls(value, where, allowed) {
+  if (Array.isArray(value)) {
+    for (const item of value) refuseStraySourceUrls(item, where, false);
+    return;
+  }
+  if (!isPlainObject(value)) return;
+  for (const [key, inner] of Object.entries(value)) {
+    if (key === "source_url" && !allowed) fail(where, "source_url belongs only in the mark block");
+    refuseStraySourceUrls(inner, where, false);
+  }
+}
+
 export function validateSpec(document, file, relative, fixtureIds) {
+  if (isPlainObject(document)) {
+    for (const [key, inner] of Object.entries(document)) {
+      if (key === "source_url") fail(file, "source_url belongs only in the mark block");
+      refuseStraySourceUrls(inner, file, key === "mark");
+    }
+  }
   if (!isPlainObject(document)) fail(file, "the document must be a block");
   const providerId = requireString(document, file, "provider_id");
   const productId = requireString(document, file, "product_id");
@@ -743,6 +835,17 @@ export function validateSpec(document, file, relative, fixtureIds) {
   }
   const noQuotaConcept = document.noQuotaConcept === undefined
     ? false : requireBoolean(document, file, "noQuotaConcept");
+  /*
+   * A registered skeleton: a provider every closed list already names, whose
+   * lane has not built it yet. It is validated like any spec, so a lane cannot
+   * start from a broken one, and it is compiled into nothing: no surface, no
+   * count and no directory can see it until its lane sets this to true.
+   * Absent means true, so every spec written before skeletons existed still
+   * compiles exactly as it did.
+   */
+  const enabled = document.enabled === undefined
+    ? true : requireBoolean(document, file, "enabled");
+  const mark = validateMark(document, file);
 
   const source = requireObject(document, file, "source");
   const status = requireString(source, file + " source", "source_status", SOURCE_STATUS);
@@ -1014,10 +1117,31 @@ export function validateSpec(document, file, relative, fixtureIds) {
       directory.connectorId !== honesty?.connectorId.replaceAll("_", "-")) {
     fail(file, "directory connectorId must match the declared connector");
   }
+  /*
+   * What a skeleton may not claim. Every one of these is something a surface
+   * reads, so a skeleton carrying one would be a provider half switched on.
+   * Its meters may be empty: a skeleton documents a route, and the lane that
+   * captures the real response is the one that states the meters.
+   */
+  if (!enabled) {
+    if (maturity !== "planned") fail(file, "a switched off skeleton is planned");
+    if (parser !== "absent" || reader !== "absent" || auth !== "absent") {
+      fail(file, "a switched off skeleton has no parser, reader or auth");
+    }
+    if (collection !== null || honesty !== null || directory !== null) {
+      fail(file, "a switched off skeleton has no collection, honesty or directory block");
+    }
+    if (acquisitionSurfaces.length !== 0 || displaySurfaces.length !== 0) {
+      fail(file, "a switched off skeleton acquires on no surface and displays on none");
+    }
+    if (noQuotaConcept) fail(file, "a switched off skeleton leaves noQuotaConcept unset");
+  }
   const ids = new Set();
   const meters = [];
   if (!Array.isArray(document.meters)) fail(file, "meters must be a list");
-  if (noQuotaConcept ? document.meters.length !== 0 : document.meters.length === 0) {
+  const skeletonWithoutMeters = !enabled && document.meters.length === 0;
+  if (!skeletonWithoutMeters &&
+      (noQuotaConcept ? document.meters.length !== 0 : document.meters.length === 0)) {
     fail(file, "meters must be empty exactly when noQuotaConcept is true");
   }
   for (const meter of document.meters) {
@@ -1027,8 +1151,8 @@ export function validateSpec(document, file, relative, fixtureIds) {
     meters.push(compiled);
   }
   const headlineMeter = document.headlineMeter;
-  if (noQuotaConcept ? headlineMeter !== null : !ids.has(headlineMeter)) {
-    fail(file, "headlineMeter must name a meter, or be null for noQuotaConcept");
+  if (noQuotaConcept || skeletonWithoutMeters ? headlineMeter !== null : !ids.has(headlineMeter)) {
+    fail(file, "headlineMeter must name a meter, or be null for noQuotaConcept or a skeleton with no meters");
   }
   const weeklyMeter = document.weeklyMeter;
   if (weeklyMeter !== undefined && !ids.has(weeklyMeter)) {
@@ -1048,6 +1172,8 @@ export function validateSpec(document, file, relative, fixtureIds) {
     acquisitionMethod,
     d5Review,
     maturity,
+    enabled,
+    ...(mark === null ? {} : { mark }),
     directory,
     docsUrl: typeof docsUrl === "string" ? docsUrl : null,
     reviewedAt,
@@ -1251,7 +1377,12 @@ const COMPILED_SCHEMA = 2;
  * never edited by hand: the check below fails when it drifts from the YAML,
  * which means a spec change that is not compiled cannot reach a release.
  */
-export function compileRegistry(entries) {
+export function compileRegistry(validated) {
+  /* A switched off skeleton compiles into nothing: the artifacts every surface
+     reads never learn it exists until its lane switches it on. */
+  const entries = validated
+    .filter((entry) => entry.enabled !== false)
+    .map(({ enabled: _enabled, ...entry }) => entry);
   const directoryRows = new Set();
   const directoryOrders = new Set();
   const entryIds = new Set(entries.map((entry) => entry.id));
@@ -1299,10 +1430,21 @@ export const FIXTURES_FILE = path.join(
 
 const FIXTURE_ID_PATTERN = /\bid:\s*"([a-z0-9_.-]+)"/gu;
 
+/*
+ * The 2.1 connector modules, which may declare their own fixtures. Each lane
+ * writes only its own module, so the evidence fixture its spec names can live
+ * there rather than in the shared file above.
+ */
+export const WAVE_CONNECTOR_FILES = [
+  "synthetic", "zai", "minimax", "cline", "augment", "amp", "kilo", "copilot"
+].map((name) => path.join(repositoryRoot, "packages", "connectors", "src", name + ".ts"));
+
 async function readFixtureIds() {
-  const text = await readFile(FIXTURES_FILE, "utf8");
   const found = new Set();
-  for (const match of text.matchAll(FIXTURE_ID_PATTERN)) found.add(match[1]);
+  for (const file of [FIXTURES_FILE, ...WAVE_CONNECTOR_FILES]) {
+    const text = await readFile(file, "utf8");
+    for (const match of text.matchAll(FIXTURE_ID_PATTERN)) found.add(match[1]);
+  }
   return found;
 }
 

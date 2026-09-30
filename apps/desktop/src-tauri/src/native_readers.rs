@@ -152,7 +152,8 @@ fn parse_openrouter(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Sna
         account_id,
     );
     if unlimited {
-        snapshot.kind = Some("availability".to_string());
+        /* No kind: an availability is not a measure, and the cache refuses a
+        kind outside its vocabulary. */
         snapshot.availability = Some("unlimited".to_string());
     } else {
         snapshot.used_amount = Some(usage);
@@ -271,7 +272,6 @@ fn parse_codex(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot
             labels("official-local-tool", "internal-endpoint", "high"),
             account_id,
         );
-        snapshot.kind = Some("availability".to_string());
         snapshot.availability = Some("unlimited".to_string());
         snapshots.push(snapshot);
     }
@@ -665,6 +665,12 @@ pub fn parse_body(
         ReaderId::GrokUsage => parse_grok(body, now_ms, account_id),
         ReaderId::KimiUsage => parse_kimi(body, now_ms, account_id),
         ReaderId::CursorUsage => cursor::parse(body, now_ms, account_id),
+        /* The 2.1 readers answer unsupported (None) from their own modules
+        until each lane writes its parser there. */
+        ReaderId::SyntheticQuotas => crate::providers::synthetic::parse(body, now_ms, account_id),
+        ReaderId::ZaiQuota => crate::providers::zai::parse(body, now_ms, account_id),
+        ReaderId::MinimaxTokenPlan => crate::providers::minimax::parse(body, now_ms, account_id),
+        ReaderId::ClineBalance => crate::providers::cline::parse(body, now_ms, account_id),
     }?;
     // A reading remains live for its provider cadence, not a one minute
     // repaint budget. Explicit only readers retain their existing expiry.

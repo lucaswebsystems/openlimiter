@@ -91,6 +91,138 @@ pub const OPENCODE_WORKSPACE_URL_PREFIX: &str = "https://opencode.ai/workspace/"
 /// The suffix of the second constant address, after the workspace handle.
 pub const OPENCODE_WORKSPACE_URL_SUFFIX: &str = "/go";
 
+/// How a 2.1 HTTP provider's documented read is made, stated as a value in
+/// that provider's own module (`providers/<name>.rs`, its `ENDPOINT`). This
+/// file applies it and adds nothing: no lane writes an address, a verb or a
+/// header here.
+///
+/// An empty `url` is closed: `fetch_endpoint` refuses it before a request is
+/// built, so a provider cannot reach the network until its lane writes the one
+/// documented address, and not then while it is switched off.
+///
+/// Every address it produces must sit on `host`: https, that exact host, port
+/// 443 or none, no user information, `{account}` only inside the path. Both
+/// the first read and the read are checked before any request is built, so a
+/// descriptor, an answer or an account can never send a credential elsewhere.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct HttpDescriptor {
+    /// The one documented https address. `{account}` stands for the account
+    /// the read is about, when the address names one.
+    pub url: &'static str,
+    /// The provider's documented API host, the only host its credential is
+    /// ever sent to.
+    pub host: &'static str,
+    pub method: HttpMethod,
+    /// How the key or account token is presented.
+    pub key: KeyHeader,
+    /// Where `{account}` comes from, when `url` names one.
+    pub account: AccountLookup,
+}
+
+impl HttpDescriptor {
+    /// Whether an address is https on exactly this descriptor's host, port
+    /// 443 or none, with no user information and no placeholder left in it.
+    fn on_host(&self, url: &str) -> bool {
+        !self.host.is_empty()
+            && !url.contains(['{', '}'])
+            && !url.chars().any(char::is_whitespace)
+            && crate::config_credentials::endpoint_belongs_to(url, &[self.host])
+    }
+
+    /// Whether every address this descriptor can produce stays on its host:
+    /// the first read as written, and the read with `{account}` once, inside
+    /// its path, where an identifier cannot reach the host or the query.
+    fn sound(&self) -> bool {
+        match self.account {
+            AccountLookup::None => self.on_host(self.url),
+            AccountLookup::Read { url, .. } => {
+                self.on_host(url)
+                    && account_in_path(self.url)
+                    && self.on_host(&self.url.replacen("{account}", "account", 1))
+            }
+        }
+    }
+}
+
+/// Whether `{account}` appears once in an https address, inside its path.
+fn account_in_path(url: &str) -> bool {
+    let Some(rest) = url.strip_prefix("https://") else {
+        return false;
+    };
+    let Some(path_start) = rest.find(['/', '?', '#']) else {
+        return false;
+    };
+    let path_end = rest.find(['?', '#']).unwrap_or(rest.len());
+    rest[path_start..].starts_with('/')
+        && rest.matches("{account}").count() == 1
+        && rest
+            .find("{account}")
+            .is_some_and(|at| path_start < at && at < path_end)
+}
+
+/// Where the account a read is about comes from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum AccountLookup {
+    /// The address names no account.
+    None,
+    /// A first documented GET, with the same credential, whose JSON answer
+    /// names the account at `path` (Cline asks who the account is, then reads
+    /// its balance). Stated by a lane's descriptor; only tests state it today.
+    #[cfg_attr(not(test), allow(dead_code))]
+    Read {
+        url: &'static str,
+        path: &'static [&'static str],
+    },
+}
+
+/// One header carrying the credential: its name and the text before it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct KeyHeader {
+    pub name: &'static str,
+    pub prefix: &'static str,
+}
+
+impl KeyHeader {
+    /// `Authorization: Bearer <key>`, what most documented APIs ask for.
+    pub(crate) const BEARER: Self = Self {
+        name: "authorization",
+        prefix: "Bearer ",
+    };
+
+    /// Only the authorization header or a vendor's own `x-` header may carry a
+    /// credential, so a descriptor can never set a cookie, a host or a user
+    /// agent (no client identity is ever impersonated).
+    fn allowed(self) -> bool {
+        (self.name == "authorization"
+            || (self.name.starts_with("x-")
+                && self
+                    .name
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')))
+            && !self.prefix.chars().any(char::is_control)
+    }
+
+    /// The header name and value for one secret, marked sensitive.
+    pub(crate) fn apply(
+        self,
+        secret: &str,
+    ) -> Result<(reqwest::header::HeaderName, reqwest::header::HeaderValue), TransportFailure> {
+        if !self.allowed() {
+            return Err(TransportFailure::Protocol);
+        }
+        let name = reqwest::header::HeaderName::from_bytes(self.name.as_bytes())
+            .map_err(|_| TransportFailure::Protocol)?;
+        let text = Zeroizing::new(format!("{}{}", self.prefix, secret));
+        let mut value = reqwest::header::HeaderValue::from_str(&text)
+            .map_err(|_| TransportFailure::Protocol)?;
+        value.set_sensitive(true);
+        Ok((name, value))
+    }
+}
+
+/// Longest account identifier a first read may name.
+const MAX_DESCRIBED_ACCOUNT_CHARS: usize = 128;
+
 /// Every address this process may speak to. Adding a provider means adding a
 /// variant here, in code, in review; nothing at runtime can.
 ///
@@ -128,13 +260,17 @@ pub enum ProviderEndpoint {
     GrokUsage,
     KimiUsage,
     CursorUsage,
+    SyntheticQuotas,
+    ZaiQuota,
+    MinimaxTokenPlan,
+    ClineBalance,
 }
 
 impl ProviderEndpoint {
     /// The whole allowlist, for the tests that prove it closed. The product
     /// itself never needs the list, only a variant at a time.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [ProviderEndpoint; 11] = [
+    pub const ALL: [ProviderEndpoint; 15] = [
         ProviderEndpoint::OpenrouterKey,
         ProviderEndpoint::OpenrouterCredits,
         ProviderEndpoint::CodexUsage,
@@ -146,6 +282,10 @@ impl ProviderEndpoint {
         ProviderEndpoint::GrokUsage,
         ProviderEndpoint::KimiUsage,
         ProviderEndpoint::CursorUsage,
+        ProviderEndpoint::SyntheticQuotas,
+        ProviderEndpoint::ZaiQuota,
+        ProviderEndpoint::MinimaxTokenPlan,
+        ProviderEndpoint::ClineBalance,
     ];
 
     /// The address the first request of this endpoint goes to.
@@ -162,7 +302,41 @@ impl ProviderEndpoint {
             ProviderEndpoint::GrokUsage => GROK_USAGE_URL,
             ProviderEndpoint::KimiUsage => KIMI_USAGE_URL,
             ProviderEndpoint::CursorUsage => CURSOR_USAGE_URL,
+            ProviderEndpoint::SyntheticQuotas
+            | ProviderEndpoint::ZaiQuota
+            | ProviderEndpoint::MinimaxTokenPlan
+            | ProviderEndpoint::ClineBalance => match self.descriptor() {
+                Some(descriptor) => descriptor.url,
+                None => "",
+            },
         }
+    }
+
+    /// The 2.1 provider's own description of its read, from its module.
+    pub(crate) const fn descriptor(self) -> Option<&'static HttpDescriptor> {
+        match self {
+            ProviderEndpoint::SyntheticQuotas => Some(&crate::providers::synthetic::ENDPOINT),
+            ProviderEndpoint::ZaiQuota => Some(&crate::providers::zai::ENDPOINT),
+            ProviderEndpoint::MinimaxTokenPlan => Some(&crate::providers::minimax::ENDPOINT),
+            ProviderEndpoint::ClineBalance => Some(&crate::providers::cline::ENDPOINT),
+            ProviderEndpoint::OpenrouterKey
+            | ProviderEndpoint::OpenrouterCredits
+            | ProviderEndpoint::CodexUsage
+            | ProviderEndpoint::AntigravityQuota
+            | ProviderEndpoint::GeminiCliLoad
+            | ProviderEndpoint::GeminiCliQuota
+            | ProviderEndpoint::OpencodeUsage
+            | ProviderEndpoint::ClaudeOauthUsage
+            | ProviderEndpoint::GrokUsage
+            | ProviderEndpoint::KimiUsage
+            | ProviderEndpoint::CursorUsage => None,
+        }
+    }
+
+    /// Whether this slot holds an address at all. An empty slot is closed: it
+    /// is refused before any request is built.
+    pub const fn filled(self) -> bool {
+        !self.url().is_empty()
     }
 
     /// Whether this endpoint's read takes a second hop through a workspace.
@@ -183,6 +357,14 @@ impl ProviderEndpoint {
             | ProviderEndpoint::GrokUsage
             | ProviderEndpoint::KimiUsage
             | ProviderEndpoint::CursorUsage => HttpMethod::Get,
+            /* A 2.1 read uses the verb its own descriptor states. */
+            ProviderEndpoint::SyntheticQuotas
+            | ProviderEndpoint::ZaiQuota
+            | ProviderEndpoint::MinimaxTokenPlan
+            | ProviderEndpoint::ClineBalance => match self.descriptor() {
+                Some(descriptor) => descriptor.method,
+                None => HttpMethod::Get,
+            },
             ProviderEndpoint::AntigravityQuota
             | ProviderEndpoint::GeminiCliLoad
             | ProviderEndpoint::GeminiCliQuota => HttpMethod::Post,
@@ -204,7 +386,11 @@ impl ProviderEndpoint {
             | ProviderEndpoint::ClaudeOauthUsage
             | ProviderEndpoint::GrokUsage
             | ProviderEndpoint::KimiUsage
-            | ProviderEndpoint::CursorUsage => None,
+            | ProviderEndpoint::CursorUsage
+            | ProviderEndpoint::SyntheticQuotas
+            | ProviderEndpoint::ZaiQuota
+            | ProviderEndpoint::MinimaxTokenPlan
+            | ProviderEndpoint::ClineBalance => None,
         }
     }
 }
@@ -552,6 +738,10 @@ async fn fetch_endpoint_inner<T: Transport>(
     secret: &str,
     provider_account_id: Option<&str>,
 ) -> Result<EndpointOutcome, NetError> {
+    /* An empty slot is closed, and so is a scheme a lane has not written. */
+    if !endpoint.filled() || auth.pending() {
+        return Err(NetError::Protocol);
+    }
     if matches!(
         endpoint,
         ProviderEndpoint::GeminiCliLoad | ProviderEndpoint::GeminiCliQuota
@@ -576,6 +766,12 @@ async fn fetch_endpoint_inner<T: Transport>(
     }
     if endpoint.needs_workspace() {
         return fetch_through_workspace(transport, endpoint, auth, secret).await;
+    }
+    if let Some(descriptor) = endpoint.descriptor() {
+        if provider_account_id.is_some() {
+            return Err(NetError::Protocol);
+        }
+        return fetch_described(transport, endpoint, *descriptor, auth, secret).await;
     }
     if endpoint == ProviderEndpoint::AntigravityQuota {
         if auth != AuthApplication::AntigravitySessionBearer || provider_account_id.is_some() {
@@ -737,6 +933,109 @@ async fn fetch_through_workspace<T: Transport>(
     outcome_of(reply)
 }
 
+/// A 2.1 provider's read, exactly as its descriptor states it: an optional
+/// first read that names the account, then the one documented address. Both
+/// addresses are the descriptor's own https constants; the only value taken
+/// from a response is an account identifier, validated, placed in the path.
+///
+/// The credential belongs to one slot: `auth` must be the scheme of
+/// `endpoint`, and every address must sit on the descriptor's host, all
+/// checked before the first request. `descriptor` is `endpoint.descriptor()`
+/// in the product; tests hand in a stand in, as every real slot is empty.
+pub(crate) async fn fetch_described<T: Transport>(
+    transport: &T,
+    endpoint: ProviderEndpoint,
+    descriptor: HttpDescriptor,
+    auth: AuthApplication,
+    secret: &str,
+) -> Result<EndpointOutcome, NetError> {
+    if described_slot(auth) != Some(endpoint) || !descriptor.sound() {
+        return Err(NetError::Protocol);
+    }
+    let url = match descriptor.account {
+        AccountLookup::None => descriptor.url.to_string(),
+        AccountLookup::Read { url, path } => {
+            let request = EndpointRequest {
+                url,
+                method: HttpMethod::Get,
+                auth,
+                provider_account_id: None,
+                body: None,
+            };
+            let first = outcome_of(transport.send(&request, secret).await.map_err(NetError::from)?)?;
+            /* A failed first read keeps its own status and Retry-After, so the
+            request policy backs off exactly as it would for the second. */
+            let Some(body) = first.body.as_deref() else {
+                return Ok(first);
+            };
+            let account = described_account(body, path).ok_or(NetError::Protocol)?;
+            descriptor.url.replacen("{account}", &account, 1)
+        }
+    };
+    if !descriptor.on_host(&url) {
+        return Err(NetError::Protocol);
+    }
+    let request = EndpointRequest {
+        url: &url,
+        method: descriptor.method,
+        auth,
+        provider_account_id: None,
+        body: None,
+    };
+    outcome_of(transport.send(&request, secret).await.map_err(NetError::from)?)
+}
+
+/// The account a first read names, when it is an identifier and nothing else.
+fn described_account(body: &str, path: &[&str]) -> Option<String> {
+    let root: serde_json::Value = serde_json::from_str(body).ok()?;
+    let mut value = &root;
+    for key in path {
+        value = value.get(*key)?;
+    }
+    let account = match value {
+        serde_json::Value::String(text) => text.clone(),
+        serde_json::Value::Number(number) => number.to_string(),
+        _ => return None,
+    };
+    (!account.is_empty()
+        && account.len() <= MAX_DESCRIBED_ACCOUNT_CHARS
+        && account
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_'))
+    .then_some(account)
+}
+
+/// The one slot a 2.1 scheme's credential belongs to.
+fn described_slot(auth: AuthApplication) -> Option<ProviderEndpoint> {
+    match auth {
+        AuthApplication::SyntheticKey => Some(ProviderEndpoint::SyntheticQuotas),
+        AuthApplication::ZaiKey => Some(ProviderEndpoint::ZaiQuota),
+        AuthApplication::MinimaxKey => Some(ProviderEndpoint::MinimaxTokenPlan),
+        AuthApplication::ClineAccountToken => Some(ProviderEndpoint::ClineBalance),
+        AuthApplication::BearerAuthorization
+        | AuthApplication::ClaudeOauthBearer
+        | AuthApplication::CodexSessionBearer
+        | AuthApplication::AntigravitySessionBearer
+        | AuthApplication::GrokSessionBearer
+        | AuthApplication::KimiSessionBearer
+        | AuthApplication::CursorSessionCookie
+        | AuthApplication::GeminiCliBearer
+        | AuthApplication::BrowserSessionCookie => None,
+    }
+}
+
+/// Which descriptor states how a 2.1 scheme's credential is presented.
+fn described_key(auth: AuthApplication) -> Option<KeyHeader> {
+    described_slot(auth)?.descriptor().map(|descriptor| descriptor.key)
+}
+
+/// Whether an address is on the host of a 2.1 scheme's own slot.
+fn described_origin(auth: AuthApplication, url: &str) -> bool {
+    described_slot(auth)
+        .and_then(ProviderEndpoint::descriptor)
+        .is_some_and(|descriptor| descriptor.on_host(url))
+}
+
 /// One transport reply as an outcome, with the same rules for every endpoint.
 fn outcome_of(reply: TransportReply) -> Result<EndpointOutcome, NetError> {
     let success = (200..=299).contains(&reply.status);
@@ -894,6 +1193,17 @@ fn authenticated_builder(
             credential.push_str(secret);
         }
         AuthApplication::BrowserSessionCookie => credential.push_str(secret),
+        /* A 2.1 scheme is presented the way its descriptor says, below, only
+        to its own slot's host, and never while its provider is switched off. */
+        AuthApplication::SyntheticKey
+        | AuthApplication::ZaiKey
+        | AuthApplication::MinimaxKey
+        | AuthApplication::ClineAccountToken => {
+            if request.auth.pending() || !described_origin(request.auth, request.url) {
+                return Err(TransportFailure::Protocol);
+            }
+            credential.push_str(secret);
+        }
     }
     let mut header_value = reqwest::header::HeaderValue::from_str(&credential)
         .map_err(|_| TransportFailure::Protocol)?;
@@ -960,6 +1270,18 @@ fn authenticated_builder(
             .header(reqwest::header::COOKIE, header_value)
             .header(reqwest::header::USER_AGENT, OPENCODE_USER_AGENT)
             .header(reqwest::header::ACCEPT, "text/html"),
+        AuthApplication::SyntheticKey
+        | AuthApplication::ZaiKey
+        | AuthApplication::MinimaxKey
+        | AuthApplication::ClineAccountToken => {
+            let (name, value) = described_key(request.auth)
+                .ok_or(TransportFailure::Protocol)?
+                .apply(secret)?;
+            builder
+                .header(name, value)
+                .header(reqwest::header::USER_AGENT, OPENLIMITER_USER_AGENT)
+                .header(reqwest::header::ACCEPT, "application/json")
+        }
     };
     if let Some(body) = request.body {
         builder = builder.body(body.to_string());
@@ -1132,7 +1454,7 @@ mod tests {
     fn every_allowlisted_address_is_https() {
         /* Every address the process can reach, including the one built from a
         workspace handle, and none of them may be plain HTTP. */
-        for endpoint in ProviderEndpoint::ALL {
+        for endpoint in ProviderEndpoint::ALL.into_iter().filter(|endpoint| endpoint.filled()) {
             assert!(endpoint.url().starts_with("https://"));
         }
         let handle = WorkspaceHandle::parse("wrk_abc123").expect("a handle");
@@ -1162,6 +1484,252 @@ mod tests {
             Some(GEMINI_CLI_LOAD_BODY)
         );
         assert_eq!(ProviderEndpoint::GeminiCliQuota.body(), None);
+    }
+
+    #[test]
+    fn every_2_1_read_follows_its_own_module_descriptor() {
+        for (endpoint, auth) in [
+            (ProviderEndpoint::SyntheticQuotas, AuthApplication::SyntheticKey),
+            (ProviderEndpoint::ZaiQuota, AuthApplication::ZaiKey),
+            (ProviderEndpoint::MinimaxTokenPlan, AuthApplication::MinimaxKey),
+            (ProviderEndpoint::ClineBalance, AuthApplication::ClineAccountToken),
+        ] {
+            let descriptor = endpoint.descriptor().expect("a 2.1 read is described");
+            assert_eq!(endpoint.url(), descriptor.url);
+            assert_eq!(endpoint.method(), descriptor.method);
+            assert_eq!(described_key(auth), Some(descriptor.key));
+            assert_eq!(described_slot(auth), Some(endpoint));
+            /* A lane's written descriptor keeps every address on its host. */
+            assert!(!endpoint.filled() || descriptor.sound(), "{endpoint:?}");
+        }
+        assert!(ProviderEndpoint::OpenrouterKey.descriptor().is_none());
+        assert_eq!(described_key(AuthApplication::BearerAuthorization), None);
+    }
+
+    #[test]
+    fn a_key_is_presented_only_in_the_header_its_descriptor_names() {
+        let (name, value) = KeyHeader::BEARER.apply("fixture-key").expect("a bearer key");
+        assert_eq!(name.as_str(), "authorization");
+        assert_eq!(value.to_str().unwrap(), "Bearer fixture-key");
+        assert!(value.is_sensitive());
+        let (name, value) = KeyHeader { name: "x-api-key", prefix: "" }
+            .apply("fixture-key")
+            .expect("a vendor header");
+        assert_eq!((name.as_str(), value.to_str().unwrap()), ("x-api-key", "fixture-key"));
+        /* No descriptor can set a cookie, a host or a client identity. */
+        for name in ["cookie", "host", "user-agent", "X-Api-Key", "x-api key", "x-api_key"] {
+            assert!(KeyHeader { name, prefix: "" }.apply("fixture-key").is_err(), "{name}");
+        }
+        assert!(KeyHeader { name: "authorization", prefix: "Key\n" }.apply("fixture-key").is_err());
+        assert!(KeyHeader::BEARER.apply("fixture\nkey").is_err());
+    }
+
+    /// The slot the stand in descriptors below read for.
+    const CLINE: ProviderEndpoint = ProviderEndpoint::ClineBalance;
+
+    #[tokio::test]
+    async fn a_first_read_may_name_the_account_and_nothing_else_leaves_it() {
+        let descriptor = HttpDescriptor {
+            url: "https://api.vendor.example/users/{account}/balance",
+            host: "api.vendor.example",
+            method: HttpMethod::Get,
+            key: KeyHeader::BEARER,
+            account: AccountLookup::Read {
+                url: "https://api.vendor.example/users/me",
+                path: &["data", "id"],
+            },
+        };
+        let transport = RecordingTransport::scripted(vec![
+            (200, br#"{"data":{"id":"acct_01"}}"#.to_vec(), None),
+            (200, br#"{"balance":5}"#.to_vec(), None),
+        ]);
+        let outcome = fetch_described(&transport, CLINE, descriptor, AuthApplication::ClineAccountToken, "fixture-token")
+            .await
+            .expect("two reads");
+        assert_eq!(outcome.body.as_deref(), Some(r#"{"balance":5}"#));
+        assert_eq!(
+            transport.recorded_urls(),
+            vec![
+                "https://api.vendor.example/users/me".to_string(),
+                "https://api.vendor.example/users/acct_01/balance".to_string()
+            ]
+        );
+        /* An answer that is not an identifier never reaches an address. */
+        for hostile in [r#"{"data":{"id":"../admin"}}"#, r#"{"data":{"id":"a/b"}}"#, r#"{"data":{}}"#, "not json"] {
+            let transport = RecordingTransport::replying(200, hostile.as_bytes().to_vec(), None);
+            assert_eq!(
+                fetch_described(&transport, CLINE, descriptor, AuthApplication::ClineAccountToken, "fixture-token").await,
+                Err(NetError::Protocol),
+                "{hostile}"
+            );
+            assert_eq!(transport.recorded_urls().len(), 1);
+        }
+        /* A failed first read keeps its own status for the request policy. */
+        let transport = RecordingTransport::replying(429, Vec::new(), Some(60));
+        let outcome = fetch_described(&transport, CLINE, descriptor, AuthApplication::ClineAccountToken, "fixture-token")
+            .await
+            .expect("a status");
+        assert_eq!((outcome.status, outcome.retry_after_seconds), (429, Some(60)));
+        assert_eq!(transport.recorded_urls().len(), 1);
+        /* Plain http, or an address still naming a placeholder, is refused. */
+        for url in ["http://api.vendor.example/usage", "https://api.vendor.example/{account}"] {
+            let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
+            let closed = HttpDescriptor { url, account: AccountLookup::None, ..descriptor };
+            assert_eq!(
+                fetch_described(&transport, CLINE, closed, AuthApplication::ClineAccountToken, "fixture-key").await,
+                Err(NetError::Protocol)
+            );
+            assert!(transport.recorded_urls().is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn a_described_credential_goes_only_to_its_own_host() {
+        /* Account text in the host would let an answer choose where the
+        credential goes next. */
+        let in_host = HttpDescriptor {
+            url: "https://{account}.vendor.example/balance",
+            host: "api.vendor.example",
+            method: HttpMethod::Get,
+            key: KeyHeader::BEARER,
+            account: AccountLookup::Read {
+                url: "https://api.vendor.example/users/me",
+                path: &["id"],
+            },
+        };
+        /* A first read on another host than the read it names. */
+        let other_discovery = HttpDescriptor {
+            url: "https://api.vendor.example/users/{account}/balance",
+            account: AccountLookup::Read {
+                url: "https://login.attacker.example/me",
+                path: &["id"],
+            },
+            ..in_host
+        };
+        /* The account placed in the query rather than the path. */
+        let in_query = HttpDescriptor {
+            url: "https://api.vendor.example/balance?user={account}",
+            ..in_host
+        };
+        /* A read on a foreign host, or on one only dressed as the vendor's. */
+        let foreign = |url| HttpDescriptor {
+            url,
+            account: AccountLookup::None,
+            ..in_host
+        };
+        let mut refused = vec![in_host, other_discovery, in_query];
+        refused.extend(
+            [
+                "https://api.attacker.example/usage",
+                "https://api.vendor.example.attacker.example/usage",
+                "https://api.vendor.example@attacker.example/usage",
+                "https://api.vendor.example:8443/usage",
+                "http://api.vendor.example/usage",
+            ]
+            .map(foreign),
+        );
+        for descriptor in refused {
+            let transport = RecordingTransport::scripted(vec![
+                (200, br#"{"id":"attacker"}"#.to_vec(), None),
+                (200, b"{}".to_vec(), None),
+            ]);
+            assert_eq!(
+                fetch_described(&transport, CLINE, descriptor, AuthApplication::ClineAccountToken, "fixture-token").await,
+                Err(NetError::Protocol),
+                "{}",
+                descriptor.url
+            );
+            /* Refused before the first request: nothing carried the secret. */
+            assert!(transport.recorded_urls().is_empty(), "{}", descriptor.url);
+        }
+        let sound = foreign("https://api.vendor.example/usage");
+        /* The credential belongs to its own slot: another provider's slot, or
+        a scheme that is not a 2.1 one, sends nothing either. */
+        for (endpoint, auth) in [
+            (ProviderEndpoint::SyntheticQuotas, AuthApplication::ClineAccountToken),
+            (CLINE, AuthApplication::SyntheticKey),
+            (CLINE, AuthApplication::BearerAuthorization),
+        ] {
+            let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
+            assert_eq!(
+                fetch_described(&transport, endpoint, sound, auth, "fixture-token").await,
+                Err(NetError::Protocol)
+            );
+            assert!(transport.recorded_urls().is_empty());
+        }
+        /* A redirect is an answer, never followed; a first read naming another
+        host is refused. Only the vendor's own first read was ever sent. */
+        let discovered = HttpDescriptor {
+            url: "https://api.vendor.example/users/{account}/balance",
+            ..in_host
+        };
+        for (status, body) in [
+            (302, Vec::new()),
+            (200, br#"{"id":"attacker.example"}"#.to_vec()),
+            (200, br#"{"id":"https://attacker.example/x"}"#.to_vec()),
+        ] {
+            let transport = RecordingTransport::scripted(vec![(status, body, None), (200, b"{}".to_vec(), None)]);
+            let outcome = fetch_described(&transport, CLINE, discovered, AuthApplication::ClineAccountToken, "fixture-token").await;
+            assert!(outcome.is_err() || outcome.is_ok_and(|outcome| outcome.status == 302));
+            assert_eq!(transport.recorded_urls(), vec!["https://api.vendor.example/users/me".to_string()]);
+        }
+        /* And the transport refuses a 2.1 scheme on any host but its slot's,
+        whatever request it is handed. */
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let client = reqwest::Client::new();
+        let request = EndpointRequest {
+            url: "https://api.attacker.example/usage",
+            method: HttpMethod::Get,
+            auth: AuthApplication::ClineAccountToken,
+            provider_account_id: None,
+            body: None,
+        };
+        assert!(authenticated_builder(&client, &request, "fixture-token").is_err());
+    }
+
+    #[tokio::test]
+    async fn every_empty_slot_and_unwritten_scheme_is_refused_before_a_request() {
+        let slots = [
+            (ProviderEndpoint::SyntheticQuotas, AuthApplication::SyntheticKey),
+            (ProviderEndpoint::ZaiQuota, AuthApplication::ZaiKey),
+            (ProviderEndpoint::MinimaxTokenPlan, AuthApplication::MinimaxKey),
+            (ProviderEndpoint::ClineBalance, AuthApplication::ClineAccountToken),
+        ];
+        /* A slot is refused while its provider is switched off, filled or not. */
+        for (endpoint, auth) in slots.into_iter().filter(|(_, auth)| auth.pending()) {
+            let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
+            assert_eq!(
+                fetch_endpoint(&transport, endpoint, auth, "fixture-key", None).await,
+                Err(NetError::Protocol)
+            );
+            /* A filled address cannot be reached with an unwritten scheme either. */
+            assert_eq!(
+                fetch_endpoint(&transport, ProviderEndpoint::OpenrouterKey, auth, "fixture-key", None).await,
+                Err(NetError::Protocol)
+            );
+            assert!(transport.recorded_urls().is_empty());
+        }
+        /* An empty slot is always a switched off provider's: a provider is never
+        switched on without its address. */
+        for endpoint in ProviderEndpoint::ALL.into_iter().filter(|endpoint| !endpoint.filled()) {
+            assert!(slots
+                .iter()
+                .any(|(slot, auth)| *slot == endpoint && auth.pending()));
+        }
+        /* And the builder refuses the scheme even if a request were handed to
+        it. This test sets up the TLS provider itself, run alone or not. */
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let client = reqwest::Client::new();
+        for (_, auth) in slots.into_iter().filter(|(_, auth)| auth.pending()) {
+            let request = EndpointRequest {
+                url: OPENROUTER_KEY_URL,
+                method: HttpMethod::Get,
+                auth,
+                provider_account_id: None,
+                body: None,
+            };
+            assert!(authenticated_builder(&client, &request, "fixture-key").is_err());
+        }
     }
 
     #[test]
@@ -1748,9 +2316,11 @@ mod tests {
 
     #[test]
     fn no_address_is_assembled_from_anything_but_constants_and_a_handle() {
-        /* The closure claim: the only string concatenation that produces a URL
-        in this file is workspace_url, and it joins two constants around a
-        validated handle. */
+        /* The closure claim: the only string assembly that produces a URL in
+        this file is workspace_url, which joins two constants around a
+        validated handle, and fetch_described, which places one validated
+        account identifier into the path of a 2.1 descriptor's own constant.
+        The one further match is account_in_path's https prefix. */
         let source = include_str!("net.rs");
         let head = source
             .split("mod tests")
@@ -1758,7 +2328,7 @@ mod tests {
             .expect("the module has a body before its tests");
         assert_eq!(
             head.matches("https://").count(),
-            13,
+            14,
             "an address appeared outside the constants"
         );
     }

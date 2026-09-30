@@ -1,0 +1,66 @@
+# Z.ai GLM Coding Plan. Registered for the 2.1 providers wave, switched off.
+#
+# Route, from the providers research of 2026-09-29: the quota endpoint Z.ai's
+# own published usage plugin queries, read with the person's own coding plan
+# key. The key is entered in the app, or read from a client configuration whose
+# configured endpoint is proven to be Z.ai's own; a Claude settings file is a
+# credential source only when its base URL is a Z.ai host, never because a GLM
+# model is named. The plugin is published by the vendor but is not a versioned
+# public API, hence provisional. The answer carries the coding windows and a
+# separate MCP allowance. Only returned windows, limits and resets are shown,
+# a reset the answer omits is never invented, the regional hosts are allowed
+# exactly, and the documented authorization format is kept.
+#
+# Skeleton: nothing below claims a reader, a meter or a surface, and the
+# compiled registry does not contain it.
+
+provider_id: zai
+product_id: coding-plan
+display_name: Z.ai
+enabled: false
+
+headlineMeter: null
+acquisitionSurfaces: []
+displaySurfaces: []
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: remote_http_official
+d5Review: Vendor published quota query with a key the person holds; no reader yet.
+maturity: planned
+
+source:
+  docs_url: https://github.com/zai-org/zai-coding-plugins/blob/main/plugins/glm-plan-usage/skills/usage-query-skill/scripts/query-usage.mjs
+  reviewed_at: "2026-09-29"
+  source_status: provisional
+
+mark:
+  file: zai.svg
+  source_url: https://z-cdn.chatglm.cn/z-ai/static/logo.svg
+
+availability:
+  requires_plan: any
+  appears_after: credential_stored
+  absence_is_error: true
+
+support:
+  parser: absent
+  reader: absent
+  auth: absent
+
+connections:
+  - reader: official_remote_api
+    auth_mode: api_key
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: planned
+  last_verified_at: null
+  fixture_ids:
+    - zai.official_plugin.quota
+
+meters: []

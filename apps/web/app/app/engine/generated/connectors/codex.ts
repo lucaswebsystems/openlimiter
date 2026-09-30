@@ -190,7 +190,7 @@ export function parseCodexPayload(payload: unknown, now: string): RawMeter[] | n
     meters.push({
       provider: "CODEX",
       meter: "CREDITS",
-      kind: "availability",
+      /* An availability has no kind: it is not a reading of any measure. */
       availability: "unlimited",
       // Required legacy transport fields; availability carries no percentage.
       value: 0,

@@ -30,6 +30,17 @@ fn spec_id(provider: &str) -> Option<&'static str> {
         "OPENROUTER" => "openrouter/api",
         "CURSOR" => "cursor/editor",
         "MANUAL" => "openlimiter/manual",
+        /* The 2.1 registry skeletons. A skeleton is not compiled into the
+        registry until its provider is switched on, so these resolve to nothing
+        until then and every surface keeps the provider out. */
+        "SYNTHETIC" => "synthetic/subscription",
+        "ZAI" => "zai/coding-plan",
+        "MINIMAX" => "minimax/token-plan",
+        "CLINE" => "cline/hosted",
+        "AUGMENT" => "augment/auggie",
+        "AMP" => "amp/cli",
+        "KILO" => "kilo/cli",
+        "COPILOT" => "github/copilot",
         _ => return None,
     })
 }
@@ -127,17 +138,20 @@ pub(super) fn accounts(rows: Vec<Snapshot>, now: i64) -> Vec<RailAccountViewMode
             };
             // Legacy measured rows may lack a kind. Eligibility has already rejected
             // availability placeholders before interpreting their numeric unit.
+            // The meter contract decides the rest: a used share is a quota
+            // percent, and a number whose reader never stated a direction is
+            // unknown rather than a guessed balance (data_rules::measure).
             let kind = selected
                 .and_then(|row| row.kind.as_deref())
                 .unwrap_or_else(|| {
                     if meter.is_some_and(|meter| meter["unit"] == "percent_used")
-                        || selected.is_some_and(|row| row.unit == "PERCENT")
+                        || selected
+                            .and_then(crate::data_rules::measure)
+                            .is_some_and(|measure| measure.kind == "percent")
                     {
                         "quota_percent"
-                    } else if selected.is_some_and(|row| row.unit == "CREDITS") {
-                        "money_balance"
                     } else {
-                        "token_count"
+                        "unknown"
                     }
                 });
             let value = selected

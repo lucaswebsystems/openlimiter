@@ -35,18 +35,27 @@
 import {
   type ProviderCode,
   type RawMeter,
+  isEnabledProviderCode,
   normalizeMeters
 } from "../core";
+import { parseAmpPayload } from "./amp";
 import { parseAntigravityPayload } from "./antigravity";
+import { parseAugmentPayload } from "./augment";
 import { parseClaudePayload } from "./claude";
+import { parseClinePayload } from "./cline";
 import { parseCodexPayload } from "./codex";
+import { parseCopilotPayload } from "./copilot";
 import { parseCursorPayload } from "./cursor";
 import { parseGeminiCliPayload } from "./gemini-cli";
 import { parseGrokPayload } from "./grok";
+import { parseKiloPayload } from "./kilo";
 import { parseKimiPayload } from "./kimi";
 import { parseManualPayload } from "./manual";
+import { parseMinimaxPayload } from "./minimax";
 import { parseOpencodePayload } from "./opencode";
 import { parseOpenrouterPayload } from "./openrouter";
+import { parseSyntheticPayload } from "./synthetic";
+import { parseZaiPayload } from "./zai";
 
 /** Why a provider is unknown, in a closed vocabulary a surface can switch on. */
 export type ContractUnknownReason =
@@ -80,7 +89,17 @@ const PARSER_BY_PROVIDER: Readonly<Partial<Record<ProviderCode, Parser>>> = {
   OPENCODE: parseOpencodePayload,
   GROK: parseGrokPayload,
   KIMI: parseKimiPayload,
-  MANUAL: parseManualPayload
+  MANUAL: parseManualPayload,
+  /* The 2.1 parsers, wired now and refused below while their codes are
+     pending, so a switched off provider is unknown rather than misread. */
+  SYNTHETIC: parseSyntheticPayload,
+  ZAI: parseZaiPayload,
+  MINIMAX: parseMinimaxPayload,
+  CLINE: parseClinePayload,
+  AUGMENT: parseAugmentPayload,
+  AMP: parseAmpPayload,
+  KILO: parseKiloPayload,
+  COPILOT: parseCopilotPayload
 };
 
 /** One human sentence per unknown reason, for a surface that wants to say why. */
@@ -109,7 +128,7 @@ export function checkProviderContract(
   payload: unknown,
   now: string
 ): ContractOutcome {
-  const parser = PARSER_BY_PROVIDER[provider];
+  const parser = isEnabledProviderCode(provider) ? PARSER_BY_PROVIDER[provider] : undefined;
   if (parser === undefined) {
     return { status: "unknown", provider, reason: "unknown_provider" };
   }
