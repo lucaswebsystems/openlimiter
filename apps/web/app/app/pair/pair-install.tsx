@@ -101,6 +101,17 @@ function ShareGlyph({ label }: { label: string }) {
   );
 }
 
+/** Chrome's menu mark, three solid dots: the text glyph renders hairline thin. */
+function MenuGlyph() {
+  return (
+    <svg aria-hidden="true" viewBox="6 0 12 24" className="h-5 w-2.5 flex-none text-heading" fill="currentColor">
+      <circle cx="12" cy="5" r="2.25" />
+      <circle cx="12" cy="12" r="2.25" />
+      <circle cx="12" cy="19" r="2.25" />
+    </svg>
+  );
+}
+
 const ROW =
   "flex items-center justify-center gap-2 rounded-2xl border border-hairline bg-surface px-4 py-3 text-sm font-medium text-heading";
 
@@ -163,10 +174,24 @@ export function PairInstallStep() {
     );
   }
 
-  if (kind === "safari" || kind === "androidMenu") {
+  if (kind === "androidMenu") {
+    /* The catalog keeps ⋮ in place so every language puts the mark where its
+       sentence needs it; the text glyph is read aloud, the drawn one is seen. */
+    const [before, after = ""] = t("phoneInstall.androidMenu").split("⋮");
     return (
       <p role="status" aria-live="polite" className={ROW}>
-        {kind === "safari" ? t("phoneInstall.openSafari") : t("phoneInstall.androidMenu")}
+        {before.trim()}
+        <span className="sr-only">{" ⋮ "}</span>
+        <MenuGlyph />
+        {after.trim()}
+      </p>
+    );
+  }
+
+  if (kind === "safari") {
+    return (
+      <p role="status" aria-live="polite" className={ROW}>
+        {t("phoneInstall.openSafari")}
       </p>
     );
   }

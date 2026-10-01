@@ -30,7 +30,10 @@ export const metadata: Metadata = {
 
 export default function PairPage() {
   return (
-    <main id="main" className="ol-shell mx-auto w-full max-w-md px-4 py-8">
+    /* `ol-product-shell` is the dashboard's own surface: theme.css drops the
+       site header, its footer and the announcement around it, in a tab and
+       installed, so this page reads as the app with one logo. */
+    <main id="main" className="ol-product-shell ol-shell mx-auto w-full max-w-md px-4">
       <div className="mb-8 flex items-center gap-3">
         <BrandLockup
           markClassName="h-7 w-7 flex-none text-brand"
