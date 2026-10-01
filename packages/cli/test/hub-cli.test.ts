@@ -96,10 +96,12 @@ describe("openlimiter login", () => {
     });
     expect(invocation).toEqual({
       executable: "C:\\Windows\\System32\\rundll32.exe",
-      arguments: ["url.dll,FileProtocolHandler", url]
+      arguments: ["url.dll,FileProtocolHandler", url],
+      cwd: "C:\\Windows\\System32"
     });
     expect(path.win32.isAbsolute(invocation?.executable ?? "")).toBe(true);
     expect(invocation?.executable.toLowerCase()).not.toContain("cmd.exe");
+    expect(invocation?.cwd).not.toBe(process.cwd());
   });
 
   it("signs in and writes a session file mode appropriate for the platform", async () => {

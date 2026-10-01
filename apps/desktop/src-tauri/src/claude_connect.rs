@@ -181,6 +181,22 @@ fn regular_absolute(candidate: &Path) -> Option<PathBuf> {
     Some(usable)
 }
 
+fn canonical_directory(candidate: &Path) -> Option<PathBuf> {
+    if candidate.as_os_str().is_empty() || !candidate.is_absolute() {
+        return None;
+    }
+    let absolute = std::fs::canonicalize(candidate).ok()?;
+    if !absolute.is_absolute() || !absolute.metadata().ok()?.is_dir() {
+        return None;
+    }
+    let usable = without_verbatim_prefix(absolute);
+    if !usable.is_absolute() {
+        return None;
+    }
+    usable.to_str()?;
+    Some(usable)
+}
+
 fn executable_names() -> &'static [&'static str] {
     if cfg!(windows) {
         &["openlimiter.cmd", "openlimiter.exe"]
@@ -207,8 +223,18 @@ impl CliRuntime for SystemCliRuntime {
             }
         }
         let mut candidates = Vec::new();
-        if let Some(path) = std::env::var_os("PATH") {
+        let current_directory = std::env::current_dir()
+            .ok()
+            .and_then(|directory| canonical_directory(&directory));
+        if let (Some(path), Some(current_directory)) = (std::env::var_os("PATH"), current_directory)
+        {
             for directory in std::env::split_paths(&path) {
+                let Some(directory) = canonical_directory(&directory) else {
+                    continue;
+                };
+                if directory == current_directory {
+                    continue;
+                }
                 for name in executable_names() {
                     candidates.push(directory.join(name));
                 }
@@ -1457,6 +1483,48 @@ mod tests {
             SystemCliRuntime.probe(&resolved),
             "the probe refused a runnable tool at {}",
             resolved.display()
+        );
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn path_search_never_selects_a_tool_from_the_current_directory() {
+        use std::sync::Mutex;
+
+        static ENVIRONMENT_LOCK: Mutex<()> = Mutex::new(());
+        let _guard = ENVIRONMENT_LOCK.lock().expect("environment lock");
+        let dir = TempDir::new();
+        let planted = dir.path().join("openlimiter.cmd");
+        std::fs::write(&planted, "@echo off\r\nexit /b 0\r\n").expect("planted tool");
+
+        let original_directory = std::env::current_dir().expect("current directory");
+        let original_path = std::env::var_os("PATH");
+        let original_app_data = std::env::var_os("APPDATA");
+        let original_configured = std::env::var_os(CLI_CONFIG_ENV);
+        std::env::set_current_dir(dir.path()).expect("fixture current directory");
+        std::env::set_var("PATH", format!(".;{};", dir.path().display()));
+        std::env::set_var("APPDATA", dir.path().join("empty-app-data"));
+        std::env::remove_var(CLI_CONFIG_ENV);
+
+        let resolved = SystemCliRuntime.resolve(None);
+
+        std::env::set_current_dir(original_directory).expect("restore current directory");
+        match original_path {
+            Some(value) => std::env::set_var("PATH", value),
+            None => std::env::remove_var("PATH"),
+        }
+        match original_app_data {
+            Some(value) => std::env::set_var("APPDATA", value),
+            None => std::env::remove_var("APPDATA"),
+        }
+        match original_configured {
+            Some(value) => std::env::set_var(CLI_CONFIG_ENV, value),
+            None => std::env::remove_var(CLI_CONFIG_ENV),
+        }
+
+        assert_eq!(
+            resolved, None,
+            "PATH selected the planted current directory tool"
         );
     }
 

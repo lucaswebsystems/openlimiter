@@ -11,6 +11,16 @@ export type CommandRunResult =
   | { readonly ok: true; readonly stdout: string; readonly stderr: string }
   | { readonly ok: false };
 
+/** A stable operating system directory for internal helper processes. */
+export function trustedHelperWorkingDirectory(
+  platform: NodeJS.Platform = process.platform,
+  environment: Readonly<Record<string, string | undefined>> = process.env
+): string {
+  return platform === "win32"
+    ? path.win32.dirname(windowsSystemTool("cmd.exe", environment))
+    : "/";
+}
+
 /** Windows command shims are scripts, not native executables. */
 export function isWindowsCommandShim(
   executable: string,
@@ -64,6 +74,10 @@ export function runCommandWithWindowsShim(
   platform: NodeJS.Platform = process.platform,
   environment: Readonly<Record<string, string | undefined>> = options.env ?? process.env
 ): Promise<CommandRunResult> {
+  const commandOptions: ExecFileOptions = {
+    ...options,
+    cwd: options.cwd ?? trustedHelperWorkingDirectory(platform, environment)
+  };
   const invocation = commandInvocation(
     executable,
     argumentsList,
@@ -73,7 +87,7 @@ export function runCommandWithWindowsShim(
   if (!isWindowsCommandShim(executable, platform)) {
     return new Promise((resolve) => {
       try {
-        execFile(invocation.executable, [...invocation.arguments], options, (error, stdout, stderr) => {
+        execFile(invocation.executable, [...invocation.arguments], commandOptions, (error, stdout, stderr) => {
           resolve(error === null
             ? { ok: true, stdout: stdout.toString(), stderr: stderr.toString() }
             : { ok: false });
@@ -89,7 +103,7 @@ export function runCommandWithWindowsShim(
     let stderr = "";
     let exceeded = false;
     let settled = false;
-    const maxBuffer = typeof options.maxBuffer === "number" ? options.maxBuffer : 200 * 1024;
+    const maxBuffer = typeof commandOptions.maxBuffer === "number" ? commandOptions.maxBuffer : 200 * 1024;
     const finish = (result: CommandRunResult): void => {
       if (settled) return;
       settled = true;
@@ -98,30 +112,30 @@ export function runCommandWithWindowsShim(
     let child;
     try {
       child = spawn(invocation.executable, [...invocation.arguments], {
-        cwd: options.cwd,
-        env: options.env,
-        windowsHide: options.windowsHide,
+        cwd: commandOptions.cwd,
+        env: commandOptions.env,
+        windowsHide: commandOptions.windowsHide,
         stdio: ["ignore", "pipe", "pipe"]
       });
     } catch {
       finish({ ok: false });
       return;
     }
-    const timeout = typeof options.timeout === "number"
-      ? setTimeout(() => child.kill(options.killSignal), options.timeout)
+    const timeout = typeof commandOptions.timeout === "number"
+      ? setTimeout(() => child.kill(commandOptions.killSignal), commandOptions.timeout)
       : undefined;
     child.stdout?.on("data", (chunk: Buffer | string) => {
       stdout += chunk.toString();
       if (Buffer.byteLength(stdout) > maxBuffer) {
         exceeded = true;
-        child.kill(options.killSignal);
+        child.kill(commandOptions.killSignal);
       }
     });
     child.stderr?.on("data", (chunk: Buffer | string) => {
       stderr += chunk.toString();
       if (Buffer.byteLength(stderr) > maxBuffer) {
         exceeded = true;
-        child.kill(options.killSignal);
+        child.kill(commandOptions.killSignal);
       }
     });
     child.once("error", () => {
@@ -149,5 +163,8 @@ export function spawnWithWindowsCommandShim(
     platform,
     environment
   );
-  return spawn(invocation.executable, [...invocation.arguments], options);
+  return spawn(invocation.executable, [...invocation.arguments], {
+    ...options,
+    cwd: options.cwd ?? trustedHelperWorkingDirectory(platform, environment)
+  });
 }
