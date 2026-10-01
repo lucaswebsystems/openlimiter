@@ -118,6 +118,84 @@ export function emptyFixtures() {
   return { raw: { version: 2, snapshots: [], suppressions: [] }, projected: { version: 2, snapshots: [], flags: [] }, sessions: [] };
 }
 
+/*
+ * The one screen's four review states, each as everything the native side
+ * answers with: the cache, the detection report, the connection records, the
+ * API spend status and Claude Code's setup. Ids and amounts are invented.
+ */
+export function screenFixtures(now = Date.now()) {
+  const at = typeof now === "string" ? Date.parse(now) : now;
+  const iso = (offset) => new Date(at + offset).toISOString();
+  const month = iso(0).slice(0, 8) + "01";
+  const previous = new Date(Date.UTC(new Date(at).getUTCFullYear(), new Date(at).getUTCMonth() - 1, 1)).toISOString().slice(0, 10);
+  const { projected, sessions } = messyFixtures(at);
+  const fiveHour = { kind: "rolling", durationSeconds: 18_000 };
+  const unwired = { claude_settings_present: true, statusline_wired: false };
+  const wired = { claude_settings_present: true, statusline_wired: true };
+  const ready = { kind: "ready", cli_path: "openlimiter" };
+  const source = (id, provider, status = "eligible", keyLabel = provider) => ({
+    id, provider, keyLabel, lastFour: "a1b2", enabled: true, consentVersion: 2, teamId: provider === "xai" ? "team-demo" : null,
+    budgetUsd: null, lastObservedAt: iso(-3 * MINUTE), nextAllowedAt: 0, status,
+    metricKind: provider === "moonshot" || provider === "deepseek" ? "balance" : "spend",
+  });
+  const sample = (sourceId, provider, displayState, overrides = {}) => ({
+    id: "s-" + sourceId, sourceId, provider, keyLabel: provider,
+    metricKind: provider === "moonshot" || provider === "deepseek" ? "balance" : "spend",
+    month, displayState, observedAt: iso(-3 * MINUTE), sourcePeriod: "", forecastDate: null,
+    completeness: provider === "moonshot" || provider === "deepseek" ? "current_balance" : "complete", ...overrides,
+  });
+  const ids = (n) => `0000000${n}-0000-4000-8000-00000000000${n}`;
+  const empty = {
+    cache: { version: 2, snapshots: [], flags: [] }, detections: { providers: [] }, connections: [],
+    spend: { version: 1, localDisplayIsFree: true, sources: [], samples: [] }, claude: { claude_settings_present: false }, preflight: ready, sessions: [],
+  };
+  const codex = projected.snapshots.filter((row) => row.provider === "CODEX");
+  const waiting = {
+    cache: { version: 2, snapshots: codex, flags: [{ provider: "CLAUDE", reason: "awaiting_statusline", fixKind: "open_app" }] },
+    detections: { providers: [{ provider_id: "codex", state: "present", accounts: [] }, { provider_id: "claude", state: "present", accounts: [] }], antigravity_running: false },
+    connections: [], spend: empty.spend, claude: wired, preflight: ready, sessions: [],
+  };
+  const antigravity = [
+    row(at, "ANTIGRAVITY", "GEMINI_3_PRO", 38, { account: ACCOUNTS.antigravity, reset: 3 * HOUR, window: fiveHour, writer: "desktop" }),
+    row(at, "ANTIGRAVITY", "CLAUDE_SONNET", 12, { account: ACCOUNTS.antigravity, reset: 3 * HOUR, window: fiveHour, writer: "desktop" }),
+  ];
+  const money = {
+    cache: { version: 2, snapshots: [...projected.snapshots, ...antigravity], flags: [] },
+    detections: { providers: ["codex", "claude", "antigravity"].map((id) => ({ provider_id: id, state: "present", accounts: [] })), antigravity_running: true },
+    connections: [{ id: "c-openrouter", provider_id: "openrouter", status: "CONNECTED", account_alias: "default" }],
+    spend: { version: 1, localDisplayIsFree: true, sources: [
+      source(ids(1), "openai"), source(ids(2), "anthropic"), source(ids(3), "xai"), source(ids(4), "moonshot"), source(ids(5), "deepseek"),
+    ], samples: [
+      sample(ids(1), "openai", { kind: "tracked", amountUsd: "84.17", percentOfBudget: null }),
+      sample(ids(2), "anthropic", { kind: "tracked", amountUsd: "212.40", percentOfBudget: null }, { month: previous }),
+      sample(ids(3), "xai", { kind: "tracked", amountUsd: "9.03", percentOfBudget: null }, { completeness: "period_incomplete" }),
+      sample(ids(4), "moonshot", { kind: "balance", amountUsd: "41.5" }),
+      sample(ids(5), "deepseek", { kind: "balance", amountUsd: "18.2" }),
+    ] },
+    claude: wired, preflight: ready, sessions,
+  };
+  const errors = {
+    cache: { version: 2, snapshots: codex, flags: [
+      { provider: "CLAUDE", reason: "account_unresolved", fixKind: "sign_in" },
+      { provider: "GROK", reason: "missing_credentials", fixKind: "sign_in" },
+      { provider: "GEMINI_CLI", reason: "placeholder", fixKind: "unsupported" },
+      { provider: "KIMI", reason: "expired_credentials", fixKind: "open_app" },
+    ] },
+    detections: { providers: [{ provider_id: "claude", state: "present", accounts: [] }], antigravity_running: false },
+    connections: [{ id: "c-openrouter", provider_id: "openrouter", status: "NEEDS_AUTH", account_alias: "default" }],
+    spend: { version: 1, localDisplayIsFree: true, sources: [
+      source(ids(1), "openai", "ineligible_or_revoked"), source(ids(2), "anthropic", "temporarily_unavailable"),
+      source(ids(3), "xai", "pending_validation"), source(ids(4), "moonshot", "too_low_for_api_calls"), source(ids(5), "deepseek"),
+    ], samples: [
+      sample(ids(2), "anthropic", { kind: "tracked", amountUsd: "57.80", percentOfBudget: null }),
+      sample(ids(4), "moonshot", { kind: "balance", amountUsd: "0.62" }),
+      sample(ids(5), "deepseek", { kind: "reportedInCny" }),
+    ] },
+    claude: wired, preflight: ready, sessions: [],
+  };
+  return { empty, waiting, money, errors };
+}
+
 /* Enough measured tools and windows to fill the panel past its clamp at 90%
    of the screen, with agents on top. */
 export function tallFixtures(now = Date.now()) {

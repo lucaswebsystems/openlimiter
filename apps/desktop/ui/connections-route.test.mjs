@@ -1,77 +1,116 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { messyFixtures } from "./messy-fixtures.mjs";
 import { fakeDocument } from "./test-dom.mjs";
 
 /*
- * Needs attention through the real routing: the real Connections module, the
- * real backend adapter and the real renderer, with only the native bridge and
- * the document faked. The adapter binds the bridge when it loads, so the fake
- * exists before the modules are imported.
+ * A row's step through the real routing: the real connections module and the
+ * real backend adapter, with only the native bridge and the document faked.
+ * The adapter binds the bridge when it loads, so the fake exists before the
+ * modules are imported.
  */
 const calls = [];
 const opened = [];
+let records = [];
+const storage = new Map();
 globalThis.window = {
   __TAURI__: { core: { invoke: async (command, args) => {
     calls.push([command, args]);
-    return command === "list_detected_providers" ? { providers: [] } : null;
+    if (command === "list_detected_providers") return { providers: [] };
+    if (command === "list_connections") return records;
+    if (command === "disabled_providers") return [];
+    if (command === "connect_provider") {
+      records = [...records, { id: "c-" + String(records.length + 1), provider_id: args.input.provider_id, status: "READY_TO_ENABLE" }];
+      return records.at(-1).id;
+    }
+    if (command === "test_provider") return { kind: "tested", connection_id: args.input.connection_id };
+    if (command === "refresh_provider") return { kind: "cache_committed", connection_id: args.input.connection_id };
+    if (command === "detect_local_tools") return { claude_settings_present: true, statusline_wired: false };
+    if (command === "claude_connect_preflight") return { kind: "ready", cli_path: "openlimiter" };
+    return null;
   } } },
   open: (...args) => opened.push(args),
+  dispatchEvent: () => true,
+  localStorage: {
+    getItem: (key) => storage.get(key) ?? null,
+    setItem: (key, value) => storage.set(key, String(value)),
+  },
   setTimeout: (callback) => callback(),
 };
-globalThis.document = fakeDocument(["needs-attention", "attention-rows", "attention-count", "connections-count",
-  "tab-connections", "connected", "connected-rows", "add-tool", "tool-catalogue"]);
-const { attentionRoute, showConnections } = await import("./dist/connections.js");
-const { attentionFlags } = await import("./dist/readings.js");
+globalThis.CustomEvent = class { constructor(type) { this.type = type; } };
+globalThis.document = fakeDocument(["claude-card", "claude-body", "claude-note", "antigravity-add", "opencode-add"]);
+const { catalogueModel, checkTool, chooseTool, connectTool, initConnections, saveOpenrouterKey } = await import("./dist/connections.js");
 
-const NOW = Date.parse("2026-09-29T12:00:00.000Z");
-const fixtures = messyFixtures(NOW);
-const attention = attentionFlags(fixtures.projected.flags, fixtures.projected.snapshots);
-const rowFor = (provider) => document.getElementById("attention-rows").all((node) => node.dataset.provider === provider && "flagRow" in node.dataset)[0];
-const buttonOf = (row) => row.all((node) => node.localName === "button")[0] ?? null;
 const settle = () => new Promise((resolve) => setImmediate(resolve));
+let meters = 0;
+initConnections({ onMetersChanged: () => { meters += 1; }, hasFreshLocalClaude: () => false });
+await settle();
 
-test("a provider with its own connect flow here keeps it; every other one signs in in its tool", () => {
-  assert.equal(attentionRoute({ provider: "CODEX", fixKind: "sign_in" }), "connect");
-  assert.equal(attentionRoute({ provider: "OPENCODE", fixKind: "reconnect" }), "connect");
-  assert.equal(attentionRoute({ provider: "ANTIGRAVITY", fixKind: "reconnect" }), "connect");
-  for (const provider of ["GROK", "KIMI", "GEMINI_CLI", "CURSOR"]) {
-    assert.equal(attentionRoute({ provider, fixKind: "sign_in" }), "rescan", provider);
-    assert.equal(attentionRoute({ provider, fixKind: "reconnect" }), "rescan", provider);
-  }
-  assert.equal(attentionRoute({ provider: "KIMI", fixKind: "open_app" }), "rescan");
-  assert.equal(attentionRoute({ provider: "GEMINI_CLI", fixKind: "unsupported" }), "none");
-});
+const commands = () => calls.map(([command]) => command);
 
-test("Sign in for a tool with no flow here says so and checks again, never opening a web page", async () => {
-  showConnections({ attention, connected: [{ code: "CLAUDE", name: "Claude Code", access: "automatic" }] });
-  assert.equal(document.getElementById("tool-catalogue").hidden, true, "anything connected folds the catalogue");
-  const grok = rowFor("GROK");
-  assert.match(grok.textContent, /Sign in to Grok \(xAI\) on this computer, then check again\./u);
-  assert.equal(buttonOf(grok).textContent, "Check again");
+test("Connect for Codex imports its own login in one press and proves it reads", async () => {
   calls.length = 0;
-  await buttonOf(grok).fire("click");
-  await settle();
-  assert.ok(calls.some(([command]) => command === "rescan_detected_providers"), "it asks native code to look again");
-  assert.deepEqual(opened, [], "no documentation page stands in for a sign in");
-  assert.equal(grok.all((node) => node.className === "q-fstatus")[0].textContent, "");
-});
-
-test("Reconnect for a provider with an editor here opens it, in the catalogue", async () => {
-  const opencode = rowFor("OPENCODE");
-  assert.equal(buttonOf(opencode).textContent, "Reconnect");
-  calls.length = 0;
-  await buttonOf(opencode).fire("click");
-  assert.equal(document.getElementById("tool-catalogue").hidden, false, "the editor lives in the catalogue, so it opens");
-  assert.equal(document.getElementById("add-tool").getAttribute("aria-expanded"), "true");
-  assert.ok(!calls.some(([command]) => command === "rescan_detected_providers"));
+  assert.equal(await connectTool("CODEX"), true);
+  const connect = calls.find(([command]) => command === "connect_provider")[1].input;
+  assert.deepEqual([connect.provider_id, connect.credential_kind, connect.account_alias], ["codex", "codex_session", "default"]);
+  assert.ok(commands().includes("test_provider"));
   assert.deepEqual(opened, []);
 });
 
-test("open app checks again, unsupported offers nothing, a switched off provider is absent", () => {
-  assert.equal(buttonOf(rowFor("KIMI")).textContent, "Check again");
-  assert.equal(buttonOf(rowFor("GEMINI_CLI")), null);
-  assert.equal(rowFor("CURSOR"), undefined);
-  assert.equal(document.getElementById("connections-count").textContent, "5");
-  assert.ok(!calls.some(([command]) => command === "set_provider_enabled"));
+test("Connect for Claude Code, Antigravity and OpenCode opens that tool's setup under the list, one at a time", async () => {
+  for (const [code, id] of [["CLAUDE", "claude-card"], ["ANTIGRAVITY", "antigravity-add"], ["OPENCODE", "opencode-add"]]) {
+    assert.equal(await connectTool(code), true, code);
+    for (const other of ["claude-card", "antigravity-add", "opencode-add"]) {
+      assert.equal(document.getElementById(other).hidden, other !== id, `${code} ${other}`);
+    }
+  }
+  // Claude Code's setup reads the preflight and shows the block with Copy and Verify.
+  await connectTool("CLAUDE");
+  const body = document.getElementById("claude-body");
+  assert.match(body.textContent, /Add this to your Claude Code settings, then Verify\./u);
+  assert.match(body.textContent, /"command": "openlimiter statusline"/u);
+  assert.deepEqual(body.all((node) => node.localName === "button").map((button) => button.textContent), ["Copy", "Verify"]);
+});
+
+test("Check again for a tool whose sign in lives in the tool scans and reads once, never opening a web page", async () => {
+  calls.length = 0;
+  const before = meters;
+  await checkTool("GROK");
+  assert.ok(commands().includes("rescan_detected_providers"), "it asks native code to look again");
+  assert.deepEqual(calls.find(([command]) => command === "refresh_home")[1], { providers: ["grok"] });
+  assert.ok(!commands().includes("refresh_provider"), "nothing stored, nothing to refresh");
+  assert.ok(meters > before, "the screen rereads");
+  assert.deepEqual(opened, []);
+});
+
+test("Check again for a tool with a stored connection reads that connection now", async () => {
+  records = [{ id: "or-1", provider_id: "openrouter", status: "CONNECTED" }];
+  await initConnections({ onMetersChanged: () => {}, hasFreshLocalClaude: () => false });
+  await settle();
+  calls.length = 0;
+  assert.equal(await checkTool("OPENROUTER"), true);
+  assert.deepEqual(calls.find(([command]) => command === "refresh_provider")[1], { input: { connection_id: "or-1" } });
+});
+
+test("OpenRouter's key is its quota connection, never an API spend source", async () => {
+  records = [];
+  calls.length = 0;
+  assert.deepEqual(await saveOpenrouterKey("sk-or-example"), { ok: true });
+  const connect = calls.find(([command]) => command === "connect_provider")[1].input;
+  assert.deepEqual([connect.provider_id, connect.credential_kind, connect.secret], ["openrouter", "openrouter_inference_key", "sk-or-example"]);
+  assert.ok(!commands().some((command) => command.startsWith("api_spend")));
+});
+
+test("the catalogue holds every tool not in play with its row's step; choosing a switched off one turns it back on", async () => {
+  const model = catalogueModel(["CLAUDE", "ANTIGRAVITY", "OPENROUTER"]);
+  assert.deepEqual(model.map((tool) => [tool.code, tool.action.label]), [
+    ["CODEX", "Connect"], ["GEMINI_CLI", "Check again"], ["GROK", "Check again"],
+    ["KIMI", "Check again"], ["OPENCODE", "Connect"], ["CURSOR", "Check again"],
+  ]);
+  assert.ok(model.every((tool) => tool.windows.length === 0));
+  storage.set("openlimiter-removed-providers-v1", JSON.stringify(["KIMI"]));
+  calls.length = 0;
+  await chooseTool("KIMI", "check");
+  assert.deepEqual(calls.findLast(([command]) => command === "set_provider_enabled")[1], { provider: "kimi", enabled: true });
+  assert.ok(JSON.parse(storage.get("openlimiter-configured-providers-v1")).includes("KIMI"));
+  assert.ok(commands().includes("rescan_detected_providers"));
 });

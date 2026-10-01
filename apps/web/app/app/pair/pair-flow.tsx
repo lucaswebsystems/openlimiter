@@ -12,6 +12,7 @@ import {
 } from "@/lib/device-snapshots";
 import {
   initialPairState,
+  pairCodeFromFragment,
   pairDeviceMeta,
   PAIRING_POLL_MILLISECONDS,
   PAIRING_TTL_SECONDS,
@@ -34,7 +35,7 @@ import { claimPairingCode, pollPairingClaim } from "@/lib/pro-device";
 import { PROVIDER_CODES, parseQuotaText } from "../engine";
 import { LiveMeter } from "../live-meter";
 import { DollarRow, observationAgeMinutes } from "../pieces";
-import { PairInstallStep } from "./pair-install";
+import { PairInstallStep, runningInstalled } from "./pair-install";
 
 /**
  * The pairing flow, at 375 wide first, and the phone's own dashboard after.
@@ -83,6 +84,7 @@ const CARD = "rounded-2xl border border-hairline bg-surface p-5";
 const BUTTON =
   "lift-sm focus-ring inline-flex w-full items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium";
 const BUTTON_GHOST = `${BUTTON} border-hairline-strong bg-transparent text-heading hover:border-heading`;
+const BUTTON_SOLID = `${BUTTON} border-transparent bg-solid text-on-solid hover:bg-solid-hover disabled:opacity-50`;
 
 function Card({
   title,
@@ -113,6 +115,58 @@ function CodeReadout({ code }: { code: string }) {
       <span className="sr-only">Pairing code </span>
       {code}
     </p>
+  );
+}
+
+/**
+ * The eight characters typed by hand, inside the installed app.
+ *
+ * The backup for an icon that opened without the browser's pairing: older
+ * iOS, an icon added before pairing, or a cookie copy that did not happen.
+ * The field has no name, so even a form submitted without script puts
+ * nothing in the address; the code leaves only in the claim's request body.
+ */
+function CodeEntry({
+  note,
+  label,
+  action,
+  onCode,
+}: {
+  note: string | null;
+  label: string;
+  action: string;
+  onCode: (code: string) => void;
+}) {
+  const [value, setValue] = useState("");
+  const code = pairCodeFromFragment(`code=${value}`);
+  return (
+    <form
+      className={`${CARD} space-y-3`}
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (code !== null) onCode(code);
+      }}
+    >
+      {note !== null && <p className="text-sm font-medium text-heading">{note}</p>}
+      <label htmlFor="pair-code-entry" className="block text-sm text-muted">
+        {label}
+      </label>
+      <input
+        id="pair-code-entry"
+        value={value}
+        onChange={(event) => {
+          setValue(event.target.value.toUpperCase().replace(/[^A-Z0-9]/gu, "").slice(0, 8));
+        }}
+        autoComplete="one-time-code"
+        autoCapitalize="characters"
+        autoCorrect="off"
+        spellCheck={false}
+        className="focus-ring w-full rounded-xl border border-hairline bg-code px-4 py-3 text-center font-mono text-xl tracking-widest text-heading"
+      />
+      <button type="submit" disabled={code === null} className={BUTTON_SOLID}>
+        {action}
+      </button>
+    </form>
   );
 }
 
@@ -329,6 +383,8 @@ function PairedPhone({
 
   return (
     <div className="space-y-4">
+      {/* Approved, so installing is the next step: it comes first. */}
+      <PairInstallStep />
       <p className="text-center text-xs text-muted">{t("pairPage.pairedAs", { label })}</p>
       <PhoneBars
         body={state.bars}
@@ -344,7 +400,6 @@ function PairedPhone({
         stateAnnouncement={(state) => t("cloud.stateAnnouncement", { state })}
       />
       <button className={BUTTON_GHOST} onClick={() => { void retry.current?.(); }}>{t("pairPage.retry")}</button>
-      <PairInstallStep />
     </div>
   );
 }
@@ -394,9 +449,11 @@ export function PairFlow() {
   const [pairedBars, setPairedBars] = useState<unknown>(null);
   const [checkingExisting, setCheckingExisting] = useState(() => state.phase !== "claiming");
   const claimStarted = useRef(false);
+  /* Opened from the home screen icon, where no scan can bring a fragment. */
+  const [installed] = useState(runningInstalled);
 
   /*
-   * The claim itself, for a freshly scanned code only.
+   * The claim itself, for a freshly scanned or typed code only.
    *
    * The fragment was already read and stripped by the initializer above; this
    * effect only makes the network call, guarded so React's development mode
@@ -550,6 +607,30 @@ export function PairFlow() {
       <Card title={t("pairPage.setup.reading.title")} tone="accent">
         <p>{t("pairPage.setup.reading.body")}</p>
       </Card>
+    );
+  }
+
+  const failed = state.phase === "expired" || state.phase === "denied" || state.phase === "error";
+  if (installed && (state.phase === "noCode" || failed)) {
+    return (
+      <CodeEntry
+        note={
+          state.phase === "expired"
+            ? t("pairPage.setup.expired.title")
+            : state.phase === "denied"
+              ? t("pairPage.setup.denied.title")
+              : state.phase === "error"
+                ? t("pairPage.setup.error.title")
+                : null
+        }
+        label={t("pairPage.codeEntry.label")}
+        action={t("pairPage.codeEntry.pair")}
+        onCode={(code) => {
+          /* The same claim a scanned fragment starts, from the same state. */
+          claimStarted.current = false;
+          setState(initialPairState(`code=${code}`));
+        }}
+      />
     );
   }
 

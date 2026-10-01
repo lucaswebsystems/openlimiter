@@ -37,38 +37,21 @@ const providerSpec = (code) =>
    about what a person reads and not about which key made it. */
 const DASH = /[-‐‑‒–—―−]/u;
 
-test("keeps an unconfigured Home to one quiet card pointing at Connections", () => {
+test("keeps an unconfigured screen to its rows: no paragraph ships visible and nothing points at a tab", () => {
   const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
-  const start = html.indexOf('<section id="panel-meters"');
-  const end = html.indexOf('id="panel-spend"', start);
-  const panel = html.slice(start, end);
-
-  assert.equal((panel.match(/id="empty"/g) ?? []).length, 1);
-  assert.match(panel, /<div id="empty" class="q-card q-empty" hidden>/u);
-  assert.match(panel, /<b>Nothing measurable yet<\/b>/u);
-  assert.match(panel, /id="empty-connect" class="q-btn q-btn-primary">Open Connections<\/button>/u);
-  const empty = panel.slice(panel.indexOf('<div id="empty"'), panel.indexOf("</section>", panel.indexOf('<div id="empty"')));
-
+  const screen = html.slice(html.indexOf('<main id="home">'), html.indexOf("</main>"));
+  assert.doesNotMatch(screen, /Open Connections|id="empty"|Nothing measurable yet/u);
   /*
-   * Home carries the live meter, the stale strip and the failure alerts now,
-   * and each of those is prose. The guarantee this test exists for is not
-   * "Home has no paragraph", it is "an unconfigured Home is one line", so
-   * every paragraph on the panel has to start hidden and be revealed only by
-   * something the window can actually prove. A paragraph that ships visible
-   * would be back to explaining an empty screen at someone.
+   * The tools list always has Claude Code, Antigravity and OpenRouter, each
+   * with one step, so an empty screen needs no card explaining itself. Every
+   * paragraph on it starts empty or hidden and is revealed only by something
+   * the window can prove: a refresh status, a failure, a setup line.
    */
-  for (const paragraph of panel.matchAll(/<p\b[^>]*>/gu)) {
-    const tag = paragraph[0];
-    if (tag.includes('id="home-refresh-status"')) {
-      assert.match(panel, /id="home-refresh-status"[^>]*><\/p>/u);
-      continue;
-    }
-    // The only other paragraph is the empty card's, which ships hidden.
-    assert.ok(
-      /hidden/u.test(tag) || empty.includes(tag),
-      "a Home paragraph ships visible: " + tag,
-    );
+  for (const paragraph of screen.matchAll(/<p\b[^>]*>(.*?)<\/p>/gsu)) {
+    const [whole, inner] = paragraph;
+    assert.ok(/hidden/u.test(whole.slice(0, whole.indexOf(">"))) || inner.trim() === "", "a paragraph ships visible: " + whole);
   }
+  assert.match(screen, /id="home-refresh-status" class="q-note" role="status" aria-live="polite"><\/p>/u);
 });
 
 test("walks account, then connect, then bars, and says so on the screen", () => {
@@ -707,9 +690,9 @@ test("the account menu hides the switch and the log out while signed out", () =>
   assert.match(app, /elements\.menuLogout\.hidden = !signedIn/u);
 });
 
-test("the toggle says that signing in is what turns sync on", () => {
+test("the menu's sync switch says what it syncs, in one short label", () => {
   const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
-  assert.match(html, /Signing in turns this on\. Only percentages leave this device\./u);
+  assert.match(html, /<label class="menu-line"><span>Sync usage percentages<\/span><span class="provider-switch"><input id="menu-sync" type="checkbox" role="switch" checked \/>/u);
 });
 
 test("lets a cached signed in session continue while the backend is offline", () => {

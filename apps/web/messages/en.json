@@ -25,12 +25,8 @@
     "refresh": "Refresh",
     "loading": "Loading your limits",
     "emptyTitle": "Nothing measurable yet",
-    "emptyHome": "Connect a tool, or open one you already use so it reports its limits.",
     "emptyPanel": "Open the app to connect a tool.",
-    "openConnections": "Open Connections",
     "unavailable": "Your limits are unavailable right now.",
-    "agentsEmptyTitle": "No agents running",
-    "agentsEmptyDetail": "Agent sessions show up here while they work.",
     "agentsUnavailable": "Agent activity is unavailable",
     "agentName": "Agent",
     "stateWaiting": "Needs you",
@@ -43,8 +39,6 @@
     "runningOne": "1 agent running",
     "runningMany": "{count} agents running",
     "attentionTitle": "Needs attention",
-    "attentionOne": "1 needs attention",
-    "attentionMany": "{count} need attention",
     "fixReconnectIssue": "Connection lost",
     "fixReconnectDetail": "Reconnect {name} to see its limits again.",
     "fixReconnectAction": "Reconnect",
@@ -57,18 +51,20 @@
     "fixUnsupportedIssue": "Not measurable yet",
     "fixUnsupportedDetail": "OpenLimiter cannot measure {name} yet.",
     "fixFailed": "That did not work. Try again in a moment.",
-    "connected": "Connected",
-    "sourceLocal": "Uses your {name} sign in on this computer",
-    "sourceKey": "Uses your {name} key",
-    "sourceManual": "Uses the numbers you entered",
     "addTool": "Add a tool",
-    "accountsNone": "Keys and logins you add appear here. On Free, one account per provider stays active.",
     "fixToolDetail": "Sign in to {name} on this computer, then check again.",
     "fixSignInAgainIssue": "Sign in again",
     "fixWaitingIssue": "Waiting for {name}",
     "fixWaitingDetail": "The last window reset. Use {name} once and its limits show again.",
     "meterFallback": "Limit",
-    "cacheUnreadable": "The saved readings could not be read just now, so only readings that are still fresh are shown."
+    "cacheUnreadable": "The saved readings could not be read just now, so only readings that are still fresh are shown.",
+    "connect": "Connect",
+    "openAntigravity": "Open Antigravity",
+    "toolOff": "Off",
+    "moreFor": "More for {name}",
+    "showTool": "Show",
+    "removeTool": "Remove",
+    "removeConfirm": "Press again to remove"
   },
   "meta": {
     "title": "OpenLimiter, AI coding limits and agent activity",
@@ -2336,9 +2332,10 @@
     },
     "phoneInstall": {
       "add": "Add to home screen",
-      "iosOne": "Tap Share in the Safari toolbar.",
-      "iosTwo": "Scroll to Add to Home Screen.",
-      "iosThree": "Tap Add. The app opens full screen from your home screen."
+      "androidMenu": "Tap ⋮ then Add to home screen",
+      "ios": "Add to Home Screen",
+      "share": "Share",
+      "openSafari": "Open in Safari to install"
     },
     "pairPage": {
       "retry": "Refresh readings",
@@ -2391,6 +2388,10 @@
           "title": "Pairing could not be completed",
           "body": "The service did not answer, so nothing was paired and nothing was changed. Generate a fresh code on the desktop and scan it again."
         }
+      },
+      "codeEntry": {
+        "label": "Code from your computer",
+        "pair": "Pair"
       },
       "pairedAs": "Paired as {label}",
       "openDashboard": "Open the dashboard"

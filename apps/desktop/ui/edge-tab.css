@@ -1,7 +1,7 @@
 /*
  * The collapsed edge tab. Its window is 24 by 44 and transparent; the tab is
  * drawn inside it at 22 by 40, flush with the screen edge, with the mark at
- * 12 pixels. Hover and an open panel lift it one step. The pill is the only
+ * 17 pixels. Hover and an open panel lift it one step. The pill is the only
  * other mark it ever shows: something needs a look now.
  */
 :root {
@@ -34,8 +34,8 @@ body {
 }
 
 .edge-tab img {
-  width: 0.75rem;
-  height: 0.75rem;
+  width: 1.0625rem;
+  height: 1.0625rem;
   pointer-events: none;
 }
 

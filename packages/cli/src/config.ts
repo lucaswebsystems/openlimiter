@@ -8,6 +8,7 @@ import {
 } from "@openlimiter/core";
 import { connectors } from "@openlimiter/connectors";
 import type { CredentialStore } from "./credentials.js";
+import { MONEY_TAGS } from "./api-spend.js";
 
 export const CONFIG_FILE_NAME = "openlimiter-config.json";
 
@@ -163,7 +164,7 @@ export function normalizeStatusline(value: unknown): StatuslineConfig {
     ...(isRecord(value["visibility"]) ? {
       visibility: Object.fromEntries(Object.entries(value["visibility"]).filter(
         ([key, enabled]) => typeof enabled === "boolean" &&
-          ([...TERMINAL_SEGMENTS, ...connectorIds] as readonly string[]).includes(key)
+          ([...TERMINAL_SEGMENTS, ...connectorIds, ...Object.keys(MONEY_TAGS)] as readonly string[]).includes(key)
       )) as Record<string, boolean>
     } : {}),
     hosts: normalizeHosts(value["hosts"])

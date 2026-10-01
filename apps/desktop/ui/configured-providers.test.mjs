@@ -104,9 +104,11 @@ test("provider switch supports both keyboard keys, persists removal and excludes
   assert.equal(changed, 2);
   assert.deepEqual(readRemovedProviders(), []);
   assert.deepEqual(homeProviders(readConfiguredProviders(), detection, [], [], []), ["CODEX"]);
-  const catalogue = readFileSync(new URL("./connections.js", import.meta.url), "utf8");
-  assert.match(catalogue, /if \(rowData.connectorId\) \{\s*rowEl.append\(homeSelectionControl/u);
-  assert.match(catalogue, /backend.setProviderEnabled, rowData.displayName/u);
+  /* The same switch, persisted natively, in the menu and in each row's small menu. */
+  const menu = readFileSync(new URL("./settings.js", import.meta.url), "utf8");
+  assert.match(menu, /homeSelectionControl\(code, \(\) => \{\}, document, setProviderEnabled, providerName\(code\)\)/u);
+  const row = readFileSync(new URL("./app.js", import.meta.url), "utf8");
+  assert.match(row, /homeSelectionControl\(tool\.code, \(\) => \{\}, document, setProviderEnabled, tool\.name\)/u);
 });
 
 test("saving a switch is serialized and a refused native write restores its state with feedback", async () => {

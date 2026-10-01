@@ -598,7 +598,7 @@ export function rowAction(provider, detection, signals, quota = null) {
     return { kind: "note", note: VERIFIED_ON_INSTALL };
   }
   if (provider.keyOnly === true) {
-    return { kind: "note", note: "Add your OpenRouter key in Connections when you want this bar." };
+    return { kind: "note", note: "Add your OpenRouter key under API keys when you want this bar." };
   }
   if (state === "logged_out" && provider.deviceSignIn === true) {
     return { kind: "signin", label: SIGN_IN };
@@ -609,7 +609,7 @@ export function rowAction(provider, detection, signals, quota = null) {
   if (typeof provider.install === "string") {
     return { kind: "install", label: INSTALL, command: provider.install, hint: provider.installHint };
   }
-  return { kind: "note", note: "Connect this one in Connections when you want its bar." };
+  return { kind: "note", note: "Connect this one from Add a tool when you want its bar." };
 }
 
 /**
@@ -643,9 +643,9 @@ export function firstRunCopyStrings() {
     CLAUDE_POLL_NOTE,
     "Run this in your terminal.",
     "Open this in your browser.",
-    "Add your OpenRouter key in Connections when you want this bar.",
+    "Add your OpenRouter key under API keys when you want this bar.",
     "Sign in inside the CLI, then reopen OpenLimiter.",
-    "Connect this one in Connections when you want its bar.",
+    "Connect this one from Add a tool when you want its bar.",
   ];
   strings.push("Use email instead");
   strings.push(CODEX_DEVICE_LINK_FALLBACK);

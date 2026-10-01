@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
-import { activityClient, agentsModel, AGENT_NAMES, mountAgents, renderAgents, runningLabel } from "./agents.js";
+import { activityClient, agentsModel, mountAgents, renderAgents, runningLabel } from "./agents.js";
+import { agentName } from "./names.js";
 import { AGENTS_EN } from "./agents.en.js";
 import { fakeDocument, leaks, spoken } from "./test-dom.mjs";
 
@@ -40,7 +41,7 @@ test("the running line counts agents at work or waiting", () => {
   assert.equal(runningLabel(agentsModel([record], now())), "1 agent running");
   assert.equal(runningLabel(agentsModel([record, { ...record, sessionId: "b", state: "busy" }, { ...record, sessionId: "c", state: "done" }], now())), "2 agents running");
   assert.equal(runningLabel(null), "Agent activity is unavailable");
-  assert.equal(AGENT_NAMES.claude_code, "Claude Code");
+  assert.equal(agentName("claude_code"), "Claude Code");
 });
 
 test("activity client only reads sanitized commands and explicitly locates by opaque id", async () => {
@@ -65,73 +66,73 @@ test("only a waiting agent offers Show app, and it locates that session", async 
   assert.deepEqual(mount.all((node) => node.className === "q-mark").map((mark) => mark.dataset.provider), ["CLAUDE", "CLAUDE"]);
 });
 
-test("mount renders safely, locates only on click, and saves free preferences", async () => {
-  const doc = fakeDocument(); const root = doc.createElement("div"); const calls = []; let saved;
-  const dispose = mountAgents(root, { now, interval: 100_000, client: {
+test("mount renders safely, locates only on click, reports its count and carries no alert settings", async () => {
+  const doc = fakeDocument(); const root = doc.createElement("div"); const calls = []; const counts = [];
+  const dispose = mountAgents(root, { now, interval: 100_000, onCount: (count) => counts.push(count), client: {
     sessions: async () => [{ ...record, userProjectLabel: "<img src=x>", process: { pid: 42 } }],
-    preferences: async () => structuredClone(preferences),
+    preferences: async () => assert.fail("Home never reads the alert preferences"),
     locate: async (id) => { calls.push(id); return "flashed"; },
-    savePreferences: async (value) => { saved = value; },
   } });
   try {
     await settle();
     assert.equal(root.all((node) => node.className === "q-agent").length, 1);
     assert.equal(root.all((node) => node.localName === "img").length, 0);
+    assert.deepEqual(counts, [1]);
     assert.deepEqual(calls, []);
     await root.all((node) => node.className === "q-show")[0].fire("click");
     assert.deepEqual(calls, ["opaque"]);
     assert.equal(root.all((node) => node.className === "q-note")[0].textContent, "App highlighted in the taskbar");
-    assert.equal(root.all((node) => node.localName === "summary")[0].textContent, AGENTS_EN["agents.alerts"]);
-    await root.all((node) => node.localName === "form")[0].fire("submit", { preventDefault() {} });
-    assert.equal(saved.sound, "silent"); assert.deepEqual(saved.local.mutedProviders, []);
-    assert.equal(saved.local.quietHours, null); assert.equal(saved.local.enabled, true);
+    // The "Local agent alerts" block left Home; its one switch is in the menu.
+    assert.equal(root.all((node) => ["details", "summary", "form"].includes(node.localName)).length, 0);
+    assert.doesNotMatch(root.textContent, /Local agent alerts/u);
     assert.deepEqual(leaks(spoken(root)), []);
   } finally { dispose(); }
   assert.equal(root.children.length, 0);
 });
 
-test("empty, unavailable and recovered are distinct and late reads cannot remount", async () => {
-  const empty = (root) => root.all((node) => node.className === "q-empty")[0];
-  for (const [sessions, check] of [
-    [async () => [], (root) => assert.equal(empty(root).hidden, false)],
-    [async () => { throw Error(); }, (root) => assert.equal(root.all((node) => node.className === "q-note")[0].textContent, "Agent activity is unavailable")],
-  ]) {
-    const doc = fakeDocument(); const root = doc.createElement("div");
-    const dispose = mountAgents(root, { client: { sessions, preferences: async () => { throw Error(); } } });
-    await settle(); check(root); dispose();
+test("no session and no activity both read as nothing to show, and late reads cannot remount", async () => {
+  for (const sessions of [async () => [], async () => { throw Error(); }]) {
+    const doc = fakeDocument(); const root = doc.createElement("div"); const counts = [];
+    const dispose = mountAgents(root, { onCount: (count) => counts.push(count), client: { sessions } });
+    await settle();
+    assert.deepEqual(counts, [0]);
+    assert.equal(root.all((node) => node.className === "q-agent").length, 0);
+    assert.equal(root.all((node) => node.className === "q-empty").length, 0, "no empty card on Home");
+    dispose();
   }
   let resolve; const doc = fakeDocument(); const root = doc.createElement("div");
-  const dispose = mountAgents(root, { client: { sessions: () => new Promise((r) => { resolve = r; }), preferences: async () => preferences } });
+  const dispose = mountAgents(root, { client: { sessions: () => new Promise((r) => { resolve = r; }) } });
   dispose(); resolve([record]); await settle(); assert.equal(root.children.length, 0);
 });
 
-test("desktop shell mounts the Agents component inside Home and disposes on unload", async () => {
+test("desktop shell mounts the Agents component in a section shown only while sessions exist", async () => {
   const html = read("./index.html");
   assert.match(html, /href="\.\/agents.css"/);
-  const homeStart = html.indexOf('<section id="panel-meters"');
-  const hostStart = html.indexOf('<div id="agents-mount">');
-  assert.ok(homeStart < hostStart && hostStart < html.indexOf('id="panel-spend"', homeStart));
+  assert.match(html, /<section id="agents-section" class="q-section" aria-labelledby="agents-title" hidden>\s*<div class="q-head"><h2 id="agents-title">Agents<\/h2><\/div>\s*<div id="agents-mount"><\/div>/u);
+  assert.ok(html.indexOf('id="key-rows"') < html.indexOf('id="agents-section"'), "after the tools and the keys");
   const app = read("./app.js");
   assert.match(app, /import \{ mountAgents \} from "\.\/agents.js"/);
-  const wiring = app.match(/const disposeAgents = mountAgents\(elements.agentsMount, \{ markFor: officialMark \}\);\s*window.addEventListener\("beforeunload", disposeAgents, \{ once: true \}\);/);
+  const wiring = app.match(/const disposeAgents = mountAgents\(elements\.agentsMount, \{[\s\S]*?\}\);\s*window\.addEventListener\("beforeunload", disposeAgents, \{ once: true \}\);/);
   assert.ok(wiring);
-  assert.match(html, /<h2 id="agents-title">Agents<\/h2>/);
   const host = fakeDocument().createElement("div");
+  const section = { hidden: true };
   let dispose;
+  let answer = [record];
   runInNewContext(wiring[0], {
-    elements: { agentsMount: host },
+    elements: { agentsMount: host, agentsSection: section },
     officialMark: () => "",
-    mountAgents: (target, options) => mountAgents(target, { ...options, now, client: {
-      sessions: async () => [record],
-      preferences: async () => { throw new Error("unavailable"); },
-    } }),
+    mountAgents: (target, options) => mountAgents(target, { ...options, now, interval: 5, client: { sessions: async () => answer } }),
     window: { addEventListener: (event, callback) => { assert.equal(event, "beforeunload"); dispose = callback; } },
   });
   try {
     await settle();
+    assert.equal(section.hidden, false);
     assert.match(host.textContent, /Claude Code/);
     assert.match(host.textContent, /Needs you/);
     assert.match(host.textContent, /Show app/);
+    answer = [];
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.equal(section.hidden, true, "the section leaves with the last session");
   } finally { dispose(); }
   assert.equal(host.children.length, 0);
 });

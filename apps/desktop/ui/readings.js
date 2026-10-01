@@ -4,8 +4,8 @@
  * Both surfaces run what the native side hands them through projectReadings
  * and draw it with renderLimits (and their agents with agents.js). The panel
  * can therefore never disagree with Home about which rows exist, what they are
- * called or which band they sit in. Connections draws its Needs attention rows
- * from here too, with the same names and marks.
+ * called or which band they sit in. Home's one list adds a row for every tool
+ * in play that has no reading yet, with the one step that gets it one.
  *
  * Nothing read off disk reaches innerHTML: the only markup set that way is
  * the constant artwork of a provider mark, a band shape or a state icon.
@@ -21,7 +21,9 @@ import {
 } from "./engine/core/index.js";
 import { parseManualPayload } from "./engine/connectors/manual.js";
 import { bandForPercent, bandIconSvg, closestToLimit, providerMarkMarkup, windowRank } from "./engine/ui/provider-row.js";
-import { duration, meterLabel, providerAccess, providerCode, providerName, say } from "./names.js";
+import { duration, meterLabel, providerCode, providerName, say, updatedLabel } from "./names.js";
+
+export { updatedLabel };
 
 function parseJson(text) {
   if (typeof text !== "string" || text.trim() === "") return null;
@@ -111,43 +113,6 @@ export function attentionFlags(flags, snapshots, removed = []) {
     providerName(left.provider).localeCompare(providerName(right.provider)));
 }
 
-/**
- * Connected: every provider switched on that is measured right now, detected
- * with a login on this computer, or connected by a key, and not waiting in
- * Needs attention. `detections` and `connections` are the native reports.
- */
-export function connectedProviders({ snapshots, detections = null, connections = [], flags = [], removed = [], attention = [] }) {
-  const off = switchedOff(flags, removed);
-  const flagged = new Set(attention.map((flag) => flag.provider));
-  const codes = new Set([
-    ...snapshots.map((row) => providerCode(row.provider)),
-    ...(detections?.providers ?? []).filter((entry) => entry.state === "present").map((entry) => providerCode(entry.provider_id)),
-    ...connections.filter((entry) => entry.state === "CONNECTED").map((entry) => providerCode(entry.provider)),
-  ]);
-  return [...codes].filter((code) => code && !off.has(code) && !flagged.has(code))
-    .map((code) => ({ code, name: providerName(code), access: providerAccess(code) }))
-    .sort((left, right) => left.name.localeCompare(right.name));
-}
-
-const SOURCE_KEYS = Object.freeze({ automatic: "sourceLocal", key: "sourceKey", manual: "sourceManual" });
-
-/** Connected rows: mark, name, where the numbers come from, and a green check. */
-export function renderConnected(doc, mount, providers) {
-  mount.replaceChildren(...providers.map((provider) => {
-    const row = node(doc, "div", "q-conn");
-    row.setAttribute("role", "listitem");
-    row.dataset.connectedRow = "";
-    row.dataset.provider = provider.code;
-    const text = node(doc, "div", "q-ftext");
-    text.append(node(doc, "div", "q-fname-text", provider.name),
-      node(doc, "p", "q-fdetail", say(SOURCE_KEYS[provider.access] ?? "sourceLocal", { name: provider.name })));
-    const status = node(doc, "span", "q-ok");
-    status.append(art(doc, "q-sico", CHECK_ICON), node(doc, "span", "", say("connected")));
-    row.append(markNode(doc, provider.code), text, status);
-    return row;
-  }));
-}
-
 const money = (amount, currency) => new Intl.NumberFormat("en-US", { style: "currency", currency }).format(amount);
 
 /* "4d 14h", "1h 55m", "12m": the time left, never below a minute. An empty
@@ -234,10 +199,8 @@ function node(doc, tag, className, text) {
   return element;
 }
 
-/* Constant artwork: the check a Connected row ends with, and the alert circle
-   a Needs attention row opens with. */
-const CHECK_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="6.2"/><path d="m5.3 8.2 1.9 1.9 3.6-3.9"/></svg>';
-const ALERT_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="6.2"/><path d="M8 4.9v3.5"/><circle cx="8" cy="11" r=".6" fill="currentColor" stroke="none"/></svg>';
+/* Constant artwork: the three dots a row's small menu opens from. */
+const MORE_ICON = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="3.5" cy="8" r="1.25"/><circle cx="8" cy="8" r="1.25"/><circle cx="12.5" cy="8" r="1.25"/></svg>';
 
 function art(doc, className, markup) {
   const element = node(doc, "span", className);
@@ -307,8 +270,64 @@ function columnHeads(doc) {
   return head;
 }
 
-/** Draw a limitsModel. `compact` is the panel's column form. */
-export function renderLimits(doc, mount, model, { compact = false } = {}) {
+/* A row's one step: a button that calls its handler with the tool, and a
+   short line beside it when that did not work. */
+function stepButton(doc, provider, handlers) {
+  const wrap = node(doc, "span", "q-tact");
+  const status = node(doc, "span", "q-fstatus");
+  status.setAttribute("role", "status");
+  const { kind, label, title } = provider.action;
+  const button = node(doc, "button", kind === "connect" ? "q-btn q-btn-primary" : "q-btn q-btn-ghost", label);
+  button.type = "button";
+  button.dataset.action = kind;
+  if (title) button.setAttribute("title", title);
+  button.addEventListener("click", async () => {
+    if (button.disabled) return;
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+    status.textContent = "";
+    try {
+      if ((await handlers?.[kind]?.(provider.code)) === false) status.textContent = say("fixFailed");
+    } catch {
+      status.textContent = say("fixFailed");
+    } finally {
+      button.disabled = false;
+      button.setAttribute("aria-busy", "false");
+    }
+  });
+  wrap.append(status, button);
+  return wrap;
+}
+
+/* The small menu at the end of a row. Its owner fills it each time it opens,
+   so it shows the switch and the fixes as they are now; `opened` keeps it
+   open across a redraw. */
+function moreMenu(doc, provider, more, opened) {
+  const toggle = node(doc, "button", "q-more");
+  toggle.type = "button";
+  toggle.innerHTML = MORE_ICON;
+  toggle.setAttribute("aria-label", say("moreFor", { name: provider.name }));
+  const panel = node(doc, "div", "q-morepanel");
+  const show = (open) => {
+    toggle.setAttribute("aria-expanded", String(open));
+    panel.hidden = !open;
+    panel.replaceChildren();
+    if (open) more(provider, panel);
+    if (open) opened?.add(provider.code);
+    else opened?.delete(provider.code);
+  };
+  toggle.addEventListener("click", () => show(panel.hidden));
+  show(opened?.has(provider.code) === true);
+  return { toggle, panel };
+}
+
+/**
+ * Draw a model: limitsModel rows, or inventoryModel rows on Home. `compact`
+ * is the panel's column form. A row with no reading carries a muted note or
+ * one step, a button that calls `handlers[kind](code)`; `more` adds the
+ * small menu at the end of every row.
+ */
+export function renderLimits(doc, mount, model, { compact = false, handlers = null, more = null, opened = null } = {}) {
   mount.replaceChildren(...(compact && model.length ? [columnHeads(doc)] : []), ...model.map((provider) => {
     const group = node(doc, "div", "q-group");
     group.dataset.providerCard = "";
@@ -318,20 +337,104 @@ export function renderLimits(doc, mount, model, { compact = false } = {}) {
     const head = node(doc, "div", "q-prov");
     head.append(markNode(doc, provider.code), node(doc, "span", "q-pname", provider.name));
     if (provider.age) head.append(node(doc, "span", "q-age", provider.age));
-    group.append(head, ...provider.windows.map((window) => limitRow(doc, window, compact)));
+    if (provider.note) head.append(node(doc, "span", "q-tnote", provider.note));
+    if (provider.action) head.append(stepButton(doc, provider, handlers));
+    group.append(head);
+    if (more) {
+      const menu = moreMenu(doc, provider, more, opened);
+      head.append(menu.toggle);
+      group.append(menu.panel);
+    }
+    group.append(...provider.windows.map((window) => limitRow(doc, window, compact)));
     return group;
   }));
 }
 
-/** "Updated 3 min ago" for the freshest observation on screen. */
-export function updatedLabel(instant, now) {
-  const at = Date.parse(instant ?? "");
-  if (!Number.isFinite(at)) return say("noReading");
-  const minutes = Math.floor((Date.parse(now) - at) / 60_000);
-  if (minutes < 1) return say("updatedJustNow");
-  if (minutes < 60) return say("updatedMinutes", { count: minutes });
-  const hours = Math.floor(minutes / 60);
-  return hours < 24 ? say("updatedHours", { count: hours }) : say("updatedDays", { count: Math.floor(hours / 24) });
+/* ------------------------------------------------------------ the inventory */
+
+/* The tools that always have a row, set up or not: the three 2.0.2 hid. */
+export const ALWAYS_LISTED = Object.freeze(["CLAUDE", "ANTIGRAVITY", "OPENROUTER"]);
+
+/* Tools this window can set up itself: a guided setup, an import or a key. */
+const CONNECTABLE = new Set(["CLAUDE", "CODEX", "ANTIGRAVITY", "OPENCODE", "OPENROUTER"]);
+
+/* Connection states a stored credential cannot read through. */
+const REFUSED = new Set(["NEEDS_AUTH", "AUTH_EXPIRED", "ERROR"]);
+
+/* Fixes worth offering for another account of a tool that already reads. */
+const ACCOUNT_FIXES = new Set(["sign_in", "reconnect", "open_app"]);
+
+const step = (kind, key, title = null) => ({ action: { kind, label: say(key), title } });
+
+/**
+ * The one step a tool with no reading needs, from what is known about it:
+ * its flags, its connection records, its detection and, for Claude Code, its
+ * setup. "connect" opens this window's own setup or key field for the tool;
+ * "check" looks again after the person did the step in the tool itself.
+ */
+function nextStep(code, name, { flag, flags, records, detection, claude }) {
+  const title = (key) => say(key, { name });
+  const reasons = new Set(flags.map((entry) => entry.reason));
+  if (reasons.has("awaiting_statusline")) return { note: say("fixWaitingIssue", { name }) };
+  const signInAgain = step("check", "fixSignInAgainIssue", title("fixToolDetail"));
+  if (reasons.has("account_unresolved")) return signInAgain;
+  const refused = records.some((record) => REFUSED.has(record.state));
+  const loggedOut = detection?.state === "installed_logged_out";
+  if (code === "CLAUDE") {
+    if (loggedOut) return signInAgain;
+    if (claude === "READY_TO_ENABLE" || claude === "CONNECTED") return { note: say("fixWaitingIssue", { name }) };
+    return step("connect", "connect");
+  }
+  if (code === "OPENROUTER") return records.length === 0 || refused ? step("connect", "connect") : step("check", "fixOpenAppAction");
+  if (code === "ANTIGRAVITY" && !refused) return step("check", "openAntigravity", title("fixOpenAppDetail"));
+  if (flag?.fixKind === "unsupported") return { note: say("fixUnsupportedIssue") };
+  if (CONNECTABLE.has(code) && (refused || flag?.fixKind === "reconnect" || flag?.fixKind === "sign_in")) return step("connect", "connect");
+  if (loggedOut || flag?.fixKind === "sign_in") return signInAgain;
+  return step("check", "fixOpenAppAction", title(flag?.fixKind === "open_app" ? "fixOpenAppDetail" : "fixToolDetail"));
+}
+
+/**
+ * Home's one list: every tool in play, built from the inventory rather than
+ * from what happens to be measured. A tool is in play when it always has a
+ * row, is detected or connected, is flagged, or a person chose it; one that
+ * was switched off leaves unless it always has a row. Measured tools come
+ * first, tightest first, with their bars; every other tool follows with a
+ * note or one step. `claude` is the Claude Code setup state Connections reads.
+ */
+export function inventoryModel({ snapshots = [], flags = [], detections = null, connections = [], configured = [], removed = [], claude = null } = {}, now) {
+  const measured = limitsModel(snapshots, now);
+  const shown = new Set(measured.map((tool) => tool.code));
+  const off = switchedOff(flags, removed);
+  const detected = (detections?.providers ?? []).filter((entry) => entry.state === "present" || entry.state === "installed_logged_out");
+  const inPlay = new Set([
+    ...ALWAYS_LISTED,
+    ...detected.map((entry) => providerCode(entry.provider_id)),
+    ...connections.map((entry) => providerCode(entry.provider)),
+    ...flags.filter((flag) => flag.fixKind !== "switch_on").map((flag) => flag.provider),
+    ...configured.map(providerCode),
+  ]);
+  const best = new Map(attentionFlags(flags, snapshots, removed).map((flag) => [flag.provider, flag]));
+  const rank = (code) => (ALWAYS_LISTED.includes(code) ? ALWAYS_LISTED.indexOf(code) : ALWAYS_LISTED.length);
+  const waiting = [...inPlay]
+    .filter((code) => code && !shown.has(code) && (ALWAYS_LISTED.includes(code) || !off.has(code)))
+    .sort((left, right) => rank(left) - rank(right) || providerName(left).localeCompare(providerName(right)));
+  return [
+    ...measured.map((tool) => ({
+      ...tool, action: null, note: null,
+      extra: flags.filter((flag) => flag.provider === tool.code && ACCOUNT_FIXES.has(flag.fixKind)),
+    })),
+    ...waiting.map((code) => {
+      const name = providerName(code);
+      const next = off.has(code) ? { note: say("toolOff") } : nextStep(code, name, {
+        flag: best.get(code),
+        flags: flags.filter((flag) => flag.provider === code),
+        records: connections.filter((entry) => providerCode(entry.provider) === code),
+        detection: detected.find((entry) => providerCode(entry.provider_id) === code),
+        claude,
+      });
+      return { code, name, windows: [], age: null, action: next.action ?? null, note: next.note ?? null, extra: [] };
+    }),
+  ];
 }
 
 /**
@@ -355,55 +458,3 @@ export function fixWords(flag, route) {
     : { issue: `fix${words}Issue`, detail: "fixToolDetail", action: "fixOpenAppAction" };
 }
 
-/**
- * Needs attention: mark, name, one plain sentence and one fix. `route(flag)`
- * says how the fix works (see fixWords) and `fix(flag)` performs it, resolving
- * false when it did not work; an unsupported provider has nothing to press and
- * says so.
- */
-export function renderAttention(doc, mount, flags, { fix, route = () => "rescan" }) {
-  mount.replaceChildren(...flags.map((flag) => {
-    const name = providerName(flag.provider);
-    const words = fixWords(flag, route(flag));
-    const row = node(doc, "div", "q-flag");
-    row.setAttribute("role", "listitem");
-    row.dataset.flagRow = "";
-    row.dataset.provider = flag.provider;
-    row.dataset.fixKind = flag.fixKind;
-    const text = node(doc, "div", "q-ftext");
-    const title = node(doc, "div", "q-fname");
-    const issue = node(doc, "span", "q-issue");
-    issue.append(art(doc, "q-sico", ALERT_ICON), node(doc, "span", "", say(words.issue, { name })));
-    title.append(node(doc, "span", "q-fname-text", name), issue);
-    const detail = node(doc, "p", "q-fdetail", say(words.detail, { name }));
-    text.append(title, detail);
-    if (words.action === null) {
-      detail.dataset.fix = "unsupported";
-    } else {
-      const actions = node(doc, "div", "q-actions");
-      const button = node(doc, "button", "q-btn q-btn-primary", say(words.action));
-      button.type = "button";
-      button.dataset.fix = flag.fixKind;
-      const status = node(doc, "span", "q-fstatus");
-      status.setAttribute("role", "status");
-      button.addEventListener("click", async () => {
-        if (button.disabled) return;
-        button.disabled = true;
-        button.setAttribute("aria-busy", "true");
-        status.textContent = "";
-        try {
-          if ((await fix(flag)) === false) status.textContent = say("fixFailed");
-        } catch {
-          status.textContent = say("fixFailed");
-        } finally {
-          button.disabled = false;
-          button.setAttribute("aria-busy", "false");
-        }
-      });
-      actions.append(button, status);
-      text.append(actions);
-    }
-    row.append(markNode(doc, flag.provider), text);
-    return row;
-  }));
-}

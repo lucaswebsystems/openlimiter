@@ -37,7 +37,7 @@ test("the trial chip rounds partial days up, links to billing and disappears at 
   const lastDay = desktopTrialState(account, plan(running), now + 29.5 * 86400000);
   assert.deepEqual(lastDay, { kind: "running", days: 1 });
   assert.match(desktopTrialMarkup(lastDay), /Pro trial, 1 day left/u);
-  assert.match(desktopTrialMarkup(lastDay), /href="#pro-mount"/u);
+  assert.match(desktopTrialMarkup(lastDay), /href="#pro-plan"/u);
   assert.doesNotMatch(desktopTrialMarkup(lastDay), /data-trial-start/u);
   assert.equal(desktopTrialState(account, plan(running), now + 30 * 86400000).kind, "hidden");
 });
@@ -94,10 +94,30 @@ test("a blocked browser leaves the offer available with a retry message", async 
  assert.equal(snapshot.error, TRIAL_EN.unavailable);
 });
 
-test("trial mounts sit at the Home header and the Settings Pro description", () => {
+test("the menu reaches the trial, the plan and billing, and nothing routes through a tab", () => {
   const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
-  assert.match(read("./index.html"), /id="panel-meters"[^>]*>\s*<div class="desktop-trial" data-desktop-trial hidden>/u);
-  assert.match(read("./settings.js"), /data-desktop-trial hidden[\s\S]*preset-grid/u);
+  const html = read("./index.html");
+  const menu = html.slice(html.indexOf('id="app-menu"'), html.indexOf('id="phone-popover"'));
+  assert.match(menu, /<div class="desktop-trial" data-desktop-trial hidden><\/div>/u);
+  assert.match(menu, /id="pro-mount"/u);
+  assert.match(menu, /id="settings-mount"/u);
+  assert.doesNotMatch(html, /role="tab"|role="tabpanel"|id="tab-/u);
+  /* The running trial's chip opens the menu at the plan, where billing is. */
+  const settings = read("./settings.js");
+  assert.match(desktopTrialMarkup({ kind: "running", days: 3 }), /data-trial-billing href="#pro-plan"/u);
+  assert.match(settings, /data-trial-billing[\s\S]*?showPlan\(\)/u);
+  assert.doesNotMatch(settings + read("./plan-cap.js"), /tab-settings/u);
+  assert.match(settings, /export function showPlan\(/u);
+  assert.match(read("./plan-cap.js"), /action === "unlock"\) \{\s*showPlan\(\);/u);
+  const app = read("./app.js");
+  /* Mounted when the window starts, not when a tab first opens. */
+  assert.match(app, /void renderPro\(elements\.proMount\);/u);
+  assert.match(app, /void renderSettings\(elements\.settingsMount\);/u);
+  assert.doesNotMatch(app, /paintTab|selectTab|painted\.has\("tab-/u);
+  /* The plan card offers Checkout to Free and the billing portal to Pro. */
+  const pro = read("./pro.js");
+  assert.match(pro, /id="pro-upgrade-monthly"/u);
+  assert.match(pro, /id="pro-portal">Manage billing</u);
   const css = read("./app.css");
   assert.match(css, /\.desktop-trial :is\(button, a\)[\s\S]*?min-height: 24px/u);
   assert.match(css, /\.desktop-trial :is\(button, a\):focus-visible[\s\S]*?outline: 2px solid var\(--ol-accent-solid\)/u);
