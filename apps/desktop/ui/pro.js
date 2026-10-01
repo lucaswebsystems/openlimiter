@@ -147,6 +147,10 @@ export const PRO_CHANGED = "openlimiter:pro-changed";
 /** Ask the service for a fresh entitlement, then let every gated control repaint. */
 export async function refreshEntitlement(api = { proRefresh }, target = globalThis) {
   const result = await api.proRefresh();
+  /* The service moved this device's token chain past what it holds. Nothing
+     here repairs that by itself, so the plan card offers Reconnect and
+     keeps saying it until a refresh succeeds. */
+  state.staleGrant = !result.ok && result.kind === "stale_grant";
   target.dispatchEvent(new CustomEvent(PRO_CHANGED));
   return result;
 }
@@ -217,12 +221,13 @@ function budgetBand(spend, budget) {
 
 /* ---------------------------------------------------------------- the plan */
 
-export function planMarkup(pro, trialDays) {
+export function planMarkup(pro, trialDays, staleGrant = false) {
   const isPro = proEntitled(pro);
   const planState = isPro ? (pro.plan_state ?? "active") : "free";
 
-  const banner =
-    TRIAL_STATES.has(planState)
+  const banner = staleGrant
+    ? '<div class="alert"><strong>Pro needs to reconnect</strong><div class="button-row"><button type="button" class="primary" id="pro-reconnect">Reconnect</button></div></div>'
+    : TRIAL_STATES.has(planState)
       ? '<div class="callout"><strong>' +
         escapeText(trialSentence(trialDays)) +
         "</strong><p>Every Pro capability is on. No card was asked for and none is needed until the trial ends. If it ends without one, the window returns to Free and keeps every local reading, every connection and every setting.</p></div>"
@@ -512,7 +517,7 @@ function keyFormMarkup() {
 
 /* -------------------------------------------------------------- rendering */
 
-const state = { mount: null, spend: null, pro: null };
+const state = { mount: null, spend: null, pro: null, staleGrant: false };
 
 export async function renderPro(mount) {
   state.mount = mount;
@@ -545,7 +550,7 @@ export async function renderPro(mount) {
   mount.innerHTML =
     '<section class="surface block" aria-labelledby="plan-title">' +
     '<h2 id="plan-title">Plan</h2>' +
-    planMarkup(pro, trialDays) +
+    planMarkup(pro, trialDays, state.staleGrant) +
     "</section>" +
     '<section class="surface block" aria-labelledby="devices-title">' +
     '<h2 id="devices-title">Devices</h2>' +
