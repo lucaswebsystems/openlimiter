@@ -38,6 +38,7 @@ import {
   runAcquisition,
   spawnDetachedRefresh,
   writeAcquisitionSchedule,
+  windowsSystemTool,
   probeAntigravity,
   resolveAgyExecutablePath,
   type AntigravityProbeOptions,
@@ -449,16 +450,44 @@ const execFileRunner: CredentialCommandRunner = async (
     );
   });
 
+export interface BrowserOpenInvocation {
+  readonly executable: string;
+  readonly arguments: readonly string[];
+}
+
+/** Build a direct browser opener invocation without a command shell. */
+export function browserOpenInvocation(
+  url: string,
+  platform: NodeJS.Platform,
+  environment: Readonly<Record<string, string | undefined>> = process.env
+): BrowserOpenInvocation | null {
+  if (url.length > 2_048) return null;
+  try {
+    if (new URL(url).protocol !== "https:") return null;
+  } catch {
+    return null;
+  }
+  if (platform === "win32") {
+    return {
+      executable: windowsSystemTool("rundll32.exe", environment),
+      arguments: ["url.dll,FileProtocolHandler", url]
+    };
+  }
+  return platform === "darwin"
+    ? { executable: "open", arguments: [url] }
+    : { executable: "xdg-open", arguments: [url] };
+}
+
 /** Open a URL in the person's browser, best effort and never awaited. */
 function openBrowserPlatform(url: string, platform: NodeJS.Platform): void {
-  if (!/^https:\/\//u.test(url) || url.length > 2_048) return;
-  const [command, commandArguments] = platform === "win32"
-    ? ["cmd", ["/c", "start", "", url]]
-    : platform === "darwin"
-      ? ["open", [url]]
-      : ["xdg-open", [url]];
+  const invocation = browserOpenInvocation(url, platform);
+  if (invocation === null) return;
   try {
-    const child = spawn(command, commandArguments, { stdio: "ignore", detached: true });
+    const child = spawn(invocation.executable, [...invocation.arguments], {
+      stdio: "ignore",
+      detached: true,
+      shell: false
+    });
     child.once("error", () => undefined);
     child.unref();
   } catch {
@@ -489,6 +518,7 @@ export function runtimeDependencies(): Pick<
     resolveExecutablePath: resolveAgyExecutablePath,
     spawnDetached: (executable, argumentsList, options) => {
       const child = spawn(executable, [...argumentsList], {
+        cwd: options.cwd,
         detached: true,
         stdio: "ignore",
         windowsHide: true

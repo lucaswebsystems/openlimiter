@@ -1,3 +1,4 @@
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   AGY_NOT_RUNNING_SENTENCE,
@@ -326,7 +327,8 @@ describe("Antigravity loopback probe", () => {
 
   it("verifies PID and executable path through PowerShell CIM query", async () => {
     const mockCimRunner = async (cmd: string) => {
-      if (cmd === "powershell.exe") {
+      if (cmd.toLowerCase().endsWith("\\powershell.exe")) {
+        expect(path.win32.isAbsolute(cmd)).toBe(true);
         return {
           ok: true as const,
           stdout: "31415|C:\\Users\\lucas\\AppData\\Local\\Programs\\Antigravity\\agy.exe\r\n"
@@ -351,7 +353,8 @@ describe("Antigravity loopback probe", () => {
     expect(ports).toEqual([41414]);
 
     const mockUntrustedRunner = async (cmd: string) => {
-      if (cmd === "powershell.exe") {
+      if (cmd.toLowerCase().endsWith("\\powershell.exe")) {
+        expect(path.win32.isAbsolute(cmd)).toBe(true);
         return {
           ok: true as const,
           stdout: "31415|C:\\Malicious\\agy.exe\r\n"
@@ -369,7 +372,8 @@ describe("Antigravity loopback probe", () => {
 
   it("resolveAgyExecutablePath asks Windows for the one pid's own record", async () => {
     const runner = async (executable: string, args: readonly string[]) => {
-      expect(executable).toBe("powershell.exe");
+      expect(path.win32.isAbsolute(executable)).toBe(true);
+      expect(executable.toLowerCase()).toMatch(/\\powershell\.exe$/u);
       expect(args.join(" ")).toContain("ProcessId=31415");
       return { ok: true as const, stdout: "C:\\Program Files\\Antigravity\\agy.exe\r\n" };
     };

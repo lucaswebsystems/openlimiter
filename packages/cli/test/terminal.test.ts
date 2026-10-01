@@ -2,6 +2,7 @@ import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/p
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { windowsSystemTool } from "@openlimiter/core";
 import { tomlValue } from "../src/terminal-toml.js";
 
 vi.mock("../src/terminal-launcher.js", async (importOriginal) => {
@@ -304,7 +305,9 @@ describe("terminal host installers", () => {
       platform: "win32",
       environment: { SHELL: "powershell.exe" },
       shellRunner: async (executable) => {
-        if (executable === "powershell.exe") return { ok: true, stdout: resolvedProfile };
+        if (executable === windowsSystemTool("WindowsPowerShell", "v1.0", "powershell.exe", {})) {
+          return { ok: true, stdout: resolvedProfile };
+        }
         return { ok: false };
       }
     };

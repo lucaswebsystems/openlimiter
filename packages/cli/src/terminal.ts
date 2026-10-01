@@ -1,7 +1,11 @@
 import { lstat, readFile, mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { connectors } from "@openlimiter/connectors";
-import { type CredentialCommandRunner, writeFileAtomically } from "@openlimiter/core";
+import {
+  type CredentialCommandRunner,
+  windowsSystemTool,
+  writeFileAtomically
+} from "@openlimiter/core";
 import {
   DEFAULT_PROVIDERS,
   DEFAULT_STATUSLINE,
@@ -452,7 +456,11 @@ async function shellTarget(context: TerminalHostContext): Promise<{ kind: ShellK
       "$p = Get-CimInstance Win32_Process -Filter ('ProcessId=' + $ancestorId); " +
       "if ($p.Name -match '^(pwsh|powershell|bash|zsh)(\\.exe)?$') { $p.ExecutablePath; break }; " +
       "$ancestorId = $p.ParentProcessId }";
-    const found = await context.shellRunner("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", query], POWERSHELL_PROFILE_TIMEOUT_MILLISECONDS);
+    const found = await context.shellRunner(
+      windowsSystemTool("WindowsPowerShell", "v1.0", "powershell.exe", env),
+      ["-NoProfile", "-NonInteractive", "-Command", query],
+      POWERSHELL_PROFILE_TIMEOUT_MILLISECONDS
+    );
     if (found.ok) executable = found.stdout.trim();
   }
   const name = path.basename(executable).toLowerCase();
@@ -463,6 +471,18 @@ async function shellTarget(context: TerminalHostContext): Promise<{ kind: ShellK
     return { kind: "zsh", file: path.join(env["ZDOTDIR"] || context.homeDirectory, ".zshrc") };
   }
   if (name === "pwsh" || name === "pwsh.exe" || name === "powershell" || name === "powershell.exe") {
+    if (
+      context.platform === "win32" &&
+      (name === "powershell" || name === "powershell.exe") &&
+      !path.win32.isAbsolute(executable)
+    ) {
+      executable = windowsSystemTool(
+        "WindowsPowerShell",
+        "v1.0",
+        "powershell.exe",
+        env
+      );
+    }
     return { kind: "powershell", file: await resolvePowerShellProfilePath(executable, context.shellRunner) };
   }
   if (name !== "") throw new UnsupportedShellError(name);

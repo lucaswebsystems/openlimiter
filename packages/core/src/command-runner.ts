@@ -1,5 +1,6 @@
 import { execFile, spawn, type ExecFileOptions, type SpawnOptions } from "node:child_process";
 import path from "node:path";
+import { windowsSystemTool } from "./windows-system-tool.js";
 
 export interface CommandInvocation {
   readonly executable: string;
@@ -50,8 +51,7 @@ export function commandInvocation(
     .map(quoteWindowsCommandArgument)
     .join(" ");
   return {
-    executable: environment["ComSpec"] ?? environment["COMSPEC"] ??
-      process.env["ComSpec"] ?? process.env["COMSPEC"] ?? "cmd.exe",
+    executable: windowsSystemTool("cmd.exe", environment),
     arguments: ["/d", "/s", "/c", `"${command}"`]
   };
 }

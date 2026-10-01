@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import path from "node:path";
 import {
   commandInvocation,
   quoteWindowsCommandArgument
@@ -25,5 +26,16 @@ describe("Windows command shim runner", () => {
       executable: "codex",
       arguments: ["--version"]
     });
+  });
+
+  it("ignores an untrusted command processor override", () => {
+    const invocation = commandInvocation(
+      "C:\\tools\\agent.cmd",
+      ["run"],
+      "win32",
+      { SystemRoot: "C:\\Windows", ComSpec: "C:\\fixture\\cmd.exe" }
+    );
+    expect(invocation.executable).toBe("C:\\Windows\\System32\\cmd.exe");
+    expect(path.win32.isAbsolute(invocation.executable)).toBe(true);
   });
 });

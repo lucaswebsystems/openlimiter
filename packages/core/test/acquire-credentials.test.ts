@@ -10,6 +10,7 @@ import {
   validAcquisitionRequest,
   CREDENTIAL_FAILURE_SENTENCE,
   CREDENTIAL_TARGET_PATTERN,
+  DEFAULT_POWERSHELL_EXECUTABLE,
   GROK_PREFERRED_ISSUER,
   OPENLIMITER_USER_AGENT,
   claudeUsageRequest,
@@ -350,6 +351,22 @@ describe("credential discovery", () => {
 });
 
 describe("windows credential helper", () => {
+  it("ignores a same name helper in the working directory", async () => {
+    const directory = await temporaryDirectory();
+    const fixture = path.join(directory, "powershell.exe");
+    await writeFile(fixture, "synthetic fixture", "utf8");
+    let selected = "";
+    await readWindowsCredentialWith(ANTIGRAVITY_CREDENTIAL_TARGET, {
+      runCommand: async (executable) => {
+        selected = executable;
+        return { ok: true, stdout: "" };
+      }
+    });
+    expect(path.win32.isAbsolute(selected)).toBe(true);
+    expect(selected).toBe(DEFAULT_POWERSHELL_EXECUTABLE);
+    expect(selected.toLowerCase()).not.toBe(fixture.toLowerCase());
+  });
+
   it("names the target the Antigravity client writes to", () => {
     expect(ANTIGRAVITY_CREDENTIAL_TARGET).toBe("gemini:antigravity");
     expect(CREDENTIAL_TARGET_PATTERN.test(ANTIGRAVITY_CREDENTIAL_TARGET)).toBe(true);

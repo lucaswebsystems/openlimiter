@@ -8,6 +8,7 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 import type { KeyLike } from "node:crypto";
+import { windowsSystemTool } from "@openlimiter/core";
 import {
   parseStrictJson,
   type HostedContextTrust
@@ -283,7 +284,7 @@ async function readWindowsTrustSecurity(
         "Modules"
       );
       execFile(
-        "powershell.exe",
+        windowsSystemTool("WindowsPowerShell", "v1.0", "powershell.exe"),
         [
           "-NoProfile",
           "-NonInteractive",

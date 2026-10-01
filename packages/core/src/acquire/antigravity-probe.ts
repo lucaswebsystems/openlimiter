@@ -22,6 +22,7 @@ import type { ConnectorLabels, RawMeter } from "../types.js";
 import { OPENLIMITER_USER_AGENT } from "./identity.js";
 import type { CredentialCommandRunner } from "./windows-credential.js";
 import type { CredentialLookupOptions } from "./credentials.js";
+import { windowsSystemTool } from "../windows-system-tool.js";
 
 export const AGY_QUOTA_PATH =
   "/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary";
@@ -220,7 +221,7 @@ export async function resolveAgyExecutablePath(
       "$ErrorActionPreference='SilentlyContinue';" +
       `(Get-CimInstance Win32_Process -Filter "ProcessId=${pid}").ExecutablePath`;
     const result = await runCommand(
-      "powershell.exe",
+      windowsSystemTool("WindowsPowerShell", "v1.0", "powershell.exe", env),
       ["-NoProfile", "-NonInteractive", "-Command", script],
       AGY_PROBE_TIMEOUT_MILLISECONDS
     );
@@ -469,7 +470,12 @@ export async function enumerateAgyListeningPorts(
       "\"$($_.ProcessId)|$($_.ExecutablePath)\" } }";
 
     const cimRes = await runner(
-      "powershell.exe",
+      windowsSystemTool(
+        "WindowsPowerShell",
+        "v1.0",
+        "powershell.exe",
+        options?.env ?? process.env
+      ),
       ["-NoProfile", "-NonInteractive", "-Command", cimScript],
       AGY_PROBE_TIMEOUT_MILLISECONDS
     );

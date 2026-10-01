@@ -41,6 +41,8 @@ export const DELIVERY_UNCONFIRMED_SENTENCE = "The server could not confirm deliv
 export const LOGIN_SAFETY_MARGIN_POLLS = 5;
 export const MAX_SERVER_ERROR_RETRIES = 3;
 const MAX_RETRY_INTERVAL_SECONDS = 30;
+export const HUB_VERIFICATION_ORIGIN = "https://openlimiter.com";
+export const HUB_VERIFICATION_PATH = "/device";
 
 function isFiniteInRange(value: unknown, minimum: number, maximum: number): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= minimum && value <= maximum;
@@ -52,6 +54,21 @@ function isBoundedString(value: unknown, minimum: number, maximum: number): valu
 
 function isInstant(value: unknown): value is string {
   return isBoundedString(value, 1, 64) && Number.isFinite(Date.parse(value));
+}
+
+function isExpectedVerificationUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" &&
+      parsed.origin === HUB_VERIFICATION_ORIGIN &&
+      parsed.pathname === HUB_VERIFICATION_PATH &&
+      parsed.username === "" &&
+      parsed.password === "" &&
+      parsed.search === "" &&
+      parsed.hash === "";
+  } catch {
+    return false;
+  }
 }
 
 function serverMessage(body: string, secrets: readonly string[] = []): string | null {
@@ -114,7 +131,7 @@ export function parseLoginStart(body: string): LoginStart | null {
     !isBoundedString(userCode, 1, 64) ||
     !isBoundedString(deviceCode, 1, 256) ||
     !isBoundedString(verificationUrl, 8, 512) ||
-    !verificationUrl.startsWith("https://") ||
+    !isExpectedVerificationUrl(verificationUrl) ||
     !isFiniteInRange(interval, 1, 300) ||
     !isFiniteInRange(expiresIn, 1, 86_400)
   ) {

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { acquireRefreshLock } from "@openlimiter/core";
+import { acquireRefreshLock, windowsSystemTool } from "@openlimiter/core";
 import { installHost, uninstallHost, hostStatus, STATUS_NOT_WIRED, STATUS_WIRED, validateToml, type TerminalHostContext } from "../src/terminal.js";
 import { installLauncher, launcherCommand, RUNTIME_STAMP_FILE_NAME, verifyLauncher } from "../src/terminal-launcher.js";
 import { decodeWrappedStatuslineCommand, encodeWrappedStatuslineCommand } from "../src/statusline-wrapper.js";
@@ -548,7 +548,10 @@ describe("P2 shell profiles", () => {
       }
     };
     expect((await installHost("shell", ctx)).ok).toBe(true);
-    expect(calls).toEqual(["powershell.exe", "pwsh.exe"]);
+    expect(calls).toEqual([
+      windowsSystemTool("WindowsPowerShell", "v1.0", "powershell.exe", ctx.environment ?? {}),
+      "pwsh.exe"
+    ]);
     expect(await hostStatus("shell", ctx)).toBe(STATUS_WIRED);
     await uninstallHost("shell", ctx);
     await expect(readFile(file, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
