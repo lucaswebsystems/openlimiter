@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { JSDOM } from "jsdom";
 // @ts-expect-error Capture scripts run directly in Node.
 import { ansiHtml, assertCaptureSafe, demoSessions } from "../../../scripts/capture-screenshots-sanitize.mjs";
+import { initialPairState, pairStateAfterClaim, pairStateAfterPoll } from "@/lib/pairing";
 // @ts-expect-error Capture scripts run directly in Node.
 import { demoSnapshots, edgeLayout, edgePage, edgeScene, pairingCaptureResponse, terminalPage, windowPage } from "../../../scripts/capture-screenshots.mjs";
 
@@ -19,18 +20,24 @@ describe("synthetic screenshot pipeline", () => {
 
   it("keeps the synthetic phone pairing claim in the waiting phase", () => {
     const expiresAt = "2026-10-01T12:02:00.000Z";
-    expect(pairingCaptureResponse("claim", expiresAt)).toEqual({
-      status: 200,
-      body: {
-        claim_id: "00000000-0000-4000-8000-000000000002",
-        expires_at: expiresAt,
-      },
-    });
-    expect(pairingCaptureResponse("poll", expiresAt)).toEqual({
-      status: 200,
-      body: { status: "claimed" },
-    });
-    expect(pairingCaptureResponse("approve", expiresAt)).toBeNull();
+    const claimId = "00000000-0000-4000-8000-000000000002";
+    const claim = pairingCaptureResponse({ action: "claim", code: "ABCD2345", device: { label: "Phone" } }, expiresAt);
+    expect(claim).toEqual({ status: 200, body: { claim_id: claimId, expires_at: expiresAt } });
+    const poll = pairingCaptureResponse({ action: "poll", claim_id: claimId }, expiresAt);
+    expect(poll).toEqual({ status: 200, body: { status: "claimed" } });
+    // Through the real parsers, the claim and then a poll leave the page waiting.
+    const waiting = pairStateAfterClaim(initialPairState("code=ABCD2345"), claim.body, claim.status);
+    expect(waiting.phase).toBe("waiting");
+    expect(pairStateAfterPoll(waiting, poll.body, poll.status).phase).toBe("waiting");
+    // A request outside the client's contract fails the capture.
+    for (const request of [
+      { action: "claim", code: "WRONG234", device: {} },
+      { action: "claim", code: "ABCD2345" },
+      { action: "poll" },
+      { action: "poll", claim_id: "another" },
+      { action: "approve" },
+      null,
+    ]) expect(pairingCaptureResponse(request, expiresAt)).toBeNull();
   });
 
   it("escapes terminal markup, preserves bands and rejects unsupported escapes", () => {

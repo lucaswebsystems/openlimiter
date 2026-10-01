@@ -795,12 +795,18 @@ const PHONE_VIEWS = [
 const CAPTURE_PAIR_CODE = "ABCD2345";
 const CAPTURE_CLAIM_ID = "00000000-0000-4000-8000-000000000002";
 
-/** The two synthetic wire answers that keep the real pair page waiting. */
-export function pairingCaptureResponse(action, expiresAt) {
-  if (action === "claim") {
+/**
+ * The two synthetic wire answers that keep the real pair page waiting. A
+ * request that breaks the client's contract (lib/pro-device.ts: a claim with
+ * the code and a device, a poll with the issued claim id) gets null, which
+ * fails the capture instead of photographing whatever the page does next.
+ */
+export function pairingCaptureResponse(request, expiresAt) {
+  const action = request?.action;
+  if (action === "claim" && request.code === CAPTURE_PAIR_CODE && request.device !== null && typeof request.device === "object") {
     return { status: 200, body: { claim_id: CAPTURE_CLAIM_ID, expires_at: expiresAt } };
   }
-  if (action === "poll") return { status: 200, body: { status: "claimed" } };
+  if (action === "poll" && request.claim_id === CAPTURE_CLAIM_ID) return { status: 200, body: { status: "claimed" } };
   return null;
 }
 
@@ -862,17 +868,24 @@ async function capturePhone(browser, theme, snapshots, now) {
     let syncedReads = 0;
     let pairClaims = 0;
     let pairPolls = 0;
+    let pairRejected = 0;
     const pairExpiresAt = new Date(Date.now() + 120_000).toISOString();
     await context.route("**/*", async (route) => {
       const url = new URL(route.request().url());
       if (url.origin === api) {
         const action = route.request().postDataJSON()?.action;
         if (view.screen === "pair" && url.pathname === "/functions/v1/pair-device") {
-          const response = pairingCaptureResponse(action, pairExpiresAt);
-          if (response === null) return route.abort();
+          const request = route.request();
+          const response = request.method() === "POST" ? pairingCaptureResponse(request.postDataJSON(), pairExpiresAt) : null;
+          if (response === null) {
+            pairRejected++;
+            return route.abort();
+          }
+          await route.fulfill({ status: response.status, contentType: "application/json", body: JSON.stringify(response.body) });
+          /* Counted once answered, so a poll in flight never passes for one the page has read. */
           if (action === "claim") pairClaims++;
           if (action === "poll") pairPolls++;
-          return route.fulfill({ status: response.status, contentType: "application/json", body: JSON.stringify(response.body) });
+          return;
         }
         if (view.screen === "pair") return route.abort();
         let body = {};
@@ -930,9 +943,10 @@ async function capturePhone(browser, theme, snapshots, now) {
         await page.locator("p.font-mono", { hasText: CAPTURE_PAIR_CODE }).waitFor({ timeout: 20000 }).catch(async (error) => {
           throw new Error(`The pair page never showed the waiting code. It read: ${(await deepText(page)).slice(0, 400)}`, { cause: error });
         });
-        await page.waitForTimeout(300);
-        if (pairClaims !== 1 || pairPolls === 0) {
-          throw new Error("Phone pairing capture did not claim and poll the synthetic code.");
+        for (let waited = 0; pairPolls === 0 && waited < 20000; waited += 250) await page.waitForTimeout(250);
+        await page.waitForTimeout(500);
+        if (pairRejected !== 0 || pairClaims !== 1 || pairPolls === 0) {
+          throw new Error("Phone pairing capture did not claim and poll the synthetic code under the client's contract.");
         }
       }
 
@@ -942,6 +956,9 @@ async function capturePhone(browser, theme, snapshots, now) {
       await page.evaluate((y) => window.scrollTo(0, y), top);
       await page.waitForTimeout(300);
       const name = view.file + (theme === "light" ? "-light" : "") + ".png";
+      if (view.screen === "pair" && (pairRejected !== 0 || !(await page.locator("p.font-mono", { hasText: CAPTURE_PAIR_CODE }).isVisible()))) {
+        throw new Error("The pair page left its waiting phase before the shutter.");
+      }
       await page.screenshot({ path: path.join(OUTPUT, name) });
       written.push(name);
     } finally {
