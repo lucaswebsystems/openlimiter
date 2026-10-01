@@ -107,14 +107,20 @@ test("replacing a refused OpenRouter account keeps the healthy account", async (
   }, NOW);
   const drawn = draw(rows, {
     saveOpenrouter: (secret, recordId) => saveOpenrouterConnection(secret, recordId, {
-      remove: async (id) => { actions.push(["remove", id]); records.delete(id); return { ok: true }; },
       save: async () => { actions.push(["save", secret]); records.add("replacement"); return { ok: true }; },
+      replace: async (id) => { actions.push(["replace", id, secret]); return { ok: true }; },
     }),
   });
   drawn.field("openrouter").value = "sk-or-replacement";
   await drawn.save("openrouter").fire("click");
-  assert.deepEqual(actions, [["save", "sk-or-replacement"], ["remove", "refused"]]);
-  assert.deepEqual([...records], ["healthy", "replacement"]);
+  assert.deepEqual(actions, [["replace", "refused", "sk-or-replacement"]]);
+  assert.deepEqual([...records], ["healthy", "refused"]);
+  const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
+  const connections = readFileSync(new URL("./connections.js", import.meta.url), "utf8");
+  const backend = readFileSync(new URL("./backend.js", import.meta.url), "utf8");
+  assert.match(app, /replace:\s*replaceOpenrouterKey/u);
+  assert.match(connections, /backend\.replaceConnectionSecret\(recordId, secret\)/u);
+  assert.match(backend, /call\("replace_connection_secret"/u);
 });
 
 test("a rejected OpenRouter replacement keeps the old account", async () => {
@@ -122,10 +128,10 @@ test("a rejected OpenRouter replacement keeps the old account", async () => {
   const actions = [];
   const result = await saveOpenrouterConnection("sk-or-rejected", "refused", {
     save: async () => { actions.push("save"); return { ok: false, kind: "ineligible_or_revoked" }; },
-    remove: async (id) => { actions.push("remove"); records.delete(id); return { ok: true }; },
+    replace: async () => { actions.push("replace"); return { ok: false, kind: "ineligible_or_revoked" }; },
   });
   assert.deepEqual(result, { ok: false, kind: "ineligible_or_revoked" });
-  assert.deepEqual(actions, ["save"]);
+  assert.deepEqual(actions, ["replace"]);
   assert.deepEqual([...records], ["healthy", "refused"]);
 });
 
@@ -140,8 +146,8 @@ test("adding an OpenRouter key keeps an existing paused account", async () => {
   }, NOW);
   const drawn = draw(rows, {
     saveOpenrouter: (secret, recordId) => saveOpenrouterConnection(secret, recordId, {
-      remove: async (id) => { removed.push(id); records.delete(id); return { ok: true }; },
       save: async () => { records.add("new"); return { ok: true }; },
+      replace: async (id) => { removed.push(id); return { ok: true }; },
     }),
   });
   drawn.field("openrouter").value = "sk-or-new";
@@ -190,6 +196,9 @@ test("repainting a saved row preserves another row being edited", () => {
   const drawn = draw(keyRows({}, NOW));
   const editing = drawn.row("openai");
   drawn.field("openai").value = "sk-admin-being-edited";
+  drawn.field("openai").selectionStart = 8;
+  drawn.field("openai").selectionEnd = 8;
+  drawn.field("openai").focus();
   const next = keyRows({
     status: status([source(FIRST, "xai", { status: "pending_validation", lastObservedAt: null })]),
   }, NOW);
@@ -198,6 +207,9 @@ test("repainting a saved row preserves another row being edited", () => {
   });
   assert.equal(drawn.row("openai"), editing);
   assert.equal(drawn.field("openai").value, "sk-admin-being-edited");
+  assert.equal(drawn.doc.activeElement, drawn.field("openai"));
+  assert.equal(drawn.field("openai").selectionStart, 8);
+  assert.equal(drawn.field("openai").selectionEnd, 8);
   assert.equal(drawn.field("xai"), undefined, "the submitted xAI row repaints");
   const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
   assert.match(app, /querySelectorAll\("\[data-key-id\]"\)[\s\S]*?preserveRows: editing/u);

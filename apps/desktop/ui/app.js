@@ -116,6 +116,7 @@ import {
   recordsFor,
   refreshConnection,
   removeConnection,
+  replaceOpenrouterKey,
   saveOpenrouterKey,
 } from "./connections.js";
 import { initFirstRun } from "./first-run.js";
@@ -937,7 +938,7 @@ const keyHandlers = {
   /* A refused row replaces only its connection. An empty row adds one. */
   saveOpenrouter: async (secret, recordId) => {
     return saveOpenrouterConnection(secret, recordId, {
-      remove: removeConnection,
+      replace: replaceOpenrouterKey,
       save: saveOpenrouterKey,
     });
   },

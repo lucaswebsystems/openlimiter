@@ -276,10 +276,10 @@ export const KEY_CONSENT = Object.freeze({
 
 /** Replace one refused OpenRouter connection, or add one from an empty row. */
 export async function saveOpenrouterConnection(secret, recordId, actions) {
-  const saved = await actions.save(secret);
-  if (!saved?.ok || typeof recordId !== "string" || recordId === "") return saved;
-  const removed = await actions.remove(recordId);
-  return removed?.ok ? saved : removed;
+  if (typeof recordId === "string" && recordId !== "") {
+    return actions.replace(recordId, secret);
+  }
+  return actions.save(secret);
 }
 
 /* One row each, in this order. `mark` is the provider code whose official
@@ -330,6 +330,7 @@ export function keyError(provider, kind) {
   switch (kind) {
     case "ineligible_or_revoked":
     case "unauthorized":
+    case "authentication":
       return REFUSED_KEY[provider] ?? "Key not accepted, paste a new one";
     case "invalid_input":
       return provider === "xai" ? "Wrong team ID" : "Check the key and save again";
@@ -587,7 +588,7 @@ export function renderKeys(doc, mount, rows, handlers, { preserveRows = new Map(
   const consent = element(doc, "p", "q-note q-consent", KEY_CONSENT.text);
   consent.id = "key-consent";
   const asks = rows.some((row) => row.state === "empty" || row.replace === true);
-  mount.replaceChildren(...(asks ? [consent] : []), ...rows.map((row) => {
+  const desired = [...(asks ? [consent] : []), ...rows.map((row) => {
     const id = keyRowId(row);
     const preserved = preserveRows.get(id);
     if (preserved !== undefined) return preserved;
@@ -626,5 +627,17 @@ export function renderKeys(doc, mount, rows, handlers, { preserveRows = new Map(
     if (row.state !== "empty") tail.append(removeButton(doc, row, handlers, status));
     line.append(mark, name, body, tail, status);
     return line;
-  }));
+  })];
+  /* Reconcile direct children instead of replacing the whole mount. A row in
+     active edit mode never leaves the document, so focus and selection stay
+     owned by the same input while every other row is refreshed normally. */
+  for (let index = 0; index < desired.length; index += 1) {
+    const node = desired[index];
+    if (mount.children[index] !== node) {
+      mount.insertBefore(node, mount.children[index] ?? null);
+    }
+  }
+  for (const child of [...mount.children]) {
+    if (!desired.includes(child)) child.remove();
+  }
 }

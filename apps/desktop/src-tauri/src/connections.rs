@@ -355,6 +355,8 @@ pub enum StoreError {
     Paused,
     /// The operating system refused a read or a write.
     Io,
+    /// The record changed after a caller validated the version it read.
+    Changed,
 }
 
 impl fmt::Display for StoreError {
@@ -368,6 +370,7 @@ impl fmt::Display for StoreError {
             StoreError::PlanCap => "Pro unlocks more accounts. Free reads one per provider",
             StoreError::Paused => "the connection is paused and cannot perform work",
             StoreError::Io => "the connections file could not be read or written",
+            StoreError::Changed => "the connection changed before this update could be saved",
         };
         formatter.write_str(sentence)
     }
@@ -877,6 +880,27 @@ impl ConnectionsStore {
         }
         self.save_document(&document).map_err(E::from)?;
         Ok(changed)
+    }
+
+    /// Replace one complete record only if it is still the version a caller
+    /// validated. Secret replacement performs its provider request before it
+    /// can take this synchronous lock, so the equality check prevents a late
+    /// validation from overwriting a newer edit or replacement.
+    pub fn replace_if_unchanged(
+        &self,
+        expected: &ConnectionRecord,
+        replacement: ConnectionRecord,
+    ) -> Result<ConnectionRecord, StoreError> {
+        if replacement.id != expected.id {
+            return Err(StoreError::InvalidField);
+        }
+        self.compare_and_mutate(&expected.id, |record| {
+            if record != expected {
+                return Err(StoreError::Changed);
+            }
+            *record = replacement;
+            Ok(())
+        })
     }
 
     /// Change one record in place and persist the whole document. The changed

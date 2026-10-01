@@ -392,6 +392,18 @@ export async function saveOpenrouterKey(secret) {
   return result.ok ? { ok: true } : { ok: false, kind: "ineligible_or_revoked", note: result.note };
 }
 
+/** Replace one OpenRouter key in place after native provider validation. */
+export async function replaceOpenrouterKey(recordId, secret) {
+  const result = await backend.replaceConnectionSecret(recordId, secret);
+  if (!result.ok) {
+    return { ok: false, kind: result.kind ?? null, note: result.message ?? null };
+  }
+  await syncConnections();
+  configureProvider("openrouter");
+  options?.onMetersChanged();
+  return { ok: true };
+}
+
 /**
  * The connect step. Codex imports its own login file in one press; Claude
  * Code, Antigravity and OpenCode open their setup panel under the list.
@@ -524,4 +536,3 @@ export function initConnections(configuration) {
   });
   void bootstrap();
 }
-
