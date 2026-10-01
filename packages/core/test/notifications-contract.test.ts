@@ -15,7 +15,11 @@ describe("notification product boundary", () => {
     expect(rust).toContain("const THRESHOLDS: [u32; 3] = [60, 80, 90]");
     expect(rust).toContain("tauri_plugin_notification::NotificationExt");
     expect(app).toContain("evaluateNotifications(notificationSamples)");
-    expect(app).toContain("renderNotificationEvents");
+    /* 2.0.3 owner decision: the bell and its events list left the desktop
+       window, so only the threshold evaluation and the user's settings stay. */
+    const settings = source("apps/desktop/ui/settings.js");
+    expect(settings).toMatch(/threshold60[\s\S]*threshold80[\s\S]*threshold90/u);
+    expect(settings).toContain('"alerts-reset"');
   });
 
   it("keeps remote controls behind the Pro function and the bell", () => {
