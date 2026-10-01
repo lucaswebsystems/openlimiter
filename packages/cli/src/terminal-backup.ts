@@ -21,7 +21,10 @@ async function backup(file: string): Promise<Backup | null> {
 /** Recover the first configuration, including across reinstalls and state moves. */
 export async function originalConfiguration(file: string, current: string | null): Promise<string | null> {
   const saved = await backup(file);
-  if (saved !== null && saved.installed !== current) throw new Error("Configuration changed");
+  // When no backup exists the current content is the original.
+  // When a backup exists, always return the preserved original regardless of
+  // whether the host has since edited the file — the original field never
+  // changes once it is written.
   return saved === null ? current : saved.original;
 }
 
@@ -44,13 +47,84 @@ export async function isOwned(file: string, current: string, marker: boolean): P
   return marker && saved !== null && saved.installed === current;
 }
 
+/**
+ * Whether a backup exists and the current file has drifted from what was installed.
+ * Used by changeConfigHost to decide whether the host edited the file.
+ */
+export async function hasDriftedBackup(file: string, current: string | null): Promise<boolean> {
+  const saved = await backup(file);
+  return saved !== null && saved.installed !== current;
+}
+
+/** Result of an ownership check used during install. */
+export type InstallOwnershipResult =
+  | { kind: "unowned" }
+  | { kind: "owned"; original: string | null }
+  | { kind: "drifted"; original: string | null }
+  | { kind: "replaced_by_other" };
+
+/**
+ * Classify the current ownership state for an install operation on a JSON/TOML
+ * config host.
+ *
+ * - "unowned": no backup and no marker, the file was never touched by us.
+ * - "owned": backup present and installed bytes still match, clean reinstall.
+ * - "drifted": backup present but host has edited the file since we last wrote
+ *   it. The caller should update from current content and refresh installed.
+ * - "replaced_by_other": marker present but backup is missing or stale, and
+ *   the current statusLine is not an OpenLimiter command. This is the case
+ *   where the person replaced our line with their own.
+ */
+export async function classifyInstallOwnership(
+  file: string,
+  current: string | null,
+  marker: boolean,
+  legacyOpenLimiter: boolean
+): Promise<InstallOwnershipResult> {
+  const saved = await backup(file);
+  if (saved === null) {
+    // No backup at all: either never installed, or the backup was removed.
+    return { kind: "unowned" };
+  }
+  if (saved.installed === current) {
+    // Backup matches exactly — clean owned state.
+    return { kind: "owned", original: saved.original };
+  }
+  // Backup exists but differs from current. The host has edited the file.
+  if (!marker && !legacyOpenLimiter) {
+    // The marker is gone too and the current statusLine is not ours: the
+    // person replaced our content entirely with their own.
+    return { kind: "replaced_by_other" };
+  }
+  // Our marker (or a legacy OpenLimiter command) is still present, but the
+  // host also added keys around it. Tolerate the drift.
+  return { kind: "drifted", original: saved.original };
+}
+
+/**
+ * Write `installed` to `file`, updating the backup so that:
+ *
+ * - When no backup exists yet: `original` is saved and never changed again.
+ * - When a backup exists and the host has drifted the file: the backup's
+ *   `original` is preserved untouched, and `installed` is updated to the new
+ *   content so the next check sees the correct baseline.
+ *
+ * The concurrency guard re-reads under the lock and refuses if the file
+ * changed between the outer read and the write.
+ *
+ * `priorCurrent` is the content read before the lock was acquired. If the
+ * file differs when re-read under the lock, the operation is refused with
+ * a "file changed during the operation" error.
+ */
 export async function writeOwned(file: string, original: string | null, installed: string): Promise<void> {
   await withFileLock(file, async () => {
     const current = await readOptional(file);
-    if (current !== original) throw new Error("Configuration changed");
-    const saved = await backup(file);
-    if (saved !== null && saved.installed !== current) throw new Error("Configuration changed");
+    // Concurrency guard: refuse if the file changed between the read outside
+    // the lock and this re-read inside it.
+    if (current !== original) throw new Error("File changed during the operation, try again");
+    // Nothing to write — file is already what we'd produce.
     if (current === installed) return;
+    const saved = await backup(file);
 
     const next = { version: 1 as const, original: saved === null ? original : saved.original, installed } satisfies Backup;
     if (saved === null) {
@@ -61,21 +135,109 @@ export async function writeOwned(file: string, original: string | null, installe
       await writeFileAtomically(backupPath(file), JSON.stringify(next));
     }
     await writeFileAtomically(file, installed);
-    if (await readFile(file, "utf8") !== installed) throw new Error("Configuration changed");
+    if (await readFile(file, "utf8") !== installed) throw new Error("File changed during the operation, try again");
   });
 }
 
-export async function restoreOwned(file: string, current: string, marker: boolean): Promise<boolean> {
+
+/**
+ * Write `installed` to `file` when the host has edited it since we last wrote
+ * it (drift case). The backup's `original` is preserved; `installed` is updated
+ * to the new content.
+ *
+ * `priorCurrent` is the drifted content read before locking. The concurrency
+ * guard inside the lock re-reads and refuses if the file changed again.
+ */
+export async function writeDriftedOwned(file: string, priorCurrent: string | null, installed: string): Promise<void> {
+  await withFileLock(file, async () => {
+    const current = await readOptional(file);
+    if (current !== priorCurrent) throw new Error("File changed during the operation, try again");
+    const saved = await backup(file);
+
+    // Preserve the original; update installed to the new content.
+    const next = {
+      version: 1 as const,
+      original: saved !== null ? saved.original : priorCurrent,
+      installed
+    } satisfies Backup;
+
+    if (current === installed) {
+      // File is already correct but backup.installed may still point to the
+      // first-install content. Update the backup so future drift detection
+      // compares against the current content and correctly sees "owned".
+      const savedInstalled = saved !== null ? saved.installed : null;
+      if (savedInstalled !== installed) {
+        await writeFileAtomically(backupPath(file), JSON.stringify(next));
+      }
+      return;
+    }
+
+    await writeFileAtomically(backupPath(file), JSON.stringify(next));
+    await writeFileAtomically(file, installed);
+    if (await readFile(file, "utf8") !== installed) throw new Error("File changed during the operation, try again");
+  });
+}
+
+/**
+ * Uninstall result for restoreOwned.
+ *
+ * - "restored_exact": backup.installed matched current; original bytes restored.
+ * - "restored_drifted": host edited the file; statusLine key patched on
+ *   current content, backup removed.
+ * - "not_owned": the file is not ours (no backup, or marker absent).
+ * - "concurrent_change": the file changed between the read and the write.
+ */
+export type RestoreResult =
+  | { kind: "restored_exact" }
+  | { kind: "restored_drifted" }
+  | { kind: "not_owned" }
+  | { kind: "concurrent_change"; path: string };
+
+/**
+ * Restore a file to its pre-installation state.
+ *
+ * When the installed bytes still match the current file, the exact original
+ * bytes are written back (or the file is removed if the original was null).
+ *
+ * When the host has edited the file since we installed (drift), the caller
+ * supplies the patched content via `driftedContent`. That content is written
+ * to the file so the person's other edits are preserved, and the backup is
+ * then removed.
+ *
+ * `current` is the content read before the lock. The guard re-reads under the
+ * lock and refuses if the file changed in the meantime.
+ */
+export async function restoreOwned(
+  file: string,
+  current: string,
+  marker: boolean,
+  driftedContent?: string
+): Promise<RestoreResult> {
   return await withFileLock(file, async () => {
     const latest = await readOptional(file);
-    if (latest !== current) return false;
+    if (latest !== current) return { kind: "concurrent_change", path: file };
     const saved = await backup(file);
-    if (saved !== null && (!marker || saved.installed !== latest)) throw new Error("Configuration changed");
-    if (!(marker && saved !== null)) return false;
-    if (saved.original === null) await rm(file);
-    else await writeFileAtomically(file, saved.original);
-    if (await readOptional(file) !== saved.original) throw new Error("Configuration changed");
-    await rm(backupPath(file));
-    return true;
+    if (!(marker && saved !== null)) return { kind: "not_owned" };
+
+    if (saved.installed === latest) {
+      // Clean case: restore exact original bytes.
+      if (saved.original === null) await rm(file);
+      else await writeFileAtomically(file, saved.original);
+      if (await readOptional(file) !== saved.original) return { kind: "concurrent_change", path: file };
+      await rm(backupPath(file));
+      return { kind: "restored_exact" };
+    }
+
+    // Drift case: the host edited the file. Apply the patched content the
+    // caller built from the current file and remove the backup.
+    if (driftedContent !== undefined) {
+      await writeFileAtomically(file, driftedContent);
+      await rm(backupPath(file));
+      return { kind: "restored_drifted" };
+    }
+
+    // Drifted but no patch provided: treat as concurrent change (caller
+    // should have supplied driftedContent if drift was expected).
+    return { kind: "concurrent_change", path: file };
   });
 }
