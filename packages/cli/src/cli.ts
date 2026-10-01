@@ -161,6 +161,7 @@ import {
   type StatuslineHost
 } from "./statusline.js";
 import { parseStatuslineSession } from "./statusline-ingest.js";
+import { readApiSpend } from "./api-spend.js";
 import {
   TERMINAL_HOST_NAMES,
   installHost,
@@ -1480,6 +1481,7 @@ async function statuslineCommand(
     now,
     config,
     session: parseStatuslineSession(ingested?.payload),
+    apiSpend: await readApiSpend(dependencies.stateDirectory ?? resolveStateDirectory()),
     color: statuslineColor(
       config.color,
       dependencies.environment,
