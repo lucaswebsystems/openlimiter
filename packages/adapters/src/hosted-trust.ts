@@ -8,7 +8,10 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 import type { KeyLike } from "node:crypto";
-import { windowsSystemTool } from "@openlimiter/core";
+import {
+  trustedHelperWorkingDirectory,
+  windowsSystemTool
+} from "@openlimiter/core";
 import {
   parseStrictJson,
   type HostedContextTrust
@@ -295,6 +298,7 @@ async function readWindowsTrustSecurity(
           windowsSecurityScript
         ],
         {
+          cwd: trustedHelperWorkingDirectory("win32", environment),
           windowsHide: true,
           shell: false,
           timeout: WINDOWS_SECURITY_TIMEOUT_MILLISECONDS,

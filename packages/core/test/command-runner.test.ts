@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import path from "node:path";
 import {
   commandInvocation,
-  quoteWindowsCommandArgument
+  quoteWindowsCommandArgument,
+  trustedHelperWorkingDirectory
 } from "../src/command-runner.js";
 
 describe("Windows command shim runner", () => {
@@ -37,5 +38,13 @@ describe("Windows command shim runner", () => {
     );
     expect(invocation.executable).toBe("C:\\Windows\\System32\\cmd.exe");
     expect(path.win32.isAbsolute(invocation.executable)).toBe(true);
+  });
+
+  it("uses an operating system directory when a helper call omits cwd", () => {
+    expect(trustedHelperWorkingDirectory("win32", {
+      SystemRoot: "C:\\Windows"
+    })).toBe("C:\\Windows\\System32");
+    expect(trustedHelperWorkingDirectory("linux", {})).toBe("/");
+    expect(trustedHelperWorkingDirectory("darwin", {})).toBe("/");
   });
 });

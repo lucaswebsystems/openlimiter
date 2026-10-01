@@ -37,6 +37,7 @@ import {
   resolveStateDirectory,
   runAcquisition,
   spawnDetachedRefresh,
+  trustedHelperWorkingDirectory,
   writeAcquisitionSchedule,
   windowsSystemTool,
   probeAntigravity,
@@ -421,7 +422,12 @@ const execFileRunner: CredentialCommandRunner = async (
       [...helperArguments],
       (() => {
         if (!executable.toLowerCase().endsWith("powershell.exe")) {
-          return { timeout: timeoutMilliseconds, maxBuffer: 262_144, windowsHide: true };
+          return {
+            cwd: trustedHelperWorkingDirectory(process.platform, process.env),
+            timeout: timeoutMilliseconds,
+            maxBuffer: 262_144,
+            windowsHide: true
+          };
         }
         const environment: NodeJS.ProcessEnv = { ...process.env };
         /* Windows environment names ignore case, but a copied process.env keeps
@@ -438,6 +444,7 @@ const execFileRunner: CredentialCommandRunner = async (
           "Modules"
         );
         return {
+          cwd: trustedHelperWorkingDirectory(process.platform, environment),
           timeout: timeoutMilliseconds,
           maxBuffer: 262_144,
           windowsHide: true,
@@ -453,6 +460,7 @@ const execFileRunner: CredentialCommandRunner = async (
 export interface BrowserOpenInvocation {
   readonly executable: string;
   readonly arguments: readonly string[];
+  readonly cwd: string;
 }
 
 /** Build a direct browser opener invocation without a command shell. */
@@ -470,12 +478,21 @@ export function browserOpenInvocation(
   if (platform === "win32") {
     return {
       executable: windowsSystemTool("rundll32.exe", environment),
-      arguments: ["url.dll,FileProtocolHandler", url]
+      arguments: ["url.dll,FileProtocolHandler", url],
+      cwd: trustedHelperWorkingDirectory(platform, environment)
     };
   }
   return platform === "darwin"
-    ? { executable: "open", arguments: [url] }
-    : { executable: "xdg-open", arguments: [url] };
+    ? {
+        executable: "open",
+        arguments: [url],
+        cwd: trustedHelperWorkingDirectory(platform, environment)
+      }
+    : {
+        executable: "xdg-open",
+        arguments: [url],
+        cwd: trustedHelperWorkingDirectory(platform, environment)
+      };
 }
 
 /** Open a URL in the person's browser, best effort and never awaited. */
@@ -484,6 +501,7 @@ function openBrowserPlatform(url: string, platform: NodeJS.Platform): void {
   if (invocation === null) return;
   try {
     const child = spawn(invocation.executable, [...invocation.arguments], {
+      cwd: invocation.cwd,
       stdio: "ignore",
       detached: true,
       shell: false
