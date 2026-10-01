@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { ProductShot } from "./device-frame";
 import { reveal, revealGroup } from "@/lib/motion";
 
 /**
@@ -90,29 +91,39 @@ function Chevron() {
 
 export async function Faq() {
   const t = await getTranslations("faq");
+  const release = await getTranslations("home.release");
   const items = faqItems(t);
 
+  /* The product on the left, the questions in one column on the right
+     (founder's order, 2026-10-01): a grid of cards left an odd question alone
+     at the bottom, and one column reads whatever the count. On a phone the
+     questions stand alone. */
   return (
     <div id="faq" className="space-y-6">
       <h2 className="text-center text-3xl font-medium text-heading" {...reveal}>
         {t("title")}
       </h2>
-      <div className="grid grid-cols-1 items-stretch gap-[var(--ol-space-4)] lg:grid-cols-4" {...revealGroup}>
-        {items.map((item, index) => (
-          <details
-            key={FAQ_IDS[index]}
-            className="lift-sm elev-1 group text-center lg:col-span-2 lg:last:odd:col-start-2 rounded-xl border border-hairline bg-surface transition-colors hover:border-hairline-strong open:border-hairline-strong open:bg-raised"
-            {...reveal}
-          >
-            <summary className="focus-ring-inset flex cursor-pointer list-none min-h-20 items-center justify-center gap-3 rounded-xl px-4 py-3.5 text-sm font-medium text-heading transition-colors duration-200 group-hover:text-accent">
-              <Chevron />
-              <span className="heading-face min-w-0">{item.question}</span>
-            </summary>
-            <div className="border-t border-hairline px-4 py-3.5 text-sm leading-relaxed text-muted">
-              {item.answer}
-            </div>
-          </details>
-        ))}
+      <div className="grid grid-cols-1 gap-[var(--ol-space-6)] lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start">
+        <div className="hidden lg:sticky lg:top-[calc(var(--ol-header-h)+var(--ol-space-5))] lg:block" {...reveal}>
+          <ProductShot name="edge-panel" alt={release("rail.unfoldedAlt")} />
+        </div>
+        <div className="space-y-3 text-left" {...revealGroup}>
+          {items.map((item, index) => (
+            <details
+              key={FAQ_IDS[index]}
+              className="lift-sm elev-1 group rounded-xl border border-hairline bg-surface transition-colors hover:border-hairline-strong open:border-hairline-strong open:bg-raised"
+              {...reveal}
+            >
+              <summary className="focus-ring-inset flex cursor-pointer list-none items-start gap-3 rounded-xl px-4 py-3.5 text-sm font-medium text-heading transition-colors duration-200 group-hover:text-accent">
+                <Chevron />
+                <span className="heading-face min-w-0">{item.question}</span>
+              </summary>
+              <div className="border-t border-hairline px-4 py-3.5 pl-11 text-sm leading-relaxed text-muted">
+                {item.answer}
+              </div>
+            </details>
+          ))}
+        </div>
       </div>
     </div>
   );
