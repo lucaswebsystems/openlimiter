@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promi
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { runCli } from "../src/cli.js";
+import { browserOpenInvocation, runCli } from "../src/cli.js";
 import { REVOKED_SENTENCE } from "../src/hub-auth.js";
 import type { HubReply, HubRequest, HubTransport } from "../src/hub.js";
 import { SESSION_FILE_NAME, readSession, writeSession, type HubSession } from "../src/session.js";
@@ -88,6 +88,20 @@ function session(overrides: Partial<HubSession> = {}): HubSession {
 const noSleep = async (): Promise<void> => undefined;
 
 describe("openlimiter login", () => {
+  it("passes a valid URL as one argument to the absolute Windows opener", () => {
+    const url = "https://openlimiter.com/device";
+    const invocation = browserOpenInvocation(url, "win32", {
+      SystemRoot: "C:\\Windows",
+      ComSpec: "C:\\fixture\\cmd.exe"
+    });
+    expect(invocation).toEqual({
+      executable: "C:\\Windows\\System32\\rundll32.exe",
+      arguments: ["url.dll,FileProtocolHandler", url]
+    });
+    expect(path.win32.isAbsolute(invocation?.executable ?? "")).toBe(true);
+    expect(invocation?.executable.toLowerCase()).not.toContain("cmd.exe");
+  });
+
   it("signs in and writes a session file mode appropriate for the platform", async () => {
     const stateDirectory = await temporaryDirectory("openlimiter-hub-");
     const { transport } = scriptedTransport([

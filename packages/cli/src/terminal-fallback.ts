@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
+import { windowsSystemTool } from "@openlimiter/core";
 import { type Launcher } from "./terminal-launcher.js";
 
 export const LAUNCHER_TIMEOUT_MILLISECONDS = 5_000;
@@ -178,7 +179,7 @@ export async function fallbackLauncherCommand(
     if (!info.isFile() || info.isSymbolicLink() || await readFile(file, "utf8") !== script) throw new Error("Invalid launcher");
   }
   if (shell === "posix") return `/bin/sh ${posixQuote(file)}`;
-  const executable = path.win32.join(process.env["SystemRoot"] ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  const executable = windowsSystemTool("WindowsPowerShell", "v1.0", "powershell.exe");
   if (shell === "powershell") return `& ${psQuote(executable)} -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ${psQuote(file)}`;
   if (/["%\r\n]/.test(file + executable)) throw new Error("Invalid launcher");
   return `"${executable}" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${file}"`;
