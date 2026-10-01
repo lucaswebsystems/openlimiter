@@ -66,8 +66,21 @@ describe("home product image delivery", () => {
     const phones = Object.keys(PRODUCT_SHOTS).filter((name) => name.startsWith("phone-"));
     expect(phones).toEqual(["phone-1", "phone-2", "phone-3", "phone-4"]);
     mounted = render(createElement(PhonePanels));
-    const images = [...mounted.container.querySelectorAll("img")].map((image) => image.getAttribute("src"));
+    const rendered = [...mounted.container.querySelectorAll("figure")];
+    const images = rendered.map((figure) => figure.querySelector("img")?.getAttribute("src"));
     expect(images).toEqual(phones.map((name) => `/screenshots/${name}.png`));
+    expect(rendered.map((figure) => figure.querySelector("img")?.alt)).toEqual([
+      "shots.meters.alt",
+      "shots.connect.alt",
+      "shots.pair.alt",
+      "shots.pro.alt",
+    ]);
+    expect(rendered.map((figure) => figure.querySelector("figcaption p")?.textContent)).toEqual([
+      "shots.meters.label",
+      "shots.connect.label",
+      "shots.pair.label",
+      "shots.pro.label",
+    ]);
   });
 
   it("declares every web manifest screenshot at its real size", () => {

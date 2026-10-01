@@ -512,13 +512,13 @@
         "label": "Agent context",
         "alt": "La aplicación web en un teléfono, mostrando el bloque acotado de estado de presupuesto que recibe un agente de programación, delimitado dentro de un límite de datos no confiables."
       },
-      "connections": {
-        "label": "Más proveedores, y luego Pro",
-        "alt": "La web app en un teléfono, más abajo en la misma pantalla: el final del límite más ajustado, una tarjeta para Codex, Claude, Antigravity, OpenCode y OpenRouter, y la parte superior de la tarjeta Pro."
+      "connect": {
+        "label": "Conectar herramientas",
+        "alt": "La aplicación web en un teléfono en el paso de conexión de la configuración inicial, mostrando el comando que se debe ejecutar y la lista de herramientas disponibles para conectar."
       },
-      "providers": {
-        "label": "Cada proveedor",
-        "alt": "La web app en un teléfono, desplazada hasta una tarjeta por proveedor, cada una con una barra, la parte usada y el tiempo hasta que se reinicia."
+      "pair": {
+        "label": "Vincular teléfono",
+        "alt": "La aplicación web en un teléfono esperando que la computadora apruebe la vinculación, con un código sintético de ocho caracteres y una cuenta regresiva hasta que caduque."
       },
       "pro": {
         "label": "Pro, 30 días gratis",

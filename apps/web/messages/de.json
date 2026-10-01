@@ -512,13 +512,13 @@
         "label": "Agent context",
         "alt": "Die Web App auf einem Handy, mit dem begrenzten Block an Budgetstatus, den ein Coding Agent erhält, eingezäunt in einer Grenze für nicht vertrauenswürdige Daten."
       },
-      "connections": {
-        "label": "Weitere Provider, dann Pro",
-        "alt": "Die Web App auf einem Telefon, weiter unten auf demselben Bildschirm: das Ende des knappsten Limits, je eine Karte für Codex, Claude, Antigravity, OpenCode und OpenRouter und der Anfang der Pro Karte."
+      "connect": {
+        "label": "Tools verbinden",
+        "alt": "Die Web App auf einem Handy im Verbindungsschritt der Ersteinrichtung, mit dem auszuführenden Befehl und der Liste der verfügbaren Tools."
       },
-      "providers": {
-        "label": "Jeder Anbieter",
-        "alt": "Die Web App auf einem Telefon, gescrollt zu einer Karte pro Anbieter, jede mit einem Balken, dem genutzten Anteil und der Zeit bis zum Zurücksetzen."
+      "pair": {
+        "label": "Handy koppeln",
+        "alt": "Die Web App auf einem Handy wartet auf die Freigabe durch den Computer, mit einem synthetischen Code aus acht Zeichen und einem Countdown bis zum Ablauf."
       },
       "pro": {
         "label": "Pro, 30 Tage kostenlos",

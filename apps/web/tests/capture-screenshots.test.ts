@@ -5,7 +5,7 @@ import { JSDOM } from "jsdom";
 // @ts-expect-error Capture scripts run directly in Node.
 import { ansiHtml, assertCaptureSafe, demoSessions } from "../../../scripts/capture-screenshots-sanitize.mjs";
 // @ts-expect-error Capture scripts run directly in Node.
-import { demoSnapshots, edgeLayout, edgePage, edgeScene, terminalPage, windowPage } from "../../../scripts/capture-screenshots.mjs";
+import { demoSnapshots, edgeLayout, edgePage, edgeScene, pairingCaptureResponse, terminalPage, windowPage } from "../../../scripts/capture-screenshots.mjs";
 
 const now = "2026-09-28T12:00:00.000Z";
 
@@ -15,6 +15,22 @@ describe("synthetic screenshot pipeline", () => {
       expect(() => assertCaptureSafe(value)).toThrow(/Capture refused/);
     }
     expect(assertCaptureSafe(demoSessions(now))).toHaveLength(3);
+  });
+
+  it("keeps the synthetic phone pairing claim in the waiting phase", () => {
+    const expiresAt = "2026-10-01T12:02:00.000Z";
+    expect(pairingCaptureResponse("claim", expiresAt)).toEqual({
+      status: 200,
+      body: {
+        claim_id: "00000000-0000-4000-8000-000000000002",
+        expires_at: expiresAt,
+      },
+    });
+    expect(pairingCaptureResponse("poll", expiresAt)).toEqual({
+      status: 200,
+      body: { status: "claimed" },
+    });
+    expect(pairingCaptureResponse("approve", expiresAt)).toBeNull();
   });
 
   it("escapes terminal markup, preserves bands and rejects unsupported escapes", () => {
