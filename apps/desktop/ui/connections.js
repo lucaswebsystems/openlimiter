@@ -435,12 +435,11 @@ export async function checkTool(code) {
   return refreshed || (scanned.ok && read.ok);
 }
 
-/** Refresh OpenRouter's stored key now, for its key row. */
-export async function refreshConnection(code) {
-  const records = recordsFor(code);
-  const results = await Promise.all(records.map(refreshNow));
+/** Refresh one stored connection now, for the key row bound to it. */
+export async function refreshConnection(id) {
+  const ok = await refreshNow({ id });
   options?.onMetersChanged();
-  return { ok: results.some(Boolean) };
+  return { ok };
 }
 
 /** Remove one stored connection and its credential. */

@@ -1,4 +1,4 @@
-import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -122,6 +122,17 @@ describe("api money cells in the bar status line", () => {
     expect(render(doc)).toBe("oa ~$12.34");
     const cny = document([[source("deepseek"), { currencySource: "provider_cny", observedAt: "2026-09-07T10:00:00Z" }]]);
     expect(render(cny)).toBe("ds ~CNY");
+  });
+
+  it("draws no money cell for a source whose key was just replaced", async () => {
+    /* The state the desktop writes when a key is replaced, pinned by api_spend.rs:
+       the old key's samples left with it, so nothing is selected by its source id. */
+    const fixture = async (name: string): Promise<unknown> => JSON.parse(await readFile(
+      path.resolve(process.cwd(), "apps/desktop/src-tauri/tests/fixtures", name), "utf8"));
+    expect(render(await fixture("api-spend-v1-2.0.2.json"))).toContain("xa ");
+    const replaced = render(await fixture("api-spend-v1-replaced-key.json"));
+    expect(replaced).not.toContain("xa ");
+    expect(replaced).toContain("or ");
   });
 
   it("renders nothing, with no error, for a non USD amount", () => {

@@ -38,7 +38,7 @@ globalThis.window = {
 };
 globalThis.CustomEvent = class { constructor(type) { this.type = type; } };
 globalThis.document = fakeDocument(["claude-card", "claude-body", "claude-note", "antigravity-add", "opencode-add"]);
-const { catalogueModel, checkTool, chooseTool, connectTool, initConnections, saveOpenrouterKey } = await import("./dist/connections.js");
+const { catalogueModel, checkTool, chooseTool, connectTool, initConnections, refreshConnection, saveOpenrouterKey } = await import("./dist/connections.js");
 
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 let meters = 0;
@@ -89,6 +89,18 @@ test("Check again for a tool with a stored connection reads that connection now"
   calls.length = 0;
   assert.equal(await checkTool("OPENROUTER"), true);
   assert.deepEqual(calls.find(([command]) => command === "refresh_provider")[1], { input: { connection_id: "or-1" } });
+});
+
+test("an OpenRouter key row's refresh reads its own connection and no other account", async () => {
+  records = [
+    { id: "or-a", provider_id: "openrouter", status: "CONNECTED" },
+    { id: "or-b", provider_id: "openrouter", status: "CONNECTED" },
+  ];
+  await initConnections({ onMetersChanged: () => {}, hasFreshLocalClaude: () => false });
+  await settle();
+  calls.length = 0;
+  assert.deepEqual(await refreshConnection("or-b"), { ok: true });
+  assert.deepEqual(calls.filter(([command]) => command === "refresh_provider").map(([, args]) => args.input.connection_id), ["or-b"]);
 });
 
 test("OpenRouter's key is its quota connection, never an API spend source", async () => {

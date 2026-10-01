@@ -157,6 +157,9 @@ pub fn project(
     let mut snapshots = Vec::new();
     let mut flags = BTreeMap::new();
     for mut row in rows {
+        if borrowed_from_inactive_gemini(&row, active) {
+            continue;
+        }
         let rejected = if disabled.contains(&row.provider) {
             Some("disabled")
         } else if row.availability.is_some() {
@@ -230,25 +233,38 @@ pub(crate) fn detected_policy(
 /// The Antigravity local probe needs no credential, and files its rows under
 /// the provider singleton whenever no Antigravity login or connection is known
 /// (`antigravity_oauth::run_pass`), so that identity is accepted exactly then.
-/// The Gemini fallback files the shared Code Assist pool under its own
-/// account, legitimate while a Gemini CLI login is.
+/// The Gemini fallback files the shared Code Assist pool under the Gemini
+/// login each reading was taken for, legitimate exactly while that login is.
 pub(crate) fn register_local_identities(active: &mut ActiveAccounts, disabled: &BTreeSet<String>) {
     use crate::provider_detection::{provider_singleton_account_id, DetectedProviderId};
     if disabled.contains("ANTIGRAVITY") {
         return;
     }
-    let gemini = !disabled.contains("GEMINI_CLI")
-        && active.get("GEMINI_CLI").is_some_and(|accounts| !accounts.is_empty());
+    let gemini = if disabled.contains("GEMINI_CLI") {
+        BTreeSet::new()
+    } else {
+        active.get("GEMINI_CLI").cloned().unwrap_or_default()
+    };
     let accounts = active.entry("ANTIGRAVITY".into()).or_default();
     if accounts.is_empty() {
         accounts.insert(provider_singleton_account_id(DetectedProviderId::Antigravity));
     }
-    if gemini {
-        /* `antigravity_oauth::SHARED_CODE_ASSIST_ACCOUNT`, spelled out because
-        the rail tests compile this file without that module. The mirror test
-        there fails if the two ever differ. */
-        accounts.insert("gemini-cli-shared".into());
-    }
+    accounts.extend(gemini);
+}
+
+/// An Antigravity row borrowed from a Gemini login (`gemini-cli-` is that
+/// provider's account id prefix, and 2.0.2 and the terminal build use
+/// `gemini-cli-shared`, which names no login). One whose login is not active
+/// is dropped without a flag: the Gemini row already offers the fix for its
+/// own login, and Antigravity's reconnect would be the wrong one.
+fn borrowed_from_inactive_gemini(row: &Snapshot, active: &ActiveAccounts) -> bool {
+    row.provider == "ANTIGRAVITY"
+        && row.account_id.as_deref().is_some_and(|id| {
+            id.starts_with("gemini-cli-")
+                && active
+                    .get("ANTIGRAVITY")
+                    .is_some_and(|accounts| !accounts.contains(id))
+        })
 }
 
 pub fn for_app<R: tauri::Runtime>(

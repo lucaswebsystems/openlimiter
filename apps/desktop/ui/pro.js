@@ -372,6 +372,8 @@ function spendRow(base, source, sample, many, now) {
     return { ...row, state: "error", error: keyError(base.provider, source.status), replace: true };
   }
   if (source.status === "keyring_unavailable") return { ...row, state: "error", error: keyError(base.provider, source.status) };
+  /* A key saved or replaced has not read yet, so no amount here can be its own. */
+  if (source.status === "pending_validation") return { ...row, state: "checking" };
   const badges = [
     ...(source.status === "observed_incomplete" || (sample?.metricKind === "spend" && PARTIAL.has(sample.completeness)) ? [KEYS_EN.incomplete] : []),
     ...(UNAVAILABLE.has(source.status) ? [KEYS_EN.unavailable] : []),
@@ -386,15 +388,17 @@ function spendRow(base, source, sample, many, now) {
   return { ...row, state: "reading", amount: money(shown.amountUsd), period: periodLabel(sample, now), currency: "USD", age, badges };
 }
 
-function quotaRow(base, openrouter, now) {
-  const records = openrouter?.records ?? [];
-  if (records.length === 0) return { ...base, state: "empty" };
-  const record = records.find((entry) => entry.state === "CONNECTED") ?? records[0];
+/* One row per active OpenRouter connection, showing only that connection's
+   own newest reading (the collector files it under the connection id), so
+   its amount, Refresh and Remove all name the same account. */
+function quotaRow(base, record, readings, now) {
   const row = { ...base, recordId: record.id };
   /* A refused key is replaced right there; app.js removes the old record first. */
   if (KEY_REFUSED.has(record.state)) return { ...row, state: "error", error: keyError("openrouter", "ineligible_or_revoked"), replace: true };
   if (record.state === "ERROR") return { ...row, state: "error", error: keyError("openrouter", "network"), replace: true };
-  const reading = openrouter?.reading ?? null;
+  const reading = readings
+    .filter((entry) => entry.accountId === record.id)
+    .reduce((held, entry) => (held === null || Date.parse(entry.observedAt) > Date.parse(held.observedAt) ? entry : held), null);
   if (reading !== null && Number.isFinite(reading.usedAmount) && Number.isFinite(reading.limitAmount)) {
     return {
       ...row, state: "reading", amount: money(Math.max(0, reading.limitAmount - reading.usedAmount)),
@@ -406,8 +410,9 @@ function quotaRow(base, openrouter, now) {
 
 /**
  * One row per key provider, from the spend status (`api_spend_status`) and
- * OpenRouter's quota connection: its records and its newest money reading.
- * A provider with two sources gets two rows, each with its own newest sample.
+ * OpenRouter's quota connections: their records and their money readings.
+ * A provider with two sources gets two rows, each with its own newest sample;
+ * OpenRouter gets one row per active connection, and none for a paused one.
  */
 export function keyRows({ status = null, openrouter = null } = {}, now) {
   const sources = status?.sources ?? [];
@@ -419,8 +424,11 @@ export function keyRows({ status = null, openrouter = null } = {}, now) {
     const base = { ...provider, provider: provider.id, kind: "spend", badges: [] };
     const own = sources.filter((source) => source.provider === provider.id);
     if (provider.id === "openrouter") {
+      const records = (openrouter?.records ?? []).filter((record) => record.active !== false);
+      const quota = records.length === 0 ? [{ ...base, kind: "quota", state: "empty" }]
+        : records.map((record) => quotaRow({ ...base, kind: "quota", label: records.length > 1 ? record.maskedLabel ?? null : null }, record, openrouter?.readings ?? [], now));
       /* A 2.0.2 OpenRouter spend source keeps its own row under the key. */
-      return [quotaRow({ ...base, kind: "quota" }, openrouter, now), ...own.map((source) => spendRow(base, source, newest(source.id), true, now))];
+      return [...quota, ...own.map((source) => spendRow(base, source, newest(source.id), true, now))];
     }
     if (own.length === 0) return [{ ...base, state: "empty" }];
     return own.map((source) => spendRow(base, source, newest(source.id), own.length > 1, now));

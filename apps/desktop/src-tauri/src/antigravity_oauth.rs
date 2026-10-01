@@ -29,10 +29,12 @@ pub const REFRESH_SECONDS: u64 = 900;
 const BLOCKED_BACKOFF_SECONDS: u64 = 86_400;
 const MAX_THROTTLE_ENTRIES: usize = 128;
 
-/// The account a reading borrowed from the Gemini CLI login is filed under.
+/// What a borrowed reading's outcome names as its account.
 ///
-/// The same string the terminal build uses, so one machine running both does
-/// not end up with two rows for one borrowed pool.
+/// The rows themselves are filed under the Gemini login they were read for
+/// (`native_snapshot::mirror_provider`). This one shared id is what 2.0.2 filed
+/// them under and what the terminal build still uses; it names no login, so
+/// the display policy never shows a row under it.
 pub const SHARED_CODE_ASSIST_ACCOUNT: &str = "gemini-cli-shared";
 
 /// What that account is called where a person can read it.
@@ -362,7 +364,6 @@ async fn mirror_shared(writer: Arc<CacheWriter>) -> bool {
             &writer,
             "GEMINI_CLI",
             "ANTIGRAVITY",
-            SHARED_CODE_ASSIST_ACCOUNT,
             SHARED_CODE_ASSIST_LABEL,
         )
     })
@@ -1112,10 +1113,10 @@ mod tests {
     }
 
     /// The Gemini reading is borrowed only when nothing else answered, and it
-    /// is filed under an account of its own so nothing mistakes it for a login
-    /// somebody made to Antigravity.
+    /// is filed under the Gemini login it was read for, labelled as borrowed,
+    /// so nothing mistakes it for a login somebody made to Antigravity.
     #[tokio::test]
-    async fn the_shared_gemini_reading_is_mirrored_under_its_own_account() {
+    async fn the_shared_gemini_reading_is_mirrored_under_its_own_login() {
         let dir = TempDir::new();
         let runtime = AntigravityOauthRuntime::default();
         let detection = DetectionStore::for_test_home(dir.path(), NOW);
@@ -1163,10 +1164,18 @@ mod tests {
         assert_eq!(account_id, SHARED_CODE_ASSIST_ACCOUNT);
         assert_eq!(message, MIRROR_SENTENCE);
         let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
-        assert!(cache.contains(SHARED_CODE_ASSIST_ACCOUNT));
-        assert!(cache.contains(SHARED_CODE_ASSIST_LABEL));
+        let rows = crate::native_snapshot::display_snapshots(Some(&cache));
+        let mirrored: Vec<_> = rows
+            .iter()
+            .filter(|row| row.provider == "ANTIGRAVITY")
+            .collect();
+        assert!(!mirrored.is_empty());
+        assert!(mirrored
+            .iter()
+            .all(|row| row.account_id.as_deref() == Some("gemini-account")
+                && row.account_label.as_deref() == Some(SHARED_CODE_ASSIST_LABEL)));
         /* The Gemini rows it was borrowed from are untouched. */
-        assert!(cache.contains("GEMINI_CLI"));
+        assert!(rows.iter().any(|row| row.provider == "GEMINI_CLI"));
     }
 
     /// The local read, end to end: what the collector writes, the cache it
@@ -1308,8 +1317,94 @@ mod tests {
             &disabled,
         );
         assert!(projection.snapshots.iter().any(|row| row.provider == "ANTIGRAVITY"
-            && row.account_id.as_deref() == Some(SHARED_CODE_ASSIST_ACCOUNT)));
+            && row.account_id.as_deref() == Some(gemini_account[0].as_str())));
         assert!(projection.snapshots.iter().any(|row| row.provider == "GEMINI_CLI"));
+    }
+
+    /// A Gemini switch from one login to another. The first login's reading
+    /// is still fresh in the cache, and it is not the second login's to show.
+    #[tokio::test]
+    async fn a_gemini_switch_hides_the_previous_logins_mirrored_reading() {
+        use crate::data_rules::{project, register_local_identities, ActiveAccounts};
+        use crate::native_snapshot::{display_snapshots, Snapshot};
+        use std::collections::BTreeSet;
+        let dir = TempDir::new();
+        let cache_writer = writer(&dir);
+        let (first, second) = ("gemini-cli-first-login", "gemini-cli-second-login");
+        let gemini_report = |account: &str, used: f64| {
+            let rows = parse_body(ReaderId::AntigravityQuota, &local_summary(), NOW, account)
+                .expect("readable summary")
+                .into_iter()
+                .map(|row| Snapshot {
+                    provider: "GEMINI_CLI".to_string(),
+                    value: used,
+                    ..row
+                })
+                .collect();
+            write_report(
+                &cache_writer,
+                "GEMINI_CLI",
+                Some(account),
+                CacheReport::Success(rows),
+            )
+            .expect("gemini rows");
+        };
+        /* What Antigravity's row shows, and flags, while exactly this Gemini
+        login is active. */
+        let shown = |gemini: &str| {
+            let mut active = ActiveAccounts::new();
+            active.insert("GEMINI_CLI".into(), BTreeSet::from([gemini.to_string()]));
+            let disabled = BTreeSet::new();
+            register_local_identities(&mut active, &disabled);
+            let text = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
+            let projection = project(
+                display_snapshots(Some(&text)),
+                NOW as i64,
+                &active,
+                &disabled,
+            );
+            let shown = projection
+                .snapshots
+                .into_iter()
+                .filter(|row| row.provider == "ANTIGRAVITY")
+                .map(|row| format!("{} {}", row.account_id.unwrap_or_default(), row.value))
+                .collect::<BTreeSet<_>>();
+            let flagged = projection
+                .flags
+                .iter()
+                .any(|flag| flag.provider == "ANTIGRAVITY");
+            (shown.into_iter().collect::<Vec<_>>(), flagged)
+        };
+        /* A row 2.0.2 or the terminal filed under the one shared account names
+        no login, so it is never shown, whichever login is active. */
+        let legacy = parse_body(
+            ReaderId::AntigravityQuota,
+            &local_summary(),
+            NOW,
+            SHARED_CODE_ASSIST_ACCOUNT,
+        )
+        .expect("readable summary");
+        write_report(
+            &cache_writer,
+            "ANTIGRAVITY",
+            Some(SHARED_CODE_ASSIST_ACCOUNT),
+            CacheReport::Success(legacy),
+        )
+        .expect("legacy rows");
+
+        gemini_report(first, 11.0);
+        assert!(mirror_shared(Arc::clone(&cache_writer)).await);
+        assert_eq!(shown(first), (vec![format!("{first} 11")], false));
+
+        /* Switched: the first login's mirrored reading, still fresh, is hidden
+        at once, and Antigravity offers no reconnect for a Gemini login. */
+        assert_eq!(shown(second), (Vec::new(), false));
+
+        /* The second login's own reading is the one that shows. */
+        gemini_report(second, 77.0);
+        assert!(mirror_shared(Arc::clone(&cache_writer)).await);
+        assert_eq!(shown(second), (vec![format!("{second} 77")], false));
+        assert_eq!(shown(first), (vec![format!("{first} 11")], false));
     }
 
     /// The outcome that earns a day of quiet is named, not assumed.

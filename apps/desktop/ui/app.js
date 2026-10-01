@@ -938,7 +938,7 @@ const keyHandlers = {
     return result;
   },
   refresh: async (row) => {
-    const result = row.kind === "quota" ? await refreshConnection("OPENROUTER") : await apiSpendRefresh(row.sourceId, true);
+    const result = row.kind === "quota" ? await refreshConnection(row.recordId) : await apiSpendRefresh(row.sourceId, true);
     await refresh();
     return result;
   },
@@ -952,10 +952,9 @@ const keyHandlers = {
 /** Draw the key rows, unless a key is being typed into one of them. */
 function paintKeys(now) {
   const records = inventory.connections.filter((entry) => providerCode(entry.provider) === "OPENROUTER");
-  const reading = heldSnapshots
-    .filter((row) => row.provider === "OPENROUTER" && Number.isFinite(row.limitAmount))
-    .reduce((held, row) => (held === null || Date.parse(row.observedAt) > Date.parse(held.observedAt) ? row : held), null);
-  const rows = keyRows({ status: spendStatus, openrouter: { records, reading } }, now);
+  /* Every account's readings: keyRows binds each row to its own connection's. */
+  const readings = heldSnapshots.filter((row) => row.provider === "OPENROUTER" && Number.isFinite(row.limitAmount));
+  const rows = keyRows({ status: spendStatus, openrouter: { records, readings } }, now);
   const key = JSON.stringify(rows);
   const typing = [...elements.keyRows.querySelectorAll("input")].some((input) => input.value !== "" || input === document.activeElement);
   if (key === drawnKeys || typing) return;
