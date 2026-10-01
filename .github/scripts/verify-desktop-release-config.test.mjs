@@ -8,6 +8,28 @@ import { updaterPlatforms, verifyManifest } from "./verify-desktop-release-confi
 
 const workflow = readFileSync(new URL("../workflows/desktop-release.yml", import.meta.url), "utf8");
 
+test("every release job checks out and verifies the selected tag", () => {
+  const checkouts = workflow.match(/uses: actions\/checkout@/gu) ?? [];
+  const selectedRefs = workflow.match(/ref: \$\{\{ inputs\.tag \|\| github\.ref \}\}/gu) ?? [];
+  const sourceChecks = workflow.match(/name: Verify checked out release source/gu) ?? [];
+  const commitChecks = workflow.match(/git rev-parse "\$RELEASE_TAG\^\{commit\}"/gu) ?? [];
+  const versionChecks = workflow.match(/version !== tag\.replace\(\/\^v\/u, ""\)/gu) ?? [];
+  assert.equal(checkouts.length, 3);
+  assert.equal(selectedRefs.length, checkouts.length);
+  assert.equal(sourceChecks.length, checkouts.length);
+  assert.equal(commitChecks.length, checkouts.length);
+  assert.equal(versionChecks.length, checkouts.length);
+});
+
+test("the build verifies its source before either artifact upload", () => {
+  const build = workflow.split(/^  build:\s*$/mu)[1]?.split(/^  verify_existing:\s*$/mu)[0];
+  assert.ok(build);
+  const sourceCheck = build.indexOf("name: Verify checked out release source");
+  assert.ok(sourceCheck >= 0);
+  assert.ok(sourceCheck < build.indexOf("uses: tauri-apps/tauri-action@"));
+  assert.ok(sourceCheck < build.indexOf("name: Upload stable installer aliases"));
+});
+
 function fixture(t, algorithm = "ED") {
   const assetsDir = mkdtempSync(join(tmpdir(), "updater-gate-"));
   t.after(() => rmSync(assetsDir, { recursive: true, force: true }));
