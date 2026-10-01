@@ -31,7 +31,8 @@ describe("synthetic screenshot pipeline", () => {
       const line = dom.window.document.querySelector("pre")?.textContent ?? "";
       for (const percentage of [42, 64, 84, 94]) expect(line).toContain(`${percentage}%`);
       for (const money of ["or $12.34", "oa $8.20", "an $3.10"]) expect(line).toContain(money);
-      expect(line).toMatch(/^opus-5-5 high \| ctx 38% \| 5h \[/u);
+      // Limits and money only, so the line keeps one row on a wide screen.
+      expect(line).toMatch(/^5h \[/u);
       expect(line).not.toContain("[?]");
       // A cell never breaks across lines: each one wraps as a whole.
       expect([...dom.window.document.querySelectorAll("pre > .cell")].map((cell) => cell.textContent)).toHaveLength(line.split(" | ").length);

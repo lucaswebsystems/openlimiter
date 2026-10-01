@@ -16,9 +16,12 @@ export function TerminalStatusline({ caption }: { caption: string }) {
   return (
     <figure className="min-w-0 text-center">
       <div className="elev-1 mx-auto w-full overflow-hidden rounded-xl border border-hairline bg-frame p-[var(--ol-space-2)]" style={{ maxWidth: 1200 }}>
-        <div className="rounded-lg bg-[var(--ol-fixed-dark-canvas)] px-5 py-7 text-left text-[var(--ol-fixed-dark-body)] sm:px-8 sm:py-10">
+        <div className="@container rounded-lg bg-[var(--ol-fixed-dark-canvas)] px-5 py-7 text-left text-[var(--ol-fixed-dark-body)] sm:px-8 sm:py-10">
           <p className="font-sans text-sm text-[var(--ol-fixed-dark-muted)] sm:text-base">openlimiter statusline</p>
-          <div data-statusline-row className="mt-6 flex flex-wrap font-mono text-xs leading-7 sm:text-base">
+          {/* The type shrinks with the card, down to 12px, so the whole line keeps
+              one row wherever it can (founder, 2026-10-01); below that the row
+              wraps between cells, never inside one. 1.15cqi fits 141 characters. */}
+          <div data-statusline-row className="mt-6 flex flex-wrap font-mono text-[length:clamp(0.75rem,1.15cqi,1rem)] leading-7">
             {cells.map((cell, cellIndex) => (
               <span data-statusline-cell className="whitespace-nowrap" key={cellIndex}>
                 {cell.map((span, spanIndex) => (

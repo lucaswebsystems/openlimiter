@@ -489,10 +489,9 @@ function statuslineApiSpend(now) {
 async function statuslineOutput(snapshots, now) {
   const { renderStatuslineLayout } = await import(pathToFileURL(path.join(REPOSITORY, "packages/cli/dist/statusline.js")));
   const { DEFAULT_STATUSLINE } = await import(pathToFileURL(path.join(REPOSITORY, "packages/cli/dist/config.js")));
-  const { parseStatuslineSession } = await import(pathToFileURL(path.join(REPOSITORY, "packages/cli/dist/statusline-ingest.js")));
-  /* The session a synthetic Claude Code payload describes: model, effort and context window. */
-  const session = parseStatuslineSession({ model: { display_name: "Claude Opus 5.5" }, effort: { level: "high" }, context_window: { used_percentage: 38 } });
-  return renderStatuslineLayout({ snapshots: statuslineSnapshots(snapshots), now, config: DEFAULT_STATUSLINE, session,
+  /* Limits and money only: the session cells (model, effort, context) would
+     push the line past one row on a wide screen, and the owner wants one row. */
+  return renderStatuslineLayout({ snapshots: statuslineSnapshots(snapshots), now, config: DEFAULT_STATUSLINE,
     apiSpend: statuslineApiSpend(now), advice: { inject: false, reason: "UNKNOWN" }, host: "claude", color: true, unicode: true });
 }
 
@@ -594,15 +593,18 @@ async function captureProductDetails(browser, theme, port) {
    Tools and API keys UI together while leaving Agents below the crop. */
 async function fitWindowToLimits(page) {
   const home = page.frameLocator("iframe");
-  const content = await home.locator("#key-rows").evaluate(card => Math.ceil(card.getBoundingClientRect().bottom) + 16);
+  /* The 2.0.3 one screen Home runs past the desk with its API keys, so the
+     window ends under the Tools card, as a window sized to the meters would. */
+  const content = await home.locator("#tool-rows").evaluate(card => Math.ceil(card.getBoundingClientRect().bottom) + 16);
   await page.evaluate(({ content, titlebar, menubar, desk }) => {
     const frame = document.querySelector(".window");
     frame.style.height = `${content + titlebar}px`;
     frame.style.top = `${menubar + Math.round((desk - menubar - content - titlebar) / 2)}px`;
     frame.querySelector("iframe").style.height = `${content}px`;
   }, { content, titlebar: WINDOW.titlebar, menubar: MENUBAR_HEIGHT, desk: SCENE.height });
-  const next = await home.locator("#agents-title").evaluate(title => title.getBoundingClientRect().top);
-  if (next < content) throw new Error("The desk window would cut the Agents heading.");
+  const next = await home.locator("#keys-title").evaluate(title => title.getBoundingClientRect().top);
+  if (next < content) throw new Error("The desk window would cut the API keys heading.");
+  if (content + WINDOW.titlebar > SCENE.height - MENUBAR_HEIGHT) throw new Error("The desk window would run past the desk.");
 }
 
 /* What's New opens once per version over Home; video frames need the same

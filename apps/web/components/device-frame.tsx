@@ -17,6 +17,7 @@ function readTheme() {
 
 // Dimensions describe the supplied captures, not an upscaled derivative.
 export const PRODUCT_SHOTS = {
+  "desktop-app": { width: 2560, height: 1600, maxWidth: 1280 },
   "desktop-home": { width: 2000, height: 2410, maxWidth: 1000 },
   "edge-tab": { width: 1120, height: 1076, maxWidth: 560 },
   "edge-panel": { width: 1120, height: 1076, maxWidth: 560 },
@@ -74,7 +75,9 @@ export function DeviceFrame() {
     <section className={`${SHELL} relative py-[var(--ol-space-7)] text-center`}>
       <SectionHeading title={t("title")} lead={t("lead")} />
       <div {...reveal}>
-        <ProductFigure name="desktop-home" alt={t("screenshot.alt")} caption={t("caption")} />
+        {/* The desk, as on the site before 2026-09-29; the full Home, Agents
+            included, follows in the Busy, waiting or done section. */}
+        <ProductFigure name="desktop-app" alt={t("screenshot.alt")} caption={t("caption")} />
       </div>
     </section>
   );

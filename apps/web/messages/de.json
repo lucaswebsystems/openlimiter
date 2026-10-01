@@ -498,7 +498,7 @@
     "title": "Dein Coding Tag an einem Ort",
     "lead": "Lokale Nutzungsmeter und die Agentenliste teilen sich die Desktop Home. Sieh, wie aktuell eine Messung ist, wann ihr Fenster zurückgesetzt wird und welcher unterstützte Agent deine Aufmerksamkeit braucht.",
     "screenshot": {
-      "alt": "Die Desktop Home von OpenLimiter mit synthetischen Nutzungswerten und einer Agentenliste mit wartenden, beschäftigten und fertigen Sitzungen."
+      "alt": "Das OpenLimiter Fenster auf einem Desktop, mit synthetischen Nutzungswerten für Codex, Claude Code und OpenRouter, und Antigravity bereit zum Öffnen."
     },
     "caption": "Die echte Desktop Oberfläche ohne grafische Oberfläche gerendert, mit synthetischen Fixtures. Kein persönliches Konto, keine Zugangsdaten und kein echter Nutzungswert erscheinen darin."
   },
@@ -515,6 +515,14 @@
       "connections": {
         "label": "Weitere Provider, dann Pro",
         "alt": "Die Web App auf einem Handy, weiter unten auf demselben Bildschirm: Karten für Antigravity, OpenCode und OpenRouter, dann die Pro Karte mit Verlauf, Benachrichtigungen, zusätzlichen Konten und Cloud Messung sowie einer Schaltfläche, die die kostenlose 30 Tage Pro Testphase ohne Karte startet."
+      },
+      "providers": {
+        "label": "Jeder Anbieter",
+        "alt": "Die Web App auf einem Telefon, gescrollt zu einer Karte pro Anbieter, jede mit einem Balken, dem genutzten Anteil und der Zeit bis zum Zurücksetzen."
+      },
+      "pro": {
+        "label": "Pro, 30 Tage kostenlos",
+        "alt": "Die Web App auf einem Telefon bei der Pro Karte: Verlauf, Benachrichtigungen, zusätzliche Konten und Cloud Messung sowie eine Schaltfläche, die die kostenlose 30 Tage Pro Testphase ohne Karte startet."
       }
     }
   },
