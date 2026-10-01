@@ -67,6 +67,7 @@ pub enum ProFailure {
     EntitlementRequired,
     DeviceCapReached,
     TokenRequestExpired,
+    StaleGrant,
 }
 
 impl fmt::Display for ProFailure {
@@ -85,6 +86,9 @@ impl fmt::Display for ProFailure {
             ProFailure::Service => "the Pro service returned an unusable response",
             ProFailure::EntitlementRequired => "the hosted service requires an active entitlement",
             ProFailure::DeviceCapReached => "the account already has five active device grants",
+            ProFailure::StaleGrant => {
+                "the Pro service no longer chains this device's tokens, so it needs a fresh grant"
+            }
             ProFailure::TokenRequestExpired => {
                 "the Pro service let an undelivered refresh expire, so the next one starts anew"
             }
@@ -289,6 +293,10 @@ struct TrustState {
     record has no such key and loads as none. */
     #[serde(default)]
     last_jti: Option<String>,
+    /* A grant this device gave up after the server's chain moved past it,
+    still to be revoked. */
+    #[serde(default)]
+    retired_device_id: Option<String>,
 }
 
 impl TrustState {
@@ -307,6 +315,7 @@ impl TrustState {
             pending_request_id: None,
             pending_previous_jti: None,
             last_jti: None,
+            retired_device_id: None,
         }
     }
 }
@@ -423,14 +432,48 @@ fn clears_local_token(
     action == ProAction::RevokeDevice && revokes_current_device && result.is_ok()
 }
 
-/// What a 409 from `/entitlement` means, from its body. Only an expired
-/// request is told apart; every other conflict keeps the device cap meaning.
+/// What a 409 from `/entitlement` means, from its body (`functions/entitlement`).
+/// Only the real cap is the cap.
 fn entitlement_conflict(body: &Value) -> ProFailure {
-    if body.get("error").and_then(Value::as_str) == Some("token request expired") {
-        ProFailure::TokenRequestExpired
-    } else {
-        ProFailure::DeviceCapReached
+    match body.get("error").and_then(Value::as_str) {
+        Some("device cap reached") => ProFailure::DeviceCapReached,
+        Some("token request expired") => ProFailure::TokenRequestExpired,
+        Some("stale entitlement token" | "entitlement epoch changed") => ProFailure::StaleGrant,
+        _ => ProFailure::Service,
     }
+}
+
+/// The envelope to keep when several usage accounts answered.
+///
+/// The agent hook reads one envelope, so it gets the account under the most
+/// pressure; on a tie, the first account in order.
+fn most_pressing_context(contexts: Vec<String>) -> Option<String> {
+    let pressure = |text: &str| {
+        serde_json::from_str::<HostedContextEnvelope>(text)
+            .map(|envelope| {
+                envelope
+                    .payload
+                    .meters
+                    .iter()
+                    .map(|meter| match meter.level.as_str() {
+                        "90" => 3,
+                        "80" => 2,
+                        "60" => 1,
+                        _ => 0,
+                    })
+                    .max()
+                    .unwrap_or(0)
+            })
+            .unwrap_or(0)
+    };
+    let mut kept: Option<(u8, String)> = None;
+    for text in contexts {
+        let level = pressure(&text);
+        if kept.as_ref().is_none_or(|(top, _)| level > *top) {
+            kept = Some((level, text));
+        }
+    }
+    kept.map(|(_, text)| text)
 }
 
 /// The hosted path and body one service action is sent as.
@@ -438,7 +481,6 @@ fn service_request(
     action: ProAction,
     mut payload: Map<String, Value>,
     device_id: &str,
-    account_id: &str,
 ) -> (&'static str, Value) {
     let (path, name) = action.route();
     let mut scope = |key: &str, value: &str| {
@@ -447,10 +489,7 @@ fn service_request(
     match action {
         /* The current device is marked in the list, and is the one kept. */
         ProAction::DeviceStatus | ProAction::RevokeOtherDevices => scope("device_id", device_id),
-        ProAction::HostedContext => {
-            scope("device_id", device_id);
-            scope("account_id", account_id);
-        }
+        ProAction::HostedContext => scope("device_id", device_id),
         _ => {}
     }
     payload.insert("action".to_string(), Value::String(name.to_string()));
@@ -1381,9 +1420,13 @@ fn canonical_context(envelope: &HostedContextEnvelope) -> Result<Vec<u8>, ProFai
     Ok(canonical)
 }
 
-fn validate_hosted_context(value: &Value, store: &dyn SecretStore) -> Result<String, ProFailure> {
+fn validate_hosted_context(
+    value: &Value,
+    store: &dyn SecretStore,
+    scope: Option<&str>,
+) -> Result<String, ProFailure> {
     let keys = key_set()?;
-    validate_hosted_context_with_keys(value, store, &keys, now_seconds()?)
+    validate_hosted_context_with_keys(value, store, &keys, now_seconds()?, scope)
 }
 
 fn maintain_hosted_context(store: &dyn SecretStore) -> Result<bool, ProFailure> {
@@ -1398,7 +1441,7 @@ fn maintain_hosted_context(store: &dyn SecretStore) -> Result<bool, ProFailure> 
                 .map(|value| value.0)
                 .map_err(|_| ProFailure::InvalidEntitlement)
         })
-        .and_then(|value| validate_hosted_context(&value, store));
+        .and_then(|value| validate_hosted_context(&value, store, None));
     match validated {
         Ok(canonical) => {
             let current = crate::fsx::bounded_read(&path).ok_or(ProFailure::Storage)?;
@@ -1436,6 +1479,7 @@ fn validate_hosted_context_with_keys(
     store: &dyn SecretStore,
     keys: &HashMap<String, VerifyingKey>,
     now: i64,
+    scope: Option<&str>,
 ) -> Result<String, ProFailure> {
     let envelope: HostedContextEnvelope =
         serde_json::from_value(value.clone()).map_err(|_| ProFailure::Service)?;
@@ -1471,9 +1515,13 @@ fn validate_hosted_context_with_keys(
     {
         return Err(ProFailure::Service);
     }
-    let account_id = crate::account::active_account_id(store).map_err(|_| ProFailure::NoSession)?;
-    let mut trust = load_trust(store, &account_id)?;
-    if envelope.account_id != account_id
+    /* The login binds the trust record and so the device; the envelope's
+    account is the usage account it was requested for. A stored context
+    re-read later (no scope) was already checked against its request. */
+    let login = crate::account::active_account_id(store).map_err(|_| ProFailure::NoSession)?;
+    let mut trust = load_trust(store, &login)?;
+    if !crate::account::is_valid_account_id(&envelope.account_id)
+        || scope.is_some_and(|scope| envelope.account_id != scope)
         || envelope.device_id != trust.device_id
         || envelope.revocation_epoch != trust.highest_revocation_epoch
         || envelope.source.sequence < trust.highest_context_sequence
@@ -1544,8 +1592,22 @@ fn pending_request(
     Ok((request_id, created))
 }
 
+/// Give up this device's grant for a fresh one: a new device identifier, a new
+/// chain, and the old grant queued for revocation. The revocation epoch and
+/// the clock carry over, because they belong to the account and the machine.
+fn rotate_device(trust: &mut TrustState) {
+    let fresh = TrustState::new(trust.account_id.clone()).device_id;
+    trust.retired_device_id = Some(std::mem::replace(&mut trust.device_id, fresh));
+    trust.highest_sequence = 0;
+    trust.highest_context_sequence = 0;
+    trust.last_context_event_id = None;
+    trust.pending_request_id = None;
+    trust.pending_previous_jti = None;
+    trust.last_jti = None;
+}
+
 /// A request the issuer let expire undelivered is never retried: the next
-/// refresh starts a fresh one.
+/// issue starts a fresh one.
 fn drop_expired_request(trust: &mut TrustState) {
     trust.pending_request_id = None;
     trust.pending_previous_jti = None;
@@ -1601,36 +1663,84 @@ async fn refresh(store: &dyn SecretStore) -> Result<ProStatus, ProFailure> {
     let access_token = crate::account::current_access_token(store)
         .await
         .map_err(map_account_failure)?;
+    let keys = key_set()?;
+    let access = access_token.as_str();
+    refresh_with(store, &keys, move |body: Value| async move {
+        post_json("/entitlement", access, &body).await
+    })
+    .await
+}
+
+/// One refresh against `/entitlement`, through `post`, so the issuer's chain
+/// rules can be exercised without a network.
+async fn refresh_with<F, R>(
+    store: &dyn SecretStore,
+    keys: &HashMap<String, VerifyingKey>,
+    mut post: F,
+) -> Result<ProStatus, ProFailure>
+where
+    F: FnMut(Value) -> R,
+    R: std::future::Future<Output = Result<Value, ProFailure>>,
+{
     let account_id = crate::account::active_account_id(store).map_err(|_| ProFailure::NoSession)?;
     let mut trust = load_trust(store, &account_id)?;
-    let verified_cache = match read_cache()? {
-        Some(cache) => Some(verify_token(&cache.token)?),
+    let mut verified_cache = match read_cache()? {
+        Some(cache) => Some(verify_token_with_keys(&cache.token, keys)?),
         None => None,
     };
     if let Some(token) = &verified_cache {
         reconcile_cached_token(store, &mut trust, token)?;
     }
-    let previous_jti = previous_jti(verified_cache.as_ref(), &trust);
-    let (request_id, created) = pending_request(&mut trust, previous_jti.as_deref())?;
-    if created {
-        save_trust(store, &trust)?;
-    }
-    let mut response = Value::Null;
-    for body in issue_requests(&trust, &request_id, previous_jti.as_deref()) {
-        response = match post_json("/entitlement", &access_token, &body).await {
-            Err(ProFailure::TokenRequestExpired) => {
-                drop_expired_request(&mut trust);
-                save_trust(store, &trust)?;
-                return Err(ProFailure::Service);
-            }
-            other => other?,
-        };
-    }
+    let (mut expired, mut rotated) = (false, false);
+    let response = 'issue: loop {
+        /* A grant given up on is revoked before the next issue, and again on
+        every refresh until the revocation lands, so it never holds a slot. */
+        if let Some(retired) = trust.retired_device_id.clone() {
+            post(json!({ "action": "revoke", "device_id": retired })).await?;
+            trust.retired_device_id = None;
+            save_trust(store, &trust)?;
+        }
+        let previous_jti = previous_jti(verified_cache.as_ref(), &trust);
+        let (request_id, created) = pending_request(&mut trust, previous_jti.as_deref())?;
+        if created {
+            save_trust(store, &trust)?;
+        }
+        let mut response = Value::Null;
+        for body in issue_requests(&trust, &request_id, previous_jti.as_deref()) {
+            response = match post(body).await {
+                /* The issuer let an undelivered token expire: a fresh request
+                follows at once, and meets the chain the server advanced. */
+                Err(ProFailure::TokenRequestExpired) if !expired => {
+                    expired = true;
+                    drop_expired_request(&mut trust);
+                    save_trust(store, &trust)?;
+                    continue 'issue;
+                }
+                /* The server's chain moved past what this machine holds (an
+                undelivered token, or a changed epoch on a pending request), so
+                no previous jti will ever match again: this device starts over
+                on a fresh grant. */
+                Err(ProFailure::StaleGrant) if !rotated => {
+                    rotated = true;
+                    rotate_device(&mut trust);
+                    verified_cache = None;
+                    clear_entitlement_and_context()?;
+                    save_trust(store, &trust)?;
+                    continue 'issue;
+                }
+                Err(ProFailure::TokenRequestExpired | ProFailure::StaleGrant) => {
+                    return Err(ProFailure::Service);
+                }
+                other => other?,
+            };
+        }
+        break response;
+    };
     let token_text = response
         .get("token")
         .and_then(Value::as_str)
         .ok_or(ProFailure::Service)?;
-    let token = verify_token(token_text)?;
+    let token = verify_token_with_keys(token_text, keys)?;
     if token.claims.sub != trust.account_id
         || token.claims.device_id != trust.device_id
         || token.claims.seq < trust.highest_sequence
@@ -1744,7 +1854,7 @@ async fn service_call(
     let access_token = crate::account::current_access_token(store)
         .await
         .map_err(map_account_failure)?;
-    let (path, body) = service_request(action, payload, &device_id, &account_id);
+    let (path, body) = service_request(action, payload, &device_id);
     let result = post_signed_json(path, &access_token, device_token.as_deref(), &body).await;
     if clears_local_token(action, revokes_current_device, &result) {
         clear_local_authorization(store)?;
@@ -1760,11 +1870,22 @@ fn validate_device_action_payload(
     payload: &mut Map<String, Value>,
 ) -> Result<(), ProFailure> {
     match action {
+        ProAction::HostedContext => {
+            /* One usage account, as sync uploads it, and nothing else: the
+            device is added from this machine's own trust. */
+            if payload.len() != 1
+                || !payload
+                    .get("account_id")
+                    .and_then(Value::as_str)
+                    .is_some_and(crate::account::is_valid_account_id)
+            {
+                return Err(ProFailure::InvalidInput);
+            }
+        }
         ProAction::AccountStatus
         | ProAction::DeviceStatus
         | ProAction::RevokeOtherDevices
-        | ProAction::ListNotificationPreferences
-        | ProAction::HostedContext => {
+        | ProAction::ListNotificationPreferences => {
             if !payload.is_empty() {
                 return Err(ProFailure::InvalidInput);
             }
@@ -1964,28 +2085,38 @@ pub async fn pro_service(
     service_call(store.inner(), input).await
 }
 
+/// Ask for the hosted context of each usage account this machine uploads (the
+/// server keys a context by usage account, never by login) and keep the one
+/// under the most pressure.
 async fn sync_agent_context(store: &dyn SecretStore) -> Result<bool, ProFailure> {
-    let response = service_call(
-        store,
-        ProServiceInput {
+    let mut accepted = Vec::new();
+    let mut failure = None;
+    for account in crate::account::uploaded_usage_accounts(store) {
+        let input = ProServiceInput {
             action: ProAction::HostedContext,
-            payload: Map::new(),
-        },
-    )
-    .await?;
+            payload: Map::from_iter([("account_id".to_string(), Value::String(account.clone()))]),
+        };
+        let answer =
+            service_call(store, input)
+                .await
+                .and_then(|response| match response.get("context") {
+                    Some(raw) => validate_hosted_context(raw, store, Some(&account)).map(Some),
+                    None => Ok(None),
+                });
+        match answer {
+            Ok(Some(context)) => accepted.push(context),
+            Ok(None) => {}
+            Err(error) => failure = Some(error),
+        }
+    }
     let path = state_file(AGENT_CONTEXT_FILE_NAME)?;
-    let Some(raw_context) = response.get("context") else {
+    let Some(context) = most_pressing_context(accepted) else {
+        if let Some(error) = failure {
+            return Err(error);
+        }
         remove_state_file(AGENT_CONTEXT_FILE_NAME)?;
         remove_hosted_trust()?;
         return Ok(false);
-    };
-    let context = match validate_hosted_context(raw_context, store) {
-        Ok(value) => value,
-        Err(error) => {
-            let _ = remove_state_file(AGENT_CONTEXT_FILE_NAME);
-            let _ = remove_hosted_trust();
-            return Err(error);
-        }
     };
     let parent = path.parent().ok_or(ProFailure::Storage)?;
     crate::fsx::ensure_private_dir(parent).map_err(|_| ProFailure::Storage)?;
@@ -2094,6 +2225,7 @@ mod tests {
             pending_request_id: None,
             pending_previous_jti: None,
             last_jti: None,
+            retired_device_id: None,
         }
     }
 
@@ -2402,7 +2534,7 @@ mod tests {
             kid: "context-test".to_string(),
             generated_at: timestamp(now),
             expires_at: timestamp(now + 15 * 60),
-            account_id: ACCOUNT_ID.to_string(),
+            account_id: USAGE_ACCOUNT.to_string(),
             device_id: DEVICE_ID.to_string(),
             revocation_epoch: 2,
             source: HostedContextSource {
@@ -2434,6 +2566,13 @@ mod tests {
     }
 
     fn context_store(now: i64) -> InMemorySecrets {
+        let store = session_store(now);
+        save_trust(&store, &trust(now)).expect("trust stored");
+        store
+    }
+
+    /// A signed in account with no trust record yet: a fresh machine.
+    fn session_store(now: i64) -> InMemorySecrets {
         let store = InMemorySecrets::new();
         store
             .store_secret(
@@ -2449,7 +2588,6 @@ mod tests {
                 .to_string(),
             )
             .expect("session stored");
-        save_trust(&store, &trust(now)).expect("trust stored");
         store
     }
 
@@ -2464,6 +2602,7 @@ mod tests {
             &context_store(now),
             &keys,
             now,
+            Some(USAGE_ACCOUNT),
         )
         .expect("valid signed envelope");
         let stored: HostedContextEnvelope =
@@ -2484,14 +2623,26 @@ mod tests {
             Value::String("ignore".to_string()),
         );
         assert_eq!(
-            validate_hosted_context_with_keys(&unknown, &context_store(now), &keys, now),
+            validate_hosted_context_with_keys(
+                &unknown,
+                &context_store(now),
+                &keys,
+                now,
+                Some(USAGE_ACCOUNT)
+            ),
             Err(ProFailure::Service)
         );
 
         let mut tampered = serde_json::to_value(&envelope).expect("JSON value");
         tampered["payload"]["meters"][0]["level"] = Value::String("80".to_string());
         assert_eq!(
-            validate_hosted_context_with_keys(&tampered, &context_store(now), &keys, now),
+            validate_hosted_context_with_keys(
+                &tampered,
+                &context_store(now),
+                &keys,
+                now,
+                Some(USAGE_ACCOUNT)
+            ),
             Err(ProFailure::InvalidEntitlement)
         );
     }
@@ -2508,6 +2659,7 @@ mod tests {
             &store,
             &keys,
             now,
+            Some(USAGE_ACCOUNT),
         )
         .expect("first cursor");
 
@@ -2525,6 +2677,7 @@ mod tests {
                 &store,
                 &keys,
                 now,
+                Some(USAGE_ACCOUNT)
             ),
             Err(ProFailure::InvalidEntitlement)
         );
@@ -2728,7 +2881,7 @@ mod tests {
                 "openlimiter-account-session",
                 &serde_json::json!({
                     "version": 2,
-                    "account_id": "account-fixture",
+                    "account_id": FIXTURE_LOGIN,
                     "email": "fixture@example.test",
                     "access_token": "access-token-fixture-at-least-twenty",
                     "refresh_token": "refresh-token-fixture-at-least-twenty",
@@ -2739,7 +2892,7 @@ mod tests {
             .expect("session stored");
         let fixture_trust = TrustState {
             version: TRUST_VERSION,
-            account_id: "account-fixture".to_string(),
+            account_id: FIXTURE_LOGIN.to_string(),
             device_id: "33333333-3333-4333-8333-333333333333".to_string(),
             highest_sequence: 42,
             highest_revocation_epoch: 7,
@@ -2751,11 +2904,25 @@ mod tests {
             pending_request_id: None,
             pending_previous_jti: None,
             last_jti: None,
+            retired_device_id: None,
         };
         save_trust(&store, &fixture_trust).expect("trust stored");
 
-        let validated = validate_hosted_context_with_keys(envelope_value, &store, &keys, now)
-            .expect("envelope validated");
+        /* The envelope covers the usage account "account-fixture", signed in
+        as a different login: asked for another usage account it is refused,
+        asked for its own it is accepted. */
+        assert_eq!(
+            validate_hosted_context_with_keys(envelope_value, &store, &keys, now, Some("default")),
+            Err(ProFailure::InvalidEntitlement)
+        );
+        let validated = validate_hosted_context_with_keys(
+            envelope_value,
+            &store,
+            &keys,
+            now,
+            Some("account-fixture"),
+        )
+        .expect("envelope validated");
         let parsed_validated: HostedContextEnvelope =
             serde_json::from_str(&validated).expect("parse validated");
         assert_eq!(parsed_validated.account_id, "account-fixture");
@@ -3280,7 +3447,7 @@ mod tests {
             assert!(action.needs_entitlement());
         }
         assert_eq!(
-            service_request(ProAction::AccountStatus, Map::new(), DEVICE_ID, ACCOUNT_ID),
+            service_request(ProAction::AccountStatus, Map::new(), DEVICE_ID),
             ("/entitlement", json!({ "action": "status" }))
         );
         assert_eq!(
@@ -3343,6 +3510,9 @@ mod tests {
     /* ------------------------------------- 2.0.3 round two: Pro fully working */
 
     const OTHER_DEVICE: &str = "00000000-0000-4000-8000-000000000009";
+    /// A usage account as sync uploads it, distinct from the login id.
+    const USAGE_ACCOUNT: &str = "claude-personal";
+    const FIXTURE_LOGIN: &str = "00000000-0000-4000-8000-0000000000aa";
 
     fn payload(value: Value) -> Map<String, Value> {
         value.as_object().cloned().expect("an object payload")
@@ -3414,18 +3584,18 @@ mod tests {
             ),
             (
                 ProAction::HostedContext,
-                json!({}),
+                json!({ "account_id": USAGE_ACCOUNT }),
                 "/pro-service",
                 json!({
                     "action": "hosted_context",
                     "device_id": DEVICE_ID,
-                    "account_id": ACCOUNT_ID,
+                    "account_id": USAGE_ACCOUNT,
                 }),
             ),
         ];
         for (action, sent, path, body) in cases {
             assert_eq!(
-                service_request(action, payload(sent), DEVICE_ID, ACCOUNT_ID),
+                service_request(action, payload(sent), DEVICE_ID),
                 (path, body),
                 "{action:?}"
             );
@@ -3621,11 +3791,19 @@ mod tests {
         for body in [
             json!({ "error": "stale entitlement token" }),
             json!({ "error": "entitlement epoch changed" }),
-            json!({ "error": "device cap reached", "device_cap": 5 }),
+        ] {
+            assert_eq!(entitlement_conflict(&body), ProFailure::StaleGrant);
+        }
+        assert_eq!(
+            entitlement_conflict(&json!({ "error": "device cap reached", "device_cap": 5 })),
+            ProFailure::DeviceCapReached
+        );
+        for body in [
             json!("token request expired"),
             Value::Null,
+            json!({ "error": "other" }),
         ] {
-            assert_eq!(entitlement_conflict(&body), ProFailure::DeviceCapReached);
+            assert_eq!(entitlement_conflict(&body), ProFailure::Service);
         }
 
         /* A refresh goes out, its answer is lost, and the machine stays
@@ -3701,6 +3879,308 @@ mod tests {
         ] {
             assert!(!refresh_failure_clears_token(error), "{error:?}");
         }
+    }
+
+    /* ------------------------------------- 2.0.3 round three: recovery, scope */
+
+    #[derive(Default)]
+    struct ModelGrant {
+        revoked: bool,
+        last_jti: Option<String>,
+        seq: u64,
+    }
+
+    /// The chain rules of `issue_device_token_v2` (`openlimiter-pro` migration
+    /// `20260908150000_cli_delivery_proof.sql`) and the register and revoke
+    /// actions of the `entitlement` function, with its 409 bodies, in memory.
+    struct ModelIssuer {
+        now: i64,
+        epoch: u64,
+        grants: HashMap<String, ModelGrant>,
+        issues: HashMap<String, Value>,
+        lose_next_answer: bool,
+        actions: Vec<String>,
+    }
+
+    impl ModelIssuer {
+        fn new(now: i64) -> Self {
+            Self {
+                now,
+                epoch: 2,
+                grants: HashMap::new(),
+                issues: HashMap::new(),
+                lose_next_answer: false,
+                actions: Vec::new(),
+            }
+        }
+
+        fn conflict(error: &str) -> Result<Value, ProFailure> {
+            Err(entitlement_conflict(&json!({ "error": error })))
+        }
+
+        fn handle(&mut self, body: Value) -> Result<Value, ProFailure> {
+            let device = body["device_id"].as_str().expect("a device").to_string();
+            let action = body
+                .get("action")
+                .and_then(Value::as_str)
+                .unwrap_or("issue")
+                .to_string();
+            self.actions.push(format!("{action} {device}"));
+            match action.as_str() {
+                "register" => match self.grants.get(&device) {
+                    Some(grant) if grant.revoked => Err(ProFailure::Service),
+                    Some(_) => Ok(json!({ "device": { "created": false } })),
+                    None if self.grants.values().filter(|g| !g.revoked).count() >= 5 => {
+                        Self::conflict("device cap reached")
+                    }
+                    None => {
+                        self.grants.insert(device, ModelGrant::default());
+                        Ok(json!({ "device": { "created": true } }))
+                    }
+                },
+                "revoke" => {
+                    let revoked = self.grants.get_mut(&device).is_some_and(|grant| {
+                        let was_live = !grant.revoked;
+                        grant.revoked = true;
+                        was_live
+                    });
+                    Ok(json!({ "revoked": revoked }))
+                }
+                "issue" => self.issue(device, &body),
+                other => panic!("the desktop sent an unknown action {other}"),
+            }
+        }
+
+        fn issue(&mut self, device: String, body: &Value) -> Result<Value, ProFailure> {
+            let (now, epoch) = (self.now, self.epoch);
+            let Some(grant) = self.grants.get_mut(&device).filter(|grant| !grant.revoked) else {
+                return Err(ProFailure::EntitlementRequired);
+            };
+            let request = body["request_id"].as_str().expect("a request").to_string();
+            if let Some(claims) = self.issues.get(&request) {
+                if claims["revocation_epoch"] != json!(epoch) {
+                    return Self::conflict("entitlement epoch changed");
+                }
+                if claims["exp"].as_i64().expect("exp") <= now {
+                    return Self::conflict("token request expired");
+                }
+                if grant.last_jti.as_deref() != claims["jti"].as_str() {
+                    return Self::conflict("stale entitlement token");
+                }
+                return Ok(json!({ "token": signed_with(claims, &test_key()) }));
+            }
+            if grant.last_jti.as_deref() != body["previous_jti"].as_str() {
+                return Self::conflict("stale entitlement token");
+            }
+            let jti = uuid::Uuid::new_v4().to_string();
+            grant.seq += 1;
+            grant.last_jti = Some(jti.clone());
+            let mut claims = issued(now, now + 30 * DAY, "active", Some("monthly"));
+            claims["device_id"] = json!(device);
+            claims["jti"] = json!(jti);
+            claims["seq"] = json!(grant.seq);
+            claims["revocation_epoch"] = json!(epoch);
+            self.issues.insert(request, claims.clone());
+            if std::mem::take(&mut self.lose_next_answer) {
+                return Err(ProFailure::Network);
+            }
+            Ok(json!({ "token": signed_with(&claims, &test_key()) }))
+        }
+
+        /// A day passes for every issued request.
+        fn expire_issued(&mut self) {
+            let past = self.now - 1;
+            for claims in self.issues.values_mut() {
+                claims["exp"] = json!(past);
+            }
+        }
+    }
+
+    async fn refresh_against(
+        store: &InMemorySecrets,
+        model: &std::cell::RefCell<ModelIssuer>,
+    ) -> Result<ProStatus, ProFailure> {
+        refresh_with(store, &test_keys(), |body| {
+            let answer = model.borrow_mut().handle(body);
+            async move { answer }
+        })
+        .await
+    }
+
+    fn device_of(store: &InMemorySecrets) -> String {
+        load_trust(store, ACCOUNT_ID).expect("trust").device_id
+    }
+
+    #[tokio::test]
+    async fn an_undelivered_token_that_expires_recovers_on_a_fresh_device_grant() {
+        let now = now_seconds().expect("clock");
+        let store = session_store(now);
+        let model = std::cell::RefCell::new(ModelIssuer::new(now));
+        let first = refresh_against(&store, &model).await.expect("first issue");
+        assert_eq!(first.state, ProEntitlementState::Active);
+        let old_device = device_of(&store);
+
+        /* The issuer advances the grant to a token whose answer never
+        arrives, and the machine stays offline past that token's life. */
+        model.borrow_mut().lose_next_answer = true;
+        assert_eq!(
+            refresh_against(&store, &model).await.err(),
+            Some(ProFailure::Network)
+        );
+        model.borrow_mut().expire_issued();
+
+        let recovered = refresh_against(&store, &model).await.expect("recovered");
+        assert_eq!(recovered.state, ProEntitlementState::Active);
+        let trust = load_trust(&store, ACCOUNT_ID).expect("trust");
+        assert_ne!(trust.device_id, old_device);
+        assert_eq!(
+            recovered.device_id.as_deref(),
+            Some(trust.device_id.as_str())
+        );
+        let model = model.borrow();
+        assert!(model.grants[&old_device].revoked);
+        assert_eq!(model.grants[&trust.device_id].last_jti, trust.last_jti);
+        let tail = &model.actions[model.actions.len() - 3..];
+        assert_eq!(
+            tail,
+            [
+                format!("revoke {old_device}"),
+                format!("register {}", trust.device_id),
+                format!("issue {}", trust.device_id),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn an_epoch_change_on_a_pending_request_recovers_on_a_fresh_device_grant() {
+        let now = now_seconds().expect("clock");
+        let store = session_store(now);
+        let model = std::cell::RefCell::new(ModelIssuer::new(now));
+        refresh_against(&store, &model).await.expect("first issue");
+        let old_device = device_of(&store);
+        model.borrow_mut().lose_next_answer = true;
+        assert_eq!(
+            refresh_against(&store, &model).await.err(),
+            Some(ProFailure::Network)
+        );
+        model.borrow_mut().epoch = 3;
+
+        let recovered = refresh_against(&store, &model).await.expect("recovered");
+        assert_eq!(recovered.state, ProEntitlementState::Active);
+        assert_eq!(recovered.revocation_epoch, Some(3));
+        let trust = load_trust(&store, ACCOUNT_ID).expect("trust");
+        assert_ne!(trust.device_id, old_device);
+        assert_eq!(trust.highest_revocation_epoch, 3);
+        assert!(model.borrow().grants[&old_device].revoked);
+    }
+
+    #[tokio::test]
+    async fn a_real_device_cap_still_surfaces_as_the_cap() {
+        let now = now_seconds().expect("clock");
+        let store = session_store(now);
+        let model = std::cell::RefCell::new(ModelIssuer::new(now));
+        for slot in 0..5 {
+            model.borrow_mut().grants.insert(
+                format!("00000000-0000-4000-8000-00000000010{slot}"),
+                ModelGrant::default(),
+            );
+        }
+        let device = device_of(&store);
+        assert_eq!(
+            refresh_against(&store, &model).await.err(),
+            Some(ProFailure::DeviceCapReached)
+        );
+        assert_eq!(device_of(&store), device);
+        assert_eq!(model.borrow().actions, [format!("register {device}")]);
+    }
+
+    #[test]
+    fn hosted_context_is_asked_for_one_usage_account() {
+        let mut scoped = payload(json!({ "account_id": USAGE_ACCOUNT }));
+        assert_eq!(
+            validate_device_action_payload(ProAction::HostedContext, &mut scoped),
+            Ok(())
+        );
+        for refused in [
+            json!({}),
+            json!({ "account_id": "Claude Personal" }),
+            json!({ "account_id": USAGE_ACCOUNT, "device_id": OTHER_DEVICE }),
+            json!({ "account_id": 7 }),
+        ] {
+            assert_eq!(
+                validate_device_action_payload(ProAction::HostedContext, &mut payload(refused)),
+                Err(ProFailure::InvalidInput)
+            );
+        }
+    }
+
+    #[test]
+    fn a_context_for_another_usage_account_is_refused() {
+        let now = 1_800_000_000;
+        let key = SigningKey::from_bytes(&[7_u8; 32]);
+        let keys = HashMap::from([("context-test".to_string(), key.verifying_key())]);
+        let envelope = serde_json::to_value(hosted_context_fixture(now, &key)).expect("JSON");
+        let store = context_store(now);
+        for other in ["default", "codex-work", ACCOUNT_ID] {
+            assert_eq!(
+                validate_hosted_context_with_keys(&envelope, &store, &keys, now, Some(other)),
+                Err(ProFailure::InvalidEntitlement),
+                "{other}"
+            );
+        }
+        assert!(validate_hosted_context_with_keys(
+            &envelope,
+            &store,
+            &keys,
+            now,
+            Some(USAGE_ACCOUNT)
+        )
+        .is_ok());
+        /* The device check stays: the right account on another device is refused. */
+        let mut foreign = hosted_context_fixture(now, &key);
+        foreign.device_id = OTHER_DEVICE.to_string();
+        foreign.signature = URL_SAFE_NO_PAD.encode(
+            key.sign(&canonical_context(&foreign).expect("canonical"))
+                .to_bytes(),
+        );
+        assert_eq!(
+            validate_hosted_context_with_keys(
+                &serde_json::to_value(foreign).expect("JSON"),
+                &store,
+                &keys,
+                now,
+                Some(USAGE_ACCOUNT)
+            ),
+            Err(ProFailure::InvalidEntitlement)
+        );
+    }
+
+    #[test]
+    fn the_most_pressing_context_is_kept_when_several_accounts_answer() {
+        let now = 1_800_000_000;
+        let key = SigningKey::from_bytes(&[7_u8; 32]);
+        let with_level = |account: &str, level: &str| {
+            let mut envelope = hosted_context_fixture(now, &key);
+            envelope.account_id = account.to_string();
+            envelope.payload.meters[0].level = level.to_string();
+            serde_json::to_string(&envelope).expect("JSON")
+        };
+        assert_eq!(
+            most_pressing_context(vec![
+                with_level("claude-personal", "60"),
+                with_level("default", "90"),
+                with_level("grok-personal", "80"),
+            ]),
+            Some(with_level("default", "90"))
+        );
+        assert_eq!(
+            most_pressing_context(vec![
+                with_level("claude-personal", "80"),
+                with_level("default", "80")
+            ]),
+            Some(with_level("claude-personal", "80"))
+        );
+        assert_eq!(most_pressing_context(Vec::new()), None);
     }
 
     #[test]
