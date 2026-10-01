@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   KEY_CONSENT,
@@ -53,7 +54,7 @@ function draw(rows, overrides = {}) {
   const row = (provider, index = 0) => mount.all((node) => node.dataset.keyRow === provider)[index];
   const field = (provider, name = "secret") => row(provider).all((node) => node.localName === "input" && node.dataset.field === name)[0];
   const save = (provider) => row(provider).all((node) => node.localName === "button" && node.dataset.keyAction === "save")[0];
-  return { doc, mount, calls, row, field, save };
+  return { doc, mount, calls, handlers, row, field, save };
 }
 
 test("six rows, each empty with a short placeholder, Save and a Get key link, under one consent line", () => {
@@ -94,7 +95,7 @@ test("the OpenRouter Save creates the quota connection and never an API spend so
 
 test("replacing a refused OpenRouter account keeps the healthy account", async () => {
   const records = new Set(["healthy", "refused"]);
-  const removed = [];
+  const actions = [];
   const rows = keyRows({
     openrouter: {
       records: [
@@ -106,14 +107,26 @@ test("replacing a refused OpenRouter account keeps the healthy account", async (
   }, NOW);
   const drawn = draw(rows, {
     saveOpenrouter: (secret, recordId) => saveOpenrouterConnection(secret, recordId, {
-      remove: async (id) => { removed.push(id); records.delete(id); return { ok: true }; },
-      save: async () => { records.add("replacement"); return { ok: true }; },
+      remove: async (id) => { actions.push(["remove", id]); records.delete(id); return { ok: true }; },
+      save: async () => { actions.push(["save", secret]); records.add("replacement"); return { ok: true }; },
     }),
   });
   drawn.field("openrouter").value = "sk-or-replacement";
   await drawn.save("openrouter").fire("click");
-  assert.deepEqual(removed, ["refused"]);
+  assert.deepEqual(actions, [["save", "sk-or-replacement"], ["remove", "refused"]]);
   assert.deepEqual([...records], ["healthy", "replacement"]);
+});
+
+test("a rejected OpenRouter replacement keeps the old account", async () => {
+  const records = new Set(["healthy", "refused"]);
+  const actions = [];
+  const result = await saveOpenrouterConnection("sk-or-rejected", "refused", {
+    save: async () => { actions.push("save"); return { ok: false, kind: "ineligible_or_revoked" }; },
+    remove: async (id) => { actions.push("remove"); records.delete(id); return { ok: true }; },
+  });
+  assert.deepEqual(result, { ok: false, kind: "ineligible_or_revoked" });
+  assert.deepEqual(actions, ["save"]);
+  assert.deepEqual([...records], ["healthy", "refused"]);
 });
 
 test("adding an OpenRouter key keeps an existing paused account", async () => {
@@ -159,6 +172,36 @@ test("the other Saves send confirmed with the consent version on screen, the tea
   const empty = draw(keyRows({}, NOW));
   await empty.save("moonshot").fire("click");
   assert.deepEqual(empty.calls, []);
+});
+
+test("a successful xAI Save ends its edit and requests a repaint", async () => {
+  const repainted = [];
+  const drawn = draw(keyRows({}, NOW), {
+    saved: async (row) => { repainted.push(row.provider); },
+  });
+  drawn.field("xai").value = "xai-example";
+  drawn.field("xai", "team").value = "team-123";
+  await drawn.save("xai").fire("click");
+  assert.equal(drawn.field("xai", "team").value, "");
+  assert.deepEqual(repainted, ["xai"]);
+});
+
+test("repainting a saved row preserves another row being edited", () => {
+  const drawn = draw(keyRows({}, NOW));
+  const editing = drawn.row("openai");
+  drawn.field("openai").value = "sk-admin-being-edited";
+  const next = keyRows({
+    status: status([source(FIRST, "xai", { status: "pending_validation", lastObservedAt: null })]),
+  }, NOW);
+  renderKeys(drawn.doc, drawn.mount, next, drawn.handlers, {
+    preserveRows: new Map([["openai", editing]]),
+  });
+  assert.equal(drawn.row("openai"), editing);
+  assert.equal(drawn.field("openai").value, "sk-admin-being-edited");
+  assert.equal(drawn.field("xai"), undefined, "the submitted xAI row repaints");
+  const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
+  assert.match(app, /querySelectorAll\("\[data-key-id\]"\)[\s\S]*?preserveRows: editing/u);
+  assert.doesNotMatch(app, /const typing = \[\.\.\.elements\.keyRows\.querySelectorAll\("input"\)\]/u);
 });
 
 test("the period is the sample's real month: this month, last month, an older month, or a balance", () => {

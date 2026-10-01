@@ -415,6 +415,7 @@ async function runSignIn(action, provider, working, pressed) {
     return { ...result, ok: false, displayed: true };
   }
   applyAccountState(result.value);
+  void refreshEntitlement();
   if (result.value.syncEnabled !== false) {
     void accountSyncConfiguredSnapshot(readConfiguredProviders());
   }
@@ -935,12 +936,10 @@ const keyHandlers = {
   markFor: officialMark,
   /* A refused row replaces only its connection. An empty row adds one. */
   saveOpenrouter: async (secret, recordId) => {
-    const result = await saveOpenrouterConnection(secret, recordId, {
+    return saveOpenrouterConnection(secret, recordId, {
       remove: removeConnection,
       save: saveOpenrouterKey,
     });
-    await refresh();
-    return result;
   },
   /* A saved source reads once right away, so the row goes from Checking key
      to its amount without waiting for the next native poll. */
@@ -950,9 +949,12 @@ const keyHandlers = {
     if (result.ok) {
       const saved = input.sourceId ?? result.value?.sources?.find((source) => !known.has(source.id))?.id;
       if (saved) await apiSpendRefresh(saved, false);
-      await refresh();
     }
     return result;
+  },
+  saved: async () => {
+    drawnKeys = "";
+    await refresh();
   },
   refresh: async (row) => {
     const result = row.kind === "quota" ? await refreshConnection(row.recordId) : await apiSpendRefresh(row.sourceId, true);
@@ -966,17 +968,23 @@ const keyHandlers = {
   },
 };
 
-/** Draw the key rows, unless a key is being typed into one of them. */
+/** Draw every current key row while keeping only rows with an edit in flight. */
 function paintKeys(now) {
   const records = inventory.connections.filter((entry) => providerCode(entry.provider) === "OPENROUTER");
   /* Every account's readings: keyRows binds each row to its own connection's. */
   const readings = heldSnapshots.filter((row) => row.provider === "OPENROUTER" && Number.isFinite(row.limitAmount));
   const rows = keyRows({ status: spendStatus, openrouter: { records, readings } }, now);
   const key = JSON.stringify(rows);
-  const typing = [...elements.keyRows.querySelectorAll("input")].some((input) => input.value !== "" || input === document.activeElement);
-  if (key === drawnKeys || typing) return;
-  drawnKeys = key;
-  renderKeys(document, elements.keyRows, rows, keyHandlers);
+  const editing = new Map();
+  for (const row of elements.keyRows.querySelectorAll("[data-key-id]")) {
+    const inputs = [...row.querySelectorAll("input")];
+    if (inputs.some((input) => input.value !== "" || input === document.activeElement)) {
+      editing.set(row.dataset.keyId, row);
+    }
+  }
+  if (key === drawnKeys && editing.size === 0) return;
+  renderKeys(document, elements.keyRows, rows, keyHandlers, { preserveRows: editing });
+  drawnKeys = editing.size === 0 ? key : "";
 }
 
 bindHomeRefresh({
