@@ -202,4 +202,8 @@ test("the code is printed as text under the QR, for typing into the installed ph
   const under = panel.children[symbol + 1];
   assert.equal(under.textContent, "ABCD2345");
   assert.match(under.className, /\bpair-code\b/u);
+  /* A browser tab has no field to type into, so the note only says scan. */
+  const said = panel.all().map((node) => node.text).filter(Boolean);
+  assert.ok(said.includes("Scan with your phone camera."), said.join(" | "));
+  assert.equal(said.some((line) => /type|openlimiter\.com/iu.test(line)), false, said.join(" | "));
 });

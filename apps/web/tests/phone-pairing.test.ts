@@ -1,7 +1,9 @@
 import { createElement } from "react";
+import { readFileSync } from "node:fs";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PhoneButton from "@/app/app/phone-button";
+import PairPage from "@/app/app/pair/page";
 import { PairFlow } from "@/app/app/pair/pair-flow";
 import { ANDROID_PROMPT_WAIT, PairInstallStep } from "@/app/app/pair/pair-install";
 import { DELETE as sessionDelete, POST as sessionPost } from "@/app/app/pair/api/session/route";
@@ -908,6 +910,10 @@ describe("the install step gating", () => {
     await mounted.run(async () => { await vi.advanceTimersByTimeAsync(ANDROID_PROMPT_WAIT); });
     expect(mounted.container.textContent?.trim()).toBe(install.androidMenu);
     expect(install.androidMenu).toContain("⋮");
+    /* The menu mark is drawn, not left to a thin text glyph. */
+    const glyph = mounted.container.querySelector('[role="status"] svg');
+    expect(glyph?.getAttribute("aria-hidden")).toBe("true");
+    expect(glyph?.querySelectorAll("circle")).toHaveLength(3);
 
     await mounted.run(async () => {
       const event = new Event("beforeinstallprompt", { cancelable: true });
@@ -1141,6 +1147,24 @@ describe("the pair page", () => {
     expect(mounted.container.textContent).toContain("Reading the code");
     /* The fragment is consumed before anything else could render it. */
     expect(window.location.hash).toBe("");
+  });
+
+  it("wears the product shell, so the site header, footer and announcement never draw on it", async () => {
+    vi.stubGlobal(
+      "fetch",
+      fetchRoutedTo({
+        "/app/pair/api/read": () => new Response(JSON.stringify({ error: "no_pair" }), { status: 401 }),
+      }),
+    );
+    mounted = render(PairPage());
+    await flush();
+    /* One logo: the page's own lockup is the only one left once the header is gone. */
+    expect(mounted.container.querySelector("main")?.classList.contains("ol-product-shell")).toBe(true);
+    /* The rule the dashboard already relies on, which this page now shares. */
+    const theme = readFileSync("app/app/theme.css", "utf8").replace(/\s+/gu, " ");
+    expect(theme).toContain(
+      "body:has(.ol-product-shell) .announce-bar, body:has(.ol-product-shell) .site-header, body:has(.ol-product-shell) > footer { display: none; }",
+    );
   });
 
   it("says scan again when there is no code and no existing pairing", async () => {
