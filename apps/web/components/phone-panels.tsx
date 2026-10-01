@@ -5,8 +5,8 @@ export function PhonePanels() {
   const t = useTranslations("phonePanels");
   const shots = [
     { name: "phone-1", copy: "meters" },
-    { name: "phone-2", copy: "providers" },
-    { name: "phone-3", copy: "connections" },
+    { name: "phone-2", copy: "connect" },
+    { name: "phone-3", copy: "pair" },
     { name: "phone-4", copy: "pro" },
   ] as const;
   return (

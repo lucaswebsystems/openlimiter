@@ -9,7 +9,7 @@
  *
  *   desktop-app.png        the packaged window on a macOS style desk, dark
  *   desktop-app-light.png  the same scene and the same window, light
- *   phone-1..4.png         the web app at phone size, dark, one per view
+ *   phone-1..4.png         the web app at phone size, dark, one per screen
  *   phone-1..4-light.png   the same four views, light
  *   edge-tab*.png          the real edge tab on the left edge, dark and light
  *   edge-panel*.png        the same tab with its real panel open, dark and light
@@ -784,18 +784,31 @@ const STANDALONE = [
   ".ol-shell { padding-top: 40px !important; }",
 ].join("\n");
 
-/* Each view names the text that proves its panel actually hydrated. The old
-   fixed 1600ms wait stopped being enough when the bundle grew with the locale
-   wave, and a capture of the loading skeleton looked like an open sheet over
-   a blurred void. Waiting for real content cannot rot the same way. */
-/* Where each view starts: the top of the screen, the provider cards under the
-   headline card, and the end of the screen. */
+/* Each view names both the real screen it opens and where that screen starts. */
 const PHONE_VIEWS = [
-  { file: "phone-1", from: "top" },
-  { file: "phone-2", from: "cards" },
-  { file: "phone-3", from: "middle" },
-  { file: "phone-4", from: "end" },
+  { file: "phone-1", screen: "dashboard", from: "top" },
+  { file: "phone-2", screen: "onboarding", from: "top" },
+  { file: "phone-3", screen: "pair", from: "top" },
+  { file: "phone-4", screen: "dashboard", from: "end" },
 ];
+
+const CAPTURE_PAIR_CODE = "ABCD2345";
+const CAPTURE_CLAIM_ID = "00000000-0000-4000-8000-000000000002";
+
+/**
+ * The two synthetic wire answers that keep the real pair page waiting. A
+ * request that breaks the client's contract (lib/pro-device.ts: a claim with
+ * the code and a device, a poll with the issued claim id) gets null, which
+ * fails the capture instead of photographing whatever the page does next.
+ */
+export function pairingCaptureResponse(request, expiresAt) {
+  const action = request?.action;
+  if (action === "claim" && request.code === CAPTURE_PAIR_CODE && request.device !== null && typeof request.device === "object" && !Array.isArray(request.device)) {
+    return { status: 200, body: { claim_id: CAPTURE_CLAIM_ID, expires_at: expiresAt } };
+  }
+  if (action === "poll" && request.claim_id === CAPTURE_CLAIM_ID) return { status: 200, body: { status: "claimed" } };
+  return null;
+}
 
 /**
  * Runs in the page: the scroll nearest the view's start at which neither edge
@@ -834,77 +847,124 @@ function wholeLinesScroll(from) {
 }
 
 async function capturePhone(browser, theme, snapshots, now) {
-  const context = await browser.newContext({
-    viewport: { width: PHONE.width, height: PHONE.height },
-    deviceScaleFactor: PHONE.scale,
-    colorScheme: theme,
-    isMobile: true,
-    hasTouch: true,
-    serviceWorkers: "block",
-  });
   // Build the local site with NEXT_PUBLIC_SUPABASE_URL=https://capture.openlimiter.invalid
   // and NEXT_PUBLIC_SUPABASE_ANON_KEY=capture-only. No real service is contacted.
   const api = "https://capture.openlimiter.invalid";
-  const user = { id: "00000000-0000-4000-8000-000000000001", aud: "authenticated", role: "authenticated",
-    user_metadata: { full_name: "Demo", openlimiter_onboarded: true }, app_metadata: { provider: "github" }, created_at: now };
-  const session = { access_token: "capture-only", refresh_token: "capture-only", token_type: "bearer", expires_in: 86400,
-    expires_at: Math.floor(Date.parse(now) / 1000) + 86400, user };
-  let syncedReads = 0;
-  await context.route("**/*", async (route) => {
-    const url = new URL(route.request().url());
-    if (url.origin === api) {
-      const action = route.request().postDataJSON()?.action;
-      let body = {};
-      if (url.pathname.startsWith("/auth/")) body = user;
-      else if (action === "read_usage") {
-        syncedReads++;
-        body = { rows: snapshots.filter(row => row.unit === "PERCENT").map(row => ({
-          provider: row.provider, account_id: "demo", window_id: row.meter, used_percent: row.value,
-          resets_at: row.resetAt, observed_at: now, stale: false,
-        })) };
-      } else if (url.pathname.endsWith("/entitlement")) body = { entitlement: null, devices: [] };
-      else body = { rows: [], keys: [] };
-      return route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
-    }
-    if (url.origin === new URL(SITE).origin) return route.continue();
-    return route.abort();
-  });
-  /* Only the stubbed sync response supplies phone readings. No local fallback
-     can make a failed sign in or an invalid sync response look successful. */
-  await context.addInitScript(
-    ([kind, auth]) => {
-      window.localStorage.setItem("openlimiter-theme", kind);
-      window.localStorage.setItem("openlimiter-app-mode", "live");
-      window.localStorage.setItem("openlimiter-app-view", "grid");
-      window.localStorage.setItem("sb-capture-auth-token", auth);
-    },
-    [theme, JSON.stringify(session)],
-  );
-  const page = await context.newPage();
   const written = [];
   for (const view of PHONE_VIEWS) {
-    await page.goto(SITE + "/app", { waitUntil: "domcontentloaded" });
-    await page.addStyleTag({ content: STANDALONE });
-    /* The launch splash clears at 760ms, the busy floor is 240ms, and then
-       the panel must actually contain its proof text before the shutter. */
-    await page.waitForTimeout(1600);
-    /* Provider rows render inside shadow roots, which document text never
-       reaches; Playwright locators pierce them. */
-    for (const name of ["Claude", "Codex"]) {
-      await page.getByText(name, { exact: true }).first().waitFor({ timeout: 20000 });
+    const context = await browser.newContext({
+      viewport: { width: PHONE.width, height: PHONE.height },
+      deviceScaleFactor: PHONE.scale,
+      colorScheme: theme,
+      isMobile: true,
+      hasTouch: true,
+      serviceWorkers: "block",
+    });
+    const onboarded = view.screen !== "onboarding";
+    const user = { id: "00000000-0000-4000-8000-000000000001", aud: "authenticated", role: "authenticated",
+      user_metadata: { full_name: "Demo", openlimiter_onboarded: onboarded }, app_metadata: { provider: "github" }, created_at: now };
+    const session = { access_token: "capture-only", refresh_token: "capture-only", token_type: "bearer", expires_in: 86400,
+      expires_at: Math.floor(Date.parse(now) / 1000) + 86400, user };
+    let syncedReads = 0;
+    let pairClaims = 0;
+    let pairPolls = 0;
+    let pairRejected = 0;
+    const pairExpiresAt = new Date(Date.now() + 120_000).toISOString();
+    await context.route("**/*", async (route) => {
+      const url = new URL(route.request().url());
+      if (url.origin === api) {
+        const action = route.request().postDataJSON()?.action;
+        if (view.screen === "pair" && url.pathname === "/functions/v1/pair-device") {
+          const request = route.request();
+          const response = request.method() === "POST" ? pairingCaptureResponse(request.postDataJSON(), pairExpiresAt) : null;
+          if (response === null) {
+            pairRejected++;
+            return route.abort();
+          }
+          await route.fulfill({ status: response.status, contentType: "application/json", body: JSON.stringify(response.body) });
+          /* Counted once answered, so a poll in flight never passes for one the page has read. */
+          if (action === "claim") pairClaims++;
+          if (action === "poll") pairPolls++;
+          return;
+        }
+        if (view.screen === "pair") return route.abort();
+        let body = {};
+        if (url.pathname.startsWith("/auth/")) body = user;
+        else if (action === "read_usage") {
+          syncedReads++;
+          body = { rows: snapshots.filter(row => row.unit === "PERCENT").map(row => ({
+            provider: row.provider, account_id: "demo", window_id: row.meter, used_percent: row.value,
+            resets_at: row.resetAt, observed_at: now, stale: false,
+          })) };
+        } else if (url.pathname.endsWith("/entitlement")) body = { entitlement: null, devices: [] };
+        else body = { rows: [], keys: [] };
+        return route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
+      }
+      if (url.origin === new URL(SITE).origin) return route.continue();
+      return route.abort();
+    });
+    await context.addInitScript(
+      ([kind, auth, includeSession, freshOnboarding]) => {
+        window.localStorage.setItem("openlimiter-theme", kind);
+        window.localStorage.setItem("openlimiter-app-mode", "live");
+        window.localStorage.setItem("openlimiter-app-view", "grid");
+        if (freshOnboarding) window.localStorage.removeItem("openlimiter-onboarded-00000000-0000-4000-8000-000000000001");
+        if (includeSession) window.localStorage.setItem("sb-capture-auth-token", auth);
+      },
+      [theme, JSON.stringify(session), view.screen !== "pair", view.screen === "onboarding"],
+    );
+    const page = await context.newPage();
+    try {
+      const route = view.screen === "pair" ? `/app/pair#code=${CAPTURE_PAIR_CODE}` : "/app";
+      await page.goto(SITE + route, { waitUntil: "domcontentloaded" });
+      await page.addStyleTag({ content: STANDALONE });
+
+      if (view.screen === "dashboard") {
+        /* The launch splash clears at 760ms, the busy floor is 240ms, and then
+           the panel must actually contain its proof text before the shutter. */
+        await page.waitForTimeout(1600);
+        /* Provider rows render inside shadow roots, which document text never
+           reaches; Playwright locators pierce them. */
+        for (const name of ["Claude", "Codex"]) {
+          await page.getByText(name, { exact: true }).first().waitFor({ timeout: 20000 });
+        }
+        await page.locator(".ol-live-meter-card").waitFor();
+        if (!syncedReads) throw new Error("Phone capture requires a signed in fixture API read. Rebuild with the documented synthetic API configuration.");
+      } else if (view.screen === "onboarding") {
+        const profile = page.locator('.ol-onboarding-card[data-step="profile"]');
+        await profile.waitFor({ timeout: 20000 });
+        await profile.locator(".ol-onboarding-actions button").first().click();
+        const connect = page.locator('.ol-onboarding-card[data-step="connect"]');
+        await connect.waitFor();
+        await connect.locator(".ol-connect-row").first().waitFor();
+      } else {
+        /* The readout's paragraph also holds a screen reader prefix, so the
+           code is a substring of its text, never the whole of it. */
+        await page.locator("p.font-mono", { hasText: CAPTURE_PAIR_CODE }).waitFor({ timeout: 20000 }).catch(async (error) => {
+          throw new Error(`The pair page never showed the waiting code. It read: ${(await deepText(page)).slice(0, 400)}`, { cause: error });
+        });
+        for (let waited = 0; pairPolls === 0 && waited < 20000; waited += 250) await page.waitForTimeout(250);
+        await page.waitForTimeout(500);
+        if (pairRejected !== 0 || pairClaims !== 1 || pairPolls === 0) {
+          throw new Error("Phone pairing capture did not claim and poll the synthetic code under the client's contract.");
+        }
+      }
+
+      assertCaptureSafe(await deepText(page));
+      const top = await page.evaluate(wholeLinesScroll, view.from);
+      if (top === null) throw new Error(`No scroll position lets ${view.file} show whole lines of text at both edges.`);
+      await page.evaluate((y) => window.scrollTo(0, y), top);
+      await page.waitForTimeout(300);
+      const name = view.file + (theme === "light" ? "-light" : "") + ".png";
+      if (view.screen === "pair" && (pairRejected !== 0 || !(await page.locator("p.font-mono", { hasText: CAPTURE_PAIR_CODE }).isVisible()))) {
+        throw new Error("The pair page left its waiting phase before the shutter.");
+      }
+      await page.screenshot({ path: path.join(OUTPUT, name) });
+      written.push(name);
+    } finally {
+      await context.close();
     }
-    await page.locator(".ol-live-meter-card").waitFor();
-    if (!syncedReads) throw new Error("Phone capture requires a signed in fixture API read. Rebuild with the documented synthetic API configuration.");
-    assertCaptureSafe(await deepText(page));
-    const top = await page.evaluate(wholeLinesScroll, view.from);
-    if (top === null) throw new Error(`No scroll position lets ${view.file} show whole lines of text at both edges.`);
-    await page.evaluate((y) => window.scrollTo(0, y), top);
-    await page.waitForTimeout(300);
-    const name = view.file + (theme === "light" ? "-light" : "") + ".png";
-    await page.screenshot({ path: path.join(OUTPUT, name) });
-    written.push(name);
   }
-  await context.close();
   return written;
 }
 

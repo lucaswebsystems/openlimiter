@@ -512,13 +512,13 @@
         "label": "Agent context",
         "alt": "O web app num celular, mostrando o bloco limitado de estado de orçamento que um agente de codificação recebe, cercado por um limite explícito de dados não confiáveis."
       },
-      "connections": {
-        "label": "Mais provedores, depois o Pro",
-        "alt": "O web app em um celular, mais abaixo na mesma tela: o fim do limite mais apertado, um cartão para Codex, Claude, Antigravity, OpenCode e OpenRouter, e o topo do cartão Pro."
+      "connect": {
+        "label": "Conectar ferramentas",
+        "alt": "O web app em um celular na etapa de conexão da configuração inicial, mostrando o comando a executar e a lista de ferramentas disponíveis para conectar."
       },
-      "providers": {
-        "label": "Cada provedor",
-        "alt": "O web app em um celular, rolado até um cartão por provedor, cada um com uma barra, a parte usada e o tempo até reiniciar."
+      "pair": {
+        "label": "Parear celular",
+        "alt": "O web app em um celular aguardando o computador aprovar o pareamento, com um código sintético de oito caracteres e uma contagem regressiva até ele expirar."
       },
       "pro": {
         "label": "Pro, 30 dias grátis",

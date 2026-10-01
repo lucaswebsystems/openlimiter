@@ -512,13 +512,13 @@
         "label": "Agent context",
         "alt": "The web app on a phone, showing the bounded block of budget state a coding agent receives, fenced in an untrusted data boundary."
       },
-      "connections": {
-        "label": "More providers, then Pro",
-        "alt": "The web app on a phone, further down the same screen: the end of the tightest limit, one card each for Codex, Claude, Antigravity, OpenCode and OpenRouter, and the top of the Pro card."
+      "connect": {
+        "label": "Connect tools",
+        "alt": "The web app on a phone at the onboarding connect step, showing the command to run and the list of tools available to connect."
       },
-      "providers": {
-        "label": "Every provider",
-        "alt": "The web app on a phone, scrolled to one card per provider, each with a bar, the share used and the time until it resets."
+      "pair": {
+        "label": "Pair phone",
+        "alt": "The web app on a phone waiting for the computer to approve pairing, with a synthetic eight character code and a countdown until it expires."
       },
       "pro": {
         "label": "Pro, 30 days free",
