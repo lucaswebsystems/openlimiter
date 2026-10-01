@@ -91,6 +91,16 @@ test("Refresh entitlement asks the service, then tells every gated control", asy
   );
 });
 
+test("successful desktop sign in refreshes the entitlement", () => {
+  const app = read("./app.js");
+  const success = app.slice(
+    app.indexOf("applyAccountState(result.value);"),
+    app.indexOf("function continueWith(provider"),
+  );
+  assert.match(success, /applyAccountState\(result\.value\);[\s\S]*?refreshEntitlement\(\);/u);
+  assert.match(read("./pro.js"), /target\.dispatchEvent\(new CustomEvent\(PRO_CHANGED\)\)/u);
+});
+
 test("the plan screen reads the trial end from the account plan read", () => {
   assert.match(read("./pro.js"), /trialDaysRemaining\(accountResult\.value\?\.entitlement\?\.trial_ends_at\)/u);
 });

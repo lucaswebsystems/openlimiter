@@ -276,11 +276,10 @@ export const KEY_CONSENT = Object.freeze({
 
 /** Replace one refused OpenRouter connection, or add one from an empty row. */
 export async function saveOpenrouterConnection(secret, recordId, actions) {
-  if (typeof recordId === "string" && recordId !== "") {
-    const removed = await actions.remove(recordId);
-    if (!removed?.ok) return removed;
-  }
-  return actions.save(secret);
+  const saved = await actions.save(secret);
+  if (!saved?.ok || typeof recordId !== "string" || recordId === "") return saved;
+  const removed = await actions.remove(recordId);
+  return removed?.ok ? saved : removed;
 }
 
 /* One row each, in this order. `mark` is the provider code whose official
@@ -402,7 +401,7 @@ function spendRow(base, source, sample, many, now) {
    its amount, Refresh and Remove all name the same account. */
 function quotaRow(base, record, readings, now) {
   const row = { ...base, recordId: record.id };
-  /* A refused key is replaced right there; app.js removes the old record first. */
+  /* A refused key is replaced right there after its replacement is accepted. */
   if (KEY_REFUSED.has(record.state)) return { ...row, state: "error", error: keyError("openrouter", "ineligible_or_revoked"), replace: true };
   if (record.state === "ERROR") return { ...row, state: "error", error: keyError("openrouter", "network"), replace: true };
   const reading = readings
@@ -513,7 +512,18 @@ function keyForm(doc, row, handlers, status) {
       result = { ok: false };
     }
     save.disabled = false;
-    if (!result?.ok) status.textContent = keyError(row.provider, result?.kind);
+    if (!result?.ok) {
+      status.textContent = keyError(row.provider, result?.kind);
+      return;
+    }
+    if (team !== null) team.value = "";
+    input.blur?.();
+    team?.blur?.();
+    try {
+      await handlers.saved?.(row);
+    } catch {
+      /* The credential is saved. A later refresh can repaint the row. */
+    }
   });
   const link = element(doc, "a", "q-klink", KEYS_EN.getKey);
   link.setAttribute("href", row.url);
@@ -568,13 +578,21 @@ function removeButton(doc, row, handlers, status) {
   return button;
 }
 
+function keyRowId(row) {
+  return row.sourceId ?? row.recordId ?? row.provider;
+}
+
 /** Draw keyRows: one consent line above the first Save, then a row per key. */
-export function renderKeys(doc, mount, rows, handlers) {
+export function renderKeys(doc, mount, rows, handlers, { preserveRows = new Map() } = {}) {
   const consent = element(doc, "p", "q-note q-consent", KEY_CONSENT.text);
   consent.id = "key-consent";
   const asks = rows.some((row) => row.state === "empty" || row.replace === true);
   mount.replaceChildren(...(asks ? [consent] : []), ...rows.map((row) => {
+    const id = keyRowId(row);
+    const preserved = preserveRows.get(id);
+    if (preserved !== undefined) return preserved;
     const line = element(doc, "div", "q-key");
+    line.dataset.keyId = id;
     line.dataset.keyRow = row.provider;
     line.dataset.state = row.state;
     const mark = element(doc, "span", "q-mark");
