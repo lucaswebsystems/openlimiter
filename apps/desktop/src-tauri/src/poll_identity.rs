@@ -128,7 +128,12 @@ pub(crate) fn resolve_connection(
     record: &ConnectionRecord,
     secrets: &impl SecretStore,
 ) -> PollIdentity {
-    let account_id = if record.provider_id == ProviderId::Codex {
+    let account_id = if record.provider_id == ProviderId::Openrouter {
+        /* OpenRouter keys do not expose a stable provider account identity.
+        Each saved connection is therefore the account boundary used by the
+        collector cache, authorization policy, UI row, and poll planner. */
+        record.id.clone()
+    } else if record.provider_id == ProviderId::Codex {
         let provider_account_id = record.codex_account_id.clone().or_else(|| {
             let stored = secrets.read_secret(&record.id).ok()?;
             parse_codex_session_v1(&stored)
