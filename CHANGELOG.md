@@ -24,6 +24,10 @@ All notable project changes appear in this file.
 * Desktop sign in works again.
 * Trials, the last days of a period and comps unlock correctly.
 * Device management works, hosted features keep the token, and stale devices offer Reconnect.
+### Security
+
+* On Windows, every helper OpenLimiter starts now runs from the Windows system folder in a trusted working folder, never from the project you are working in.
+* The terminal sign in link opens without passing through the command shell.
 
 ## [2.0.2]
 
