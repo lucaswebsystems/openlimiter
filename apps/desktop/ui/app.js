@@ -275,6 +275,7 @@ async function paintPlanBadge() {
     active: "Pro",
     trialing: "Trial",
     past_due: "Payment failed",
+    comped: "Pro",
   };
   elements.planCapPlan.textContent = names[plan] ?? plan;
   if (entitled) {

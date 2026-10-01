@@ -114,6 +114,7 @@ const PLAN_NAMES = {
   trialing: "Pro trial",
   past_due: "Pro, payment failed",
   canceled: "Pro, ending",
+  comped: "Pro",
 };
 
 const TRIAL_STATES = new Set(["trial", "trialing"]);
@@ -278,7 +279,15 @@ export function planMarkup(pro, trialDays) {
   );
 }
 
-function devicesMarkup(devices, cap) {
+/* The service does not say which kind of device a grant is, so a row says
+   when it was last seen instead of guessing. */
+export function lastSeen(device) {
+  return typeof device.last_seen_at === "number"
+    ? "Last seen " + new Date(device.last_seen_at).toLocaleString()
+    : "Not seen yet";
+}
+
+export function devicesMarkup(devices, cap) {
   if (devices.length === 0) {
     return '<p class="note">No device is registered yet.</p>';
   }
@@ -299,13 +308,7 @@ function devicesMarkup(devices, cap) {
           escapeText(device.name ?? device.id) +
           (device.current === true ? " " : "") +
           "</strong><span>" +
-          escapeText(
-            (device.platform ?? "unknown") +
-              ", last seen " +
-              (typeof device.last_seen_at === "number"
-                ? new Date(device.last_seen_at).toLocaleString()
-                : "never")
-          ) +
+          escapeText(lastSeen(device)) +
           "</span></span>" +
           (device.current === true
             ? '<span class="badge" data-tone="ok">This device</span>'

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { FEATURES, planMarkup, proEntitled, refreshEntitlement } from "./pro.js";
+import { devicesMarkup, FEATURES, planMarkup, proEntitled, refreshEntitlement } from "./pro.js";
 
 const read = (name) => readFileSync(new URL(name, import.meta.url), "utf8");
 
@@ -93,4 +93,39 @@ test("Refresh entitlement asks the service, then tells every gated control", asy
 
 test("the plan screen reads the trial end from the account plan read", () => {
   assert.match(read("./pro.js"), /trialDaysRemaining\(accountResult\.value\?\.entitlement\?\.trial_ends_at\)/u);
+});
+
+test("the window only asks the Pro service for actions its dispatchers know", () => {
+  const block = read("./backend.js").match(/const PRO_ACTIONS = new Set\(\[([\s\S]*?)\]\);/u)?.[1] ?? "";
+  const actions = [...block.matchAll(/"([a-z_]+)"/gu)].map((match) => match[1]).sort();
+  assert.deepEqual(actions, [
+    "account_status",
+    "device_status",
+    "history",
+    "hosted_context",
+    "list_notification_preferences",
+    "rename_device",
+    "revoke_device",
+    "revoke_other_devices",
+    "save_notification_preference",
+  ]);
+});
+
+test("device rows say when a device was last seen, never an unknown platform", () => {
+  const markup = devicesMarkup(
+    [
+      { id: "a", name: "Desktop", current: true, last_seen_at: 1_790_769_600_500 },
+      { id: "b", name: "Pixel", current: false, last_seen_at: null },
+    ],
+    5,
+  );
+  assert.match(markup, /Last seen /u);
+  assert.match(markup, /Not seen yet/u);
+  assert.doesNotMatch(markup, /unknown/u);
+  assert.doesNotMatch(read("./pairing.js"), /device\.platform/u);
+});
+
+test("a comped plan reads as Pro", () => {
+  assert.match(planMarkup(status("active", "comped"), null), /<span class="plan-name">Pro<\/span>/u);
+  assert.match(read("./app.js"), /comped: "Pro"/u);
 });

@@ -34,6 +34,7 @@ import {
   isSettled,
   pairingFailureSentence,
 } from "./pairing-states.js";
+import { lastSeen } from "./pro.js";
 import { qrElement } from "./qr.js";
 
 /** How often the panel asks the server what happened, in milliseconds. */
@@ -314,14 +315,7 @@ export async function renderDevices() {
     const row = element("div", "device-row");
     const body = element("span", "device-body");
     body.append(element("strong", null, String(device.name ?? device.id ?? "device")));
-    body.append(
-      element(
-        "span",
-        null,
-        String(device.platform ?? "unknown") +
-          (device.current === true ? ", this device" : ""),
-      ),
-    );
+    body.append(element("span", null, lastSeen(device)));
     row.append(body);
     if (device.current === true) {
       const badge = element("span", "badge", "This device");

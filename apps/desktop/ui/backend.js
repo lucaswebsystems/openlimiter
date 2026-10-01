@@ -426,15 +426,13 @@ export async function claudeConnectPreflight({ configuredCliPath } = {}) {
   });
 }
 
+/* The actions the Pro service dispatches, under the names it uses. */
 const PRO_ACTIONS = new Set([
   "account_status",
-  "ingest_snapshot",
-  "save_alert_rule",
-  "delete_alert_rule",
-  "list_alert_rules",
+  "save_notification_preference",
+  "list_notification_preferences",
   "history",
-  "agent_context",
-  "dispatch_alerts",
+  "hosted_context",
   "device_status",
   "rename_device",
   "revoke_device",
