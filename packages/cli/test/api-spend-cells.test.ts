@@ -88,6 +88,16 @@ describe("api money cells in the bar status line", () => {
     expect(line).not.toContain("spent");
   });
 
+  it("draws the active OpenRouter account after the removed account was purged", () => {
+    const active = { ...orCache, accountId: "account-a", value: 40, observedAt: "2026-09-07T12:28:00Z" };
+    const removed = { ...orCache, accountId: "account-b", value: 2, observedAt: "2026-09-07T12:29:00Z" };
+    const purged = [active, removed].filter((row) => row.accountId !== removed.accountId);
+    const line = render(fullDocument(), purged);
+    expect(line).toContain("or $40.00");
+    expect(line).not.toContain("or $2.00");
+    expect(line).not.toContain("spent");
+  });
+
   it("draws one or cell for several OpenRouter sources, the newest current period one", () => {
     const doc = document([
       [source("openrouter"), { spendUsd: "9", month: "2026-08-01" }],

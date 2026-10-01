@@ -688,6 +688,64 @@ pub fn write_report(
     Err(CacheWriteError::Busy)
 }
 
+/// Remove one stored connection's readings without touching drift suppressions
+/// or any other cache row. The account id is the connection identity stamped by
+/// the collector, so two accounts for one provider remain independent here.
+pub fn purge_connection_rows(
+    writer: &CacheWriter,
+    provider: &str,
+    account_id: &str,
+) -> Result<usize, CacheWriteError> {
+    for round in 0..2 {
+        let begun = writer.begin()?;
+        let Some(text) = begun.text.as_deref() else {
+            writer.abort(begun.generation);
+            return Ok(0);
+        };
+        let mut document: Value = match serde_json::from_str(text) {
+            Ok(document) => document,
+            Err(_) => {
+                writer.abort(begun.generation);
+                return Err(CacheWriteError::NotJson);
+            }
+        };
+        if document
+            .get("version")
+            .is_some_and(|version| !matches!(version.as_u64(), Some(1 | 2)))
+        {
+            writer.abort(begun.generation);
+            return Err(CacheWriteError::NotJson);
+        }
+        let Some(rows) = document.get_mut("snapshots").and_then(Value::as_array_mut) else {
+            writer.abort(begun.generation);
+            return Err(CacheWriteError::NotJson);
+        };
+        let before = rows.len();
+        rows.retain(|row| {
+            row.get("provider").and_then(Value::as_str) != Some(provider)
+                || row.get("accountId").and_then(Value::as_str) != Some(account_id)
+        });
+        let removed = before - rows.len();
+        if removed == 0 {
+            writer.abort(begun.generation);
+            return Ok(0);
+        }
+        let text = match serde_json::to_string(&document) {
+            Ok(text) => text,
+            Err(_) => {
+                writer.abort(begun.generation);
+                return Err(CacheWriteError::Io);
+            }
+        };
+        match writer.commit(&text, begun.generation) {
+            Ok(()) => return Ok(removed),
+            Err(CacheWriteError::Busy | CacheWriteError::StaleGeneration) if round == 0 => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Err(CacheWriteError::Busy)
+}
+
 pub fn prune_cache(writer: &CacheWriter, now: u64) -> Result<usize, CacheWriteError> {
     let begun = writer.begin()?;
     let result = (|| {

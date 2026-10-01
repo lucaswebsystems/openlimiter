@@ -91,7 +91,12 @@ pub async fn run_guarded<T: Transport>(
     connection_id: String,
     mode: CollectionMode,
 ) -> Result<CollectionOutcome, CommandFailure> {
-    connections.apply_plan(crate::pro::multi_account_enabled(secrets), &[])?;
+    crate::commands::reconcile_plan_core(
+        connections,
+        writer.as_ref(),
+        crate::pro::multi_account_enabled(secrets),
+        &[],
+    )?;
     let record = connections.get(&connection_id)?;
     if !record.is_active() || !switches.enabled(detected_provider(record.provider_id)) {
         return Err(CommandFailure::Paused);
@@ -347,6 +352,7 @@ pub async fn run_pass(
     selected: Option<&[DetectedProviderId]>,
 ) -> HomeRefreshOutcome {
     let detection = app.state::<crate::provider_detection::DetectionStore>();
+    let writer = app.state::<Arc<CacheWriter>>();
     let allowed =
         |provider| detection.switches.enabled(provider) && requested_provider(selected, provider);
     // Detection rereads credentials before use; expose known expiry in the cache too.
@@ -361,7 +367,6 @@ pub async fn run_pass(
                 .and_then(|text| chrono::DateTime::parse_from_rfc3339(text).ok())
                 .is_some_and(|date| date.timestamp_millis() <= now_epoch_ms() as i64)
         }) {
-            let writer = app.state::<Arc<CacheWriter>>();
             let _ = writer.record_availability(
                 &provider.provider_id.slug().to_uppercase().replace('-', "_"),
                 Some(&account.account_id),
@@ -374,7 +379,12 @@ pub async fn run_pass(
     let connections = app.state::<ConnectionsStore>();
     let secrets = app.state::<KeyringStore>();
     let multi_account = crate::pro::multi_account_enabled(&*secrets);
-    let _ = connections.apply_plan(multi_account, &[]);
+    let _ = crate::commands::reconcile_plan_core(
+        &connections,
+        writer.inner().as_ref(),
+        multi_account,
+        &[],
+    );
     let records = connections.list().map(|mut records| {
         let identities = records
             .iter()
