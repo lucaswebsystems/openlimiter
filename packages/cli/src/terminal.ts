@@ -16,6 +16,7 @@ import {
 } from "./statusline-wrapper.js";
 
 import { PROVIDER_SHORT_TAGS } from "./statusline.js";
+import { MONEY_TAGS } from "./api-spend.js";
 
 import { parseToml, editToml, tomlValue } from "./terminal-toml.js";
 import { installLauncher } from "./terminal-launcher.js";
@@ -841,10 +842,11 @@ export async function terminalStatusTable(
       TERMINAL_SEGMENTS.includes(id as typeof TERMINAL_SEGMENTS[number]) ||
       statusline.show.length === 0 && statusline.showMode !== "explicit" ||
       statusline.show.includes(id) ||
-      statusline.show.includes(PROVIDER_SHORT_TAGS[id.toUpperCase() as keyof typeof PROVIDER_SHORT_TAGS])
+      statusline.show.includes(PROVIDER_SHORT_TAGS[id.toUpperCase() as keyof typeof PROVIDER_SHORT_TAGS]) ||
+      statusline.show.includes(MONEY_TAGS[id] ?? "")
     );
   };
-  const ids = [...TERMINAL_SEGMENTS, ...Object.keys(PROVIDER_SHORT_TAGS).map((id) => id.toLowerCase())];
+  const ids = [...TERMINAL_SEGMENTS, ...Object.keys(PROVIDER_SHORT_TAGS).map((id) => id.toLowerCase()), ...Object.keys(MONEY_TAGS)];
   rows.push(TERMINAL_VISIBILITY_TEXT.shown + (ids.filter(visible).join(", ") || "none"));
   rows.push(TERMINAL_VISIBILITY_TEXT.hidden + (ids.filter((id) => !visible(id)).join(", ") || "none"));
   rows.push(TERMINAL_VISIBILITY_TEXT.automatic);
@@ -883,6 +885,7 @@ async function terminalVisibility(
 ): Promise<TerminalOperationResult> {
   const aliases = new Map(Object.entries(PROVIDER_SHORT_TAGS).flatMap(([provider, tag]) =>
     [[provider.toLowerCase(), provider.toLowerCase()], [tag, provider.toLowerCase()]]));
+  for (const [name, tag] of Object.entries(MONEY_TAGS)) aliases.set(name, name).set(tag, name);
   const resolved = ids.map((id) => aliases.get(id.toLowerCase()) ?? id.toLowerCase());
   const known = new Set<string>([...TERMINAL_SEGMENTS, ...aliases.values()]);
   if (resolved.length === 0 || resolved.some((id) => !known.has(id))) {
