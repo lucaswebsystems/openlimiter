@@ -17,7 +17,8 @@ vi.mock("node:child_process", () => childProcess);
 
 import { runtimeDependencies } from "../src/cli.js";
 
-describe("trusted helper working directories", () => {
+/* Both cases assert Windows behaviour (System32, rundll32); the posix openers differ. */
+describe.skipIf(process.platform !== "win32")("trusted helper working directories", () => {
   beforeEach(() => {
     childProcess.execFile.mockClear();
     childProcess.spawn.mockClear();
