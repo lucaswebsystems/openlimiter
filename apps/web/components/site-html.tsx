@@ -163,7 +163,7 @@ export async function SiteHtml({
              photographs, 2026-08-10 and 11, all of them a negative pull
              disagreeing with what sat above it). */}
           <div className="page-overlap">
-            <Nav />
+            <Nav localised={localised} />
             {children}
           </div>
           <Footer localised={localised} />

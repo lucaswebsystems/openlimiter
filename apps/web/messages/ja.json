@@ -514,7 +514,7 @@
       },
       "connections": {
         "label": "その他のプロバイダーとPro",
-        "alt": "スマートフォン上のWebアプリ。同じ画面のさらに下で、Antigravity、OpenCode、OpenRouterのカードに続き、履歴、通知、追加アカウント、クラウド測定を案内するProのカードと、カード不要で30日間の無料Pro体験を始めるボタンが表示されています。"
+        "alt": "スマートフォンのウェブアプリ、同じ画面のさらに下。最も厳しい上限の下端、Codex、Claude、Antigravity、OpenCode、OpenRouter のカード、そして Pro カードの上部。"
       },
       "providers": {
         "label": "すべてのプロバイダー",

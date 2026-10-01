@@ -594,8 +594,8 @@ async function captureProductDetails(browser, theme, port) {
 async function fitWindowToLimits(page) {
   const home = page.frameLocator("iframe");
   /* The 2.0.3 one screen Home runs past the desk with its API keys, so the
-     window ends under the Tools card, as a window sized to the meters would. */
-  const content = await home.locator("#tool-rows").evaluate(card => Math.ceil(card.getBoundingClientRect().bottom) + 16);
+     window ends under the whole Tools card (Add a tool included), as a window sized to the meters would. */
+  const content = await home.locator(".q-tools").evaluate(card => Math.ceil(card.getBoundingClientRect().bottom) + 16);
   await page.evaluate(({ content, titlebar, menubar, desk }) => {
     const frame = document.querySelector(".window");
     frame.style.height = `${content + titlebar}px`;

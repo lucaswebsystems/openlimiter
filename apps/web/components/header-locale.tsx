@@ -21,20 +21,27 @@ export function HeaderLocale() {
   const menu = useRef<HTMLDetailsElement | null>(null);
   const CurrentFlag = LOCALE_FLAG_ICONS[current];
 
-  /* A details element stays open until toggled; close it on a click outside
-     or on Escape, like any other menu. */
+  /* A details element stays open until toggled; close it on a click or focus
+     outside, or on Escape (which hands focus back to the trigger), like any
+     other disclosure menu. */
   useEffect(() => {
     const close = (event: Event) => {
       const element = menu.current;
       if (element === null || !element.open) return;
-      if (event instanceof KeyboardEvent ? event.key === "Escape" : !element.contains(event.target as Node)) {
+      if (event instanceof KeyboardEvent) {
+        if (event.key !== "Escape") return;
+        element.open = false;
+        element.querySelector("summary")?.focus();
+      } else if (!element.contains(event.target as Node)) {
         element.open = false;
       }
     };
     document.addEventListener("click", close);
+    document.addEventListener("focusin", close);
     document.addEventListener("keydown", close);
     return () => {
       document.removeEventListener("click", close);
+      document.removeEventListener("focusin", close);
       document.removeEventListener("keydown", close);
     };
   }, []);

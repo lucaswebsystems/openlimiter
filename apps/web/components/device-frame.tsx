@@ -41,7 +41,9 @@ export function ProductShot({ name, alt }: { name: ProductShotName; alt: string 
   return (
     <div className="elev-1 mx-auto w-full overflow-hidden rounded-xl border border-hairline bg-frame p-[var(--ol-space-2)]" style={{ maxWidth: shot.maxWidth }}>
       <picture>
-        <source type="image/webp" media={theme === null ? "(prefers-color-scheme: light)" : theme === "light" ? "all" : "not all"} srcSet={srcSet(true)} />
+        {/* The site is dark until the reader picks light (globals.css consults
+            only the attribute), so no attribute means the dark pictures too. */}
+        <source type="image/webp" media={theme === "light" ? "all" : "not all"} srcSet={srcSet(true)} />
         <source type="image/webp" srcSet={srcSet(false)} />
         {/* One image per capture: hidden theme images cannot compete for priority. */}
         <img className="h-auto w-full rounded-lg" src={`/screenshots/${name}${theme === "light" ? "-light" : ""}.png`} alt={alt} width={shot.width} height={shot.height} loading="lazy" decoding="async" />

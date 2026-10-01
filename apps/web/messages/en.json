@@ -514,7 +514,7 @@
       },
       "connections": {
         "label": "More providers, then Pro",
-        "alt": "The web app on a phone, further down the same screen: cards for Antigravity, OpenCode and OpenRouter, then the Pro card with history, alerts, extra accounts and cloud metering, and a button that starts the free 30 day Pro trial with no card needed."
+        "alt": "The web app on a phone, further down the same screen: the end of the tightest limit, one card each for Codex, Claude, Antigravity, OpenCode and OpenRouter, and the top of the Pro card."
       },
       "providers": {
         "label": "Every provider",

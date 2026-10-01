@@ -1,11 +1,13 @@
 import sample from "@/lib/statusline-sample.json";
 import { ProductCaption } from "./device-frame";
 
+/* The dark theme band labels, fixed: the terminal card stays dark in both
+   site themes, and the light theme labels fail contrast on it. */
 const BAND_COLOR = {
-  green: "var(--ol-band-green-label)",
-  yellow: "var(--ol-band-yellow-label)",
-  orange: "var(--ol-band-orange-label)",
-  red: "var(--ol-band-red-label)",
+  green: "#3fb950",
+  yellow: "#e3b341",
+  orange: "#ffa657",
+  red: "#ff7b72",
 } as const;
 
 type Band = keyof typeof BAND_COLOR;
