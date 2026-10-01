@@ -235,6 +235,7 @@ export class SystemDeviceLoginRunner implements DeviceLoginRunner {
     let child;
     try {
       child = spawnWithWindowsCommandShim(this.executable, ["login", "--device-auth"], {
+        cwd: home,
         env: { ...process.env, CODEX_HOME: home },
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true

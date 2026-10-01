@@ -277,21 +277,25 @@ describe("terminal host installers", () => {
 
   it("resolves the shell profile by asking pwsh first, never a hardcoded Documents path", async () => {
     const home = await temporaryDirectory("openlimiter-terminal-");
+    await writeFile(path.join(home, "pwsh.exe"), "same named cwd fixture");
     const resolvedProfile = path.join(home, "asked-pwsh-profile.ps1");
     const calls: string[] = [];
     const ctx: TerminalHostContext = {
       homeDirectory: home,
       platform: "win32",
-      environment: { SHELL: "pwsh.exe" },
+      environment: { SHELL: "pwsh.exe", SystemRoot: "D:\\Windows", PATH: "" },
       shellRunner: async (executable) => {
         calls.push(executable);
-        if (executable === "pwsh.exe") return { ok: true, stdout: resolvedProfile + "\r\n" };
+        if (executable === "D:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe") {
+          return { ok: true, stdout: resolvedProfile + "\r\n" };
+        }
         return { ok: false };
       }
     };
     const installed = await installHost("shell", ctx);
     expect(installed.ok).toBe(true);
-    expect(calls).toEqual(["pwsh.exe"]);
+    expect(calls).toEqual(["D:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"]);
+    expect(path.win32.isAbsolute(calls[0]!)).toBe(true);
     const written = await readFile(resolvedProfile, "utf8");
     expect(written).toContain("statusline --host shell");
     expect(await hostStatus("shell", ctx)).toBe(STATUS_WIRED);

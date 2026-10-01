@@ -41,6 +41,8 @@ mod request_policy;
 mod state;
 #[path = "../src/test_support.rs"]
 mod test_support;
+#[path = "../src/windows_system_tool.rs"]
+mod windows_system_tool;
 
 use std::{
     fs,

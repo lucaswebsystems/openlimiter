@@ -689,7 +689,7 @@ fn device_login_command(executable: &Path) -> Command {
         /* npm exposes Windows command shims as `.cmd` or `.bat` files. They
         are not direct executables, so route them through cmd.exe while
         keeping the discovered launcher and its arguments bounded. */
-        let mut command = Command::new("cmd.exe");
+        let mut command = Command::new(crate::windows_system_tool::tool(&["cmd.exe"]));
         command
             .args(["/d", "/s", "/c"])
             .arg(format!("\"{}\" login --device-auth", executable.display()));
@@ -757,6 +757,7 @@ impl DeviceLoginRunner for SystemDeviceLoginRunner {
             this product owns. The person's own Codex home is never named and
             never touched. */
             .env("CODEX_HOME", home)
+            .current_dir(home)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -1434,10 +1435,11 @@ mod tests {
     #[cfg(windows)]
     fn link_dir(target: &Path, link: &Path) -> bool {
         std::os::windows::fs::symlink_dir(target, link).is_ok()
-            || std::process::Command::new("cmd")
+            || std::process::Command::new(crate::windows_system_tool::tool(&["cmd.exe"]))
                 .args(["/d", "/s", "/c", "mklink", "/J"])
                 .arg(link)
                 .arg(target)
+                .current_dir(crate::windows_system_tool::system_directory())
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
                 .status()
