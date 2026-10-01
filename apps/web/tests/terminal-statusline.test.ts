@@ -5,6 +5,14 @@ import { TerminalStatusline } from "../components/terminal-statusline";
 import { render, type Mounted } from "./render";
 
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
+/* The caption comes from device-frame, which links through the localized navigation. */
+vi.mock("@/i18n/navigation", async () => {
+  const { createElement: element } = await import("react");
+  return {
+    Link: ({ href, children, ...rest }: { href: string; children?: unknown }) =>
+      element("a", { href, ...rest }, children as never),
+  };
+});
 
 let mounted: Mounted | undefined;
 afterEach(() => {
