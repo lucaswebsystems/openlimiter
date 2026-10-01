@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::path::PathBuf;
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -322,6 +322,33 @@ impl TrustState {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct TrustRevision {
+    account_id: String,
+    device_id: String,
+    highest_sequence: u64,
+    highest_revocation_epoch: u64,
+    last_jti: Option<String>,
+}
+
+impl From<&TrustState> for TrustRevision {
+    fn from(trust: &TrustState) -> Self {
+        Self {
+            account_id: trust.account_id.clone(),
+            device_id: trust.device_id.clone(),
+            highest_sequence: trust.highest_sequence,
+            highest_revocation_epoch: trust.highest_revocation_epoch,
+            last_jti: trust.last_jti.clone(),
+        }
+    }
+}
+
+impl TrustRevision {
+    fn matches(&self, trust: &TrustState) -> bool {
+        self == &Self::from(trust)
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProServiceInput {
@@ -555,9 +582,16 @@ fn write_cache(token: &str) -> Result<(), ProFailure> {
     crate::fsx::atomic_write(&path, &text).map_err(|_| ProFailure::Storage)
 }
 
-fn entitlement_commit_lock() -> &'static tokio::sync::Mutex<()> {
-    static LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| tokio::sync::Mutex::new(()))
+fn trust_coordination_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
+
+fn coordinate_trust<R>(operation: impl FnOnce() -> Result<R, ProFailure>) -> Result<R, ProFailure> {
+    let _gate = trust_coordination_lock()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    operation()
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -717,7 +751,7 @@ fn remove_hosted_trust() -> Result<(), ProFailure> {
     Ok(())
 }
 
-fn clear_entitlement_and_context() -> Result<(), ProFailure> {
+fn clear_entitlement_and_context_locked() -> Result<(), ProFailure> {
     let entitlement_cleared = remove_state_file(ENTITLEMENT_FILE_NAME);
     let context_cleared = remove_state_file(AGENT_CONTEXT_FILE_NAME);
     let trust_cleared = remove_hosted_trust();
@@ -726,53 +760,127 @@ fn clear_entitlement_and_context() -> Result<(), ProFailure> {
     trust_cleared
 }
 
-pub(crate) fn clear_local_authorization(store: &dyn SecretStore) -> Result<(), ProFailure> {
-    let trust_cleared: Result<(), ProFailure> = match store.delete_secret(TRUST_CREDENTIAL_ID) {
-        Ok(()) | Err(CredentialError::NotFound) => Ok(()),
-        Err(error) => Err(error.into()),
-    };
-    let files_cleared = clear_entitlement_and_context();
-    trust_cleared?;
-    files_cleared
+fn clear_entitlement_and_context() -> Result<(), ProFailure> {
+    coordinate_trust(clear_entitlement_and_context_locked)
 }
 
-fn load_trust(store: &dyn SecretStore, account_id: &str) -> Result<TrustState, ProFailure> {
+pub(crate) fn clear_local_authorization(store: &dyn SecretStore) -> Result<(), ProFailure> {
+    coordinate_trust(|| {
+        let trust_cleared: Result<(), ProFailure> = match store.delete_secret(TRUST_CREDENTIAL_ID) {
+            Ok(()) | Err(CredentialError::NotFound) => Ok(()),
+            Err(error) => Err(error.into()),
+        };
+        let files_cleared = clear_entitlement_and_context_locked();
+        trust_cleared?;
+        files_cleared
+    })
+}
+
+fn validate_trust_identity(trust: &TrustState, account_id: &str) -> Result<(), ProFailure> {
+    if !crate::account::is_valid_account_id(account_id) {
+        return Err(ProFailure::NoSession);
+    }
+    if trust.version != TRUST_VERSION
+        || trust.account_id != account_id
+        || uuid::Uuid::parse_str(&trust.device_id).is_err()
+    {
+        return Err(ProFailure::CredentialStore);
+    }
+    Ok(())
+}
+
+fn existing_trust_locked(
+    store: &dyn SecretStore,
+    account_id: &str,
+) -> Result<Option<TrustState>, ProFailure> {
     if !crate::account::is_valid_account_id(account_id) {
         return Err(ProFailure::NoSession);
     }
     match store.read_secret(TRUST_CREDENTIAL_ID) {
         Ok(raw) => {
-            let parsed = serde_json::from_str::<TrustState>(&raw);
-            let trust = match parsed {
-                Ok(value) => value,
-                Err(_) => {
-                    let trust = TrustState::new(account_id.to_string());
-                    save_trust(store, &trust)?;
-                    return Ok(trust);
-                }
-            };
-            if trust.version != TRUST_VERSION
-                || trust.account_id != account_id
-                || uuid::Uuid::parse_str(&trust.device_id).is_err()
-            {
-                return Err(ProFailure::CredentialStore);
-            }
-            Ok(trust)
+            let trust = serde_json::from_str::<TrustState>(&raw)
+                .map_err(|_| ProFailure::CredentialStore)?;
+            validate_trust_identity(&trust, account_id)?;
+            Ok(Some(trust))
         }
+        Err(CredentialError::NotFound) => Ok(None),
+        Err(error) => Err(error.into()),
+    }
+}
+
+fn save_trust_locked(store: &dyn SecretStore, trust: &TrustState) -> Result<(), ProFailure> {
+    let previous = existing_trust_locked(store, &trust.account_id)?;
+    if previous.as_ref().is_some_and(|previous| {
+        previous.device_id == trust.device_id
+            && (trust.highest_sequence < previous.highest_sequence
+                || trust.highest_revocation_epoch < previous.highest_revocation_epoch
+                || (previous.last_jti.is_some() && trust.last_jti.is_none())
+                || (trust.highest_sequence == previous.highest_sequence
+                    && previous.last_jti.is_some()
+                    && trust.last_jti != previous.last_jti))
+    }) {
+        return Err(ProFailure::InvalidEntitlement);
+    }
+    store_trust_locked(store, trust)
+}
+
+fn store_trust_locked(store: &dyn SecretStore, trust: &TrustState) -> Result<(), ProFailure> {
+    let text = serde_json::to_string(trust).map_err(|_| ProFailure::CredentialStore)?;
+    store
+        .store_secret(TRUST_CREDENTIAL_ID, &text)
+        .map_err(ProFailure::from)
+}
+
+fn load_trust_locked(store: &dyn SecretStore, account_id: &str) -> Result<TrustState, ProFailure> {
+    if !crate::account::is_valid_account_id(account_id) {
+        return Err(ProFailure::NoSession);
+    }
+    match store.read_secret(TRUST_CREDENTIAL_ID) {
+        Ok(raw) => match serde_json::from_str::<TrustState>(&raw) {
+            Ok(trust) => {
+                validate_trust_identity(&trust, account_id)?;
+                Ok(trust)
+            }
+            Err(_) => {
+                let trust = TrustState::new(account_id.to_string());
+                store_trust_locked(store, &trust)?;
+                Ok(trust)
+            }
+        },
         Err(CredentialError::NotFound) => {
             let trust = TrustState::new(account_id.to_string());
-            save_trust(store, &trust)?;
+            store_trust_locked(store, &trust)?;
             Ok(trust)
         }
         Err(error) => Err(error.into()),
     }
 }
 
+fn load_trust(store: &dyn SecretStore, account_id: &str) -> Result<TrustState, ProFailure> {
+    coordinate_trust(|| load_trust_locked(store, account_id))
+}
+
+fn mutate_trust<R>(
+    store: &dyn SecretStore,
+    expected: &TrustRevision,
+    mutation: impl FnOnce(&mut TrustState) -> Result<R, ProFailure>,
+) -> Result<Option<(TrustState, R)>, ProFailure> {
+    coordinate_trust(|| {
+        let Some(mut trust) = existing_trust_locked(store, &expected.account_id)? else {
+            return Ok(None);
+        };
+        if !expected.matches(&trust) {
+            return Ok(None);
+        }
+        let result = mutation(&mut trust)?;
+        save_trust_locked(store, &trust)?;
+        Ok(Some((trust, result)))
+    })
+}
+
+#[cfg(test)]
 fn save_trust(store: &dyn SecretStore, trust: &TrustState) -> Result<(), ProFailure> {
-    let text = serde_json::to_string(trust).map_err(|_| ProFailure::CredentialStore)?;
-    store
-        .store_secret(TRUST_CREDENTIAL_ID, &text)
-        .map_err(ProFailure::from)
+    coordinate_trust(|| save_trust_locked(store, trust))
 }
 
 fn parse_key_set(configured: &str) -> Result<HashMap<String, VerifyingKey>, ProFailure> {
@@ -995,11 +1103,10 @@ fn status_for(
     })
 }
 
-fn reconcile_cached_token(
-    store: &dyn SecretStore,
+fn reconcile_cached_token_state(
     trust: &mut TrustState,
     token: &VerifiedToken,
-) -> Result<(), ProFailure> {
+) -> Result<bool, ProFailure> {
     if token.claims.sub != trust.account_id
         || token.claims.device_id != trust.device_id
         || token.claims.seq < trust.highest_sequence
@@ -1009,7 +1116,7 @@ fn reconcile_cached_token(
     }
     if token.claims.seq == trust.highest_sequence {
         return if token.claims.revocation_epoch == trust.highest_revocation_epoch {
-            Ok(())
+            Ok(false)
         } else {
             Err(ProFailure::InvalidEntitlement)
         };
@@ -1018,7 +1125,27 @@ fn reconcile_cached_token(
         return Err(ProFailure::InvalidEntitlement);
     }
     adopt_token(trust, &token.claims, now_seconds()?);
-    save_trust(store, trust)
+    Ok(true)
+}
+
+fn reconcile_cached_token(
+    store: &dyn SecretStore,
+    trust: &mut TrustState,
+    token: &VerifiedToken,
+) -> Result<(), ProFailure> {
+    if token.claims.seq == trust.highest_sequence {
+        reconcile_cached_token_state(trust, token)?;
+        return Ok(());
+    }
+    let expected = TrustRevision::from(&*trust);
+    let Some((current, ())) = mutate_trust(store, &expected, |current| {
+        reconcile_cached_token_state(current, token).map(|_| ())
+    })?
+    else {
+        return Err(ProFailure::InvalidEntitlement);
+    };
+    *trust = current;
+    Ok(())
 }
 
 /// Record a token this machine has just accepted.
@@ -1488,6 +1615,20 @@ fn validate_hosted_context_with_keys(
     now: i64,
     scope: Option<&str>,
 ) -> Result<String, ProFailure> {
+    validate_hosted_context_with_keys_before_commit(value, store, keys, now, scope, || {})
+}
+
+fn validate_hosted_context_with_keys_before_commit<F>(
+    value: &Value,
+    store: &dyn SecretStore,
+    keys: &HashMap<String, VerifyingKey>,
+    now: i64,
+    scope: Option<&str>,
+    before_commit: F,
+) -> Result<String, ProFailure>
+where
+    F: FnOnce(),
+{
     let envelope: HostedContextEnvelope =
         serde_json::from_value(value.clone()).map_err(|_| ProFailure::Service)?;
     let record_count = envelope.payload.meters.len() + envelope.payload.routing_hints.len();
@@ -1526,7 +1667,8 @@ fn validate_hosted_context_with_keys(
     account is the usage account it was requested for. A stored context
     re-read later (no scope) was already checked against its request. */
     let login = crate::account::active_account_id(store).map_err(|_| ProFailure::NoSession)?;
-    let mut trust = load_trust(store, &login)?;
+    let trust = load_trust(store, &login)?;
+    let started = TrustRevision::from(&trust);
     if !crate::account::is_valid_account_id(&envelope.account_id)
         || scope.is_some_and(|scope| envelope.account_id != scope)
         || envelope.device_id != trust.device_id
@@ -1566,10 +1708,22 @@ fn validate_hosted_context_with_keys(
         .ok_or(ProFailure::InvalidEntitlement)?;
     key.verify_strict(&canonical_context(&envelope)?, &signature)
         .map_err(|_| ProFailure::InvalidEntitlement)?;
+    before_commit();
     if envelope.source.sequence > trust.highest_context_sequence {
-        trust.highest_context_sequence = envelope.source.sequence;
-        trust.last_context_event_id = Some(envelope.source.event_id.clone());
-        save_trust(store, &trust)?;
+        let _ = mutate_trust(store, &started, |current| {
+            if envelope.device_id != current.device_id
+                || envelope.revocation_epoch != current.highest_revocation_epoch
+                || envelope.source.sequence < current.highest_context_sequence
+                || (envelope.source.sequence == current.highest_context_sequence
+                    && current.highest_context_sequence > 0
+                    && current.last_context_event_id.as_deref() != Some(&envelope.source.event_id))
+            {
+                return Err(ProFailure::InvalidEntitlement);
+            }
+            current.highest_context_sequence = envelope.source.sequence;
+            current.last_context_event_id = Some(envelope.source.event_id.clone());
+            Ok(())
+        })?;
     }
     let encoded = serde_json::to_string(&envelope).map_err(|_| ProFailure::Service)?;
     if encoded.len() > MAX_CONTEXT_BYTES {
@@ -1649,6 +1803,51 @@ fn issue_requests(trust: &TrustState, request_id: &str, previous_jti: Option<&st
     ]
 }
 
+struct PreparedIssue {
+    trust: TrustState,
+    revision: TrustRevision,
+    verified_cache: Option<VerifiedToken>,
+    previous_jti: Option<String>,
+    request_id: String,
+}
+
+fn prepare_issue(
+    store: &dyn SecretStore,
+    account_id: &str,
+    keys: &HashMap<String, VerifyingKey>,
+    drop_expired: bool,
+) -> Result<PreparedIssue, ProFailure> {
+    coordinate_trust(|| {
+        let mut trust = load_trust_locked(store, account_id)?;
+        let verified_cache = match read_cache()? {
+            Some(cache) => Some(verify_token_with_keys(&cache.token, keys)?),
+            None => None,
+        };
+        let mut changed = if let Some(token) = &verified_cache {
+            reconcile_cached_token_state(&mut trust, token)?
+        } else {
+            false
+        };
+        if drop_expired {
+            drop_expired_request(&mut trust);
+            changed = true;
+        }
+        let previous_jti = previous_jti(verified_cache.as_ref(), &trust);
+        let (request_id, created) = pending_request(&mut trust, previous_jti.as_deref())?;
+        changed |= created;
+        if changed {
+            save_trust_locked(store, &trust)?;
+        }
+        Ok(PreparedIssue {
+            revision: TrustRevision::from(&trust),
+            trust,
+            verified_cache,
+            previous_jti,
+            request_id,
+        })
+    })
+}
+
 async fn refresh(store: &dyn SecretStore) -> Result<ProStatus, ProFailure> {
     if configured_service_url().is_empty() {
         return Err(ProFailure::Unconfigured);
@@ -1676,30 +1875,20 @@ where
     R: std::future::Future<Output = Result<Value, ProFailure>>,
 {
     let account_id = crate::account::active_account_id(store).map_err(|_| ProFailure::NoSession)?;
-    let mut trust = load_trust(store, &account_id)?;
-    let verified_cache = match read_cache()? {
-        Some(cache) => Some(verify_token_with_keys(&cache.token, keys)?),
-        None => None,
-    };
-    if let Some(token) = &verified_cache {
-        reconcile_cached_token(store, &mut trust, token)?;
-    }
     let mut expired = false;
-    let response = 'issue: loop {
-        let previous_jti = previous_jti(verified_cache.as_ref(), &trust);
-        let (request_id, created) = pending_request(&mut trust, previous_jti.as_deref())?;
-        if created {
-            save_trust(store, &trust)?;
-        }
+    let (response, prepared) = 'issue: loop {
+        let prepared = prepare_issue(store, &account_id, keys, expired)?;
         let mut response = Value::Null;
-        for body in issue_requests(&trust, &request_id, previous_jti.as_deref()) {
+        for body in issue_requests(
+            &prepared.trust,
+            &prepared.request_id,
+            prepared.previous_jti.as_deref(),
+        ) {
             response = match post(body).await {
                 /* The issuer let an undelivered token expire: a fresh request
                 follows at once, and meets the chain the server advanced. */
                 Err(ProFailure::TokenRequestExpired) if !expired => {
                     expired = true;
-                    drop_expired_request(&mut trust);
-                    save_trust(store, &trust)?;
                     continue 'issue;
                 }
                 Err(ProFailure::TokenRequestExpired) => return Err(ProFailure::Service),
@@ -1711,18 +1900,18 @@ where
                 other => other?,
             };
         }
-        break response;
+        break (response, prepared);
     };
     let token_text = response
         .get("token")
         .and_then(Value::as_str)
         .ok_or(ProFailure::Service)?;
     let token = verify_token_with_keys(token_text, keys)?;
-    if token.claims.sub != trust.account_id
-        || token.claims.device_id != trust.device_id
-        || token.claims.seq < trust.highest_sequence
-        || token.claims.revocation_epoch < trust.highest_revocation_epoch
-        || verified_cache.as_ref().is_some_and(|previous| {
+    if token.claims.sub != prepared.trust.account_id
+        || token.claims.device_id != prepared.trust.device_id
+        || token.claims.seq < prepared.trust.highest_sequence
+        || token.claims.revocation_epoch < prepared.trust.highest_revocation_epoch
+        || prepared.verified_cache.as_ref().is_some_and(|previous| {
             token.claims.seq < previous.claims.seq
                 || (token.claims.seq == previous.claims.seq
                     && token.claims.jti != previous.claims.jti)
@@ -1730,34 +1919,46 @@ where
     {
         return Err(ProFailure::InvalidEntitlement);
     }
-    /* Network requests may overlap, but their durable commit cannot. Read the
-    trust and cache again inside this gate so a delayed response can never
-    replace a token that another refresh already advanced past. */
-    let _commit = entitlement_commit_lock().lock().await;
-    let mut persisted_trust = load_trust(store, &account_id)?;
-    let persisted_cache = match read_cache()? {
-        Some(cache) => Some(verify_token_with_keys(&cache.token, keys)?),
-        None => None,
-    };
-    if token.claims.sub != persisted_trust.account_id
-        || token.claims.device_id != persisted_trust.device_id
-        || token.claims.seq < persisted_trust.highest_sequence
-        || token.claims.revocation_epoch < persisted_trust.highest_revocation_epoch
-        || (token.claims.seq == persisted_trust.highest_sequence
-            && persisted_trust.last_jti.as_deref().is_some_and(|jti| jti != token.claims.jti))
-        || persisted_cache.as_ref().is_some_and(|persisted| {
-            token.claims.seq < persisted.claims.seq
-                || (token.claims.seq == persisted.claims.seq
-                    && token.claims.jti != persisted.claims.jti)
-        })
-    {
-        return Err(ProFailure::InvalidEntitlement);
-    }
-    write_cache(token_text)?;
-    let local_now = now_seconds()?;
-    adopt_token(&mut persisted_trust, &token.claims, local_now);
-    save_trust(store, &persisted_trust)?;
-    status_for(&token, &persisted_trust, local_now)
+    /* The network answer is complete before this transaction begins. A reset,
+    account change, or newer token changes the revision and abandons this
+    response before either durable record can move. */
+    coordinate_trust(|| {
+        let Some(mut persisted_trust) = existing_trust_locked(store, &account_id)? else {
+            return Err(ProFailure::InvalidEntitlement);
+        };
+        if !prepared.revision.matches(&persisted_trust) {
+            return Err(ProFailure::InvalidEntitlement);
+        }
+        if persisted_trust.pending_request_id.as_deref() != Some(&prepared.request_id) {
+            return Err(ProFailure::InvalidEntitlement);
+        }
+        let persisted_cache = match read_cache()? {
+            Some(cache) => Some(verify_token_with_keys(&cache.token, keys)?),
+            None => None,
+        };
+        if token.claims.sub != persisted_trust.account_id
+            || token.claims.device_id != persisted_trust.device_id
+            || token.claims.seq < persisted_trust.highest_sequence
+            || token.claims.revocation_epoch < persisted_trust.highest_revocation_epoch
+            || (token.claims.seq == persisted_trust.highest_sequence
+                && persisted_trust
+                    .last_jti
+                    .as_deref()
+                    .is_some_and(|jti| jti != token.claims.jti))
+            || persisted_cache.as_ref().is_some_and(|persisted| {
+                token.claims.seq < persisted.claims.seq
+                    || (token.claims.seq == persisted.claims.seq
+                        && token.claims.jti != persisted.claims.jti)
+            })
+        {
+            return Err(ProFailure::InvalidEntitlement);
+        }
+        write_cache(token_text)?;
+        let local_now = now_seconds()?;
+        adopt_token(&mut persisted_trust, &token.claims, local_now);
+        save_trust_locked(store, &persisted_trust)?;
+        status_for(&token, &persisted_trust, local_now)
+    })
 }
 
 fn countable_refresh_failure(error: ProFailure) -> bool {
@@ -1767,11 +1968,14 @@ fn countable_refresh_failure(error: ProFailure) -> bool {
     )
 }
 
+#[cfg(test)]
 fn record_refresh_failure(store: &dyn SecretStore) -> Result<(), ProFailure> {
     let account_id = crate::account::active_account_id(store).map_err(|_| ProFailure::NoSession)?;
-    let mut trust = load_trust(store, &account_id)?;
-    trust.consecutive_refresh_failures = trust.consecutive_refresh_failures.saturating_add(1);
-    save_trust(store, &trust)
+    coordinate_trust(|| {
+        let mut trust = load_trust_locked(store, &account_id)?;
+        trust.consecutive_refresh_failures = trust.consecutive_refresh_failures.saturating_add(1);
+        save_trust_locked(store, &trust)
+    })
 }
 
 /// Whether a failed refresh ends the local token.
@@ -1785,21 +1989,39 @@ fn refresh_failure_clears_token(error: ProFailure) -> bool {
 }
 
 async fn refresh_with_failure_tracking(store: &dyn SecretStore) -> Result<ProStatus, ProFailure> {
+    let started = crate::account::active_account_id(store)
+        .ok()
+        .and_then(|account_id| {
+            load_trust(store, &account_id)
+                .ok()
+                .map(|trust| TrustRevision::from(&trust))
+        });
     match refresh(store).await {
         Ok(status) => Ok(status),
         Err(error) => {
-            let clear_result = if refresh_failure_clears_token(error) {
-                clear_entitlement_and_context()
-            } else {
-                Ok(())
-            };
-            let tracking_result = if countable_refresh_failure(error) {
-                record_refresh_failure(store)
-            } else {
-                Ok(())
-            };
-            clear_result?;
-            tracking_result?;
+            if (refresh_failure_clears_token(error) || countable_refresh_failure(error))
+                && started.is_some()
+            {
+                coordinate_trust(|| {
+                    let started = started.as_ref().expect("checked above");
+                    let Some(mut current) = existing_trust_locked(store, &started.account_id)?
+                    else {
+                        return Ok(());
+                    };
+                    if !started.matches(&current) {
+                        return Ok(());
+                    }
+                    if refresh_failure_clears_token(error) {
+                        clear_entitlement_and_context_locked()?;
+                    }
+                    if countable_refresh_failure(error) {
+                        current.consecutive_refresh_failures =
+                            current.consecutive_refresh_failures.saturating_add(1);
+                        save_trust_locked(store, &current)?;
+                    }
+                    Ok(())
+                })?;
+            }
             Err(error)
         }
     }
@@ -2515,6 +2737,7 @@ mod tests {
         trust.highest_sequence = token.claims.seq - 1;
         trust.pending_request_id = Some("00000000-0000-4000-8000-000000000003".to_string());
         trust.pending_previous_jti = Some("00000000-0000-4000-8000-000000000004".to_string());
+        save_trust(&store, &trust).expect("pre crash trust stored");
         reconcile_cached_token(&store, &mut trust, &token).expect("reconciled");
         assert_eq!(trust.highest_sequence, token.claims.seq);
         assert_eq!(trust.pending_request_id, None);
@@ -3435,6 +3658,7 @@ mod tests {
         trust.pending_request_id = Some("00000000-0000-4000-8000-000000000005".to_string());
         let mut token = verified(issued_at);
         token.claims.seq = 5;
+        save_trust(&store, &trust).expect("pre crash trust stored");
         reconcile_cached_token(&store, &mut trust, &token).expect("reconciled");
         let after = now_seconds().expect("clock");
         assert!(effective_time(&trust, after).expect("effective") >= after);
@@ -4075,6 +4299,147 @@ mod tests {
         let token = verify_token_with_keys(&cache.token, &keys).expect("verified cache");
         assert_eq!(token.claims.seq, 2);
         assert_eq!(token.claims.jti, second_jti);
+    }
+
+    #[test]
+    fn hosted_context_finishing_after_a_new_token_does_not_overwrite_it() {
+        let now = 1_800_000_000;
+        let store = context_store(now);
+        let key = SigningKey::from_bytes(&[7_u8; 32]);
+        let keys = HashMap::from([("context-test".to_string(), key.verifying_key())]);
+        let envelope = serde_json::to_value(hosted_context_fixture(now, &key)).expect("JSON");
+        let (validation_read_tx, validation_read_rx) = std::sync::mpsc::channel();
+        let (release_validation_tx, release_validation_rx) = std::sync::mpsc::channel();
+
+        std::thread::scope(|scope| {
+            let validation_store = &store;
+            let validation = scope.spawn(move || {
+                validate_hosted_context_with_keys_before_commit(
+                    &envelope,
+                    validation_store,
+                    &keys,
+                    now,
+                    Some(USAGE_ACCOUNT),
+                    || {
+                        validation_read_tx.send(()).expect("coordinator is waiting");
+                        release_validation_rx
+                            .recv()
+                            .expect("validation is released");
+                    },
+                )
+            });
+            validation_read_rx
+                .recv()
+                .expect("validation read the first trust state");
+            let mut newer = load_trust(&store, ACCOUNT_ID).expect("T1 trust");
+            newer.highest_sequence += 1;
+            newer.last_jti = Some("00000000-0000-4000-8000-000000000012".to_string());
+            save_trust(&store, &newer).expect("T2 committed");
+            release_validation_tx
+                .send(())
+                .expect("validation is still pending");
+            validation
+                .join()
+                .expect("validation thread")
+                .expect("valid context");
+        });
+
+        let final_trust = load_trust(&store, ACCOUNT_ID).expect("final trust");
+        assert_eq!(final_trust.highest_sequence, 5);
+        assert_eq!(
+            final_trust.last_jti.as_deref(),
+            Some("00000000-0000-4000-8000-000000000012")
+        );
+        assert_eq!(final_trust.highest_context_sequence, 0);
+    }
+
+    #[tokio::test]
+    async fn reset_racing_a_refresh_commit_keeps_the_new_generation() {
+        let now = now_seconds().expect("clock");
+        let store = session_store(now);
+        let keys = test_keys();
+        let (issue_pending_tx, issue_pending_rx) = tokio::sync::oneshot::channel();
+        let (release_issue_tx, release_issue_rx) = tokio::sync::oneshot::channel();
+
+        let delayed = async {
+            let mut issue_pending_tx = Some(issue_pending_tx);
+            let mut release_issue_rx = Some(release_issue_rx);
+            refresh_with(&store, &keys, |body| {
+                let is_issue = body.get("action").is_none();
+                let pending = is_issue.then(|| issue_pending_tx.take().expect("one issue"));
+                let release = is_issue.then(|| release_issue_rx.take().expect("one release"));
+                let mut claims = issued(now, now + 30 * DAY, "active", Some("monthly"));
+                claims["device_id"] = body["device_id"].clone();
+                claims["seq"] = json!(1);
+                claims["jti"] = json!("00000000-0000-4000-8000-000000000021");
+                async move {
+                    if let Some(pending) = pending {
+                        pending.send(()).expect("reset is waiting");
+                    }
+                    if let Some(release) = release {
+                        release.await.expect("issue is released");
+                    }
+                    Ok(if is_issue {
+                        json!({ "token": signed_with(&claims, &test_key()) })
+                    } else {
+                        json!({ "device": { "created": true } })
+                    })
+                }
+            })
+            .await
+        };
+        let reset = async {
+            issue_pending_rx.await.expect("refresh reached the issuer");
+            let old_device = device_of(&store);
+            clear_local_authorization(&store).expect("local reset");
+            let replacement = load_trust(&store, ACCOUNT_ID).expect("new generation");
+            assert_ne!(replacement.device_id, old_device);
+            release_issue_tx.send(()).expect("refresh is still pending");
+            replacement.device_id
+        };
+
+        let (delayed_result, replacement_device) = tokio::join!(delayed, reset);
+        assert_eq!(delayed_result, Err(ProFailure::InvalidEntitlement));
+        let final_trust = load_trust(&store, ACCOUNT_ID).expect("final trust");
+        assert_eq!(final_trust.device_id, replacement_device);
+        assert_eq!(final_trust.highest_sequence, 0);
+        assert_eq!(final_trust.last_jti, None);
+    }
+
+    #[test]
+    fn a_trust_write_cannot_move_the_token_chain_backward() {
+        let now = 1_800_000_000;
+        let store = context_store(now);
+        let accepted_jti = "00000000-0000-4000-8000-000000000031";
+        let mut accepted = load_trust(&store, ACCOUNT_ID).expect("initial trust");
+        accepted.highest_sequence = 5;
+        accepted.last_jti = Some(accepted_jti.to_string());
+        save_trust(&store, &accepted).expect("newer token stored");
+
+        let mut older = accepted.clone();
+        older.highest_sequence = 4;
+        assert_eq!(
+            save_trust(&store, &older),
+            Err(ProFailure::InvalidEntitlement)
+        );
+        let mut cleared_jti = accepted.clone();
+        cleared_jti.highest_sequence = 6;
+        cleared_jti.last_jti = None;
+        assert_eq!(
+            save_trust(&store, &cleared_jti),
+            Err(ProFailure::InvalidEntitlement)
+        );
+        let mut replaced_same_sequence = accepted.clone();
+        replaced_same_sequence.last_jti =
+            Some("00000000-0000-4000-8000-000000000032".to_string());
+        assert_eq!(
+            save_trust(&store, &replaced_same_sequence),
+            Err(ProFailure::InvalidEntitlement)
+        );
+
+        let final_trust = load_trust(&store, ACCOUNT_ID).expect("final trust");
+        assert_eq!(final_trust.highest_sequence, 5);
+        assert_eq!(final_trust.last_jti.as_deref(), Some(accepted_jti));
     }
 
     fn device_of(store: &InMemorySecrets) -> String {
