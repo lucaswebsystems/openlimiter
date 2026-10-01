@@ -92,6 +92,15 @@ export const PROVIDERS = [
       "Requires a normal Moonshot server API key. This beta shows current available, voucher, and cash balance as balance, not spend. It never converts balance into monthly spend and never creates a forecast or budget alert from it.",
     team: false,
   },
+  /* Not a contract 4.2 sentence: DeepSeek joined in 2.0.3, as Moonshot's twin. */
+  {
+    id: "deepseek",
+    name: "DeepSeek",
+    metric: "balance",
+    eligibility:
+      "Requires a normal DeepSeek API key. This shows the USD balance as balance, not spend, and a balance reported only in CNY is never converted.",
+    team: false,
+  },
 ];
 
 /* Keyed by the feature codes a signed token carries (pro.rs). Current usage
@@ -338,6 +347,11 @@ function spendValueMarkup(source, sample) {
     return { valueText: "no reading", barMarkup: "" };
   }
 
+  /* Rust never converts a currency, so a yuan only balance has no amount. */
+  if (state.kind === "reportedInCny") {
+    return { valueText: "Reported in CNY", barMarkup: "" };
+  }
+
   if (state.kind === "capped") {
     return {
       valueText: "100 plus",
@@ -388,6 +402,9 @@ export function sourceMarkup(source, sample) {
     (isBalance ? "balance, not spend" : "spend") +
     "</span>" +
     (incomplete ? '<span class="badge" data-tone="watch">Incomplete</span>' : "") +
+    (source.status === "too_low_for_api_calls"
+      ? '<span class="badge" data-tone="watch">Too low for API calls</span>'
+      : "") +
     "</div>" +
     '<span class="spend-key mono">' +
     escapeText(source.keyLabel ?? "key") +
@@ -565,8 +582,18 @@ export async function renderSpend(mount) {
   const samples = status.samples ?? [];
   const hasAccepted = accepted();
 
+  /* A sample belongs to its source, never to its provider: two keys of one
+     provider are two accounts. The newest observation is the current one. */
   const sampleFor = (source) =>
-    samples.find((sample) => sample.provider === source.provider) ?? null;
+    samples
+      .filter((sample) => sample.sourceId === source.id)
+      .reduce(
+        (newest, sample) =>
+          newest === null || Date.parse(sample.observedAt) > Date.parse(newest.observedAt)
+            ? sample
+            : newest,
+        null,
+      );
 
   mount.innerHTML =
     eligibilityMarkup() +

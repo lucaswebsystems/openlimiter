@@ -38,6 +38,7 @@ const XAI_PREFIX: &str = "https://management-api.x.ai:443/v1/billing/teams/";
 const XAI_SUFFIX: &str = "/usage";
 const OPENROUTER_BASE: &str = "https://openrouter.ai:443/api/v1/credits";
 const MOONSHOT_BASE: &str = "https://api.moonshot.ai:443/v1/users/me/balance";
+const DEEPSEEK_BASE: &str = "https://api.deepseek.com:443/user/balance";
 
 pub struct ApiSpendState {
     gate: tokio::sync::Mutex<()>,
@@ -59,16 +60,19 @@ pub enum ApiSpendProvider {
     Xai,
     Openrouter,
     Moonshot,
+    #[serde(rename = "deepseek")]
+    DeepSeek,
 }
 
 impl ApiSpendProvider {
     #[cfg(test)]
-    const ALL: [Self; 5] = [
+    const ALL: [Self; 6] = [
         Self::Openai,
         Self::Anthropic,
         Self::Xai,
         Self::Openrouter,
         Self::Moonshot,
+        Self::DeepSeek,
     ];
 
     const fn credential_class(self) -> &'static str {
@@ -77,13 +81,13 @@ impl ApiSpendProvider {
             Self::Anthropic => "organization_admin_key",
             Self::Xai => "management_key",
             Self::Openrouter => "management_key",
-            Self::Moonshot => "server_api_key",
+            Self::Moonshot | Self::DeepSeek => "server_api_key",
         }
     }
 
     const fn metric_kind(self) -> ApiSpendMetricKind {
         match self {
-            Self::Moonshot => ApiSpendMetricKind::Balance,
+            Self::Moonshot | Self::DeepSeek => ApiSpendMetricKind::Balance,
             _ => ApiSpendMetricKind::Spend,
         }
     }
@@ -141,6 +145,11 @@ pub struct SaveApiSpendSourceInput {
     budget_usd: Option<String>,
     consent_version: u32,
     confirmed: bool,
+    /// Present, the key of this existing source is replaced and the source
+    /// keeps its identity and samples. Absent, a new source is added, so a
+    /// second key of one provider is a second account rather than a rotation.
+    #[serde(default)]
+    source_id: Option<String>,
 }
 
 #[derive(Clone, Deserialize)]
@@ -320,6 +329,9 @@ pub enum ApiSpendDisplayState {
     },
     /// A balance reading. It is never converted into spend.
     Balance { amount_usd: String },
+    /// A balance the provider reported only in yuan. Currencies are never
+    /// converted, so there is no amount to show, and never a zero either.
+    ReportedInCny,
 }
 
 /// Derives what a spend source should show, from a month to date amount,
@@ -371,15 +383,21 @@ fn sample_view(
     source: Option<&ApiSpendSource>,
     now: i64,
 ) -> Result<ApiSpendSampleView, ApiSpendFailure> {
-    let amount = sample
+    let display_state = match sample
         .spend_usd
         .as_deref()
         .or(sample.balance_usd.as_deref())
-        .unwrap_or("0");
-    let budget = source
-        .map(|source| source.budget_usd.as_deref())
-        .unwrap_or_else(|| sample.budget_usd.as_deref());
-    let display_state = spend_display_state(sample.provider, amount, "usd", budget, now)?;
+    {
+        Some(amount) => {
+            let budget = source
+                .map(|source| source.budget_usd.as_deref())
+                .unwrap_or_else(|| sample.budget_usd.as_deref());
+            spend_display_state(sample.provider, amount, "usd", budget, now)?
+        }
+        /* validate_document admits a sample without an amount only as a
+        yuan balance. */
+        None => ApiSpendDisplayState::ReportedInCny,
+    };
     Ok(ApiSpendSampleView {
         id: sample.id.clone(),
         source_id: sample.source_id.clone(),
@@ -410,7 +428,7 @@ fn snapshot(document: &ApiSpendDocument, now: i64) -> Result<ApiSpendSnapshot, A
     Ok(ApiSpendSnapshot {
         version: STATE_VERSION,
         local_display_is_free: true,
-        disclosure: "Best effort provider observation. Missing periods remain gaps. Moonshot is balance, not spend.",
+        disclosure: "Best effort provider observation. Missing periods remain gaps. Moonshot and DeepSeek are balance, not spend.",
         sources: document.sources.iter().map(ApiSpendSourceView::from).collect(),
         samples,
     })
@@ -536,6 +554,10 @@ fn validate_document(document: &ApiSpendDocument) -> Result<(), ApiSpendFailure>
                 .balance_usd
                 .as_deref()
                 .is_some_and(|value| decimal(value).is_err())
+            /* Yuan is stored without an amount and an amount is never yuan:
+            nothing is converted, and nothing missing reads as zero. */
+            || (sample.currency_source == "provider_cny")
+                != (sample.spend_usd.is_none() && sample.balance_usd.is_none())
     }) {
         return Err(ApiSpendFailure::Storage);
     }
@@ -630,8 +652,9 @@ fn contract_spend_samples(
 ///   window derives no forecast yet and the contract requires the date and
 ///   the input to be present together or absent together. Both are nullable
 ///   there, so the row is complete without them.
-/// * Moonshot is absent: it reports a balance rather than spend, and the
-///   contract carries balances in a list this envelope does not send.
+/// * Moonshot and DeepSeek are absent: they report a balance rather than
+///   spend, and the contract carries balances in a list this envelope does
+///   not send. DeepSeek has no hosted contract at all and stays local.
 fn contract_spend_sample(
     source: Option<&ApiSpendSource>,
     sample: &ApiSpendSample,
@@ -694,7 +717,7 @@ fn contract_provider(provider: ApiSpendProvider) -> Option<&'static str> {
         ApiSpendProvider::Anthropic => Some("ANTHROPIC"),
         ApiSpendProvider::Xai => Some("XAI"),
         ApiSpendProvider::Openrouter => Some("OPENROUTER"),
-        ApiSpendProvider::Moonshot => None,
+        ApiSpendProvider::Moonshot | ApiSpendProvider::DeepSeek => None,
     }
 }
 
@@ -805,43 +828,88 @@ fn save_source_core(
         .transpose()?
         .map(decimal_text);
     let mut document = load_at(path)?;
-    if document.sources.len() >= MAX_SOURCES {
-        return Err(ApiSpendFailure::Storage);
-    }
-    let id = uuid::Uuid::new_v4().to_string();
+    let replacing = match input.source_id.as_deref() {
+        Some(id) => {
+            uuid::Uuid::parse_str(id).map_err(|_| ApiSpendFailure::InvalidInput)?;
+            let index = document
+                .sources
+                .iter()
+                .position(|source| source.id == id)
+                .ok_or(ApiSpendFailure::NotFound)?;
+            if document.sources[index].provider != input.provider {
+                return Err(ApiSpendFailure::InvalidInput);
+            }
+            Some(index)
+        }
+        None if document.sources.len() >= MAX_SOURCES => return Err(ApiSpendFailure::Storage),
+        None => None,
+    };
     let credential_id = uuid::Uuid::new_v4().to_string();
     let observed_last_four = last_four(&secret);
     store
         .store_secret(&credential_id, &secret)
         .map_err(|_| ApiSpendFailure::KeyringUnavailable)?;
     let now_text = timestamp(now)?;
-    document.sources.push(ApiSpendSource {
-        id: id.clone(),
-        credential_id: credential_id.clone(),
-        provider: input.provider,
-        key_label,
-        last_four: observed_last_four,
-        eligibility_class: input.provider.credential_class().to_string(),
-        enabled: true,
-        consent_version: input.consent_version,
-        team_id,
-        budget_usd,
-        created_at: now_text.clone(),
-        updated_at: now_text,
-        last_observed_at: None,
-        next_allowed_at: 0,
-        consecutive_failures: 0,
-        status: "pending_validation".to_string(),
-        next_sequence: 1,
-        counter_baseline_usd: None,
-        counter_baseline_at: None,
-        last_counter_usd: None,
-        last_counter_at: None,
-        counter_gap: false,
-    });
+    let replaced_credential = if let Some(index) = replacing {
+        let source = &mut document.sources[index];
+        let previous = std::mem::replace(&mut source.credential_id, credential_id.clone());
+        source.key_label = key_label;
+        source.last_four = observed_last_four;
+        source.consent_version = input.consent_version;
+        source.team_id = team_id;
+        /* A replacement is about the key. The budget changes only when one
+        is given; set_budget is how it is cleared. */
+        if budget_usd.is_some() {
+            source.budget_usd = budget_usd;
+        }
+        source.updated_at = now_text;
+        source.last_observed_at = None;
+        source.next_allowed_at = 0;
+        source.consecutive_failures = 0;
+        source.status = "pending_validation".to_string();
+        /* The new key may belong to another account, so no lifetime counter
+        delta is ever taken across it. */
+        source.counter_baseline_usd = None;
+        source.counter_baseline_at = None;
+        source.last_counter_usd = None;
+        source.last_counter_at = None;
+        source.counter_gap = false;
+        Some(previous)
+    } else {
+        document.sources.push(ApiSpendSource {
+            id: uuid::Uuid::new_v4().to_string(),
+            credential_id: credential_id.clone(),
+            provider: input.provider,
+            key_label,
+            last_four: observed_last_four,
+            eligibility_class: input.provider.credential_class().to_string(),
+            enabled: true,
+            consent_version: input.consent_version,
+            team_id,
+            budget_usd,
+            created_at: now_text.clone(),
+            updated_at: now_text,
+            last_observed_at: None,
+            next_allowed_at: 0,
+            consecutive_failures: 0,
+            status: "pending_validation".to_string(),
+            next_sequence: 1,
+            counter_baseline_usd: None,
+            counter_baseline_at: None,
+            last_counter_usd: None,
+            last_counter_at: None,
+            counter_gap: false,
+        });
+        None
+    };
     if let Err(error) = save_at(path, &document) {
         let _ = store.delete_secret(&credential_id);
         return Err(error);
+    }
+    if let Some(previous) = replaced_credential {
+        /* The state no longer names the old key. A keyring that refuses this
+        delete leaves an entry nothing reads, never a source on the old key. */
+        let _ = store.delete_secret(&previous);
     }
     snapshot(&document, now)
 }
@@ -938,6 +1006,12 @@ fn request_spec(
             None,
             "authorization",
         ),
+        ApiSpendProvider::DeepSeek => (
+            RequestMethod::Get,
+            Url::parse(DEEPSEEK_BASE).map_err(|_| ApiSpendFailure::UnsafeDestination)?,
+            None,
+            "authorization",
+        ),
     };
     match source.provider {
         ApiSpendProvider::Openai => {
@@ -984,6 +1058,7 @@ fn validate_fixed_destination(
         ApiSpendProvider::Xai => "management-api.x.ai",
         ApiSpendProvider::Openrouter => "openrouter.ai",
         ApiSpendProvider::Moonshot => "api.moonshot.ai",
+        ApiSpendProvider::DeepSeek => "api.deepseek.com",
     };
     let path_ok = match provider {
         ApiSpendProvider::Openai => url.path() == "/v1/organization/costs",
@@ -993,6 +1068,7 @@ fn validate_fixed_destination(
         }
         ApiSpendProvider::Openrouter => url.path() == "/api/v1/credits",
         ApiSpendProvider::Moonshot => url.path() == "/v1/users/me/balance",
+        ApiSpendProvider::DeepSeek => url.path() == "/user/balance",
     };
     if url.scheme() != "https"
         || url.host_str() != Some(expected_host)
@@ -1170,10 +1246,14 @@ async fn send_request(
 
 #[derive(Clone, Debug)]
 struct ParsedProviderValue {
-    value: Decimal,
+    /// `None` only for a balance reported in yuan alone, which is never
+    /// converted and so has no amount here.
+    value: Option<Decimal>,
     raw_unit_scale: &'static str,
     incomplete: bool,
     next_page: Option<String>,
+    /// The state a balance source carries beyond its amount, as its status.
+    note: Option<&'static str>,
 }
 
 fn page_cursor(value: &Value) -> Result<Option<String>, ApiSpendFailure> {
@@ -1224,10 +1304,11 @@ fn parse_openai(value: &Value) -> Result<ParsedProviderValue, ApiSpendFailure> {
         }
     }
     Ok(ParsedProviderValue {
-        value: total,
+        value: Some(total),
         raw_unit_scale: "usd",
         incomplete: false,
         next_page: page_cursor(value)?,
+        note: None,
     })
 }
 
@@ -1260,10 +1341,11 @@ fn parse_anthropic(value: &Value) -> Result<ParsedProviderValue, ApiSpendFailure
         }
     }
     Ok(ParsedProviderValue {
-        value: cents / Decimal::from(100),
+        value: Some(cents / Decimal::from(100)),
         raw_unit_scale: "usd_cents",
         incomplete: false,
         next_page: page_cursor(value)?,
+        note: None,
     })
 }
 
@@ -1291,13 +1373,14 @@ fn parse_xai(value: &Value) -> Result<ParsedProviderValue, ApiSpendFailure> {
         }
     }
     Ok(ParsedProviderValue {
-        value: total,
+        value: Some(total),
         raw_unit_scale: "usd",
         incomplete: value
             .get("limitReached")
             .and_then(Value::as_bool)
             .ok_or(ApiSpendFailure::InvalidResponse)?,
         next_page: None,
+        note: None,
     })
 }
 
@@ -1311,13 +1394,14 @@ fn parse_openrouter(value: &Value) -> Result<ParsedProviderValue, ApiSpendFailur
             .ok_or(ApiSpendFailure::InvalidResponse)?,
     )?;
     Ok(ParsedProviderValue {
-        value: json_decimal(
+        value: Some(json_decimal(
             data.get("total_usage")
                 .ok_or(ApiSpendFailure::InvalidResponse)?,
-        )?,
+        )?),
         raw_unit_scale: "lifetime_usd",
         incomplete: false,
         next_page: None,
+        note: None,
     })
 }
 
@@ -1345,10 +1429,80 @@ fn parse_moonshot(value: &Value) -> Result<ParsedProviderValue, ApiSpendFailure>
         return Err(ApiSpendFailure::InvalidResponse);
     }
     Ok(ParsedProviderValue {
-        value: available,
+        value: Some(available),
         raw_unit_scale: "current_balance_usd",
         incomplete: false,
         next_page: None,
+        note: None,
+    })
+}
+
+/// One documented string amount: digits with an optional fraction and
+/// nothing else, so no sign, exponent, separator or space, within the bound
+/// every other amount here has.
+fn decimal_string(value: Option<&Value>) -> Result<Decimal, ApiSpendFailure> {
+    let text = value
+        .and_then(Value::as_str)
+        .ok_or(ApiSpendFailure::InvalidResponse)?;
+    let (whole, fraction) = text.split_once('.').unwrap_or((text, "0"));
+    if whole.is_empty()
+        || fraction.is_empty()
+        || !whole
+            .bytes()
+            .chain(fraction.bytes())
+            .all(|byte| byte.is_ascii_digit())
+    {
+        return Err(ApiSpendFailure::InvalidResponse);
+    }
+    decimal(text).map_err(|_| ApiSpendFailure::InvalidResponse)
+}
+
+/// DeepSeek's `GET /user/balance`. The USD entry's `total_balance` is the
+/// amount. With no USD entry the source says `reported_in_cny` and has no
+/// amount, because a currency is refused, never converted. `is_available`
+/// false keeps the amount and says `too_low_for_api_calls`. Every amount on
+/// every entry must be a plain decimal string, or the whole answer is refused.
+fn parse_deepseek(value: &Value) -> Result<ParsedProviderValue, ApiSpendFailure> {
+    let available = value
+        .get("is_available")
+        .and_then(Value::as_bool)
+        .ok_or(ApiSpendFailure::InvalidResponse)?;
+    let entries = value
+        .get("balance_infos")
+        .and_then(Value::as_array)
+        .filter(|entries| !entries.is_empty())
+        .ok_or(ApiSpendFailure::InvalidResponse)?;
+    let mut usd = None;
+    for entry in entries {
+        let total = decimal_string(entry.get("total_balance"))?;
+        decimal_string(entry.get("granted_balance"))?;
+        decimal_string(entry.get("topped_up_balance"))?;
+        let currency = entry
+            .get("currency")
+            .and_then(Value::as_str)
+            .map(str::to_ascii_uppercase);
+        match currency.as_deref() {
+            Some("USD") if usd.is_none() => usd = Some(total),
+            Some("CNY") => {}
+            _ => return Err(ApiSpendFailure::InvalidResponse),
+        }
+    }
+    Ok(ParsedProviderValue {
+        value: usd,
+        raw_unit_scale: if usd.is_some() {
+            "current_balance_usd"
+        } else {
+            "current_balance_cny"
+        },
+        incomplete: false,
+        next_page: None,
+        note: if !available {
+            Some("too_low_for_api_calls")
+        } else if usd.is_none() {
+            Some("reported_in_cny")
+        } else {
+            None
+        },
     })
 }
 
@@ -1362,6 +1516,7 @@ fn parse_provider(
         ApiSpendProvider::Xai => parse_xai(value),
         ApiSpendProvider::Openrouter => parse_openrouter(value),
         ApiSpendProvider::Moonshot => parse_moonshot(value),
+        ApiSpendProvider::DeepSeek => parse_deepseek(value),
     }
 }
 
@@ -1374,25 +1529,35 @@ async fn fetch_provider(
     let mut page = None;
     let mut total = Decimal::ZERO;
     let mut incomplete = false;
-    for _ in 0..MAX_PAGES {
+    for index in 0..MAX_PAGES {
         let spec = request_spec(source, start, end, page.as_deref())?;
         let secret = store
             .read_secret(&source.credential_id)
             .map_err(|_| ApiSpendFailure::KeyringUnavailable)?;
         let response = send_request(source.provider, spec, secret).await?;
         let parsed = parse_provider(source.provider, &response)?;
+        let Some(value) = parsed.value else {
+            /* An answer without an amount is a whole reading on its own,
+            never one page of a sum. */
+            return if index == 0 && parsed.next_page.is_none() {
+                Ok(parsed)
+            } else {
+                Err(ApiSpendFailure::InvalidResponse.into())
+            };
+        };
         total = total
-            .checked_add(parsed.value)
+            .checked_add(value)
             .ok_or(ApiSpendFailure::InvalidResponse)?;
         incomplete |= parsed.incomplete;
         let raw_unit_scale = parsed.raw_unit_scale;
         page = parsed.next_page;
         if page.is_none() {
             return Ok(ParsedProviderValue {
-                value: total,
+                value: Some(total),
                 raw_unit_scale,
                 incomplete,
                 next_page: None,
+                note: parsed.note,
             });
         }
     }
@@ -1536,7 +1701,7 @@ async fn refresh_core(
         return Err(ApiSpendFailure::InvalidInput);
     }
     let source = document.sources[index].clone();
-    let (month_start, end, month) = month_bounds(now)?;
+    let (month_start, end, _) = month_bounds(now)?;
     let fetched = fetch_provider(&source, store, month_start, end).await;
     let parsed = match fetched {
         Ok(value) => value,
@@ -1546,19 +1711,40 @@ async fn refresh_core(
             return Err(failure.kind);
         }
     };
-    let source = &mut document.sources[index];
+    record_observation(&mut document, index, parsed, now)?;
+    save_at(path, &document)?;
+    snapshot(&document, now)
+}
+
+/// Writes one successful reading into its own source and that source's own
+/// samples, and touches nothing else. Refresh calls it after the fixed read;
+/// it reads no clock, file or network itself.
+fn record_observation(
+    document: &mut ApiSpendDocument,
+    index: usize,
+    parsed: ParsedProviderValue,
+    now: i64,
+) -> Result<(), ApiSpendFailure> {
+    let (month_start, _, month) = month_bounds(now)?;
+    let source = document
+        .sources
+        .get_mut(index)
+        .ok_or(ApiSpendFailure::NotFound)?;
     let (spend, balance, completeness) = match source.provider {
         ApiSpendProvider::Openrouter => {
-            let (spend, completeness) = openrouter_spend(source, parsed.value, month_start, now)?;
+            let lifetime = parsed.value.ok_or(ApiSpendFailure::InvalidResponse)?;
+            let (spend, completeness) = openrouter_spend(source, lifetime, month_start, now)?;
             (Some(decimal_text(spend)), None, completeness.to_string())
         }
-        ApiSpendProvider::Moonshot => (
+        ApiSpendProvider::Moonshot | ApiSpendProvider::DeepSeek => (
             None,
-            Some(decimal_text(parsed.value)),
+            parsed.value.map(decimal_text),
             "current_balance".to_string(),
         ),
         _ => (
-            Some(decimal_text(parsed.value)),
+            Some(decimal_text(
+                parsed.value.ok_or(ApiSpendFailure::InvalidResponse)?,
+            )),
             None,
             if parsed.incomplete {
                 "period_incomplete"
@@ -1574,12 +1760,14 @@ async fn refresh_core(
     source.last_observed_at = Some(observed_at.clone());
     source.next_allowed_at = now + AUTOMATIC_POLL_FLOOR_SECONDS;
     source.consecutive_failures = 0;
-    source.status = if parsed.incomplete {
-        "observed_incomplete"
-    } else {
-        "eligible"
-    }
-    .to_string();
+    source.status = parsed
+        .note
+        .unwrap_or(if parsed.incomplete {
+            "observed_incomplete"
+        } else {
+            "eligible"
+        })
+        .to_string();
     source.updated_at = observed_at.clone();
     let sample = ApiSpendSample {
         id: uuid::Uuid::new_v4().to_string(),
@@ -1596,7 +1784,12 @@ async fn refresh_core(
         observed_at: observed_at.clone(),
         source_period: format!("[{}, {})", timestamp(month_start)?, observed_at),
         forecast_date: None,
-        currency_source: "provider_usd".to_string(),
+        currency_source: if parsed.value.is_some() {
+            "provider_usd"
+        } else {
+            "provider_cny"
+        }
+        .to_string(),
         raw_unit_scale: parsed.raw_unit_scale.to_string(),
         completeness,
         created_at: observed_at,
@@ -1609,8 +1802,7 @@ async fn refresh_core(
         let overflow = document.samples.len() - MAX_SAMPLES;
         document.samples.drain(0..overflow);
     }
-    save_at(path, &document)?;
-    snapshot(&document, now)
+    Ok(())
 }
 
 fn remove_source_core(
@@ -1840,7 +2032,7 @@ mod tests {
     }
 
     #[test]
-    fn all_five_adapters_have_closed_hosts_methods_and_units() {
+    fn all_six_adapters_have_closed_hosts_methods_and_units() {
         let start = 1_777_593_600;
         let end = start + 86_400;
         for provider in ApiSpendProvider::ALL {
@@ -1862,7 +2054,10 @@ mod tests {
             "data": {"available_balance": 49.58894, "voucher_balance": 46.58893, "cash_balance": 3.00001}
         }))
         .expect("balance");
-        assert_eq!(decimal_text(moonshot.value), "49.58894");
+        assert_eq!(
+            moonshot.value.map(decimal_text).as_deref(),
+            Some("49.58894")
+        );
         assert_eq!(
             ApiSpendProvider::Moonshot.metric_kind(),
             ApiSpendMetricKind::Balance
@@ -1877,7 +2072,7 @@ mod tests {
             "next_page": "page_2"
         }))
         .expect("OpenAI costs");
-        assert_eq!(decimal_text(openai.value), "1.25");
+        assert_eq!(openai.value.map(decimal_text).as_deref(), Some("1.25"));
         assert_eq!(openai.next_page.as_deref(), Some("page_2"));
 
         let anthropic = parse_anthropic(&json!({
@@ -1886,7 +2081,10 @@ mod tests {
             "next_page": null
         }))
         .expect("Anthropic cents");
-        assert_eq!(decimal_text(anthropic.value), "1.2378912");
+        assert_eq!(
+            anthropic.value.map(decimal_text).as_deref(),
+            Some("1.2378912")
+        );
         assert_eq!(anthropic.raw_unit_scale, "usd_cents");
 
         let xai = parse_xai(&json!({
@@ -1895,13 +2093,13 @@ mod tests {
         }))
         .expect("xAI series");
         assert!(xai.incomplete);
-        assert_eq!(decimal_text(xai.value), "0.75973725");
+        assert_eq!(xai.value.map(decimal_text).as_deref(), Some("0.75973725"));
 
         let openrouter = parse_openrouter(&json!({
             "data": {"total_credits": 100.5, "total_usage": 25.75}
         }))
         .expect("OpenRouter lifetime counter");
-        assert_eq!(decimal_text(openrouter.value), "25.75");
+        assert_eq!(openrouter.value.map(decimal_text).as_deref(), Some("25.75"));
         assert_eq!(openrouter.raw_unit_scale, "lifetime_usd");
     }
 
@@ -1956,6 +2154,7 @@ mod tests {
                 budget_usd: None,
                 consent_version: 1,
                 confirmed: true,
+                source_id: None,
             },
             1_777_593_600,
         );
@@ -1979,6 +2178,7 @@ mod tests {
                 budget_usd: None,
                 consent_version: 1,
                 confirmed: true,
+                source_id: None,
             },
             1_777_593_600,
         )
@@ -2288,5 +2488,503 @@ mod tests {
         assert_eq!(rows[1].account_id, "openrouter-key-c39dae62");
         /* And the row budget the envelope has left is honoured. */
         assert_eq!(contract_spend_samples(&document, 1).len(), 1);
+    }
+
+    /* ------------------------------------------------------------- DeepSeek
+     *
+     * The documented shape of `GET /user/balance`, amounts as strings.
+     */
+
+    fn deepseek_entry(currency: &str, total: &str) -> Value {
+        json!({
+            "currency": currency,
+            "total_balance": total,
+            "granted_balance": "0.25",
+            "topped_up_balance": "1.00"
+        })
+    }
+
+    fn deepseek_usd() -> Value {
+        json!({
+            "is_available": true,
+            "balance_infos": [deepseek_entry("CNY", "110.00"), deepseek_entry("USD", "15.25")]
+        })
+    }
+
+    fn deepseek_cny_only() -> Value {
+        json!({"is_available": true, "balance_infos": [deepseek_entry("CNY", "110.00")]})
+    }
+
+    fn deepseek_unavailable() -> Value {
+        json!({"is_available": false, "balance_infos": [deepseek_entry("USD", "0.40")]})
+    }
+
+    #[test]
+    fn deepseek_reads_the_usd_total_balance_and_never_the_yuan_one() {
+        let parsed = parse_deepseek(&deepseek_usd()).expect("a USD balance");
+        assert_eq!(parsed.value.map(decimal_text).as_deref(), Some("15.25"));
+        assert_eq!(parsed.note, None);
+        assert_eq!(parsed.raw_unit_scale, "current_balance_usd");
+        assert_eq!(
+            ApiSpendProvider::DeepSeek.metric_kind(),
+            ApiSpendMetricKind::Balance
+        );
+        assert_eq!(
+            ApiSpendProvider::DeepSeek.credential_class(),
+            "server_api_key"
+        );
+    }
+
+    #[test]
+    fn deepseek_in_yuan_only_says_so_and_carries_no_amount() {
+        let parsed = parse_deepseek(&deepseek_cny_only()).expect("a CNY only balance");
+        assert_eq!(parsed.value, None);
+        assert_eq!(parsed.note, Some("reported_in_cny"));
+        /* Both at once: still no amount, and the state a person can act on. */
+        let mut blocked = deepseek_cny_only();
+        blocked["is_available"] = json!(false);
+        let parsed = parse_deepseek(&blocked).expect("a blocked CNY only balance");
+        assert_eq!(parsed.value, None);
+        assert_eq!(parsed.note, Some("too_low_for_api_calls"));
+    }
+
+    #[test]
+    fn deepseek_not_available_keeps_the_amount_and_says_too_low() {
+        let parsed = parse_deepseek(&deepseek_unavailable()).expect("a low balance");
+        assert_eq!(parsed.value.map(decimal_text).as_deref(), Some("0.4"));
+        assert_eq!(parsed.note, Some("too_low_for_api_calls"));
+    }
+
+    #[test]
+    fn deepseek_malformed_answers_reject_the_sample() {
+        let mut refused = Vec::new();
+        for total in [
+            json!(15.25),
+            json!("-1.00"),
+            json!("NaN"),
+            json!("inf"),
+            json!("1e3"),
+            json!("+1.00"),
+            json!(" 1.00"),
+            json!("1,00"),
+            json!("1_000"),
+            json!("1."),
+            json!(".5"),
+            json!(""),
+            json!(null),
+            json!("99999999999999999999999999999999"),
+        ] {
+            let mut answer = deepseek_usd();
+            answer["balance_infos"][1]["total_balance"] = total;
+            refused.push(answer);
+        }
+        for field in ["granted_balance", "topped_up_balance"] {
+            let mut answer = deepseek_usd();
+            answer["balance_infos"][1][field] = json!("-0.25");
+            refused.push(answer);
+        }
+        /* The yuan entry is never shown, but a malformed one still means the
+        answer is not the documented shape. */
+        let mut answer = deepseek_usd();
+        answer["balance_infos"][0]["total_balance"] = json!("abc");
+        refused.push(answer);
+        refused.extend([
+            json!({"balance_infos": [deepseek_entry("USD", "1.00")]}),
+            json!({"is_available": "true", "balance_infos": [deepseek_entry("USD", "1.00")]}),
+            json!({"is_available": true}),
+            json!({"is_available": true, "balance_infos": {}}),
+            json!({"is_available": true, "balance_infos": []}),
+            json!({"is_available": true, "balance_infos": [deepseek_entry("EUR", "1.00")]}),
+            json!({"is_available": true, "balance_infos": [{"total_balance": "1.00"}]}),
+            json!({
+                "is_available": true,
+                "balance_infos": [deepseek_entry("USD", "1.00"), deepseek_entry("USD", "2.00")]
+            }),
+            json!([]),
+        ]);
+        for answer in refused {
+            assert!(
+                matches!(
+                    parse_deepseek(&answer),
+                    Err(ApiSpendFailure::InvalidResponse)
+                ),
+                "{answer}"
+            );
+        }
+    }
+
+    #[test]
+    fn deepseek_is_bound_to_its_one_host_and_path() {
+        let spec = request_spec(
+            &source(ApiSpendProvider::DeepSeek),
+            1_777_593_600,
+            1_777_680_000,
+            None,
+        )
+        .expect("request spec");
+        assert_eq!(spec.url.as_str(), "https://api.deepseek.com/user/balance");
+        assert_eq!(spec.method, RequestMethod::Get);
+        assert_eq!(spec.auth_header, "authorization");
+        assert!(spec.body.is_none());
+        assert!(request_spec(
+            &source(ApiSpendProvider::DeepSeek),
+            1_777_593_600,
+            1_777_680_000,
+            Some("page_2"),
+        )
+        .is_err());
+        for refused in [
+            "https://api.deepseek.com.evil.example/user/balance",
+            "https://evil.example/user/balance",
+            "https://deepseek.com/user/balance",
+            "https://platform.deepseek.com/user/balance",
+            "https://api.moonshot.ai/user/balance",
+            "http://api.deepseek.com/user/balance",
+            "https://api.deepseek.com:8443/user/balance",
+            "https://user:pass@api.deepseek.com/user/balance",
+            "https://api.deepseek.com/user/balance/",
+            "https://api.deepseek.com/user/balances",
+            "https://api.deepseek.com/v1/user/balance",
+            "https://api.deepseek.com/v1/users/me/balance",
+            "https://api.deepseek.com/",
+        ] {
+            let url = Url::parse(refused).expect("URL literal");
+            assert!(
+                matches!(
+                    validate_fixed_destination(ApiSpendProvider::DeepSeek, &url),
+                    Err(ApiSpendFailure::UnsafeDestination)
+                ),
+                "{refused}"
+            );
+        }
+        /* Neither balance adapter accepts the other's address. */
+        let moonshot = Url::parse("https://api.deepseek.com/v1/users/me/balance").expect("URL");
+        assert!(validate_fixed_destination(ApiSpendProvider::Moonshot, &moonshot).is_err());
+        let deepseek = Url::parse("https://api.moonshot.ai/v1/users/me/balance").expect("URL");
+        assert!(validate_fixed_destination(ApiSpendProvider::DeepSeek, &deepseek).is_err());
+    }
+
+    fn save_input(
+        provider: ApiSpendProvider,
+        key_label: &str,
+        secret: &str,
+        source_id: Option<&str>,
+    ) -> SaveApiSpendSourceInput {
+        SaveApiSpendSourceInput {
+            provider,
+            key_label: key_label.to_string(),
+            secret: secret.to_string(),
+            team_id: None,
+            budget_usd: None,
+            consent_version: 1,
+            confirmed: true,
+            source_id: source_id.map(str::to_string),
+        }
+    }
+
+    fn index_of(document: &ApiSpendDocument, id: &str) -> usize {
+        document
+            .sources
+            .iter()
+            .position(|source| source.id == id)
+            .expect("the source exists")
+    }
+
+    /// What a source's card shows: its own newest sample, matched by id.
+    fn newest_for<'a>(snapshot: &'a ApiSpendSnapshot, id: &str) -> &'a ApiSpendSampleView {
+        snapshot
+            .samples
+            .iter()
+            .filter(|sample| sample.source_id == id)
+            .max_by(|left, right| left.observed_at.cmp(&right.observed_at))
+            .expect("the source has a sample")
+    }
+
+    fn amount(view: &ApiSpendSampleView) -> &str {
+        match &view.display_state {
+            ApiSpendDisplayState::Tracked { amount_usd, .. }
+            | ApiSpendDisplayState::Balance { amount_usd } => amount_usd,
+            other => panic!("no amount in {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_deepseek_source_round_trips_and_stays_on_this_device() {
+        let directory = TempDir::new();
+        let path = directory.path().join(STATE_FILE_NAME);
+        let store = InMemorySecrets::new();
+        let now = 1_777_593_600 + 6 * 86_400;
+        let saved = save_source_core(
+            &path,
+            &store,
+            save_input(
+                ApiSpendProvider::DeepSeek,
+                "DeepSeek key",
+                "sk-deepseek-canary-0000abcd",
+                None,
+            ),
+            now,
+        )
+        .expect("save");
+        let id = saved.sources[0].id.clone();
+        assert_eq!(saved.sources[0].provider, ApiSpendProvider::DeepSeek);
+        assert_eq!(saved.sources[0].metric_kind, ApiSpendMetricKind::Balance);
+        assert_eq!(saved.sources[0].eligibility_class, "server_api_key");
+        assert_eq!(saved.sources[0].last_four.as_deref(), Some("abcd"));
+        let text = std::fs::read_to_string(&path).expect("state file");
+        assert!(text.contains("\"provider\":\"deepseek\""), "{text}");
+        assert!(!text.contains("canary"));
+
+        /* A USD reading, exactly as refresh records it after the fixed read. */
+        let mut document = load_at(&path).expect("load");
+        let index = index_of(&document, &id);
+        record_observation(
+            &mut document,
+            index,
+            parse_deepseek(&deepseek_usd()).expect("parse"),
+            now,
+        )
+        .expect("record");
+        save_at(&path, &document).expect("save state");
+        let mut document = load_at(&path).expect("reload");
+        let view = snapshot(&document, now).expect("snapshot");
+        assert_eq!(view.sources[0].status, "eligible");
+        assert_eq!(
+            newest_for(&view, &id).display_state,
+            ApiSpendDisplayState::Balance {
+                amount_usd: "15.25".to_string()
+            }
+        );
+
+        /* Yuan only: the source says so and no amount exists anywhere. */
+        record_observation(
+            &mut document,
+            index,
+            parse_deepseek(&deepseek_cny_only()).expect("parse"),
+            now + 900,
+        )
+        .expect("record");
+        save_at(&path, &document).expect("save state");
+        let mut document = load_at(&path).expect("reload");
+        let view = snapshot(&document, now + 900).expect("snapshot");
+        assert_eq!(view.sources[0].status, "reported_in_cny");
+        assert_eq!(
+            newest_for(&view, &id).display_state,
+            ApiSpendDisplayState::ReportedInCny
+        );
+        let stored = document.samples.last().expect("sample");
+        assert_eq!(stored.balance_usd, None);
+        assert_eq!(stored.spend_usd, None);
+        assert_eq!(stored.currency_source, "provider_cny");
+
+        /* Not available for API calls: the amount stays, and so does the note. */
+        record_observation(
+            &mut document,
+            index,
+            parse_deepseek(&deepseek_unavailable()).expect("parse"),
+            now + 1_800,
+        )
+        .expect("record");
+        save_at(&path, &document).expect("save state");
+        let document = load_at(&path).expect("reload");
+        let view = snapshot(&document, now + 1_800).expect("snapshot");
+        assert_eq!(view.sources[0].status, "too_low_for_api_calls");
+        assert_eq!(amount(newest_for(&view, &id)), "0.4");
+
+        /* A balance never syncs, and DeepSeek has no hosted contract at all. */
+        assert!(contract_spend_samples(&document, 8).is_empty());
+        assert_eq!(contract_provider(ApiSpendProvider::DeepSeek), None);
+    }
+
+    #[test]
+    fn an_amountless_sample_is_only_ever_a_yuan_balance() {
+        let balance_source = source(ApiSpendProvider::DeepSeek);
+        let mut document = ApiSpendDocument::default();
+        let mut sample = spend_sample(ApiSpendProvider::DeepSeek, &balance_source.id, "1");
+        sample.balance_usd = None;
+        document.sources.push(balance_source);
+        document.samples.push(sample.clone());
+        /* Without the yuan marker an empty sample would read as zero. */
+        assert!(matches!(
+            validate_document(&document),
+            Err(ApiSpendFailure::Storage)
+        ));
+        document.samples[0].currency_source = "provider_cny".to_string();
+        validate_document(&document).expect("a yuan balance has no amount");
+        /* And a yuan sample that carries an amount would be a conversion. */
+        document.samples[0].balance_usd = Some("15".to_string());
+        assert!(matches!(
+            validate_document(&document),
+            Err(ApiSpendFailure::Storage)
+        ));
+    }
+
+    #[test]
+    fn two_openrouter_sources_keep_their_own_samples_and_a_new_key_replaces_only_its_own() {
+        let directory = TempDir::new();
+        let path = directory.path().join(STATE_FILE_NAME);
+        let store = InMemorySecrets::new();
+        let now = 1_777_593_600 + 6 * 86_400;
+        let first = save_source_core(
+            &path,
+            &store,
+            save_input(
+                ApiSpendProvider::Openrouter,
+                "Personal",
+                "sk-or-first-aaaa",
+                None,
+            ),
+            now,
+        )
+        .expect("first key")
+        .sources[0]
+            .id
+            .clone();
+        /* A second key of the same provider is a second source. */
+        let added = save_source_core(
+            &path,
+            &store,
+            save_input(
+                ApiSpendProvider::Openrouter,
+                "Work",
+                "sk-or-second-bbbb",
+                None,
+            ),
+            now,
+        )
+        .expect("second key");
+        assert_eq!(added.sources.len(), 2);
+        let second = added.sources[1].id.clone();
+        assert_ne!(first, second);
+
+        let mut document = load_at(&path).expect("load");
+        for (id, lifetime, at) in [
+            (&first, json!(60), now),
+            (&second, json!(500), now),
+            (&first, json!(63.33), now + 900),
+            (&second, json!(522.2), now + 900),
+        ] {
+            let index = index_of(&document, id);
+            let parsed = parse_openrouter(&json!({
+                "data": {"total_credits": 1000, "total_usage": lifetime}
+            }))
+            .expect("lifetime counter");
+            record_observation(&mut document, index, parsed, at).expect("record");
+        }
+        save_at(&path, &document).expect("save state");
+        let view = snapshot(&load_at(&path).expect("reload"), now + 900).expect("snapshot");
+        assert_eq!(amount(newest_for(&view, &first)), "3.33");
+        assert_eq!(amount(newest_for(&view, &second)), "22.2");
+
+        /* Replacing the first key keeps its source, and only its source. */
+        let before = load_at(&path).expect("load");
+        let old_credential = before.sources[index_of(&before, &first)]
+            .credential_id
+            .clone();
+        let untouched = before.sources[index_of(&before, &second)].clone();
+        let replaced = save_source_core(
+            &path,
+            &store,
+            save_input(
+                ApiSpendProvider::Openrouter,
+                "Personal",
+                "sk-or-rotated-cccc",
+                Some(&first),
+            ),
+            now + 1_000,
+        )
+        .expect("replace");
+        assert_eq!(replaced.sources.len(), 2);
+        let after = load_at(&path).expect("load");
+        let rotated = &after.sources[index_of(&after, &first)];
+        assert_ne!(rotated.credential_id, old_credential);
+        assert_eq!(rotated.last_four.as_deref(), Some("cccc"));
+        assert_eq!(rotated.status, "pending_validation");
+        assert_eq!(rotated.last_observed_at, None);
+        /* A new key may be another account, so no lifetime delta crosses it. */
+        assert_eq!(rotated.last_counter_usd, None);
+        assert_eq!(rotated.counter_baseline_usd, None);
+        assert!(store.read_secret(&old_credential).is_err());
+        assert_eq!(
+            store
+                .read_secret(&rotated.credential_id)
+                .expect("new key")
+                .as_str(),
+            "sk-or-rotated-cccc"
+        );
+        let kept = &after.sources[index_of(&after, &second)];
+        assert_eq!(kept.credential_id, untouched.credential_id);
+        assert_eq!(kept.last_counter_usd, untouched.last_counter_usd);
+        assert_eq!(store.stored_count(), 2);
+        assert_eq!(after.samples.len(), before.samples.len());
+        let view = snapshot(&after, now + 1_000).expect("snapshot");
+        assert_eq!(amount(newest_for(&view, &second)), "22.2");
+
+        /* A replacement names a real source of the same provider. */
+        for (provider, source_id, expected) in [
+            (
+                ApiSpendProvider::DeepSeek,
+                second.as_str(),
+                ApiSpendFailure::InvalidInput,
+            ),
+            (
+                ApiSpendProvider::Openrouter,
+                "00000000-0000-4000-8000-00000000ffff",
+                ApiSpendFailure::NotFound,
+            ),
+            (
+                ApiSpendProvider::Openrouter,
+                "not a source",
+                ApiSpendFailure::InvalidInput,
+            ),
+        ] {
+            let result = save_source_core(
+                &path,
+                &store,
+                save_input(provider, "Work", "sk-refused-dddd", Some(source_id)),
+                now + 1_100,
+            );
+            assert_eq!(result.err(), Some(expected), "{source_id}");
+        }
+        assert_eq!(store.stored_count(), 2);
+        assert_eq!(load_at(&path).expect("load").sources.len(), 2);
+    }
+
+    /// A state file exactly as 2.0.2 wrote it: two OpenRouter keys, an xAI
+    /// team and a disabled Moonshot balance, with history.
+    const STATE_2_0_2: &str = include_str!("../tests/fixtures/api-spend-v1-2.0.2.json");
+
+    #[test]
+    fn a_2_0_2_state_file_loads_unchanged() {
+        let directory = TempDir::new();
+        let path = directory.path().join(STATE_FILE_NAME);
+        std::fs::write(&path, STATE_2_0_2).expect("fixture");
+        let expected: Value = serde_json::from_str(STATE_2_0_2).expect("fixture JSON");
+
+        let document = load_at(&path).expect("the 2.0.2 schema loads");
+        assert_eq!(serde_json::to_value(&document).expect("JSON"), expected);
+        let view = snapshot(&document, 1_788_782_400).expect("snapshot");
+        assert_eq!(view.sources.len(), 4);
+        assert_eq!(
+            amount(newest_for(&view, "b28c9d51-7f0a-4c3e-9d64-5a1b8e2f7c03")),
+            "3.33"
+        );
+        assert_eq!(
+            amount(newest_for(&view, "c39dae62-8f1b-4d4f-8e75-6b2c9f3a8d14")),
+            "22.2"
+        );
+        assert_eq!(
+            newest_for(&view, "e5bfc084-a03d-4f6b-8a97-8d4eb05caf36").display_state,
+            ApiSpendDisplayState::Balance {
+                amount_usd: "49.58894".to_string()
+            }
+        );
+
+        /* Saving it again writes the same schema back. */
+        save_at(&path, &document).expect("save");
+        assert_eq!(
+            serde_json::to_value(load_at(&path).expect("reload")).expect("JSON"),
+            expected
+        );
     }
 }
