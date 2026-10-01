@@ -832,7 +832,7 @@ mod tests {
     }
 
     #[test]
-    fn one_openrouter_account_cannot_poll_twice_through_two_readers() {
+    fn separate_openrouter_connections_each_get_a_poll() {
         let secrets = InMemorySecrets::new();
         for id in ["key-reader", "credits-reader"] {
             secrets
@@ -864,7 +864,8 @@ mod tests {
             NOW,
         );
 
-        assert_eq!(plan.records.len(), 1);
+        assert_eq!(plan.records.len(), 2);
+        assert_eq!(plan.covered.len(), 2);
     }
 
     #[test]

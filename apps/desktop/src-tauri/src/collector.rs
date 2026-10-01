@@ -274,11 +274,87 @@ mod tests {
 
     use crate::cache_write::CACHE_FILE_NAME;
     use crate::commands::{connect_core, ConnectProviderInput};
-    use crate::connections::ConnectionsStore;
+    use crate::connections::{ConnectionRecord, ConnectionsStore};
+    use crate::credentials::SecretStore;
+    use crate::data_rules::ConnectionIdentities;
+    use crate::poll_identity::{detected_provider, resolve_connection};
     use crate::reader_registry::{CredentialKind, ProviderId};
     use crate::test_support::{InMemorySecrets, RecordingTransport, TempDir};
+    use tauri::test::mock_builder;
 
     const FIXTURE_SECRET: &str = "fixture-credential-never-cache";
+
+    fn add_openrouter_connection(
+        connections: &ConnectionsStore,
+        secrets: &InMemorySecrets,
+        first: &ConnectionRecord,
+        secret: &str,
+    ) -> ConnectionRecord {
+        let mut second = first.clone();
+        second.id = uuid::Uuid::new_v4().to_string();
+        second.account_alias = "second fixture account".to_string();
+        second.created_at = first.created_at.saturating_add(1);
+        secrets
+            .store_secret(&second.id, secret)
+            .expect("second fixture secret");
+        connections
+            .insert_for_plan(second, true)
+            .expect("second OpenRouter connection")
+    }
+
+    async fn collect_openrouter_record(
+        dir: &TempDir,
+        connections: &ConnectionsStore,
+        secrets: &InMemorySecrets,
+        record: &ConnectionRecord,
+    ) {
+        let outcome = collect_core(
+            connections,
+            secrets,
+            &RecordingTransport::replying(
+                200,
+                include_bytes!("../../../../packages/connectors/fixtures/openrouter.credits.json")
+                    .to_vec(),
+                None,
+            ),
+            Arc::new(CacheWriter::at(Some(dir.path().to_path_buf()))),
+            record.id.clone(),
+            CollectionMode::Refresh,
+        )
+        .await
+        .expect("collected OpenRouter reading");
+        assert_eq!(
+            outcome,
+            CollectionOutcome::CacheCommitted {
+                connection_id: record.id.clone()
+            }
+        );
+    }
+
+    fn active_connection_identities(
+        connections: &ConnectionsStore,
+        secrets: &InMemorySecrets,
+    ) -> std::collections::BTreeMap<String, (String, String)> {
+        connections
+            .list()
+            .expect("saved connections")
+            .into_iter()
+            .filter(|record| record.is_active())
+            .map(|record| {
+                let identity = resolve_connection(&record, secrets);
+                (
+                    record.id,
+                    (
+                        detected_provider(record.provider_id)
+                            .slug()
+                            .to_uppercase()
+                            .replace('-', "_"),
+                        identity.account_id().to_string(),
+                    ),
+                )
+            })
+            .collect()
+    }
 
     async fn collect_fixture(
         provider_id: ProviderId,
@@ -363,6 +439,186 @@ mod tests {
         assert!(cache.contains("OPENROUTER"));
         assert!(cache.contains("CREDITS"));
         assert!(cache.contains("12.47"));
+    }
+
+    #[tokio::test]
+    async fn saved_openrouter_key_reaches_window_under_connection_id() {
+        let dir = TempDir::new();
+        let connections = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        let secrets = InMemorySecrets::new();
+        let record = connect_core(
+            &connections,
+            &secrets,
+            ConnectProviderInput {
+                provider_id: ProviderId::Openrouter,
+                credential_kind: CredentialKind::OpenrouterManagementKey,
+                account_alias: "fixture account".to_string(),
+                secret: "sk-or-v1-fixture-key-not-real".to_string(),
+            },
+        )
+        .expect("saved OpenRouter connection");
+        let writer = Arc::new(CacheWriter::at(Some(dir.path().to_path_buf())));
+        let outcome = collect_core(
+            &connections,
+            &secrets,
+            &RecordingTransport::replying(
+                200,
+                include_bytes!("../../../../packages/connectors/fixtures/openrouter.credits.json")
+                    .to_vec(),
+                None,
+            ),
+            writer,
+            record.id.clone(),
+            CollectionMode::Refresh,
+        )
+        .await
+        .expect("collected OpenRouter reading");
+        assert_eq!(
+            outcome,
+            CollectionOutcome::CacheCommitted {
+                connection_id: record.id.clone()
+            }
+        );
+
+        let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("fixture cache");
+        let rows = crate::native_snapshot::display_snapshots(Some(&cache));
+        let identity = resolve_connection(&record, &secrets);
+        let identities = std::collections::BTreeMap::from([(
+            record.id.clone(),
+            (
+                detected_provider(record.provider_id)
+                    .slug()
+                    .to_uppercase()
+                    .replace('-', "_"),
+                identity.account_id().to_string(),
+            ),
+        )]);
+        let app = mock_builder()
+            .manage(connections)
+            .manage(ConnectionIdentities(std::sync::Mutex::new(identities)))
+            .build(tauri::generate_context!(test = true))
+            .expect("mock desktop app");
+        let projection = crate::data_rules::for_app(
+            app.handle(),
+            rows,
+            crate::connections::now_epoch_ms() as i64,
+        );
+        let window_payload = serde_json::json!({
+            "version": 2,
+            "snapshots": projection.snapshots,
+            "flags": projection.flags,
+        });
+        let received = window_payload["snapshots"]
+            .as_array()
+            .expect("window snapshot rows");
+
+        assert_eq!(received.len(), 1, "window payload: {window_payload}");
+        assert_eq!(received[0]["accountId"], record.id);
+    }
+
+    #[tokio::test]
+    async fn two_openrouter_keys_on_pro_both_reach_their_window_rows() {
+        let dir = TempDir::new();
+        let connections = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        let secrets = InMemorySecrets::new();
+        let first = connect_core(
+            &connections,
+            &secrets,
+            ConnectProviderInput {
+                provider_id: ProviderId::Openrouter,
+                credential_kind: CredentialKind::OpenrouterManagementKey,
+                account_alias: "first fixture account".to_string(),
+                secret: "sk-or-v1-first-fixture-key".to_string(),
+            },
+        )
+        .expect("first OpenRouter connection");
+        let second = add_openrouter_connection(
+            &connections,
+            &secrets,
+            &first,
+            "sk-or-v1-second-fixture-key",
+        );
+        collect_openrouter_record(&dir, &connections, &secrets, &first).await;
+        collect_openrouter_record(&dir, &connections, &secrets, &second).await;
+
+        let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("fixture cache");
+        let rows = crate::native_snapshot::display_snapshots(Some(&cache));
+        let identities = active_connection_identities(&connections, &secrets);
+        let app = mock_builder()
+            .manage(connections)
+            .manage(ConnectionIdentities(std::sync::Mutex::new(identities)))
+            .build(tauri::generate_context!(test = true))
+            .expect("mock desktop app");
+        let projection = crate::data_rules::for_app(
+            app.handle(),
+            rows,
+            crate::connections::now_epoch_ms() as i64,
+        );
+        let received: std::collections::BTreeSet<_> = projection
+            .snapshots
+            .iter()
+            .filter_map(|row| row.account_id.as_deref())
+            .collect();
+
+        assert!(projection.flags.is_empty());
+        assert_eq!(
+            received,
+            std::collections::BTreeSet::from([first.id.as_str(), second.id.as_str()])
+        );
+    }
+
+    #[tokio::test]
+    async fn two_openrouter_keys_on_free_show_only_the_selected_window_row() {
+        let dir = TempDir::new();
+        let connections = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        let secrets = InMemorySecrets::new();
+        let first = connect_core(
+            &connections,
+            &secrets,
+            ConnectProviderInput {
+                provider_id: ProviderId::Openrouter,
+                credential_kind: CredentialKind::OpenrouterManagementKey,
+                account_alias: "first fixture account".to_string(),
+                secret: "sk-or-v1-first-fixture-key".to_string(),
+            },
+        )
+        .expect("first OpenRouter connection");
+        let second = add_openrouter_connection(
+            &connections,
+            &secrets,
+            &first,
+            "sk-or-v1-second-fixture-key",
+        );
+        collect_openrouter_record(&dir, &connections, &secrets, &first).await;
+        collect_openrouter_record(&dir, &connections, &secrets, &second).await;
+        connections
+            .apply_plan(false, std::slice::from_ref(&second.id))
+            .expect("select one Free account");
+
+        let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("fixture cache");
+        let rows = crate::native_snapshot::display_snapshots(Some(&cache));
+        let identities = active_connection_identities(&connections, &secrets);
+        let app = mock_builder()
+            .manage(connections)
+            .manage(ConnectionIdentities(std::sync::Mutex::new(identities)))
+            .build(tauri::generate_context!(test = true))
+            .expect("mock desktop app");
+        let projection = crate::data_rules::for_app(
+            app.handle(),
+            rows,
+            crate::connections::now_epoch_ms() as i64,
+        );
+        let received: Vec<_> = projection
+            .snapshots
+            .iter()
+            .filter_map(|row| row.account_id.as_deref())
+            .collect();
+
+        assert_eq!(received, vec![second.id.as_str()]);
+        assert!(projection.flags.iter().any(|flag| {
+            flag.account_id.as_deref() == Some(first.id.as_str())
+                && flag.reason == "account_not_connected"
+        }));
     }
 
     #[tokio::test]
