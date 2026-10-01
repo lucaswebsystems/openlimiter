@@ -118,6 +118,7 @@ const FAILURE_SENTENCES = {
   clock_invalid: "The local clock needs a Pro service refresh.",
   network: "The Pro service could not be reached.",
   service: "The Pro service returned an unusable response.",
+  stale_grant: "Pro needs to reconnect.",
   entitlement_required: "This hosted service needs an active Pro entitlement.",
   plan_cap: "Pro unlocks more accounts. Free reads one account per provider.",
   paused: "This connection is paused and cannot perform work.",

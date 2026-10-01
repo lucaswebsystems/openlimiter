@@ -87,7 +87,7 @@ impl fmt::Display for ProFailure {
             ProFailure::EntitlementRequired => "the hosted service requires an active entitlement",
             ProFailure::DeviceCapReached => "the account already has five active device grants",
             ProFailure::StaleGrant => {
-                "the Pro service no longer chains this device's tokens, so it needs a fresh grant"
+                "the Pro service no longer chains this device's tokens, so it needs a fresh sign in"
             }
             ProFailure::TokenRequestExpired => {
                 "the Pro service let an undelivered refresh expire, so the next one starts anew"
@@ -293,9 +293,10 @@ struct TrustState {
     record has no such key and loads as none. */
     #[serde(default)]
     last_jti: Option<String>,
-    /* A grant this device gave up after the server's chain moved past it,
-    still to be revoked. */
-    #[serde(default)]
+    /* Never written. A build that rotated devices briefly existed, and this
+    record refuses unknown keys, so one that build saved still loads. */
+    #[serde(default, skip_serializing)]
+    #[allow(dead_code)]
     retired_device_id: Option<String>,
 }
 
@@ -1592,20 +1593,6 @@ fn pending_request(
     Ok((request_id, created))
 }
 
-/// Give up this device's grant for a fresh one: a new device identifier, a new
-/// chain, and the old grant queued for revocation. The revocation epoch and
-/// the clock carry over, because they belong to the account and the machine.
-fn rotate_device(trust: &mut TrustState) {
-    let fresh = TrustState::new(trust.account_id.clone()).device_id;
-    trust.retired_device_id = Some(std::mem::replace(&mut trust.device_id, fresh));
-    trust.highest_sequence = 0;
-    trust.highest_context_sequence = 0;
-    trust.last_context_event_id = None;
-    trust.pending_request_id = None;
-    trust.pending_previous_jti = None;
-    trust.last_jti = None;
-}
-
 /// A request the issuer let expire undelivered is never retried: the next
 /// issue starts a fresh one.
 fn drop_expired_request(trust: &mut TrustState) {
@@ -1684,22 +1671,15 @@ where
 {
     let account_id = crate::account::active_account_id(store).map_err(|_| ProFailure::NoSession)?;
     let mut trust = load_trust(store, &account_id)?;
-    let mut verified_cache = match read_cache()? {
+    let verified_cache = match read_cache()? {
         Some(cache) => Some(verify_token_with_keys(&cache.token, keys)?),
         None => None,
     };
     if let Some(token) = &verified_cache {
         reconcile_cached_token(store, &mut trust, token)?;
     }
-    let (mut expired, mut rotated) = (false, false);
+    let mut expired = false;
     let response = 'issue: loop {
-        /* A grant given up on is revoked before the next issue, and again on
-        every refresh until the revocation lands, so it never holds a slot. */
-        if let Some(retired) = trust.retired_device_id.clone() {
-            post(json!({ "action": "revoke", "device_id": retired })).await?;
-            trust.retired_device_id = None;
-            save_trust(store, &trust)?;
-        }
         let previous_jti = previous_jti(verified_cache.as_ref(), &trust);
         let (request_id, created) = pending_request(&mut trust, previous_jti.as_deref())?;
         if created {
@@ -1716,21 +1696,12 @@ where
                     save_trust(store, &trust)?;
                     continue 'issue;
                 }
-                /* The server's chain moved past what this machine holds (an
-                undelivered token, or a changed epoch on a pending request), so
-                no previous jti will ever match again: this device starts over
-                on a fresh grant. */
-                Err(ProFailure::StaleGrant) if !rotated => {
-                    rotated = true;
-                    rotate_device(&mut trust);
-                    verified_cache = None;
-                    clear_entitlement_and_context()?;
-                    save_trust(store, &trust)?;
-                    continue 'issue;
-                }
-                Err(ProFailure::TokenRequestExpired | ProFailure::StaleGrant) => {
-                    return Err(ProFailure::Service);
-                }
+                Err(ProFailure::TokenRequestExpired) => return Err(ProFailure::Service),
+                /* A stale token or a changed epoch means the chain moved past
+                what this machine holds. The device never revokes itself to
+                get out: any revoke bumps the account's epoch and signs the
+                owner's phone out. StaleGrant goes up as it is, the window
+                asks for a sign in, and the trust record keeps its last jti. */
                 other => other?,
             };
         }
@@ -4011,14 +3982,25 @@ mod tests {
         load_trust(store, ACCOUNT_ID).expect("trust").device_id
     }
 
+    /// Nothing the refresh sent may revoke or register: any revoke bumps the
+    /// account's epoch and signs the owner's phone out.
+    fn assert_no_rotation(model: &ModelIssuer, before: usize) {
+        for action in &model.actions[before..] {
+            assert!(
+                !action.starts_with("revoke") && !action.starts_with("register"),
+                "{action}"
+            );
+        }
+    }
+
     #[tokio::test]
-    async fn an_undelivered_token_that_expires_recovers_on_a_fresh_device_grant() {
+    async fn an_undelivered_token_that_expires_asks_to_sign_in_again_without_rotating() {
         let now = now_seconds().expect("clock");
         let store = session_store(now);
         let model = std::cell::RefCell::new(ModelIssuer::new(now));
         let first = refresh_against(&store, &model).await.expect("first issue");
         assert_eq!(first.state, ProEntitlementState::Active);
-        let old_device = device_of(&store);
+        let before = load_trust(&store, ACCOUNT_ID).expect("trust");
 
         /* The issuer advances the grant to a token whose answer never
         arrives, and the machine stays offline past that token's life. */
@@ -4029,35 +4011,29 @@ mod tests {
         );
         model.borrow_mut().expire_issued();
 
-        let recovered = refresh_against(&store, &model).await.expect("recovered");
-        assert_eq!(recovered.state, ProEntitlementState::Active);
-        let trust = load_trust(&store, ACCOUNT_ID).expect("trust");
-        assert_ne!(trust.device_id, old_device);
+        let sent = model.borrow().actions.len();
         assert_eq!(
-            recovered.device_id.as_deref(),
-            Some(trust.device_id.as_str())
+            refresh_against(&store, &model).await.err(),
+            Some(ProFailure::StaleGrant)
         );
-        let model = model.borrow();
-        assert!(model.grants[&old_device].revoked);
-        assert_eq!(model.grants[&trust.device_id].last_jti, trust.last_jti);
-        let tail = &model.actions[model.actions.len() - 3..];
-        assert_eq!(
-            tail,
-            [
-                format!("revoke {old_device}"),
-                format!("register {}", trust.device_id),
-                format!("issue {}", trust.device_id),
-            ]
-        );
+        let after = load_trust(&store, ACCOUNT_ID).expect("trust");
+        assert_eq!(after.device_id, before.device_id);
+        assert_eq!(after.last_jti, before.last_jti);
+        assert!(after.last_jti.is_some());
+        assert!(!model.borrow().grants[&before.device_id].revoked);
+        assert_no_rotation(&model.borrow(), sent);
+        /* The expired request got its one fresh retry, then stopped. */
+        assert_eq!(model.borrow().actions.len() - sent, 2);
+        assert!(read_cache().expect("cache").is_some(), "the entitlement stays");
     }
 
     #[tokio::test]
-    async fn an_epoch_change_on_a_pending_request_recovers_on_a_fresh_device_grant() {
+    async fn an_epoch_change_on_a_pending_request_asks_to_sign_in_again_without_rotating() {
         let now = now_seconds().expect("clock");
         let store = session_store(now);
         let model = std::cell::RefCell::new(ModelIssuer::new(now));
         refresh_against(&store, &model).await.expect("first issue");
-        let old_device = device_of(&store);
+        let before = load_trust(&store, ACCOUNT_ID).expect("trust");
         model.borrow_mut().lose_next_answer = true;
         assert_eq!(
             refresh_against(&store, &model).await.err(),
@@ -4065,13 +4041,43 @@ mod tests {
         );
         model.borrow_mut().epoch = 3;
 
-        let recovered = refresh_against(&store, &model).await.expect("recovered");
-        assert_eq!(recovered.state, ProEntitlementState::Active);
-        assert_eq!(recovered.revocation_epoch, Some(3));
-        let trust = load_trust(&store, ACCOUNT_ID).expect("trust");
-        assert_ne!(trust.device_id, old_device);
-        assert_eq!(trust.highest_revocation_epoch, 3);
-        assert!(model.borrow().grants[&old_device].revoked);
+        let sent = model.borrow().actions.len();
+        assert_eq!(
+            refresh_against(&store, &model).await.err(),
+            Some(ProFailure::StaleGrant)
+        );
+        let after = load_trust(&store, ACCOUNT_ID).expect("trust");
+        assert_eq!(after.device_id, before.device_id);
+        assert_eq!(after.last_jti, before.last_jti);
+        assert!(!model.borrow().grants[&before.device_id].revoked);
+        assert_no_rotation(&model.borrow(), sent);
+    }
+
+    #[test]
+    fn a_trust_record_from_2_0_2_or_with_the_retired_key_still_loads() {
+        let now = 1_800_000_000;
+        let store = context_store(now);
+        let mut record = serde_json::to_value(trust(now)).expect("JSON");
+        let object = record.as_object_mut().expect("an object");
+        /* 2.0.2 wrote none of the three newer keys. */
+        for key in ["last_jti", "highest_context_sequence", "last_context_event_id"] {
+            object.remove(key);
+        }
+        assert!(!object.contains_key("retired_device_id"), "never written");
+        store
+            .store_secret(TRUST_CREDENTIAL_ID, &record.to_string())
+            .expect("stored");
+        assert_eq!(load_trust(&store, ACCOUNT_ID).expect("2.0.2").device_id, DEVICE_ID);
+
+        record["retired_device_id"] = json!(OTHER_DEVICE);
+        store
+            .store_secret(TRUST_CREDENTIAL_ID, &record.to_string())
+            .expect("stored");
+        let loaded = load_trust(&store, ACCOUNT_ID).expect("with the key");
+        assert_eq!(loaded.device_id, DEVICE_ID);
+        assert!(!serde_json::to_string(&loaded)
+            .expect("JSON")
+            .contains("retired_device_id"));
     }
 
     #[tokio::test]

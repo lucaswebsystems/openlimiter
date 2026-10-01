@@ -609,6 +609,15 @@ function emailInput() {
 
 elements.signInClose?.addEventListener("click", closeSignIn);
 elements.menuSignInButton?.addEventListener("click", openSignIn);
+/* The plan card repaints, so the button is reached by delegation. */
+document.addEventListener("click", (event) => {
+  /* Reconnect drops only this device's local Pro trust, so the next refresh
+     registers a fresh device chain. Nothing is revoked: a revoke would bump
+     the account epoch and sign the phone out. */
+  if (event.target instanceof Element && event.target.closest("#pro-reconnect")) {
+    void proDisconnect().then(() => refreshEntitlement());
+  }
+});
 
 /* Not now, the backdrop and Escape all put the sheet away, mid flight too: a
    provider sign in can sit for minutes on a browser tab and nobody is held

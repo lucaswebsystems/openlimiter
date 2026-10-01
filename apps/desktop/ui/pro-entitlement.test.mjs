@@ -129,3 +129,23 @@ test("a comped plan reads as Pro", () => {
   assert.match(planMarkup(status("active", "comped"), null), /<span class="plan-name">Pro<\/span>/u);
   assert.match(read("./app.js"), /comped: "Pro"/u);
 });
+
+test("a stale grant shows Pro needing Reconnect, and a good refresh takes it away", async () => {
+  const stale = planMarkup(status("expired", "active", []), null, true);
+  assert.match(stale, /Pro needs to reconnect/u);
+  assert.match(stale, /id="pro-reconnect"[^>]*>Reconnect</u);
+  assert.doesNotMatch(stale, /Device limit/u);
+  assert.doesNotMatch(planMarkup(status("active", "active"), null), /pro-reconnect/u);
+
+  const target = new EventTarget();
+  const refresh = (result) => refreshEntitlement({ proRefresh: async () => result }, target);
+  await refresh({ ok: false, reason: "command_failed", kind: "stale_grant" });
+  assert.match(read("./backend.js"), /stale_grant: "Pro needs to reconnect/u);
+  await refresh({ ok: true, value: status("active", "active") });
+});
+
+test("Reconnect drops the local Pro trust and refreshes, revoking nothing", () => {
+  const app = read("./app.js");
+  assert.match(app, /closest\("#pro-reconnect"\)\) \{\s*void proDisconnect\(\)\.then\(\(\) => refreshEntitlement\(\)\);/u);
+  assert.doesNotMatch(app, /pro-reconnect[\s\S]{0,300}(revoke|accountLogout)/u);
+});
