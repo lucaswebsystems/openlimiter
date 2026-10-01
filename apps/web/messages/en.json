@@ -2336,9 +2336,10 @@
     },
     "phoneInstall": {
       "add": "Add to home screen",
-      "iosOne": "Tap Share in the Safari toolbar.",
-      "iosTwo": "Scroll to Add to Home Screen.",
-      "iosThree": "Tap Add. The app opens full screen from your home screen."
+      "androidMenu": "Tap ⋮ then Add to home screen",
+      "ios": "Add to Home Screen",
+      "share": "Share",
+      "openSafari": "Open in Safari to install"
     },
     "pairPage": {
       "retry": "Refresh readings",
@@ -2391,6 +2392,10 @@
           "title": "Pairing could not be completed",
           "body": "The service did not answer, so nothing was paired and nothing was changed. Generate a fresh code on the desktop and scan it again."
         }
+      },
+      "codeEntry": {
+        "label": "Code from your computer",
+        "pair": "Pair"
       },
       "pairedAs": "Paired as {label}",
       "openDashboard": "Open the dashboard"

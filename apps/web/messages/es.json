@@ -2336,9 +2336,10 @@
     },
     "phoneInstall": {
       "add": "Agregar a la pantalla de inicio",
-      "iosOne": "Toca Compartir en la barra de Safari.",
-      "iosTwo": "Desplázate hasta Agregar a Pantalla de Inicio.",
-      "iosThree": "Toca Agregar. La aplicación se abre a pantalla completa desde tu pantalla de inicio."
+      "androidMenu": "Toca ⋮ y luego Agregar a la pantalla de inicio",
+      "ios": "Agregar a Pantalla de Inicio",
+      "share": "Compartir",
+      "openSafari": "Abre en Safari para instalar"
     },
     "pairPage": {
       "retry": "Actualizar lecturas",
@@ -2391,6 +2392,10 @@
           "title": "No se pudo completar el emparejamiento",
           "body": "El servicio no respondió, así que no se emparejó nada ni se cambió nada. Genera un código nuevo en el escritorio y escanéalo otra vez."
         }
+      },
+      "codeEntry": {
+        "label": "Código de tu computadora",
+        "pair": "Emparejar"
       },
       "pairedAs": "Emparejado como {label}",
       "openDashboard": "Abrir el panel"

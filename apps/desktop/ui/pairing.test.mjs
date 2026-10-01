@@ -171,3 +171,35 @@ test("no copy in the pairing surface carries a dash of any kind", () => {
     );
   }
 });
+
+test("the code is printed as text under the QR, for typing into the installed phone app", async () => {
+  const { fakeDocument } = await import("./test-dom.mjs");
+  const doc = fakeDocument(["phone-panel-body", "devices-mount"]);
+  doc.createElementNS = (_namespace, tag) => doc.createElement(tag);
+  const session = {
+    phase: "pending",
+    code: "ABCD2345",
+    url: "https://openlimiter.com/app/pair#code=ABCD2345",
+    secondsRemaining: 120,
+  };
+  globalThis.document = doc;
+  globalThis.window = {
+    __TAURI__: {
+      core: { invoke: async (command) => (command === "pairing_start" ? session : { devices: [] }) },
+    },
+    setInterval: () => 1,
+    clearInterval: () => undefined,
+  };
+  const { initPairing, setPairingAccountState } = await import("./dist/pairing.js");
+  initPairing();
+  setPairingAccountState(true);
+  const panel = doc.byId["phone-panel-body"];
+  await panel.all((node) => node.id === "phone-start")[0].fire("click");
+  await new Promise((resolve) => setImmediate(resolve));
+
+  const symbol = panel.children.findIndex((node) => node.className === "pair-symbol");
+  assert.notEqual(symbol, -1, "the QR is drawn");
+  const under = panel.children[symbol + 1];
+  assert.equal(under.textContent, "ABCD2345");
+  assert.match(under.className, /\bpair-code\b/u);
+});
