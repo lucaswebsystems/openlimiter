@@ -39,4 +39,15 @@ describe("live terminal status line", () => {
     expect(mounted.container.textContent).toContain("Real renderer");
     expect(mounted.container.textContent).toContain("demoData");
   });
+
+  it("draws each meter as blocks one character cell per glyph, so no font fallback can misdraw it", () => {
+    mounted = render(createElement(TerminalStatusline, { caption: "Real renderer" }));
+    const meters = [...mounted.container.querySelectorAll("[data-statusline-meter]")];
+    expect(meters.map((meter) => [...meter.children].map((part) => (part as HTMLElement).style.width))).toEqual([
+      ["4ch", "6ch"],
+      ["6ch", "4ch"],
+      ["8ch", "2ch"],
+      ["9ch", "1ch"],
+    ]);
+  });
 });
