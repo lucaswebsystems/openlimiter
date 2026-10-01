@@ -54,6 +54,8 @@
     "addTool": "ツールを追加",
     "fixToolDetail": "このコンピューターで {name} にサインインしてから、もう一度確認してください。",
     "fixSignInAgainIssue": "もう一度サインイン",
+    "useClaudeSignIn": "自分の Claude サインインを使う",
+    "useClaudeSignInTitle": "Claude Code を閉じている間も、この PC の Claude サインインを使って Anthropic に利用上限を問い合わせます。",
     "fixWaitingIssue": "{name} を待っています",
     "fixWaitingDetail": "前回の枠がリセットされました。{name} を一度使うと、上限が再び表示されます。",
     "meterFallback": "上限",

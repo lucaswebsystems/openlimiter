@@ -119,6 +119,7 @@ import {
   saveOpenrouterKey,
 } from "./connections.js";
 import { initFirstRun } from "./first-run.js";
+import { useClaudeSignIn } from "./claude-sign-in.js";
 import { initWhatsNew } from "./whats-new.js";
 
 /** How often the window re reads the cache, in milliseconds. */
@@ -666,6 +667,8 @@ let heldSnapshots = [];
    same tools with only the readings aged. */
 let inventory = { flags: [], detections: null, connections: [], removed: [] };
 let spendStatus = null;
+/* The direct Claude check setting: null until read, so no button flashes. */
+let claudePoll = null;
 
 /**
  * Whether a fresh Claude reading that arrived through the local statusline is
@@ -701,9 +704,10 @@ async function repaintHome() {
   if (elements.loading !== null && heldSnapshots.length === 0 && drawnTools === "") elements.loading.hidden = false;
   try {
     const now = new Date().toISOString();
-    const [collected, detectionResult, connectionResult, spendResult] = await Promise.all([
-      collect(now), listDetectedProviders(), listConnections(), apiSpendStatus(),
+    const [collected, detectionResult, connectionResult, spendResult, pollResult] = await Promise.all([
+      collect(now), listDetectedProviders(), listConnections(), apiSpendStatus(), claudePollEnabled(),
     ]);
+    claudePoll = pollResult.ok ? pollResult.value === true : null;
     const detections = detectionResult.ok ? detectionResult.value : null;
     const connections = connectionResult.ok ? normalizeConnectionList(connectionResult.value) : [];
     adoptDetectedProviders(detections);
@@ -784,6 +788,17 @@ const toolHandlers = {
   /* OpenRouter connects through its key row, so its Connect goes there. */
   connect: (code) => (code === "OPENROUTER" ? focusKey("openrouter") : connectTool(code)),
   check: (code) => checkTool(code),
+  /* Claude's one click: the direct check on, the menu switch repainted, one read. */
+  poll: async () => {
+    const done = await useClaudeSignIn({
+      setPoll: setClaudePollEnabled,
+      repaintMenu: () => renderSettings(elements.settingsMount),
+      check: checkTool,
+    });
+    claudePoll = done ? true : claudePoll;
+    void refresh();
+    return done;
+  },
 };
 
 const catalogueHandlers = {
@@ -801,6 +816,7 @@ function paintTools(snapshots, now) {
     configured: readConfiguredProviders(),
     removed: inventory.removed,
     claude: claudeState(),
+    claudePoll,
   }, now);
   /* Redrawn only when something on it changed, so a step in flight keeps
      its button and its line. */

@@ -198,7 +198,7 @@ test("Claude asks to sign in again for a reading it cannot attribute, and waits 
   assert.deepEqual(fixWords(unresolved, "rescan"), { issue: "fixSignInAgainIssue", detail: "fixToolDetail", action: "fixOpenAppAction" });
   assert.deepEqual(fixWords(unresolved, "connect"), { issue: "fixSignInAgainIssue", detail: "fixToolDetail", action: "fixSignInAction" });
   assert.deepEqual(fixWords(waiting, "rescan"), { issue: "fixWaitingIssue", detail: "fixWaitingDetail", action: "fixOpenAppAction" });
-  for (const [flag, words] of [[unresolved, /^Claude CodeSign in again/u], [waiting, /^Claude CodeWaiting for Claude Code/u]]) {
+  for (const [flag, words] of [[unresolved, /^Claude CodeCheck again/u], [waiting, /^Claude CodeWaiting for Claude Code/u]]) {
     const doc = fakeDocument();
     const mount = doc.createElement("div");
     const flags = projectReadings(JSON.stringify({ version: 2, snapshots: [], flags: [flag] }), null, now).flags;
@@ -344,7 +344,7 @@ test("Claude waits for Claude Code with no button, asks to sign in again, and co
   const wired = inventoryModel({ claude: "READY_TO_ENABLE" }, now)[0];
   assert.deepEqual([wired.action, wired.note], [null, "Waiting for Claude Code"]);
   const unresolved = inventoryModel({ flags: [{ provider: "CLAUDE", reason: "account_unresolved", fixKind: "sign_in" }] }, now)[0];
-  assert.deepEqual(unresolved.action, { kind: "check", label: "Sign in again", title: say("fixToolDetail", { name: "Claude Code" }) });
+  assert.deepEqual(unresolved.action, { kind: "check", label: "Check again", title: say("fixToolDetail", { name: "Claude Code" }) });
   assert.equal(inventoryModel({ claude: "DETECTED" }, now)[0].action.label, "Connect");
   const doc = fakeDocument();
   const mount = doc.createElement("div");
@@ -352,6 +352,26 @@ test("Claude waits for Claude Code with no button, asks to sign in again, and co
   const row = rowsOf(mount)[0];
   assert.equal(buttonIn(row), null);
   assert.equal(noteIn(row).textContent, "Waiting for Claude Code");
+});
+
+test("Claude waiting with the direct check off offers one click, and with it on only the note", async () => {
+  const waitingFlag = [{ provider: "CLAUDE", reason: "awaiting_statusline", fixKind: "open_app" }];
+  const title = "Uses your local Claude sign in to ask Anthropic for your limits while Claude Code is closed.";
+  for (const input of [{ flags: waitingFlag }, { claude: "READY_TO_ENABLE" }, { claude: "CONNECTED" }]) {
+    const off = inventoryModel({ ...input, claudePoll: false }, now)[0];
+    assert.deepEqual([off.note, off.action], [null, { kind: "poll", label: "Use my Claude sign in", title }]);
+    const on = inventoryModel({ ...input, claudePoll: true }, now)[0];
+    assert.deepEqual([on.action, on.note], [null, "Waiting for Claude Code"]);
+  }
+  const calls = [];
+  const doc = fakeDocument();
+  const mount = doc.createElement("div");
+  const model = inventoryModel({ flags: waitingFlag, claudePoll: false }, now).filter((tool) => tool.code === "CLAUDE");
+  renderLimits(doc, mount, model, { handlers: { poll: async (code) => { calls.push(code); return true; } } });
+  const button = buttonIn(rowsOf(mount)[0]);
+  assert.equal(button.textContent, "Use my Claude sign in");
+  await button.fire("click");
+  assert.deepEqual(calls, ["CLAUDE"]);
 });
 
 test("Codex with a reading and a waiting Claude: bars first, then the rows that need a step", () => {
