@@ -3,11 +3,17 @@ import { ProductFigure } from "./device-frame";
 
 export function PhonePanels() {
   const t = useTranslations("phonePanels");
-  // The phone demonstrates its meters, then more providers and the Pro offer. Remote agent activity is not shipped.
+  const shots = [
+    { name: "phone-1", copy: "meters" },
+    { name: "phone-2", copy: "meters" },
+    { name: "phone-3", copy: "connections" },
+    { name: "phone-4", copy: "connections" },
+  ] as const;
   return (
-    <div className="flex flex-wrap items-start justify-center gap-[var(--ol-space-5)]">
-      <ProductFigure name="phone-1" alt={t("shots.meters.alt")} caption={t("shots.meters.label")} className="w-full max-w-80" />
-      <ProductFigure name="phone-3" alt={t("shots.connections.alt")} caption={t("shots.connections.label")} className="hidden w-full max-w-80 md:block" />
+    <div className="grid w-full grid-cols-1 items-start gap-[var(--ol-space-5)] sm:grid-cols-2 lg:grid-cols-4">
+      {shots.map(({ name, copy }) => (
+        <ProductFigure key={name} name={name} alt={t(`shots.${copy}.alt`)} caption={t(`shots.${copy}.label`)} className="w-full" />
+      ))}
     </div>
   );
 }

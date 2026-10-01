@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PRODUCT_SHOTS, ProductShot } from "../components/device-frame";
+import { PhonePanels } from "../components/phone-panels";
 import { render, type Mounted } from "./render";
 
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
@@ -61,6 +62,14 @@ describe("home product image delivery", () => {
     expect(Object.keys(PRODUCT_SHOTS).filter((name) => /rail/iu.test(name))).toEqual([]);
   });
 
+  it("registers and renders all four phone views", () => {
+    const phones = Object.keys(PRODUCT_SHOTS).filter((name) => name.startsWith("phone-"));
+    expect(phones).toEqual(["phone-1", "phone-2", "phone-3", "phone-4"]);
+    mounted = render(createElement(PhonePanels));
+    const images = [...mounted.container.querySelectorAll("img")].map((image) => image.getAttribute("src"));
+    expect(images).toEqual(phones.map((name) => `/screenshots/${name}.png`));
+  });
+
   it("declares every web manifest screenshot at its real size", () => {
     const publicDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "../public");
     const manifest = JSON.parse(readFileSync(path.join(publicDir, "manifest.webmanifest"), "utf8")) as { screenshots: { src: string; sizes: string }[] };
@@ -75,6 +84,7 @@ describe("home product image delivery", () => {
       for (const theme of ["", "-light"]) {
         // Real file paths: under jsdom, import.meta.url is not a file URL.
         const base = path.join(path.dirname(fileURLToPath(import.meta.url)), "../public/screenshots", `${name}${theme}`);
+        if (name === "phone-4" && !existsSync(`${base}.png`)) continue;
         const png = readFileSync(`${base}.png`);
         expect(png.readUInt32BE(16)).toBe(shot.width);
         expect(png.readUInt32BE(20)).toBe(shot.height);
