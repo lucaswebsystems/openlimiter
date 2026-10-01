@@ -151,6 +151,21 @@ describe("acquisition cadence", () => {
     });
   });
 
+  it("round trips a phase, a coded error class and the not running state, and drops a class that is not a code", async () => {
+    const directory = await temporaryDirectory();
+    await writeFile(path.join(directory, ACQUISITION_STATE_FILE_NAME), JSON.stringify({
+      version: 1,
+      providers: {
+        ANTIGRAVITY: { lastAttemptAt: NOW, nextAttemptAt: "2026-01-01T00:15:00.000Z", outcome: "not_running", phase: "probe", errorClass: "not_running" },
+        KIMI: { lastAttemptAt: NOW, nextAttemptAt: "2026-01-01T00:15:00.000Z", outcome: "drift", phase: "somewhere", errorClass: "C:\\Users\\someone token" }
+      }
+    }), "utf8");
+    expect(await readAcquisitionSchedule(directory)).toEqual({
+      ANTIGRAVITY: { lastAttemptAt: NOW, nextAttemptAt: "2026-01-01T00:15:00.000Z", outcome: "not_running", phase: "probe", errorClass: "not_running" },
+      KIMI: { lastAttemptAt: NOW, nextAttemptAt: "2026-01-01T00:15:00.000Z", outcome: "drift" }
+    });
+  });
+
   it("reads an unusable schedule file as no schedule at all", async () => {
     const directory = await temporaryDirectory();
     await writeFile(

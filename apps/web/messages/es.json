@@ -64,6 +64,9 @@
     "addTool": "Añadir una herramienta",
     "accountsNone": "Las claves y sesiones que añadas aparecen aquí. Con Free, una cuenta por proveedor queda activa.",
     "fixToolDetail": "Inicia sesión en {name} en este equipo y luego comprueba de nuevo.",
+    "fixSignInAgainIssue": "Inicia sesión de nuevo",
+    "fixWaitingIssue": "Esperando a {name}",
+    "fixWaitingDetail": "La última ventana se reinició. Usa {name} una vez y sus límites volverán a aparecer.",
     "meterFallback": "Límite",
     "cacheUnreadable": "No se pudieron leer las lecturas guardadas en este momento, así que solo se muestran las que siguen vigentes."
   },

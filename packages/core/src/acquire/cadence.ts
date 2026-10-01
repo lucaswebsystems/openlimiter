@@ -46,6 +46,14 @@ export const ACQUISITION_STATE_FILE_NAME = "openlimiter-acquisition.json";
 /** Document version of the schedule file. */
 export const ACQUISITION_STATE_VERSION = 1;
 
+/** Where in a read the last failed attempt stopped. */
+export const ACQUISITION_PHASES = ["lease", "credential", "probe", "request", "parse", "persist"] as const;
+
+export type AcquisitionPhase = (typeof ACQUISITION_PHASES)[number];
+
+/** A failure class is a code (an outcome, a system error code), never a message. */
+const ERROR_CLASS = /^[A-Za-z][A-Za-z0-9_]{0,31}$/u;
+
 export interface AcquisitionProviderSchedule {
   readonly refusalRevision?: string;
   readonly attempts?: number;
@@ -55,6 +63,10 @@ export interface AcquisitionProviderSchedule {
   readonly nextAttemptAt: string;
   /** What the last attempt achieved. */
   readonly outcome: AcquisitionOutcome;
+  /** For a failure: the phase it happened in. */
+  readonly phase?: AcquisitionPhase;
+  /** For a failure: its sanitized class. A message could carry a path or a secret. */
+  readonly errorClass?: string;
 }
 
 export type AcquisitionSchedule = Readonly<
@@ -146,7 +158,8 @@ const outcomeNames = new Set<string>([
   "transport",
   "too_large",
   "drift",
-  "identity_refused"
+  "identity_refused",
+  "not_running"
 ]);
 
 /** Providers a schedule document may name, bounded so a file cannot grow forever. */
@@ -185,7 +198,9 @@ export async function readAcquisitionSchedule(
       ...(typeof entry["attempts"] === "number" && Number.isSafeInteger(entry["attempts"]) ? { attempts: Math.max(0, entry["attempts"]) } : {}),
       lastAttemptAt,
       nextAttemptAt,
-      outcome: outcome as AcquisitionOutcome
+      outcome: outcome as AcquisitionOutcome,
+      ...((ACQUISITION_PHASES as readonly unknown[]).includes(entry["phase"]) ? { phase: entry["phase"] as AcquisitionPhase } : {}),
+      ...(typeof entry["errorClass"] === "string" && ERROR_CLASS.test(entry["errorClass"]) ? { errorClass: entry["errorClass"] } : {})
     };
   }
   return schedule;
@@ -225,5 +240,6 @@ export const ACQUISITION_OUTCOME_SENTENCE:
   transport: "this machine could not reach the provider",
   too_large: "the provider's answer was larger than this build accepts",
   drift: "the provider answered in a shape this build does not understand",
-  identity_refused: "the provider serves this reading only to its own tools"
+  identity_refused: "the provider serves this reading only to its own tools",
+  not_running: "the provider's app is not running on this machine, so nothing was read"
 };

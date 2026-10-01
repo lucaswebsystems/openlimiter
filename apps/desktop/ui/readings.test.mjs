@@ -163,6 +163,54 @@ test("Home's model: one entry per provider, tightest window and tightest provide
   assert.equal(limitsModel(fixtures.projected.snapshots, later).length, 0);
 });
 
+/* A Claude status line row as the native projection hands it over while
+   Claude Code idles: its policy expiry passed, its window has not reset. */
+function idleClaude(ageMinutes, resetMinutes) {
+  const observed = NOW - ageMinutes * 60_000;
+  return {
+    provider: "CLAUDE", meter: "FIVE_HOUR", value: 37, unit: "PERCENT", kind: "quota_percent",
+    window: { kind: "rolling", durationSeconds: 18_000 }, resetAt: new Date(NOW + resetMinutes * 60_000).toISOString(),
+    source: "native_payload", precision: "exact", observedAt: new Date(observed).toISOString(),
+    expiresAt: new Date(observed + 132_000).toISOString(), accountId: ACCOUNTS.claude,
+    provenance: { sourceKind: "statusline_payload", observedVia: "claude_code_statusline" },
+    labels: { credentialOrigin: "official-local-tool", dataInterfaceStatus: "native-statusline-payload", automationRisk: "low", verification: "UNVERIFIED" },
+  };
+}
+
+test("an idle Claude Code card keeps its last reading, hatched with its age, until that window resets", () => {
+  const readings = projectReadings(JSON.stringify({ version: 2, snapshots: [idleClaude(45, 75)], flags: [] }), null, now);
+  const model = limitsModel(readings.snapshots, now);
+  assert.deepEqual(model.map((provider) => [provider.code, provider.age]), [["CLAUDE", "Updated 45 min ago"]]);
+  assert.deepEqual(model[0].windows.map((window) => [window.value, window.band]), [["37%", "stale"]]);
+  for (const compact of [false, true]) {
+    const doc = fakeDocument();
+    const mount = doc.createElement("div");
+    renderLimits(doc, mount, model, { compact });
+    assert.ok(spoken(mount).includes("Updated 45 min ago"));
+    assert.equal(mount.all((node) => node.className === "q-row")[0].dataset.band, "stale");
+    assert.deepEqual(leaks(spoken(mount)), []);
+  }
+  // A fresh card says nothing about its age, and after the reset nothing is drawn: no invented zero.
+  assert.equal(limitsModel(fixtures.projected.snapshots, now).every((provider) => provider.age === null), true);
+  assert.deepEqual(limitsModel(readings.snapshots, new Date(NOW + 76 * 60_000).toISOString()), []);
+});
+
+test("Claude asks to sign in again for a reading it cannot attribute, and waits for Claude Code after a reset", () => {
+  const unresolved = { provider: "CLAUDE", reason: "account_unresolved", fixKind: "sign_in" };
+  const waiting = { provider: "CLAUDE", reason: "awaiting_statusline", fixKind: "open_app" };
+  assert.deepEqual(fixWords(unresolved, "rescan"), { issue: "fixSignInAgainIssue", detail: "fixToolDetail", action: "fixOpenAppAction" });
+  assert.deepEqual(fixWords(unresolved, "connect"), { issue: "fixSignInAgainIssue", detail: "fixToolDetail", action: "fixSignInAction" });
+  assert.deepEqual(fixWords(waiting, "rescan"), { issue: "fixWaitingIssue", detail: "fixWaitingDetail", action: "fixOpenAppAction" });
+  for (const [flag, words] of [[unresolved, /^Claude CodeSign in again/u], [waiting, /^Claude CodeWaiting for Claude Code/u]]) {
+    const doc = fakeDocument();
+    const mount = doc.createElement("div");
+    const flags = projectReadings(JSON.stringify({ version: 2, snapshots: [], flags: [flag] }), null, now).flags;
+    renderAttention(doc, mount, attentionFlags(flags, []), { fix: async () => true });
+    assert.match(mount.textContent, words);
+    assert.deepEqual(leaks(spoken(mount)), []);
+  }
+});
+
 test("bands follow 60, 80 and 90, and time left reads compactly", () => {
   const band = (value) => limitsModel([{ ...fixtures.projected.snapshots[3], value }], now)[0].windows[0].band;
   for (const [value, expected] of [[0, "green"], [59, "green"], [60, "yellow"], [79, "yellow"], [80, "orange"], [89, "orange"], [90, "red"], [100, "red"]]) {

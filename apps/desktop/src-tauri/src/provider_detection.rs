@@ -329,6 +329,7 @@ struct DiscoveryContext {
     application_support: Option<PathBuf>,
     xdg_config: Option<PathBuf>,
     xdg_data: Option<PathBuf>,
+    claude_config_dir: Option<PathBuf>,
     codex_home: Option<PathBuf>,
     managed_codex_root: Option<PathBuf>,
     grok_home: Option<PathBuf>,
@@ -357,6 +358,7 @@ impl DiscoveryContext {
             application_support: Some(home.join("support")),
             xdg_config: Some(home.join("config")),
             xdg_data: Some(home.join("data")),
+            claude_config_dir: None,
             codex_home: None,
             managed_codex_root: Some(home.join("accounts/codex")),
             grok_home: None,
@@ -400,6 +402,7 @@ impl DiscoveryContext {
             application_support,
             xdg_config,
             xdg_data,
+            claude_config_dir: non_empty_path("CLAUDE_CONFIG_DIR"),
             codex_home: non_empty_path("CODEX_HOME"),
             managed_codex_root,
             grok_home: non_empty_path("GROK_HOME"),
@@ -460,6 +463,14 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
     match provider {
         DetectedProviderId::Cursor => unreachable!(),
         DetectedProviderId::Claude => {
+            /* The directory a person named on purpose wins, as it does in the
+            TypeScript reader and in Claude Code itself. */
+            push_candidate(
+                &mut paths,
+                context.claude_config_dir.as_deref(),
+                &[".credentials.json"],
+                Credential,
+            );
             push_candidate(
                 &mut paths,
                 home,
@@ -1405,14 +1416,34 @@ struct IdentityHint {
     email: Option<String>,
 }
 
+/// Largest `.claude.json` read for its account block. Claude Code keeps
+/// project history in the same file, so it outgrows the state bound on a
+/// working machine. TypeScript twin: `CLAUDE_METADATA_MAX_BYTES`.
+const CLAUDE_METADATA_MAX_BYTES: u64 = 16 * 1_048_576;
+
+/// The account a Claude config directory is signed in to.
+///
+/// Claude Code writes `.claude.json` INSIDE the directory a session names in
+/// CLAUDE_CONFIG_DIR, and beside `~/.claude` otherwise. The first file that
+/// exists decides, so a config never borrows a neighbour's account.
+/// TypeScript twin: `claudeMetadataIdentity` in `credentials.ts`.
 fn claude_identity_hint(credential_path: &Path) -> Option<IdentityHint> {
     let directory = credential_path.parent()?;
-    let name = directory.file_name()?.to_str()?;
-    if !name.starts_with(".claude") {
-        return None;
+    let mut files = vec![directory.join(".claude.json")];
+    if let Some(name) = directory
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| name.starts_with(".claude"))
+    {
+        files.extend(directory.parent().map(|parent| parent.join(format!("{name}.json"))));
     }
-    let metadata_path = directory.parent()?.join(format!("{name}.json"));
-    let raw = Zeroizing::new(fsx::bounded_read(&metadata_path)?);
+    let metadata_path = files
+        .into_iter()
+        .find(|file| fs::symlink_metadata(file).is_ok())?;
+    let raw = Zeroizing::new(fsx::bounded_read_up_to(
+        &metadata_path,
+        CLAUDE_METADATA_MAX_BYTES,
+    )?);
     let root: Value = serde_json::from_str(&raw).ok()?;
     let account = root.get("oauthAccount")?.as_object()?;
     let value = string_field(
@@ -1782,6 +1813,7 @@ fn scan_enabled_inventory(
         iso_from_epoch_ms(now_ms).unwrap_or_else(|| "1970-01-01T00:00:00.000Z".to_string());
     let mut providers = Vec::new();
     let mut credentials = BTreeMap::new();
+    let mut unparsed_claude_configs = Vec::new();
     for provider in DetectedProviderId::ALL {
         if !switches.enabled(provider) {
             continue;
@@ -1805,7 +1837,13 @@ fn scan_enabled_inventory(
             sources.push(CredentialSource::AntigravityKeyring);
         }
         for source in sources {
-            for parsed in parse_credential_source(provider, &source) {
+            let parsed_credentials = parse_credential_source(provider, &source);
+            if let (DetectedProviderId::Claude, CredentialSource::File(path)) = (provider, &source) {
+                if parsed_credentials.is_empty() {
+                    unparsed_claude_configs.push(path.clone());
+                }
+            }
+            for parsed in parsed_credentials {
                 let account_id = opaque_account_id(provider, &parsed.identity_material);
                 let stale = parsed.expires_at_ms.is_some_and(|expiry| expiry <= now_ms);
                 let auth_state = if stale {
@@ -1862,20 +1900,14 @@ fn scan_enabled_inventory(
             message: provider_message(provider, state),
         });
     }
-    // A status line needs the current metadata identity even if the secret is in Keychain.
-    let statusline_accounts = if credentials
-        .keys()
-        .any(|(provider, _)| *provider == DetectedProviderId::Claude)
-    {
-        BTreeSet::new()
-    } else {
-        candidate_paths(DetectedProviderId::Claude, context)
-            .into_iter()
-            .filter(|candidate| candidate.kind == CandidateKind::Credential)
-            .filter_map(|candidate| claude_identity_hint(&candidate.path))
-            .map(|hint| opaque_account_id(DetectedProviderId::Claude, &hint.value))
-            .collect()
-    };
+    /* A status line needs each config's own metadata identity even when that
+    config keeps its secret in a keychain. Decided per config directory: one
+    file login elsewhere must not hide a second config's account. */
+    let statusline_accounts = unparsed_claude_configs
+        .iter()
+        .filter_map(|path| claude_identity_hint(path))
+        .map(|hint| opaque_account_id(DetectedProviderId::Claude, &hint.value))
+        .collect();
     Inventory {
         report: DetectionReport {
             antigravity_running: None,
@@ -2278,6 +2310,7 @@ impl DetectionStore {
             application_support: None,
             xdg_config: Some(home.join(".config")),
             xdg_data: Some(home.join(".local").join("share")),
+            claude_config_dir: None,
             codex_home: None,
             managed_codex_root: Some(home.join("accounts").join("codex")),
             grok_home: None,
@@ -2341,6 +2374,103 @@ mod tests {
         assert_eq!(
             store.display_account_ids(DetectedProviderId::Claude),
             vec![opaque_account_id(DetectedProviderId::Claude, "fixture-b")]
+        );
+    }
+
+    /// Claude Code keeps project history in `.claude.json`, so on a working
+    /// machine it outgrows the state file bound. The account must still be
+    /// the one the status line stamps, never the provider singleton.
+    #[test]
+    fn a_claude_account_file_past_the_state_bound_still_names_the_account() {
+        let root = TempDir::new();
+        write(
+            &root.path().join(".claude").join(".credentials.json"),
+            r#"{"claudeAiOauth":{"accessToken":"fixture-token","expiresAt":1900000000000}}"#,
+        );
+        write(
+            &root.path().join(".claude.json"),
+            &format!(
+                r#"{{"projects":{{"history":"{}"}},"oauthAccount":{{"accountUuid":"fixture-a"}}}}"#,
+                "x".repeat(2 * 1_048_576)
+            ),
+        );
+        let store = DetectionStore::for_test_home(root.path(), 1_800_000_000_000);
+        assert_eq!(
+            store.display_account_ids(DetectedProviderId::Claude),
+            vec![opaque_account_id(DetectedProviderId::Claude, "fixture-a")]
+        );
+    }
+
+    /// CLAUDE_CONFIG_DIR is honoured as the TypeScript reader honours it, with
+    /// the account file Claude Code writes inside that directory.
+    #[test]
+    fn claude_config_dir_is_read_with_the_account_file_inside_it() {
+        let dir = TempDir::new();
+        let work = dir.path().join("work-a");
+        let mut context = context(DiscoveryPlatform::Windows, dir.path());
+        context.claude_config_dir = Some(work.clone());
+        write(
+            &work.join(".credentials.json"),
+            r#"{"claudeAiOauth":{"accessToken":"fixture-token-a","expiresAt":1}}"#,
+        );
+        write(
+            &work.join(".claude.json"),
+            r#"{"oauthAccount":{"accountUuid":"fixture-a"}}"#,
+        );
+        write(
+            &dir.path().join(".claude").join(".credentials.json"),
+            r#"{"claudeAiOauth":{"accessToken":"fixture-token-b","expiresAt":1900000000000}}"#,
+        );
+        write(
+            &dir.path().join(".claude.json"),
+            r#"{"oauthAccount":{"accountUuid":"fixture-b"}}"#,
+        );
+        let inventory = scan_inventory(&context, 1_800_000_000_000);
+        let claude: BTreeSet<String> = inventory
+            .credentials
+            .keys()
+            .filter(|(provider, _)| *provider == DetectedProviderId::Claude)
+            .map(|(_, account)| account.clone())
+            .collect();
+        assert_eq!(
+            claude,
+            BTreeSet::from([
+                opaque_account_id(DetectedProviderId::Claude, "fixture-a"),
+                opaque_account_id(DetectedProviderId::Claude, "fixture-b"),
+            ])
+        );
+    }
+
+    /// Two Claude configs on one machine: the default one with its login in a
+    /// file, and a second profile whose token lives in a keychain, so only its
+    /// account file (inside the profile, where Claude Code writes it when the
+    /// session names the directory in CLAUDE_CONFIG_DIR) is on disk.
+    #[test]
+    fn a_keychain_profile_beside_a_file_login_keeps_its_status_line_account() {
+        let root = TempDir::new();
+        write(
+            &root.path().join(".claude").join(".credentials.json"),
+            r#"{"claudeAiOauth":{"accessToken":"fixture-token","expiresAt":1900000000000}}"#,
+        );
+        write(
+            &root.path().join(".claude.json"),
+            r#"{"oauthAccount":{"accountUuid":"fixture-a"}}"#,
+        );
+        write(
+            &root.path().join(".claude-b").join(".claude.json"),
+            r#"{"oauthAccount":{"accountUuid":"fixture-b"}}"#,
+        );
+        let store = DetectionStore::for_test_home(root.path(), 1_800_000_000_000);
+        let accounts: BTreeSet<String> = store
+            .display_account_ids(DetectedProviderId::Claude)
+            .into_iter()
+            .collect();
+        assert_eq!(
+            accounts,
+            BTreeSet::from([
+                opaque_account_id(DetectedProviderId::Claude, "fixture-a"),
+                opaque_account_id(DetectedProviderId::Claude, "fixture-b"),
+            ])
         );
     }
 
@@ -2563,6 +2693,7 @@ mod tests {
             application_support: Some(home.join("Library").join("Application Support")),
             xdg_config: Some(home.join("config")),
             xdg_data: Some(home.join("data")),
+            claude_config_dir: None,
             codex_home: Some(home.join("codex-home")),
             managed_codex_root: Some(home.join("managed-codex")),
             grok_home: Some(home.join("grok-home")),

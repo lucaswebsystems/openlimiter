@@ -64,6 +64,9 @@
     "addTool": "Adicionar uma ferramenta",
     "accountsNone": "As chaves e os logins que você adicionar aparecem aqui. No Free, uma conta por provedor fica ativa.",
     "fixToolDetail": "Entre em {name} neste computador e depois verifique de novo.",
+    "fixSignInAgainIssue": "Entre de novo",
+    "fixWaitingIssue": "Aguardando {name}",
+    "fixWaitingDetail": "A última janela foi redefinida. Use {name} uma vez e os limites voltam a aparecer.",
     "meterFallback": "Limite",
     "cacheUnreadable": "Não foi possível ler as leituras salvas agora, então só aparecem as leituras que ainda estão atualizadas."
   },

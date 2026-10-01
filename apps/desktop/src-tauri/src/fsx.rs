@@ -89,12 +89,18 @@ fn open_no_follow(file: &Path) -> std::io::Result<fs::File> {
 /// read (`cache.ts:116-120`). A missing file, a link, a non file, and an
 /// oversized file all come back as `None`. Nothing is repaired or invented.
 pub fn bounded_read(file: &Path) -> Option<String> {
+    bounded_read_up_to(file, MAX_STATE_FILE_BYTES)
+}
+
+/// `bounded_read` with a caller stated bound, for the one vendor document
+/// (Claude Code's `.claude.json`) that is legitimately larger than state.
+pub fn bounded_read_up_to(file: &Path, maximum: u64) -> Option<String> {
     let handle = open_no_follow(file).ok()?;
     let opened = handle.metadata().ok()?;
     if opened.file_type().is_symlink() || !opened.is_file() {
         return None;
     }
-    if opened.len() > MAX_STATE_FILE_BYTES {
+    if opened.len() > maximum {
         return None;
     }
     #[cfg(unix)]
@@ -110,7 +116,7 @@ pub fn bounded_read(file: &Path) -> Option<String> {
     }
     let mut text = String::new();
     handle
-        .take(MAX_STATE_FILE_BYTES)
+        .take(maximum)
         .read_to_string(&mut text)
         .ok()?;
     Some(text)

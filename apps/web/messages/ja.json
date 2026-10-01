@@ -64,6 +64,9 @@
     "addTool": "ツールを追加",
     "accountsNone": "追加したキーとログインはここに表示されます。Free では、プロバイダーごとに 1 つのアカウントが有効になります。",
     "fixToolDetail": "このコンピューターで {name} にサインインしてから、もう一度確認してください。",
+    "fixSignInAgainIssue": "もう一度サインイン",
+    "fixWaitingIssue": "{name} を待っています",
+    "fixWaitingDetail": "前回の枠がリセットされました。{name} を一度使うと、上限が再び表示されます。",
     "meterFallback": "上限",
     "cacheUnreadable": "保存された読み取り値を今は読み込めなかったため、まだ新しい読み取り値だけを表示しています。"
   },

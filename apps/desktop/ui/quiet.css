@@ -332,6 +332,21 @@ button.q-show {
   box-shadow: inset 0 0 0 1px var(--ol-hairline-strong);
 }
 
+/* A held reading (Claude Code idle, window not reset yet): the same hatch a
+   stale window uses everywhere else, and its age beside the provider name. */
+.q-row[data-band="stale"] { --q-fill: transparent; --q-label: var(--ol-band-stale-label); }
+
+.q-row[data-band="stale"] .q-bar {
+  background: var(--ol-band-hatched-pattern);
+}
+
+.q-age {
+  margin-left: auto;
+  color: var(--ol-muted);
+  font-size: var(--ol-text-caption);
+  white-space: nowrap;
+}
+
 .q-val {
   display: inline-flex;
   min-width: 0;

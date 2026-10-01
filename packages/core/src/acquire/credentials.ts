@@ -471,30 +471,66 @@ export async function readAcquisitionCredential(
   return { ok: false, reason: "absent" };
 }
 
-async function claudeIdentityHint(credentialPath: string): Promise<string | null> {
-  const directory = path.dirname(credentialPath);
+/**
+ * Largest `.claude.json` read for its account block.
+ *
+ * Claude Code keeps project history in the same file, so on a working machine
+ * it is megabytes, far past the credential bound; at that bound the account
+ * went unread and every status line row arrived anonymous. Rust twin:
+ * `provider_detection::CLAUDE_METADATA_MAX_BYTES`.
+ */
+export const CLAUDE_METADATA_MAX_BYTES = 16 * 1_048_576;
+
+/**
+ * The account a Claude config directory is signed in to, from its `.claude.json`.
+ *
+ * Claude Code writes that file INSIDE the directory a session names in
+ * CLAUDE_CONFIG_DIR, and beside `~/.claude` otherwise. The first file that
+ * exists decides, so a config never borrows a neighbour's account. Rust twin:
+ * `provider_detection::claude_identity_hint`.
+ */
+async function claudeMetadataIdentity(directory: string): Promise<string | null> {
   const name = path.basename(directory);
-  if (!name.startsWith(".claude")) return null;
-  const metadata = await readJsonFileSafely(path.join(path.dirname(directory), name + ".json"), MAX_CREDENTIAL_FILE_BYTES);
-  if (!metadata.ok || !isRecord(metadata.value)) return null;
-  const account = metadata.value["oauthAccount"];
-  return isRecord(account) ? stringField(account, ["accountUuid", "account_id", "accountId", "user_id", "userId"]) : null;
+  const files = [path.join(directory, ".claude.json"),
+    ...(name.startsWith(".claude") ? [path.join(path.dirname(directory), name + ".json")] : [])];
+  for (const file of files) {
+    const metadata = await readJsonFileSafely(file, CLAUDE_METADATA_MAX_BYTES);
+    if (!metadata.ok && metadata.reason === "missing") continue;
+    if (!metadata.ok || !isRecord(metadata.value)) return null;
+    const account = metadata.value["oauthAccount"];
+    return isRecord(account) ? stringField(account, ["accountUuid", "account_id", "accountId", "user_id", "userId"]) : null;
+  }
+  return null;
 }
 
-/** Statusline identity is captured before consuming the payload, never during cache merge. */
+async function claudeIdentityHint(credentialPath: string): Promise<string | null> {
+  return claudeMetadataIdentity(path.dirname(credentialPath));
+}
+
+/**
+ * Statusline identity is captured before consuming the payload, never during cache merge.
+ *
+ * Claude's comes from the emitting session's own config directory only: its
+ * CLAUDE_CONFIG_DIR, else `~/.claude`. Falling through to another directory
+ * would stamp a second session's reading with the first one's account.
+ */
 export async function captureStatuslineAccount(provider: AcquisitionProvider, options: CredentialLookupOptions): Promise<string | undefined> {
+  if (provider === "CLAUDE") {
+    const context = resolve(options);
+    const directory = directoryFrom(context.environment["CLAUDE_CONFIG_DIR"]) ?? path.join(context.home, ".claude");
+    const hint = await claudeMetadataIdentity(directory);
+    const document = await readJsonFileSafely(path.join(directory, ".credentials.json"), MAX_CREDENTIAL_FILE_BYTES);
+    /* An expired token still names its account, so expiry is not checked here. */
+    const parsed = document.ok ? readCredentialDocument(provider, document.value, 0, "vendor_file", hint) : null;
+    const material = parsed?.ok ? parsed.credential.identityMaterial ?? parsed.credential.accountId : hint;
+    // A singleton cannot prove which concurrent session emitted an anonymous payload.
+    return material ? opaqueAccountId(provider, material) : undefined;
+  }
   const credential = await readAcquisitionCredential(provider, options);
   if (credential.ok) {
     const material = credential.credential.identityMaterial ?? credential.credential.accountId;
     if (material) return opaqueAccountId(provider, material);
   }
-  if (provider === "CLAUDE") {
-    for (const candidate of credentialCandidatePaths(provider, options)) {
-      const hint = await claudeIdentityHint(candidate);
-      if (hint) return opaqueAccountId(provider, hint);
-    }
-  }
-  // A singleton cannot prove which concurrent session emitted an anonymous payload.
   return undefined;
 }
 

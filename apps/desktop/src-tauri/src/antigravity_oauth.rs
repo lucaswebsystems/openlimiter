@@ -1169,6 +1169,149 @@ mod tests {
         assert!(cache.contains("GEMINI_CLI"));
     }
 
+    /// The local read, end to end: what the collector writes, the cache it
+    /// lands in, the suppressions that could withdraw it, the display policy,
+    /// and the row the window receives. No Antigravity login is stored, which
+    /// is exactly the machine where the probe is the only source.
+    #[tokio::test]
+    async fn a_local_probe_reading_reaches_the_row_the_window_receives() {
+        use crate::data_rules::{detected_policy, project, register_local_identities};
+        use std::collections::BTreeSet;
+        let dir = TempDir::new();
+        let runtime = AntigravityOauthRuntime::default();
+        let detection = DetectionStore::for_test_home(dir.path(), NOW);
+        let cache_writer = writer(&dir);
+        let probe_account = provider_singleton_account_id(DetectedProviderId::Antigravity);
+        /* Yesterday's drift for this identity is history, not a live failure. */
+        write_report(
+            &cache_writer,
+            "ANTIGRAVITY",
+            Some(&probe_account),
+            CacheReport::Drift {
+                observed_at: iso_from_epoch_ms(NOW - 86_400_000).expect("yesterday"),
+            },
+        )
+        .expect("drift");
+        let outcome = collect_account(
+            &detection,
+            &runtime,
+            &StubPorts(vec![52123]),
+            &StubProbe::answering(52123, local_summary()),
+            &quota_transport(valid_body()),
+            Arc::clone(&cache_writer),
+            probe_account.clone(),
+            NOW,
+        )
+        .await;
+        assert!(matches!(outcome, AntigravityOutcome::CacheCommitted { .. }));
+        let text = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
+        let rows = crate::native_snapshot::display_snapshots(Some(&text));
+        assert!(rows.iter().any(|row| row.provider == "ANTIGRAVITY"));
+        let (mut active, disabled) = detected_policy(&detection);
+        register_local_identities(&mut active, &disabled);
+        let projection = project(rows.clone(), NOW as i64, &active, &disabled);
+        let wire = serde_json::json!({ "version": 2, "snapshots": projection.snapshots, "flags": projection.flags });
+        let received: Vec<_> = wire["snapshots"]
+            .as_array()
+            .expect("snapshots")
+            .iter()
+            .filter(|row| row["provider"] == "ANTIGRAVITY")
+            .collect();
+        assert_eq!(received.len(), 4);
+        assert!(received.iter().all(|row| row["accountId"] == probe_account.as_str()));
+        assert!(received.iter().any(|row| row["meter"] == "FIVE_HOUR"
+            && row["value"].as_f64().is_some_and(|value| (value - 38.0).abs() < 1e-6)));
+        assert!(!wire["flags"]
+            .as_array()
+            .expect("flags")
+            .iter()
+            .any(|flag| flag["provider"] == "ANTIGRAVITY"));
+
+        /* A provider switched off shows nothing and says so. */
+        let off = BTreeSet::from(["ANTIGRAVITY".to_string()]);
+        let mut switched = active.clone();
+        register_local_identities(&mut switched, &off);
+        let hidden = project(rows.clone(), NOW as i64, &switched, &off);
+        assert!(hidden.snapshots.iter().all(|row| row.provider != "ANTIGRAVITY"));
+        assert!(hidden.flags.iter().any(|flag| flag.reason == "disabled"));
+
+        /* Expired credentials and placeholders stay flags, never bars. */
+        let mut expired = rows[0].clone();
+        expired.availability = Some("expired_credentials".into());
+        let mut placeholder = rows[0].clone();
+        placeholder.meter = "ACQUISITION".into();
+        let flagged = project(vec![expired, placeholder], NOW as i64, &active, &disabled);
+        assert!(flagged.snapshots.is_empty());
+        let reasons: BTreeSet<_> = flagged.flags.iter().map(|flag| flag.reason.as_str()).collect();
+        assert_eq!(reasons, BTreeSet::from(["expired_credentials", "placeholder"]));
+
+        /* Another identity under the same provider is still refused. */
+        let mut stranger = rows[0].clone();
+        stranger.account_id = Some("antigravity-someone-else".into());
+        assert_eq!(
+            project(vec![stranger], NOW as i64, &active, &disabled).flags[0].reason,
+            "account_not_connected"
+        );
+    }
+
+    /// The Gemini fallback's rows are legitimate while a Gemini CLI login is,
+    /// so the display policy accepts the shared account they are filed under.
+    #[tokio::test]
+    async fn the_mirrored_gemini_reading_is_displayed_while_gemini_is_signed_in() {
+        use crate::data_rules::{detected_policy, project, register_local_identities};
+        let dir = TempDir::new();
+        let subject = format!(
+            "{}.{}.signature",
+            "eyJhbGciOiJub25lIn0",
+            "eyJzdWIiOiJnZW1pbmktZml4dHVyZSIsImV4cCI6MTkwMDAwMDAwMH0"
+        );
+        let gemini_file = dir.path().join(".gemini").join("oauth_creds.json");
+        fs::create_dir_all(gemini_file.parent().expect("parent")).expect("directory");
+        fs::write(
+            &gemini_file,
+            format!(r#"{{"access_token":"gemini-access-token-for-tests","id_token":"{subject}","expiry_date":1900000000000}}"#),
+        )
+        .expect("gemini login");
+        let detection = DetectionStore::for_test_home(dir.path(), NOW);
+        let gemini_account = detection.account_ids(DetectedProviderId::GeminiCli);
+        assert_eq!(gemini_account.len(), 1);
+        let cache_writer = writer(&dir);
+        let gemini = parse_body(ReaderId::AntigravityQuota, &local_summary(), NOW, &gemini_account[0])
+            .expect("readable summary")
+            .into_iter()
+            .map(|row| crate::native_snapshot::Snapshot {
+                provider: "GEMINI_CLI".to_string(),
+                ..row
+            })
+            .collect();
+        write_report(&cache_writer, "GEMINI_CLI", Some(&gemini_account[0]), CacheReport::Success(gemini))
+            .expect("gemini rows");
+        let outcome = collect_account(
+            &detection,
+            &AntigravityOauthRuntime::default(),
+            &StubPorts(Vec::new()),
+            &StubProbe::silent(),
+            &quota_transport(valid_body()),
+            Arc::clone(&cache_writer),
+            provider_singleton_account_id(DetectedProviderId::Antigravity),
+            NOW,
+        )
+        .await;
+        assert!(matches!(outcome, AntigravityOutcome::Mirrored { .. }));
+        let text = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
+        let (mut active, disabled) = detected_policy(&detection);
+        register_local_identities(&mut active, &disabled);
+        let projection = project(
+            crate::native_snapshot::display_snapshots(Some(&text)),
+            NOW as i64,
+            &active,
+            &disabled,
+        );
+        assert!(projection.snapshots.iter().any(|row| row.provider == "ANTIGRAVITY"
+            && row.account_id.as_deref() == Some(SHARED_CODE_ASSIST_ACCOUNT)));
+        assert!(projection.snapshots.iter().any(|row| row.provider == "GEMINI_CLI"));
+    }
+
     /// The outcome that earns a day of quiet is named, not assumed.
     #[test]
     fn identity_refused_earns_the_same_day_of_quiet_a_dead_login_does() {

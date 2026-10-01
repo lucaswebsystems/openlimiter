@@ -25,6 +25,7 @@ import {
   grokSpec,
   isProviderDue,
   kimiSpec,
+  mergeSnapshotCache,
   mergeSnapshots,
   normalizeMeters,
   normalizeMetersReport,
@@ -135,6 +136,10 @@ import {
   parseGrokStatuslinePayload,
   parseJsonText,
   persistSnapshots,
+  clearStatuslineFailure,
+  readStatuslineFailure,
+  recordStatuslineFailure,
+  type StatuslineFailureStage,
   readManualDocument,
   withProvenance
 } from "./ingest.js";
@@ -822,6 +827,13 @@ async function acquisitionStatusRow(
   };
 }
 
+/** What each status line write failure means, in words with no dashes. */
+const STATUSLINE_FAILURE_SENTENCE: Readonly<Record<StatuslineFailureStage, string>> = {
+  ingest: "the last status line payload could not be read",
+  cache_write: "the last status line reading could not be saved to the cache",
+  agent_context: "the last status line reading was saved, the agent context file could not be written"
+};
+
 /** The acquisition block doctor prints under the connector block. */
 async function acquisitionDoctorRows(
   dependencies: CliDependencies,
@@ -842,6 +854,11 @@ async function acquisitionDoctorRows(
   if (failedAt !== null) {
     rows.push("REFRESH SPAWN FAILED " + failedAt +
       " the background refresh could not be started on this machine");
+  }
+  const statusline = await readStatuslineFailure(dependencies.stateDirectory);
+  if (statusline !== null) {
+    rows.push(["STATUSLINE WRITE FAILED", statusline.at, statusline.stage, statusline.errorClass,
+      STATUSLINE_FAILURE_SENTENCE[statusline.stage]].join(" "));
   }
   return [ACQUISITION_HEADER, ...rows].join(NEWLINE);
 }
@@ -1157,14 +1174,25 @@ async function ingestStandardInput(
        reading, and it says so. */
     const incoming = normalizeMeters(withProvenance(meters, provenance).map(meter => ({ ...meter, ...(accountId ? { accountId } : {}) })));
     if (incoming.length === 0) return { snapshots: null, payload: document.value };
+    /* The render still draws when a write fails, so each failure is kept for
+       doctor by its stage, and the next full success clears it. */
+    let merged: Snapshot[];
     try {
-      const { merged } = await persistSnapshots(incoming, dependencies.stateDirectory, now);
-      return { snapshots: merged, payload: document.value };
-    } catch {
+      merged = (await mergeSnapshotCache(incoming, dependencies.stateDirectory ?? resolveStateDirectory(), Date.parse(now))).merged;
+    } catch (error) {
+      await recordStatuslineFailure(dependencies.stateDirectory, now, "cache_write", error);
       const existing = await cachedSnapshots(dependencies.stateDirectory);
       return { snapshots: mergeSnapshots(existing, incoming), payload: document.value };
     }
-  } catch {
+    try {
+      await writeAgentContextSnapshot(merged, dependencies.stateDirectory, now);
+      await clearStatuslineFailure(dependencies.stateDirectory);
+    } catch (error) {
+      await recordStatuslineFailure(dependencies.stateDirectory, now, "agent_context", error);
+    }
+    return { snapshots: merged, payload: document.value };
+  } catch (error) {
+    await recordStatuslineFailure(dependencies.stateDirectory, now, "ingest", error);
     return null;
   }
 }
