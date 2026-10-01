@@ -68,19 +68,19 @@ export function AboutCard() {
   }));
   return (
     <div
-      className="overflow-hidden rounded-2xl border border-hairline bg-raised p-[var(--ol-space-5)] text-center md:p-[var(--ol-space-7)]"
+      className="overflow-hidden rounded-2xl border border-hairline bg-raised p-8 md:p-12"
       {...reveal}
     >
-      <div className="space-y-[var(--ol-space-6)]">
-        <div className="mx-auto max-w-2xl space-y-[var(--ol-space-4)]">
+      <div className="grid gap-10 lg:grid-cols-[1.15fr_1fr] lg:gap-16">
+        <div className="space-y-5">
           <BrandLockup markClassName="h-8 w-8 flex-none text-brand" wordClassName="text-xl" />
           <p className="text-xl leading-relaxed text-heading md:text-2xl">{t("lead")}</p>
-          <p className="mx-auto max-w-xl text-sm leading-relaxed text-muted">{t("description")}</p>
+          <p className="max-w-xl text-sm leading-relaxed text-muted">{t("description")}</p>
         </div>
 
-        <div className="grid gap-[var(--ol-space-5)] lg:grid-cols-3">
+        <div className="space-y-5">
           {commitments.map((item) => (
-            <div key={item.slug} className="border-t border-hairline-strong pt-[var(--ol-space-4)]">
+            <div key={item.slug} className="border-l border-hairline-strong pl-4">
               <p className="heading-face text-sm text-heading">{item.title}</p>
               <p className="mt-1 text-sm leading-relaxed text-muted">{item.detail}</p>
             </div>
@@ -88,7 +88,7 @@ export function AboutCard() {
         </div>
       </div>
 
-      <div className="mt-[var(--ol-space-6)] flex flex-col items-center gap-[var(--ol-space-5)] border-t border-hairline pt-[var(--ol-space-5)]">
+      <div className="mt-10 flex flex-col gap-6 border-t border-hairline pt-8 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="heading-face text-base text-heading">{AUTHOR_NAME}</p>
           <p className="mt-1 text-sm text-muted">
@@ -101,7 +101,7 @@ export function AboutCard() {
             </a>
           </p>
         </div>
-        <div className="flex flex-wrap justify-center gap-3">
+        <div className="flex flex-wrap gap-3">
           <ButtonLink href={SPONSORS_URL} tone="primary" external>
             <HeartMark />
             GitHub Sponsors

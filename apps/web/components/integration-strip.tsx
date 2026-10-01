@@ -379,7 +379,7 @@ export function IntegrationStrip() {
   const connectors = getConnectors(t);
   const surfaces = getSurfaces(t);
   return (
-    <section className="text-left">
+    <section>
       <SectionHeading title={t("title")} lead={t("lead")} />
       <div className={`${VIEWPORT_BLEED} space-y-4`} {...reveal}>
         <Row cards={connectors} secondsPerCard={FIRST_ROW_SECONDS_PER_CARD} />

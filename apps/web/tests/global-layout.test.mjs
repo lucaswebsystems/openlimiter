@@ -25,13 +25,6 @@ function loadModule(path, imports, browser = {}) {
   return exports;
 }
 const theme = loadModule("../lib/theme.ts", {});
-const site = loadModule("../components/site-html.tsx", {
-  "next/font/google": {
-    Inter: () => ({ variable: "inter" }),
-    Baloo_2: () => ({ variable: "baloo" }),
-  },
-  "@/lib/theme": theme,
-});
 function browserFixture(light, saved = null, storageBlocked = false) {
   const attributes = new Map();
   const observers = new Set();
@@ -77,25 +70,24 @@ function browserFixture(light, saved = null, storageBlocked = false) {
       }
     },
   };
-  runInNewContext(site.siteThemeArmScript, browser);
+  runInNewContext(theme.themeArmScript, browser);
   return { browser, root, media, mediaListeners, writes, observers };
 }
 describe("shared theme behavior", () => {
-  for (const [light, stored, expected, origin] of [
-    [true, null, "light", "system"],
-    [false, null, "dark", "system"],
-    [true, "dark", "dark", "user"],
-    [false, "light", "light", "user"],
-    [true, "invalid", "light", "system"],
+  for (const [light, stored, expected] of [
+    [true, null, null],
+    [false, null, null],
+    [true, "dark", "dark"],
+    [false, "light", "light"],
+    [true, "invalid", null],
   ])
-    it(`resolves OS ${light} with stored ${stored} before paint`, () => {
+    it(`keeps the dark default for OS ${light} with stored ${stored}`, () => {
       const fixture = browserFixture(light, stored);
       assert.equal(fixture.root.getAttribute("data-theme"), expected);
-      assert.equal(fixture.root.getAttribute("data-theme-source"), origin);
       assert.deepEqual(fixture.writes, []);
     });
   for (const blocked of [false, true])
-    it(`follows OS changes until a toggle choice, storage blocked ${blocked}`, () => {
+    it(`toggles the explicit theme from the dark default, storage blocked ${blocked}`, () => {
       const fixture = browserFixture(true, null, blocked);
       const cleanup = [];
       const states = [];
@@ -125,13 +117,12 @@ describe("shared theme behavior", () => {
       );
       const first = ThemeToggle({});
       ThemeToggle({});
-      assert.deepEqual(states, ["light", "light"]);
+      assert.deepEqual(states, ["dark", "dark"]);
       fixture.media.matches = false;
       fixture.mediaListeners.forEach((callback) => callback());
       assert.deepEqual(states, ["dark", "dark"]);
       first.props.onClick();
       assert.deepEqual(states, ["light", "light"]);
-      assert.equal(fixture.root.getAttribute("data-theme-source"), "user");
       fixture.mediaListeners.forEach((callback) => callback());
       assert.equal(fixture.root.getAttribute("data-theme"), "light");
       assert.deepEqual(fixture.writes, blocked ? [] : ["light"]);
@@ -141,50 +132,40 @@ describe("shared theme behavior", () => {
     });
 });
 describe("global layout contract", () => {
-  it("keeps canonical color, font and geometry values out of the web alias layer", () => {
-    assert.doesNotMatch(globals, /--ol-(?:font|band)-[\w-]+\s*:/);
-    assert.doesNotMatch(globals, /#[\da-f]{3,8}\b|rgba?\(\s*\d/i);
-    assert.ok(globals.includes("--spacing: var(--ol-space-1)"));
+  it("keeps the historical site palette while retaining shared desktop tokens", () => {
     assert.ok(
       tokens.includes('--ol-font-heading: var(--ol-font-baloo, "Baloo 2")')
     );
+    assert.ok(
+      globals.includes('--ol-font-heading: var(--ol-font-baloo, "Baloo 2")')
+    );
+    assert.ok(globals.includes("--ol-announce: var(--ol-accent-solid)"));
     assert.match(
       tokens,
       /:root\[data-theme="light"\]\s*\{\s*color-scheme: light/
     );
     assert.equal(tokens.match(/--ol-canvas:\s*([^;]+)/g).length, 2);
   });
-  it("centers shared prose and overlays without flattening code formatting", () => {
-    assert.ok(
-      globals.includes(
-        ".site-centered :where(pre, pre code) {\n  text-align: start;"
-      )
-    );
-    assert.ok(globals.includes(".site-footer nav {\n  align-items: center;"));
-    assert.doesNotMatch(
+  it("restores left aligned public layouts and product controls", () => {
+    assert.doesNotMatch(globals, /\.site-centered|\.site-footer nav|\.page-shell\s*\{/);
+    assert.match(
       source("../components/footer.tsx"),
       /md:(text-left|items-start|justify-start|justify-self-end)/
     );
-    assert.ok(source("../components/nav-sheet.tsx").includes("text-center"));
-    assert.doesNotMatch(
+    assert.ok(!source("../components/site-html.tsx").includes("site-centered"));
+    assert.ok(!source("../components/nav-sheet.tsx").includes("text-center"));
+    assert.match(
       source("../app/app/theme.css"),
       /text-align:\s*(left|right)/
     );
   });
-  it("shares section spacing, token shadows and a noncollapsing announcement row", () => {
-    assert.ok(
-      globals.includes("padding-block: calc(var(--ol-section-gap) / 2)")
-    );
-    assert.ok(globals.includes("margin-top: var(--ol-section-gap)"));
-    assert.match(
-      globals,
-      /\.announce-inner\s*\{[^}]*min-height: var\(--ol-control-height\)/
-    );
-    assert.ok(
-      !source("../components/announcement-bar.tsx").includes("truncate")
-    );
+  it("restores the former spacing, shadows and fixed announcement row", () => {
+    assert.ok(source("../components/page-shell.tsx").includes("space-y-24"));
+    assert.ok(source("../app/[locale]/page.tsx").includes("py-16 md:py-24"));
+    assert.ok(source("../components/announcement-bar.tsx").includes("truncate"));
+    assert.ok(source("../components/announcement-bar.tsx").includes("h-[var(--ol-announce-h)]"));
     for (const file of ["nav-sheet", "scroll-top"]) {
-      assert.ok(!source(`../components/${file}.tsx`).includes("shadow-["));
+      assert.ok(source(`../components/${file}.tsx`).includes("shadow-["));
     }
   });
 });

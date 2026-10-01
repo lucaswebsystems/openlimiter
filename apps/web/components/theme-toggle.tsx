@@ -7,7 +7,10 @@ import { THEME_ATTR, THEME_STORAGE_KEY, isTheme, type Theme } from "@/lib/theme"
 function resolveTheme(): Theme {
   const explicit = document.documentElement.getAttribute(THEME_ATTR);
   if (isTheme(explicit)) return explicit;
-  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  /* No attribute renders the dark palette whatever the system says: the site
+     is dark first by declaration in globals.css, and this answer has to
+     describe the page that is actually on screen, not the visitor's OS. */
+  return "dark";
 }
 
 /**
@@ -30,12 +33,6 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
 
   useEffect(() => {
     setTheme(resolveTheme());
-    const system = window.matchMedia("(prefers-color-scheme: light)");
-    const followSystem = () => {
-      if (document.documentElement.getAttribute("data-theme-source") !== "system") return;
-      document.documentElement.setAttribute(THEME_ATTR, system.matches ? "light" : "dark");
-    };
-    system.addEventListener("change", followSystem);
     /* Two instances of this control exist at once on a phone, the hidden
        desktop row's and the sheet's. Each subscribes to the attribute itself,
        so pressing either one updates BOTH descriptions: the attribute on the
@@ -46,15 +43,11 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
       attributes: true,
       attributeFilter: [THEME_ATTR],
     });
-    return () => {
-      observer.disconnect();
-      system.removeEventListener("change", followSystem);
-    };
+    return () => observer.disconnect();
   }, []);
 
   const toggle = () => {
     const next: Theme = resolveTheme() === "dark" ? "light" : "dark";
-    document.documentElement.setAttribute("data-theme-source", "user");
     document.documentElement.setAttribute(THEME_ATTR, next);
     try {
       window.localStorage.setItem(THEME_STORAGE_KEY, next);

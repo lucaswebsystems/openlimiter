@@ -334,7 +334,7 @@ export function Hero() {
   );
 
   return (
-    <section className="hero-fold hero-dark-island w-full text-left">
+    <section className="hero-fold hero-dark-island w-full">
       {/* Runs at parse time, before the header can paint. See the note above. */}
       <script dangerouslySetInnerHTML={{ __html: FOLD_SYNC_SCRIPT }} />
       {/* The one flag from lib/site.ts switches the footage alone: with it

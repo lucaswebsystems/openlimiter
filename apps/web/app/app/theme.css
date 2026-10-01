@@ -783,7 +783,7 @@
 
 .ol-cell-value,
 .ol-cell-money {
-  text-align: center;
+  text-align: right;
 }
 
 @media (hover: hover) {
@@ -844,7 +844,7 @@
   .ol-cell-reset {
     grid-area: reset;
     justify-self: end;
-    text-align: center;
+    text-align: right;
   }
 
   .ol-list-head {
@@ -1349,7 +1349,7 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
   color: var(--ol-heading);
   font-size: var(--ol-text-body);
   line-height: var(--ol-leading-body);
-  text-align: center;
+  text-align: left;
 }
 
 .ol-provider-mark {
@@ -2493,7 +2493,7 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
   border: 1px solid var(--ol-hairline);
   border-radius: var(--ol-radius-xl);
   background: var(--ol-surface);
-  text-align: center;
+  text-align: left;
 }
 
 .ol-empty-content {
@@ -2677,7 +2677,7 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
 
 .ol-trial-cta-compact .ol-control {
   max-width: 100%;
-  text-align: center;
+  text-align: left;
 }
 
 .ol-header-trial {
@@ -2722,13 +2722,13 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
 
 .ol-trial-profile {
   color: var(--ol-body);
-  text-align: center;
+  text-align: left;
 }
 
 .ol-trial-free {
   color: var(--ol-heading);
   font-weight: var(--ol-weight-semibold);
-  text-align: center;
+  text-align: left;
 }
 
 .ol-trial-success {
@@ -2756,7 +2756,7 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
   cursor: pointer;
   font: inherit;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
-  text-align: center;
+  text-align: left;
   transition:
     border-color var(--ol-motion-fast) var(--ol-ease-out),
     background-color var(--ol-motion-fast) var(--ol-ease-out),
@@ -2851,7 +2851,7 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
 /* The last screen has no control above it to sit under, so its line reads with
    the heading rather than floating in the middle of the card. */
 .ol-trial-note[data-state="done"] {
-  text-align: center;
+  text-align: left;
 }
 
 .ol-trial-error {
