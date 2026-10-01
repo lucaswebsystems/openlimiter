@@ -72,18 +72,23 @@ export function openTrialInBrowser(url = TRIAL_URL) {
   return window.open(url, "_blank", "noopener,noreferrer");
 }
 
+/**
+ * The trial control, from the account's plan read (`account_status`).
+ *
+ * A null entitlement is an account that has never had a trial or a plan, the
+ * same rule the web hub offers its trial on. Any entitlement row means the
+ * trial was used or a plan exists, so only a trial still running shows.
+ */
 export function desktopTrialState(account, result, now = Date.now()) {
   if (account?.signedIn !== true || !result?.ok) return { kind: "hidden" };
-  const row = result.value;
-  if (!row || typeof row !== "object") return { kind: "hidden" };
-  const plan = row.plan_state ?? row.status;
+  const value = result.value;
+  if (!value || typeof value !== "object" || !("entitlement" in value)) return { kind: "hidden" };
+  const row = value.entitlement;
+  if (row === null) return { kind: "offer" };
+  if (typeof row !== "object") return { kind: "hidden" };
   const end = Date.parse(row.trial_ends_at ?? "");
-  if ((plan === "trial" || plan === "trialing") && Number.isFinite(end) && end > now) {
+  if (row.plan_state === "trialing" && Number.isFinite(end) && end > now) {
     return { kind: "running", days: Math.ceil((end - now) / 86_400_000) };
-  }
-  if ((plan === "none" || plan === "free") && row.trial_ends_at == null &&
-      row.trial_started_at == null && row.had_paid_entitlement !== true && row.trial_used !== true) {
-    return { kind: "offer" };
   }
   return { kind: "hidden" };
 }

@@ -115,8 +115,14 @@ test("the client never starts a trial and never assembles a price", () => {
 
 test("a completed purchase shows up when the window comes back into focus", () => {
   const app = read("app.js");
-  assert.match(app, /window\.addEventListener\("focus"/u);
-  assert.match(app, /void proRefresh\(\)\.then\(\(\) => \{\s*void paintPlanBadge\(\);/u);
+  assert.match(app, /window\.addEventListener\("focus", \(\) => \{[^}]*void refreshEntitlement\(\);/u);
+  /* One signal repaints every control gated on the entitlement. */
+  assert.match(
+    app,
+    /window\.addEventListener\("openlimiter:pro-changed", \(\) => \{[\s\S]*?paintPlanBadge\(\)[\s\S]*?renderPlanCap\([\s\S]*?renderPro\([\s\S]*?renderSettings\(/u,
+  );
+  /* The badge and the tray trial offer read the validated status. */
+  assert.match(app, /const entitled = proEntitled\(pro\);\s*trialOffered = !entitled;/u);
 });
 
 test("the trial says how many days are left, from the service instant", () => {

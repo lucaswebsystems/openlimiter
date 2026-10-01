@@ -6,35 +6,53 @@ import { createDesktopTrial, desktopTrialMarkup, desktopTrialState, TRIAL_EN, TR
 const now = Date.parse("2026-09-28T12:00:00Z");
 const account = { signedIn: true, email: "person@example.test" };
 const status = (value) => ({ ok: true, value });
+/* What account_status answers with since 2.0.3: the `/entitlement` status
+   read, whose entitlement is null for an account that never had a trial or a
+   plan. */
+const plan = (entitlement) => status({ entitlement, devices: [] });
 const running = { plan_state: "trialing", trial_ends_at: new Date(now + 30 * 86400000).toISOString() };
+const ended = new Date(now - 1).toISOString();
 
-test("Home and Settings offer a trial only for a known signed in unused free account", () => {
-  assert.deepEqual(desktopTrialState(account, status({ plan_state: "none" }), now), { kind: "offer" });
-  for (const plan_state of ["active", "comped", "past_due", "expired", "canceled", "refunded", "unknown"]) {
-    const state = desktopTrialState(account, status({ plan_state }), now);
+test("Home and Settings offer a trial only to a signed in account that never had one", () => {
+  assert.deepEqual(desktopTrialState(account, plan(null), now), { kind: "offer" });
+  for (const plan_state of ["active", "comped", "past_due", "expired", "canceled", "refunded", "deleted", "revoked", "unknown"]) {
+    const state = desktopTrialState(account, plan({ plan_state, trial_ends_at: null }), now);
     assert.equal(state.kind, "hidden");
     assert.equal(desktopTrialMarkup(state), "");
   }
+  /* A returning account whose trial ended: no offer and no chip. */
   for (const row of [
-    { plan_state: "free", trial_ends_at: new Date(now - 1).toISOString() },
-    { plan_state: "free", trial_used: true },
-    { plan_state: "none", trial_started_at: "2026-01-01" },
-    { plan_state: "none", had_paid_entitlement: true },
-    { ...running, trial_ends_at: new Date(now - 1).toISOString() },
-  ]) assert.equal(desktopTrialState(account, status(row), now).kind, "hidden");
-  assert.equal(desktopTrialState({ signedIn: false }, status({ plan_state: "none" }), now).kind, "hidden");
+    { ...running, trial_ends_at: ended },
+    { plan_state: "expired", trial_ends_at: ended },
+    { plan_state: "canceled", trial_ends_at: ended },
+  ]) assert.equal(desktopTrialState(account, plan(row), now).kind, "hidden");
+  assert.equal(desktopTrialState({ signedIn: false }, plan(null), now).kind, "hidden");
   assert.equal(desktopTrialState(account, { ok: false }, now).kind, "hidden");
   assert.equal(desktopTrialState(account, status(null), now).kind, "hidden");
+  assert.equal(desktopTrialState(account, status({ devices: [] }), now).kind, "hidden");
 });
 
 test("the trial chip rounds partial days up, links to billing and disappears at expiry", () => {
-  assert.deepEqual(desktopTrialState(account, status(running), now), { kind: "running", days: 30 });
-  const lastDay = desktopTrialState(account, status(running), now + 29.5 * 86400000);
+  assert.deepEqual(desktopTrialState(account, plan(running), now), { kind: "running", days: 30 });
+  const lastDay = desktopTrialState(account, plan(running), now + 29.5 * 86400000);
   assert.deepEqual(lastDay, { kind: "running", days: 1 });
   assert.match(desktopTrialMarkup(lastDay), /Pro trial, 1 day left/u);
   assert.match(desktopTrialMarkup(lastDay), /href="#pro-mount"/u);
   assert.doesNotMatch(desktopTrialMarkup(lastDay), /data-trial-start/u);
-  assert.equal(desktopTrialState(account, status(running), now + 30 * 86400000).kind, "hidden");
+  assert.equal(desktopTrialState(account, plan(running), now + 30 * 86400000).kind, "hidden");
+});
+
+test("a fresh account with no connected tools sees the trial, a returning one whose trial ended does not", async () => {
+  const controller = (entitlement) => createDesktopTrial({
+    accountStatus: async () => status(account),
+    proService: async (action) => (action === "account_status" ? plan(entitlement) : status({})),
+  }, () => {}, () => ({}));
+  const fresh = controller(null);
+  await fresh.refresh();
+  assert.equal(fresh.snapshot().state.kind, "offer");
+  const returning = controller({ ...running, trial_ends_at: ended });
+  await returning.refresh();
+  assert.equal(returning.snapshot().state.kind, "hidden");
 });
 
 test("one click opens the web trial flow without invoking the native start action", async () => {
@@ -43,7 +61,7 @@ test("one click opens the web trial flow without invoking the native start actio
  const controller = createDesktopTrial({
   accountStatus: async () => status(account),
   proService: async (action) => {
-  if (action === "account_status") return status({ plan_state: "none" });
+  if (action === "account_status") return plan(null);
   starts += 1;
   return status({});
   },
@@ -64,7 +82,7 @@ test("one click opens the web trial flow without invoking the native start actio
 test("a blocked browser leaves the offer available with a retry message", async () => {
  const controller = createDesktopTrial({
   accountStatus: async () => status(account),
-  proService: async () => status({ plan_state: "none" }),
+  proService: async () => plan(null),
   },
   () => {},
   () => null,

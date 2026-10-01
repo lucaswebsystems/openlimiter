@@ -34,6 +34,7 @@ import {
   apiSpendStatus,
   proCheckoutUrl,
   proPortalUrl,
+  proRefresh,
   proService,
   proStatus,
 } from "./backend.js";
@@ -93,12 +94,14 @@ export const PROVIDERS = [
   },
 ];
 
-const FEATURES = [
+/* Keyed by the feature codes a signed token carries (pro.rs). Current usage
+   sync between devices is free, so it is not listed. */
+export const FEATURES = [
   { key: "multi_account", label: "More than one account per provider" },
-  { key: "hosted_history", label: "Ninety days of private hosted history" },
-  { key: "forecast", label: "Spend forecast from observed periods" },
-  { key: "hosted_alerts", label: "Alerts that arrive with the app closed" },
-  { key: "snapshot_sync", label: "Usage carried between your devices" },
+  { key: "history", label: "Ninety days of private hosted history" },
+  { key: "api_spend_beta", label: "Spend forecast from observed periods" },
+  { key: "alerts", label: "Alerts that arrive with the app closed" },
+  { key: "routing", label: "Live budget context for coding agent routing" },
   { key: "theme_preset", label: "Theme presets" },
 ];
 
@@ -114,7 +117,29 @@ const PLAN_NAMES = {
 };
 
 const TRIAL_STATES = new Set(["trial", "trialing"]);
-const ENTITLED_STATES = new Set(["active", "trial", "trialing"]);
+/* The states pro_status reports while a verified token is inside its signed
+   window. Rust empties the features outside it. */
+const ENTITLED_STATES = new Set(["active", "refresh_due", "grace"]);
+
+/**
+ * Whether the validated status unlocks Pro on this machine.
+ *
+ * Read from the verified state and its features, never from the plan name:
+ * a past due plan is Pro until its signed window closes, and an expired
+ * token still names the plan it once had.
+ */
+export function proEntitled(pro) {
+  return ENTITLED_STATES.has(pro?.state) && Array.isArray(pro?.features) && pro.features.length > 0;
+}
+
+export const PRO_CHANGED = "openlimiter:pro-changed";
+
+/** Ask the service for a fresh entitlement, then let every gated control repaint. */
+export async function refreshEntitlement(api = { proRefresh }, target = globalThis) {
+  const result = await api.proRefresh();
+  target.dispatchEvent(new CustomEvent(PRO_CHANGED));
+  return result;
+}
 
 /**
  * Whole days left in a trial, from the instant the service reported.
@@ -182,9 +207,9 @@ function budgetBand(spend, budget) {
 
 /* ---------------------------------------------------------------- the plan */
 
-function planMarkup(pro, trialDays) {
-  const planState = pro?.plan_state ?? "free";
-  const isPro = ENTITLED_STATES.has(planState);
+export function planMarkup(pro, trialDays) {
+  const isPro = proEntitled(pro);
+  const planState = isPro ? (pro.plan_state ?? "active") : "free";
 
   const banner =
     TRIAL_STATES.has(planState)
@@ -244,7 +269,7 @@ function planMarkup(pro, trialDays) {
     (isPro
       ? ""
       : '<p class="note tight" id="pro-billing-note" role="status">Checkout opens in your browser. This window picks the change up as soon as you come back to it.</p>') +
-    (pro?.grace_until
+    (isPro && pro?.grace_until
       ? '<p class="note">Local Pro features keep working offline until ' +
         escapeText(whenText(pro.grace_until)) +
         ", on the honour system. That is a promise about this window, not a promise the hosted service will accept an old authorisation.</p>"
@@ -489,12 +514,12 @@ export async function renderPro(mount) {
   state.pro = pro;
   const devices = devicesResult.ok ? (devicesResult.value?.devices ?? []) : [];
   const cap = pro?.device_cap ?? 1;
-  const isPro = ENTITLED_STATES.has(pro?.plan_state);
+  const isPro = proEntitled(pro);
   /* The trial's end is the service's fact, read here and never invented. A
      window with no answer says "Pro trial running" rather than a made up
      number of days. */
   const trialDays = accountResult.ok
-    ? trialDaysRemaining(accountResult.value?.trial_ends_at)
+    ? trialDaysRemaining(accountResult.value?.entitlement?.trial_ends_at)
     : null;
 
   mount.innerHTML =
@@ -591,8 +616,7 @@ function wirePro() {
     if (!result.ok) billingNote(result.message ?? "Billing could not be opened.");
   });
   document.getElementById("pro-refresh-plan")?.addEventListener("click", async () => {
-    await proStatus();
-    await renderPro(state.mount);
+    await refreshEntitlement();
   });
   document.getElementById("pro-revoke-others")?.addEventListener("click", async () => {
     await proService("revoke_other_devices", {});

@@ -46,7 +46,7 @@ import { meterLabel, providerName, say } from "./names.js";
 import { renderPlanCap } from "./plan-cap.js";
 import { ALERTS_EN, renderSettings, refreshDesktopTrial, tickDesktopTrial } from "./settings.js";
 import { mountAgents } from "./agents.js";
-import { renderPro, renderSpend } from "./pro.js";
+import { proEntitled, refreshEntitlement, renderPro, renderSpend } from "./pro.js";
 /* The phone panel and the device list it produces. Both live behind an
    account, and both are drawn by their own module rather than here. */
 import {
@@ -104,7 +104,6 @@ import {
   notificationGate,
   proCheckoutUrl,
   proDisconnect,
-  proRefresh,
   setTrayStatus,
   testProvider,
 } from "./backend.js";
@@ -266,18 +265,19 @@ let trialOffered = true;
 
 async function paintPlanBadge() {
   const result = await proStatus();
-  const plan = result.ok ? (result.value?.plan_state ?? "free") : "free";
-  trialOffered = plan !== "active" && plan !== "trial";
+  const pro = result.ok ? result.value : null;
+  const entitled = proEntitled(pro);
+  trialOffered = !entitled;
   if (elements.planCapPlan === null) return;
+  const plan = entitled ? pro.plan_state : "free";
   const names = {
     free: "Free",
     active: "Pro",
-    trial: "Trial",
+    trialing: "Trial",
     past_due: "Payment failed",
-    canceled: "Ending",
   };
   elements.planCapPlan.textContent = names[plan] ?? plan;
-  if (plan === "active" || plan === "trial") {
+  if (entitled) {
     elements.planCapPlan.setAttribute("data-tone", "accent");
   } else {
     elements.planCapPlan.removeAttribute("data-tone");
@@ -834,9 +834,20 @@ async function openCheckout(plan) {
 window.addEventListener("focus", () => {
   if (!signedIn) return;
   void refreshDesktopTrial();
-  void proRefresh().then(() => {
-    void paintPlanBadge();
-  });
+  void refreshEntitlement();
+});
+
+/* One refresh repaints every control gated on the entitlement: the plan
+   badge and tray offer, the account cap, the plan card and the preset. */
+window.addEventListener("openlimiter:pro-changed", () => {
+  void paintPlanBadge();
+  if (painted.has("tab-connections")) {
+    void renderPlanCap(elements.planCapMount, { onChange: () => void refresh() });
+  }
+  if (painted.has("tab-settings")) {
+    void renderPro(elements.proMount);
+    void renderSettings(elements.settingsMount);
+  }
 });
 
 window.setInterval(tickDesktopTrial, 60_000);
