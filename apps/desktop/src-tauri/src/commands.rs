@@ -896,9 +896,11 @@ pub(crate) fn complete_attempt_core(
 pub(crate) fn disconnect_core(
     connections: &ConnectionsStore,
     secrets: &impl SecretStore,
+    writer: &CacheWriter,
     input: DisconnectInput,
 ) -> Result<(), CommandFailure> {
     capped_connection_id(&input.connection_id)?;
+    let record = connections.get(&input.connection_id)?;
     /* The secret goes first: a record without a secret is a reconnect away
     from working, a secret without a record is unreachable forever. A secret
     already gone is fine; anything else stops before the record is touched. */
@@ -906,8 +908,44 @@ pub(crate) fn disconnect_core(
         Ok(()) | Err(CredentialError::NotFound) => {}
         Err(error) => return Err(error.into()),
     }
+    crate::native_snapshot::purge_connection_rows(writer, record.provider_id.code(), &record.id)?;
     connections.remove(&input.connection_id)?;
     Ok(())
+}
+
+pub(crate) fn reconcile_plan_core(
+    connections: &ConnectionsStore,
+    writer: &CacheWriter,
+    multi_account: bool,
+    keeper_ids: &[String],
+) -> Result<Vec<ConnectionRecord>, CommandFailure> {
+    let records = connections.apply_plan(multi_account, keeper_ids)?;
+    for record in records.iter().filter(|record| !record.is_active()) {
+        crate::native_snapshot::purge_connection_rows(
+            writer,
+            record.provider_id.code(),
+            &record.id,
+        )?;
+    }
+    Ok(records)
+}
+
+pub(crate) fn set_connection_paused_core(
+    connections: &ConnectionsStore,
+    writer: &CacheWriter,
+    input: PauseConnectionInput,
+    multi_account: bool,
+) -> Result<ConnectionRecord, CommandFailure> {
+    capped_connection_id(&input.connection_id)?;
+    let record = connections.set_user_paused(&input.connection_id, input.paused, multi_account)?;
+    if !record.is_active() {
+        crate::native_snapshot::purge_connection_rows(
+            writer,
+            record.provider_id.code(),
+            &record.id,
+        )?;
+    }
+    Ok(record)
 }
 
 pub(crate) fn update_core(
@@ -1043,9 +1081,10 @@ pub fn collector_status(
 pub async fn disconnect_provider(
     connections: State<'_, ConnectionsStore>,
     secrets: State<'_, KeyringStore>,
+    writer: State<'_, Arc<CacheWriter>>,
     input: DisconnectInput,
 ) -> Result<(), CommandFailure> {
-    disconnect_core(&connections, &*secrets, input)
+    disconnect_core(&connections, &*secrets, writer.inner().as_ref(), input)
 }
 
 #[tauri::command]
@@ -1078,11 +1117,14 @@ pub fn reconcile_connection_plan(
     input: ConnectionPlanInput,
     connections: State<'_, ConnectionsStore>,
     secrets: State<'_, KeyringStore>,
+    writer: State<'_, Arc<CacheWriter>>,
 ) -> Result<Vec<ConnectionRecord>, CommandFailure> {
-    Ok(connections.apply_plan(
+    reconcile_plan_core(
+        &connections,
+        writer.inner().as_ref(),
         crate::pro::multi_account_enabled(&*secrets),
         &input.keeper_ids,
-    )?)
+    )
 }
 
 #[tauri::command]
@@ -1090,13 +1132,14 @@ pub fn set_connection_paused(
     input: PauseConnectionInput,
     connections: State<'_, ConnectionsStore>,
     secrets: State<'_, KeyringStore>,
+    writer: State<'_, Arc<CacheWriter>>,
 ) -> Result<ConnectionRecord, CommandFailure> {
-    capped_connection_id(&input.connection_id)?;
-    Ok(connections.set_user_paused(
-        &input.connection_id,
-        input.paused,
+    set_connection_paused_core(
+        &connections,
+        writer.inner().as_ref(),
+        input,
         crate::pro::multi_account_enabled(&*secrets),
-    )?)
+    )
 }
 
 #[tauri::command]
@@ -1201,6 +1244,36 @@ mod tests {
             ConnectionsStore::at(Some(dir.path().to_path_buf())),
             InMemorySecrets::new(),
         )
+    }
+
+    fn seed_connection_cache(dir: &TempDir, first: &str, second: &str) -> serde_json::Value {
+        let suppression = serde_json::json!({
+            "provider": "OPENROUTER",
+            "accountId": "drift-account",
+            "reason": "drift",
+            "suppressedAt": "2026-09-07T12:27:00.000Z"
+        });
+        let document = serde_json::json!({
+            "version": 2,
+            "snapshots": [
+                { "provider": "OPENROUTER", "accountId": first, "marker": "first" },
+                { "provider": "OPENROUTER", "accountId": second, "marker": "second" },
+                { "provider": "CODEX", "accountId": "other-account", "marker": "other" }
+            ],
+            "suppressions": [suppression]
+        });
+        std::fs::write(
+            dir.path().join(crate::cache_write::CACHE_FILE_NAME),
+            document.to_string(),
+        )
+        .expect("seed cache");
+        document
+    }
+
+    fn cached_document(dir: &TempDir) -> serde_json::Value {
+        let text = std::fs::read_to_string(dir.path().join(crate::cache_write::CACHE_FILE_NAME))
+            .expect("cache");
+        serde_json::from_str(&text).expect("cache document")
     }
 
     /// Models Windows Credential Manager's 2560 byte UTF 16 blob ceiling.
@@ -2540,24 +2613,83 @@ mod tests {
     /* -------------------------------------------------- remaining verbs */
 
     #[test]
-    fn disconnect_removes_the_record_and_the_secret() {
+    fn disconnect_removes_only_that_accounts_cache_rows_record_and_secret() {
         let dir = TempDir::new();
         let (connections, secrets) = stores(&dir);
-        let record = connect_core(&connections, &secrets, connect_input()).expect("connect");
+        let first = connect_core_for_plan(&connections, &secrets, connect_input(), true)
+            .expect("first connection");
+        let mut second_input = connect_input();
+        second_input.account_alias = "second".to_string();
+        let second = connect_core_for_plan(&connections, &secrets, second_input, true)
+            .expect("second connection");
+        let before = seed_connection_cache(&dir, &first.id, &second.id);
+        let writer = CacheWriter::at(Some(dir.path().to_path_buf()));
         disconnect_core(
             &connections,
             &secrets,
+            &writer,
             DisconnectInput {
-                connection_id: record.id.clone(),
+                connection_id: second.id.clone(),
             },
         )
         .expect("disconnect");
-        assert_eq!(connections.list().expect("list").len(), 0);
-        assert_eq!(secrets.stored_count(), 0);
+        assert_eq!(connections.list().expect("list"), vec![first.clone()]);
+        assert_eq!(secrets.stored_count(), 1);
         assert_eq!(
-            secrets.read_secret(&record.id).map(|_| ()),
+            secrets.read_secret(&second.id).map(|_| ()),
             Err(CredentialError::NotFound)
         );
+        let after = cached_document(&dir);
+        assert_eq!(
+            after["snapshots"],
+            serde_json::json!([
+                { "provider": "OPENROUTER", "accountId": first.id, "marker": "first" },
+                { "provider": "CODEX", "accountId": "other-account", "marker": "other" }
+            ])
+        );
+        assert_eq!(after["suppressions"], before["suppressions"]);
+    }
+
+    #[test]
+    fn free_plan_pause_removes_only_that_accounts_cache_rows() {
+        let dir = TempDir::new();
+        let (connections, secrets) = stores(&dir);
+        let first = connect_core_for_plan(&connections, &secrets, connect_input(), true)
+            .expect("first connection");
+        let mut second_input = connect_input();
+        second_input.account_alias = "second".to_string();
+        let second = connect_core_for_plan(&connections, &secrets, second_input, true)
+            .expect("second connection");
+        let before = seed_connection_cache(&dir, &first.id, &second.id);
+        let writer = CacheWriter::at(Some(dir.path().to_path_buf()));
+
+        let records = reconcile_plan_core(
+            &connections,
+            &writer,
+            false,
+            std::slice::from_ref(&first.id),
+        )
+        .expect("free plan reconciliation");
+
+        assert!(records
+            .iter()
+            .find(|record| record.id == first.id)
+            .unwrap()
+            .is_active());
+        assert!(!records
+            .iter()
+            .find(|record| record.id == second.id)
+            .unwrap()
+            .is_active());
+        let after = cached_document(&dir);
+        assert_eq!(
+            after["snapshots"],
+            serde_json::json!([
+                { "provider": "OPENROUTER", "accountId": first.id, "marker": "first" },
+                { "provider": "CODEX", "accountId": "other-account", "marker": "other" }
+            ])
+        );
+        assert_eq!(after["suppressions"], before["suppressions"]);
     }
 
     #[test]
