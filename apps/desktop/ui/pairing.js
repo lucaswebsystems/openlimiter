@@ -34,6 +34,7 @@ import {
   isSettled,
   pairingFailureSentence,
 } from "./pairing-states.js";
+import { lastSeen } from "./pro.js";
 import { qrElement } from "./qr.js";
 
 /** How often the panel asks the server what happened, in milliseconds. */
@@ -114,13 +115,9 @@ function pendingState(panel, session) {
   const countdown = element("p", "pair-countdown", countdownText(session.secondsRemaining));
   countdown.setAttribute("role", "timer");
   panel.append(countdown);
-  panel.append(
-    element(
-      "p",
-      "note tight",
-      "Open the camera and point it at the code, or type the eight characters at openlimiter.com/app/pair.",
-    ),
-  );
+  /* The code above stays: the installed phone app's field types it. A
+     browser tab has no field, so the note only says scan. */
+  panel.append(element("p", "note tight", "Scan with your phone camera."));
   const actions = element("div", "button-row");
   const cancel = button("phone-cancel", "Cancel", null);
   cancel.addEventListener("click", () => void end());
@@ -314,14 +311,7 @@ export async function renderDevices() {
     const row = element("div", "device-row");
     const body = element("span", "device-body");
     body.append(element("strong", null, String(device.name ?? device.id ?? "device")));
-    body.append(
-      element(
-        "span",
-        null,
-        String(device.platform ?? "unknown") +
-          (device.current === true ? ", this device" : ""),
-      ),
-    );
+    body.append(element("span", null, lastSeen(device)));
     row.append(body);
     if (device.current === true) {
       const badge = element("span", "badge", "This device");

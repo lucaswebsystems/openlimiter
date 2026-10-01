@@ -316,20 +316,21 @@ describe("starting a refresh behind a render", () => {
 
   it("hands the operating system a detached refresh and returns", async () => {
     const directory = await temporaryDirectory();
-    const calls: { executable: string; argumentsList: readonly string[] }[] = [];
+    const calls: { executable: string; argumentsList: readonly string[]; cwd: string | undefined }[] = [];
     const result = await spawnDetachedRefresh({
       snapshots: [],
       now: NOW,
       stateDirectory: directory,
       ...spawnOptions,
-      spawn: (executable, argumentsList) => {
-        calls.push({ executable, argumentsList });
+      spawn: (executable, argumentsList, options) => {
+        calls.push({ executable, argumentsList, cwd: options.cwd });
       }
     });
     expect(result).toEqual({ spawned: true });
     expect(calls).toEqual([{
       executable: "/usr/bin/node",
-      argumentsList: ["/opt/openlimiter/bin.js", "refresh", "--detached"]
+      argumentsList: ["/opt/openlimiter/bin.js", "refresh", "--detached"],
+      cwd: directory
     }]);
   });
 

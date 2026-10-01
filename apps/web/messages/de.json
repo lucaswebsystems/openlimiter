@@ -25,12 +25,8 @@
     "refresh": "Aktualisieren",
     "loading": "Deine Limits werden geladen",
     "emptyTitle": "Noch nichts messbar",
-    "emptyHome": "Verbinde ein Tool oder öffne eines, das du schon nutzt, damit es seine Limits meldet.",
     "emptyPanel": "Öffne die App, um ein Tool zu verbinden.",
-    "openConnections": "Verbindungen öffnen",
     "unavailable": "Deine Limits sind gerade nicht verfügbar.",
-    "agentsEmptyTitle": "Keine Agenten aktiv",
-    "agentsEmptyDetail": "Agentensitzungen erscheinen hier, während sie arbeiten.",
     "agentsUnavailable": "Agentenaktivität ist nicht verfügbar",
     "agentName": "Agent",
     "stateWaiting": "Benötigt dich",
@@ -43,8 +39,6 @@
     "runningOne": "1 Agent aktiv",
     "runningMany": "{count} Agenten aktiv",
     "attentionTitle": "Braucht Aufmerksamkeit",
-    "attentionOne": "1 braucht Aufmerksamkeit",
-    "attentionMany": "{count} brauchen Aufmerksamkeit",
     "fixReconnectIssue": "Verbindung verloren",
     "fixReconnectDetail": "Verbinde {name} neu, um die Limits wieder zu sehen.",
     "fixReconnectAction": "Neu verbinden",
@@ -57,15 +51,22 @@
     "fixUnsupportedIssue": "Noch nicht messbar",
     "fixUnsupportedDetail": "OpenLimiter kann {name} noch nicht messen.",
     "fixFailed": "Das hat nicht geklappt. Versuche es gleich noch einmal.",
-    "connected": "Verbunden",
-    "sourceLocal": "Nutzt deine {name} Anmeldung auf diesem Computer",
-    "sourceKey": "Nutzt deinen {name} Schlüssel",
-    "sourceManual": "Nutzt die Zahlen, die du eingegeben hast",
     "addTool": "Tool hinzufügen",
-    "accountsNone": "Schlüssel und Anmeldungen, die du hinzufügst, erscheinen hier. Mit Free bleibt ein Konto pro Anbieter aktiv.",
     "fixToolDetail": "Melde dich auf diesem Computer bei {name} an und prüfe dann erneut.",
+    "fixSignInAgainIssue": "Erneut anmelden",
+    "useClaudeSignIn": "Meine Claude Anmeldung nutzen",
+    "useClaudeSignInTitle": "Nutzt deine lokale Claude Anmeldung, um bei Anthropic deine Limits abzufragen, solange Claude Code geschlossen ist.",
+    "fixWaitingIssue": "Warten auf {name}",
+    "fixWaitingDetail": "Das letzte Fenster wurde zurückgesetzt. Nutze {name} einmal, dann erscheinen die Limits wieder.",
     "meterFallback": "Limit",
-    "cacheUnreadable": "Die gespeicherten Messungen konnten gerade nicht gelesen werden, daher werden nur noch aktuelle Messungen angezeigt."
+    "cacheUnreadable": "Die gespeicherten Messungen konnten gerade nicht gelesen werden, daher werden nur noch aktuelle Messungen angezeigt.",
+    "connect": "Verbinden",
+    "openAntigravity": "Antigravity öffnen",
+    "toolOff": "Aus",
+    "moreFor": "Mehr zu {name}",
+    "showTool": "Anzeigen",
+    "removeTool": "Entfernen",
+    "removeConfirm": "Zum Entfernen erneut drücken"
   },
   "meta": {
     "title": "OpenLimiter, KI Programmierlimits und Agentenaktivität",
@@ -2333,9 +2334,10 @@
     },
     "phoneInstall": {
       "add": "Zum Startbildschirm hinzufügen",
-      "iosOne": "Tippen Sie in der Safari Symbolleiste auf Teilen.",
-      "iosTwo": "Scrollen Sie zu Zum Startbildschirm.",
-      "iosThree": "Tippen Sie auf Hinzufügen. Die App öffnet sich im Vollbild von Ihrem Startbildschirm aus."
+      "androidMenu": "Tippen Sie auf ⋮, dann auf Zum Startbildschirm hinzufügen",
+      "ios": "Zum Startbildschirm",
+      "share": "Teilen",
+      "openSafari": "Zum Installieren in Safari öffnen"
     },
     "pairPage": {
       "retry": "Messungen aktualisieren",
@@ -2388,6 +2390,10 @@
           "title": "Die Kopplung konnte nicht abgeschlossen werden",
           "body": "Der Dienst hat nicht geantwortet. Daher wurde nichts gekoppelt und nichts geändert. Erzeugen Sie am Desktop einen neuen Code und scannen Sie ihn erneut."
         }
+      },
+      "codeEntry": {
+        "label": "Code von Ihrem Computer",
+        "pair": "Koppeln"
       },
       "pairedAs": "Gekoppelt als {label}",
       "openDashboard": "Dashboard öffnen"

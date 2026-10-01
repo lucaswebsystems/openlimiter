@@ -28,6 +28,8 @@ export const MAX_WINDOWS_CREDENTIAL_BYTES = 16_384;
  * refused rather than escaped: there is exactly one target in this product and
  * it is a constant.
  */
+import { windowsSystemTool } from "../windows-system-tool.js";
+
 export const CREDENTIAL_TARGET_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:@\\/-]{0,127}$/u;
 
 export type CredentialCommandRunner = (
@@ -117,8 +119,12 @@ export interface WindowsCredentialOptions {
   readonly timeoutMilliseconds?: number;
 }
 
-/** The executable the helper is run through, named rather than searched for. */
-export const DEFAULT_POWERSHELL_EXECUTABLE = "powershell.exe";
+/** The trusted operating system executable used for credential reads. */
+export const DEFAULT_POWERSHELL_EXECUTABLE = windowsSystemTool(
+  "WindowsPowerShell",
+  "v1.0",
+  "powershell.exe"
+);
 
 /**
  * Read one credential target through the helper.

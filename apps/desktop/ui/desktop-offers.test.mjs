@@ -17,8 +17,9 @@ test("every trial offer keeps its duration and card assurance together without d
     assert.ok(text.includes(assurance));
     assert.doesNotMatch(text, /[-\u2010-\u2015]/u);
   }
-  assert.match(read("./settings.js"), /Sign in to start your free 30 day Pro trial/u);
-  assert.match(read("./settings.js"), /TRIAL_EN.signIn[\s\S]*No credit card needed/u);
+  /* The menu's trial control keeps the duration and its assurance together. */
+  assert.match(read("./settings.js"), /start: "Start your free 30 day Pro trial",\s*free: "No card needed",/u);
+  assert.match(read("./settings.js"), /TRIAL_EN\.start[\s\S]*?TRIAL_EN\.free/u);
   const tray = read("../src-tauri/src/tray.rs");
   assert.ok(tray.includes(`const TRIAL_LABEL: &str = "${offer} (${assurance})";`));
   assert.match(tray, /"trial",\s*TRIAL_LABEL,\s*true,/u);
@@ -29,18 +30,14 @@ test("every trial offer keeps its duration and card assurance together without d
   assert.match(read("./pro.js"), /await proCheckoutUrl\(plan\)/u);
 });
 
-test("the unchanged trademark notice belongs only to Settings About, never the shared footer or Home", () => {
+test("the unchanged trademark notice belongs only to the menu, beside the links, never a footer or the screen", () => {
   const html = read("./index.html");
-  const stack = [];
-  let noticeParents;
-  for (const match of html.matchAll(/<\/?section\b[^>]*>|<details id="trademark-note">/gu)) {
-    if (match[0].startsWith("</")) stack.pop();
-    else if (match[0].startsWith("<section")) stack.push(match[0]);
-    else noticeParents = [...stack];
-  }
-  assert.ok(noticeParents.some((tag) => tag.includes('id="panel-settings"')));
-  assert.ok(noticeParents.some((tag) => tag.includes('aria-labelledby="about-title"')));
-  assert.match(html, /<h2 id="about-title">About<\/h2>/u);
+  const at = html.indexOf('<details id="trademark-note">');
+  assert.ok(html.indexOf('<div id="app-menu"') < at && at < html.indexOf('<div id="phone-popover"'), "in the menu");
+  assert.ok(at > html.indexOf("</main>"), "not on the screen");
+  const links = html.slice(html.indexOf('<nav class="menu-links"'), at);
+  assert.match(links, /href="https:\/\/openlimiter\.com\/en\/privacy"[^>]*>Privacy</u);
+  assert.match(links, /href="https:\/\/openlimiter\.com\/en\/terms"[^>]*>Terms</u);
   assert.equal((html.match(/id="trademark-note"/gu) ?? []).length, 1);
   assert.doesNotMatch(html, /<footer>/u);
   const notice = html.match(/<details id="trademark-note">[\s\S]*?<p>([\s\S]*?)<\/p>/u)[1].replace(/\s+/gu, " ").trim();

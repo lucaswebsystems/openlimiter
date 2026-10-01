@@ -78,13 +78,50 @@ pub(crate) fn reason(row: &Snapshot, now: i64) -> Option<&str> {
     (row_freshness(row, observed as i64, now).2 != "fresh").then_some("stale")
 }
 
+/// A reading Claude Code handed its status line. TypeScript twin: `claudeStatusline`.
+fn claude_statusline(row: &Snapshot) -> bool {
+    let provenance = |key: &str| {
+        row.provenance
+            .as_ref()
+            .and_then(|value| value.get(key))
+            .and_then(serde_json::Value::as_str)
+    };
+    row.provider == "CLAUDE"
+        && provenance("sourceKind") == Some("statusline_payload")
+        && provenance("observedVia") == Some("claude_code_statusline")
+}
+
+/// Freshness is not visibility, for Claude status line rows only.
+///
+/// Claude Code writes them only while it runs, so an idle session would lose
+/// its card after two minutes. A stale row stays displayable (its age shows)
+/// until its window resets; after that the honest answer is waiting for Claude
+/// Code, never a number nobody measured. TypeScript twin: `heldReason`.
+fn held_reason<'a>(row: &Snapshot, reason: Option<&'a str>, now: i64) -> Option<&'a str> {
+    let observed = crate::native_time::epoch_ms_from_rfc3339(&row.observed_at);
+    if reason != Some("stale")
+        || !claude_statusline(row)
+        || !observed.is_some_and(|at| at as i64 <= now)
+    {
+        return reason;
+    }
+    let reset = row
+        .reset_at
+        .as_deref()
+        .and_then(crate::native_time::epoch_ms_from_rfc3339);
+    if reset.is_some_and(|at| now < at as i64) {
+        None
+    } else {
+        Some("awaiting_statusline")
+    }
+}
+
 pub(crate) fn fix_kind(reason: &str) -> &'static str {
     match reason {
         "disabled" => "switch_on",
-        "missing_credentials" => "sign_in",
-        "expired_credentials" | "stale" | "rate_limited" | "network_failure" | "not_measured" => {
-            "open_app"
-        }
+        "missing_credentials" | "account_unresolved" => "sign_in",
+        "expired_credentials" | "stale" | "rate_limited" | "network_failure" | "not_measured"
+        | "awaiting_statusline" => "open_app",
         "quota_unavailable" | "unlimited" | "placeholder" | "schema_drift" => "unsupported",
         _ => "reconnect",
     }
@@ -120,6 +157,9 @@ pub fn project(
     let mut snapshots = Vec::new();
     let mut flags = BTreeMap::new();
     for mut row in rows {
+        if borrowed_from_inactive_gemini(&row, active) {
+            continue;
+        }
         let rejected = if disabled.contains(&row.provider) {
             Some("disabled")
         } else if row.availability.is_some() {
@@ -129,9 +169,15 @@ pub fn project(
                 .as_ref()
                 .is_none_or(|id| !accounts.contains(id))
         }) {
-            Some("account_not_connected")
+            /* An anonymous status line row cannot be attributed, so it is never
+            shown; its fix is a fresh Claude sign in that writes the account down. */
+            if row.account_id.is_none() && claude_statusline(&row) {
+                Some("account_unresolved")
+            } else {
+                Some("account_not_connected")
+            }
         } else {
-            reason(&row, now)
+            held_reason(&row, reason(&row, now), now)
         };
         if let Some(reason) = rejected {
             let flag = ConnectionFlag {
@@ -163,26 +209,73 @@ pub fn project(
     }
 }
 
+/// The active accounts detection vouches for, and the providers switched off.
+pub(crate) fn detected_policy(
+    store: &crate::provider_detection::DetectionStore,
+) -> (ActiveAccounts, BTreeSet<String>) {
+    let mut active = ActiveAccounts::new();
+    let mut disabled = BTreeSet::new();
+    for provider in crate::provider_detection::DetectedProviderId::ALL {
+        let code = provider.slug().to_uppercase().replace('-', "_");
+        active.insert(
+            code.clone(),
+            store.display_account_ids(provider).into_iter().collect(),
+        );
+        if !store.switches.enabled(provider) {
+            disabled.insert(code);
+        }
+    }
+    (active, disabled)
+}
+
+/// Identities a reading may legitimately carry without a detected login.
+///
+/// The Antigravity local probe needs no credential, and files its rows under
+/// the provider singleton whenever no Antigravity login or connection is known
+/// (`antigravity_oauth::run_pass`), so that identity is accepted exactly then.
+/// The Gemini fallback files the shared Code Assist pool under the Gemini
+/// login each reading was taken for, legitimate exactly while that login is.
+pub(crate) fn register_local_identities(active: &mut ActiveAccounts, disabled: &BTreeSet<String>) {
+    use crate::provider_detection::{provider_singleton_account_id, DetectedProviderId};
+    if disabled.contains("ANTIGRAVITY") {
+        return;
+    }
+    let gemini = if disabled.contains("GEMINI_CLI") {
+        BTreeSet::new()
+    } else {
+        active.get("GEMINI_CLI").cloned().unwrap_or_default()
+    };
+    let accounts = active.entry("ANTIGRAVITY".into()).or_default();
+    if accounts.is_empty() {
+        accounts.insert(provider_singleton_account_id(DetectedProviderId::Antigravity));
+    }
+    accounts.extend(gemini);
+}
+
+/// An Antigravity row borrowed from a Gemini login (`gemini-cli-` is that
+/// provider's account id prefix, and 2.0.2 and the terminal build use
+/// `gemini-cli-shared`, which names no login). One whose login is not active
+/// is dropped without a flag: the Gemini row already offers the fix for its
+/// own login, and Antigravity's reconnect would be the wrong one.
+fn borrowed_from_inactive_gemini(row: &Snapshot, active: &ActiveAccounts) -> bool {
+    row.provider == "ANTIGRAVITY"
+        && row.account_id.as_deref().is_some_and(|id| {
+            id.starts_with("gemini-cli-")
+                && active
+                    .get("ANTIGRAVITY")
+                    .is_some_and(|accounts| !accounts.contains(id))
+        })
+}
+
 pub fn for_app<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     rows: Vec<Snapshot>,
     now: i64,
 ) -> Projection {
-    use crate::provider_detection::DetectedProviderId;
-    let mut active = ActiveAccounts::new();
-    let mut disabled = BTreeSet::new();
-    if let Some(store) = app.try_state::<crate::provider_detection::DetectionStore>() {
-        for provider in DetectedProviderId::ALL {
-            let code = provider.slug().to_uppercase().replace('-', "_");
-            active.insert(
-                code.clone(),
-                store.display_account_ids(provider).into_iter().collect(),
-            );
-            if !store.switches.enabled(provider) {
-                disabled.insert(code);
-            }
-        }
-    }
+    let (mut active, disabled) = app
+        .try_state::<crate::provider_detection::DetectionStore>()
+        .map(|store| detected_policy(&store))
+        .unwrap_or_default();
     if let Some(store) = app.try_state::<crate::connections::ConnectionsStore>() {
         for connection in store
             .list()
@@ -204,6 +297,7 @@ pub fn for_app<R: tauri::Runtime>(
             }
         }
     }
+    register_local_identities(&mut active, &disabled);
     let mut result = project(rows, now, &active, &disabled);
     if let Some(store) = app.try_state::<crate::provider_detection::DetectionStore>() {
         for provider in store.report().providers {
@@ -316,6 +410,97 @@ mod tests {
         assert_eq!(fix_kind("missing_credentials"), "sign_in");
         assert_eq!(fix_kind("placeholder"), "unsupported");
     }
+    /// The TypeScript twin of these cases is
+    /// `packages/core/test/data-rules.test.ts`, "Claude status line rows".
+    fn statusline(account: Option<&str>) -> Snapshot {
+        serde_json::from_value(serde_json::json!({
+            "provider": "CLAUDE", "meter": "FIVE_HOUR", "accountId": account,
+            "value": 37, "unit": "PERCENT", "kind": "quota_percent",
+            "window": { "kind": "rolling", "durationSeconds": 18000 },
+            "resetAt": "2026-09-29T14:00:00.000Z",
+            "source": "native_payload", "precision": "exact",
+            "observedAt": "2026-09-29T12:00:00.000Z", "expiresAt": "2026-09-29T12:01:00.000Z",
+            "provenance": { "sourceKind": "statusline_payload", "observedVia": "claude_code_statusline" },
+            "labels": { "credentialOrigin": "official-local-tool", "dataInterfaceStatus": "native-statusline-payload", "automationRisk": "low", "verification": "UNVERIFIED" }
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn an_idle_claude_status_line_keeps_its_reading_until_reset_then_waits() {
+        let observed =
+            crate::native_time::epoch_ms_from_rfc3339("2026-09-29T12:00:00.000Z").unwrap() as i64;
+        let minutes = |count: i64| observed + count * 60_000;
+        let active = BTreeMap::from([("CLAUDE".into(), BTreeSet::from(["fixture-a".into()]))]);
+        let held = project(
+            vec![statusline(Some("fixture-a"))],
+            minutes(45),
+            &active,
+            &BTreeSet::new(),
+        );
+        assert!(held.flags.is_empty());
+        assert_eq!(held.snapshots.len(), 1);
+        assert_eq!(held.snapshots[0].value, 37.0);
+        assert_eq!(held.snapshots[0].expires_at, "2026-09-29T12:02:12.000Z");
+        let waiting = project(
+            vec![statusline(Some("fixture-a"))],
+            minutes(121),
+            &active,
+            &BTreeSet::new(),
+        );
+        assert!(waiting.snapshots.is_empty());
+        assert_eq!(waiting.flags[0].reason, "awaiting_statusline");
+        assert_eq!(waiting.flags[0].fix_kind, "open_app");
+        let mut unknown_reset = statusline(Some("fixture-a"));
+        unknown_reset.reset_at = None;
+        assert_eq!(
+            project(vec![unknown_reset], minutes(5), &active, &BTreeSet::new()).flags[0].reason,
+            "awaiting_statusline"
+        );
+        /* Every other source keeps its own expiry. */
+        let mut codex = statusline(None);
+        codex.provider = "CODEX".into();
+        let mut polled = statusline(Some("fixture-a"));
+        polled.provenance = Some(serde_json::json!({ "sourceKind": "remote_api", "observedVia": "local_event" }));
+        polled.source = "internal_payload".into();
+        let mut antigravity = statusline(None);
+        antigravity.provider = "ANTIGRAVITY".into();
+        antigravity.provenance = Some(serde_json::json!({ "sourceKind": "statusline_payload", "observedVia": "local_command" }));
+        let others = project(vec![codex, polled, antigravity], minutes(45), &active, &BTreeSet::new());
+        assert!(others.snapshots.is_empty());
+        assert!(others.flags.iter().all(|flag| flag.reason == "stale"));
+        assert_eq!(others.flags.len(), 3);
+    }
+
+    #[test]
+    fn an_anonymous_claude_status_line_row_asks_to_sign_in_again() {
+        let now =
+            crate::native_time::epoch_ms_from_rfc3339("2026-09-29T12:00:00.000Z").unwrap() as i64;
+        let free = BTreeMap::from([("CLAUDE".into(), BTreeSet::from(["fixture-a".into()]))]);
+        let rows = vec![
+            statusline(Some("fixture-a")),
+            statusline(Some("fixture-b")),
+            statusline(None),
+        ];
+        let projection = project(rows.clone(), now, &free, &BTreeSet::new());
+        assert_eq!(projection.snapshots.len(), 1);
+        let reasons: Vec<_> = projection
+            .flags
+            .iter()
+            .map(|flag| (flag.reason.as_str(), flag.fix_kind))
+            .collect();
+        assert!(reasons.contains(&("account_unresolved", "sign_in")));
+        assert!(reasons.contains(&("account_not_connected", "reconnect")));
+        let pro = BTreeMap::from([(
+            "CLAUDE".into(),
+            BTreeSet::from(["fixture-a".into(), "fixture-b".into()]),
+        )]);
+        let projection = project(rows, now, &pro, &BTreeSet::new());
+        assert_eq!(projection.snapshots.len(), 2);
+        assert_eq!(projection.flags.len(), 1);
+        assert_eq!(projection.flags[0].reason, "account_unresolved");
+    }
+
     #[test]
     fn all_provider_cadences_match_typescript() {
         for provider in [

@@ -1,7 +1,12 @@
 import { lstat, readFile, mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { connectors } from "@openlimiter/connectors";
-import { type CredentialCommandRunner, writeFileAtomically } from "@openlimiter/core";
+import {
+  type CredentialCommandRunner,
+  windowsPathTool,
+  windowsSystemTool,
+  writeFileAtomically
+} from "@openlimiter/core";
 import {
   DEFAULT_PROVIDERS,
   DEFAULT_STATUSLINE,
@@ -16,11 +21,12 @@ import {
 } from "./statusline-wrapper.js";
 
 import { PROVIDER_SHORT_TAGS } from "./statusline.js";
+import { MONEY_TAGS } from "./api-spend.js";
 
-import { parseToml, editToml, tomlValue } from "./terminal-toml.js";
+import { parseToml, editToml, restoreToml, tomlValue } from "./terminal-toml.js";
 import { installLauncher } from "./terminal-launcher.js";
 import { fallbackLauncherCommand, type FallbackLauncherOptions } from "./terminal-fallback.js";
-import { isOwned, originalConfiguration, readOptional, restoreOwned, writeOwned } from "./terminal-backup.js";
+import { classifyInstallOwnership, driftedOriginal, isOwned, originalConfiguration, readOptional, restoreOwned, writeDriftedOwned, writeOwned } from "./terminal-backup.js";
 
 export const TERMINAL_HOST_NAMES: readonly string[] = [
   "claude",
@@ -237,6 +243,22 @@ function ownedMarker(text: string, json: boolean): boolean {
     : text.split(/\r?\n/).some(line => line.trim() === "# openlimiter managed");
 }
 
+/** Whether the status line currently in the file is one OpenLimiter wrote (any launcher generation). */
+function statusLineIsOurs(host: ConfigHost, json: boolean, text: string): boolean {
+  try {
+    if (json) {
+      const command = claudeLikeStatusLineCommand((JSON.parse(text) as Record<string, unknown>)["statusLine"]);
+      return command !== null && isOpenLimiterStatuslineCommand(command);
+    }
+    if (host === "codex") {
+      return tomlValue(text, ["tui", "status_line_use_colors"]) === true &&
+        JSON.stringify(tomlValue(text, ["tui", "status_line"])) === JSON.stringify(CODEX_ITEMS);
+    }
+    const command = tomlValue(text, ["ui", "status_line", "command"]);
+    return tomlValue(text, ["ui", "status_line", "type"]) === "command" && typeof command === "string" && isOpenLimiterStatuslineCommand(command);
+  } catch { return false; }
+}
+
 async function changeConfigHost(host: ConfigHost, context: TerminalHostContext, install: boolean): Promise<TerminalOperationResult> {
   const spec = HOST_CONFIG[host];
   let file: string;
@@ -252,35 +274,107 @@ async function changeConfigHost(host: ConfigHost, context: TerminalHostContext, 
   if (read.kind === "parse_error") return { ok: false, message: `Could not read ${file}, fix it or move it aside` };
   try {
     const original = await readOptional(file);
-    const firstConfiguration = await originalConfiguration(file, original);
     const text = original ?? (spec.json ? "{}" : "");
     const marker = ownedMarker(text, spec.json);
-    if (!install) {
-      const restored = original !== null && await restoreOwned(file, original, marker);
-      if (marker && !restored) return { ok: false, message: `Could not update ${file}.` };
-      return { ok: true, message: restored ? `Uninstalled ${spec.label} status line.` : `${spec.label} status line is not installed.` };
-    }
-    const previous: string | null = spec.json
-      ? claudeLikeStatusLineCommand((JSON.parse(text) as Record<string, unknown>)["statusLine"])
-      : host === "grok"
-        ? (() => {
-          const value = tomlValue(text, ["ui", "status_line", "command"]);
-          return typeof value === "string" ? value : null;
-        })()
-        : null;
-    const legacyOpenLimiter = previous !== null && isOpenLimiterStatuslineCommand(previous);
-    const owned = original !== null && await isOwned(file, original, marker);
-    if (marker && !owned && !legacyOpenLimiter) return { ok: false, message: `Could not write ${file}.` };
 
-    const savedText = firstConfiguration ?? (spec.json ? "{}" : "");
+    // ── Uninstall path ────────────────────────────────────────────────────
+    if (!install) {
+      if (original === null) {
+        return { ok: true, message: `${spec.label} status line is not installed.` };
+      }
+
+      // Check whether the host has edited the file since we installed, now or
+      // before a reinstall. Either way the original bytes predate those edits.
+      const firstConfiguration = await driftedOriginal(file, original);
+
+      if (firstConfiguration !== undefined) {
+        // If drift exists but our marker is gone, the file was replaced
+        // entirely by someone else. Refuse — same contract as the P2 test
+        // "refuses changed settings even when the marker was removed".
+        if (!marker || !statusLineIsOurs(host, spec.json, original)) {
+          return { ok: false, message: `The status line in ${file} was replaced by something that is not OpenLimiter` };
+        }
+        // Host edited the file but kept our marker. Patch the current content
+        // instead of restoring exact bytes: restore the original statusLine
+        // value (or remove it), strip our marker, keep every other key.
+        let driftedContent: string;
+        if (spec.json) {
+          const data = JSON.parse(original) as Record<string, unknown>;
+          const restoredOriginalData = firstConfiguration !== null
+            ? JSON.parse(firstConfiguration) as Record<string, unknown>
+            : null;
+          if (restoredOriginalData !== null && "statusLine" in restoredOriginalData) {
+            data["statusLine"] = restoredOriginalData["statusLine"];
+          } else {
+            delete data["statusLine"];
+          }
+          delete data["openlimiter managed"];
+          driftedContent = JSON.stringify(data, null, 2) + "\n";
+        } else if (host === "grok") {
+          driftedContent = restoreToml(original, firstConfiguration ?? "", ["ui", "status_line"], ["type", "command"]);
+        } else {
+          driftedContent = restoreToml(original, firstConfiguration ?? "", ["tui"], ["status_line", "status_line_use_colors"]);
+        }
+
+        const restoreResult = await restoreOwned(file, original, marker, driftedContent);
+        if (restoreResult.kind === "not_owned") {
+          return { ok: true, message: `${spec.label} status line is not installed.` };
+        }
+        if (restoreResult.kind === "concurrent_change") {
+          return { ok: false, message: `The file ${restoreResult.path} changed during the operation, try again` };
+        }
+        return { ok: true, message: `Uninstalled ${spec.label} status line.` };
+      }
+
+      // No drift: standard restore of exact bytes.
+      const restoreResult = await restoreOwned(file, original, marker);
+      if (restoreResult.kind === "not_owned") {
+        if (marker) {
+          return { ok: false, message: `The status line in ${file} was replaced by something that is not OpenLimiter` };
+        }
+        return { ok: true, message: `${spec.label} status line is not installed.` };
+      }
+      if (restoreResult.kind === "concurrent_change") {
+        return { ok: false, message: `The file ${restoreResult.path} changed during the operation, try again` };
+      }
+      return { ok: true, message: `Uninstalled ${spec.label} status line.` };
+    }
+
+    // ── Install path ──────────────────────────────────────────────────────
+    const legacyOpenLimiter = statusLineIsOurs(host, spec.json, text);
+    if (marker && !legacyOpenLimiter) return { ok: false, message: `The status line in ${file} was replaced by something that is not OpenLimiter` };
+
+    const ownership = await classifyInstallOwnership(file, original, marker, legacyOpenLimiter);
+
+    if (ownership.kind === "replaced_by_other") {
+      return { ok: false, message: `The status line in ${file} was replaced by something that is not OpenLimiter` };
+    }
+
+    const isDrifted = ownership.kind === "drifted";
+
+    // Use backup.original (the pre-install snapshot) to recover the user's
+    // original command so wrap logic works correctly on reinstall. In the
+    // "unowned" case there is no backup yet, so current content is the original.
+    const firstConfigurationText: string = (() => {
+      if (ownership.kind === "owned" || ownership.kind === "drifted") {
+        return ownership.original ?? (spec.json ? "{}" : "");
+      }
+      return original ?? (spec.json ? "{}" : "");
+    })();
+
     const savedCommand = spec.json
-      ? claudeLikeStatusLineCommand((JSON.parse(savedText) as Record<string, unknown>)["statusLine"])
-      : host === "grok" ? grokStatusLineCommand(savedText) : null;
+      ? claudeLikeStatusLineCommand((JSON.parse(firstConfigurationText) as Record<string, unknown>)["statusLine"])
+      : host === "grok" ? grokStatusLineCommand(firstConfigurationText) : null;
     const userCommand = savedCommand === null ? null : unwrapOpenLimiterStatuslineCommand(savedCommand);
-    const replaced = !owned && (userCommand !== null || (host === "codex" && tomlValue(savedText, ["tui", "status_line"]) !== undefined));
+    const replaced = ownership.kind === "unowned" && (
+      userCommand !== null ||
+      (host === "codex" && tomlValue(firstConfigurationText, ["tui", "status_line"]) !== undefined)
+    );
     const message = replaced
       ? `Your previous ${spec.label} status line is stored, and openlimiter terminal uninstall ${host} restores it.`
       : spec.wired;
+
+    // Build updated content from current text so the host's edits are preserved.
     let updated: string;
     if (spec.json) {
       const data = JSON.parse(text) as Record<string, unknown>;
@@ -303,12 +397,23 @@ async function changeConfigHost(host: ConfigHost, context: TerminalHostContext, 
         (context.wrap && typeof userCommand === "string" ? ` --wrap ${encodeWrappedStatuslineCommand(userCommand)}` : "");
       updated = editToml(text, ["ui", "status_line"], { type: "command", command });
     }
-    if (owned && updated === text) return { ok: true, message: spec.wired };
+
     await mkdir(path.dirname(file), { recursive: true });
-    await writeOwned(file, original, updated);
+    if (isDrifted) {
+      // Preserve backup.original; update backup.installed to the new content.
+      // writeDriftedOwned handles the case where updated === current gracefully
+      // (updates backup but skips the file write).
+      await writeDriftedOwned(file, original, updated);
+    } else {
+      // writeOwned re-reads the file under the lock. When updated === text it
+      // returns early (no write needed) but still validates the concurrency
+      // guard so a concurrent change is detected and refused.
+      await writeOwned(file, original, updated);
+    }
     return { ok: true, message };
-  } catch {
-    return { ok: false, message: `Could not ${install ? "write" : "update"} ${file}.` };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    return { ok: false, message: `Could not ${install ? "write" : "update"} ${file}: ${msg}` };
   }
 }
 
@@ -352,7 +457,11 @@ async function shellTarget(context: TerminalHostContext): Promise<{ kind: ShellK
       "$p = Get-CimInstance Win32_Process -Filter ('ProcessId=' + $ancestorId); " +
       "if ($p.Name -match '^(pwsh|powershell|bash|zsh)(\\.exe)?$') { $p.ExecutablePath; break }; " +
       "$ancestorId = $p.ParentProcessId }";
-    const found = await context.shellRunner("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", query], POWERSHELL_PROFILE_TIMEOUT_MILLISECONDS);
+    const found = await context.shellRunner(
+      windowsSystemTool("WindowsPowerShell", "v1.0", "powershell.exe", env),
+      ["-NoProfile", "-NonInteractive", "-Command", query],
+      POWERSHELL_PROFILE_TIMEOUT_MILLISECONDS
+    );
     if (found.ok) executable = found.stdout.trim();
   }
   const name = path.basename(executable).toLowerCase();
@@ -363,6 +472,15 @@ async function shellTarget(context: TerminalHostContext): Promise<{ kind: ShellK
     return { kind: "zsh", file: path.join(env["ZDOTDIR"] || context.homeDirectory, ".zshrc") };
   }
   if (name === "pwsh" || name === "pwsh.exe" || name === "powershell" || name === "powershell.exe") {
+    if (context.platform === "win32" && !path.win32.isAbsolute(executable)) {
+      const program = name.endsWith(".exe") ? name : `${name}.exe`;
+      executable = await windowsPathTool(program, env) ?? windowsSystemTool(
+        "WindowsPowerShell",
+        "v1.0",
+        "powershell.exe",
+        env
+      );
+    }
     return { kind: "powershell", file: await resolvePowerShellProfilePath(executable, context.shellRunner) };
   }
   if (name !== "") throw new UnsupportedShellError(name);
@@ -502,11 +620,14 @@ export async function uninstallShell(context: TerminalHostContext): Promise<Term
   try {
     const target = await shellTarget(context);
     const original = await readOptional(target.file);
+    // originalConfiguration is used here only to validate that no unexpected
+    // state exists; the shell profile does not drift the same way config hosts do.
     await originalConfiguration(target.file, original);
     if (original !== null) {
       const marker = ownedMarker(original, false);
-      const restored = await restoreOwned(target.file, original, marker);
-      if (marker && !restored) return { ok: false, message: `Could not update ${target.file}.` };
+      const result = await restoreOwned(target.file, original, marker);
+      if (result.kind === "concurrent_change") return { ok: false, message: `The file ${result.path} changed during the operation, try again` };
+      if (marker && result.kind === "not_owned") return { ok: false, message: `Could not update ${target.file}.` };
     }
     return { ok: true, message: "Uninstalled shell prompt integration." };
   } catch {
@@ -703,11 +824,20 @@ export async function terminalStatusTable(
     rows.push(`${name}: ${status}`);
   }
   const { statusline } = await loadTerminalConfig(context);
-  const visible = (id: string): boolean => statusline.visibility?.[id] ??
-    (TERMINAL_SEGMENTS.includes(id as typeof TERMINAL_SEGMENTS[number]) ||
+  // "dir" is opt-in since 2.0.2: only shown when visibility.dir === true.
+  const visible = (id: string): boolean => {
+    const explicit = statusline.visibility?.[id];
+    if (explicit !== undefined) return explicit;
+    if (id === "dir") return false;
+    return (
+      TERMINAL_SEGMENTS.includes(id as typeof TERMINAL_SEGMENTS[number]) ||
       statusline.show.length === 0 && statusline.showMode !== "explicit" ||
-      statusline.show.includes(id) || statusline.show.includes(PROVIDER_SHORT_TAGS[id.toUpperCase() as keyof typeof PROVIDER_SHORT_TAGS]));
-  const ids = [...TERMINAL_SEGMENTS, ...Object.keys(PROVIDER_SHORT_TAGS).map((id) => id.toLowerCase())];
+      statusline.show.includes(id) ||
+      statusline.show.includes(PROVIDER_SHORT_TAGS[id.toUpperCase() as keyof typeof PROVIDER_SHORT_TAGS]) ||
+      statusline.show.includes(MONEY_TAGS[id] ?? "")
+    );
+  };
+  const ids = [...TERMINAL_SEGMENTS, ...Object.keys(PROVIDER_SHORT_TAGS).map((id) => id.toLowerCase()), ...Object.keys(MONEY_TAGS)];
   rows.push(TERMINAL_VISIBILITY_TEXT.shown + (ids.filter(visible).join(", ") || "none"));
   rows.push(TERMINAL_VISIBILITY_TEXT.hidden + (ids.filter((id) => !visible(id)).join(", ") || "none"));
   rows.push(TERMINAL_VISIBILITY_TEXT.automatic);
@@ -746,6 +876,7 @@ async function terminalVisibility(
 ): Promise<TerminalOperationResult> {
   const aliases = new Map(Object.entries(PROVIDER_SHORT_TAGS).flatMap(([provider, tag]) =>
     [[provider.toLowerCase(), provider.toLowerCase()], [tag, provider.toLowerCase()]]));
+  for (const [name, tag] of Object.entries(MONEY_TAGS)) aliases.set(name, name).set(tag, name);
   const resolved = ids.map((id) => aliases.get(id.toLowerCase()) ?? id.toLowerCase());
   const known = new Set<string>([...TERMINAL_SEGMENTS, ...aliases.values()]);
   if (resolved.length === 0 || resolved.some((id) => !known.has(id))) {

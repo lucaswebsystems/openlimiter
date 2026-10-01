@@ -3,60 +3,52 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { trialDaysRemaining, trialSentence } from "./pro.js";
-import { ALERTS_EN, quietSentence } from "./settings.js";
+import { ALERTS_EN, CLAUDE_POLL_EN, quietOn } from "./settings.js";
 import { shouldNotifyLocally, shouldSendRemote, thresholdDedupeKey } from "../../../packages/core/dist/contracts/notify.js";
 
 const read = (name) => readFileSync(new URL("./" + name, import.meta.url), "utf8");
 
-test("the bell distinguishes free desktop alerts from Pro phone push and email", () => {
+test("the header is refresh, the phone and the menu, with no bell and no tab bar", () => {
   const html = read("index.html");
-  const gate = html.slice(
-    html.indexOf('id="notification-gate"'),
-    html.indexOf('id="notification-events"'),
-  );
-  assert.match(gate, /Desktop alerts stay free/u);
-  assert.match(gate, /id="notification-upgrade"[^>]*>Upgrade to Pro</u);
-  assert.match(gate, /with or without an account/u);
-  assert.match(gate, /Phone push and email are Pro/u);
+  const header = html.slice(html.indexOf('<header class="strip">'), html.indexOf("</header>"));
+  assert.deepEqual([...header.matchAll(/<button[^>]*\bid="([^"]+)"/gu)].map((match) => match[1]), ["home-refresh", "phone-button", "menu-button"]);
+  assert.doesNotMatch(html, /notification-bell|notification-popover|class="tabs"/u);
 });
 
-test("the local gate grants OS permission access without consulting a subscription", () => {
-  const html = read("index.html");
+test("desktop alerts are free: the native gate never consults a subscription", () => {
   const app = read("app.js");
-  assert.match(html, /id="notification-gate" class="notification-gate" hidden/u);
   assert.match(app, /const result = await notificationGate\(\);/u);
-  assert.match(app, /elements\.notificationGate\.hidden = entitled;/u);
   const rust = readFileSync(new URL("../src-tauri/src/notifications.rs", import.meta.url), "utf8");
   assert.match(rust, /pub fn notification_gate\(\) -> NotificationGate\s*\{\s*NotificationGate \{ entitled: true \}/u);
   assert.doesNotMatch(rust, /crate::pro::|KeyringStore/u);
 });
 
-test("the operating system is asked for alerts only where one could fire", () => {
-  // The native gate is free; an unavailable backend still cannot raise a toast.
+test("the operating system is asked for alerts once, when the menu with the Alerts switch opens", () => {
   const app = read("app.js");
-  assert.match(app, /if \(!entitled \|\| permissionAsked\) return;/u);
-  assert.match(app, /permissionAsked = true;\s*const outcome = await requestAlertPermission\(\)/u);
-  /* And it is not asked during first run any more. */
+  assert.match(app, /if \(!entitled \|\| permissionAsked\) return;\s*permissionAsked = true;\s*await requestAlertPermission\(\)/u);
+  assert.match(app, /panel: elements\.menu, button: elements\.menuButton, onOpen\(\) \{[\s\S]*?void askAlertPermission\(\);/u);
+  /* And it is not asked during first run. */
   assert.equal(read("first-run.js").includes("showPermission"), false);
   assert.equal(read("index.html").includes("first-run-permission"), false);
 });
 
-test("Settings names local controls and catalogs the Free and Pro boundary", () => {
+test("the menu names its controls in short labels, and keeps the Claude poll's one sentence", () => {
   const settings = read("settings.js");
   const html = read("index.html");
   for (const key of Object.keys(ALERTS_EN)) {
-    if (["localFreeTitle", "signInLead"].includes(key)) {
+    if (key === "signInLead") {
       assert.ok(html.includes(`data-i18n="alerts.${key}">${ALERTS_EN[key]}<`), key);
     } else {
       assert.ok(settings.includes(`ALERTS_EN.${key}`), key);
+      assert.ok(ALERTS_EN[key].split(" ").length <= 5, key);
     }
     assert.doesNotMatch(ALERTS_EN[key], /[-\u2010-\u2015]/u);
   }
-  assert.match(ALERTS_EN.localFree, /with or without an account\. Phone push and email are Pro/u);
-  assert.match(quietSentence({ quietStart: "22:00", quietEnd: "07:00", timeZone: "UTC" }), /^Desktop alerts are held/u);
-  assert.equal(ALERTS_EN.channelOn, "Desktop alerts on");
-  assert.equal(ALERTS_EN.channelOff, "Desktop alerts off");
-  assert.match(read("app.js"), /title\.textContent = ALERTS_EN\.localFreeTitle/u);
+  assert.equal(CLAUDE_POLL_EN.note, "Uses your local Claude sign in to ask Anthropic for your limits while Claude Code is closed.");
+  /* Contract 5.2: equal times are no quiet period, so the switch is the truth. */
+  assert.equal(quietOn({ quietStart: "22:00", quietEnd: "07:00" }), true);
+  assert.equal(quietOn({ quietStart: "00:00", quietEnd: "00:00" }), false);
+  assert.equal(quietOn({}), false);
 });
 
 const now = Date.parse("2026-09-01T10:00:00Z");
@@ -115,8 +107,14 @@ test("the client never starts a trial and never assembles a price", () => {
 
 test("a completed purchase shows up when the window comes back into focus", () => {
   const app = read("app.js");
-  assert.match(app, /window\.addEventListener\("focus"/u);
-  assert.match(app, /void proRefresh\(\)\.then\(\(\) => \{\s*void paintPlanBadge\(\);/u);
+  assert.match(app, /window\.addEventListener\("focus", \(\) => \{[^}]*void refreshEntitlement\(\);/u);
+  /* One signal repaints every control gated on the entitlement. */
+  assert.match(
+    app,
+    /window\.addEventListener\("openlimiter:pro-changed", \(\) => \{[\s\S]*?readPlan\(\)[\s\S]*?mountPlanCap\(\)[\s\S]*?renderPro\([\s\S]*?renderSettings\(/u,
+  );
+  /* The tray trial offer reads the validated status. */
+  assert.match(app, /const entitled = proEntitled\(pro\);\s*trialOffered = !entitled;/u);
 });
 
 test("the trial says how many days are left, from the service instant", () => {
@@ -150,10 +148,7 @@ test("no copy added to the alert and billing surfaces carries a dash", () => {
   ]) {
     assert.equal(dashes.test(sentence), false, sentence);
   }
-  const gate = read("index.html");
-  const block = gate.slice(
-    gate.indexOf('<strong id="notification-gate-title"'),
-    gate.indexOf('id="notification-upgrade"'),
-  );
-  assert.equal(dashes.test(block.replaceAll(/<[^>]*>/gu, "")), false, block);
+  const html = read("index.html");
+  const menu = html.slice(html.indexOf('<div id="app-menu"'), html.indexOf('<details id="trademark-note"'));
+  assert.equal(dashes.test(menu.replaceAll(/<[^>]*>/gu, "")), false, menu);
 });

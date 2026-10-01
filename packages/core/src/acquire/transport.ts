@@ -295,7 +295,10 @@ export const ACQUISITION_OUTCOMES = [
   "transport",
   "too_large",
   "drift",
-  "identity_refused"
+  "identity_refused",
+  /* The provider's own app, the only thing that could answer, is closed. An
+     availability state, not drift: nothing answered in an unknown shape. */
+  "not_running"
 ] as const;
 
 export type AcquisitionOutcome = (typeof ACQUISITION_OUTCOMES)[number];

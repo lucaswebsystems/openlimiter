@@ -4,11 +4,15 @@ import {
   MANUAL_FILE_NAME,
   parseGrokPayload
 } from "@openlimiter/connectors";
+import { unlink } from "node:fs/promises";
 import {
+  canonicalJson,
+  errorClassOf,
   mergeSnapshotCache,
   antigravityMeter,
   readJsonFileSafely,
   resolveStateDirectory,
+  writeFileAtomically,
   type CacheMergeResult,
   type RawMeter,
   type Snapshot,
@@ -351,6 +355,52 @@ export async function environmentWithLocalMarkers(
     delete resolved[MANUAL_FILE_MARKER];
   }
   return resolved;
+}
+
+/** The file that remembers the last status line write that failed, for doctor. */
+export const STATUSLINE_FAILURE_NAME = "openlimiter-statusline-failure.json";
+
+/**
+ * Which write failed: reading the payload, the cache, or the agent context
+ * export that follows a cache write.
+ */
+export const STATUSLINE_FAILURE_STAGES = ["ingest", "cache_write", "agent_context"] as const;
+export type StatuslineFailureStage = (typeof STATUSLINE_FAILURE_STAGES)[number];
+
+export interface StatuslineFailure {
+  readonly at: string;
+  readonly stage: StatuslineFailureStage;
+  /** A code, never the message: a message can carry a path or a token. */
+  readonly errorClass: string;
+}
+
+/**
+ * Remember a status line write that failed. The status line itself must still
+ * draw, so nobody is told at the time; doctor reads it back. Best effort,
+ * because a machine that cannot write its cache may not write this either.
+ */
+export async function recordStatuslineFailure(directory: string | undefined, now: string, stage: StatuslineFailureStage, error: unknown): Promise<void> {
+  await writeFileAtomically(
+    path.join(directory ?? resolveStateDirectory(), STATUSLINE_FAILURE_NAME),
+    canonicalJson({ at: now, errorClass: errorClassOf(error), stage, version: 1 })
+  ).catch(() => undefined);
+}
+
+/** The last status line write failure, if one is still on record. */
+export async function readStatuslineFailure(directory: string | undefined): Promise<StatuslineFailure | null> {
+  const document = await readJsonFileSafely(path.join(directory ?? resolveStateDirectory(), STATUSLINE_FAILURE_NAME), 4_096);
+  if (!document.ok || typeof document.value !== "object" || document.value === null) return null;
+  const { at, stage, errorClass } = document.value as Record<string, unknown>;
+  return typeof at === "string" && Number.isFinite(Date.parse(at)) &&
+    (STATUSLINE_FAILURE_STAGES as readonly unknown[]).includes(stage) &&
+    typeof errorClass === "string" && /^[A-Za-z][A-Za-z0-9_]{0,31}$/u.test(errorClass)
+    ? { at, stage: stage as StatuslineFailureStage, errorClass }
+    : null;
+}
+
+/** Forget it, which a status line write that fully succeeded is the proof of. */
+export async function clearStatuslineFailure(directory: string | undefined): Promise<void> {
+  await unlink(path.join(directory ?? resolveStateDirectory(), STATUSLINE_FAILURE_NAME)).catch(() => undefined);
 }
 
 /**

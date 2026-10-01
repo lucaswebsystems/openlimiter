@@ -16,6 +16,7 @@ use crate::credentials::{
     mask_label, parse_codex_session_v1, read_codex_cli_secret_in_home, valid_codex_account_id,
     valid_codex_token, CodexCredentialError, CredentialError, KeyringStore, SecretStore, MASK_DOTS,
 };
+use crate::native_readers::parse_body;
 use crate::net::{fetch_endpoint, NetError, ReqwestTransport, Transport};
 use crate::provider_detection::{DetectionReport, DetectionStore};
 use crate::reader_registry::{reader_route, CredentialKind, ProviderId, ReaderId, RouteError};
@@ -25,9 +26,10 @@ use crate::reader_registry::{reader_route, CredentialKind, ProviderId, ReaderId,
 /// sentence per variant, so nothing dynamic can ride an error into the
 /// webview or a log.
 ///
-/// A secret is accepted by exactly one command, `connect_provider`, and is
-/// zeroized after it lands in the operating system credential store. No
-/// command returns a secret, so no readback path exists.
+/// A secret is accepted only by `connect_provider` and
+/// `replace_connection_secret`, and is zeroized after it lands in the
+/// operating system credential store. No command returns a secret, so no
+/// readback path exists.
 ///
 /// Scheduling and cache policy live in the native collector. These commands
 /// keep the IPC boundary small, stamp facts, and enforce bounds.
@@ -64,13 +66,19 @@ pub enum CommandFailure {
     CodexLoginRequired,
     PlanCap,
     Paused,
+    /// The provider refused a candidate credential before any local state was
+    /// changed.
+    Authentication,
+    /// A replacement step failed and at least one compensating write also
+    /// failed. The record is left in an error state for visible recovery.
+    CompensationFailed,
 }
 
 impl CommandFailure {
     /// Every variant, for the redaction test that formats them all. The
     /// product itself never needs the list.
     #[cfg(test)]
-    pub const ALL: [CommandFailure; 19] = [
+    pub const ALL: [CommandFailure; 21] = [
         CommandFailure::InvalidInput,
         CommandFailure::NotFound,
         CommandFailure::Full,
@@ -90,6 +98,8 @@ impl CommandFailure {
         CommandFailure::CodexLoginRequired,
         CommandFailure::PlanCap,
         CommandFailure::Paused,
+        CommandFailure::Authentication,
+        CommandFailure::CompensationFailed,
     ];
 }
 
@@ -125,6 +135,10 @@ impl fmt::Display for CommandFailure {
                 "Pro unlocks more accounts. Free reads one account per provider"
             }
             CommandFailure::Paused => "the connection is paused and cannot perform work",
+            CommandFailure::Authentication => "the provider refused this credential",
+            CommandFailure::CompensationFailed => {
+                "the replacement failed and could not be restored. Reconnect this account."
+            }
         };
         formatter.write_str(sentence)
     }
@@ -177,6 +191,7 @@ impl From<StoreError> for CommandFailure {
             StoreError::InvalidField => CommandFailure::InvalidInput,
             StoreError::PlanCap => CommandFailure::PlanCap,
             StoreError::Paused => CommandFailure::Paused,
+            StoreError::Changed => CommandFailure::StaleGeneration,
         }
     }
 }
@@ -263,6 +278,16 @@ pub struct ConnectProviderInput {
     pub provider_id: ProviderId,
     pub credential_kind: CredentialKind,
     pub account_alias: String,
+    pub secret: String,
+}
+
+/// Replace the secret behind one existing record. The record selects the
+/// provider, credential kind, endpoint and plan slot. None can be supplied by
+/// the window or changed by this operation.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReplaceConnectionSecretInput {
+    pub connection_id: String,
     pub secret: String,
 }
 
@@ -464,20 +489,8 @@ fn connect_with_secret(
     key's size and a key is not given a cookie's slack. Over the bound is
     refused whole; nothing is ever truncated, because half a credential fails
     authentication in a way nobody can debug. */
-    if secret.len() > credential_kind.max_secret_bytes() {
-        return Err(CommandFailure::InvalidInput);
-    }
+    validate_secret_shape(credential_kind, secret, codex_account_id)?;
     let trimmed = secret.trim();
-    if trimmed.is_empty() {
-        return Err(CommandFailure::InvalidInput);
-    }
-    if credential_kind == CredentialKind::CodexSession {
-        if !valid_codex_token(trimmed) || !codex_account_id.is_some_and(valid_codex_account_id) {
-            return Err(CommandFailure::Protocol);
-        }
-    } else if codex_account_id.is_some() {
-        return Err(CommandFailure::InvalidInput);
-    }
     let record = ConnectionRecord {
         id: uuid::Uuid::new_v4().to_string(),
         provider_id,
@@ -521,6 +534,157 @@ fn connect_with_secret(
             Err(error.into())
         }
     }
+}
+
+fn validate_secret_shape(
+    credential_kind: CredentialKind,
+    secret: &str,
+    codex_account_id: Option<&str>,
+) -> Result<(), CommandFailure> {
+    if secret.len() > credential_kind.max_secret_bytes() || secret.trim().is_empty() {
+        return Err(CommandFailure::InvalidInput);
+    }
+    if credential_kind == CredentialKind::CodexSession {
+        if !valid_codex_token(secret.trim())
+            || !codex_account_id.is_some_and(valid_codex_account_id)
+        {
+            return Err(CommandFailure::Protocol);
+        }
+    } else if codex_account_id.is_some() {
+        return Err(CommandFailure::InvalidInput);
+    }
+    Ok(())
+}
+
+/// Validate first, then replace the credential and reset only the state that
+/// belongs to the old credential. The record identity, plan slot, alias,
+/// creation time and successful history remain on the same record.
+pub(crate) async fn replace_connection_secret_core<T: Transport>(
+    connections: &ConnectionsStore,
+    secrets: &impl SecretStore,
+    transport: &T,
+    writer: &CacheWriter,
+    input: ReplaceConnectionSecretInput,
+) -> Result<ConnectionRecord, CommandFailure> {
+    capped_connection_id(&input.connection_id)?;
+    let candidate = Zeroizing::new(input.secret);
+    let before = connections.get(&input.connection_id)?;
+    if !before.is_active() {
+        return Err(CommandFailure::Paused);
+    }
+    validate_secret_shape(
+        before.credential_kind,
+        &candidate,
+        before.codex_account_id.as_deref(),
+    )?;
+    let candidate = candidate.trim();
+    let route = reader_route(before.provider_id, before.credential_kind)?;
+    let response = fetch_endpoint(
+        transport,
+        route.endpoint,
+        route.auth,
+        candidate,
+        before.codex_account_id.as_deref(),
+    )
+    .await?;
+    if matches!(response.status, 401 | 403) {
+        return Err(CommandFailure::Authentication);
+    }
+    if !(200..=299).contains(&response.status) {
+        return Err(CommandFailure::Protocol);
+    }
+    let body = response
+        .body
+        .filter(|body| !body.is_empty())
+        .ok_or(CommandFailure::Protocol)?;
+    if parse_body(route.reader_id, &body, now_epoch_ms(), &before.id).is_none() {
+        return Err(CommandFailure::Protocol);
+    }
+
+    let mut after = before.clone();
+    after.masked_label = if after.credential_kind == CredentialKind::CodexSession {
+        MASK_DOTS.to_string()
+    } else {
+        mask_label(candidate)
+    };
+    after.next_refresh_at = None;
+    after.attempt_generation = after
+        .attempt_generation
+        .saturating_add(1)
+        .min(MAX_ATTEMPT_GENERATION);
+    after.body_delivered_generation = None;
+    after.last_completion_at = None;
+    after.consecutive_failures = 0;
+    after.status = STATUS_AFTER_CREDENTIAL_STORED.to_string();
+    validate_record(&after)?;
+
+    connections.with_locked_connection(&before.id, |transaction| {
+        if transaction.current() != &before {
+            return Err(CommandFailure::StaleGeneration);
+        }
+        let old_secret = secrets.read_secret(&before.id)?;
+        let mut attention = before.clone();
+        attention.status = STATUS_ERROR.to_string();
+        attention.next_refresh_at = None;
+        transaction.save(attention.clone())?;
+
+        if let Err(error) = secrets.store_secret(&before.id, candidate) {
+            /* A credential store may report failure after accepting the
+            candidate. The durable error record is written first, so a failed
+            rollback is visible instead of being mistaken for the old state. */
+            if secrets.store_secret(&before.id, &old_secret).is_err() {
+                return Err(CommandFailure::CompensationFailed);
+            }
+            if transaction.save(before.clone()).is_err() {
+                return Err(CommandFailure::CompensationFailed);
+            }
+            return Err(error.into());
+        }
+
+        let mut pending = after.clone();
+        pending.status = STATUS_ERROR.to_string();
+        let pending = match transaction.save(pending) {
+            Ok(pending) => pending,
+            Err(error) => {
+                if secrets.store_secret(&before.id, &old_secret).is_err() {
+                    return Err(CommandFailure::CompensationFailed);
+                }
+                if transaction.save(before.clone()).is_err() {
+                    return Err(CommandFailure::CompensationFailed);
+                }
+                return Err(error.into());
+            }
+        };
+
+        if let Err(error) = crate::native_snapshot::purge_connection_rows(
+            writer,
+            pending.provider_id.code(),
+            &pending.id,
+        ) {
+            /* The pending record is already a visible recovery marker. If
+            either external or record restoration fails, it stays visible and
+            the caller receives the distinct failure. */
+            if secrets.store_secret(&before.id, &old_secret).is_err() {
+                return Err(CommandFailure::CompensationFailed);
+            }
+            if transaction.save(before.clone()).is_err() {
+                return Err(CommandFailure::CompensationFailed);
+            }
+            return Err(error.into());
+        }
+        match transaction.save(after) {
+            Ok(stored) => Ok(stored),
+            Err(error) => {
+                if secrets.store_secret(&before.id, &old_secret).is_err() {
+                    return Err(CommandFailure::CompensationFailed);
+                }
+                if transaction.save(before.clone()).is_err() {
+                    return Err(CommandFailure::CompensationFailed);
+                }
+                Err(error.into())
+            }
+        }
+    })
 }
 
 /// The real connect boundary. Codex ignores any webview supplied secret and
@@ -896,9 +1060,11 @@ pub(crate) fn complete_attempt_core(
 pub(crate) fn disconnect_core(
     connections: &ConnectionsStore,
     secrets: &impl SecretStore,
+    writer: &CacheWriter,
     input: DisconnectInput,
 ) -> Result<(), CommandFailure> {
     capped_connection_id(&input.connection_id)?;
+    let record = connections.get(&input.connection_id)?;
     /* The secret goes first: a record without a secret is a reconnect away
     from working, a secret without a record is unreachable forever. A secret
     already gone is fine; anything else stops before the record is touched. */
@@ -906,8 +1072,44 @@ pub(crate) fn disconnect_core(
         Ok(()) | Err(CredentialError::NotFound) => {}
         Err(error) => return Err(error.into()),
     }
+    crate::native_snapshot::purge_connection_rows(writer, record.provider_id.code(), &record.id)?;
     connections.remove(&input.connection_id)?;
     Ok(())
+}
+
+pub(crate) fn reconcile_plan_core(
+    connections: &ConnectionsStore,
+    writer: &CacheWriter,
+    multi_account: bool,
+    keeper_ids: &[String],
+) -> Result<Vec<ConnectionRecord>, CommandFailure> {
+    let records = connections.apply_plan(multi_account, keeper_ids)?;
+    for record in records.iter().filter(|record| !record.is_active()) {
+        crate::native_snapshot::purge_connection_rows(
+            writer,
+            record.provider_id.code(),
+            &record.id,
+        )?;
+    }
+    Ok(records)
+}
+
+pub(crate) fn set_connection_paused_core(
+    connections: &ConnectionsStore,
+    writer: &CacheWriter,
+    input: PauseConnectionInput,
+    multi_account: bool,
+) -> Result<ConnectionRecord, CommandFailure> {
+    capped_connection_id(&input.connection_id)?;
+    let record = connections.set_user_paused(&input.connection_id, input.paused, multi_account)?;
+    if !record.is_active() {
+        crate::native_snapshot::purge_connection_rows(
+            writer,
+            record.provider_id.code(),
+            &record.id,
+        )?;
+    }
+    Ok(record)
 }
 
 pub(crate) fn update_core(
@@ -945,6 +1147,50 @@ pub async fn connect_provider(
         home.as_deref(),
         multi_account,
     )
+}
+
+#[tauri::command]
+pub async fn replace_connection_secret(
+    connections: State<'_, ConnectionsStore>,
+    secrets: State<'_, KeyringStore>,
+    transport: State<'_, ReqwestTransport>,
+    writer: State<'_, Arc<CacheWriter>>,
+    runtime: State<'_, crate::collector_runtime::CollectorRuntime>,
+    policy: State<'_, crate::request_policy::RequestPolicy>,
+    detection: State<'_, DetectionStore>,
+    input: ReplaceConnectionSecretInput,
+) -> Result<ConnectionRecord, CommandFailure> {
+    let replaced = replace_connection_secret_core(
+        &connections,
+        &*secrets,
+        &*transport,
+        writer.inner().as_ref(),
+        input,
+    )
+    .await?;
+    /* Validation has already committed the replacement. This read is a fresh
+    cache fill, not part of that transaction, so a transient second response
+    cannot turn a proven key into a failed replacement. */
+    let outcome = crate::collector_runtime::run_guarded(
+        &runtime,
+        &detection.switches,
+        &policy,
+        &connections,
+        &*secrets,
+        &*transport,
+        Arc::clone(&writer),
+        replaced.id.clone(),
+        crate::collector::CollectionMode::Refresh,
+    )
+    .await;
+    runtime.record_pass(
+        outcome
+            .as_ref()
+            .ok()
+            .and_then(crate::collector::CollectionOutcome::failure),
+        true,
+    );
+    Ok(replaced)
 }
 
 #[tauri::command]
@@ -1043,9 +1289,10 @@ pub fn collector_status(
 pub async fn disconnect_provider(
     connections: State<'_, ConnectionsStore>,
     secrets: State<'_, KeyringStore>,
+    writer: State<'_, Arc<CacheWriter>>,
     input: DisconnectInput,
 ) -> Result<(), CommandFailure> {
-    disconnect_core(&connections, &*secrets, input)
+    disconnect_core(&connections, &*secrets, writer.inner().as_ref(), input)
 }
 
 #[tauri::command]
@@ -1078,11 +1325,14 @@ pub fn reconcile_connection_plan(
     input: ConnectionPlanInput,
     connections: State<'_, ConnectionsStore>,
     secrets: State<'_, KeyringStore>,
+    writer: State<'_, Arc<CacheWriter>>,
 ) -> Result<Vec<ConnectionRecord>, CommandFailure> {
-    Ok(connections.apply_plan(
+    reconcile_plan_core(
+        &connections,
+        writer.inner().as_ref(),
         crate::pro::multi_account_enabled(&*secrets),
         &input.keeper_ids,
-    )?)
+    )
 }
 
 #[tauri::command]
@@ -1090,13 +1340,14 @@ pub fn set_connection_paused(
     input: PauseConnectionInput,
     connections: State<'_, ConnectionsStore>,
     secrets: State<'_, KeyringStore>,
+    writer: State<'_, Arc<CacheWriter>>,
 ) -> Result<ConnectionRecord, CommandFailure> {
-    capped_connection_id(&input.connection_id)?;
-    Ok(connections.set_user_paused(
-        &input.connection_id,
-        input.paused,
+    set_connection_paused_core(
+        &connections,
+        writer.inner().as_ref(),
+        input,
         crate::pro::multi_account_enabled(&*secrets),
-    )?)
+    )
 }
 
 #[tauri::command]
@@ -1190,6 +1441,10 @@ mod tests {
     use crate::net::{ProviderEndpoint, TransportFailure};
     use crate::reader_registry::{MAX_BROWSER_SESSION_BYTES, MAX_KEY_SECRET_BYTES};
     use crate::test_support::{FailingTransport, InMemorySecrets, RecordingTransport, TempDir};
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc, Mutex,
+    };
 
     const SECRET_MARKER: &str = "SECRET-MARKER-4f9a-do-not-echo-1234";
     const HEADER_MARKER: &str = "Bearer SECRET-MARKER-4f9a-do-not-echo-1234";
@@ -1201,6 +1456,36 @@ mod tests {
             ConnectionsStore::at(Some(dir.path().to_path_buf())),
             InMemorySecrets::new(),
         )
+    }
+
+    fn seed_connection_cache(dir: &TempDir, first: &str, second: &str) -> serde_json::Value {
+        let suppression = serde_json::json!({
+            "provider": "OPENROUTER",
+            "accountId": "drift-account",
+            "reason": "drift",
+            "suppressedAt": "2026-09-07T12:27:00.000Z"
+        });
+        let document = serde_json::json!({
+            "version": 2,
+            "snapshots": [
+                { "provider": "OPENROUTER", "accountId": first, "marker": "first" },
+                { "provider": "OPENROUTER", "accountId": second, "marker": "second" },
+                { "provider": "CODEX", "accountId": "other-account", "marker": "other" }
+            ],
+            "suppressions": [suppression]
+        });
+        std::fs::write(
+            dir.path().join(crate::cache_write::CACHE_FILE_NAME),
+            document.to_string(),
+        )
+        .expect("seed cache");
+        document
+    }
+
+    fn cached_document(dir: &TempDir) -> serde_json::Value {
+        let text = std::fs::read_to_string(dir.path().join(crate::cache_write::CACHE_FILE_NAME))
+            .expect("cache");
+        serde_json::from_str(&text).expect("cache document")
     }
 
     /// Models Windows Credential Manager's 2560 byte UTF 16 blob ceiling.
@@ -1230,6 +1515,170 @@ mod tests {
 
         fn delete_secret(&self, connection_id: &str) -> Result<(), CredentialError> {
             self.inner.delete_secret(connection_id)
+        }
+    }
+
+    struct FailNextWriteSecrets {
+        inner: InMemorySecrets,
+        fail_next: Mutex<bool>,
+    }
+
+    impl FailNextWriteSecrets {
+        fn new() -> Self {
+            Self {
+                inner: InMemorySecrets::new(),
+                fail_next: Mutex::new(false),
+            }
+        }
+
+        fn fail_next_write(&self) {
+            *self.fail_next.lock().expect("failure flag") = true;
+        }
+    }
+
+    impl SecretStore for FailNextWriteSecrets {
+        fn store_secret(&self, connection_id: &str, secret: &str) -> Result<(), CredentialError> {
+            let fail =
+                std::mem::take(&mut *self.fail_next.lock().map_err(|_| CredentialError::Store)?);
+            self.inner.store_secret(connection_id, secret)?;
+            if fail {
+                Err(CredentialError::Store)
+            } else {
+                Ok(())
+            }
+        }
+
+        fn read_secret(&self, connection_id: &str) -> Result<Zeroizing<String>, CredentialError> {
+            self.inner.read_secret(connection_id)
+        }
+
+        fn delete_secret(&self, connection_id: &str) -> Result<(), CredentialError> {
+            self.inner.delete_secret(connection_id)
+        }
+    }
+
+    struct SnapshotReadSecrets {
+        inner: InMemorySecrets,
+        original: Mutex<Option<String>>,
+        snapshot_reads: AtomicUsize,
+    }
+
+    impl SnapshotReadSecrets {
+        fn new() -> Self {
+            Self {
+                inner: InMemorySecrets::new(),
+                original: Mutex::new(None),
+                snapshot_reads: AtomicUsize::new(0),
+            }
+        }
+
+        fn arm_two_original_reads(&self, connection_id: &str) {
+            let original = self
+                .inner
+                .read_secret(connection_id)
+                .expect("original secret");
+            *self.original.lock().expect("original slot") = Some(original.to_string());
+            self.snapshot_reads.store(2, Ordering::SeqCst);
+        }
+
+        fn finish_race(&self) {
+            self.snapshot_reads.store(0, Ordering::SeqCst);
+        }
+
+        fn stored_count(&self) -> usize {
+            self.inner.stored_count()
+        }
+    }
+
+    impl SecretStore for SnapshotReadSecrets {
+        fn store_secret(&self, connection_id: &str, secret: &str) -> Result<(), CredentialError> {
+            self.inner.store_secret(connection_id, secret)
+        }
+
+        fn read_secret(&self, connection_id: &str) -> Result<Zeroizing<String>, CredentialError> {
+            if self
+                .snapshot_reads
+                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |remaining| {
+                    remaining.checked_sub(1)
+                })
+                .is_ok()
+            {
+                return self
+                    .original
+                    .lock()
+                    .map_err(|_| CredentialError::Store)?
+                    .clone()
+                    .map(Zeroizing::new)
+                    .ok_or(CredentialError::NotFound);
+            }
+            self.inner.read_secret(connection_id)
+        }
+
+        fn delete_secret(&self, connection_id: &str) -> Result<(), CredentialError> {
+            self.inner.delete_secret(connection_id)
+        }
+    }
+
+    struct FailedWriteAndRollbackSecrets {
+        inner: InMemorySecrets,
+        failures_left: AtomicUsize,
+    }
+
+    impl FailedWriteAndRollbackSecrets {
+        fn new() -> Self {
+            Self {
+                inner: InMemorySecrets::new(),
+                failures_left: AtomicUsize::new(0),
+            }
+        }
+
+        fn fail_write_and_rollback(&self) {
+            self.failures_left.store(2, Ordering::SeqCst);
+        }
+    }
+
+    impl SecretStore for FailedWriteAndRollbackSecrets {
+        fn store_secret(&self, connection_id: &str, secret: &str) -> Result<(), CredentialError> {
+            self.inner.store_secret(connection_id, secret)?;
+            if self
+                .failures_left
+                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |remaining| {
+                    remaining.checked_sub(1)
+                })
+                .is_ok()
+            {
+                Err(CredentialError::Store)
+            } else {
+                Ok(())
+            }
+        }
+
+        fn read_secret(&self, connection_id: &str) -> Result<Zeroizing<String>, CredentialError> {
+            self.inner.read_secret(connection_id)
+        }
+
+        fn delete_secret(&self, connection_id: &str) -> Result<(), CredentialError> {
+            self.inner.delete_secret(connection_id)
+        }
+    }
+
+    struct ValidationBarrierTransport {
+        barrier: tokio::sync::Barrier,
+    }
+
+    impl Transport for ValidationBarrierTransport {
+        async fn send(
+            &self,
+            _request: &crate::net::EndpointRequest<'_>,
+            _secret: &str,
+        ) -> Result<crate::net::TransportReply, TransportFailure> {
+            self.barrier.wait().await;
+            Ok(crate::net::TransportReply {
+                status: 200,
+                body: br#"{"data":{"limit":20,"limit_remaining":7.53,"usage":12.47,"is_free_tier":false}}"#.to_vec(),
+                retry_after_seconds: None,
+                location_workspace: None,
+            })
         }
     }
 
@@ -2540,24 +2989,83 @@ mod tests {
     /* -------------------------------------------------- remaining verbs */
 
     #[test]
-    fn disconnect_removes_the_record_and_the_secret() {
+    fn disconnect_removes_only_that_accounts_cache_rows_record_and_secret() {
         let dir = TempDir::new();
         let (connections, secrets) = stores(&dir);
-        let record = connect_core(&connections, &secrets, connect_input()).expect("connect");
+        let first = connect_core_for_plan(&connections, &secrets, connect_input(), true)
+            .expect("first connection");
+        let mut second_input = connect_input();
+        second_input.account_alias = "second".to_string();
+        let second = connect_core_for_plan(&connections, &secrets, second_input, true)
+            .expect("second connection");
+        let before = seed_connection_cache(&dir, &first.id, &second.id);
+        let writer = CacheWriter::at(Some(dir.path().to_path_buf()));
         disconnect_core(
             &connections,
             &secrets,
+            &writer,
             DisconnectInput {
-                connection_id: record.id.clone(),
+                connection_id: second.id.clone(),
             },
         )
         .expect("disconnect");
-        assert_eq!(connections.list().expect("list").len(), 0);
-        assert_eq!(secrets.stored_count(), 0);
+        assert_eq!(connections.list().expect("list"), vec![first.clone()]);
+        assert_eq!(secrets.stored_count(), 1);
         assert_eq!(
-            secrets.read_secret(&record.id).map(|_| ()),
+            secrets.read_secret(&second.id).map(|_| ()),
             Err(CredentialError::NotFound)
         );
+        let after = cached_document(&dir);
+        assert_eq!(
+            after["snapshots"],
+            serde_json::json!([
+                { "provider": "OPENROUTER", "accountId": first.id, "marker": "first" },
+                { "provider": "CODEX", "accountId": "other-account", "marker": "other" }
+            ])
+        );
+        assert_eq!(after["suppressions"], before["suppressions"]);
+    }
+
+    #[test]
+    fn free_plan_pause_removes_only_that_accounts_cache_rows() {
+        let dir = TempDir::new();
+        let (connections, secrets) = stores(&dir);
+        let first = connect_core_for_plan(&connections, &secrets, connect_input(), true)
+            .expect("first connection");
+        let mut second_input = connect_input();
+        second_input.account_alias = "second".to_string();
+        let second = connect_core_for_plan(&connections, &secrets, second_input, true)
+            .expect("second connection");
+        let before = seed_connection_cache(&dir, &first.id, &second.id);
+        let writer = CacheWriter::at(Some(dir.path().to_path_buf()));
+
+        let records = reconcile_plan_core(
+            &connections,
+            &writer,
+            false,
+            std::slice::from_ref(&first.id),
+        )
+        .expect("free plan reconciliation");
+
+        assert!(records
+            .iter()
+            .find(|record| record.id == first.id)
+            .unwrap()
+            .is_active());
+        assert!(!records
+            .iter()
+            .find(|record| record.id == second.id)
+            .unwrap()
+            .is_active());
+        let after = cached_document(&dir);
+        assert_eq!(
+            after["snapshots"],
+            serde_json::json!([
+                { "provider": "OPENROUTER", "accountId": first.id, "marker": "first" },
+                { "provider": "CODEX", "accountId": "other-account", "marker": "other" }
+            ])
+        );
+        assert_eq!(after["suppressions"], before["suppressions"]);
     }
 
     #[test]
@@ -2579,6 +3087,230 @@ mod tests {
         assert_eq!(updated.masked_label, record.masked_label);
         assert_eq!(updated.created_at, record.created_at);
         assert_eq!(updated.reader_id, record.reader_id);
+    }
+
+    #[tokio::test]
+    async fn rejected_replacement_changes_nothing() {
+        let dir = TempDir::new();
+        let (connections, secrets) = stores(&dir);
+        let record = connect_core(&connections, &secrets, connect_input()).expect("connect");
+        let before = connections
+            .update(&record.id, |held| {
+                held.status = "AUTH_EXPIRED".to_string();
+                held.consecutive_failures = 4;
+                held.last_success_at = Some(1234);
+            })
+            .expect("refused state");
+        let old_secret = secrets.read_secret(&record.id).expect("old secret");
+        seed_connection_cache(&dir, &record.id, "other-account");
+        let before_cache = cached_document(&dir);
+        let writer = CacheWriter::at(Some(dir.path().to_path_buf()));
+
+        let result = replace_connection_secret_core(
+            &connections,
+            &secrets,
+            &RecordingTransport::replying(401, Vec::new(), None),
+            &writer,
+            ReplaceConnectionSecretInput {
+                connection_id: record.id.clone(),
+                secret: "sk-or-bad-replacement".to_string(),
+            },
+        )
+        .await;
+
+        assert_eq!(result.map(|_| ()), Err(CommandFailure::Authentication));
+        assert_eq!(connections.get(&record.id).expect("same record"), before);
+        assert_eq!(
+            &*secrets.read_secret(&record.id).expect("same secret"),
+            &*old_secret
+        );
+        assert_eq!(cached_document(&dir), before_cache);
+    }
+
+    #[tokio::test]
+    async fn free_replacement_keeps_the_record_id_slot_label_and_history() {
+        let dir = TempDir::new();
+        let (connections, secrets) = stores(&dir);
+        let record = connect_core(&connections, &secrets, connect_input()).expect("connect");
+        let before = connections
+            .update(&record.id, |held| {
+                held.status = "AUTH_EXPIRED".to_string();
+                held.consecutive_failures = 4;
+                held.last_success_at = Some(1234);
+                held.ever_connected = true;
+            })
+            .expect("refused state");
+        seed_connection_cache(&dir, &record.id, "other-account");
+        let writer = CacheWriter::at(Some(dir.path().to_path_buf()));
+        let replacement = "sk-or-good-replacement";
+
+        let replaced = replace_connection_secret_core(
+            &connections,
+            &secrets,
+            &RecordingTransport::replying(
+                200,
+                br#"{"data":{"limit":20,"limit_remaining":7.53,"usage":12.47,"is_free_tier":false}}"#.to_vec(),
+                None,
+            ),
+            &writer,
+            ReplaceConnectionSecretInput {
+                connection_id: record.id.clone(),
+                secret: replacement.to_string(),
+            },
+        )
+        .await
+        .expect("replacement");
+
+        assert_eq!(connections.list().expect("one slot").len(), 1);
+        assert_eq!(replaced.id, before.id);
+        assert_eq!(replaced.account_alias, before.account_alias);
+        assert_eq!(replaced.created_at, before.created_at);
+        assert_eq!(replaced.last_success_at, before.last_success_at);
+        assert!(replaced.ever_connected);
+        assert_eq!(replaced.status, STATUS_AFTER_CREDENTIAL_STORED);
+        assert_eq!(replaced.consecutive_failures, 0);
+        assert_eq!(
+            &*secrets.read_secret(&record.id).expect("new secret"),
+            replacement
+        );
+        assert!(cached_document(&dir)["snapshots"]
+            .as_array()
+            .expect("rows")
+            .iter()
+            .all(|row| row["accountId"] != record.id));
+        assert_eq!(
+            connect_core(&connections, &secrets, connect_input()).map(|_| ()),
+            Err(CommandFailure::PlanCap),
+            "replacement did not consume or free another plan slot"
+        );
+    }
+
+    #[tokio::test]
+    async fn replacement_keyring_failure_rolls_back_the_secret_and_record() {
+        let dir = TempDir::new();
+        let connections = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        let secrets = FailNextWriteSecrets::new();
+        let record = connect_core(&connections, &secrets, connect_input()).expect("connect");
+        let before = connections.get(&record.id).expect("record before");
+        let old_secret = secrets.read_secret(&record.id).expect("secret before");
+        let writer = CacheWriter::at(Some(dir.path().to_path_buf()));
+        secrets.fail_next_write();
+
+        let result = replace_connection_secret_core(
+            &connections,
+            &secrets,
+            &RecordingTransport::replying(
+                200,
+                br#"{"data":{"limit":20,"limit_remaining":7.53,"usage":12.47,"is_free_tier":false}}"#.to_vec(),
+                None,
+            ),
+            &writer,
+            ReplaceConnectionSecretInput {
+                connection_id: record.id.clone(),
+                secret: "sk-or-write-failure".to_string(),
+            },
+        )
+        .await;
+
+        assert_eq!(result.map(|_| ()), Err(CommandFailure::CredentialStore));
+        assert_eq!(connections.get(&record.id).expect("same record"), before);
+        assert_eq!(
+            &*secrets.read_secret(&record.id).expect("rolled back secret"),
+            &*old_secret
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn concurrent_replacements_store_one_candidate_and_a_matching_record() {
+        let dir = TempDir::new();
+        let connections = Arc::new(ConnectionsStore::at(Some(dir.path().to_path_buf())));
+        let secrets = Arc::new(SnapshotReadSecrets::new());
+        let record =
+            connect_core(&connections, secrets.as_ref(), connect_input()).expect("connect");
+        let writer = Arc::new(CacheWriter::at(Some(dir.path().to_path_buf())));
+        seed_connection_cache(&dir, &record.id, "other-account");
+        secrets.arm_two_original_reads(&record.id);
+        let transport = Arc::new(ValidationBarrierTransport {
+            barrier: tokio::sync::Barrier::new(2),
+        });
+
+        let replace = |candidate: &'static str| {
+            let connections = Arc::clone(&connections);
+            let secrets = Arc::clone(&secrets);
+            let transport = Arc::clone(&transport);
+            let writer = Arc::clone(&writer);
+            let connection_id = record.id.clone();
+            tokio::spawn(async move {
+                replace_connection_secret_core(
+                    connections.as_ref(),
+                    secrets.as_ref(),
+                    transport.as_ref(),
+                    writer.as_ref(),
+                    ReplaceConnectionSecretInput {
+                        connection_id,
+                        secret: candidate.to_string(),
+                    },
+                )
+                .await
+            })
+        };
+        let alpha = "sk-or-concurrent-alpha";
+        let beta = "sk-or-concurrent-beta";
+        let (alpha_result, beta_result) = tokio::join!(replace(alpha), replace(beta));
+        let results = [
+            alpha_result.expect("alpha task"),
+            beta_result.expect("beta task"),
+        ];
+        secrets.finish_race();
+
+        assert_eq!(results.iter().filter(|result| result.is_ok()).count(), 1);
+        assert_eq!(
+            results
+                .iter()
+                .filter(|result| matches!(result, Err(CommandFailure::StaleGeneration)))
+                .count(),
+            1
+        );
+        let final_record = connections.get(&record.id).expect("final record");
+        let final_secret = secrets.read_secret(&record.id).expect("final secret");
+        assert_eq!(secrets.stored_count(), 1);
+        assert!(matches!(&*final_secret, value if value == alpha || value == beta));
+        assert_eq!(final_record.masked_label, mask_label(&final_secret));
+    }
+
+    #[tokio::test]
+    async fn failed_keyring_write_and_failed_rollback_surface_and_mark_attention() {
+        let dir = TempDir::new();
+        let connections = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        let secrets = FailedWriteAndRollbackSecrets::new();
+        let record = connect_core(&connections, &secrets, connect_input()).expect("connect");
+        let writer = CacheWriter::at(Some(dir.path().to_path_buf()));
+        secrets.fail_write_and_rollback();
+
+        let result = replace_connection_secret_core(
+            &connections,
+            &secrets,
+            &RecordingTransport::replying(
+                200,
+                br#"{"data":{"limit":20,"limit_remaining":7.53,"usage":12.47,"is_free_tier":false}}"#.to_vec(),
+                None,
+            ),
+            &writer,
+            ReplaceConnectionSecretInput {
+                connection_id: record.id.clone(),
+                secret: "sk-or-ambiguous-write".to_string(),
+            },
+        )
+        .await;
+
+        assert_eq!(result.map(|_| ()), Err(CommandFailure::CompensationFailed));
+        assert_eq!(
+            connections
+                .get(&record.id)
+                .expect("attention record")
+                .status,
+            STATUS_ERROR
+        );
     }
 
     #[test]
@@ -2745,8 +3477,8 @@ mod tests {
     fn source_defines_no_secret_readback_command() {
         /* The redaction claim "no readback path exists by construction" is
         checked against the source itself: no Tauri command in this module
-        returns a secret type, and the only command accepting one is
-        connect_provider. */
+        returns a secret type, and the only commands accepting one are the
+        create and in place replace commands. */
         /* The attribute is assembled at runtime so this test's own text can
         never match it, and each block is cut at its body brace so only the
         signatures are judged. */
@@ -2766,9 +3498,17 @@ mod tests {
         }
         let accepting_secret: Vec<&&str> = signatures
             .iter()
-            .filter(|signature| signature.contains("ConnectProviderInput"))
+            .filter(|signature| {
+                signature.contains("ConnectProviderInput")
+                    || signature.contains("ReplaceConnectionSecretInput")
+            })
             .collect();
-        assert_eq!(accepting_secret.len(), 1);
-        assert!(accepting_secret[0].contains("fn connect_provider"));
+        assert_eq!(accepting_secret.len(), 2);
+        assert!(accepting_secret
+            .iter()
+            .any(|signature| signature.contains("fn connect_provider")));
+        assert!(accepting_secret
+            .iter()
+            .any(|signature| signature.contains("fn replace_connection_secret")));
     }
 }

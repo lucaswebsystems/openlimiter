@@ -18,6 +18,17 @@ export function say(key, values = {}) {
   return (READINGS_COPY[key] ?? "").replace(/\{(\w+)\}/gu, (_, name) => String(values[name] ?? ""));
 }
 
+/** "Updated 3 min ago" for one observation instant, at `now`. */
+export function updatedLabel(instant, now) {
+  const at = Date.parse(instant ?? "");
+  if (!Number.isFinite(at)) return say("noReading");
+  const minutes = Math.floor((Date.parse(now) - at) / 60_000);
+  if (minutes < 1) return say("updatedJustNow");
+  if (minutes < 60) return say("updatedMinutes", { count: minutes });
+  const hours = Math.floor(minutes / 60);
+  return hours < 24 ? say("updatedHours", { count: hours }) : say("updatedDays", { count: Math.floor(hours / 24) });
+}
+
 /** "4d 14h", "1h 55m", "12m": a span of time, never below a minute. */
 export function duration(seconds) {
   const minutes = Math.max(1, Math.floor(seconds / 60));

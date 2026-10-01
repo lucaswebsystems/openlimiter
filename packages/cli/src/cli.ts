@@ -25,6 +25,7 @@ import {
   grokSpec,
   isProviderDue,
   kimiSpec,
+  mergeSnapshotCache,
   mergeSnapshots,
   normalizeMeters,
   normalizeMetersReport,
@@ -36,7 +37,9 @@ import {
   resolveStateDirectory,
   runAcquisition,
   spawnDetachedRefresh,
+  trustedHelperWorkingDirectory,
   writeAcquisitionSchedule,
+  windowsSystemTool,
   probeAntigravity,
   resolveAgyExecutablePath,
   type AntigravityProbeOptions,
@@ -135,6 +138,10 @@ import {
   parseGrokStatuslinePayload,
   parseJsonText,
   persistSnapshots,
+  clearStatuslineFailure,
+  readStatuslineFailure,
+  recordStatuslineFailure,
+  type StatuslineFailureStage,
   readManualDocument,
   withProvenance
 } from "./ingest.js";
@@ -156,6 +163,7 @@ import {
   type StatuslineHost
 } from "./statusline.js";
 import { parseStatuslineSession } from "./statusline-ingest.js";
+import { readApiSpend } from "./api-spend.js";
 import {
   TERMINAL_HOST_NAMES,
   installHost,
@@ -414,7 +422,12 @@ const execFileRunner: CredentialCommandRunner = async (
       [...helperArguments],
       (() => {
         if (!executable.toLowerCase().endsWith("powershell.exe")) {
-          return { timeout: timeoutMilliseconds, maxBuffer: 262_144, windowsHide: true };
+          return {
+            cwd: trustedHelperWorkingDirectory(process.platform, process.env),
+            timeout: timeoutMilliseconds,
+            maxBuffer: 262_144,
+            windowsHide: true
+          };
         }
         const environment: NodeJS.ProcessEnv = { ...process.env };
         /* Windows environment names ignore case, but a copied process.env keeps
@@ -431,6 +444,7 @@ const execFileRunner: CredentialCommandRunner = async (
           "Modules"
         );
         return {
+          cwd: trustedHelperWorkingDirectory(process.platform, environment),
           timeout: timeoutMilliseconds,
           maxBuffer: 262_144,
           windowsHide: true,
@@ -443,16 +457,55 @@ const execFileRunner: CredentialCommandRunner = async (
     );
   });
 
+export interface BrowserOpenInvocation {
+  readonly executable: string;
+  readonly arguments: readonly string[];
+  readonly cwd: string;
+}
+
+/** Build a direct browser opener invocation without a command shell. */
+export function browserOpenInvocation(
+  url: string,
+  platform: NodeJS.Platform,
+  environment: Readonly<Record<string, string | undefined>> = process.env
+): BrowserOpenInvocation | null {
+  if (url.length > 2_048) return null;
+  try {
+    if (new URL(url).protocol !== "https:") return null;
+  } catch {
+    return null;
+  }
+  if (platform === "win32") {
+    return {
+      executable: windowsSystemTool("rundll32.exe", environment),
+      arguments: ["url.dll,FileProtocolHandler", url],
+      cwd: trustedHelperWorkingDirectory(platform, environment)
+    };
+  }
+  return platform === "darwin"
+    ? {
+        executable: "open",
+        arguments: [url],
+        cwd: trustedHelperWorkingDirectory(platform, environment)
+      }
+    : {
+        executable: "xdg-open",
+        arguments: [url],
+        cwd: trustedHelperWorkingDirectory(platform, environment)
+      };
+}
+
 /** Open a URL in the person's browser, best effort and never awaited. */
 function openBrowserPlatform(url: string, platform: NodeJS.Platform): void {
-  if (!/^https:\/\//u.test(url) || url.length > 2_048) return;
-  const [command, commandArguments] = platform === "win32"
-    ? ["cmd", ["/c", "start", "", url]]
-    : platform === "darwin"
-      ? ["open", [url]]
-      : ["xdg-open", [url]];
+  const invocation = browserOpenInvocation(url, platform);
+  if (invocation === null) return;
   try {
-    const child = spawn(command, commandArguments, { stdio: "ignore", detached: true });
+    const child = spawn(invocation.executable, [...invocation.arguments], {
+      cwd: invocation.cwd,
+      stdio: "ignore",
+      detached: true,
+      shell: false
+    });
     child.once("error", () => undefined);
     child.unref();
   } catch {
@@ -483,6 +536,7 @@ export function runtimeDependencies(): Pick<
     resolveExecutablePath: resolveAgyExecutablePath,
     spawnDetached: (executable, argumentsList, options) => {
       const child = spawn(executable, [...argumentsList], {
+        cwd: options.cwd,
         detached: true,
         stdio: "ignore",
         windowsHide: true
@@ -822,6 +876,13 @@ async function acquisitionStatusRow(
   };
 }
 
+/** What each status line write failure means, in words with no dashes. */
+const STATUSLINE_FAILURE_SENTENCE: Readonly<Record<StatuslineFailureStage, string>> = {
+  ingest: "the last status line payload could not be read",
+  cache_write: "the last status line reading could not be saved to the cache",
+  agent_context: "the last status line reading was saved, the agent context file could not be written"
+};
+
 /** The acquisition block doctor prints under the connector block. */
 async function acquisitionDoctorRows(
   dependencies: CliDependencies,
@@ -842,6 +903,11 @@ async function acquisitionDoctorRows(
   if (failedAt !== null) {
     rows.push("REFRESH SPAWN FAILED " + failedAt +
       " the background refresh could not be started on this machine");
+  }
+  const statusline = await readStatuslineFailure(dependencies.stateDirectory);
+  if (statusline !== null) {
+    rows.push(["STATUSLINE WRITE FAILED", statusline.at, statusline.stage, statusline.errorClass,
+      STATUSLINE_FAILURE_SENTENCE[statusline.stage]].join(" "));
   }
   return [ACQUISITION_HEADER, ...rows].join(NEWLINE);
 }
@@ -1157,14 +1223,25 @@ async function ingestStandardInput(
        reading, and it says so. */
     const incoming = normalizeMeters(withProvenance(meters, provenance).map(meter => ({ ...meter, ...(accountId ? { accountId } : {}) })));
     if (incoming.length === 0) return { snapshots: null, payload: document.value };
+    /* The render still draws when a write fails, so each failure is kept for
+       doctor by its stage, and the next full success clears it. */
+    let merged: Snapshot[];
     try {
-      const { merged } = await persistSnapshots(incoming, dependencies.stateDirectory, now);
-      return { snapshots: merged, payload: document.value };
-    } catch {
+      merged = (await mergeSnapshotCache(incoming, dependencies.stateDirectory ?? resolveStateDirectory(), Date.parse(now))).merged;
+    } catch (error) {
+      await recordStatuslineFailure(dependencies.stateDirectory, now, "cache_write", error);
       const existing = await cachedSnapshots(dependencies.stateDirectory);
       return { snapshots: mergeSnapshots(existing, incoming), payload: document.value };
     }
-  } catch {
+    try {
+      await writeAgentContextSnapshot(merged, dependencies.stateDirectory, now);
+      await clearStatuslineFailure(dependencies.stateDirectory);
+    } catch (error) {
+      await recordStatuslineFailure(dependencies.stateDirectory, now, "agent_context", error);
+    }
+    return { snapshots: merged, payload: document.value };
+  } catch (error) {
+    await recordStatuslineFailure(dependencies.stateDirectory, now, "ingest", error);
     return null;
   }
 }
@@ -1452,6 +1529,7 @@ async function statuslineCommand(
     now,
     config,
     session: parseStatuslineSession(ingested?.payload),
+    apiSpend: await readApiSpend(dependencies.stateDirectory ?? resolveStateDirectory()),
     color: statuslineColor(
       config.color,
       dependencies.environment,

@@ -29,7 +29,7 @@
  * and the moment a poll lands in that gap is the moment the cap looks broken.
  */
 import { providerMarkMarkup } from "./engine/ui/provider-row.js";
-import { say } from "./names.js";
+import { showPlan } from "./settings.js";
 import {
   BACKEND_ABSENT,
   listConnections,
@@ -450,8 +450,7 @@ export async function renderPlanCap(mount, options = {}) {
   ]);
 
   if (!connectionsResult.ok && connectionsResult.reason === BACKEND_ABSENT) {
-    mount.innerHTML =
-      '<p class="note">This build has no connection backend, so there are no accounts to manage.</p>';
+    mount.replaceChildren();
     return;
   }
 
@@ -463,17 +462,13 @@ export async function renderPlanCap(mount, options = {}) {
   state.connections = connections;
   state.multiAccount = multiAccount;
 
-  if (connections.length === 0) {
-    /* Local tools connect without an account row here, so this never claims
-       that nothing is connected. */
-    const note = document.createElement("p");
-    note.className = "note";
-    note.textContent = say("accountsNone");
-    mount.replaceChildren(note);
+  const groups = groupByProvider(connections);
+  /* The menu shows this only when there is something to choose: a second
+     account, or one that is paused. One account each needs no managing. */
+  if (![...groups.values()].some((rows) => rows.length > 1 || rows.some((row) => row.active !== true))) {
+    mount.replaceChildren();
     return;
   }
-
-  const groups = groupByProvider(connections);
   const blocked = [...groups.entries()].filter(
     ([, rows]) => !multiAccount && rows.length > 1
   );
@@ -537,8 +532,7 @@ document.addEventListener("click", async (event) => {
   }
 
   if (action === "unlock") {
-    document.getElementById("tab-settings")?.click();
-    document.getElementById("pro-plan")?.scrollIntoView({ block: "center" });
+    showPlan();
     return;
   }
 });

@@ -25,12 +25,8 @@
     "refresh": "更新",
     "loading": "上限を読み込み中",
     "emptyTitle": "まだ測定できるものがありません",
-    "emptyHome": "ツールを接続するか、すでに使っているツールを開いて上限を報告させてください。",
     "emptyPanel": "アプリを開いてツールを接続してください。",
-    "openConnections": "接続を開く",
     "unavailable": "現在、上限を表示できません。",
-    "agentsEmptyTitle": "実行中のエージェントはありません",
-    "agentsEmptyDetail": "エージェントのセッションは作業中ここに表示されます。",
     "agentsUnavailable": "エージェントのアクティビティを利用できません",
     "agentName": "エージェント",
     "stateWaiting": "あなたの操作が必要",
@@ -43,8 +39,6 @@
     "runningOne": "1 件のエージェントが実行中",
     "runningMany": "{count} 件のエージェントが実行中",
     "attentionTitle": "対応が必要",
-    "attentionOne": "1 件の対応が必要",
-    "attentionMany": "{count} 件の対応が必要",
     "fixReconnectIssue": "接続が切れました",
     "fixReconnectDetail": "{name} を再接続すると、上限が再び表示されます。",
     "fixReconnectAction": "再接続",
@@ -57,15 +51,22 @@
     "fixUnsupportedIssue": "まだ測定できません",
     "fixUnsupportedDetail": "OpenLimiter はまだ {name} を測定できません。",
     "fixFailed": "うまくいきませんでした。少し待ってからもう一度お試しください。",
-    "connected": "接続済み",
-    "sourceLocal": "このコンピューターの {name} のサインインを使用",
-    "sourceKey": "{name} のキーを使用",
-    "sourceManual": "入力した数値を使用",
     "addTool": "ツールを追加",
-    "accountsNone": "追加したキーとログインはここに表示されます。Free では、プロバイダーごとに 1 つのアカウントが有効になります。",
     "fixToolDetail": "このコンピューターで {name} にサインインしてから、もう一度確認してください。",
+    "fixSignInAgainIssue": "もう一度サインイン",
+    "useClaudeSignIn": "自分の Claude サインインを使う",
+    "useClaudeSignInTitle": "Claude Code を閉じている間も、この PC の Claude サインインを使って Anthropic に利用上限を問い合わせます。",
+    "fixWaitingIssue": "{name} を待っています",
+    "fixWaitingDetail": "前回の枠がリセットされました。{name} を一度使うと、上限が再び表示されます。",
     "meterFallback": "上限",
-    "cacheUnreadable": "保存された読み取り値を今は読み込めなかったため、まだ新しい読み取り値だけを表示しています。"
+    "cacheUnreadable": "保存された読み取り値を今は読み込めなかったため、まだ新しい読み取り値だけを表示しています。",
+    "connect": "接続",
+    "openAntigravity": "Antigravity を開く",
+    "toolOff": "オフ",
+    "moreFor": "{name} のその他の操作",
+    "showTool": "表示",
+    "removeTool": "削除",
+    "removeConfirm": "もう一度押すと削除します"
   },
   "meta": {
     "title": "OpenLimiter、AIコーディングの制限とエージェントの活動",
@@ -2333,9 +2334,10 @@
     },
     "phoneInstall": {
       "add": "ホーム画面に追加",
-      "iosOne": "Safari のツールバーで共有をタップしてください。",
-      "iosTwo": "スクロールしてホーム画面に追加を選んでください。",
-      "iosThree": "追加をタップしてください。アプリはホーム画面から全画面で開きます。"
+      "androidMenu": "⋮ をタップして、ホーム画面に追加を選択",
+      "ios": "ホーム画面に追加",
+      "share": "共有",
+      "openSafari": "インストールするには Safari で開いてください"
     },
     "pairPage": {
       "retry": "読み取りを更新",
@@ -2388,6 +2390,10 @@
           "title": "ペア設定を完了できませんでした",
           "body": "サービスが応答しなかったため、ペア設定も変更も行われませんでした。デスクトップで新しいコードを生成して、もう一度スキャンしてください。"
         }
+      },
+      "codeEntry": {
+        "label": "パソコンに表示されたコード",
+        "pair": "ペア設定"
       },
       "pairedAs": "{label} としてペア設定済み",
       "openDashboard": "ダッシュボードを開く"

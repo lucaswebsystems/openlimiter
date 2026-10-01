@@ -54,6 +54,30 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Verify checked out release source
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          head_commit="$(git rev-parse HEAD)"
+          tag_commit="$(git rev-parse "$RELEASE_TAG^{commit}")"
+          if [ "$head_commit" != "$tag_commit" ]; then
+            echo "Checked out commit $head_commit does not match $RELEASE_TAG at $tag_commit" >&2
+            exit 1
+          fi
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const tag = process.env.RELEASE_TAG;
+          const version = JSON.parse(readFileSync("apps/desktop/src-tauri/tauri.conf.json", "utf8")).version;
+          if (typeof tag !== "string" || !tag.startsWith("v") || version !== tag.replace(/^v/u, "")) {
+            throw new Error(`Desktop version ${version} does not match release tag ${tag}`);
+          }
+          console.log(`Release source verified at ${tag}`);
+          NODE
 
       - name: Linux system dependencies
         if: matrix.os == 'ubuntu-22.04'
@@ -232,6 +256,30 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Verify checked out release source
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          head_commit="$(git rev-parse HEAD)"
+          tag_commit="$(git rev-parse "$RELEASE_TAG^{commit}")"
+          if [ "$head_commit" != "$tag_commit" ]; then
+            echo "Checked out commit $head_commit does not match $RELEASE_TAG at $tag_commit" >&2
+            exit 1
+          fi
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const tag = process.env.RELEASE_TAG;
+          const version = JSON.parse(readFileSync("apps/desktop/src-tauri/tauri.conf.json", "utf8")).version;
+          if (typeof tag !== "string" || !tag.startsWith("v") || version !== tag.replace(/^v/u, "")) {
+            throw new Error(`Desktop version ${version} does not match release tag ${tag}`);
+          }
+          console.log(`Release source verified at ${tag}`);
+          NODE
 
       - name: Install Linux launch dependency
         if: matrix.os == 'ubuntu-22.04'
@@ -294,6 +342,30 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Verify checked out release source
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          head_commit="$(git rev-parse HEAD)"
+          tag_commit="$(git rev-parse "$RELEASE_TAG^{commit}")"
+          if [ "$head_commit" != "$tag_commit" ]; then
+            echo "Checked out commit $head_commit does not match $RELEASE_TAG at $tag_commit" >&2
+            exit 1
+          fi
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const tag = process.env.RELEASE_TAG;
+          const version = JSON.parse(readFileSync("apps/desktop/src-tauri/tauri.conf.json", "utf8")).version;
+          if (typeof tag !== "string" || !tag.startsWith("v") || version !== tag.replace(/^v/u, "")) {
+            throw new Error(`Desktop version ${version} does not match release tag ${tag}`);
+          }
+          console.log(`Release source verified at ${tag}`);
+          NODE
 
       - name: Download the assembled updater manifest and its assets
         env:

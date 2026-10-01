@@ -14,6 +14,7 @@ export * from "./normalizer.js";
 export * from "./policy.js";
 export * from "./schedule.js";
 export * from "./types.js";
+export * from "./windows-system-tool.js";
 export * from "./contracts/wire.js";
 export * from "./activity/contract.js";
 export * from "./contracts/notify.js";

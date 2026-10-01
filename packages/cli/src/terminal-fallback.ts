@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
+import { windowsPathTool, windowsSystemTool } from "@openlimiter/core";
 import { type Launcher } from "./terminal-launcher.js";
 
 export const LAUNCHER_TIMEOUT_MILLISECONDS = 5_000;
@@ -17,9 +18,17 @@ const psQuote = (value: string): string => `'${value.replaceAll("'", "''")}'`;
 
 async function detectPosixTimeout(): Promise<string | null> {
   try {
-    const { stdout } = await promisify(execFile)(process.platform === "win32" ? "bash" : "/bin/sh", [
+    const shell = process.platform === "win32"
+      ? await windowsPathTool("bash.exe")
+      : "/bin/sh";
+    if (shell === null) return null;
+    const { stdout } = await promisify(execFile)(shell, [
       "-c", 'if [ -x /usr/bin/timeout ]; then printf /usr/bin/timeout; else command -v timeout; fi'
-    ], { windowsHide: true, timeout: 5_000 });
+    ], {
+      windowsHide: true,
+      timeout: 5_000,
+      ...(process.platform === "win32" ? { cwd: path.win32.dirname(shell) } : {})
+    });
     return stdout.trim() || null;
   } catch {
     return null;
@@ -178,7 +187,7 @@ export async function fallbackLauncherCommand(
     if (!info.isFile() || info.isSymbolicLink() || await readFile(file, "utf8") !== script) throw new Error("Invalid launcher");
   }
   if (shell === "posix") return `/bin/sh ${posixQuote(file)}`;
-  const executable = path.win32.join(process.env["SystemRoot"] ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  const executable = windowsSystemTool("WindowsPowerShell", "v1.0", "powershell.exe");
   if (shell === "powershell") return `& ${psQuote(executable)} -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ${psQuote(file)}`;
   if (/["%\r\n]/.test(file + executable)) throw new Error("Invalid launcher");
   return `"${executable}" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${file}"`;

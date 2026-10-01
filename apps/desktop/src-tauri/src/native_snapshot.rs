@@ -585,14 +585,17 @@ fn rows_for(text: Option<&str>, provider: &str) -> Vec<Snapshot> {
         .collect()
 }
 
-/// Copy one provider's rows onto another provider, under a stated account.
+/// Copy one provider's rows onto another provider, each under the account it
+/// was read for.
 ///
 /// Antigravity and Gemini CLI draw on one Google Code Assist pool, so a
 /// machine with a Gemini login already holds the numbers an Antigravity row
 /// wants. Mirroring them is the last thing tried, after the running client and
-/// after the provider's own endpoint, and it is filed under an account of its
-/// own so a reading borrowed from another login can never be mistaken on a
-/// bar, in the cache or in a sync for a login somebody made to Antigravity.
+/// after the provider's own endpoint. Each borrowed row keeps the Gemini
+/// login's own account id, which is never the id of a login somebody made to
+/// Antigravity, and says so in its label; the display policy shows it exactly
+/// while that Gemini login is active (`data_rules::register_local_identities`),
+/// so a switch to another login hides it at once.
 ///
 /// The whole thing happens inside one lock: the document is read, the mirror
 /// is built from what was read, and the result is committed against the same
@@ -605,31 +608,29 @@ pub fn mirror_provider(
     writer: &CacheWriter,
     source: &str,
     target: &str,
-    account_id: &str,
     account_label: &str,
 ) -> Result<bool, CacheWriteError> {
     for round in 0..2 {
         let begun = writer.begin()?;
-        let borrowed = rows_for(begun.text.as_deref(), source);
-        if borrowed.is_empty() {
-            writer.abort(begun.generation);
-            return Ok(false);
-        }
         /* The freshness is the source's, unchanged. A mirror is the same
         reading seen through another name, so restamping it with the instant it
         was copied would make a two hour old number look like a new one, and
         would let a reading that had already expired come back to life. Both
-        rows age out together, which is the truth. */
-        let mirrored: Vec<Snapshot> = borrowed
-            .into_iter()
-            .map(|row| Snapshot {
+        rows age out together, which is the truth. A row that names no login
+        could never be shown for one, so it is not borrowed. */
+        let mut mirrored = BTreeMap::<String, Vec<Snapshot>>::new();
+        for row in rows_for(begun.text.as_deref(), source) {
+            let Some(account) = row.account_id.clone() else {
+                continue;
+            };
+            if let Some(row) = normalize_snapshot(Snapshot {
                 provider: target.to_string(),
-                account_id: Some(account_id.to_string()),
                 account_label: Some(account_label.to_string()),
                 ..row
-            })
-            .filter_map(normalize_snapshot)
-            .collect();
+            }) {
+                mirrored.entry(account).or_default().push(row);
+            }
+        }
         /* Nothing survived, so nothing is claimed. Without this a source whose
         rows had already expired would report a mirror that wrote no row, and
         the caller would tell somebody their bar was filled from the Gemini
@@ -638,18 +639,22 @@ pub fn mirror_provider(
             writer.abort(begun.generation);
             return Ok(false);
         }
-        let text = match fold(
-            begun.text.as_deref(),
-            target,
-            Some(account_id),
-            &CacheReport::Success(mirrored),
-        ) {
-            Ok(text) => text,
-            Err(error) => {
-                writer.abort(begun.generation);
-                return Err(error);
+        /* One fold per login, each replacing only that login's mirrored rows. */
+        let mut text = begun.text.clone().unwrap_or_default();
+        for (account, rows) in mirrored {
+            match fold(
+                Some(&text),
+                target,
+                Some(&account),
+                &CacheReport::Success(rows),
+            ) {
+                Ok(next) => text = next,
+                Err(error) => {
+                    writer.abort(begun.generation);
+                    return Err(error);
+                }
             }
-        };
+        }
         match writer.commit(&text, begun.generation) {
             Ok(()) => return Ok(true),
             Err(CacheWriteError::Busy | CacheWriteError::StaleGeneration) if round == 0 => {}
@@ -676,6 +681,64 @@ pub fn write_report(
         };
         match writer.commit(&text, begun.generation) {
             Ok(()) => return Ok(()),
+            Err(CacheWriteError::Busy | CacheWriteError::StaleGeneration) if round == 0 => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Err(CacheWriteError::Busy)
+}
+
+/// Remove one stored connection's readings without touching drift suppressions
+/// or any other cache row. The account id is the connection identity stamped by
+/// the collector, so two accounts for one provider remain independent here.
+pub fn purge_connection_rows(
+    writer: &CacheWriter,
+    provider: &str,
+    account_id: &str,
+) -> Result<usize, CacheWriteError> {
+    for round in 0..2 {
+        let begun = writer.begin()?;
+        let Some(text) = begun.text.as_deref() else {
+            writer.abort(begun.generation);
+            return Ok(0);
+        };
+        let mut document: Value = match serde_json::from_str(text) {
+            Ok(document) => document,
+            Err(_) => {
+                writer.abort(begun.generation);
+                return Err(CacheWriteError::NotJson);
+            }
+        };
+        if document
+            .get("version")
+            .is_some_and(|version| !matches!(version.as_u64(), Some(1 | 2)))
+        {
+            writer.abort(begun.generation);
+            return Err(CacheWriteError::NotJson);
+        }
+        let Some(rows) = document.get_mut("snapshots").and_then(Value::as_array_mut) else {
+            writer.abort(begun.generation);
+            return Err(CacheWriteError::NotJson);
+        };
+        let before = rows.len();
+        rows.retain(|row| {
+            row.get("provider").and_then(Value::as_str) != Some(provider)
+                || row.get("accountId").and_then(Value::as_str) != Some(account_id)
+        });
+        let removed = before - rows.len();
+        if removed == 0 {
+            writer.abort(begun.generation);
+            return Ok(0);
+        }
+        let text = match serde_json::to_string(&document) {
+            Ok(text) => text,
+            Err(_) => {
+                writer.abort(begun.generation);
+                return Err(CacheWriteError::Io);
+            }
+        };
+        match writer.commit(&text, begun.generation) {
+            Ok(()) => return Ok(removed),
             Err(CacheWriteError::Busy | CacheWriteError::StaleGeneration) if round == 0 => {}
             Err(error) => return Err(error),
         }

@@ -2818,3 +2818,246 @@ button.first-run-quiet-button {
   font-size: var(--ol-text-micro);
   line-height: var(--ol-leading-body);
 }
+
+/* ------------------------------------------------------- the one screen */
+
+/* Refresh is an icon in the header; while a read runs its icon turns. */
+#home-refresh[aria-busy="true"] svg {
+  animation: q-turn 900ms linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #home-refresh[aria-busy="true"] svg {
+    animation: none;
+  }
+}
+
+#home > .q-section + .q-section {
+  margin-top: var(--ol-space-5);
+}
+
+/* ----------------------------------------------------------- the menu */
+
+/*
+ * One compact panel: short labels on the left, a control on the right, a
+ * hairline between groups. Every switch is the tool switch.
+ */
+.app-menu {
+  width: min(21rem, calc(100vw - (2 * var(--ol-space-4))));
+  gap: var(--ol-space-2);
+}
+
+.app-menu .provider-switch {
+  min-height: 1.75rem;
+}
+
+.app-menu .provider-switch > input:disabled + .provider-switch-track {
+  opacity: 0.5;
+}
+
+.menu-group {
+  display: grid;
+  gap: var(--ol-space-1);
+}
+
+.menu-group:empty {
+  display: none;
+}
+
+.menu-group + .menu-group,
+.app-menu > .menu-line,
+.menu-actions,
+.menu-links {
+  padding-top: var(--ol-space-2);
+  border-top: 1px solid var(--ol-hairline);
+}
+
+.menu-line {
+  display: flex;
+  min-height: 2rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ol-space-3);
+  color: var(--ol-heading);
+  font-size: var(--ol-text-caption);
+}
+
+.menu-line > label,
+.menu-line > span:first-child {
+  min-width: 0;
+}
+
+.menu-line strong {
+  font-weight: var(--ol-weight-semibold);
+}
+
+.menu-note {
+  margin: 0 0 var(--ol-space-1);
+  color: var(--ol-muted);
+  font-size: var(--ol-text-micro);
+  line-height: var(--ol-leading-body);
+}
+
+.menu-note:empty {
+  display: none;
+}
+
+.menu-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ol-space-1) var(--ol-space-3);
+}
+
+.menu-check {
+  display: inline-flex;
+  min-height: 1.75rem;
+  align-items: center;
+  gap: var(--ol-space-1);
+  color: var(--ol-heading);
+  font-size: var(--ol-text-caption);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.menu-check input {
+  margin: 0;
+  accent-color: var(--ol-accent-solid);
+}
+
+.menu-select,
+.menu-times input {
+  height: 1.875rem;
+  padding: 0 var(--ol-space-2);
+  border: 1px solid var(--ol-control-border);
+  border-radius: var(--ol-radius-xs);
+  background: var(--ol-canvas);
+  color: var(--ol-heading);
+  font: inherit;
+  font-size: var(--ol-text-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.menu-select {
+  max-width: 11rem;
+}
+
+.menu-select:focus-visible,
+.menu-times input:focus-visible {
+  outline: none;
+  box-shadow: var(--ol-focus-ring);
+}
+
+.menu-times {
+  justify-content: flex-end;
+  color: var(--ol-muted);
+}
+
+.menu-switches {
+  display: grid;
+  padding-top: var(--ol-space-2);
+  border-top: 1px solid var(--ol-hairline);
+}
+
+.menu-switches > strong {
+  color: var(--ol-heading);
+  font-size: var(--ol-text-caption);
+}
+
+/* Every menu button is the screen's compact control, one size and one radius. */
+.app-menu button:not(.icon):not(.preset) {
+  min-height: 1.875rem;
+  padding: 0 var(--ol-space-3);
+  border-radius: var(--ol-radius-xs);
+  font-size: var(--ol-text-caption);
+}
+
+.app-menu button:not(.icon):hover {
+  transform: none;
+}
+
+.menu-presets {
+  display: grid;
+  gap: var(--ol-space-1);
+  padding-block: var(--ol-space-1);
+  color: var(--ol-heading);
+  font-size: var(--ol-text-caption);
+}
+
+.app-menu .preset-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--ol-space-1);
+}
+
+.app-menu .preset {
+  gap: var(--ol-space-1);
+  padding: var(--ol-space-1) var(--ol-space-2);
+}
+
+.app-menu .preset-swatch {
+  width: 0.625rem;
+  height: 0.625rem;
+}
+
+.menu-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ol-space-2);
+}
+
+.menu-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ol-space-3);
+}
+
+.menu-links a {
+  color: var(--ol-link);
+  font-size: var(--ol-text-caption);
+  text-decoration: none;
+}
+
+.menu-links a:hover {
+  text-decoration: underline;
+}
+
+.app-menu #trademark-note {
+  margin: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* The plan card in the menu: its name, what it holds, its way on. */
+.app-menu .plan-card {
+  display: grid;
+  gap: var(--ol-space-2);
+  padding: var(--ol-space-3);
+}
+
+.app-menu .feature-list {
+  margin: 0;
+}
+
+.plan-devices {
+  display: grid;
+  gap: var(--ol-space-2);
+}
+
+.menu-signin {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+/* A stale Pro grant: one line and Reconnect, at the top of the plan card. */
+.plan-stale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ol-space-2);
+  padding: var(--ol-space-2) var(--ol-space-3);
+  border-radius: var(--ol-radius-xs);
+  background: var(--ol-band-yellow-subtle);
+  color: var(--ol-band-yellow-label);
+  font-size: var(--ol-text-caption);
+}

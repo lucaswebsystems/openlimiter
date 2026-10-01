@@ -212,6 +212,14 @@ test("the edge tab switch copy has its catalog keys, no prose dashes and no raw 
   assert.doesNotMatch(read("./settings.js"), /#[\da-f]{3,8}\b|rgba?\(|hsla?\(|oklch\(/iu);
 });
 
+test("the tab's mark is 17 pixels, five more than 2.0.2, inside its 22 pixel tab", () => {
+  const tab = read("./edge-tab.html");
+  assert.match(tab, /<img src="brand\/openlimiter-mark.svg" width="17" height="17" alt="">/u);
+  const css = read("./edge-tab.css");
+  assert.match(css, /\.edge-tab img \{\s*width: 1\.0625rem;\s*height: 1\.0625rem;/u);
+  assert.match(css, /\.edge-tab \{[^}]*width: 1\.375rem;/u, "the tab itself keeps its size");
+});
+
 test("the tab and the panel are local, CSP compatible documents drawn from tokens", () => {
   const tab = read("./edge-tab.html");
   const panel = read("./edge-panel.html");

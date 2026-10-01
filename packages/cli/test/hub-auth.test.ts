@@ -5,6 +5,7 @@ import {
   REVOKED_SENTENCE,
   ensureFreshSession,
   isAborted,
+  parseLoginStart,
   runDeviceLogin
 } from "../src/hub-auth.js";
 import type { HubReply, HubRequest, HubTransport } from "../src/hub.js";
@@ -26,6 +27,31 @@ const START_BODY = JSON.stringify({
   expires_in: 30
 });
 const CONSUMED_BODY = JSON.stringify({ status: "consumed" });
+
+describe("parseLoginStart", () => {
+  function startBody(verificationUrl: string): string {
+    return JSON.stringify({
+      user_code: "ABCD-1234",
+      device_code: "device-code-0001",
+      verification_url: verificationUrl,
+      interval: 1,
+      expires_in: 30
+    });
+  }
+
+  it("refuses a verification URL with command metacharacters", () => {
+    expect(parseLoginStart(startBody("https://openlimiter.com/device?next=&echo.X"))).toBeNull();
+  });
+
+  it("refuses a verification URL from another origin", () => {
+    expect(parseLoginStart(startBody("https://example.invalid/device"))).toBeNull();
+  });
+
+  it("accepts only the expected HTTPS verification URL", () => {
+    expect(parseLoginStart(startBody("https://openlimiter.com/device"))?.verificationUrl)
+      .toBe("https://openlimiter.com/device");
+  });
+});
 
 function approvedBody(overrides: Partial<Record<string, unknown>> = {}): string {
   return JSON.stringify({

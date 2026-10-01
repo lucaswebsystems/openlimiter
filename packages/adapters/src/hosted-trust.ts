@@ -9,6 +9,10 @@ import {
 import path from "node:path";
 import type { KeyLike } from "node:crypto";
 import {
+  trustedHelperWorkingDirectory,
+  windowsSystemTool
+} from "@openlimiter/core";
+import {
   parseStrictJson,
   type HostedContextTrust
 } from "./hosted-context.js";
@@ -283,7 +287,7 @@ async function readWindowsTrustSecurity(
         "Modules"
       );
       execFile(
-        "powershell.exe",
+        windowsSystemTool("WindowsPowerShell", "v1.0", "powershell.exe"),
         [
           "-NoProfile",
           "-NonInteractive",
@@ -294,6 +298,7 @@ async function readWindowsTrustSecurity(
           windowsSecurityScript
         ],
         {
+          cwd: trustedHelperWorkingDirectory("win32", environment),
           windowsHide: true,
           shell: false,
           timeout: WINDOWS_SECURITY_TIMEOUT_MILLISECONDS,

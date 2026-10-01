@@ -10,6 +10,13 @@ const whatsNewForVersion = (version) => selectRelease(version, WHATS_NEW_EN);
 
 /* What each recent release says, word for word; the current version is one of them. */
 const NOTES = {
+  "2.0.3": [
+    { key: "screen", text: "Every tool and API key now fits on one screen." },
+    { key: "tools", text: "Claude Code stays visible while idle. Antigravity shows again with a clear open button." },
+    { key: "money", text: "Each API key shows its own amount. DeepSeek is included, and the terminal can show all six money cells." },
+    { key: "pro", text: "Sign in works again, and Pro now unlocks trials, period end days, comps, devices and reconnects." },
+    { key: "setup", text: "Terminal setup recovers after host edits. Phone setup includes install help and code entry." },
+  ],
   "2.0.2": [
     { key: "edge", text: "One small tab on the left edge of your screen replaces the Rail. Hover it to see your limits and agents. On Linux Wayland the tray takes its place." },
     { key: "home", text: "Home shows the account you are signed in with now, one card per tool. Anything that cannot be measured waits on Connections with one fix." },
@@ -29,7 +36,7 @@ test("the current desktop version has a complete What's New entry", () => {
   assert.deepEqual(entry.items, NOTES[manifest.version]);
 });
 
-test("the 2.0.2 notes name the edge tab, Home and the status line, and 2.0.1 stays available", () => {
+test("the 2.0.3 notes stay short and earlier releases remain available", () => {
   for (const [version, items] of Object.entries(NOTES)) {
     const entry = whatsNewForVersion(version);
     assert.deepEqual(entry.items, items, version);
@@ -38,7 +45,8 @@ test("the 2.0.2 notes name the edge tab, Home and the status line, and 2.0.1 sta
       assert.doesNotMatch(text, /[-\u2010-\u2015]/u);
     }
   }
-  assert.equal(WHATS_NEW_EN.releases["2.0.2"].heading, "One small tab, a clearer Home");
+  assert.equal(WHATS_NEW_EN.releases["2.0.3"].heading, "One screen, every tool");
+  assert.ok(NOTES["2.0.3"].length <= 5);
 });
 
 test("the 2.0.0 release notes remain available", () => {

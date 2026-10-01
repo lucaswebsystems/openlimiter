@@ -30,6 +30,7 @@ function objectValue(value: unknown): number | null {
   const object = record(value);
   if (object === null) return null;
   const raw = object["val"];
+  if (typeof raw === "string" && raw.trim() === "") return null;
   const number = typeof raw === "string" ? Number(raw) : raw;
   return typeof number === "number" &&
     Number.isFinite(number) &&

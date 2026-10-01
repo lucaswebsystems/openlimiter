@@ -111,14 +111,16 @@ try {
       const response = await page.goto(`${origin}/${entry}`);
       assert.equal(response.headers()["content-security-policy"], csp);
       if (entry === "index.html") {
-        // What's New opens once over the landing tab. With no stubbed
-        // connection the app lands on Connections, so dismiss and open Home.
+        // What's New opens once over the one screen; dismiss it, then the
+        // three tools that always have a row and the agent at work show.
         await page.locator("dialog.whats-new[open]").waitFor({ state: "visible" });
         await page.locator("dialog.whats-new button").click();
         await page.locator("dialog.whats-new").waitFor({ state: "detached" });
-        await page.getByRole("tab", { name: "Home" }).click();
         await page.locator("#agents-mount .q-agent").waitFor({ state: "visible" });
-        assert.ok(await page.locator("main").isVisible(), "Home must be visible");
+        assert.ok(await page.locator("main").isVisible(), "the screen must be visible");
+        const rows = await page.locator("#tool-rows [data-provider-card]").evaluateAll((cards) => cards.map((card) => card.dataset.provider));
+        for (const code of ["CLAUDE", "ANTIGRAVITY", "OPENROUTER"]) assert.ok(rows.includes(code), `${code} has no row: ${rows.join(", ")}`);
+        assert.equal(await page.locator("[role=tab], .tabs").count(), 0, "no tab bar");
       } else if (entry === "tray.html") {
         // The tray reaches its empty state only after start() loaded every
         // module it imports (1.3.3 shipped it importing a deleted file).
@@ -146,30 +148,34 @@ try {
  * The checks that would have caught 2.0.1.
  *
  * 2.0.1 passed this script because it rendered an empty cache at 720 pixels.
- * These render Home at the real 520 by 800 window and the edge panel at its
- * real 360 by 480 size, dark and light, from the synthetic 2.0.1 shapes in
- * ui/messy-fixtures.mjs, and read the layout back: every visible text box
- * inside its card and clear of every other, no raw code, no "Unknown", no
- * hash, exactly one Claude and one Codex card, and the providers that cannot
- * be measured only on Connections, each with its fix. `--shots=<dir>` also
+ * These render the one screen at the window's real widths, 420 and 586, and
+ * the edge panel at its real 360 by 480 size, dark and light, from the
+ * synthetic 2.0.1 shapes and the four review states in ui/messy-fixtures.mjs,
+ * and read the layout back: every visible text box inside its card and clear
+ * of every other, no raw code, no "Unknown", no hash, no sideways scroll,
+ * exactly one Claude and one Codex row, every tool that cannot be measured on
+ * its own row with its one step, and the six key rows. `--shots=<dir>` also
  * writes the 2x screenshots a person reviews.
  */
 async function checkMessyViews(browser, origin) {
-  const { messyFixtures, emptyFixtures, tallFixtures } = await import(new URL("../ui/messy-fixtures.mjs", import.meta.url).href);
+  const { messyFixtures, emptyFixtures, tallFixtures, screenFixtures } = await import(new URL("../ui/messy-fixtures.mjs", import.meta.url).href);
   const { version } = JSON.parse(await readFile(path.join(desktop, "package.json"), "utf8"));
   const shotsArgument = process.argv.find(argument => argument.startsWith("--shots="));
   const shots = shotsArgument ? path.resolve(shotsArgument.slice("--shots=".length)) : null;
   if (shots) await mkdir(shots, { recursive: true });
   const failures = [];
   const hidden = ["Kimi", "Antigravity"];
-  const open = async (theme, viewport, entry, { set = "projected", agents = false, clock = false, cardOpen, mac = false } = {}) => {
-    const fixtures = set === "tall" ? tallFixtures(Date.now()) : set === "empty" ? emptyFixtures() : messyFixtures(Date.now());
-    const payload = set === "raw" ? fixtures.raw : fixtures.projected;
+  const open = async (theme, viewport, entry, { set = "projected", agents = false, clock = false, cardOpen, mac = false, screen = null } = {}) => {
+    const fixtures = screen !== null ? screenFixtures(Date.now())[screen]
+      : set === "tall" ? tallFixtures(Date.now()) : set === "empty" ? emptyFixtures() : messyFixtures(Date.now());
+    const payload = screen !== null ? fixtures.cache : set === "raw" ? fixtures.raw : fixtures.projected;
     const context = await browser.newContext({ viewport, deviceScaleFactor: shots ? 2 : 1, colorScheme: theme, serviceWorkers: "block" });
     await context.route("**/*", route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
     if (clock) await context.clock.install({ time: new Date() });
     if (mac) await context.addInitScript(() => Object.defineProperty(Navigator.prototype, "platform", { get: () => "MacIntel" }));
-    await context.addInitScript(installFixtureStub, { payload, sessions: agents ? fixtures.sessions : [], theme, version, cardOpen });
+    await context.addInitScript(installFixtureStub, { payload, sessions: agents || screen !== null ? fixtures.sessions : [], theme, version, cardOpen,
+      screen: screen === null ? null : fixtures, /* First run counts as done once a tool is chosen; OpenRouter always has a row anyway. */
+      configured: screen === null ? ["CLAUDE", "CODEX", "OPENROUTER"] : ["OPENROUTER"] });
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));
@@ -183,7 +189,7 @@ async function checkMessyViews(browser, origin) {
     process.stdout.write(`${unique.length ? "FAIL" : "PASS"} ${label}${unique.length ? `: ${unique.length} findings` : ""}\n`);
   };
   const cards = (label, counted) => ["CLAUDE", "CODEX"].filter(provider => counted[provider] !== 1)
-    .map(provider => `${label}: ${counted[provider] ?? 0} ${provider === "CLAUDE" ? "Claude" : "Codex"} cards, expected exactly one`);
+    .map(provider => `${label}: ${counted[provider] ?? 0} ${provider === "CLAUDE" ? "Claude" : "Codex"} rows, expected exactly one`);
   const settle = page => page.waitForFunction(() => document.fonts.status === "loaded").then(() => page.waitForTimeout(350));
   // What the projected messy set must read as, card by card, tightest first.
   const readings = [
@@ -191,9 +197,27 @@ async function checkMessyViews(browser, origin) {
     ["CLAUDE", "Claude Code", [["Weekly", "46%"], ["Fable weekly", "31%"], ["5 hour", "6%"]]],
     ["OPENROUTER", "OpenRouter", [["Credits", "$12.50"]]],
   ];
-  // Each unmeasurable provider's fix: the button text, or null for a sentence only.
-  const fixes = { KIMI: "Check again", ANTIGRAVITY: "Check again", GROK: "Check again", OPENCODE: "Reconnect", GEMINI_CLI: null };
-  const connected = ["CLAUDE", "CODEX", "OPENROUTER"];
+  // Each tool that cannot be measured, on its own row: its one step, or its note.
+  const steps = { KIMI: "Check again", ANTIGRAVITY: "Open Antigravity", GROK: "Sign in again", OPENCODE: "Connect", GEMINI_CLI: "note:Not measurable yet" };
+  const stateSteps = {
+    empty: { CLAUDE: "Connect", ANTIGRAVITY: "Open Antigravity", OPENROUTER: "Connect" },
+    waiting: { CLAUDE: "note:Waiting for Claude Code", ANTIGRAVITY: "Open Antigravity", OPENROUTER: "Connect" },
+    money: {},
+    errors: { CLAUDE: "Sign in again", ANTIGRAVITY: "Open Antigravity", OPENROUTER: "Connect", GROK: "Sign in again", GEMINI_CLI: "note:Not measurable yet", KIMI: "Check again" },
+  };
+  const emptyKeys = Object.fromEntries(["openrouter", "openai", "anthropic", "xai", "moonshot", "deepseek"].map((provider) => [provider, ["Save", "Get key"]]));
+  const stateKeys = {
+    empty: emptyKeys,
+    waiting: emptyKeys,
+    money: {
+      openrouter: ["$37.50", "balance", "USD"], openai: ["$84.17", "spent this month", "USD"], anthropic: ["$212.40", "last month"],
+      xai: ["$9.03", "Incomplete"], moonshot: ["$41.50", "balance"], deepseek: ["$18.20", "balance"],
+    },
+    errors: {
+      openrouter: ["Key not accepted, paste a new one"], openai: ["Project key won't work, use an Admin key", "Get key"],
+      anthropic: ["$57.80", "Unavailable"], xai: ["Checking key"], moonshot: ["$0.62", "Too low for API calls"], deepseek: ["Reported in CNY"],
+    },
+  };
   const PANEL_MIN = 160;
   const PANEL_MAX = Math.floor(1040 * 0.9);
 
@@ -221,101 +245,118 @@ async function checkMessyViews(browser, origin) {
 
   for (const theme of ["dark", "light"]) {
     // The projected cache is what the webview receives; the raw one is what
-    // 2.0.1 received, and it must not break the one card per provider rule.
-    for (const [set, agents] of [["projected", false], ["raw", false], ["projected", true]]) {
-      const payloadName = `${set} cache${agents ? ", agents at work" : ""}`;
-      const { context, page, errors } = await open(theme, { width: 520, height: 800 }, "index.html", { set, agents });
-      try {
-        await page.locator("#tab-meters").click();
-        await page.waitForSelector("[data-provider-card], .home-provider-card", { timeout: 5000 }).catch(() => {});
-        if (agents) await page.waitForSelector("#agents-mount .q-agent", { timeout: 3000 }).catch(() => {});
-        await settle(page);
-        const home = await page.evaluate(inspectView, { scope: "#panel-meters", cards: "[data-provider-card], .home-provider-card", forbidden: hidden });
-        const shown = set === "projected" ? await page.evaluate(inspectReadings, { scope: "#panel-meters", expected: readings }) : [];
-        // The header runs the full width on the page's own background, never an inset box.
-        const band = await page.evaluate(() => {
-          const strip = document.querySelector("body > .strip");
-          const box = strip.getBoundingClientRect();
-          const width = document.documentElement.clientWidth;
-          const paint = getComputedStyle(strip).backgroundColor;
-          return [
-            ...(Math.abs(box.left) > 0.5 || Math.abs(box.right - width) > 0.5 ? [`the header spans ${box.left} to ${box.right} of ${width}`] : []),
-            ...(paint === "rgba(0, 0, 0, 0)" ? [] : [`the header paints its own background ${paint}`]),
-          ];
-        });
-        record(`Home 520x800 ${theme}, ${payloadName}`, [...home.findings, ...shown, ...band, ...cards("Home", home.cards), ...errors]);
-        if (shots && set === "projected") await page.screenshot({ path: path.join(shots, `home-520${agents ? "-agents" : ""}-${theme}.png`), fullPage: true });
-        if (agents) continue;
-        await page.locator("#tab-connections").click();
-        await page.waitForSelector("[data-flag-row]", { timeout: 3000 }).catch(() => {});
-        await settle(page);
-        const expectedFixes = set === "raw" ? Object.fromEntries(Object.entries(fixes).filter(([provider]) => provider !== "GROK")) : fixes;
-        const flags = await page.evaluate(inspectFlags, { scope: "#panel-connections", fixes: expectedFixes, absent: ["CURSOR", "CLAUDE", "CODEX"] });
-        const listed = await page.evaluate(inspectConnections, { scope: "#panel-connections", connected, catalogueOpen: false });
-        const words = await page.evaluate(inspectView, { scope: "#panel-connections", cards: "[data-flag-row], [data-connected-row]", forbidden: [] });
-        if (shots && set === "projected") await page.screenshot({ path: path.join(shots, `connections-${theme}.png`), fullPage: true });
-        // Add a tool opens the whole catalogue, switches and accounts included.
-        // (A missing button is already a finding above; there is nothing to press.)
-        const add = page.locator("#add-tool");
-        const pressed = await add.isVisible() && await add.click().then(() => true);
-        const opened = !pressed ? [] : await page.evaluate(() => {
-          const shown = element => element !== null && element.checkVisibility() && element.getClientRects().length > 0;
-          return [
-            ...(shown(document.querySelector("#provider-catalogue")) ? [] : ["Add a tool did not show the provider catalogue"]),
-            ...(shown(document.querySelector("#plan-cap")) ? [] : ["Add a tool did not show the accounts card"]),
-            ...(document.querySelector("#add-tool").getAttribute("aria-expanded") === "true" ? [] : ["Add a tool is not marked expanded"]),
-          ];
-        });
-        record(`Connections ${theme}, ${payloadName}`, [...flags, ...listed, ...words.findings, ...opened, ...errors]);
-      } finally { await context.close(); }
-    }
-    // Nothing connected yet: the catalogue is the page, with no Add a tool.
-    {
-      const { context, page, errors } = await open(theme, { width: 520, height: 800 }, "index.html", { set: "empty" });
-      try {
-        await page.locator("#tab-connections").click();
-        await settle(page);
-        const listed = await page.evaluate(inspectConnections, { scope: "#panel-connections", connected: [], catalogueOpen: true });
-        const words = await page.evaluate(inspectView, { scope: "#panel-connections", cards: "[data-flag-row], [data-connected-row]", forbidden: [] });
-        record(`Connections ${theme}, nothing connected yet`, [...listed, ...words.findings, ...errors]);
-        if (shots && theme === "dark") await page.screenshot({ path: path.join(shots, `connections-empty-${theme}.png`), fullPage: true });
-      } finally { await context.close(); }
+    // 2.0.1 received, and it must not break the one row per tool rule. Both
+    // real window widths, 420 and 586.
+    for (const width of [420, 586]) {
+      for (const [set, agents] of [["projected", false], ["raw", false], ["projected", true]]) {
+        const payloadName = `${set} cache${agents ? ", agents at work" : ""}`;
+        const { context, page, errors } = await open(theme, { width, height: 800 }, "index.html", { set, agents });
+        try {
+          await page.waitForSelector("#tool-rows [data-provider-card]", { timeout: 5000 }).catch(() => {});
+          if (agents) await page.waitForSelector("#agents-mount .q-agent", { timeout: 3000 }).catch(() => {});
+          await settle(page);
+          const home = await page.evaluate(inspectView, { scope: "#home", cards: "[data-provider-card], [data-key-row]", forbidden: [] });
+          const shown = set === "projected" ? await page.evaluate(inspectReadings, { scope: "#tool-rows", expected: readings }) : [];
+          const expectedSteps = set === "raw" ? Object.fromEntries(Object.entries(steps).filter(([provider]) => provider !== "GROK")) : steps;
+          const stepped = await page.evaluate(inspectSteps, { scope: "#tool-rows", steps: expectedSteps, absent: ["CURSOR"] });
+          const keys = await page.evaluate(inspectKeys);
+          const fit = await page.evaluate(inspectFit);
+          // The header runs the full width on the page's own background, never an inset box.
+          const band = await page.evaluate(() => {
+            const strip = document.querySelector("body > .strip");
+            const box = strip.getBoundingClientRect();
+            const full = document.documentElement.clientWidth;
+            const paint = getComputedStyle(strip).backgroundColor;
+            return [
+              ...(Math.abs(box.left) > 0.5 || Math.abs(box.right - full) > 0.5 ? [`the header spans ${box.left} to ${box.right} of ${full}`] : []),
+              ...(paint === "rgba(0, 0, 0, 0)" ? [] : [`the header paints its own background ${paint}`]),
+            ];
+          });
+          const agentSection = await page.evaluate(() => document.getElementById("agents-section").hidden);
+          const sectionFinding = agentSection === agents ? [`the agents section is ${agentSection ? "hidden" : "shown"} with ${agents ? "" : "no "}sessions`] : [];
+          record(`Home ${width}x800 ${theme}, ${payloadName}`, [...home.findings, ...shown, ...stepped, ...keys, ...fit, ...band, ...sectionFinding, ...cards("Home", home.cards), ...errors]);
+          if (agents || set !== "projected") continue;
+          // Add a tool opens the catalogue inline, below the last row.
+          await page.locator("#add-tool").click();
+          await settle(page);
+          const catalogue = await page.evaluate(() => {
+            const list = document.getElementById("tool-catalogue");
+            const rows = [...list.querySelectorAll("[data-provider-card]")];
+            return [
+              ...(list.checkVisibility() ? [] : ["Add a tool did not open the catalogue"]),
+              ...(document.getElementById("add-tool").getAttribute("aria-expanded") === "true" ? [] : ["Add a tool is not marked expanded"]),
+              ...(rows.length ? [] : ["the catalogue is empty"]),
+              ...rows.filter((row) => row.querySelectorAll("button[data-action]").length !== 1).map((row) => `${row.dataset.provider} in the catalogue has no single step`),
+            ];
+          });
+          const catalogueView = await page.evaluate(inspectView, { scope: "#tool-catalogue", cards: "[data-provider-card]", forbidden: [] });
+          record(`Add a tool ${width} ${theme}`, [...catalogue, ...catalogueView.findings, ...errors]);
+          // The menu holds the plan, the settings and the links, in short labels.
+          await page.locator("#menu-button").click();
+          await page.waitForSelector("#pro-plan", { timeout: 3000 }).catch(() => {});
+          await settle(page);
+          const menu = await page.evaluate(inspectView, { scope: "#app-menu", cards: ".menu-line, .menu-checks, .plan-card, .menu-actions, .menu-links", forbidden: [] });
+          const reach = await page.evaluate(() => [
+            ...(document.querySelector("#app-menu #pro-plan #pro-upgrade-monthly") ? [] : ["the menu has no plan card with Checkout"]),
+            ...(document.querySelector("#app-menu #alerts-enabled") ? [] : ["the menu has no Alerts switch"]),
+            ...(document.querySelector("#app-menu #claude-poll") ? [] : ["the menu has no Claude direct poll switch"]),
+            ...(document.querySelectorAll("#app-menu .menu-switches input[role=switch]").length >= 9 ? [] : ["the menu lacks the provider switches"]),
+            ...([...document.querySelectorAll("#app-menu .menu-links a")].map((link) => link.textContent).join() === "Privacy,Terms,Docs" ? [] : ["the menu lacks Privacy and Terms"]),
+          ]);
+          record(`Menu ${width} ${theme}`, [...menu.findings, ...reach, ...errors]);
+          if (shots && width === 420) await page.screenshot({ path: path.join(shots, `menu-${width}-${theme}.png`) });
+        } finally { await context.close(); }
+      }
+      // The four review states, read back and, with --shots, photographed.
+      for (const state of ["empty", "waiting", "money", "errors"]) {
+        const { context, page, errors } = await open(theme, { width, height: 800 }, "index.html", { screen: state });
+        try {
+          await page.waitForSelector("#tool-rows [data-provider-card]", { timeout: 5000 }).catch(() => {});
+          if (state === "money") await page.waitForSelector("#agents-mount .q-agent", { timeout: 3000 }).catch(() => {});
+          await settle(page);
+          const view = await page.evaluate(inspectView, { scope: "#home", cards: "[data-provider-card], [data-key-row]", forbidden: [] });
+          const stepped = await page.evaluate(inspectSteps, { scope: "#tool-rows", steps: stateSteps[state], absent: [] });
+          const words = await page.evaluate(inspectKeyWords, { expected: stateKeys[state] });
+          const fit = await page.evaluate(inspectFit);
+          record(`State ${state} ${width} ${theme}`, [...view.findings, ...stepped, ...words, ...fit, ...errors]);
+          if (shots) await page.screenshot({ path: path.join(shots, `${state}-${width}-${theme}.png`), fullPage: true });
+        } finally { await context.close(); }
+      }
     }
     // A failed read keeps only what is still fresh of what was on screen, by
-    // the one freshness policy, and says why; it never freezes old numbers.
+    // the one freshness policy, and says why; it never freezes old numbers,
+    // and the tools that always have a row keep it, with their step.
     {
-      const { context, page, errors } = await open(theme, { width: 520, height: 800 }, "index.html", { clock: true });
+      const { context, page, errors } = await open(theme, { width: 586, height: 800 }, "index.html", { clock: true });
       try {
-        await page.locator("#tab-meters").click();
-        await page.waitForSelector("[data-provider-card], .home-provider-card", { timeout: 5000 }).catch(() => {});
-        const before = await page.locator("[data-provider-card], .home-provider-card").count();
+        await page.waitForSelector("#tool-rows .q-row", { timeout: 5000 }).catch(() => {});
+        const measured = () => page.evaluate(() => [...document.querySelectorAll("#tool-rows [data-provider-card]")].filter((card) => card.querySelector(".q-row")).length);
+        const before = await measured();
         await page.evaluate(() => { window.__failCache = true; });
         // The next poll fails while everything drawn is still fresh: it all stays, and the status says why.
         await page.clock.fastForward("00:31");
         await page.waitForTimeout(400);
-        const held = await page.evaluate(() => ({
-          cards: document.querySelectorAll("[data-provider-card], .home-provider-card").length,
-          status: document.getElementById("home-refresh-status")?.textContent ?? "",
-        }));
+        const held = { cards: await measured(), status: await page.evaluate(() => document.getElementById("home-refresh-status")?.textContent ?? "") };
+        const sentence = "The saved readings could not be read just now, so only readings that are still fresh are shown.";
         const kept = [
-          ...(held.cards === before ? [] : [`a failed read left ${held.cards} of ${before} still fresh cards`]),
-          ...(held.status === "The saved readings could not be read just now, so only readings that are still fresh are shown." ? []
-            : [`after a failed read the status says "${held.status}"`]),
+          ...(held.cards === before ? [] : [`a failed read left ${held.cards} of ${before} still fresh tools`]),
+          ...(held.status === sentence ? [] : [`after a failed read the status says "${held.status}"`]),
         ];
         await page.clock.fastForward("25:00");
         await page.waitForTimeout(400);
-        const findings = await page.evaluate(() => {
+        const findings = await page.evaluate((expected) => {
           const out = [];
           const status = document.getElementById("home-refresh-status")?.textContent ?? "";
-          if (document.querySelectorAll("[data-provider-card], .home-provider-card").length) out.push("expired cards are still drawn after a failed read");
-          if (document.getElementById("empty")?.hidden !== false) out.push("the empty card is not shown after every reading expired");
-          if (status !== "The saved readings could not be read just now, so only readings that are still fresh are shown.") {
-            out.push(`the status says "${status}"`);
+          const cards = [...document.querySelectorAll("#tool-rows [data-provider-card]")];
+          if (cards.some((card) => card.querySelector(".q-row"))) out.push("expired bars are still drawn after a failed read");
+          for (const code of ["CLAUDE", "ANTIGRAVITY", "OPENROUTER"]) {
+            if (!cards.some((card) => card.dataset.provider === code)) out.push(`${code} lost its row after the readings expired`);
           }
+          if (status !== expected) out.push(`the status says "${status}"`);
           if (document.getElementById("failures")?.textContent.includes("Manual")) out.push("the failure names Manual");
           return out;
-        });
-        record(`Home ${theme}, cache read fails, then the readings expire`, [...(before ? [] : ["no cards were drawn before the read failed"]), ...kept, ...findings, ...errors]);
+        }, sentence);
+        record(`Home ${theme}, cache read fails, then the readings expire`, [...(before ? [] : ["no bars were drawn before the read failed"]), ...kept, ...findings, ...errors]);
       } finally { await context.close(); }
     }
     // The panel reports the height its content needs and is sized to it (native
@@ -419,10 +460,10 @@ async function checkMessyViews(browser, origin) {
 
 /* Runs in the page before any script: the same bridge shape as the stub above,
    answering with one messy fixture set. */
-function installFixtureStub({ payload, sessions, theme, version, cardOpen = true }) {
+function installFixtureStub({ payload, sessions, theme, version, cardOpen = true, screen = null, configured = [] }) {
   window.__heights = [];
   localStorage.setItem("openlimiter-first-run-complete-v1", "complete");
-  localStorage.setItem("openlimiter-configured-providers-v1", JSON.stringify(["CLAUDE", "CODEX", "OPENROUTER"]));
+  localStorage.setItem("openlimiter-configured-providers-v1", JSON.stringify(configured));
   localStorage.setItem("openlimiter-theme", theme);
   localStorage.setItem("openlimiter-whats-new-seen", version);
   const records = sessions.map(session => ({ ...session,
@@ -446,8 +487,13 @@ function installFixtureStub({ payload, sessions, theme, version, cardOpen = true
       };
       if (name === "plugin:rail|rail_snapshot") return { accounts: [], flags: payload.flags ?? [], sessions: window.__sessions ?? sessions,
         window: { available: true, visible: true, unfolded: true, keepOpen: false, offset: 0, cardOpen, cardAnchor: null } };
-      if (["list_connections", "disabled_providers", "notification_events"].includes(name)) return [];
-      if (name === "list_detected_providers") return { providers: [] };
+      if (name === "list_connections") return screen?.connections ?? [];
+      if (["disabled_providers", "notification_events"].includes(name)) return [];
+      if (name === "list_detected_providers") return screen?.detections ?? { providers: [] };
+      if (name === "api_spend_status") return screen?.spend ?? { version: 1, localDisplayIsFree: true, sources: [], samples: [] };
+      if (name === "detect_local_tools") return screen?.claude ?? { claude_settings_present: true, statusline_wired: true };
+      if (name === "claude_connect_preflight") return screen?.preflight ?? { kind: "ready", cli_path: "openlimiter" };
+      if (name === "claude_poll_enabled") return false;
       return null;
     } },
     event: { listen: async () => () => {} },
@@ -579,39 +625,84 @@ function inspectView({ scope, cards, forbidden }) {
   const counted = {};
   for (const card of root.querySelectorAll(cards)) {
     if (!shown(card)) continue;
-    const provider = card.dataset.provider ?? card.querySelector("[data-provider]")?.dataset.provider ?? "none";
+    const provider = card.dataset.provider ?? card.dataset.keyRow ?? card.querySelector("[data-provider]")?.dataset.provider ?? "none";
     counted[provider] = (counted[provider] ?? 0) + 1;
   }
   return { findings, cards: counted };
 }
 
-/* Runs in the page. Each unmeasurable provider has one Needs attention row
-   with its fix: a visible, enabled button with the right words, or, when
-   nothing here can fix it, the sentence that says so. A switched off or
-   measured provider has no row at all. */
-function inspectFlags({ scope, fixes, absent }) {
+/* Runs in the page. Each tool without a reading has one row with its one
+   step: a visible, enabled button with the right words, or a muted note
+   ("note:" in `steps`) and no button. A tool in `absent` has no row. */
+function inspectSteps({ scope, steps, absent }) {
   const root = document.querySelector(scope);
   const findings = [];
-  const shown = element => element !== null && element.checkVisibility() && element.getClientRects().length > 0 &&
-    element.getBoundingClientRect().width > 0 && element.getBoundingClientRect().height > 0;
-  const rowsFor = provider => [...(root?.querySelectorAll(`[data-flag-row][data-provider="${provider}"]`) ?? [])].filter(shown);
-  for (const [provider, text] of Object.entries(fixes)) {
+  const shown = element => element !== null && element.checkVisibility() && element.getClientRects().length > 0;
+  const rowsFor = provider => [...(root?.querySelectorAll(`[data-provider-card][data-provider="${provider}"]`) ?? [])].filter(shown);
+  for (const [provider, expected] of Object.entries(steps)) {
     const rows = rowsFor(provider);
-    if (rows.length !== 1) { findings.push(`${provider}: ${rows.length} Needs attention rows on Connections, expected one`); continue; }
-    const button = rows[0].querySelector("button[data-fix]");
-    if (text === null) {
-      if (button) findings.push(`${provider}: offers "${button.textContent.trim()}" where nothing here can fix it`);
-      if (!shown(rows[0].querySelector("[data-fix]"))) findings.push(`${provider}: no sentence says it cannot be measured`);
-    } else if (!shown(button)) {
-      findings.push(`${provider}: its fix is not a visible control`);
+    if (rows.length !== 1) { findings.push(`${provider}: ${rows.length} rows, expected one`); continue; }
+    const buttons = [...rows[0].querySelectorAll("button[data-action]")];
+    const note = rows[0].querySelector(".q-tnote");
+    if (expected.startsWith("note:")) {
+      if (buttons.length) findings.push(`${provider}: offers "${buttons[0].textContent.trim()}" where a note is expected`);
+      if (!shown(note) || note.textContent.trim() !== expected.slice(5)) findings.push(`${provider}: note "${note?.textContent.trim()}", expected "${expected.slice(5)}"`);
+    } else if (buttons.length !== 1 || !shown(buttons[0])) {
+      findings.push(`${provider}: ${buttons.length} visible steps, expected one`);
     } else {
-      if (button.disabled) findings.push(`${provider}: its fix is disabled`);
-      if (button.textContent.trim() !== text) findings.push(`${provider}: its fix says "${button.textContent.trim()}", expected "${text}"`);
+      if (buttons[0].disabled) findings.push(`${provider}: its step is disabled`);
+      if (buttons[0].textContent.trim() !== expected) findings.push(`${provider}: its step says "${buttons[0].textContent.trim()}", expected "${expected}"`);
     }
+    if (rows[0].querySelector(".q-row")) findings.push(`${provider}: a step row also draws a bar`);
   }
-  for (const provider of absent) if (rowsFor(provider).length) findings.push(`${provider}: flagged although it should not be`);
-  const count = document.getElementById("connections-count")?.textContent;
-  if (count !== String(Object.keys(fixes).length)) findings.push(`the Connections tab counts ${count}, expected ${Object.keys(fixes).length}`);
+  for (const provider of absent) if (rowsFor(provider).length) findings.push(`${provider}: has a row although it is switched off`);
+  // Rows with a step or a note are one line each, all the same height.
+  const heights = [...(root?.querySelectorAll("[data-provider-card]") ?? [])].filter(shown)
+    .filter((card) => !card.querySelector(".q-row")).map((card) => card.clientHeight);
+  if (new Set(heights).size > 1) findings.push(`rows without a reading differ in height: ${heights.join(", ")}`);
+  return findings;
+}
+
+/* Runs in the page. Six key rows, OpenRouter first, and one consent line
+   above the first Save while any row has one. */
+function inspectKeys() {
+  const findings = [];
+  const rows = [...document.querySelectorAll("#key-rows [data-key-row]")].map((row) => row.dataset.keyRow);
+  const order = ["openrouter", "openai", "anthropic", "xai", "moonshot", "deepseek"];
+  if (rows.join() !== order.join()) findings.push(`key rows read ${rows.join(", ")}`);
+  const consent = document.getElementById("key-consent");
+  const firstSave = document.querySelector('#key-rows [data-key-action="save"]');
+  if (firstSave && (!consent || !consent.checkVisibility())) findings.push("no consent line above the first Save");
+  if (consent && firstSave && consent.getBoundingClientRect().bottom > firstSave.getBoundingClientRect().top) findings.push("the consent line is not above the first Save");
+  return findings;
+}
+
+/* Runs in the page. Each key row says what it should, by provider. */
+function inspectKeyWords({ expected }) {
+  const findings = [];
+  for (const [provider, words] of Object.entries(expected)) {
+    const row = document.querySelector(`#key-rows [data-key-row="${provider}"]`);
+    if (!row) { findings.push(`${provider}: no key row`); continue; }
+    const text = row.innerText.replace(/\s+/gu, " ");
+    for (const word of words) if (!text.includes(word)) findings.push(`${provider}: "${word}" missing from "${text.trim()}"`);
+  }
+  if (expected.anthropic?.includes("last month") && document.querySelector('#key-rows [data-key-row="anthropic"]')?.innerText.includes("this month")) {
+    findings.push("last month's amount is labelled this month");
+  }
+  return findings;
+}
+
+/* Runs in the page. Nothing scrolls sideways and no control wraps its label. */
+function inspectFit() {
+  const findings = [];
+  const page = document.documentElement;
+  if (page.scrollWidth > page.clientWidth + 1) findings.push(`the page scrolls sideways: ${page.scrollWidth} in ${page.clientWidth}`);
+  for (const button of document.querySelectorAll("#home button.q-btn, #home a.q-klink")) {
+    if (!button.checkVisibility()) continue;
+    const lines = [...button.getClientRects()].length;
+    const height = button.getBoundingClientRect().height;
+    if (lines > 1 || height > 40) findings.push(`"${button.textContent.trim()}" wraps`);
+  }
   return findings;
 }
 
@@ -621,7 +712,8 @@ function inspectReadings({ scope, expected }) {
   const root = document.querySelector(scope);
   const findings = [];
   const shown = element => element !== null && element.checkVisibility() && element.getClientRects().length > 0;
-  const cards = [...(root?.querySelectorAll("[data-provider-card]") ?? [])].filter(shown);
+  /* Measured tools only: a row with a step instead of bars is not a reading. */
+  const cards = [...(root?.querySelectorAll("[data-provider-card]") ?? [])].filter(shown).filter(card => card.querySelector(".q-row"));
   const order = cards.map(card => card.dataset.provider).join(", ");
   const want = expected.map(([code]) => code).join(", ");
   if (order !== want) findings.push(`cards read ${order}, expected ${want}`);
@@ -639,33 +731,6 @@ function inspectReadings({ scope, expected }) {
       const [text, reading] = got.map(element => element.textContent.trim());
       if (text !== label || !reading.startsWith(value)) findings.push(`${name} line ${index + 1}: "${text}" "${reading}", expected "${label}" "${value}"`);
     });
-  }
-  return findings;
-}
-
-/* Runs in the page. Connected lists exactly the connected providers with a
-   green Connected; Add a tool shows while anything is connected and folds the
-   catalogue away; nothing connected shows the catalogue itself. No sentence
-   may claim nothing is connected while something is. */
-function inspectConnections({ scope, connected, catalogueOpen }) {
-  const root = document.querySelector(scope);
-  const findings = [];
-  const shown = element => element !== null && element.checkVisibility() && element.getClientRects().length > 0;
-  const rows = [...(root?.querySelectorAll("[data-connected-row]") ?? [])].filter(shown);
-  const listed = rows.map(row => row.dataset.provider).sort().join(", ");
-  if (listed !== [...connected].sort().join(", ")) findings.push(`Connected lists ${listed || "nothing"}, expected ${connected.join(", ") || "nothing"}`);
-  for (const row of rows) {
-    const status = row.querySelector(".q-ok");
-    if (!shown(status) || status.textContent.trim() !== "Connected") findings.push(`${row.dataset.provider}: no visible Connected status`);
-  }
-  const add = document.getElementById("add-tool");
-  if (connected.length && (!shown(add) || add.disabled || add.textContent.trim() !== "Add a tool")) findings.push("no visible, enabled Add a tool");
-  if (!connected.length && shown(add)) findings.push("Add a tool shows while nothing is connected");
-  if (shown(document.getElementById("tool-catalogue")) !== catalogueOpen) {
-    findings.push(`the catalogue is ${catalogueOpen ? "folded" : "open"}, expected ${catalogueOpen ? "open" : "folded"}`);
-  }
-  if (connected.length && /\bno (connections|account|accounts|providers?|tools?)\b[^.]*\b(yet|exist|connected)\b/iu.test(root?.innerText ?? "")) {
-    findings.push("a sentence says nothing is connected while providers are connected");
   }
   return findings;
 }

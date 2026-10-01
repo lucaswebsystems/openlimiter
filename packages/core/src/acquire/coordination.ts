@@ -409,10 +409,12 @@ export async function spawnDetachedRefresh(
     return { spawned: false, reason: "already_running" };
   }
   try {
+    await prepareStateDirectory(directory);
     options.spawn(
       options.nodeExecutable,
       [options.openLimiterScript, "refresh", "--detached"],
       {
+        cwd: directory,
         onError: () => {
           void recordRefreshSpawnFailure(directory, options.now);
         }

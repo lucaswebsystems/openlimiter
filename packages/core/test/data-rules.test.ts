@@ -8,7 +8,8 @@ import { readCredentialDocument, type AcquisitionProvider } from "../src/acquire
 import { applyCollectionReport } from "../src/collection.js";
 import { freshnessPolicy, projectSnapshots, retainSnapshots, RETENTION_MILLISECONDS } from "../src/data-rules.js";
 import { mergeSnapshotCache, mergeAcquiredSnapshots, readSnapshotCache } from "../src/cache.js";
-import type { ProviderCode } from "../src/types.js";
+import type { ProviderCode, Snapshot } from "../src/types.js";
+import { freshness } from "../src/freshness.js";
 import { snapshot } from "./helpers.js";
 
 const vectors = JSON.parse(readFileSync(path.resolve("packages/core/src/contracts/identity-vectors.json"), "utf8")) as { provider: ProviderCode; material: string; expected: string }[];
@@ -111,4 +112,64 @@ it("all cache writers prune old accounts at seven days and preserve the boundary
     const final = await mergeSnapshotCache([], root, at + RETENTION_MILLISECONDS + 1);
     expect(final.merged).toEqual([]);
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+describe("Claude status line rows: freshness is not visibility", () => {
+  const account = opaqueAccountId("CLAUDE", "fixture-a");
+  const active = new Map([["CLAUDE", new Set([account])]]);
+  const resetAt = "2026-09-29T14:00:00.000Z";
+  const statusline = (overrides: Partial<Snapshot> = {}): Snapshot => snapshot({
+    provider: "CLAUDE", meter: "FIVE_HOUR", value: 37, source: "native_payload", observedAt: now,
+    expiresAt: "2026-09-29T12:01:00.000Z", resetAt, accountId: account,
+    provenance: { sourceKind: "statusline_payload", observedVia: "claude_code_statusline" }, ...overrides
+  });
+  const anonymous = (overrides: Partial<Snapshot> = {}): Snapshot => { const { accountId: _, ...row } = statusline(overrides); return row; };
+  const later = (minutes: number) => new Date(at + minutes * 60_000).toISOString();
+
+  it("an idle Claude Code keeps its last reading, marked stale by its age, until that window resets", () => {
+    const projection = projectSnapshots([statusline()], later(45), active);
+    expect(projection.flags).toEqual([]);
+    expect(projection.snapshots.map(row => row.value)).toEqual([37]);
+    const [held] = projection.snapshots;
+    expect(held && freshness(held.observedAt, held.expiresAt, later(45))).toBe("stale");
+    expect(held?.expiresAt).toBe(new Date(at + 132_000).toISOString());
+  });
+
+  it("after the reset it waits for Claude Code and never invents a zero", () => {
+    const projection = projectSnapshots([statusline()], later(121), active);
+    expect(projection.snapshots).toEqual([]);
+    expect(projection.flags).toEqual([{ provider: "CLAUDE", accountId: account, reason: "awaiting_statusline", fixKind: "open_app" }]);
+    const unknownReset = projectSnapshots([statusline({ resetAt: null })], later(5), active);
+    expect(unknownReset.snapshots).toEqual([]);
+    expect(unknownReset.flags[0]?.reason).toBe("awaiting_statusline");
+  });
+
+  it("only Claude status line rows are held: every other source keeps its own expiry", () => {
+    const others = [
+      anonymous({ provider: "CODEX" }),
+      statusline({ provenance: { sourceKind: "remote_api", observedVia: "local_event" }, source: "internal_payload" }),
+      anonymous({ provider: "ANTIGRAVITY", provenance: { sourceKind: "statusline_payload", observedVia: "local_command" } })
+    ];
+    const projection = projectSnapshots(others, later(45), active);
+    expect(projection.snapshots).toEqual([]);
+    expect(projection.flags.map(flag => flag.reason)).toEqual(["stale", "stale", "stale"]);
+  });
+
+  it("an anonymous Claude status line row is never shown and asks to sign in again", () => {
+    const projection = projectSnapshots([anonymous()], now, active);
+    expect(projection.snapshots).toEqual([]);
+    expect(projection.flags).toEqual([{ provider: "CLAUDE", reason: "account_unresolved", fixKind: "sign_in" }]);
+    expect(projectSnapshots([statusline({ accountId: opaqueAccountId("CLAUDE", "fixture-b") })], now, active).flags[0]?.reason)
+      .toBe("account_not_connected");
+  });
+
+  it("Free reads one account and Pro selection reads both, with no anonymous row on either", () => {
+    const b = opaqueAccountId("CLAUDE", "fixture-b");
+    const rows = [statusline(), statusline({ accountId: b }), anonymous()];
+    const free = projectSnapshots(rows, now, active);
+    expect(free.snapshots.map(row => row.accountId)).toEqual([account]);
+    const pro = projectSnapshots(rows, now, new Map([["CLAUDE", new Set([account, b])]]));
+    expect(pro.snapshots.map(row => row.accountId)).toEqual([account, b]);
+    expect(pro.flags.map(flag => flag.reason)).toEqual(["account_unresolved"]);
+  });
 });

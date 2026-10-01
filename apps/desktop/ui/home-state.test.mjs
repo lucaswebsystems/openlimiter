@@ -20,9 +20,10 @@ test("Home keeps no second freshness policy and draws only through the shared pr
   const home = read("./home-state.js");
   assert.doesNotMatch(home, /REFRESH_SECONDS|expiresAt|observedAt|interval/u);
   assert.match(app, /projectReadings\(cacheRead\.ok \? cacheRead\.value : null, manualRead\.ok \? manualRead\.value : null, now\)/u);
-  assert.match(app, /renderLimits\(document, elements\.rows, model\)/u);
-  assert.match(app, /const attention = attentionFlags\(collected\.flags, collected\.snapshots, removed\);/u);
-  assert.match(app, /showConnections\(\{\s*attention,\s*connected: connectedProviders\(/u);
+  // One list, from the inventory, drawn by the same renderer the panel uses.
+  assert.match(app, /const model = inventoryModel\(\{\s*snapshots,\s*flags: inventory\.flags,/u);
+  assert.match(app, /renderLimits\(document, elements\.toolRows, model, \{ handlers: toolHandlers, more: fillMore, opened: openMenus \}\)/u);
+  assert.doesNotMatch(app, /showConnections|connectedProviders|attentionFlags\(/u);
   // A failed read ages out what is on screen by the same policy and says why.
   assert.match(app, /heldSnapshots = holdReadings\(heldSnapshots, now\);/u);
   assert.match(app, /elements\.refreshStatus\.textContent = say\("cacheUnreadable"\)/u);
@@ -33,11 +34,11 @@ test("Home keeps no second freshness policy and draws only through the shared pr
   for (const name of ["projectReadings", "limitsModel", "renderLimits", "agentsModel", "renderAgents"]) assert.match(panel, new RegExp(`\\b${name}\\(`, "u"));
 });
 
-test("Home's markup keeps Limits, then Agents, and no stale strip or table header", () => {
+test("the one screen reads Tools, then API keys, then Agents, and no stale strip or table header", () => {
   const html = read("./index.html");
-  const home = html.slice(html.indexOf('<section id="panel-meters"'), html.indexOf('id="panel-spend"'));
-  assert.ok(home.indexOf('id="provider-rows"') < home.indexOf('id="agents-mount"'));
-  assert.doesNotMatch(home, /stale-strip|home-provider-card|column-label/u);
+  const home = html.slice(html.indexOf('<main id="home">'), html.indexOf("</main>"));
+  const order = ['id="tool-rows"', 'id="add-tool"', 'id="tool-catalogue"', 'id="key-rows"', 'id="agents-mount"'].map((id) => home.indexOf(id));
+  assert.ok(order.every((at, index) => at > 0 && (index === 0 || at > order[index - 1])), order.join());
+  assert.doesNotMatch(home, /stale-strip|home-provider-card|column-label|needs-attention|connected-rows/u);
   assert.match(html, /<link rel="stylesheet" href="\.\/quiet\.css" \/>/u);
-  assert.match(html, /id="needs-attention"[\s\S]*id="attention-rows"/u);
 });

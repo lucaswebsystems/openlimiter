@@ -1,5 +1,5 @@
 /*
- * The quiet list: Home, the edge panel and Needs attention.
+ * The quiet list: the one screen and the edge panel.
  *
  * One line per limit, tightest first, thin bars and aligned numbers. Colour
  * and a shape appear only where something needs a look, so a normal day reads
@@ -9,20 +9,6 @@
 
 .q-section + .q-section {
   margin-top: var(--ol-space-5);
-}
-
-/* A wide window sets Limits and Agents side by side, so a bar never grows
-   as wide as the monitor and stops reading as a proportion. */
-@media (min-width: 1100px) {
-  #panel-meters > .q-section {
-    grid-column: 1 / span 7;
-    align-self: start;
-    margin-top: 0;
-  }
-
-  #panel-meters > .q-section + .q-section {
-    grid-column: 8 / -1;
-  }
 }
 
 .q-head {
@@ -187,8 +173,7 @@ button.q-show {
   box-shadow: var(--ol-focus-ring);
 }
 
-.q-badge,
-.tab-count {
+.q-badge {
   display: inline-grid;
   min-width: 1.125rem;
   height: 1.125rem;
@@ -201,10 +186,6 @@ button.q-show {
   font-variant-numeric: tabular-nums;
   font-weight: var(--ol-weight-semibold);
   line-height: 1;
-}
-
-.tab-count {
-  margin-left: 0.375rem;
 }
 
 /* --------------------------------------------------------------- marks */
@@ -330,6 +311,21 @@ button.q-show {
 .q-row[data-band="none"] .q-bar {
   background: transparent;
   box-shadow: inset 0 0 0 1px var(--ol-hairline-strong);
+}
+
+/* A held reading (Claude Code idle, window not reset yet): the same hatch a
+   stale window uses everywhere else, and its age beside the provider name. */
+.q-row[data-band="stale"] { --q-fill: transparent; --q-label: var(--ol-band-stale-label); }
+
+.q-row[data-band="stale"] .q-bar {
+  background: var(--ol-band-hatched-pattern);
+}
+
+.q-age {
+  margin-left: auto;
+  color: var(--ol-muted);
+  font-size: var(--ol-text-caption);
+  white-space: nowrap;
 }
 
 .q-val {
@@ -529,50 +525,7 @@ button.q-show {
 .q-agent[data-state="done"] .q-sico { color: var(--ol-band-green-label); }
 .q-agent[data-state="failed"] .q-state { color: var(--ol-band-red-label); }
 
-/* ------------------------------------------------------ empty and busy */
-
-.q-empty {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--ol-space-3) 0.875rem;
-  padding: var(--ol-space-4);
-}
-
-.q-emptyico {
-  display: grid;
-  width: 2.25rem;
-  height: 2.25rem;
-  flex: none;
-  place-items: center;
-  border-radius: var(--ol-radius-xs);
-  background: var(--ol-raised);
-  color: var(--ol-muted);
-}
-
-.q-emptyico svg {
-  width: 1.125rem;
-  height: 1.125rem;
-}
-
-.q-empty-text {
-  min-width: 12rem;
-  flex: 1 1 12rem;
-}
-
-.q-empty-text b {
-  display: block;
-  color: var(--ol-heading);
-  font-size: var(--ol-text-body);
-  font-weight: var(--ol-weight-semibold);
-}
-
-.q-empty-text p {
-  margin: 0.125rem 0 0;
-  color: var(--ol-muted);
-  font-size: var(--ol-text-caption);
-  line-height: var(--ol-leading-body);
-}
+/* ---------------------------------------------------------------- busy */
 
 .q-skeleton {
   display: grid;
@@ -593,130 +546,427 @@ button.q-show {
   height: 0.75rem;
 }
 
-/* ----------------------------------------------------- needs attention */
+/* --------------------------------------------------------- the one list */
 
-.q-flags {
-  display: grid;
+/*
+ * Every tool is one group on the same grid as the bars: mark, name, then the
+ * content (an age, a muted note or one step) pushed to the end, then the
+ * small menu. A row with no reading is the head line alone, so every such
+ * row has the same height.
+ */
+.q-tools {
+  overflow: hidden;
 }
 
-.q-flag {
-  display: grid;
-  grid-template-columns: 1.25rem minmax(0, 1fr);
-  align-items: start;
-  column-gap: 0.75rem;
-  padding: 0.875rem var(--ol-space-4);
+.q-tools .q-group {
+  padding: 0.625rem var(--ol-space-4);
 }
 
-.q-flag + .q-flag {
+.q-tools .q-group + .q-group {
   border-top: 1px solid var(--ol-hairline);
 }
 
-.q-flag .q-mark {
-  width: 1.25rem;
-  height: 1.25rem;
-  margin-top: 0.0625rem;
+.q-tools .q-prov {
+  min-height: 1.875rem;
 }
 
-.q-ftext {
-  min-width: 0;
+.q-tnote {
+  margin-left: auto;
+  color: var(--ol-muted);
+  font-size: var(--ol-text-caption);
+  white-space: nowrap;
 }
 
-.q-fname {
-  display: flex;
-  min-height: 1.375rem;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.125rem 0.625rem;
-}
-
-.q-fname-text {
-  color: var(--ol-heading);
-  font-size: var(--ol-text-label);
-  font-weight: var(--ol-weight-semibold);
-}
-
-.q-issue {
+.q-tact {
   display: inline-flex;
+  min-width: 0;
   align-items: center;
-  gap: 0.3125rem;
-  color: var(--ol-band-yellow-label);
-  font-size: var(--ol-text-caption);
-  font-weight: var(--ol-weight-semibold);
+  gap: var(--ol-space-2);
+  margin-left: auto;
 }
 
-.q-flag[data-fix-kind="unsupported"] .q-issue {
+.q-age + .q-more,
+.q-tnote + .q-more,
+.q-tact + .q-more {
+  margin-left: var(--ol-space-1);
+}
+
+.q-pname + .q-more {
+  margin-left: auto;
+}
+
+button.q-more {
+  display: grid;
+  width: 1.75rem;
+  min-width: 0;
+  height: 1.75rem;
+  min-height: 0;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ol-radius-xs);
+  background: transparent;
+  box-shadow: none;
   color: var(--ol-muted);
+  cursor: pointer;
 }
 
-.q-fdetail {
-  margin: 0.0625rem 0 0;
-  color: var(--ol-muted);
-  font-size: var(--ol-text-caption);
-  line-height: var(--ol-leading-body);
+button.q-more:hover,
+button.q-more[aria-expanded="true"] {
+  background: var(--ol-raised);
+  color: var(--ol-heading);
+  transform: none;
 }
 
-.q-actions {
+button.q-more:focus-visible {
+  outline: none;
+  box-shadow: var(--ol-focus-ring);
+}
+
+.q-more svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* The small menu opens under its row's name, never as a second row. */
+.q-morepanel {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: var(--ol-space-2);
+  padding: var(--ol-space-2) 0 var(--ol-space-1) 1.75rem;
+}
+
+.q-moreline {
   display: flex;
+  min-height: 1.875rem;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--ol-space-2) 0.75rem;
-  margin-top: 0.75rem;
+  justify-content: space-between;
+  gap: var(--ol-space-2) var(--ol-space-3);
 }
 
-.q-fstatus {
+.q-morelabel {
   color: var(--ol-soft);
   font-size: var(--ol-text-caption);
 }
 
-/* ----------------------------------------------------------- connected */
-
-.q-conn {
-  display: grid;
-  grid-template-columns: 1.25rem minmax(0, 1fr) auto;
-  align-items: start;
-  column-gap: 0.75rem;
-  padding: 0.875rem var(--ol-space-4);
+.q-moreline .provider-switch-note:empty {
+  display: none;
 }
 
-.q-conn + .q-conn {
-  border-top: 1px solid var(--ol-hairline);
-}
-
-.q-conn .q-mark {
-  width: 1.25rem;
-  height: 1.25rem;
-  margin-top: 0.0625rem;
-}
-
-.q-conn .q-fname-text {
-  display: block;
-  line-height: 1.375rem;
-}
-
-.q-ok {
-  display: inline-flex;
-  min-height: 1.375rem;
+/* Add a tool reads as the list's last row, its plus where a mark would be. */
+button.q-addrow {
+  display: flex;
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+  min-height: 3.125rem;
   align-items: center;
-  gap: 0.375rem;
-  color: var(--ol-band-green-label);
-  font-size: var(--ol-text-caption);
-  font-weight: var(--ol-weight-medium);
-  white-space: nowrap;
+  gap: 0.625rem;
+  padding: 0 var(--ol-space-4);
+  border: 0;
+  border-top: 1px solid var(--ol-hairline);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ol-soft);
+  font: inherit;
+  font-size: var(--ol-text-label);
+  font-weight: var(--ol-weight-semibold);
+  cursor: pointer;
 }
 
-/* Connections reads Needs attention, Connected, Add a tool, and folds every
-   other control into the catalogue below it. */
-#panel-connections > .q-section + .q-section {
-  margin-top: var(--ol-space-2);
+button.q-addrow:hover {
+  background: var(--ol-raised);
+  color: var(--ol-heading);
+  transform: none;
 }
 
-button.q-add {
-  justify-self: start;
+button.q-addrow:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--ol-accent);
+}
+
+.q-addrow svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex: none;
 }
 
 .q-catalogue {
+  border-top: 1px solid var(--ol-hairline);
+  background: var(--ol-raised);
+}
+
+/* ------------------------------------------------------- setup panels */
+
+.q-setup {
+  position: relative;
   display: grid;
-  gap: var(--ol-space-4);
+  gap: var(--ol-space-2);
+  padding: var(--ol-space-3) var(--ol-space-4);
+  border-top: 1px solid var(--ol-hairline);
+  background: var(--ol-raised);
+}
+
+.q-setup-key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  padding-right: 3rem;
+}
+
+.q-setup-key .q-kfield {
+  flex: 1 1 10rem;
+}
+
+.q-setup-line {
+  margin: 0;
+  padding-right: 2rem;
+  color: var(--ol-soft);
+  font-size: var(--ol-text-caption);
+}
+
+.q-snippet {
+  max-height: 9rem;
+  margin: 0;
+  overflow: auto;
+  padding: var(--ol-space-2) var(--ol-space-3);
+  border: 1px solid var(--ol-hairline);
+  border-radius: var(--ol-radius-xs);
+  background: var(--ol-code);
+  color: var(--ol-body);
+  font-size: var(--ol-text-micro);
+  line-height: var(--ol-leading-body);
+  user-select: text;
+}
+
+.q-setup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ol-space-2);
+}
+
+button.q-setup-close {
+  position: absolute;
+  top: var(--ol-space-3);
+  right: var(--ol-space-3);
+}
+
+.q-setup .q-fstatus {
+  margin: 0;
+}
+
+/* -------------------------------------------------------------- API keys */
+
+/*
+ * One row per key on the tool rows' grid: mark, name, content, actions, the
+ * same height as a tool row with one step. An empty row's content is the
+ * field, Save and Get key; a saved one's is the amount and its words.
+ */
+/* One grid for the whole card, so every row's field starts in one column.
+   The edge tracks are auto: a subgrid row's padding lands on its first and
+   last items, and a fixed track would push the mark into the name. */
+.q-keys {
+  display: grid;
+  grid-template-columns: auto fit-content(7.5rem) minmax(0, 1fr) auto;
+  column-gap: 0.625rem;
+  overflow: hidden;
+}
+
+.q-consent {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 0.625rem var(--ol-space-4) 0;
+}
+
+.q-key {
+  display: grid;
+  min-height: 3.125rem;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  column-gap: 0.625rem;
+  padding: 0.625rem var(--ol-space-4);
+}
+
+.q-key + .q-key {
+  border-top: 1px solid var(--ol-hairline);
+}
+
+.q-kname {
+  display: grid;
+  min-width: 0;
+  color: var(--ol-heading);
+  font-size: var(--ol-text-label);
+  font-weight: var(--ol-weight-semibold);
+  line-height: 1.25;
+}
+
+.q-klabel {
+  overflow: hidden;
+  color: var(--ol-muted);
+  font-size: var(--ol-text-micro);
+  font-weight: var(--ol-weight-regular);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.q-kform {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--ol-space-2);
+}
+
+/* xAI's team field sits under its key field, in the same column. */
+.q-kform .q-kteam {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+input.q-kfield {
+  width: 100%;
+  min-width: 0;
+  height: 1.875rem;
+  box-sizing: border-box;
+  padding: 0 0.625rem;
+  border: 1px solid var(--ol-control-border);
+  border-radius: var(--ol-radius-xs);
+  background: var(--ol-canvas);
+  color: var(--ol-heading);
+  font: inherit;
+  font-size: var(--ol-text-caption);
+  user-select: text;
+}
+
+input.q-kfield::placeholder {
+  color: var(--ol-muted);
+}
+
+input.q-kfield:focus-visible {
+  outline: none;
+  border-color: var(--ol-accent);
+  box-shadow: var(--ol-focus-ring);
+}
+
+a.q-klink {
+  color: var(--ol-link);
+  font-size: var(--ol-text-caption);
+  font-weight: var(--ol-weight-medium);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+a.q-klink:hover {
+  text-decoration: underline;
+}
+
+a.q-klink:focus-visible {
+  border-radius: var(--ol-radius-xs);
+  outline: none;
+  box-shadow: var(--ol-focus-ring);
+}
+
+.q-kvalue {
+  display: grid;
+  min-width: 0;
+  justify-items: end;
+  gap: 0.125rem;
+  text-align: right;
+}
+
+.q-kline,
+.q-kmeta {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.125rem 0.375rem;
+}
+
+.q-kvalue .q-tnote {
+  margin-left: 0;
+}
+
+.q-kamount {
+  color: var(--ol-heading);
+  font-size: var(--ol-text-body);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--ol-weight-semibold);
+}
+
+.q-kperiod {
+  color: var(--ol-soft);
+  font-size: var(--ol-text-caption);
+}
+
+.q-kmetaitem {
+  color: var(--ol-muted);
+  font-size: var(--ol-text-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.q-kmetaitem + .q-kmetaitem::before {
+  padding-right: 0.375rem;
+  content: "\00b7";
+}
+
+.q-kbadge {
+  padding: 0.0625rem 0.4375rem;
+  border-radius: var(--ol-radius-pill);
+  background: var(--ol-band-yellow-subtle);
+  color: var(--ol-band-yellow-label);
+  font-size: var(--ol-text-micro);
+  font-weight: var(--ol-weight-semibold);
+  white-space: nowrap;
+}
+
+.q-kact {
+  display: inline-flex;
+  gap: var(--ol-space-1);
+}
+
+.q-kact:empty {
+  display: none;
+}
+
+.q-kact button.q-iconbtn {
+  border-color: transparent;
+  color: var(--ol-muted);
+}
+
+.q-kact button.q-iconbtn[data-confirm] {
+  border-color: var(--ol-band-red-fill);
+  color: var(--ol-band-red-label);
+}
+
+.q-kerror {
+  grid-column: 2 / -1;
+  margin: var(--ol-space-1) 0 0;
+  color: var(--ol-band-red-label);
+  font-size: var(--ol-text-caption);
+}
+
+.q-kerror:empty {
+  display: none;
+}
+
+/* The narrowest window gives the name its own short column. */
+@media (max-width: 460px) {
+  .q-keys,
+  .q-key {
+    column-gap: 0.5rem;
+  }
+
+  .q-tools .q-group,
+  .q-key {
+    padding-inline: var(--ol-space-3);
+  }
 }
 
 .q-fstatus:empty {
@@ -725,11 +975,12 @@ button.q-add {
 
 .q-section[hidden],
 .q-card[hidden],
-.q-empty[hidden],
+.q-limits[hidden],
+.q-setup[hidden],
+.q-skeleton[hidden],
+.q-morepanel[hidden],
 .q-agent-list[hidden],
-.q-catalogue[hidden],
-button.q-add[hidden],
-.tab-count[hidden] {
+button.q-addrow[hidden] {
   display: none;
 }
 

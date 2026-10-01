@@ -16,6 +16,7 @@ import {
   prepareStateDirectory,
   readJsonFileSafely,
   resolveStateDirectory,
+  windowsSystemTool,
   writeFileAtomically
 } from "@openlimiter/core";
 import type { CredentialCommandRunner } from "@openlimiter/core";
@@ -23,10 +24,6 @@ import type { CredentialCommandRunner } from "@openlimiter/core";
 export const SESSION_FILE_NAME = "openlimiter-session.json";
 export const SESSION_LOCK_NAME = "openlimiter-session.lock";
 export const SESSION_LOCK_WAIT_MILLISECONDS = 10_000;
-
-function windowsSystemTool(...segments: string[]): string {
-  return path.win32.join(process.env["SystemRoot"] ?? "C:\\Windows", "System32", ...segments);
-}
 
 /** How this build explains the file's own protection, inside the file. */
 export const SESSION_SECURITY_NOTE_POSIX =

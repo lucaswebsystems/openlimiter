@@ -6,9 +6,10 @@ import { adoptDetectedProviders, readRemovedProviders, unconfigureProvider } fro
  * file names a command. The Rust side's shapes are the contract and this
  * adapter adapts to them, not the reverse:
  *
- *   connect_provider, test_provider, refresh_provider, disconnect_provider
- *   and update_connection take ONE argument named `input`, so the payload is
- *   { input: {...} } with snake_case fields inside;
+ *   connect_provider, replace_connection_secret, test_provider,
+ *   refresh_provider, disconnect_provider and update_connection take ONE
+ *   argument named `input`, so the payload is { input: {...} } with
+ *   snake_case fields inside;
  *
  *   ConnectProviderInput is flat:
  *     { provider_id, credential_kind, account_alias, secret }, where the
@@ -51,11 +52,12 @@ import { adoptDetectedProviders, readRemovedProviders, unconfigureProvider } fro
  * branch on stale_generation or busy, and `message` is the human sentence
  * with the raw kind kept visible inside it.
  *
- * SECRETS. connectProvider carries a provider credential and
- * apiSpendSaveSource carries one management key. Each value crosses this
- * module once on its way to a dedicated operating system credential store.
- * Neither value is logged, retained here, or returned. Supabase session tokens
- * are owned entirely by the Rust account broker and never cross this module.
+ * SECRETS. connectProvider and replaceConnectionSecret carry a provider
+ * credential, and apiSpendSaveSource carries one management key. Each value
+ * crosses this module once on its way to a dedicated operating system
+ * credential store. Neither value is logged, retained here, or returned.
+ * Supabase session tokens are owned entirely by the Rust account broker and
+ * never cross this module.
  * A Codex connection may carry its nonsecret account identifier beside the
  * masked label. There is no console call anywhere in this file.
  */
@@ -118,6 +120,7 @@ const FAILURE_SENTENCES = {
   clock_invalid: "The local clock needs a Pro service refresh.",
   network: "The Pro service could not be reached.",
   service: "The Pro service returned an unusable response.",
+  stale_grant: "Pro needs to reconnect.",
   entitlement_required: "This hosted service needs an active Pro entitlement.",
   plan_cap: "Pro unlocks more accounts. Free reads one account per provider.",
   paused: "This connection is paused and cannot perform work.",
@@ -281,8 +284,9 @@ function refusedInput(command) {
 /**
  * Store a credential and create a connection record.
  *
- * The one call that carries a secret. See the header: it crosses here once,
- * inside the payload, and nothing about it is kept or logged on this side.
+ * One of the two calls that carries a provider secret. See the header: it
+ * crosses here once, inside the payload, and nothing about it is kept or
+ * logged on this side.
  *
  * Both identifiers cross as the exact closed words the registry, the Rust and
  * this file all spell one way. An identifier outside its vocabulary is refused
@@ -308,6 +312,13 @@ export async function connectProvider({
       account_alias: accountAlias,
       secret,
     },
+  });
+}
+
+/** Validate and replace the secret behind one existing connection record. */
+export async function replaceConnectionSecret(connectionId, secret) {
+  return call("replace_connection_secret", {
+    input: { connection_id: connectionId, secret },
   });
 }
 
@@ -426,15 +437,13 @@ export async function claudeConnectPreflight({ configuredCliPath } = {}) {
   });
 }
 
+/* The actions the Pro service dispatches, under the names it uses. */
 const PRO_ACTIONS = new Set([
   "account_status",
-  "ingest_snapshot",
-  "save_alert_rule",
-  "delete_alert_rule",
-  "list_alert_rules",
+  "save_notification_preference",
+  "list_notification_preferences",
   "history",
-  "agent_context",
-  "dispatch_alerts",
+  "hosted_context",
   "device_status",
   "rename_device",
   "revoke_device",

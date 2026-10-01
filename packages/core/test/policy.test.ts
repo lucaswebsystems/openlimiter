@@ -106,4 +106,24 @@ describe("policy", () => {
       reason: "NO_FRESH_DATA"
     });
   });
+
+  it("ignores unavailable, non quota, and sentinel rows", () => {
+    const excluded = [
+      snapshot({ availability: "expired_credentials", meter: "ACQUISITION", value: 0 }),
+      snapshot({ kind: "spend", meter: "SPEND", value: 0 }),
+      snapshot({ meter: "ACQUISITION", value: 0 }),
+      snapshot({ meter: "PLACEHOLDER", value: 0, window: { kind: "unknown" } })
+    ];
+    expect(buildAdvice(excluded, now, ["CLAUDE"])).toEqual({
+      inject: false,
+      reason: "UNKNOWN",
+      recommendation: {
+        code: "NONE",
+        provider: null,
+        reason: "NO_KNOWN_PROVIDER"
+      },
+      providers: [],
+      unknownProviders: ["CLAUDE"]
+    });
+  });
 });

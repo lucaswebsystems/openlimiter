@@ -25,12 +25,8 @@
     "refresh": "Atualizar",
     "loading": "Carregando seus limites",
     "emptyTitle": "Nada mensurável ainda",
-    "emptyHome": "Conecte uma ferramenta ou abra uma que você já usa para que ela informe os limites.",
     "emptyPanel": "Abra o app para conectar uma ferramenta.",
-    "openConnections": "Abrir Conexões",
     "unavailable": "Seus limites estão indisponíveis agora.",
-    "agentsEmptyTitle": "Nenhum agente em execução",
-    "agentsEmptyDetail": "As sessões de agentes aparecem aqui enquanto trabalham.",
     "agentsUnavailable": "A atividade dos agentes está indisponível",
     "agentName": "Agente",
     "stateWaiting": "Precisa de você",
@@ -43,8 +39,6 @@
     "runningOne": "1 agente em execução",
     "runningMany": "{count} agentes em execução",
     "attentionTitle": "Precisa de atenção",
-    "attentionOne": "1 precisa de atenção",
-    "attentionMany": "{count} precisam de atenção",
     "fixReconnectIssue": "Conexão perdida",
     "fixReconnectDetail": "Reconecte {name} para ver os limites de novo.",
     "fixReconnectAction": "Reconectar",
@@ -57,15 +51,22 @@
     "fixUnsupportedIssue": "Ainda não mensurável",
     "fixUnsupportedDetail": "O OpenLimiter ainda não consegue medir {name}.",
     "fixFailed": "Não deu certo. Tente de novo em instantes.",
-    "connected": "Conectado",
-    "sourceLocal": "Usa o seu login de {name} neste computador",
-    "sourceKey": "Usa a sua chave de {name}",
-    "sourceManual": "Usa os números que você digitou",
     "addTool": "Adicionar uma ferramenta",
-    "accountsNone": "As chaves e os logins que você adicionar aparecem aqui. No Free, uma conta por provedor fica ativa.",
     "fixToolDetail": "Entre em {name} neste computador e depois verifique de novo.",
+    "fixSignInAgainIssue": "Entre de novo",
+    "useClaudeSignIn": "Usar meu login do Claude",
+    "useClaudeSignInTitle": "Usa o login local do Claude para pedir seus limites à Anthropic enquanto o Claude Code está fechado.",
+    "fixWaitingIssue": "Aguardando {name}",
+    "fixWaitingDetail": "A última janela foi redefinida. Use {name} uma vez e os limites voltam a aparecer.",
     "meterFallback": "Limite",
-    "cacheUnreadable": "Não foi possível ler as leituras salvas agora, então só aparecem as leituras que ainda estão atualizadas."
+    "cacheUnreadable": "Não foi possível ler as leituras salvas agora, então só aparecem as leituras que ainda estão atualizadas.",
+    "connect": "Conectar",
+    "openAntigravity": "Abrir Antigravity",
+    "toolOff": "Desativado",
+    "moreFor": "Mais opções de {name}",
+    "showTool": "Mostrar",
+    "removeTool": "Remover",
+    "removeConfirm": "Clique de novo para remover"
   },
   "meta": {
     "title": "OpenLimiter, limites de codificação com IA e atividade de agentes",
@@ -2333,9 +2334,10 @@
     },
     "phoneInstall": {
       "add": "Adicionar à tela de início",
-      "iosOne": "Toque em Compartilhar na barra do Safari.",
-      "iosTwo": "Role até Adicionar à Tela de Início.",
-      "iosThree": "Toque em Adicionar. O aplicativo abre em tela cheia a partir da sua tela de início."
+      "androidMenu": "Toque em ⋮ e depois em Adicionar à tela inicial",
+      "ios": "Adicionar à Tela de Início",
+      "share": "Compartilhar",
+      "openSafari": "Abra no Safari para instalar"
     },
     "pairPage": {
       "retry": "Atualizar leituras",
@@ -2388,6 +2390,10 @@
           "title": "Não foi possível concluir o pareamento",
           "body": "O serviço não respondeu, então nada foi pareado e nada mudou. Gere um código novo no desktop e escaneie de novo."
         }
+      },
+      "codeEntry": {
+        "label": "Código do seu computador",
+        "pair": "Parear"
       },
       "pairedAs": "Pareado como {label}",
       "openDashboard": "Abrir o painel"

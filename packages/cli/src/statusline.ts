@@ -10,6 +10,7 @@ import {
 import { STATUSLINE_BAR_SEGMENTS, meterBar } from "./render.js";
 import type { StatuslineColor, StatuslineConfig } from "./config.js";
 import type { StatuslineSession } from "./statusline-ingest.js";
+import { MONEY_TAGS, moneyCells } from "./api-spend.js";
 
 /**
  * Reference terminal layout with host session details and labelled quota bars.
@@ -546,7 +547,16 @@ export function barStyleCells(
     if (readings.length === 0) continue;
 
     let selectedReadings: Reading[] = [];
-    if (provider === hostProvider) {
+    if (provider === "OPENROUTER") {
+      // Account caches may overlap. The newest observed balance owns the one
+      // OpenRouter cell, and api spend remains the fallback when none exists.
+      const balances = readings.filter(({ snapshot }) => snapshot.unit === "CREDITS" ||
+        snapshot.currency === "USD" && snapshot.limitAmount !== undefined && snapshot.usedAmount !== undefined);
+      if (balances.length > 0) {
+        selectedReadings = [balances.reduce((newest, reading) =>
+          Date.parse(reading.snapshot.observedAt) > Date.parse(newest.snapshot.observedAt) ? reading : newest)];
+      }
+    } else if (provider === hostProvider) {
       selectedReadings = readings;
     } else if (metersSetting === "all") {
       selectedReadings = readings;
@@ -640,6 +650,16 @@ function renderBarStatusline(input: StatuslineLayoutInput): string {
     config.visibility,
     input.unicode
   );
+  const listed = new Set(config.show.map((entry) => entry.toLowerCase()));
+  const apiMoney = moneyCells(input.apiSpend, {
+    now: input.now,
+    hasOpenRouter: cells.some((cell) => cell.plain.startsWith("or ")),
+    allowed: (name) => {
+      const tag = name === "openrouter" ? "or" : MONEY_TAGS[name];
+      return config.visibility?.[name] ??
+        (config.show.length === 0 && config.showMode !== "explicit" || listed.has(name) || tag !== undefined && listed.has(tag));
+    }
+  });
   const session = input.session ?? {};
   const shown = (key: string): boolean => config.visibility?.[key] !== false;
   const parts: string[] = [];
@@ -650,6 +670,9 @@ function renderBarStatusline(input: StatuslineLayoutInput): string {
   if (config.visibility?.["dir"] === true && session.dir) parts.push(session.dir);
   if (shown("ctx") && session.ctx !== undefined) parts.push("ctx " + Math.round(session.ctx) + "%");
   parts.push(...cells.map((cell) => cell.painted));
+  parts.push(...apiMoney.map((cell) => input.color && cell.band !== null
+    ? cell.prefix + paintBand(cell.amount, cell.band, "fresh")
+    : cell.plain));
   if (shown("style") && session.style) parts.push(session.style);
   // The host owns wrapping. A column guess must not silently hide a provider.
   return parts.join(BAR_CELL_SEPARATOR) || STATUSLINE_UNKNOWN;
@@ -666,6 +689,8 @@ export interface StatuslineLayoutInput {
   host?: StatuslineHost;
   session?: StatuslineSession;
   unicode?: boolean;
+  /** The parsed `api-spend-v1.json`, when the desktop app has saved one. */
+  apiSpend?: unknown;
 }
 
 /** What the statusline says when it has nothing bounded to say. */

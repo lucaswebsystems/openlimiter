@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, stat, symlink, writeFile } from
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { readSnapshotCache, recordAcquisitionAvailability } from "@openlimiter/core";
 import {
   agentContextFromCache,
   agentContextAdapterV1,
@@ -11,6 +12,7 @@ import {
   quoteHookArgument,
   readAgentHookStatus,
   runAgentHook,
+  writeAgentContextSnapshot,
   type AgentId,
   type HookInstallOptions
 } from "../src/index.js";
@@ -72,6 +74,27 @@ async function fixtureOptions(): Promise<HookInstallOptions> {
     environment: {}
   };
 }
+
+describe("agent context snapshot policy", () => {
+  it.each([
+    ["expired_credentials", undefined],
+    ["access_denied", undefined],
+    ["rate_limited", "2026-09-01T13:00:00.000Z"]
+  ] as const)("never recommends an acquisition failure marked %s", async (availability, retryAt) => {
+    const directory = await mkdtemp(path.join(await scratchRoot(), "openlimiter-agent-policy-"));
+    created.push(directory);
+    const now = "2026-09-01T12:00:00.000Z";
+    await recordAcquisitionAvailability("CODEX", availability, now, retryAt, directory);
+    const cached = await readSnapshotCache(directory);
+    expect(cached.ok).toBe(true);
+    if (!cached.ok) return;
+    await writeAgentContextSnapshot(cached.snapshots, directory, now, ["CODEX"]);
+    const context = await agentContextFromCache(directory, now, ["CODEX"]);
+    expect(context).not.toContain("recommendation_code=PREFER");
+    expect(context).not.toContain("recommendation_provider=CODEX");
+    expect(context).not.toContain("usage_percent=0.00");
+  });
+});
 
 function configPath(agent: Exclude<AgentId, "grok">, home: string): string {
   if (agent === "claude") return path.join(home, ".claude", "settings.json");

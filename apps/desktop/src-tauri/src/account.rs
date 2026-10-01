@@ -53,12 +53,14 @@ const SYNC_RESUME_WINDOW_HOURS: i64 = 23;
 /// The longest entitlement token this window will put on the wire.
 const MAX_ENTITLEMENT_BYTES: usize = 8_192;
 
+/* Trimmed: a build variable saved with a trailing newline must not turn into
+an invalid apikey header. */
 fn configured_url() -> &'static str {
-    option_env!("OPENLIMITER_SUPABASE_URL").unwrap_or("")
+    option_env!("OPENLIMITER_SUPABASE_URL").unwrap_or("").trim()
 }
 
 fn configured_key() -> &'static str {
-    option_env!("OPENLIMITER_SUPABASE_ANON_KEY").unwrap_or("")
+    option_env!("OPENLIMITER_SUPABASE_ANON_KEY").unwrap_or("").trim()
 }
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -208,17 +210,11 @@ fn normalize_configured_providers(values: Vec<String>) -> Vec<String> {
         .into_iter()
         .map(|value| value.to_ascii_uppercase().replace('-', "_"))
         .filter(|value| {
-            matches!(
-                value.as_str(),
-                "CLAUDE"
-                    | "OPENROUTER"
-                    | "CODEX"
-                    | "ANTIGRAVITY"
-                    | "GEMINI_CLI"
-                    | "OPENCODE"
-                    | "GROK"
-                    | "KIMI"
-            ) && seen.insert(value.clone())
+            let registered = crate::reader_registry::ProviderId::ALL
+                .iter()
+                .any(|provider| provider.code() == value);
+            (registered || matches!(value.as_str(), "CLAUDE" | "GEMINI_CLI"))
+                && seen.insert(value.clone())
         })
         .collect()
 }
@@ -1042,6 +1038,25 @@ async fn post_envelope(
 /// server keys an event on its own digest, so the same identifier carrying
 /// readings that have moved on is refused rather than deduplicated, and the
 /// cursor answer above is what closes the gap instead.
+/// The usage accounts this machine uploads, each once, in order.
+pub(crate) fn uploaded_usage_accounts(store: &dyn SecretStore) -> Vec<String> {
+    if !sync_enabled_from(store) {
+        return Vec::new();
+    }
+    now_rfc3339()
+        .and_then(|observed_at| sync_rows(store, &observed_at))
+        .map(|rows| usage_accounts(&rows))
+        .unwrap_or_default()
+}
+
+fn usage_accounts(rows: &[UsageSample]) -> Vec<String> {
+    rows.iter()
+        .map(|row| row.account_id.clone())
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
 pub(crate) async fn sync_snapshot(store: &dyn SecretStore) -> Result<bool, AccountFailure> {
     if !sync_enabled_from(store) {
         return Ok(false);
@@ -1673,7 +1688,9 @@ mod tests {
 
         let mut callback = TcpStream::connect(address).expect("callback connection");
         callback
-            .set_read_timeout(Some(Duration::from_secs(OAUTH_CONNECTION_TIMEOUT_SECONDS + 2)))
+            .set_read_timeout(Some(Duration::from_secs(
+                OAUTH_CONNECTION_TIMEOUT_SECONDS + 2,
+            )))
             .expect("bounded callback wait");
         callback
             .write_all(b"GET /auth/callback?code=queued-code&state=queued-state HTTP/1.1\r\nHost: x\r\n\r\n")
@@ -1737,6 +1754,40 @@ mod tests {
             ]),
             vec!["CODEX".to_string(), "GEMINI_CLI".to_string()]
         );
+    }
+
+    #[test]
+    fn a_cursor_only_upload_envelope_contains_cursor() {
+        let now = time::OffsetDateTime::parse(
+            "2026-09-07T12:00:00Z",
+            &time::format_description::well_known::Rfc3339,
+        )
+        .expect("a clock");
+        let document = serde_json::json!({ "snapshots": [{
+            "provider": "CURSOR", "meter": "MONTHLY", "unit": "PERCENT", "value": 31.0,
+            "accountId": "cursor-personal", "resetAt": "2026-10-01T00:00:00.000Z",
+            "observedAt": "2026-09-07T11:59:30.000Z", "expiresAt": "2026-09-07T12:14:30.000Z"
+        }]});
+        let configured = normalize_configured_providers(vec!["cursor".to_string()])
+            .into_iter()
+            .collect::<HashSet<_>>();
+        let rows =
+            usage_samples_from_cache(&document, &configured, "2026-09-07T12:00:00.000Z", now)
+                .expect("Cursor rows");
+        let envelope = build_envelope(
+            EnvelopeIdentity {
+                device_id: "9c1d4f60-2e83-4b17-8a5c-71e0d3f95b46",
+                event_id: "3f7a2b18-5c94-4a6d-9f21-6b0d5c8e4a72",
+                previous_sequence: 0,
+                observed_at: "2026-09-07T12:00:00.000Z",
+                client_version: "2.0.3",
+            },
+            rows,
+            Vec::new(),
+        );
+
+        assert_eq!(envelope.usage_samples.len(), 1);
+        assert_eq!(envelope.usage_samples[0].provider, "CURSOR");
     }
 
     #[test]
@@ -2484,6 +2535,39 @@ mod tests {
         assert!(spend_samples_allowed(false, true));
         assert!(!spend_samples_allowed(true, false));
         assert!(spend_samples_allowed(true, true));
+    }
+
+    #[test]
+    fn hosted_context_is_asked_for_each_usage_account_the_machine_uploads() {
+        let now = time::OffsetDateTime::parse(
+            "2026-09-07T12:00:00Z",
+            &time::format_description::well_known::Rfc3339,
+        )
+        .expect("a clock");
+        let reading = |provider: &str, meter: &str, account: Option<&str>| {
+            let mut snapshot = serde_json::json!({
+                "provider": provider, "meter": meter, "unit": "PERCENT", "value": 70.0,
+                "resetAt": null, "observedAt": "2026-09-07T11:59:30.000Z",
+                "expiresAt": "2026-09-07T12:14:30.000Z"
+            });
+            if let Some(account) = account {
+                snapshot["accountId"] = serde_json::json!(account);
+            }
+            snapshot
+        };
+        let document = serde_json::json!({ "snapshots": [
+            reading("CLAUDE", "FIVE_HOUR", Some("claude-personal")),
+            reading("CLAUDE", "SEVEN_DAY", Some("claude-personal")),
+            reading("CODEX", "FIVE_HOUR", None),
+            reading("GROK", "SEVEN_DAY", Some("grok-personal")),
+        ]});
+        let configured = ["CLAUDE".to_string(), "CODEX".to_string()]
+            .into_iter()
+            .collect::<HashSet<String>>();
+        let rows =
+            usage_samples_from_cache(&document, &configured, "2026-09-07T12:00:00.000Z", now)
+                .expect("rows");
+        assert_eq!(usage_accounts(&rows), ["claude-personal", "default"]);
     }
 
     #[test]

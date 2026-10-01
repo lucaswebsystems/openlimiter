@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -98,6 +98,100 @@ describe("statusline ingestion by host", () => {
     cache = await readSnapshotCache(directory);
     expect(cache.ok && new Set(cache.snapshots.map(row => row.accountId))).toEqual(new Set([opaqueAccountId("CLAUDE", "fixture-a"), opaqueAccountId("CLAUDE", "fixture-b")]));
   });
+  /*
+   * Claude Code keeps its account block in `.claude.json`: beside `~/.claude`
+   * by default, and INSIDE the directory a session names in CLAUDE_CONFIG_DIR.
+   * The file also carries project history, so on a working machine it is far
+   * larger than any credential document. Each row must carry the account of
+   * the session that emitted it, the same opaque id the desktop computes.
+   */
+  async function claudeConfig(directory: string, account: string | null, options: { padding?: number; credential?: boolean } = {}): Promise<void> {
+    await mkdir(directory, { recursive: true });
+    if (options.credential !== false) {
+      await writeFile(path.join(directory, ".credentials.json"), JSON.stringify({ claudeAiOauth: { accessToken: "fixture-token", expiresAt: 1 } }));
+    }
+    if (account !== null) {
+      await writeFile(path.join(directory, ".claude.json"), JSON.stringify({
+        projects: { history: "x".repeat(options.padding ?? 0) },
+        oauthAccount: { accountUuid: account }
+      }));
+    }
+  }
+  async function claudeRows(home: string, directory: string, environment: Record<string, string>): Promise<(string | undefined)[]> {
+    await runCli(["statusline", "--host", "claude"], {
+      stateDirectory: directory, homeDirectory: home, environment, platform: "linux", now: () => FIXTURE_NOW,
+      readStandardInput: async () => JSON.stringify(claudeFixture(FIXTURE_NOW))
+    });
+    const cache = await readSnapshotCache(directory);
+    return cache.ok ? cache.snapshots.filter(row => row.provider === "CLAUDE").map(row => row.accountId) : [];
+  }
+
+  it("Claude: a default config whose account file outgrew the credential bound still names its account", async () => {
+    const home = await temporaryDirectory();
+    await claudeConfig(path.join(home, ".claude"), null);
+    await writeFile(path.join(home, ".claude.json"), JSON.stringify({
+      projects: { history: "x".repeat(2 * 1_048_576) },
+      oauthAccount: { accountUuid: "fixture-a" }
+    }));
+    expect(await claudeRows(home, await temporaryDirectory(), {})).toEqual([
+      opaqueAccountId("CLAUDE", "fixture-a"), opaqueAccountId("CLAUDE", "fixture-a")
+    ]);
+  });
+
+  it("Claude: accounts A and B in two sessions, each with its own CLAUDE_CONFIG_DIR, stay apart", async () => {
+    const home = await temporaryDirectory();
+    const directory = await temporaryDirectory();
+    await claudeConfig(path.join(home, "work-a"), "fixture-a", { padding: 200_000 });
+    await claudeConfig(path.join(home, "work-b"), "fixture-b");
+    expect(await claudeRows(home, directory, { CLAUDE_CONFIG_DIR: path.join(home, "work-a") }))
+      .toEqual([opaqueAccountId("CLAUDE", "fixture-a"), opaqueAccountId("CLAUDE", "fixture-a")]);
+    expect(new Set(await claudeRows(home, directory, { CLAUDE_CONFIG_DIR: path.join(home, "work-b") })))
+      .toEqual(new Set([opaqueAccountId("CLAUDE", "fixture-a"), opaqueAccountId("CLAUDE", "fixture-b")]));
+  });
+
+  it("Claude: a session's own config decides, never the default login beside it", async () => {
+    const home = await temporaryDirectory();
+    await claudeConfig(path.join(home, ".claude"), null);
+    await writeFile(path.join(home, ".claude.json"), JSON.stringify({ oauthAccount: { accountUuid: "fixture-a" } }));
+    /* Session B keeps its token in a keychain, so only its account file is on disk. */
+    await claudeConfig(path.join(home, "work-b"), "fixture-b", { credential: false });
+    expect(await claudeRows(home, await temporaryDirectory(), { CLAUDE_CONFIG_DIR: path.join(home, "work-b") }))
+      .toEqual([opaqueAccountId("CLAUDE", "fixture-b"), opaqueAccountId("CLAUDE", "fixture-b")]);
+  });
+
+  it("Claude: missing account metadata leaves the row anonymous rather than borrowing another login", async () => {
+    const home = await temporaryDirectory();
+    await claudeConfig(path.join(home, ".claude"), null);
+    await writeFile(path.join(home, ".claude.json"), JSON.stringify({ oauthAccount: { accountUuid: "fixture-a" } }));
+    await claudeConfig(path.join(home, "work-b"), null);
+    expect(await claudeRows(home, await temporaryDirectory(), { CLAUDE_CONFIG_DIR: path.join(home, "work-b") }))
+      .toEqual([undefined, undefined]);
+  });
+
+  it("a failed status line write is kept for doctor by stage and code, and cleared by the next success", async () => {
+    const directory = await temporaryDirectory();
+    const statusline = () => runCli(["statusline", "--host", "claude"], {
+      stateDirectory: directory, now: () => FIXTURE_NOW, readStandardInput: async () => JSON.stringify(claudeFixture(FIXTURE_NOW))
+    });
+    const doctor = async () => (await runCli(["doctor"], { stateDirectory: directory, now: () => FIXTURE_NOW })).stdout;
+    /* A directory where the file belongs makes each write fail on its own. */
+    const blocker = (name: string) => mkdir(path.join(directory, name, "occupied"), { recursive: true });
+    await blocker(CACHE_FILE_NAME);
+    expect((await statusline()).exitCode).toBe(0);
+    expect(await doctor()).toMatch(/^STATUSLINE WRITE FAILED \S+ cache_write [A-Za-z_]+ /mu);
+    await rm(path.join(directory, CACHE_FILE_NAME), { recursive: true, force: true });
+    await blocker("openlimiter-agent-context.json");
+    await statusline();
+    const exported = await doctor();
+    expect(exported).toMatch(/^STATUSLINE WRITE FAILED \S+ agent_context [A-Za-z_]+ /mu);
+    expect(exported).not.toMatch(/occupied|Users/u);
+    /* The agent context writer removes its own temporary file when it fails. */
+    expect((await readdir(directory)).filter((name) => name.endsWith(".tmp"))).toEqual([]);
+    await rm(path.join(directory, "openlimiter-agent-context.json"), { recursive: true, force: true });
+    await statusline();
+    expect(await doctor()).not.toMatch(/STATUSLINE WRITE FAILED/u);
+  });
+
   it("Claude: rate_limits five_hour and seven_day become cache rows", async () => {
     const directory = await temporaryDirectory();
     const result = await runCli(["statusline", "--host", "claude"], {

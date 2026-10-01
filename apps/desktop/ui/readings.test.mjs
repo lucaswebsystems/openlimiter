@@ -7,8 +7,8 @@ import { agentName, meterLabel, providerCode, providerName, READINGS_COPY, say }
 import { fakeDocument, leaks, spoken } from "./test-dom.mjs";
 // readings.js reaches the compiled engine, which only exists in the build.
 import {
-  attentionFlags, connectedProviders, fixWords, holdReadings, limitsModel, officialMark, projectReadings, renderAttention,
-  renderConnected, renderLimits, timeLeft, updatedLabel,
+  attentionFlags, fixWords, holdReadings, inventoryModel, limitsModel, officialMark, projectReadings, renderLimits, timeLeft,
+  updatedLabel,
 } from "./dist/readings.js";
 
 const NOW = Date.parse("2026-09-29T12:00:00.000Z");
@@ -90,7 +90,7 @@ test("every row the webview draws passes the projection, native rows included", 
   assert.deepEqual(projectReadings(null, "{not json", now).failures, [{ provider: "MANUAL", category: "PAYLOAD_UNREADABLE" }]);
 });
 
-test("Needs attention holds one row per unmeasurable provider, never one Home shows or one switched off", () => {
+test("each unmeasured provider keeps its most useful fix, never one Home measures or one switched off", () => {
   const readings = projectReadings(JSON.stringify(fixtures.projected), null, now);
   const flags = attentionFlags(readings.flags, readings.snapshots);
   assert.deepEqual(flags.map((flag) => [flag.provider, flag.fixKind]), [
@@ -110,31 +110,28 @@ test("Needs attention holds one row per unmeasurable provider, never one Home sh
   ], []).map((flag) => flag.fixKind), ["open_app"]);
 });
 
-test("Connected lists what is switched on and measured, detected or keyed, never a flagged or switched off one", () => {
+test("the list holds what is measured, detected, keyed or flagged, never a switched off tool", () => {
   const readings = projectReadings(JSON.stringify(fixtures.projected), null, now);
-  const attention = attentionFlags(readings.flags, readings.snapshots);
   const detections = { providers: [
     { provider_id: "gemini-cli", state: "present" }, { provider_id: "cursor", state: "present" },
-    { provider_id: "grok", state: "installed_logged_out" },
+    { provider_id: "grok", state: "installed_logged_out" }, { provider_id: "kimi", state: "absent" },
   ] };
   const connections = [{ provider: "opencode", state: "CONNECTED" }, { provider: "antigravity", state: "NEEDS_AUTH" }];
-  const connected = connectedProviders({ snapshots: readings.snapshots, detections, connections, flags: readings.flags, attention });
-  // Cursor is switched off, Gemini CLI and OpenCode wait in Needs attention.
-  assert.deepEqual(connected.map((provider) => [provider.name, provider.access]),
-    [["Claude Code", "automatic"], ["Codex", "automatic"], ["OpenRouter", "key"]]);
-  assert.deepEqual(connectedProviders({ snapshots: [], detections: { providers: [{ provider_id: "kimi", state: "present" }] } })
-    .map((provider) => provider.code), ["KIMI"]);
-  assert.deepEqual(connectedProviders({ snapshots: [] }), []);
+  const model = inventoryModel({ snapshots: readings.snapshots, detections, connections, flags: readings.flags }, now);
+  // Cursor is switched off; every other tool in play has one row, measured ones first.
+  assert.deepEqual(model.map((tool) => [tool.name, tool.windows.length ? "bars" : tool.action?.label ?? tool.note]), [
+    ["Codex", "bars"], ["Claude Code", "bars"], ["OpenRouter", "bars"],
+    ["Antigravity", "Connect"],
+    ["Gemini CLI", "Not measurable yet"], ["Grok (xAI)", "Sign in again"], ["Kimi", "Check again"], ["OpenCode", "Connect"],
+  ]);
+  // A tool a person chose stays in play, even with nothing detected yet.
+  assert.ok(inventoryModel({ configured: ["CURSOR"] }, now).some((tool) => tool.code === "CURSOR"));
+  assert.equal(inventoryModel({ configured: ["CURSOR"], removed: ["CURSOR"] }, now).some((tool) => tool.code === "CURSOR"), false);
+  assert.deepEqual(inventoryModel({ detections: { providers: [{ provider_id: "kimi", state: "present" }] } }, now)
+    .map((tool) => tool.code), ["CLAUDE", "ANTIGRAVITY", "OPENROUTER", "KIMI"]);
   const doc = fakeDocument();
   const mount = doc.createElement("div");
-  renderConnected(doc, mount, [...connected, { code: "MANUAL", name: "Manual", access: "manual" }]);
-  const rows = mount.all((node) => "connectedRow" in node.dataset);
-  assert.deepEqual(rows.map((row) => row.textContent), [
-    "Claude CodeUses your Claude Code sign in on this computerConnected",
-    "CodexUses your Codex sign in on this computerConnected",
-    "OpenRouterUses your OpenRouter keyConnected",
-    "ManualUses the numbers you enteredConnected",
-  ]);
+  renderLimits(doc, mount, model, { handlers: {} });
   assert.deepEqual(leaks(spoken(mount)), []);
 });
 
@@ -161,6 +158,54 @@ test("Home's model: one entry per provider, tightest window and tightest provide
   // Rows that went stale since the projection are not drawn.
   const later = new Date(NOW + 3_600_000).toISOString();
   assert.equal(limitsModel(fixtures.projected.snapshots, later).length, 0);
+});
+
+/* A Claude status line row as the native projection hands it over while
+   Claude Code idles: its policy expiry passed, its window has not reset. */
+function idleClaude(ageMinutes, resetMinutes) {
+  const observed = NOW - ageMinutes * 60_000;
+  return {
+    provider: "CLAUDE", meter: "FIVE_HOUR", value: 37, unit: "PERCENT", kind: "quota_percent",
+    window: { kind: "rolling", durationSeconds: 18_000 }, resetAt: new Date(NOW + resetMinutes * 60_000).toISOString(),
+    source: "native_payload", precision: "exact", observedAt: new Date(observed).toISOString(),
+    expiresAt: new Date(observed + 132_000).toISOString(), accountId: ACCOUNTS.claude,
+    provenance: { sourceKind: "statusline_payload", observedVia: "claude_code_statusline" },
+    labels: { credentialOrigin: "official-local-tool", dataInterfaceStatus: "native-statusline-payload", automationRisk: "low", verification: "UNVERIFIED" },
+  };
+}
+
+test("an idle Claude Code card keeps its last reading, hatched with its age, until that window resets", () => {
+  const readings = projectReadings(JSON.stringify({ version: 2, snapshots: [idleClaude(45, 75)], flags: [] }), null, now);
+  const model = limitsModel(readings.snapshots, now);
+  assert.deepEqual(model.map((provider) => [provider.code, provider.age]), [["CLAUDE", "Updated 45 min ago"]]);
+  assert.deepEqual(model[0].windows.map((window) => [window.value, window.band]), [["37%", "stale"]]);
+  for (const compact of [false, true]) {
+    const doc = fakeDocument();
+    const mount = doc.createElement("div");
+    renderLimits(doc, mount, model, { compact });
+    assert.ok(spoken(mount).includes("Updated 45 min ago"));
+    assert.equal(mount.all((node) => node.className === "q-row")[0].dataset.band, "stale");
+    assert.deepEqual(leaks(spoken(mount)), []);
+  }
+  // A fresh card says nothing about its age, and after the reset nothing is drawn: no invented zero.
+  assert.equal(limitsModel(fixtures.projected.snapshots, now).every((provider) => provider.age === null), true);
+  assert.deepEqual(limitsModel(readings.snapshots, new Date(NOW + 76 * 60_000).toISOString()), []);
+});
+
+test("Claude asks to sign in again for a reading it cannot attribute, and waits for Claude Code after a reset", () => {
+  const unresolved = { provider: "CLAUDE", reason: "account_unresolved", fixKind: "sign_in" };
+  const waiting = { provider: "CLAUDE", reason: "awaiting_statusline", fixKind: "open_app" };
+  assert.deepEqual(fixWords(unresolved, "rescan"), { issue: "fixSignInAgainIssue", detail: "fixToolDetail", action: "fixOpenAppAction" });
+  assert.deepEqual(fixWords(unresolved, "connect"), { issue: "fixSignInAgainIssue", detail: "fixToolDetail", action: "fixSignInAction" });
+  assert.deepEqual(fixWords(waiting, "rescan"), { issue: "fixWaitingIssue", detail: "fixWaitingDetail", action: "fixOpenAppAction" });
+  for (const [flag, words] of [[unresolved, /^Claude CodeCheck again/u], [waiting, /^Claude CodeWaiting for Claude Code/u]]) {
+    const doc = fakeDocument();
+    const mount = doc.createElement("div");
+    const flags = projectReadings(JSON.stringify({ version: 2, snapshots: [], flags: [flag] }), null, now).flags;
+    renderLimits(doc, mount, inventoryModel({ flags }, now).filter((tool) => tool.code === "CLAUDE"), { handlers: {} });
+    assert.match(mount.textContent, words);
+    assert.deepEqual(leaks(spoken(mount)), []);
+  }
 });
 
 test("bands follow 60, 80 and 90, and time left reads compactly", () => {
@@ -206,27 +251,27 @@ test("a fix reads by its route: this window's own flow, or sign in in the tool a
   assert.equal(fixWords({ provider: "GEMINI_CLI", fixKind: "unsupported" }, "none").action, null);
 });
 
-test("Needs attention rows carry one sentence and one fix, or none when unsupported", async () => {
+test("every unmeasured row carries one note or one step with its sentence as a tooltip, none when unsupported", async () => {
   const doc = fakeDocument();
   const mount = doc.createElement("div");
   const pressed = [];
-  const flags = attentionFlags(fixtures.projected.flags, fixtures.projected.snapshots);
-  const route = (flag) => flag.fixKind === "unsupported" ? "none" : flag.provider === "OPENCODE" ? "connect" : "rescan";
-  renderAttention(doc, mount, flags, { route, fix: async (flag) => { pressed.push(flag.provider); return flag.provider !== "KIMI"; } });
-  const rows = mount.all((node) => "flagRow" in node.dataset);
+  const model = inventoryModel({ snapshots: fixtures.projected.snapshots, flags: fixtures.projected.flags }, now);
+  renderLimits(doc, mount, model, { handlers: { check: async (code) => { pressed.push(code); return code !== "KIMI"; }, connect: async () => true } });
+  const rows = mount.all((node) => "providerCard" in node.dataset && !node.all((child) => child.className === "q-row").length);
   assert.equal(rows.length, 5);
   assert.deepEqual(leaks(spoken(mount)), []);
   for (const row of rows) {
-    const fixes = row.all((node) => "fix" in node.dataset);
-    assert.equal(fixes.length, 1, row.dataset.provider);
-    assert.equal(fixes[0].localName, row.dataset.fixKind === "unsupported" ? "p" : "button");
+    const steps = row.all((node) => "action" in node.dataset).length;
+    const notes = row.all((node) => node.className === "q-tnote").length;
+    assert.equal(steps + notes, 1, row.dataset.provider);
+    assert.equal(notes, row.dataset.provider === "GEMINI_CLI" ? 1 : 0, row.dataset.provider);
   }
-  const grok = rows.find((row) => row.dataset.provider === "GROK");
-  assert.match(grok.textContent, /Sign in to Grok \(xAI\) on this computer, then check again\.Check again/u);
-  const kimi = rows.find((row) => row.dataset.provider === "KIMI");
-  assert.match(kimi.textContent, /Open Kimi once so it refreshes its own sign in, then check again\./u);
-  await kimi.all((node) => node.localName === "button")[0].fire("click");
+  const step = (provider) => rows.find((row) => row.dataset.provider === provider).all((node) => "action" in node.dataset)[0];
+  assert.equal(step("GROK").getAttribute("title"), "Sign in to Grok (xAI) on this computer, then check again.");
+  assert.equal(step("KIMI").getAttribute("title"), "Open Kimi once so it refreshes its own sign in, then check again.");
+  await step("KIMI").fire("click");
   assert.deepEqual(pressed, ["KIMI"]);
+  const kimi = rows.find((row) => row.dataset.provider === "KIMI");
   assert.equal(kimi.all((node) => node.className === "q-fstatus")[0].textContent, say("fixFailed"));
 });
 
@@ -251,4 +296,131 @@ test("the catalog has no dashes and ships translated in every locale", () => {
       assert.deepEqual(value.match(/\{\w+\}/gu) ?? [], READINGS_COPY[key].match(/\{\w+\}/gu) ?? [], `${locale} ${key}`);
     }
   }
+});
+
+/* ------------------------------------------------ the one screen's list */
+
+const rowsOf = (mount) => mount.all((node) => "providerCard" in node.dataset);
+const buttonIn = (row) => row.all((node) => node.localName === "button" && "action" in node.dataset)[0] ?? null;
+const noteIn = (row) => row.all((node) => node.className === "q-tnote")[0] ?? null;
+
+test("the list always has Claude Code, Antigravity and OpenRouter, each with one action when nothing is measured", () => {
+  const model = inventoryModel({}, now);
+  assert.deepEqual(model.map((tool) => tool.code), ["CLAUDE", "ANTIGRAVITY", "OPENROUTER"]);
+  assert.deepEqual(model.map((tool) => [tool.action?.kind, tool.action?.label]), [
+    ["connect", "Connect"], ["check", "Open Antigravity"], ["connect", "Connect"],
+  ]);
+  const doc = fakeDocument();
+  const mount = doc.createElement("div");
+  renderLimits(doc, mount, model, { handlers: { connect: async () => true, check: async () => true } });
+  const rows = rowsOf(mount);
+  assert.deepEqual(rows.map((row) => row.dataset.provider), ["CLAUDE", "ANTIGRAVITY", "OPENROUTER"]);
+  for (const row of rows) {
+    assert.equal(row.all((node) => node.localName === "button" && "action" in node.dataset).length, 1, row.dataset.provider);
+    assert.equal(row.all((node) => node.className === "q-row").length, 0, "no bar without a reading");
+  }
+  assert.deepEqual(leaks(spoken(mount)), []);
+});
+
+test("each action button calls its own handler with its tool, and says so when it did not work", async () => {
+  const calls = [];
+  const handlers = {
+    connect: async (code) => { calls.push(["connect", code]); return true; },
+    check: async (code) => { calls.push(["check", code]); return code !== "ANTIGRAVITY"; },
+  };
+  const doc = fakeDocument();
+  const mount = doc.createElement("div");
+  renderLimits(doc, mount, inventoryModel({}, now), { handlers });
+  for (const row of rowsOf(mount)) await buttonIn(row).fire("click");
+  assert.deepEqual(calls, [["connect", "CLAUDE"], ["check", "ANTIGRAVITY"], ["connect", "OPENROUTER"]]);
+  const antigravity = rowsOf(mount).find((row) => row.dataset.provider === "ANTIGRAVITY");
+  assert.equal(antigravity.all((node) => node.className === "q-fstatus")[0].textContent, say("fixFailed"));
+  assert.equal(buttonIn(antigravity).disabled, false);
+});
+
+test("Claude waits for Claude Code with no button, asks to sign in again, and connects when not set up", () => {
+  const waiting = inventoryModel({ flags: [{ provider: "CLAUDE", reason: "awaiting_statusline", fixKind: "open_app" }] }, now)[0];
+  assert.deepEqual([waiting.code, waiting.action, waiting.note], ["CLAUDE", null, "Waiting for Claude Code"]);
+  const wired = inventoryModel({ claude: "READY_TO_ENABLE" }, now)[0];
+  assert.deepEqual([wired.action, wired.note], [null, "Waiting for Claude Code"]);
+  const unresolved = inventoryModel({ flags: [{ provider: "CLAUDE", reason: "account_unresolved", fixKind: "sign_in" }] }, now)[0];
+  assert.deepEqual(unresolved.action, { kind: "check", label: "Check again", title: say("fixToolDetail", { name: "Claude Code" }) });
+  assert.equal(inventoryModel({ claude: "DETECTED" }, now)[0].action.label, "Connect");
+  const doc = fakeDocument();
+  const mount = doc.createElement("div");
+  renderLimits(doc, mount, [waiting], { handlers: {} });
+  const row = rowsOf(mount)[0];
+  assert.equal(buttonIn(row), null);
+  assert.equal(noteIn(row).textContent, "Waiting for Claude Code");
+});
+
+test("Claude waiting with the direct check off offers one click, and with it on only the note", async () => {
+  const waitingFlag = [{ provider: "CLAUDE", reason: "awaiting_statusline", fixKind: "open_app" }];
+  const title = "Uses your local Claude sign in to ask Anthropic for your limits while Claude Code is closed.";
+  for (const input of [{ flags: waitingFlag }, { claude: "READY_TO_ENABLE" }, { claude: "CONNECTED" }]) {
+    const off = inventoryModel({ ...input, claudePoll: false }, now)[0];
+    assert.deepEqual([off.note, off.action], [null, { kind: "poll", label: "Use my Claude sign in", title }]);
+    const on = inventoryModel({ ...input, claudePoll: true }, now)[0];
+    assert.deepEqual([on.action, on.note], [null, "Waiting for Claude Code"]);
+  }
+  const calls = [];
+  const doc = fakeDocument();
+  const mount = doc.createElement("div");
+  const model = inventoryModel({ flags: waitingFlag, claudePoll: false }, now).filter((tool) => tool.code === "CLAUDE");
+  renderLimits(doc, mount, model, { handlers: { poll: async (code) => { calls.push(code); return true; } } });
+  const button = buttonIn(rowsOf(mount)[0]);
+  assert.equal(button.textContent, "Use my Claude sign in");
+  await button.fire("click");
+  assert.deepEqual(calls, ["CLAUDE"]);
+});
+
+test("Codex with a reading and a waiting Claude: bars first, then the rows that need a step", () => {
+  const codex = fixtures.projected.snapshots.filter((row) => row.provider === "CODEX");
+  const model = inventoryModel({
+    snapshots: codex,
+    flags: [{ provider: "CLAUDE", reason: "awaiting_statusline", fixKind: "open_app" }],
+    detections: { providers: [{ provider_id: "codex", state: "present" }, { provider_id: "claude", state: "present" }], antigravity_running: false },
+  }, now);
+  assert.deepEqual(model.map((tool) => [tool.code, tool.windows.length, tool.action?.label ?? tool.note]),
+    [["CODEX", 1, null], ["CLAUDE", 0, "Waiting for Claude Code"], ["ANTIGRAVITY", 0, "Open Antigravity"], ["OPENROUTER", 0, "Connect"]]);
+});
+
+test("every tool in play gets one row with one fix; a switched off one leaves unless it always has a row", () => {
+  const readings = projectReadings(JSON.stringify(fixtures.projected), null, now);
+  const model = inventoryModel({ snapshots: readings.snapshots, flags: readings.flags }, now);
+  const view = Object.fromEntries(model.map((tool) => [tool.code, tool.windows.length ? "bars" : tool.action?.label ?? tool.note]));
+  assert.deepEqual(view, {
+    CODEX: "bars", CLAUDE: "bars", OPENROUTER: "bars", ANTIGRAVITY: "Open Antigravity",
+    GEMINI_CLI: "Not measurable yet", GROK: "Sign in again", KIMI: "Check again", OPENCODE: "Connect",
+  });
+  assert.equal(model.some((tool) => tool.code === "CURSOR"), false, "switched off");
+  // An old account's flag waits behind the row's menu, never as a second row.
+  assert.deepEqual(model.find((tool) => tool.code === "CLAUDE").extra.map((flag) => flag.reason), ["account_not_connected", "account_not_connected"]);
+  const off = inventoryModel({ removed: ["ANTIGRAVITY"] }, now).find((tool) => tool.code === "ANTIGRAVITY");
+  assert.deepEqual([off.action, off.note], [null, "Off"]);
+  const connected = inventoryModel({ connections: [{ provider: "OPENROUTER", state: "CONNECTED" }] }, now).find((tool) => tool.code === "OPENROUTER");
+  assert.equal(connected.action.label, "Check again");
+  const lost = inventoryModel({ connections: [{ provider: "OPENROUTER", state: "NEEDS_AUTH" }] }, now).find((tool) => tool.code === "OPENROUTER");
+  assert.equal(lost.action.label, "Connect");
+  const doc = fakeDocument();
+  const mount = doc.createElement("div");
+  renderLimits(doc, mount, model, { handlers: {} });
+  assert.deepEqual(leaks(spoken(mount)), []);
+});
+
+test("a row's small menu opens on demand and is filled by its owner", async () => {
+  const doc = fakeDocument();
+  const mount = doc.createElement("div");
+  const filled = [];
+  renderLimits(doc, mount, inventoryModel({}, now), { handlers: {}, more: (tool, panel) => { filled.push(tool.code); panel.append(doc.createElement("label")); } });
+  const claude = rowsOf(mount)[0];
+  const toggle = claude.all((node) => node.className === "q-more")[0];
+  const panel = claude.all((node) => node.className === "q-morepanel")[0];
+  assert.equal(toggle.getAttribute("aria-expanded"), "false");
+  assert.equal(panel.hidden, true);
+  await toggle.fire("click");
+  assert.equal(toggle.getAttribute("aria-expanded"), "true");
+  assert.equal(panel.hidden, false);
+  assert.deepEqual(filled, ["CLAUDE"]);
+  assert.match(toggle.getAttribute("aria-label"), /Claude Code/u);
 });

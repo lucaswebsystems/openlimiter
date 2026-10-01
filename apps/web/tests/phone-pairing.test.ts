@@ -1,9 +1,11 @@
 import { createElement } from "react";
+import { readFileSync } from "node:fs";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PhoneButton from "@/app/app/phone-button";
+import PairPage from "@/app/app/pair/page";
 import { PairFlow } from "@/app/app/pair/pair-flow";
-import { PairInstallStep } from "@/app/app/pair/pair-install";
+import { ANDROID_PROMPT_WAIT, PairInstallStep } from "@/app/app/pair/pair-install";
 import { DELETE as sessionDelete, POST as sessionPost } from "@/app/app/pair/api/session/route";
 import { POST as renewPost } from "@/app/app/pair/api/renew/route";
 import { POST as readPost } from "@/app/app/pair/api/read/route";
@@ -24,7 +26,7 @@ import {
 } from "@/lib/phone-session";
 import { errorCorrectionCodewords, encodeQr, qrSize, MAX_QR_VERSION } from "@/lib/qr";
 import { serialPoll } from "@/lib/serial-poll";
-import { all, byText, flush, messages, render, type Mounted } from "./render";
+import { all, byText, findByText, flush, messages, render, type Mounted } from "./render";
 
 /**
  * The phone lane: the QR encoder against the published vectors and an
@@ -811,6 +813,12 @@ describe("the phone button panel", () => {
   });
 });
 
+const install = hub.phoneInstall as Record<string, string>;
+const IOS_SAFARI =
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/19.0 Mobile/15E148 Safari/604.1";
+const ANDROID_CHROME =
+  "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36";
+
 describe("the install step gating", () => {
   it("shows the Android button on Android Chrome, and replays the prompt", async () => {
     stubMatchMedia(false);
@@ -853,35 +861,84 @@ describe("the install step gating", () => {
     expect(mounted.container.textContent?.trim()).toBe("");
   });
 
-  it("shows the three line overlay on real iOS Safari", async () => {
+  it("shows one Share row on real iOS Safari: the glyph, an arrow, Add to Home Screen", async () => {
     stubMatchMedia(false);
-    stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/19.0 Safari/604.1");
+    stubUserAgent(IOS_SAFARI);
     mounted = render(createElement(PairInstallStep));
     await flush();
-    const install = hub.phoneInstall as Record<string, string>;
-    for (const line of [install.iosOne, install.iosTwo, install.iosThree]) {
-      expect(mounted.container.textContent).toContain(line);
-    }
     const status = mounted.container.querySelector('[role="status"]');
     expect(status?.getAttribute("aria-live")).toBe("polite");
+    expect(status?.querySelector("svg")?.getAttribute("aria-label")).toBe(install.share);
+    expect(status?.textContent).toContain(install.ios);
+    /* One row, not a numbered list of steps. */
+    expect(all(mounted.container, "li")).toHaveLength(0);
     expect(all(mounted.container, "button")).toHaveLength(0);
   });
 
-  it("shows neither step for Chrome on iOS, which is not Safari", async () => {
+  it.each([
+    ["a QR scanner's webview", "Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148"],
+    ["Chrome on iOS", "Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/140.0 Mobile/15E148 Safari/604.1"],
+    ["the Google app", "Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0 Mobile/15E148 Safari/604.1"],
+  ])("says open in Safari inside %s, where Add to Home Screen is missing", async (_name, agent) => {
     stubMatchMedia(false);
-    stubUserAgent(
-      "Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/140.0 Mobile/15E148 Safari/604.1",
-    );
+    stubUserAgent(agent);
+    mounted = render(createElement(PairInstallStep));
+    await flush();
+    expect(mounted.container.textContent?.trim()).toBe(install.openSafari);
+    expect(mounted.container.querySelector("svg")).toBeNull();
+  });
+
+  it.each([
+    ["iOS Safari", IOS_SAFARI],
+    ["an iOS webview", "Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148"],
+  ])("shows nothing in %s when the page already runs installed", async (_name, agent) => {
+    stubMatchMedia(true);
+    stubUserAgent(agent);
     mounted = render(createElement(PairInstallStep));
     await flush();
     expect(mounted.container.textContent?.trim()).toBe("");
   });
 
-  it("shows nothing when the page already runs installed", async () => {
-    stubMatchMedia(true);
-    stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X) Safari/604.1");
+  it("shows one menu line on Android when no install prompt arrives, and upgrades to the button if one does", async () => {
+    vi.useFakeTimers();
+    stubMatchMedia(false);
+    stubUserAgent(ANDROID_CHROME);
     mounted = render(createElement(PairInstallStep));
     await flush();
+    /* Chrome gets a moment to offer its own prompt first. */
+    expect(mounted.container.textContent?.trim()).toBe("");
+    await mounted.run(async () => { await vi.advanceTimersByTimeAsync(ANDROID_PROMPT_WAIT); });
+    expect(mounted.container.textContent?.trim()).toBe(install.androidMenu);
+    expect(install.androidMenu).toContain("⋮");
+    /* The menu mark is drawn, not left to a thin text glyph. */
+    const glyph = mounted.container.querySelector('[role="status"] svg');
+    expect(glyph?.getAttribute("aria-hidden")).toBe("true");
+    expect(glyph?.querySelectorAll("circle")).toHaveLength(3);
+
+    await mounted.run(async () => {
+      const event = new Event("beforeinstallprompt", { cancelable: true });
+      Object.assign(event, { prompt: async () => undefined, userChoice: Promise.resolve({ outcome: "accepted" }) });
+      window.dispatchEvent(event);
+    });
+    expect(byText(mounted.container, "button", install.add)).not.toBeNull();
+    expect(mounted.container.textContent).not.toContain(install.androidMenu);
+  });
+
+  it("never shows the Android menu line when the page already runs installed", async () => {
+    vi.useFakeTimers();
+    stubMatchMedia(true);
+    stubUserAgent(ANDROID_CHROME);
+    mounted = render(createElement(PairInstallStep));
+    await mounted.run(async () => { await vi.advanceTimersByTimeAsync(ANDROID_PROMPT_WAIT * 4); });
+    expect(mounted.container.textContent?.trim()).toBe("");
+  });
+
+  it("keeps the Android menu line off a desktop browser", async () => {
+    vi.useFakeTimers();
+    stubMatchMedia(false);
+    stubUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140 Safari/537.36");
+    mounted = render(createElement(PairInstallStep));
+    await mounted.run(async () => { await vi.advanceTimersByTimeAsync(ANDROID_PROMPT_WAIT * 4); });
     expect(mounted.container.textContent?.trim()).toBe("");
   });
 });
@@ -897,6 +954,22 @@ function fetchRoutedTo(
     if (handler === undefined) throw new Error(`unrouted fetch: ${path}`);
     return handler(init);
   };
+}
+
+const codeEntry = (hub.pairPage as unknown as { codeEntry: Record<string, string> }).codeEntry ?? {};
+
+function pairButton(): HTMLButtonElement | null {
+  return byText(mounted?.container as HTMLElement, "button", codeEntry.pair) as HTMLButtonElement | null;
+}
+
+/* Typing, the way React hears it: the native value setter, then an input event. */
+function typeCode(value: string): void {
+  const input = mounted?.container.querySelector("input");
+  expect(input).not.toBeNull();
+  mounted?.run(() => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, value);
+    input?.dispatchEvent(new Event("input", { bubbles: true }));
+  });
 }
 
 describe("the pair page", () => {
@@ -1043,8 +1116,10 @@ describe("the pair page", () => {
     expect(readPhonePairMeta()).toBeNull();
     expect(mounted.container.textContent).toContain("This link has no pairing code");
   });
+  /* A browser tab, where a scan lands. The installed app's own states call
+     stubMatchMedia(true) themselves. */
   beforeEach(() => {
-    stubMatchMedia(true);
+    stubMatchMedia(false);
     stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X) Safari/604.1");
   });
 
@@ -1074,6 +1149,24 @@ describe("the pair page", () => {
     expect(window.location.hash).toBe("");
   });
 
+  it("wears the product shell, so the site header, footer and announcement never draw on it", async () => {
+    vi.stubGlobal(
+      "fetch",
+      fetchRoutedTo({
+        "/app/pair/api/read": () => new Response(JSON.stringify({ error: "no_pair" }), { status: 401 }),
+      }),
+    );
+    mounted = render(PairPage());
+    await flush();
+    /* One logo: the page's own lockup is the only one left once the header is gone. */
+    expect(mounted.container.querySelector("main")?.classList.contains("ol-product-shell")).toBe(true);
+    /* The rule the dashboard already relies on, which this page now shares. */
+    const theme = readFileSync("app/app/theme.css", "utf8").replace(/\s+/gu, " ");
+    expect(theme).toContain(
+      "body:has(.ol-product-shell) .announce-bar, body:has(.ol-product-shell) .site-header, body:has(.ol-product-shell) > footer { display: none; }",
+    );
+  });
+
   it("says scan again when there is no code and no existing pairing", async () => {
     vi.stubGlobal(
       "fetch",
@@ -1084,6 +1177,88 @@ describe("the pair page", () => {
     mounted = render(createElement(PairFlow));
     await flush();
     expect(mounted.container.textContent).toContain("This link has no pairing code");
+    /* The code field belongs to the installed app, not a browser tab. */
+    expect(mounted.container.querySelector("input")).toBeNull();
+  });
+
+  it("offers the code field inside the installed app with no session, and claims through the fragment's path", async () => {
+    stubMatchMedia(true);
+    vi.spyOn(Date, "now").mockReturnValue(NOW);
+    const claims: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      fetchRoutedTo({
+        "/app/pair/api/read": () => new Response(JSON.stringify({ error: "no_pair" }), { status: 401 }),
+        "/functions/v1/pair-device": (init) => {
+          const body = JSON.parse(String(init.body)) as { action: string; code?: string };
+          if (body.action !== "claim") return new Response(JSON.stringify({ status: "pending" }), { status: 200 });
+          claims.push(String(body.code));
+          /* The first code is mistyped and spent; the second one is good. */
+          return claims.length === 1
+            ? new Response(JSON.stringify({ error: "not_found" }), { status: 404 })
+            : new Response(
+              JSON.stringify({ claim_id: "8f1c2d3e-4a5b-4c6d-8e9f-0a1b2c3d4e5f", expires_at: NOW / 1_000 + 120 }),
+              { status: 200 },
+            );
+        },
+      }),
+    );
+    mounted = render(createElement(PairFlow));
+    await findByText(mounted.container, codeEntry.label);
+    expect(mounted.container.textContent).not.toContain(hub.pairPage.setup.noCode.title);
+    expect(all(mounted.container, "input")).toHaveLength(1);
+    expect(pairButton()?.disabled).toBe(true);
+
+    typeCode("abcd 2345");
+    expect(mounted.container.querySelector("input")?.value).toBe("ABCD2345");
+    press(pairButton());
+    await vi.waitFor(async () => {
+      await flush();
+      expect(mounted?.container.textContent).toContain(hub.pairPage.setup.expired.title);
+    });
+    /* A failed code leaves the field there for another try. */
+    expect(all(mounted.container, "input")).toHaveLength(1);
+
+    typeCode("WXYZ6789");
+    press(pairButton());
+    await vi.waitFor(async () => {
+      await flush();
+      expect(mounted?.container.textContent).toContain(hub.pairPage.setup.waiting.title);
+    });
+    expect(claims).toEqual(["ABCD2345", "WXYZ6789"]);
+    /* The code went out in a request body and never into the address. */
+    expect(window.location.href).not.toMatch(/ABCD2345|WXYZ6789/u);
+  });
+
+  it.each(["the local marker", "cookie recovery"])("never offers the code field when %s finds a session", async (path) => {
+    stubMatchMedia(true);
+    if (path === "the local marker") {
+      window.localStorage.setItem(PHONE_PAIR_META_KEY, JSON.stringify({ label: "Test phone", expiresAt: Date.now() / 1_000 + 80_000 }));
+    }
+    vi.stubGlobal(
+      "fetch",
+      fetchRoutedTo({
+        "/app/pair/api/read": () => new Response(JSON.stringify({ body: { rows: [] } }), { status: 200 }),
+      }),
+    );
+    mounted = render(createElement(PairFlow));
+    await findByText(mounted.container, hub.pairPage.bars.title);
+    expect(mounted.container.querySelector("input")).toBeNull();
+    expect(mounted.container.textContent).not.toContain(codeEntry.label);
+  });
+
+  it("puts the install row first and the bars right after, once paired", async () => {
+    stubUserAgent(IOS_SAFARI);
+    vi.stubGlobal(
+      "fetch",
+      fetchRoutedTo({
+        "/app/pair/api/read": () => new Response(JSON.stringify({ body: { rows: [] } }), { status: 200 }),
+      }),
+    );
+    mounted = render(createElement(PairFlow));
+    await findByText(mounted.container, install.ios);
+    const text = mounted.container.textContent ?? "";
+    expect(text.indexOf(install.ios)).toBeLessThan(text.indexOf(hub.pairPage.bars.title));
   });
 
   it("shows the bars for a returning visit whose pairing is still good", async () => {

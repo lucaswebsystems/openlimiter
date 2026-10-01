@@ -25,12 +25,8 @@
     "refresh": "Actualizar",
     "loading": "Cargando tus límites",
     "emptyTitle": "Aún no hay nada medible",
-    "emptyHome": "Conecta una herramienta o abre una que ya uses para que informe sus límites.",
     "emptyPanel": "Abre la app para conectar una herramienta.",
-    "openConnections": "Abrir Conexiones",
     "unavailable": "Tus límites no están disponibles en este momento.",
-    "agentsEmptyTitle": "No hay agentes en ejecución",
-    "agentsEmptyDetail": "Las sesiones de agentes aparecen aquí mientras trabajan.",
     "agentsUnavailable": "La actividad de los agentes no está disponible",
     "agentName": "Agente",
     "stateWaiting": "Te necesita",
@@ -43,8 +39,6 @@
     "runningOne": "1 agente en ejecución",
     "runningMany": "{count} agentes en ejecución",
     "attentionTitle": "Requiere atención",
-    "attentionOne": "1 requiere atención",
-    "attentionMany": "{count} requieren atención",
     "fixReconnectIssue": "Conexión perdida",
     "fixReconnectDetail": "Vuelve a conectar {name} para ver sus límites otra vez.",
     "fixReconnectAction": "Reconectar",
@@ -57,15 +51,22 @@
     "fixUnsupportedIssue": "Aún no se puede medir",
     "fixUnsupportedDetail": "OpenLimiter aún no puede medir {name}.",
     "fixFailed": "No funcionó. Inténtalo de nuevo en un momento.",
-    "connected": "Conectado",
-    "sourceLocal": "Usa tu sesión de {name} en este equipo",
-    "sourceKey": "Usa tu clave de {name}",
-    "sourceManual": "Usa los números que ingresaste",
     "addTool": "Añadir una herramienta",
-    "accountsNone": "Las claves y sesiones que añadas aparecen aquí. Con Free, una cuenta por proveedor queda activa.",
     "fixToolDetail": "Inicia sesión en {name} en este equipo y luego comprueba de nuevo.",
+    "fixSignInAgainIssue": "Inicia sesión de nuevo",
+    "useClaudeSignIn": "Usar mi inicio de sesión de Claude",
+    "useClaudeSignInTitle": "Usa tu inicio de sesión local de Claude para pedirle a Anthropic tus límites mientras Claude Code está cerrado.",
+    "fixWaitingIssue": "Esperando a {name}",
+    "fixWaitingDetail": "La última ventana se reinició. Usa {name} una vez y sus límites volverán a aparecer.",
     "meterFallback": "Límite",
-    "cacheUnreadable": "No se pudieron leer las lecturas guardadas en este momento, así que solo se muestran las que siguen vigentes."
+    "cacheUnreadable": "No se pudieron leer las lecturas guardadas en este momento, así que solo se muestran las que siguen vigentes.",
+    "connect": "Conectar",
+    "openAntigravity": "Abrir Antigravity",
+    "toolOff": "Desactivado",
+    "moreFor": "Más opciones de {name}",
+    "showTool": "Mostrar",
+    "removeTool": "Quitar",
+    "removeConfirm": "Pulsa de nuevo para quitar"
   },
   "meta": {
     "title": "OpenLimiter, límites de programación con IA y actividad de agentes",
@@ -2333,9 +2334,10 @@
     },
     "phoneInstall": {
       "add": "Agregar a la pantalla de inicio",
-      "iosOne": "Toca Compartir en la barra de Safari.",
-      "iosTwo": "Desplázate hasta Agregar a Pantalla de Inicio.",
-      "iosThree": "Toca Agregar. La aplicación se abre a pantalla completa desde tu pantalla de inicio."
+      "androidMenu": "Toca ⋮ y luego Agregar a la pantalla de inicio",
+      "ios": "Agregar a Pantalla de Inicio",
+      "share": "Compartir",
+      "openSafari": "Abre en Safari para instalar"
     },
     "pairPage": {
       "retry": "Actualizar lecturas",
@@ -2388,6 +2390,10 @@
           "title": "No se pudo completar el emparejamiento",
           "body": "El servicio no respondió, así que no se emparejó nada ni se cambió nada. Genera un código nuevo en el escritorio y escanéalo otra vez."
         }
+      },
+      "codeEntry": {
+        "label": "Código de tu computadora",
+        "pair": "Emparejar"
       },
       "pairedAs": "Emparejado como {label}",
       "openDashboard": "Abrir el panel"

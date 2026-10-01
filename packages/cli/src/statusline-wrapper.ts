@@ -2,6 +2,7 @@ import {
   spawn,
   type ChildProcessWithoutNullStreams
 } from "node:child_process";
+import { windowsSystemTool } from "@openlimiter/core";
 
 /** A foreign status line may not hold Claude's prompt open indefinitely. */
 export const STATUSLINE_WRAPPER_TIMEOUT_MILLISECONDS = 2_000;
@@ -147,7 +148,7 @@ export async function runStatuslineWrapper(
     // is never built from untrusted network input; it is the user's own local setting.
     // nosemgrep: javascript.lang.security.audit.spawn-shell-true.spawn-shell-true, javascript.lang.security.detect-child-process.detect-child-process
     options.spawnCommand ?? ((command) => spawn(command, {
-      shell: true,
+      shell: process.platform === "win32" ? windowsSystemTool("cmd.exe") : true,
       windowsHide: true,
       stdio: ["pipe", "pipe", "pipe"]
     }))

@@ -102,17 +102,6 @@ const MAX_ENUMERATION_BYTES: usize = 512 * 1024;
 /// The most bytes accepted from one quota summary answer.
 const MAX_BODY_BYTES: usize = 256 * 1024;
 
-#[cfg(windows)]
-fn windows_powershell_module_path() -> PathBuf {
-    PathBuf::from(
-        std::env::var_os("SystemRoot").unwrap_or_else(|| std::ffi::OsString::from(r"C:\Windows")),
-    )
-    .join("System32")
-    .join("WindowsPowerShell")
-    .join("v1.0")
-    .join("Modules")
-}
-
 /// How long the whole enumeration may take before it is abandoned.
 ///
 /// Every tool it calls is bounded on its own, but the budget is stated once
@@ -220,12 +209,20 @@ pub async fn read_quota_summary<P: AgyPorts, T: LoopbackProbe>(
 /// The command is an operating system inventory tool with a constant argument
 /// list. It is bounded in time as well as in bytes, because this runs on a
 /// collector task and a tool that hangs must not take the collector with it.
-fn bounded_output(program: &str, arguments: &[&str]) -> Option<String> {
+fn bounded_output(program: &Path, arguments: &[&str]) -> Option<String> {
     let mut command = Command::new(program);
-    if program.eq_ignore_ascii_case("powershell") || program.eq_ignore_ascii_case("powershell.exe")
+    #[cfg(windows)]
     {
-        #[cfg(windows)]
-        command.env("PSModulePath", windows_powershell_module_path());
+        if program
+            .file_name()
+            .is_some_and(|name| name.eq_ignore_ascii_case("powershell.exe"))
+        {
+            command.env(
+                "PSModulePath",
+                crate::windows_system_tool::powershell_module_path(),
+            );
+        }
+        command.current_dir(crate::windows_system_tool::system_directory());
     }
     command
         .args(arguments)
@@ -479,7 +476,10 @@ fn executable_of(pid: u32) -> Option<PathBuf> {
 
 #[cfg(all(unix, not(target_os = "linux")))]
 fn executable_of(pid: u32) -> Option<PathBuf> {
-    let report = bounded_output("lsof", &["-a", "-p", &pid.to_string(), "-d", "txt", "-Fn"])?;
+    let report = bounded_output(
+        Path::new("lsof"),
+        &["-a", "-p", &pid.to_string(), "-d", "txt", "-Fn"],
+    )?;
     report
         .lines()
         .find_map(|line| line.strip_prefix('n').filter(|path| !path.is_empty()))
@@ -543,7 +543,7 @@ impl AgyPorts for SystemAgyPorts {
             "} catch {'unavailable'}"
         );
         let report = bounded_output(
-            "powershell",
+            &crate::windows_system_tool::powershell(),
             &["-NoProfile", "-NonInteractive", "-Command", query],
         )?;
         match report.trim() {
@@ -579,7 +579,7 @@ impl AgyPorts for SystemAgyPorts {
             "\"$($_.ProcessId)|$($_.ExecutablePath)\" } }"
         );
         let Some(report) = bounded_output(
-            "powershell",
+            &crate::windows_system_tool::powershell(),
             &["-NoProfile", "-NonInteractive", "-Command", query],
         ) else {
             return Vec::new();
@@ -588,7 +588,10 @@ impl AgyPorts for SystemAgyPorts {
         if pids.is_empty() {
             return Vec::new();
         }
-        let Some(connections) = bounded_output("netstat", &["-ano", "-p", "TCP"]) else {
+        let Some(connections) = bounded_output(
+            &crate::windows_system_tool::tool(&["netstat.exe"]),
+            &["-ano", "-p", "TCP"],
+        ) else {
             return Vec::new();
         };
         let pids = pids.into_iter().map(|(pid, _)| pid).collect::<Vec<_>>();
@@ -606,7 +609,7 @@ impl AgyPorts for SystemAgyPorts {
 
         Scoped to this user where the machine states one, so another account's
         session on a shared machine is never addressed. */
-        let user = bounded_output("id", &["-un"])
+        let user = bounded_output(Path::new("id"), &["-un"])
             .and_then(|value| value.lines().next().map(str::trim).map(str::to_owned))
             .filter(|value| !value.is_empty());
         let mut arguments: Vec<&str> = vec![
@@ -623,7 +626,7 @@ impl AgyPorts for SystemAgyPorts {
             arguments.push("-u");
             arguments.push(user);
         }
-        let Some(report) = bounded_output("lsof", &arguments) else {
+        let Some(report) = bounded_output(Path::new("lsof"), &arguments) else {
             return Vec::new();
         };
         /* `lsof` matched a command name, which any process can take, so every
@@ -763,7 +766,7 @@ mod tests {
         let previous = std::env::var_os("PSModulePath");
         std::env::set_var("PSModulePath", hostile_module_path.path());
         let result = bounded_output(
-            "powershell.exe",
+            &crate::windows_system_tool::powershell(),
             &[
                 "-NoProfile",
                 "-NonInteractive",

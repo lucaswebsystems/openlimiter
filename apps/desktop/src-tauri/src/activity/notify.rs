@@ -8,9 +8,6 @@ use super::{
 use serde::{Deserialize, Serialize};
 use std::{io, path::Path};
 
-#[cfg(all(windows, test))]
-use std::path::PathBuf;
-
 const FILE: &str = "activity-notifications-v1.json";
 const PROVIDERS: &[&str] = &[
     "CLAUDE",
@@ -22,17 +19,6 @@ const PROVIDERS: &[&str] = &[
     "GROK",
     "ANTIGRAVITY",
 ];
-
-#[cfg(all(windows, test))]
-fn windows_powershell_module_path() -> PathBuf {
-    PathBuf::from(
-        std::env::var_os("SystemRoot").unwrap_or_else(|| std::ffi::OsString::from(r"C:\Windows")),
-    )
-    .join("System32")
-    .join("WindowsPowerShell")
-    .join("v1.0")
-    .join("Modules")
-}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -384,10 +370,14 @@ mod tests {
         {
             use std::{os::windows::process::CommandExt, process::Command};
             let script = "$a = Get-Acl -LiteralPath $env:ACTIVITY_TEST_ROOT; $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; $allowed = @($sid,'S-1-5-18','S-1-5-32-544'); $r = @($a.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier])); $bad = @($r | Where-Object {$allowed -notcontains $_.IdentityReference.Value -or $_.IsInherited -or $_.AccessControlType -ne 'Allow' -or $_.FileSystemRights -ne 'FullControl'}); if (!$a.AreAccessRulesProtected -or $r.Count -ne 3 -or @($r | Where-Object {$_.IdentityReference.Value -eq $sid}).Count -ne 1 -or $bad.Count -ne 0 -or $a.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne $sid) { exit 2 }";
-            assert!(Command::new("powershell.exe")
+            assert!(Command::new(crate::windows_system_tool::powershell())
                 .args(["-NoProfile", "-NonInteractive", "-Command", script])
                 .env("ACTIVITY_TEST_ROOT", &root)
-                .env("PSModulePath", windows_powershell_module_path())
+                .env(
+                    "PSModulePath",
+                    crate::windows_system_tool::powershell_module_path(),
+                )
+                .current_dir(crate::windows_system_tool::system_directory())
                 .creation_flags(0x0800_0000)
                 .status()
                 .unwrap()

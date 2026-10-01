@@ -125,6 +125,52 @@ describe("snapshot cache", () => {
     });
   });
 
+  it("drops null and primitive rows while reading a cache", async () => {
+    const directory = await temporaryDirectory();
+    await writeFile(
+      path.join(directory, CACHE_FILE_NAME),
+      JSON.stringify({
+        snapshots: [null, "invalid", 42, snapshot({ meter: "SEVEN_DAY", value: 64 })],
+        version: 2
+      }),
+      "utf8"
+    );
+    expect(await readSnapshotCache(directory)).toEqual({
+      ok: true,
+      suppressed: 0,
+      suppressions: [],
+      snapshots: [snapshot({ meter: "SEVEN_DAY", value: 64 })],
+      dropped: 3
+    });
+  });
+
+  it("drops null and primitive rows during a refresh merge", async () => {
+    const directory = await temporaryDirectory();
+    await writeFile(
+      path.join(directory, CACHE_FILE_NAME),
+      JSON.stringify({
+        snapshots: [null, false, "invalid", snapshot({ meter: "FIVE_HOUR", value: 20 })],
+        version: 2
+      }),
+      "utf8"
+    );
+    const incoming = snapshot({ meter: "SEVEN_DAY", value: 64 });
+    const result = await mergeSnapshotCache(
+      [incoming],
+      directory,
+      Date.parse(incoming.observedAt)
+    );
+    expect(result.merged).toEqual([
+      snapshot({ meter: "FIVE_HOUR", value: 20 }),
+      incoming
+    ]);
+    expect(await readSnapshotCache(directory)).toMatchObject({
+      ok: true,
+      snapshots: result.merged,
+      dropped: 0
+    });
+  });
+
   it("reclaims a stale lock instead of freezing the cache", async () => {
     const directory = await temporaryDirectory();
     const lockPath = path.join(directory, CACHE_LOCK_NAME);
