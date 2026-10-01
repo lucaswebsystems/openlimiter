@@ -536,6 +536,76 @@ describe("F203 Codex and Antigravity drift reinstall and uninstall", () => {
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
+// X203b: a reinstall over the person's edits must not make uninstall erase them
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe("X203b uninstall after a reinstall over edits keeps those edits", () => {
+  it("Claude: the new theme and permissions survive, the first statusLine comes back", async () => {
+    const home = await scratch();
+    const userLine = { type: "command", command: "echo user" };
+    const file = await seedClaude(home, JSON.stringify({ statusLine: userLine, theme: "dark", permissions: { allow: ["Bash(ls)"] } }) + "\n");
+    const ctx = context(home);
+    expect((await installHost("claude", ctx)).ok).toBe(true);
+    expect(await readBackup(file)).not.toHaveProperty("drifted");
+
+    const permissions = { allow: ["Bash(ls)", "Bash(git status)"], deny: ["WebFetch"] };
+    await writeFile(file, JSON.stringify({ ...JSON.parse(await readFile(file, "utf8")), theme: "light", permissions }, null, 2) + "\n");
+    expect((await installHost("claude", ctx)).ok).toBe(true);
+    expect(await readBackup(file)).toMatchObject({ drifted: true });
+
+    expect((await uninstallHost("claude", ctx)).ok).toBe(true);
+    expect(JSON.parse(await readFile(file, "utf8"))).toEqual({ statusLine: userLine, theme: "light", permissions });
+    expect(await readBackup(file)).toBeNull();
+  }, 30_000);
+
+  it("Codex: the new theme and permissions survive and every OpenLimiter line goes", async () => {
+    const home = await scratch();
+    const original = 'model = "gpt-5"\napproval_policy = "on-request"\nsandbox_mode = "read-only"\n\n[tui]\ntheme = "dark"\n';
+    const file = await seedCodex(home, original);
+    const ctx = context(home);
+    expect((await installHost("codex", ctx)).ok).toBe(true);
+
+    const edit = (text: string): string => text.replace('theme = "dark"', 'theme = "light"')
+      .replace('"on-request"', '"never"').replace('"read-only"', '"workspace-write"');
+    await writeFile(file, edit(await readFile(file, "utf8")));
+    expect((await installHost("codex", ctx)).ok).toBe(true);
+
+    expect((await uninstallHost("codex", ctx)).ok).toBe(true);
+    expect(await readFile(file, "utf8")).toBe(edit(original));
+    expect(await readBackup(file)).toBeNull();
+  }, 30_000);
+
+  it("Codex: the first status_line and colours come back next to the new edits", async () => {
+    const home = await scratch();
+    const file = await seedCodex(home, 'approval_policy = "on-request"\n[tui]\nstatus_line = ["model-name"]\nstatus_line_use_colors = false\nother = 42\n');
+    const ctx = context(home);
+    expect((await installHost("codex", ctx)).ok).toBe(true);
+    await writeFile(file, (await readFile(file, "utf8")).replace('"on-request"', '"never"').replace("other = 42", "other = 7"));
+    expect((await installHost("codex", ctx)).ok).toBe(true);
+
+    expect((await uninstallHost("codex", ctx)).ok).toBe(true);
+    const after = await readFile(file, "utf8");
+    expect(tomlValue(after, ["approval_policy"])).toBe("never");
+    expect(tomlValue(after, ["tui", "other"])).toBe(7);
+    expect(tomlValue(after, ["tui", "status_line"])).toEqual(["model-name"]);
+    expect(tomlValue(after, ["tui", "status_line_use_colors"])).toBe(false);
+    expect(after).not.toContain("openlimiter");
+  }, 30_000);
+
+  it("Grok: the edit survives and the status line table OpenLimiter added goes", async () => {
+    const home = await scratch();
+    const file = await seedGrok(home, "[other]\nflag = true\n");
+    const ctx = context(home);
+    expect((await installHost("grok", ctx)).ok).toBe(true);
+    await writeFile(file, (await readFile(file, "utf8")).replace("flag = true", "flag = false"));
+    expect((await installHost("grok", ctx)).ok).toBe(true);
+
+    expect((await uninstallHost("grok", ctx)).ok).toBe(true);
+    expect(await readFile(file, "utf8")).toBe("[other]\nflag = false\n");
+  }, 30_000);
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
 // F203 Test Group 7: Real paths not touched (checked via stat timestamps)
 // ═════════════════════════════════════════════════════════════════════════════
 

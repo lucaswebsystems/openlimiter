@@ -18,10 +18,10 @@ import {
 import { PROVIDER_SHORT_TAGS } from "./statusline.js";
 import { MONEY_TAGS } from "./api-spend.js";
 
-import { parseToml, editToml, tomlValue } from "./terminal-toml.js";
+import { parseToml, editToml, restoreToml, tomlValue } from "./terminal-toml.js";
 import { installLauncher } from "./terminal-launcher.js";
 import { fallbackLauncherCommand, type FallbackLauncherOptions } from "./terminal-fallback.js";
-import { classifyInstallOwnership, isOwned, originalConfiguration, readOptional, restoreOwned, writeDriftedOwned, writeOwned } from "./terminal-backup.js";
+import { classifyInstallOwnership, driftedOriginal, isOwned, originalConfiguration, readOptional, restoreOwned, writeDriftedOwned, writeOwned } from "./terminal-backup.js";
 
 export const TERMINAL_HOST_NAMES: readonly string[] = [
   "claude",
@@ -278,14 +278,11 @@ async function changeConfigHost(host: ConfigHost, context: TerminalHostContext, 
         return { ok: true, message: `${spec.label} status line is not installed.` };
       }
 
-      // Check whether the host has edited the file since we installed.
-      const savedBackupRaw = await readOptional(`${file}.openlimiter-backup.json`);
-      const savedBackup = savedBackupRaw !== null
-        ? JSON.parse(savedBackupRaw) as { version: number; original: string | null; installed: string }
-        : null;
-      const drifted = savedBackup !== null && savedBackup.installed !== original;
+      // Check whether the host has edited the file since we installed, now or
+      // before a reinstall. Either way the original bytes predate those edits.
+      const firstConfiguration = await driftedOriginal(file, original);
 
-      if (drifted) {
+      if (firstConfiguration !== undefined) {
         // If drift exists but our marker is gone, the file was replaced
         // entirely by someone else. Refuse — same contract as the P2 test
         // "refuses changed settings even when the marker was removed".
@@ -298,8 +295,8 @@ async function changeConfigHost(host: ConfigHost, context: TerminalHostContext, 
         let driftedContent: string;
         if (spec.json) {
           const data = JSON.parse(original) as Record<string, unknown>;
-          const restoredOriginalData = savedBackup!.original !== null
-            ? JSON.parse(savedBackup!.original) as Record<string, unknown>
+          const restoredOriginalData = firstConfiguration !== null
+            ? JSON.parse(firstConfiguration) as Record<string, unknown>
             : null;
           if (restoredOriginalData !== null && "statusLine" in restoredOriginalData) {
             data["statusLine"] = restoredOriginalData["statusLine"];
@@ -309,34 +306,10 @@ async function changeConfigHost(host: ConfigHost, context: TerminalHostContext, 
           delete data["openlimiter managed"];
           driftedContent = JSON.stringify(data, null, 2) + "\n";
         } else if (host === "grok") {
-          const restoredOriginalText = savedBackup!.original ?? "";
-          const originalCommand = (() => {
-            const v = tomlValue(restoredOriginalText, ["ui", "status_line", "command"]);
-            return typeof v === "string" ? v : null;
-          })();
-          if (originalCommand !== null) {
-            driftedContent = editToml(original, ["ui", "status_line"], { type: "command", command: originalCommand });
-          } else {
-            driftedContent = original
-              .split("\n")
-              .filter(line => !line.startsWith("# openlimiter managed") && !line.includes("statusline --host"))
-              .join("\n");
-          }
+          driftedContent = restoreToml(original, firstConfiguration ?? "", ["ui", "status_line"], ["type", "command"]);
         } else {
-          // Codex TOML
-          driftedContent = original
-            .split("\n")
-            .filter(line => !line.startsWith("# openlimiter managed") && !line.includes("status_line_use_colors = true"))
-            .join("\n");
-          const codexOriginalText = savedBackup!.original ?? "";
-          if (tomlValue(codexOriginalText, ["tui", "status_line"]) === undefined) {
-            driftedContent = driftedContent
-              .split("\n")
-              .filter(line => !line.trim().startsWith("status_line"))
-              .join("\n");
-          }
+          driftedContent = restoreToml(original, firstConfiguration ?? "", ["tui"], ["status_line", "status_line_use_colors"]);
         }
-        if (!spec.json) driftedContent = driftedContent.split("\n").filter(line => line.trim() !== "# openlimiter managed").join("\n");
 
         const restoreResult = await restoreOwned(file, original, marker, driftedContent);
         if (restoreResult.kind === "not_owned") {
