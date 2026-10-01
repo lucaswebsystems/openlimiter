@@ -47,6 +47,7 @@ export class FakeElement {
       return;
     }
     if (node.parent !== null) {
+      if (node.contains(node.ownerDocument.activeElement)) node.ownerDocument.activeElement.blur();
       node.parent.children = node.parent.children.filter((child) => child !== node);
     }
     const index = this.children.indexOf(reference);
@@ -79,8 +80,28 @@ export class FakeElement {
     this.parent = null;
   }
 
-  focus() { this.ownerDocument.activeElement = this; }
-  blur() { if (this.ownerDocument.activeElement === this) this.ownerDocument.activeElement = null; }
+  bubble(name, event = {}) {
+    const results = [];
+    for (let node = this; node !== null; node = node.parent) {
+      for (const listener of node.listeners[name] ?? []) {
+        results.push(listener({ ...event, target: event.target ?? this, currentTarget: node }));
+      }
+    }
+    return Promise.all(results);
+  }
+
+  focus() {
+    const previous = this.ownerDocument.activeElement;
+    if (previous === this) return Promise.resolve([]);
+    this.ownerDocument.activeElement = this;
+    return previous?.bubble("focusout", { relatedTarget: this }) ?? Promise.resolve([]);
+  }
+
+  blur() {
+    if (this.ownerDocument.activeElement !== this) return Promise.resolve([]);
+    this.ownerDocument.activeElement = null;
+    return this.bubble("focusout", { relatedTarget: null });
+  }
 
   setAttribute(name, value) { this.attributes[name] = String(value); }
   getAttribute(name) { return Object.hasOwn(this.attributes, name) ? this.attributes[name] : null; }

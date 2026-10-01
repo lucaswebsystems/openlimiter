@@ -39,7 +39,7 @@ import { providerCode, providerName, say } from "./names.js";
 import { renderPlanCap } from "./plan-cap.js";
 import { refreshDesktopTrial, renderSettings, tickDesktopTrial } from "./settings.js";
 import { mountAgents } from "./agents.js";
-import { keyRows, proEntitled, refreshEntitlement, renderKeys, renderPro, saveOpenrouterConnection } from "./pro.js";
+import { keyRepaintGate, keyRows, proEntitled, refreshEntitlement, renderKeys, renderPro, saveOpenrouterConnection } from "./pro.js";
 /* The phone panel and the device list it produces. Both live behind an
    account, and both are drawn by their own module rather than here. */
 import {
@@ -924,6 +924,7 @@ function fillMore(tool, panel) {
 /* ------------------------------------------------------------ the key rows */
 
 let drawnKeys = "";
+const requestKeyRepaint = keyRepaintGate(document, elements.keyRows);
 
 /** Move to a key row's field, for a tool row whose Connect is its key. */
 function focusKey(provider) {
@@ -969,23 +970,18 @@ const keyHandlers = {
   },
 };
 
-/** Draw every current key row while keeping only rows with an edit in flight. */
+/** Draw every current key row once no key field owns focus. */
 function paintKeys(now) {
-  const records = inventory.connections.filter((entry) => providerCode(entry.provider) === "OPENROUTER");
-  /* Every account's readings: keyRows binds each row to its own connection's. */
-  const readings = heldSnapshots.filter((row) => row.provider === "OPENROUTER" && Number.isFinite(row.limitAmount));
-  const rows = keyRows({ status: spendStatus, openrouter: { records, readings } }, now);
-  const key = JSON.stringify(rows);
-  const editing = new Map();
-  for (const row of elements.keyRows.querySelectorAll("[data-key-id]")) {
-    const inputs = [...row.querySelectorAll("input")];
-    if (inputs.some((input) => input.value !== "" || input === document.activeElement)) {
-      editing.set(row.dataset.keyId, row);
-    }
-  }
-  if (key === drawnKeys && editing.size === 0) return;
-  renderKeys(document, elements.keyRows, rows, keyHandlers, { preserveRows: editing });
-  drawnKeys = editing.size === 0 ? key : "";
+  requestKeyRepaint(() => {
+    const records = inventory.connections.filter((entry) => providerCode(entry.provider) === "OPENROUTER");
+    /* Every account's readings: keyRows binds each row to its own connection's. */
+    const readings = heldSnapshots.filter((row) => row.provider === "OPENROUTER" && Number.isFinite(row.limitAmount));
+    const rows = keyRows({ status: spendStatus, openrouter: { records, readings } }, now);
+    const key = JSON.stringify(rows);
+    if (key === drawnKeys) return;
+    renderKeys(document, elements.keyRows, rows, keyHandlers);
+    drawnKeys = key;
+  });
 }
 
 bindHomeRefresh({

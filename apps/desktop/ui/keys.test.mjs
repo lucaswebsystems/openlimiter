@@ -5,6 +5,7 @@ import {
   KEY_CONSENT,
   KEY_PROVIDERS,
   keyError,
+  keyRepaintGate,
   keyRows,
   periodLabel,
   renderKeys,
@@ -183,37 +184,88 @@ test("the other Saves send confirmed with the consent version on screen, the tea
 test("a successful xAI Save ends its edit and requests a repaint", async () => {
   const repainted = [];
   const drawn = draw(keyRows({}, NOW), {
-    saved: async (row) => { repainted.push(row.provider); },
+    saved: async (row) => { repainted.push([row.provider, drawn.field("xai", "team").value]); },
   });
   drawn.field("xai").value = "xai-example";
   drawn.field("xai", "team").value = "team-123";
+  drawn.field("xai", "team").focus();
   await drawn.save("xai").fire("click");
-  assert.equal(drawn.field("xai", "team").value, "");
-  assert.deepEqual(repainted, ["xai"]);
+  assert.equal(drawn.doc.activeElement, null);
+  assert.deepEqual(repainted, [["xai", "team-123"]]);
 });
 
-test("repainting a saved row preserves another row being edited", () => {
+test("leaving the window keeps a typed key and its queued repaint", async () => {
   const drawn = draw(keyRows({}, NOW));
-  const editing = drawn.row("openai");
-  drawn.field("openai").value = "sk-admin-being-edited";
-  drawn.field("openai").selectionStart = 8;
-  drawn.field("openai").selectionEnd = 8;
-  drawn.field("openai").focus();
+  const editing = drawn.field("openai");
+  editing.value = "sk-admin-pasted";
+  await editing.focus();
+  let repaints = 0;
+  const requestRepaint = keyRepaintGate(drawn.doc, drawn.mount);
+  requestRepaint(() => { repaints += 1; });
+  drawn.doc.hasFocus = () => false;
+  await drawn.mount.fire("focusout", { relatedTarget: null });
+  assert.equal(repaints, 0, "a window switch does not repaint over the typed key");
+  assert.equal(editing.value, "sk-admin-pasted");
+  drawn.doc.hasFocus = () => true;
+  await drawn.mount.fire("focusout", { relatedTarget: null });
+  assert.equal(repaints, 1, "the queued repaint runs once focus really leaves");
+});
+
+test("a repaint request leaves the focused key section untouched, then focusout repaints it once", async () => {
+  const drawn = draw(keyRows({}, NOW));
+  const originalChildren = [...drawn.mount.children];
+  const editing = drawn.field("openai");
+  editing.value = "sk-admin-being-edited";
+  await editing.focus();
   const next = keyRows({
     status: status([source(FIRST, "xai", { status: "pending_validation", lastObservedAt: null })]),
   }, NOW);
-  renderKeys(drawn.doc, drawn.mount, next, drawn.handlers, {
-    preserveRows: new Map([["openai", editing]]),
-  });
-  assert.equal(drawn.row("openai"), editing);
-  assert.equal(drawn.field("openai").value, "sk-admin-being-edited");
-  assert.equal(drawn.doc.activeElement, drawn.field("openai"));
-  assert.equal(drawn.field("openai").selectionStart, 8);
-  assert.equal(drawn.field("openai").selectionEnd, 8);
-  assert.equal(drawn.field("xai"), undefined, "the submitted xAI row repaints");
+  let repaints = 0;
+  const requestRepaint = keyRepaintGate(drawn.doc, drawn.mount);
+  assert.equal(requestRepaint(() => {
+    repaints += 1;
+    renderKeys(drawn.doc, drawn.mount, next, drawn.handlers);
+  }), false);
+  assert.deepEqual(drawn.mount.children, originalChildren, "no node in the section moves while its input has focus");
+  assert.equal(drawn.doc.activeElement, editing);
+  assert.equal(editing.value, "sk-admin-being-edited");
+  assert.equal(repaints, 0);
+  const nextInput = drawn.field("xai", "team");
+  await nextInput.focus();
+  assert.equal(repaints, 0, "moving between inputs inside the section does not flush the repaint");
+  assert.equal(drawn.doc.activeElement, nextInput);
+  await nextInput.blur();
+  assert.equal(repaints, 1);
+  assert.equal(drawn.doc.activeElement, null);
+  assert.equal(drawn.field("xai"), undefined, "the submitted xAI row repaints after focus leaves");
+  await drawn.mount.fire("focusout", { relatedTarget: null });
+  assert.equal(repaints, 1, "the queued repaint is consumed only once");
   const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
-  assert.match(app, /querySelectorAll\("\[data-key-id\]"\)[\s\S]*?preserveRows: editing/u);
-  assert.doesNotMatch(app, /const typing = \[\.\.\.elements\.keyRows\.querySelectorAll\("input"\)\]/u);
+  assert.match(app, /requestKeyRepaint\(\(\) => \{[\s\S]*?renderKeys\(document, elements\.keyRows, rows, keyHandlers\)/u);
+  assert.doesNotMatch(app, /preserveRows|insertBefore|querySelectorAll\("\[data-key-id\]"\)/u);
+});
+
+test("a successful xAI Save repaints while its kept Team ID cannot block the section", async () => {
+  const drawn = draw(keyRows({}, NOW));
+  const next = keyRows({
+    status: status([source(FIRST, "xai", { status: "pending_validation", lastObservedAt: null })]),
+  }, NOW);
+  const requestRepaint = keyRepaintGate(drawn.doc, drawn.mount);
+  const team = drawn.field("xai", "team");
+  drawn.field("xai").value = "xai-example";
+  team.value = "team-123";
+  await team.focus();
+  drawn.handlers.saved = async () => {
+    requestRepaint(() => renderKeys(drawn.doc, drawn.mount, next, drawn.handlers));
+  };
+  await drawn.save("xai").fire("click");
+  assert.equal(team.value, "team-123", "the submitted Team ID stayed in the old row until repaint");
+  assert.equal(drawn.doc.activeElement, null);
+  assert.equal(drawn.field("xai"), undefined, "Save repainted xAI into its checking state");
+  const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
+  assert.match(app, /saved: async \(\) => \{\s*drawnKeys = "";\s*await refresh\(\);/u);
+  assert.doesNotMatch(app, /input\.value !== ""/u);
+  assert.doesNotMatch(readFileSync(new URL("./pro.js", import.meta.url), "utf8"), /team\.value = ""/u);
 });
 
 test("the period is the sample's real month: this month, last month, an older month, or a balance", () => {
