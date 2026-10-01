@@ -274,6 +274,15 @@ export const KEY_CONSENT = Object.freeze({
   text: "Saving lets OpenLimiter check this provider's billing. Keys stay on this device.",
 });
 
+/** Replace one refused OpenRouter connection, or add one from an empty row. */
+export async function saveOpenrouterConnection(secret, recordId, actions) {
+  if (typeof recordId === "string" && recordId !== "") {
+    const removed = await actions.remove(recordId);
+    if (!removed?.ok) return removed;
+  }
+  return actions.save(secret);
+}
+
 /* One row each, in this order. `mark` is the provider code whose official
    mark the row wears; DeepSeek has none here, so it wears its initial. */
 export const KEY_PROVIDERS = Object.freeze([
@@ -490,7 +499,7 @@ function keyForm(doc, row, handlers, status) {
     let result;
     try {
       result = row.kind === "quota"
-        ? await handlers.saveOpenrouter(secret)
+        ? await handlers.saveOpenrouter(secret, row.recordId)
         : await handlers.save({
           provider: row.provider,
           keyLabel: row.keyLabel ?? row.name,

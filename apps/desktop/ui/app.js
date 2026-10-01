@@ -39,7 +39,7 @@ import { providerCode, providerName, say } from "./names.js";
 import { renderPlanCap } from "./plan-cap.js";
 import { refreshDesktopTrial, renderSettings, tickDesktopTrial } from "./settings.js";
 import { mountAgents } from "./agents.js";
-import { keyRows, proEntitled, refreshEntitlement, renderKeys, renderPro } from "./pro.js";
+import { keyRows, proEntitled, refreshEntitlement, renderKeys, renderPro, saveOpenrouterConnection } from "./pro.js";
 /* The phone panel and the device list it produces. Both live behind an
    account, and both are drawn by their own module rather than here. */
 import {
@@ -933,11 +933,12 @@ function focusKey(provider) {
 
 const keyHandlers = {
   markFor: officialMark,
-  /* A field shows beside existing records only when the key was refused, so
-     saving replaces that key: Free keeps one account per provider. */
-  saveOpenrouter: async (secret) => {
-    for (const record of recordsFor("OPENROUTER")) await removeConnection(record.id);
-    const result = await saveOpenrouterKey(secret);
+  /* A refused row replaces only its connection. An empty row adds one. */
+  saveOpenrouter: async (secret, recordId) => {
+    const result = await saveOpenrouterConnection(secret, recordId, {
+      remove: removeConnection,
+      save: saveOpenrouterKey,
+    });
     await refresh();
     return result;
   },
