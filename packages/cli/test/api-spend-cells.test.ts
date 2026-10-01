@@ -78,6 +78,16 @@ describe("api money cells in the bar status line", () => {
     expect(line).not.toContain("spent");
   });
 
+  it("draws one or cell for two cached accounts, using the newest balance", () => {
+    const older = { ...orCache, accountId: "account-a", value: 12.34, observedAt: "2026-09-07T12:28:00Z" };
+    const newer = { ...orCache, accountId: "account-b", value: 56.78, observedAt: "2026-09-07T12:29:00Z" };
+    const line = render(fullDocument(), [older, newer]);
+    expect(line.match(/\bor \$/g)).toHaveLength(1);
+    expect(line).toContain("or $56.78");
+    expect(line).not.toContain("or $12.34");
+    expect(line).not.toContain("spent");
+  });
+
   it("draws one or cell for several OpenRouter sources, the newest current period one", () => {
     const doc = document([
       [source("openrouter"), { spendUsd: "9", month: "2026-08-01" }],

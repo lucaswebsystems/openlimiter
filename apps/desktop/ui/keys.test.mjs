@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { KEY_CONSENT, KEY_PROVIDERS, keyError, keyRows, periodLabel, renderKeys } from "./pro.js";
+import {
+  KEY_CONSENT,
+  KEY_PROVIDERS,
+  keyError,
+  keyRows,
+  periodLabel,
+  renderKeys,
+  saveOpenrouterConnection,
+} from "./pro.js";
 import { fakeDocument, leaks, spoken } from "./test-dom.mjs";
 
 /*
@@ -35,7 +43,7 @@ function draw(rows, overrides = {}) {
   const calls = [];
   const handlers = {
     markFor: () => "<svg></svg>",
-    saveOpenrouter: async (secret) => { calls.push(["openrouter", secret]); return { ok: true }; },
+    saveOpenrouter: async (secret, recordId) => { calls.push(["openrouter", secret, recordId]); return { ok: true }; },
     save: async (input) => { calls.push(["spend", input]); return { ok: true }; },
     refresh: async (row) => { calls.push(["refresh", row.provider]); return { ok: true }; },
     remove: async (row) => { calls.push(["remove", row.provider]); return { ok: true }; },
@@ -80,8 +88,53 @@ test("the OpenRouter Save creates the quota connection and never an API spend so
   const { calls, field, save } = draw(keyRows({}, NOW));
   field("openrouter").value = "  sk-or-example  ";
   await save("openrouter").fire("click");
-  assert.deepEqual(calls, [["openrouter", "sk-or-example"]]);
+  assert.deepEqual(calls, [["openrouter", "sk-or-example", undefined]]);
   assert.equal(field("openrouter").value, "", "the field is cleared the moment it is sent");
+});
+
+test("replacing a refused OpenRouter account keeps the healthy account", async () => {
+  const records = new Set(["healthy", "refused"]);
+  const removed = [];
+  const rows = keyRows({
+    openrouter: {
+      records: [
+        { id: "refused", provider: "OPENROUTER", state: "NEEDS_AUTH" },
+        { id: "healthy", provider: "OPENROUTER", state: "CONNECTED" },
+      ],
+      readings: [],
+    },
+  }, NOW);
+  const drawn = draw(rows, {
+    saveOpenrouter: (secret, recordId) => saveOpenrouterConnection(secret, recordId, {
+      remove: async (id) => { removed.push(id); records.delete(id); return { ok: true }; },
+      save: async () => { records.add("replacement"); return { ok: true }; },
+    }),
+  });
+  drawn.field("openrouter").value = "sk-or-replacement";
+  await drawn.save("openrouter").fire("click");
+  assert.deepEqual(removed, ["refused"]);
+  assert.deepEqual([...records], ["healthy", "replacement"]);
+});
+
+test("adding an OpenRouter key keeps an existing paused account", async () => {
+  const records = new Set(["paused"]);
+  const removed = [];
+  const rows = keyRows({
+    openrouter: {
+      records: [{ id: "paused", provider: "OPENROUTER", state: "CONNECTED", active: false }],
+      readings: [],
+    },
+  }, NOW);
+  const drawn = draw(rows, {
+    saveOpenrouter: (secret, recordId) => saveOpenrouterConnection(secret, recordId, {
+      remove: async (id) => { removed.push(id); records.delete(id); return { ok: true }; },
+      save: async () => { records.add("new"); return { ok: true }; },
+    }),
+  });
+  drawn.field("openrouter").value = "sk-or-new";
+  await drawn.save("openrouter").fire("click");
+  assert.deepEqual(removed, []);
+  assert.deepEqual([...records], ["paused", "new"]);
 });
 
 test("the other Saves send confirmed with the consent version on screen, the team for xAI, the source to replace", async () => {

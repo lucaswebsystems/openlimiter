@@ -547,7 +547,16 @@ export function barStyleCells(
     if (readings.length === 0) continue;
 
     let selectedReadings: Reading[] = [];
-    if (provider === hostProvider) {
+    if (provider === "OPENROUTER") {
+      // Account caches may overlap. The newest observed balance owns the one
+      // OpenRouter cell, and api spend remains the fallback when none exists.
+      const balances = readings.filter(({ snapshot }) => snapshot.unit === "CREDITS" ||
+        snapshot.currency === "USD" && snapshot.limitAmount !== undefined && snapshot.usedAmount !== undefined);
+      if (balances.length > 0) {
+        selectedReadings = [balances.reduce((newest, reading) =>
+          Date.parse(reading.snapshot.observedAt) > Date.parse(newest.snapshot.observedAt) ? reading : newest)];
+      }
+    } else if (provider === hostProvider) {
       selectedReadings = readings;
     } else if (metersSetting === "all") {
       selectedReadings = readings;
