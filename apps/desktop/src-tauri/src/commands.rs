@@ -16,6 +16,7 @@ use crate::credentials::{
     mask_label, parse_codex_session_v1, read_codex_cli_secret_in_home, valid_codex_account_id,
     valid_codex_token, CodexCredentialError, CredentialError, KeyringStore, SecretStore, MASK_DOTS,
 };
+use crate::native_readers::parse_body;
 use crate::net::{fetch_endpoint, NetError, ReqwestTransport, Transport};
 use crate::provider_detection::{DetectionReport, DetectionStore};
 use crate::reader_registry::{reader_route, CredentialKind, ProviderId, ReaderId, RouteError};
@@ -25,9 +26,10 @@ use crate::reader_registry::{reader_route, CredentialKind, ProviderId, ReaderId,
 /// sentence per variant, so nothing dynamic can ride an error into the
 /// webview or a log.
 ///
-/// A secret is accepted by exactly one command, `connect_provider`, and is
-/// zeroized after it lands in the operating system credential store. No
-/// command returns a secret, so no readback path exists.
+/// A secret is accepted only by `connect_provider` and
+/// `replace_connection_secret`, and is zeroized after it lands in the
+/// operating system credential store. No command returns a secret, so no
+/// readback path exists.
 ///
 /// Scheduling and cache policy live in the native collector. These commands
 /// keep the IPC boundary small, stamp facts, and enforce bounds.
@@ -64,13 +66,16 @@ pub enum CommandFailure {
     CodexLoginRequired,
     PlanCap,
     Paused,
+    /// The provider refused a candidate credential before any local state was
+    /// changed.
+    Authentication,
 }
 
 impl CommandFailure {
     /// Every variant, for the redaction test that formats them all. The
     /// product itself never needs the list.
     #[cfg(test)]
-    pub const ALL: [CommandFailure; 19] = [
+    pub const ALL: [CommandFailure; 20] = [
         CommandFailure::InvalidInput,
         CommandFailure::NotFound,
         CommandFailure::Full,
@@ -90,6 +95,7 @@ impl CommandFailure {
         CommandFailure::CodexLoginRequired,
         CommandFailure::PlanCap,
         CommandFailure::Paused,
+        CommandFailure::Authentication,
     ];
 }
 
@@ -125,6 +131,7 @@ impl fmt::Display for CommandFailure {
                 "Pro unlocks more accounts. Free reads one account per provider"
             }
             CommandFailure::Paused => "the connection is paused and cannot perform work",
+            CommandFailure::Authentication => "the provider refused this credential",
         };
         formatter.write_str(sentence)
     }
@@ -177,6 +184,7 @@ impl From<StoreError> for CommandFailure {
             StoreError::InvalidField => CommandFailure::InvalidInput,
             StoreError::PlanCap => CommandFailure::PlanCap,
             StoreError::Paused => CommandFailure::Paused,
+            StoreError::Changed => CommandFailure::StaleGeneration,
         }
     }
 }
@@ -263,6 +271,16 @@ pub struct ConnectProviderInput {
     pub provider_id: ProviderId,
     pub credential_kind: CredentialKind,
     pub account_alias: String,
+    pub secret: String,
+}
+
+/// Replace the secret behind one existing record. The record selects the
+/// provider, credential kind, endpoint and plan slot. None can be supplied by
+/// the window or changed by this operation.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReplaceConnectionSecretInput {
+    pub connection_id: String,
     pub secret: String,
 }
 
@@ -464,20 +482,8 @@ fn connect_with_secret(
     key's size and a key is not given a cookie's slack. Over the bound is
     refused whole; nothing is ever truncated, because half a credential fails
     authentication in a way nobody can debug. */
-    if secret.len() > credential_kind.max_secret_bytes() {
-        return Err(CommandFailure::InvalidInput);
-    }
+    validate_secret_shape(credential_kind, secret, codex_account_id)?;
     let trimmed = secret.trim();
-    if trimmed.is_empty() {
-        return Err(CommandFailure::InvalidInput);
-    }
-    if credential_kind == CredentialKind::CodexSession {
-        if !valid_codex_token(trimmed) || !codex_account_id.is_some_and(valid_codex_account_id) {
-            return Err(CommandFailure::Protocol);
-        }
-    } else if codex_account_id.is_some() {
-        return Err(CommandFailure::InvalidInput);
-    }
     let record = ConnectionRecord {
         id: uuid::Uuid::new_v4().to_string(),
         provider_id,
@@ -521,6 +527,115 @@ fn connect_with_secret(
             Err(error.into())
         }
     }
+}
+
+fn validate_secret_shape(
+    credential_kind: CredentialKind,
+    secret: &str,
+    codex_account_id: Option<&str>,
+) -> Result<(), CommandFailure> {
+    if secret.len() > credential_kind.max_secret_bytes() || secret.trim().is_empty() {
+        return Err(CommandFailure::InvalidInput);
+    }
+    if credential_kind == CredentialKind::CodexSession {
+        if !valid_codex_token(secret.trim())
+            || !codex_account_id.is_some_and(valid_codex_account_id)
+        {
+            return Err(CommandFailure::Protocol);
+        }
+    } else if codex_account_id.is_some() {
+        return Err(CommandFailure::InvalidInput);
+    }
+    Ok(())
+}
+
+/// Validate first, then replace the credential and reset only the state that
+/// belongs to the old credential. The record identity, plan slot, alias,
+/// creation time and successful history remain on the same record.
+pub(crate) async fn replace_connection_secret_core<T: Transport>(
+    connections: &ConnectionsStore,
+    secrets: &impl SecretStore,
+    transport: &T,
+    writer: &CacheWriter,
+    input: ReplaceConnectionSecretInput,
+) -> Result<ConnectionRecord, CommandFailure> {
+    capped_connection_id(&input.connection_id)?;
+    let candidate = Zeroizing::new(input.secret);
+    let before = connections.get(&input.connection_id)?;
+    if !before.is_active() {
+        return Err(CommandFailure::Paused);
+    }
+    validate_secret_shape(
+        before.credential_kind,
+        &candidate,
+        before.codex_account_id.as_deref(),
+    )?;
+    let candidate = candidate.trim();
+    let route = reader_route(before.provider_id, before.credential_kind)?;
+    let response = fetch_endpoint(
+        transport,
+        route.endpoint,
+        route.auth,
+        candidate,
+        before.codex_account_id.as_deref(),
+    )
+    .await?;
+    if matches!(response.status, 401 | 403) {
+        return Err(CommandFailure::Authentication);
+    }
+    if !(200..=299).contains(&response.status) {
+        return Err(CommandFailure::Protocol);
+    }
+    let body = response
+        .body
+        .filter(|body| !body.is_empty())
+        .ok_or(CommandFailure::Protocol)?;
+    if parse_body(route.reader_id, &body, now_epoch_ms(), &before.id).is_none() {
+        return Err(CommandFailure::Protocol);
+    }
+
+    let old_secret = secrets.read_secret(&before.id)?;
+    let mut after = before.clone();
+    after.masked_label = if after.credential_kind == CredentialKind::CodexSession {
+        MASK_DOTS.to_string()
+    } else {
+        mask_label(candidate)
+    };
+    after.next_refresh_at = None;
+    after.attempt_generation = after
+        .attempt_generation
+        .saturating_add(1)
+        .min(MAX_ATTEMPT_GENERATION);
+    after.body_delivered_generation = None;
+    after.last_completion_at = None;
+    after.consecutive_failures = 0;
+    after.status = STATUS_AFTER_CREDENTIAL_STORED.to_string();
+    validate_record(&after)?;
+
+    if let Err(error) = secrets.store_secret(&before.id, candidate) {
+        /* Some credential stores can report a failure after accepting a
+        write. Restoring the previous value makes that ambiguous outcome safe. */
+        let _ = secrets.store_secret(&before.id, &old_secret);
+        return Err(error.into());
+    }
+    let stored = match connections.replace_if_unchanged(&before, after) {
+        Ok(stored) => stored,
+        Err(error) => {
+            let _ = secrets.store_secret(&before.id, &old_secret);
+            return Err(error.into());
+        }
+    };
+    if let Err(error) =
+        crate::native_snapshot::purge_connection_rows(writer, stored.provider_id.code(), &stored.id)
+    {
+        let restored_record = connections.replace_if_unchanged(&stored, before.clone());
+        let restored_secret = secrets.store_secret(&before.id, &old_secret);
+        if restored_record.is_err() || restored_secret.is_err() {
+            return Err(CommandFailure::Storage);
+        }
+        return Err(error.into());
+    }
+    Ok(stored)
 }
 
 /// The real connect boundary. Codex ignores any webview supplied secret and
@@ -986,6 +1101,50 @@ pub async fn connect_provider(
 }
 
 #[tauri::command]
+pub async fn replace_connection_secret(
+    connections: State<'_, ConnectionsStore>,
+    secrets: State<'_, KeyringStore>,
+    transport: State<'_, ReqwestTransport>,
+    writer: State<'_, Arc<CacheWriter>>,
+    runtime: State<'_, crate::collector_runtime::CollectorRuntime>,
+    policy: State<'_, crate::request_policy::RequestPolicy>,
+    detection: State<'_, DetectionStore>,
+    input: ReplaceConnectionSecretInput,
+) -> Result<ConnectionRecord, CommandFailure> {
+    let replaced = replace_connection_secret_core(
+        &connections,
+        &*secrets,
+        &*transport,
+        writer.inner().as_ref(),
+        input,
+    )
+    .await?;
+    /* Validation has already committed the replacement. This read is a fresh
+    cache fill, not part of that transaction, so a transient second response
+    cannot turn a proven key into a failed replacement. */
+    let outcome = crate::collector_runtime::run_guarded(
+        &runtime,
+        &detection.switches,
+        &policy,
+        &connections,
+        &*secrets,
+        &*transport,
+        Arc::clone(&writer),
+        replaced.id.clone(),
+        crate::collector::CollectionMode::Refresh,
+    )
+    .await;
+    runtime.record_pass(
+        outcome
+            .as_ref()
+            .ok()
+            .and_then(crate::collector::CollectionOutcome::failure),
+        true,
+    );
+    Ok(replaced)
+}
+
+#[tauri::command]
 pub async fn test_provider(
     connections: State<'_, ConnectionsStore>,
     secrets: State<'_, KeyringStore>,
@@ -1233,6 +1392,7 @@ mod tests {
     use crate::net::{ProviderEndpoint, TransportFailure};
     use crate::reader_registry::{MAX_BROWSER_SESSION_BYTES, MAX_KEY_SECRET_BYTES};
     use crate::test_support::{FailingTransport, InMemorySecrets, RecordingTransport, TempDir};
+    use std::sync::Mutex;
 
     const SECRET_MARKER: &str = "SECRET-MARKER-4f9a-do-not-echo-1234";
     const HEADER_MARKER: &str = "Bearer SECRET-MARKER-4f9a-do-not-echo-1234";
@@ -1295,6 +1455,45 @@ mod tests {
                 return Err(CredentialError::Store);
             }
             self.inner.store_secret(connection_id, secret)
+        }
+
+        fn read_secret(&self, connection_id: &str) -> Result<Zeroizing<String>, CredentialError> {
+            self.inner.read_secret(connection_id)
+        }
+
+        fn delete_secret(&self, connection_id: &str) -> Result<(), CredentialError> {
+            self.inner.delete_secret(connection_id)
+        }
+    }
+
+    struct FailNextWriteSecrets {
+        inner: InMemorySecrets,
+        fail_next: Mutex<bool>,
+    }
+
+    impl FailNextWriteSecrets {
+        fn new() -> Self {
+            Self {
+                inner: InMemorySecrets::new(),
+                fail_next: Mutex::new(false),
+            }
+        }
+
+        fn fail_next_write(&self) {
+            *self.fail_next.lock().expect("failure flag") = true;
+        }
+    }
+
+    impl SecretStore for FailNextWriteSecrets {
+        fn store_secret(&self, connection_id: &str, secret: &str) -> Result<(), CredentialError> {
+            let fail =
+                std::mem::take(&mut *self.fail_next.lock().map_err(|_| CredentialError::Store)?);
+            self.inner.store_secret(connection_id, secret)?;
+            if fail {
+                Err(CredentialError::Store)
+            } else {
+                Ok(())
+            }
         }
 
         fn read_secret(&self, connection_id: &str) -> Result<Zeroizing<String>, CredentialError> {
@@ -2713,6 +2912,137 @@ mod tests {
         assert_eq!(updated.reader_id, record.reader_id);
     }
 
+    #[tokio::test]
+    async fn rejected_replacement_changes_nothing() {
+        let dir = TempDir::new();
+        let (connections, secrets) = stores(&dir);
+        let record = connect_core(&connections, &secrets, connect_input()).expect("connect");
+        let before = connections
+            .update(&record.id, |held| {
+                held.status = "AUTH_EXPIRED".to_string();
+                held.consecutive_failures = 4;
+                held.last_success_at = Some(1234);
+            })
+            .expect("refused state");
+        let old_secret = secrets.read_secret(&record.id).expect("old secret");
+        seed_connection_cache(&dir, &record.id, "other-account");
+        let before_cache = cached_document(&dir);
+        let writer = CacheWriter::at(Some(dir.path().to_path_buf()));
+
+        let result = replace_connection_secret_core(
+            &connections,
+            &secrets,
+            &RecordingTransport::replying(401, Vec::new(), None),
+            &writer,
+            ReplaceConnectionSecretInput {
+                connection_id: record.id.clone(),
+                secret: "sk-or-bad-replacement".to_string(),
+            },
+        )
+        .await;
+
+        assert_eq!(result.map(|_| ()), Err(CommandFailure::Authentication));
+        assert_eq!(connections.get(&record.id).expect("same record"), before);
+        assert_eq!(
+            &*secrets.read_secret(&record.id).expect("same secret"),
+            &*old_secret
+        );
+        assert_eq!(cached_document(&dir), before_cache);
+    }
+
+    #[tokio::test]
+    async fn free_replacement_keeps_the_record_id_slot_label_and_history() {
+        let dir = TempDir::new();
+        let (connections, secrets) = stores(&dir);
+        let record = connect_core(&connections, &secrets, connect_input()).expect("connect");
+        let before = connections
+            .update(&record.id, |held| {
+                held.status = "AUTH_EXPIRED".to_string();
+                held.consecutive_failures = 4;
+                held.last_success_at = Some(1234);
+                held.ever_connected = true;
+            })
+            .expect("refused state");
+        seed_connection_cache(&dir, &record.id, "other-account");
+        let writer = CacheWriter::at(Some(dir.path().to_path_buf()));
+        let replacement = "sk-or-good-replacement";
+
+        let replaced = replace_connection_secret_core(
+            &connections,
+            &secrets,
+            &RecordingTransport::replying(
+                200,
+                br#"{"data":{"limit":20,"limit_remaining":7.53,"usage":12.47,"is_free_tier":false}}"#.to_vec(),
+                None,
+            ),
+            &writer,
+            ReplaceConnectionSecretInput {
+                connection_id: record.id.clone(),
+                secret: replacement.to_string(),
+            },
+        )
+        .await
+        .expect("replacement");
+
+        assert_eq!(connections.list().expect("one slot").len(), 1);
+        assert_eq!(replaced.id, before.id);
+        assert_eq!(replaced.account_alias, before.account_alias);
+        assert_eq!(replaced.created_at, before.created_at);
+        assert_eq!(replaced.last_success_at, before.last_success_at);
+        assert!(replaced.ever_connected);
+        assert_eq!(replaced.status, STATUS_AFTER_CREDENTIAL_STORED);
+        assert_eq!(replaced.consecutive_failures, 0);
+        assert_eq!(
+            &*secrets.read_secret(&record.id).expect("new secret"),
+            replacement
+        );
+        assert!(cached_document(&dir)["snapshots"]
+            .as_array()
+            .expect("rows")
+            .iter()
+            .all(|row| row["accountId"] != record.id));
+        assert_eq!(
+            connect_core(&connections, &secrets, connect_input()).map(|_| ()),
+            Err(CommandFailure::PlanCap),
+            "replacement did not consume or free another plan slot"
+        );
+    }
+
+    #[tokio::test]
+    async fn replacement_keyring_failure_rolls_back_the_secret_and_record() {
+        let dir = TempDir::new();
+        let connections = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        let secrets = FailNextWriteSecrets::new();
+        let record = connect_core(&connections, &secrets, connect_input()).expect("connect");
+        let before = connections.get(&record.id).expect("record before");
+        let old_secret = secrets.read_secret(&record.id).expect("secret before");
+        let writer = CacheWriter::at(Some(dir.path().to_path_buf()));
+        secrets.fail_next_write();
+
+        let result = replace_connection_secret_core(
+            &connections,
+            &secrets,
+            &RecordingTransport::replying(
+                200,
+                br#"{"data":{"limit":20,"limit_remaining":7.53,"usage":12.47,"is_free_tier":false}}"#.to_vec(),
+                None,
+            ),
+            &writer,
+            ReplaceConnectionSecretInput {
+                connection_id: record.id.clone(),
+                secret: "sk-or-write-failure".to_string(),
+            },
+        )
+        .await;
+
+        assert_eq!(result.map(|_| ()), Err(CommandFailure::CredentialStore));
+        assert_eq!(connections.get(&record.id).expect("same record"), before);
+        assert_eq!(
+            &*secrets.read_secret(&record.id).expect("rolled back secret"),
+            &*old_secret
+        );
+    }
+
     #[test]
     fn an_update_payload_that_states_a_status_is_refused() {
         assert!(
@@ -2877,8 +3207,8 @@ mod tests {
     fn source_defines_no_secret_readback_command() {
         /* The redaction claim "no readback path exists by construction" is
         checked against the source itself: no Tauri command in this module
-        returns a secret type, and the only command accepting one is
-        connect_provider. */
+        returns a secret type, and the only commands accepting one are the
+        create and in place replace commands. */
         /* The attribute is assembled at runtime so this test's own text can
         never match it, and each block is cut at its body brace so only the
         signatures are judged. */
@@ -2898,9 +3228,17 @@ mod tests {
         }
         let accepting_secret: Vec<&&str> = signatures
             .iter()
-            .filter(|signature| signature.contains("ConnectProviderInput"))
+            .filter(|signature| {
+                signature.contains("ConnectProviderInput")
+                    || signature.contains("ReplaceConnectionSecretInput")
+            })
             .collect();
-        assert_eq!(accepting_secret.len(), 1);
-        assert!(accepting_secret[0].contains("fn connect_provider"));
+        assert_eq!(accepting_secret.len(), 2);
+        assert!(accepting_secret
+            .iter()
+            .any(|signature| signature.contains("fn connect_provider")));
+        assert!(accepting_secret
+            .iter()
+            .any(|signature| signature.contains("fn replace_connection_secret")));
     }
 }

@@ -33,16 +33,54 @@ export class FakeElement {
 
   append(...nodes) {
     for (const node of nodes) {
+      if (node.parent !== null) {
+        node.parent.children = node.parent.children.filter((child) => child !== node);
+      }
       node.parent = this;
       this.children.push(node);
     }
   }
 
+  insertBefore(node, reference) {
+    if (reference === null || reference === undefined) {
+      this.append(node);
+      return;
+    }
+    if (node.parent !== null) {
+      node.parent.children = node.parent.children.filter((child) => child !== node);
+    }
+    const index = this.children.indexOf(reference);
+    node.parent = this;
+    this.children.splice(index < 0 ? this.children.length : index, 0, node);
+  }
+
+  remove() {
+    if (this.parent !== null) {
+      this.parent.children = this.parent.children.filter((child) => child !== this);
+    }
+    this.detach();
+  }
+
   replaceChildren(...nodes) {
+    for (const child of this.children) child.detach();
     this.children = [];
     this.text = "";
     this.append(...nodes);
   }
+
+  contains(node) {
+    return this === node || this.children.some((child) => child.contains(node));
+  }
+
+  detach() {
+    if (this.ownerDocument.activeElement !== null && this.contains(this.ownerDocument.activeElement)) {
+      this.ownerDocument.activeElement = null;
+    }
+    this.parent = null;
+  }
+
+  focus() { this.ownerDocument.activeElement = this; }
+  blur() { if (this.ownerDocument.activeElement === this) this.ownerDocument.activeElement = null; }
 
   setAttribute(name, value) { this.attributes[name] = String(value); }
   getAttribute(name) { return Object.hasOwn(this.attributes, name) ? this.attributes[name] : null; }
@@ -62,6 +100,7 @@ export function fakeDocument(ids = []) {
   const doc = {
     listeners: {},
     visibilityState: "visible",
+    activeElement: null,
     createElement: (tag) => new FakeElement(tag, doc),
     getElementById: (id) => doc.byId[id] ?? null,
     addEventListener(name, listener) { (doc.listeners[name] ??= []).push(listener); },

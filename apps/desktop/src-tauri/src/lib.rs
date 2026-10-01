@@ -232,6 +232,7 @@ pub fn run() {
             api_spend::api_spend_remove_source,
             api_spend::api_spend_set_budget,
             commands::connect_provider,
+            commands::replace_connection_secret,
             commands::test_provider,
             commands::refresh_provider,
             commands::refresh_home,

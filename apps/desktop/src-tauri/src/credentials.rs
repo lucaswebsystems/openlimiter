@@ -8,10 +8,11 @@ use crate::fsx;
 
 /// Provider secrets, held by the operating system and nobody else.
 ///
-/// A secret crosses from the webview into Rust exactly once, inside
-/// `connect_provider`, and from that moment it lives in the operating system
-/// credential store under an opaque connection id: Windows Credential Manager,
-/// macOS Keychain, or the Linux Secret Service, whichever this machine has.
+/// A secret crosses from the webview into Rust inside `connect_provider` or
+/// `replace_connection_secret`, and from that moment it lives in the operating
+/// system credential store under an opaque connection id: Windows Credential
+/// Manager, macOS Keychain, or the Linux Secret Service, whichever this
+/// machine has.
 /// The only thing that ever travels back to the webview is a masked label.
 ///
 /// There is no readback path by construction: `read_secret` is called from the
