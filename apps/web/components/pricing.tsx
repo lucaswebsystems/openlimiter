@@ -55,9 +55,9 @@ function PlanList({
   label: (id: string) => string;
 }) {
   return (
-    <ul className="mt-[var(--ol-space-5)] space-y-[var(--ol-space-4)]">
+    <ul className="mx-auto mt-[var(--ol-space-5)] w-fit max-w-full space-y-[var(--ol-space-4)] text-left">
       {lines.map((line) => (
-        <li key={line.id} className="flex flex-col items-center justify-center gap-[var(--ol-space-2)] text-center text-sm leading-relaxed text-body">
+        <li key={line.id} className="flex gap-3 text-sm leading-relaxed text-body">
           <CheckGlyph />
           <span className="min-w-0">{label(line.id)}</span>
         </li>
