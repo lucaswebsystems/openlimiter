@@ -1,0 +1,38 @@
+import sample from "@/lib/statusline-sample.json";
+import { ProductCaption } from "./device-frame";
+
+const BAND_COLOR = {
+  green: "var(--ol-band-green-label)",
+  yellow: "var(--ol-band-yellow-label)",
+  orange: "var(--ol-band-orange-label)",
+  red: "var(--ol-band-red-label)",
+} as const;
+
+type Band = keyof typeof BAND_COLOR;
+type StatuslineSpan = { text: string; band?: Band };
+
+export function TerminalStatusline({ caption }: { caption: string }) {
+  const cells = sample.cells as StatuslineSpan[][];
+  return (
+    <figure className="min-w-0 text-center">
+      <div className="elev-1 mx-auto w-full overflow-hidden rounded-xl border border-hairline bg-frame p-[var(--ol-space-2)]" style={{ maxWidth: 1200 }}>
+        <div className="rounded-lg bg-[var(--ol-fixed-dark-canvas)] px-5 py-7 text-left text-[var(--ol-fixed-dark-body)] sm:px-8 sm:py-10">
+          <p className="font-sans text-sm text-[var(--ol-fixed-dark-muted)] sm:text-base">openlimiter statusline</p>
+          <div data-statusline-row className="mt-6 flex flex-wrap font-mono text-xs leading-7 sm:text-base">
+            {cells.map((cell, cellIndex) => (
+              <span data-statusline-cell className="whitespace-nowrap" key={cellIndex}>
+                {cell.map((span, spanIndex) => (
+                  <span key={spanIndex} style={span.band === undefined ? undefined : { color: BAND_COLOR[span.band] }}>
+                    {span.text}
+                  </span>
+                ))}
+                {cellIndex < cells.length - 1 && <span data-statusline-separator aria-hidden="true"> | </span>}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+      <ProductCaption caption={caption} />
+    </figure>
+  );
+}

@@ -1,0 +1,109 @@
+{
+  "cells": [
+    [
+      {
+        "text": "opus-5-5 high"
+      }
+    ],
+    [
+      {
+        "text": "ctx 38%"
+      }
+    ],
+    [
+      {
+        "text": "5h "
+      },
+      {
+        "text": "[████░░░░░░]",
+        "band": "green"
+      },
+      {
+        "text": " "
+      },
+      {
+        "text": "42%",
+        "band": "green"
+      },
+      {
+        "text": " ·5h"
+      }
+    ],
+    [
+      {
+        "text": "7d "
+      },
+      {
+        "text": "[██████░░░░]",
+        "band": "yellow"
+      },
+      {
+        "text": " "
+      },
+      {
+        "text": "64%",
+        "band": "yellow"
+      },
+      {
+        "text": " ·7d"
+      }
+    ],
+    [
+      {
+        "text": "cx5h "
+      },
+      {
+        "text": "[████████░░]",
+        "band": "orange"
+      },
+      {
+        "text": " "
+      },
+      {
+        "text": "~84%",
+        "band": "orange"
+      },
+      {
+        "text": " ·5h"
+      }
+    ],
+    [
+      {
+        "text": "ag5h "
+      },
+      {
+        "text": "[█████████░]",
+        "band": "red"
+      },
+      {
+        "text": " "
+      },
+      {
+        "text": "~94%",
+        "band": "red"
+      },
+      {
+        "text": " ·5h"
+      }
+    ],
+    [
+      {
+        "text": "or "
+      },
+      {
+        "text": "$12.34",
+        "band": "green"
+      }
+    ],
+    [
+      {
+        "text": "oa $8.20"
+      }
+    ],
+    [
+      {
+        "text": "an $3.10"
+      }
+    ]
+  ]
+}

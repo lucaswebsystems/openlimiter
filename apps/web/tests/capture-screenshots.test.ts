@@ -5,7 +5,7 @@ import { JSDOM } from "jsdom";
 // @ts-expect-error Capture scripts run directly in Node.
 import { ansiHtml, assertCaptureSafe, demoSessions } from "../../../scripts/capture-screenshots-sanitize.mjs";
 // @ts-expect-error Capture scripts run directly in Node.
-import { demoSnapshots, edgeLayout, edgePage, terminalPage, windowPage } from "../../../scripts/capture-screenshots.mjs";
+import { demoSnapshots, edgeLayout, edgePage, edgeScene, terminalPage, windowPage } from "../../../scripts/capture-screenshots.mjs";
 
 const now = "2026-09-28T12:00:00.000Z";
 
@@ -30,6 +30,7 @@ describe("synthetic screenshot pipeline", () => {
       for (const band of ["green", "yellow", "orange", "red"]) expect(dom.window.document.querySelector(`.band-${band}`)?.textContent).toBeTruthy();
       const line = dom.window.document.querySelector("pre")?.textContent ?? "";
       for (const percentage of [42, 64, 84, 94]) expect(line).toContain(`${percentage}%`);
+      for (const money of ["or $12.34", "oa $8.20", "an $3.10"]) expect(line).toContain(money);
       expect(line).toMatch(/^opus-5-5 high \| ctx 38% \| 5h \[/u);
       expect(line).not.toContain("[?]");
       // A cell never breaks across lines: each one wraps as a whole.
@@ -79,5 +80,15 @@ describe("synthetic screenshot pipeline", () => {
     // A short panel keeps its top level with the tab's, and never shrinks below 160.
     expect(edgeLayout(100).panel).toEqual({ left: 28, top: 687, width: 360, height: 160 });
     for (const natural of [884, Number.NaN, 0]) expect(() => edgeLayout(natural)).toThrow(/not captured/);
+  });
+
+  it("puts the mouse pointer on the open edge tab only", () => {
+    const layout = edgeLayout(560);
+    const open = new JSDOM(edgeScene("http://localhost", "dark", layout, true));
+    const closed = new JSDOM(edgeScene("http://localhost", "dark", layout, false));
+    expect(open.window.document.querySelector('svg[aria-hidden="true"] path[fill="#fff"]')).not.toBeNull();
+    expect(closed.window.document.querySelector("svg")).toBeNull();
+    open.window.close();
+    closed.window.close();
   });
 });
