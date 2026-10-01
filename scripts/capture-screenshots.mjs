@@ -9,8 +9,8 @@
  *
  *   desktop-app.png        the packaged window on a macOS style desk, dark
  *   desktop-app-light.png  the same scene and the same window, light
- *   phone-1..3.png         the web app at phone size, dark, one per view
- *   phone-1..3-light.png   the same three views, light
+ *   phone-1..4.png         the web app at phone size, dark, one per view
+ *   phone-1..4-light.png   the same four views, light
  *   edge-tab*.png          the real edge tab on the left edge, dark and light
  *   edge-panel*.png        the same tab with its real panel open, dark and light
  *   desktop-home*.png      Home with the real Agents list, dark and light
@@ -47,7 +47,7 @@
 import { createRequire } from "node:module";
 import { createServer } from "node:http";
 import { execFile } from "node:child_process";
-import { copyFile, readFile, stat, mkdir } from "node:fs/promises";
+import { copyFile, readFile, stat, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -59,6 +59,7 @@ const DESKTOP_DIST = path.join(REPOSITORY, "apps", "desktop", "ui", "dist");
 const OUTPUT = path.join(REPOSITORY, "apps", "web", "public", "screenshots");
 const WALLPAPER = path.join(REPOSITORY, ".media", "images", "image_001.png");
 const README_HOME = path.join(REPOSITORY, "assets", "readme", "openlimiter-2-0-home.png");
+const STATUSLINE_SAMPLE = path.join(REPOSITORY, "apps", "web", "lib", "statusline-sample.json");
 const VIDEO_OUT = process.env.OPENLIMITER_VIDEO_OUT?.trim()
   ? path.resolve(process.env.OPENLIMITER_VIDEO_OUT)
   : undefined;
@@ -174,14 +175,24 @@ async function emitWebpVariants(pngNames) {
  * provenance for Claude, fresh states, plausible as of timestamps).
  */
 export async function demoSnapshots(now) {
-  const engine = path.join(DESKTOP_DIST, "engine");
+  const packagedEngine = path.join(DESKTOP_DIST, "engine");
+  const packagedFixtures = path.join(packagedEngine, "connectors", "fixtures.js");
+  const builtPackages = path.join(REPOSITORY, "packages");
+  const usePackagedEngine = await stat(packagedFixtures).then(() => true, () => false);
+  const connectorsDirectory = usePackagedEngine
+    ? path.join(packagedEngine, "connectors")
+    : path.join(builtPackages, "connectors", "dist");
+  const coreEntry = usePackagedEngine
+    ? path.join(packagedEngine, "core", "index.js")
+    : path.join(builtPackages, "core", "dist", "index.js");
   // Import the packaged readers directly. The desktop bundle intentionally
-  // contains a subset of the connector package's barrel exports.
+  // contains a subset of the connector package's barrel exports. A sample only
+  // generation run can use the root build before the desktop UI is bundled.
   const connectors = Object.assign({}, ...await Promise.all(
     ["fixtures", "claude", "openrouter", "codex", "antigravity", "opencode", "manual"].map(name =>
-      import(pathToFileURL(path.join(engine, "connectors", `${name}.js`)).href)),
+      import(pathToFileURL(path.join(connectorsDirectory, `${name}.js`)).href)),
   ));
-  const core = await import(pathToFileURL(path.join(engine, "core", "index.js")).href);
+  const core = await import(pathToFileURL(coreEntry).href);
   const rawSnapshots = core.normalizeMeters([
     ...(connectors.parseClaudePayload(connectors.claudeFixture(now), now) ?? []),
     ...(connectors.parseOpenrouterPayload(connectors.openrouterFixture(), now) ?? []),
@@ -418,14 +429,18 @@ export function edgeLayout(natural) {
 }
 
 /** The slice: the wallpaper as the whole work area, the tab, and the panel when `open`. */
-function edgeScene(origin, theme, layout, open) {
+export function edgeScene(origin, theme, layout, open) {
   const { view } = layout;
   const place = ({ left, top, width, height }) =>
     `position:absolute;left:${left - view.left}px;top:${top - view.top}px;width:${width}px;height:${height}px;border:0`;
+  const pointer = open ? `<svg aria-hidden="true" viewBox="0 0 24 32" width="24" height="32" style="position:absolute;left:${layout.tab.left - view.left + 7}px;top:${layout.tab.top - view.top + 9}px;filter:drop-shadow(0 1px 1px rgb(0 0 0 / .45));pointer-events:none">
+      <path d="M2.5 1.8v23.7l6.1-5.2 4.1 9.2 4.2-1.9-4.1-9.1h8.1z" fill="#fff" stroke="#15171b" stroke-width="1.7" stroke-linejoin="round"/>
+    </svg>` : "";
   return `<!doctype html><html lang="en" style="color-scheme:${theme}"><body style="margin:0;overflow:hidden;background:transparent">
     <iframe title="desk" src="${origin}/wallpaper" style="${place({ left: 0, top: 0, ...EDGE.work })}"></iframe>
     <iframe title="tab" src="${origin}/edge-tab-${theme}${open ? "?open" : ""}" style="${place(layout.tab)}"></iframe>
     ${open ? `<iframe title="panel" src="${origin}/edge-panel-${theme}" style="${place(layout.panel)}"></iframe>` : ""}
+    ${pointer}
   </body></html>`;
 }
 
@@ -436,23 +451,81 @@ async function wallpaperPage() {
     <body style="margin:0;height:100vh;background:url(${wallpaper}) center / cover no-repeat"></body></html>`;
 }
 
-export async function terminalPage(theme, snapshots, now, { wrap = true } = {}) {
+const SAMPLE_VALUES = [
+  { provider: "CLAUDE", meter: "FIVE_HOUR", value: 42 },
+  { provider: "CLAUDE", meter: "SEVEN_DAY", value: 64 },
+  { provider: "CODEX", value: 84 },
+  { provider: "ANTIGRAVITY", value: 94 },
+];
+
+function statuslineSnapshots(snapshots) {
+  const rows = SAMPLE_VALUES.map((wanted) => {
+    const row = snapshots.find((candidate) => candidate.provider === wanted.provider &&
+      (wanted.meter === undefined || candidate.meter === wanted.meter) && candidate.unit === "PERCENT");
+    if (row === undefined) throw new Error(`The ${wanted.provider} fixture has no ${wanted.meter ?? "percentage"} status line row.`);
+    return { ...row, value: wanted.value };
+  });
+  const openrouter = snapshots.find((row) => row.provider === "OPENROUTER");
+  if (openrouter === undefined) throw new Error("The OpenRouter fixture has no balance row.");
+  return [...rows, { ...openrouter, unit: "CREDITS", value: 12.34, usedAmount: undefined, limitAmount: undefined }];
+}
+
+function statuslineApiSpend(now) {
+  const month = now.slice(0, 7) + "-01";
+  return {
+    sources: [
+      { id: "capture-openrouter", provider: "openrouter", enabled: true },
+      { id: "capture-openai", provider: "openai", enabled: true },
+      { id: "capture-anthropic", provider: "anthropic", enabled: true },
+    ],
+    samples: [
+      { sourceId: "capture-openrouter", sequence: 1, month, spendUsd: null, balanceUsd: "12.34", observedAt: now, currencySource: "provider_usd" },
+      { sourceId: "capture-openai", sequence: 1, month, spendUsd: "8.20", balanceUsd: null, observedAt: now, currencySource: "provider_usd" },
+      { sourceId: "capture-anthropic", sequence: 1, month, spendUsd: "3.10", balanceUsd: null, observedAt: now, currencySource: "provider_usd" },
+    ],
+  };
+}
+
+async function statuslineOutput(snapshots, now) {
   const { renderStatuslineLayout } = await import(pathToFileURL(path.join(REPOSITORY, "packages/cli/dist/statusline.js")));
   const { DEFAULT_STATUSLINE } = await import(pathToFileURL(path.join(REPOSITORY, "packages/cli/dist/config.js")));
-  const { parseStatuslineSession } = await import(pathToFileURL(path.join(REPOSITORY, "packages/cli/dist/statusline-ingest.js")));
-  /* Claude Code's own line: both of its windows, then one other provider each. */
-  const seen = new Set();
-  const rows = snapshots.filter(row => {
-    if (row.unit !== "PERCENT" || row.usedAmount !== undefined) return false;
-    if (row.provider === "CLAUDE") return true;
-    if (seen.has(row.provider)) return false;
-    seen.add(row.provider); return true;
-  }).slice(0, 4)
-    .map((row, index) => ({ ...row, value: [42, 64, 84, 94][index] }));
-  /* The session a synthetic Claude Code payload describes: model, effort and context window. */
-  const session = parseStatuslineSession({ model: { display_name: "Claude Opus 5.5" }, effort: { level: "high" }, context_window: { used_percentage: 38 } });
-  const output = renderStatuslineLayout({ snapshots: rows, now, config: DEFAULT_STATUSLINE, session,
-    advice: { inject: false, reason: "UNKNOWN" }, host: "claude", color: true, unicode: true });
+  /* Limits and money only: the session cells (model, effort, context) would
+     push the line past one row on a wide screen, and the owner wants one row. */
+  return renderStatuslineLayout({ snapshots: statuslineSnapshots(snapshots), now, config: DEFAULT_STATUSLINE,
+    apiSpend: statuslineApiSpend(now), advice: { inject: false, reason: "UNKNOWN" }, host: "claude", color: true, unicode: true });
+}
+
+/** Interpret only the colour escapes emitted by the real CLI band renderer. */
+export function ansiSpans(text) {
+  assertCaptureSafe(text);
+  const colors = { "31": "red", "32": "green", "33": "yellow", "38;5;208": "orange" };
+  const spans = [];
+  let at = 0;
+  let band;
+  for (const match of text.matchAll(/\x1b\[([\d;]*)m/gu)) {
+    if (match.index > at) spans.push({ text: text.slice(at, match.index), ...(band === undefined ? {} : { band }) });
+    band = match[1] === "0" || match[1] === "" ? undefined : colors[match[1]];
+    if (band === undefined && match[1] !== "0" && match[1] !== "") throw new Error("Unsupported terminal colour in status line sample.");
+    at = match.index + match[0].length;
+  }
+  if (at < text.length) spans.push({ text: text.slice(at), ...(band === undefined ? {} : { band }) });
+  if (spans.some((span) => span.text.includes("\x1b"))) throw new Error("Unsupported terminal escape in status line sample.");
+  return spans;
+}
+
+export async function statuslineSample(snapshots, now) {
+  const output = await statuslineOutput(snapshots, now);
+  return { cells: output.split(" | ").map(ansiSpans) };
+}
+
+async function writeStatuslineSample(snapshots, now) {
+  const sample = await statuslineSample(snapshots, now);
+  await writeFile(STATUSLINE_SAMPLE, JSON.stringify(sample, null, 2) + "\n", "utf8");
+  return sample;
+}
+
+export async function terminalPage(theme, snapshots, now, { wrap = true } = {}) {
+  const output = await statuslineOutput(snapshots, now);
   /* A cell keeps together with its separator, so a wrapped line breaks between cells. */
   const cells = output.split(" | ");
   const body = cells.map((cell, index) => `<span class="cell">${ansiHtml(cell)}${index < cells.length - 1 ? " |" : ""}</span>`).join(" ");
@@ -480,11 +553,16 @@ async function captureProductDetails(browser, theme, port) {
   };
   try {
     await page.goto(`${origin}/window-${theme}`, { waitUntil: "networkidle" });
-    await page.locator("#agents-mount .q-agent").nth(2).waitFor();
+    await page.locator('#tool-rows [data-provider-card]').nth(2).waitFor();
+    await page.locator('#key-rows [data-key-row]').first().waitFor();
+    await page.locator('#agents-section:not([hidden])').waitFor();
     await closeWhatsNew(page);
-    const overflow = await page.evaluate(() => document.scrollingElement.scrollHeight - window.innerHeight);
-    if (overflow > 0) throw new Error(`Home runs ${overflow} pixels past the window, so its capture would cut it off.`);
+    /* The 2.0.3 one screen Home (tools, API keys, agents) is taller than the
+       old tabbed window, so the window grows to the content instead of cutting it. */
+    const homeHeight = await page.evaluate(() => document.scrollingElement.scrollHeight);
+    await page.setViewportSize({ width: 1000, height: homeHeight });
     await shoot("desktop-home");
+    await page.setViewportSize({ width: 1000, height: 760 });
     /* The panel reports the height its content needs, and native code sizes
        the window to it; the pictures place both windows the same way. */
     await page.goto(`${origin}/edge-panel-${theme}`, { waitUntil: "networkidle" });
@@ -511,20 +589,22 @@ async function captureProductDetails(browser, theme, port) {
   return names;
 }
 
-/* The desk's window is shorter than Home, so it ends 16 pixels below the
-   Limits card, centred between the menu bar and the bottom of the desk: its
-   lower edge falls in the gap before Agents instead of across a line of text. */
+/* The desk window ends below the API key rows, keeping the 2.0.3 one screen
+   Tools and API keys UI together while leaving Agents below the crop. */
 async function fitWindowToLimits(page) {
   const home = page.frameLocator("iframe");
-  const content = await home.locator("#provider-rows").evaluate(card => Math.ceil(card.getBoundingClientRect().bottom) + 16);
+  /* The 2.0.3 one screen Home runs past the desk with its API keys, so the
+     window ends under the whole Tools card (Add a tool included), as a window sized to the meters would. */
+  const content = await home.locator(".q-tools").evaluate(card => Math.ceil(card.getBoundingClientRect().bottom) + 16);
   await page.evaluate(({ content, titlebar, menubar, desk }) => {
     const frame = document.querySelector(".window");
     frame.style.height = `${content + titlebar}px`;
     frame.style.top = `${menubar + Math.round((desk - menubar - content - titlebar) / 2)}px`;
     frame.querySelector("iframe").style.height = `${content}px`;
   }, { content, titlebar: WINDOW.titlebar, menubar: MENUBAR_HEIGHT, desk: SCENE.height });
-  const next = await home.locator("#agents-title").evaluate(title => title.getBoundingClientRect().top);
-  if (next < content) throw new Error("The desk window would cut the Agents heading.");
+  const next = await home.locator("#keys-title").evaluate(title => title.getBoundingClientRect().top);
+  if (next < content) throw new Error("The desk window would cut the API keys heading.");
+  if (content + WINDOW.titlebar > SCENE.height - MENUBAR_HEIGHT) throw new Error("The desk window would run past the desk.");
 }
 
 /* What's New opens once per version over Home; video frames need the same
@@ -713,7 +793,8 @@ const STANDALONE = [
 const PHONE_VIEWS = [
   { file: "phone-1", from: "top" },
   { file: "phone-2", from: "cards" },
-  { file: "phone-3", from: "end" },
+  { file: "phone-3", from: "middle" },
+  { file: "phone-4", from: "end" },
 ];
 
 /**
@@ -739,7 +820,10 @@ function wholeLinesScroll(from) {
   const height = window.innerHeight;
   const end = document.scrollingElement.scrollHeight - height;
   const card = document.querySelector(".ol-live-meter-card")?.getBoundingClientRect();
-  const target = from === "top" ? 0 : from === "end" ? end : Math.round((card?.bottom ?? 0) + window.scrollY + 8);
+  const target = from === "top" ? 0
+    : from === "end" ? end
+    : from === "middle" ? Math.round(end / 2)
+    : Math.round((card?.bottom ?? 0) + window.scrollY + 8);
   const cuts = (edge) => lines.some(([top, bottom]) => edge > top + 1 && edge < bottom - 1);
   for (let offset = 0; offset <= 240; offset++) {
     for (const y of [target + offset, target - offset]) {
@@ -855,7 +939,9 @@ async function captureDesk(browser, theme, port) {
   await page.goto(`http://127.0.0.1:${String(port)}/scene-${theme}`, {
     waitUntil: "networkidle",
   });
-  await page.frameLocator("iframe").locator("#agents-mount .q-agent").nth(2).waitFor();
+  const home = page.frameLocator("iframe");
+  await home.locator('#tool-rows [data-provider-card]').nth(2).waitFor();
+  await home.locator('#key-rows [data-key-row]').first().waitFor();
   /* The desk shows the window as a person uses it, after What's New is closed. */
   await closeWhatsNew(page.frameLocator("iframe"));
   await fitWindowToLimits(page);
@@ -876,6 +962,7 @@ async function main() {
   const snapshots = await demoSnapshots(now);
   const sessions = demoSessions(now);
   assertCaptureSafe(snapshots);
+  await writeStatuslineSample(snapshots, now);
   await mkdir(OUTPUT, { recursive: true });
   if (snapshots.length === 0) {
     throw new Error("The fixtures produced no snapshots. Run pnpm build first.");
@@ -930,4 +1017,11 @@ async function main() {
   process.stdout.write(`readme/${path.basename(README_HOME)}`.padEnd(32) + String(readmeInfo.size).padStart(9) + " bytes\n");
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  if (process.argv.includes("--statusline-sample-only")) {
+    const now = "2026-10-01T12:00:00.000Z";
+    await writeStatuslineSample(await demoSnapshots(now), now);
+  } else {
+    await main();
+  }
+}

@@ -1,5 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import { BrandLockup } from "./brand";
+import { HeaderLocale } from "./header-locale";
 import { HeaderState } from "./header-state";
 import { NavSheet } from "./nav-sheet";
 import { SiteLink } from "./site-link";
@@ -89,7 +90,9 @@ const webAppClass =
   "focus-ring inline-flex flex-none items-center gap-2 rounded-lg bg-solid px-3.5 py-2 " +
   "text-sm font-medium text-on-solid transition-colors duration-200 hover:bg-solid-hover";
 
-export async function Nav() {
+/* `localised` is off on the English only trees, like the footer's language
+   column: their pages have no other language to link to. */
+export async function Nav({ localised = true }: { localised?: boolean }) {
   const stars = await fetchStarCount();
   const t = await getTranslations("nav");
   const routeLabels = await getTranslations("common.routes");
@@ -169,6 +172,7 @@ export async function Nav() {
                 <GitHubMark className="h-[18px] w-[18px]" />
                 {stars !== null && <span className="text-sm">{formatStarCount(stars)}</span>}
               </a>
+              {localised && <HeaderLocale />}
               <ThemeToggle />
               <SiteLink href="/app" className={webAppClass}>
                 <GlobeGlyph />

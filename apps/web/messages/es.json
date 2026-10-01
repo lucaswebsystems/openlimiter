@@ -498,7 +498,7 @@
     "title": "Tu día de programación en un solo lugar",
     "lead": "Los meters de uso locales y la lista de agentes comparten la Home de escritorio. Consulta qué tan reciente es una lectura, cuándo se reinicia su ventana y qué agente compatible necesita tu atención.",
     "screenshot": {
-      "alt": "La pantalla Home de escritorio de OpenLimiter con lecturas sintéticas de uso y una lista de agentes con sesiones en espera, ocupadas y terminadas."
+      "alt": "La ventana de OpenLimiter en un escritorio, con lecturas de uso sintéticas de Codex, Claude Code y OpenRouter, y Antigravity listo para abrir."
     },
     "caption": "La interfaz real de escritorio renderizada sin interfaz gráfica, con fixtures sintéticos. No aparece ninguna cuenta personal, credencial ni cifra de uso real."
   },
@@ -514,7 +514,15 @@
       },
       "connections": {
         "label": "Más proveedores, y luego Pro",
-        "alt": "La aplicación web en un teléfono, más abajo en la misma pantalla: tarjetas de Antigravity, OpenCode y OpenRouter, y luego la tarjeta Pro con historial, alertas, cuentas adicionales y medición en la nube, y un botón que inicia la prueba gratuita de 30 días de Pro sin tarjeta."
+        "alt": "La web app en un teléfono, más abajo en la misma pantalla: el final del límite más ajustado, una tarjeta para Codex, Claude, Antigravity, OpenCode y OpenRouter, y la parte superior de la tarjeta Pro."
+      },
+      "providers": {
+        "label": "Cada proveedor",
+        "alt": "La web app en un teléfono, desplazada hasta una tarjeta por proveedor, cada una con una barra, la parte usada y el tiempo hasta que se reinicia."
+      },
+      "pro": {
+        "label": "Pro, 30 días gratis",
+        "alt": "La web app en un teléfono en la tarjeta Pro: historial, alertas, cuentas adicionales y medición en la nube, y un botón que inicia la prueba gratuita de Pro de 30 días sin tarjeta."
       }
     }
   },

@@ -42,6 +42,7 @@ const FREE_LINES: readonly { id: string }[] = [
 
 const PRO_LINES: readonly { id: string }[] = [
   { id: "alerts" },
+  { id: "themes" },
   { id: "multiSubscription" },
   { id: "heavyApi" },
   { id: "history" },
@@ -55,9 +56,9 @@ function PlanList({
   label: (id: string) => string;
 }) {
   return (
-    <ul className="mt-[var(--ol-space-5)] space-y-[var(--ol-space-4)]">
+    <ul className="mt-6 space-y-3">
       {lines.map((line) => (
-        <li key={line.id} className="flex flex-col items-center justify-center gap-[var(--ol-space-2)] text-center text-sm leading-relaxed text-body">
+        <li key={line.id} className="flex gap-3 text-sm leading-relaxed text-body">
           <CheckGlyph />
           <span className="min-w-0">{label(line.id)}</span>
         </li>
@@ -72,7 +73,6 @@ function PlanCard({
   statusTone,
   lead,
   price,
-  action,
   children,
   footnote,
 }: {
@@ -81,25 +81,23 @@ function PlanCard({
   statusTone: "accent" | "neutral";
   lead: string;
   price: ReactNode;
-  action: ReactNode;
   children: ReactNode;
   footnote: ReactNode;
 }) {
   return (
     <div
-      className="elev-1 relative flex flex-col overflow-hidden rounded-2xl border border-hairline bg-surface p-[var(--ol-space-5)] text-center md:p-[var(--ol-space-6)]"
+      className="elev-1 relative flex flex-col overflow-hidden rounded-2xl border border-hairline bg-surface p-6 md:p-7"
       {...reveal}
     >
       <span aria-hidden="true" className="hairline-sheen" />
-      <div className="flex flex-wrap items-center justify-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <h3 className="text-xl font-medium text-heading">{title}</h3>
         <Chip tone={statusTone} dot={statusTone === "accent"} className="uppercase tracking-wider">
           {status}
         </Chip>
       </div>
-      <div className="lg:min-h-[calc(var(--ol-space-7)*2)]">{price}</div>
-      <p className="mt-3 text-sm leading-relaxed text-muted lg:min-h-[6em]">{lead}</p>
-      <div className="mt-[var(--ol-space-5)]">{action}</div>
+      {price}
+      <p className="mt-3 text-sm leading-relaxed text-muted">{lead}</p>
       <div className="flex-1">{children}</div>
       <div className="mt-7 border-t border-hairline pt-5 text-sm leading-relaxed text-muted">
         {footnote}
@@ -110,7 +108,6 @@ function PlanCard({
 
 export async function Pricing() {
   const t = await getTranslations("pricing");
-  const routes = await getTranslations("common.routes");
 
   return (
     <section id="pricing" className="scroll-mt-8">
@@ -118,12 +115,11 @@ export async function Pricing() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2" {...revealGroup}>
         <PlanCard
-          action={<ButtonLink href="/download" tone="primary" className="w-full">{routes("download")}</ButtonLink>}
           title="OpenLimiter"
           status={t("free.status")}
           statusTone="accent"
           price={
-            <p className="mt-4 flex flex-wrap items-baseline justify-center gap-1.5">
+            <p className="mt-4 flex items-baseline gap-1.5">
               <span className="text-4xl font-medium tracking-tight text-heading">
                 {t("free.price")}
               </span>
@@ -151,13 +147,12 @@ export async function Pricing() {
         </PlanCard>
 
         <PlanCard
-          action={<ButtonLink href="/pro" tone="primary" className="w-full">{t("pro.cta")}</ButtonLink>}
           title="OpenLimiter Pro"
           status={t("pro.status")}
           statusTone="accent"
           price={
             <>
-              <p className="mt-4 flex flex-wrap items-baseline justify-center gap-x-2.5 gap-y-1">
+              <p className="mt-4 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
                 <span className="text-4xl font-medium tracking-tight text-heading">
                   {PRO_MONTHLY_PRICE}
                 </span>
@@ -171,6 +166,9 @@ export async function Pricing() {
           lead={t("pro.lead")}
           footnote={
             <div className="space-y-3">
+              <ButtonLink href="/pro" tone="primary" className="w-full">
+                {t("pro.cta")}
+              </ButtonLink>
               <p>{t("pro.footnote")}</p>
             </div>
           }

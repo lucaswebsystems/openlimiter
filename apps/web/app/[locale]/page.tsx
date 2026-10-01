@@ -88,7 +88,7 @@ async function BridgeBand() {
 
   return (
     <div
-      className="mx-auto flex max-w-2xl flex-col items-center gap-[var(--ol-space-2)] rounded-xl border border-hairline bg-surface px-[var(--ol-space-5)] py-[var(--ol-space-5)] text-center"
+      className="flex flex-col items-center gap-1.5 px-6 py-16 md:py-24"
       {...reveal}
     >
       <BrandLockup
@@ -104,7 +104,7 @@ async function BridgeBand() {
 }
 
 function SectionBand({ children }: { children: ReactNode }) {
-  return <div className="py-[var(--ol-space-7)]">{children}</div>;
+  return <div className="py-16 md:py-24">{children}</div>;
 }
 
 export default async function Home({ params }: LocaleParams) {
@@ -116,14 +116,14 @@ export default async function Home({ params }: LocaleParams) {
   const faq = await getTranslations("faq");
 
   return (
-    <main id="main" className="text-center">
+    <main id="main">
       <JsonLd data={organizationSchema()} />
       <JsonLd data={await websiteSchema(locale)} />
       <JsonLd data={await softwareApplicationSchema(locale)} />
       <JsonLd data={faqPageSchema(faqItems(faq), locale)} />
       <Hero />
       <DeviceFrame />
-      <div className={SHELL}><BridgeBand /></div>
+      <BridgeBand />
       <div className={SHELL}>
         <div>
           <SectionBand>
@@ -135,7 +135,9 @@ export default async function Home({ params }: LocaleParams) {
           <SectionBand>
             <ReleaseOverview />
           </SectionBand>
-          <DocsLine />
+          <SectionBand>
+            <DocsLine />
+          </SectionBand>
           <SectionBand>
             <Faq />
           </SectionBand>

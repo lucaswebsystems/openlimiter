@@ -1,5 +1,5 @@
 import { useTranslations } from "next-intl";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import {
   AntigravityMark,
   ClaudeMark,
@@ -11,10 +11,34 @@ import {
   XaiMark,
   type ToolMarkProps,
 } from "./tool-marks";
-import { Chip, SectionHeading } from "./ui";
+import { Chip, SectionHeading, VIEWPORT_BLEED } from "./ui";
 import { reveal } from "@/lib/motion";
 
-/** Complete connector and output descriptions in static, centered rows. */
+/**
+ * The strip that sits where a reference site of this shape puts a wall of user
+ * quotes and avatars.
+ *
+ * We have no users to quote and will not invent any, so the same slot carries
+ * the thing that is actually true about the project: what it reads, and where
+ * it puts the result. Nobody is quoted, no avatar appears, and no count of
+ * anything is claimed.
+ *
+ * The honesty rule this section runs on. The first row is wide enough to read
+ * as the field rather than as five names, so it carries well known tools that
+ * have no connector as well as the ones that do, and the difference is stated
+ * on every card that needs it: a `planned` chip and one line saying the
+ * connector is not written and manual entry is the path today. A card with no
+ * chip ships one, which is the ordinary case and does not need a badge, and its
+ * own sentence still says exactly what it reads. A card can never be read as
+ * support that does not exist.
+ *
+ * Both rows run the full width of the viewport, not the shell: on any screen
+ * wider than the content column, stopping at the column edge left dead gutters
+ * either side and the strip read as clipped. The mask at each end now fades at
+ * the true screen edge, so the two partial cards read as a strip that
+ * continues past the glass rather than as content cut by a container.
+ */
+
 interface StripCard {
   name: string;
   /** The mono line at the foot of the card: a command, a key or a source. */
@@ -281,17 +305,17 @@ function Card({ card }: { card: StripCard }) {
   const t = useTranslations("integrations");
   const planned = card.state === "planned";
   return (
-    <div className="lift elev-1 flex w-full flex-col items-center gap-[var(--ol-space-2)] rounded-xl border border-hairline bg-surface p-[var(--ol-space-4)] text-center hover:border-hairline-strong hover:bg-raised sm:w-[calc((100%-var(--ol-space-4))/2)] lg:w-[calc((100%-var(--ol-space-4)*2)/3)]">
+    <div className="lift elev-1 flex h-[136px] w-[280px] flex-none flex-col gap-2 rounded-2xl border border-hairline bg-surface p-4 hover:border-hairline-strong hover:bg-raised sm:w-[330px]">
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center justify-center gap-[var(--ol-space-2)]">
-          <div className="flex min-w-0 flex-col items-center justify-center gap-[var(--ol-space-3)]">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-3">
             <span
               aria-hidden="true"
               className={`flex-none ${planned ? "text-soft" : "text-heading"}`}
             >
               <card.Mark className="h-5 w-5" />
             </span>
-            <p className="heading-face min-w-0 text-sm text-heading">{card.name}</p>
+            <p className="heading-face min-w-0 truncate text-sm text-heading">{card.name}</p>
           </div>
           {planned && (
             <Chip tone="neutral" className="flex-none">
@@ -299,17 +323,53 @@ function Card({ card }: { card: StripCard }) {
             </Chip>
           )}
         </div>
-        <p className="mt-[var(--ol-space-3)] text-sm leading-relaxed text-muted">{card.detail}</p>
+        <p className="mt-2.5 line-clamp-3 text-sm leading-relaxed text-muted">{card.detail}</p>
       </div>
     </div>
   );
 }
 
-// Wrapping rows keep every description visible and center incomplete final rows.
-function Row({ cards }: { cards: readonly StripCard[] }) {
+/*
+  Two velocities: the top row is slowed to roughly half speed (15.334s per card)
+  so its wide span reads calm, while the bottom row stays at its 7.667s pace.
+
+  Every card is a fixed 280px, 330 from `sm`, with a 1rem gap between them, so a
+  track is exactly as long as the number of cards on it. Pinning seconds PER
+  CARD keeps the speed constant when cards are added or removed.
+*/
+const SECONDS_PER_CARD = 7.667;
+const FIRST_ROW_SECONDS_PER_CARD = 15.334;
+
+function Row({
+  cards,
+  reverse = false,
+  secondsPerCard = SECONDS_PER_CARD,
+}: {
+  cards: readonly StripCard[];
+  reverse?: boolean;
+  secondsPerCard?: number;
+}) {
   return (
-    <div className="flex flex-wrap items-stretch justify-center gap-[var(--ol-space-4)]">
-      {cards.map((card) => <Card key={card.name} card={card} />)}
+    <div className="strip">
+      <div
+        className={`strip-track ${reverse ? "strip-track-reverse" : ""}`}
+        style={
+          { "--strip-duration": `${(cards.length * secondsPerCard).toFixed(2)}s` } as CSSProperties
+        }
+      >
+        {cards.map((card) => (
+          <Card key={card.name} card={card} />
+        ))}
+        {/* The seamless second copy. It is duplicate content, so it is hidden
+            from assistive technology, and under reduced motion, where the track
+            wraps instead of sliding, it is removed from the layout entirely by
+            the rule in globals.css rather than doubling the block. */}
+        <div className="strip-clone contents" aria-hidden="true">
+          {cards.map((card) => (
+            <Card key={`${card.name}-clone`} card={card} />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -321,9 +381,9 @@ export function IntegrationStrip() {
   return (
     <section>
       <SectionHeading title={t("title")} lead={t("lead")} />
-      <div className="space-y-[var(--ol-space-5)]" {...reveal}>
-        <Row cards={connectors} />
-        <Row cards={surfaces} />
+      <div className={`${VIEWPORT_BLEED} space-y-4`} {...reveal}>
+        <Row cards={connectors} secondsPerCard={FIRST_ROW_SECONDS_PER_CARD} />
+        <Row cards={surfaces} reverse />
       </div>
     </section>
   );

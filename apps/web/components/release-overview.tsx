@@ -1,6 +1,8 @@
 import { getTranslations } from "next-intl/server";
 import { ButtonLink, SectionHeading } from "./ui";
 import { ProductFigure } from "./device-frame";
+import { PhonePanels } from "./phone-panels";
+import { TerminalStatusline } from "./terminal-statusline";
 import { CURRENT_VERSION } from "@/lib/site";
 import { reveal } from "@/lib/motion";
 
@@ -22,13 +24,12 @@ export async function ReleaseOverview() {
       </section>
       <section id="terminal" {...reveal}>
         <SectionHeading title={t("terminal.title")} lead={t("terminal.lead")} />
-        <ProductFigure name="terminal-statusline" alt={t("terminal.alt")} caption={t("terminal.note")} />
+        <TerminalStatusline caption={t("terminal.note")} />
       </section>
       <section id="web-app" className="rounded-2xl border border-hairline bg-surface p-[var(--ol-space-5)] md:p-[var(--ol-space-7)]" {...reveal}>
         <SectionHeading title={t("phone.title")} lead={t("phone.lead")} />
-        <div className="mx-auto max-w-80">
-          <ProductFigure name="phone-1" alt={t("phone.alt")} caption={t("phone.note")} />
-        </div>
+        <PhonePanels />
+        <p className="mx-auto mt-[var(--ol-space-5)] max-w-2xl text-sm leading-relaxed text-body">{t("phone.note")}</p>
         <div className="mt-[var(--ol-space-5)]">
           <ButtonLink href="/app" tone="primary">{t("phone.cta")}</ButtonLink>
         </div>

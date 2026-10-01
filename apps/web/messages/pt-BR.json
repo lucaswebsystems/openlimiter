@@ -498,7 +498,7 @@
     "title": "Seu dia de codificação em um só lugar",
     "lead": "Os meters de uso locais e a lista de agentes compartilham a Home do desktop. Veja quão recente é uma leitura, quando a janela reinicia e qual agente compatível precisa da sua atenção.",
     "screenshot": {
-      "alt": "A Home do desktop do OpenLimiter com leituras sintéticas de uso e uma lista de agentes mostrando sessões aguardando, ocupadas e concluídas."
+      "alt": "A janela do OpenLimiter em uma área de trabalho, com leituras de uso sintéticas do Codex, Claude Code e OpenRouter, e o Antigravity pronto para abrir."
     },
     "caption": "A interface real do desktop renderizada sem interface gráfica, com fixtures sintéticos. Nenhuma conta pessoal, credencial ou cifra real de uso aparece nela."
   },
@@ -514,7 +514,15 @@
       },
       "connections": {
         "label": "Mais provedores, depois o Pro",
-        "alt": "O web app num celular, mais abaixo na mesma tela: cartões de Antigravity, OpenCode e OpenRouter, depois o cartão Pro com histórico, alertas, contas extras e medição na nuvem, e um botão que inicia o teste grátis de 30 dias do Pro sem cartão."
+        "alt": "O web app em um celular, mais abaixo na mesma tela: o fim do limite mais apertado, um cartão para Codex, Claude, Antigravity, OpenCode e OpenRouter, e o topo do cartão Pro."
+      },
+      "providers": {
+        "label": "Cada provedor",
+        "alt": "O web app em um celular, rolado até um cartão por provedor, cada um com uma barra, a parte usada e o tempo até reiniciar."
+      },
+      "pro": {
+        "label": "Pro, 30 dias grátis",
+        "alt": "O web app em um celular no cartão Pro: histórico, alertas, contas extras e medição na nuvem, e um botão que inicia o teste grátis de 30 dias do Pro sem cartão."
       }
     }
   },

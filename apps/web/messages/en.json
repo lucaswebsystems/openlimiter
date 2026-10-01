@@ -498,7 +498,7 @@
     "title": "Your coding day, in one place",
     "lead": "Local usage meters and the Agents list share the desktop Home. See how fresh a reading is, when its window resets, and which supported agent needs your attention.",
     "screenshot": {
-      "alt": "The OpenLimiter desktop Home with synthetic usage readings and an Agents list showing waiting, busy and done sessions."
+      "alt": "The OpenLimiter desktop window on a desk, with synthetic usage readings for Codex, Claude Code and OpenRouter, and Antigravity ready to open."
     },
     "caption": "The real desktop UI rendered headlessly with synthetic fixtures. No personal account, credential or real usage figure appears in it."
   },
@@ -514,7 +514,15 @@
       },
       "connections": {
         "label": "More providers, then Pro",
-        "alt": "The web app on a phone, further down the same screen: cards for Antigravity, OpenCode and OpenRouter, then the Pro card with history, alerts, extra accounts and cloud metering, and a button that starts the free 30 day Pro trial with no card needed."
+        "alt": "The web app on a phone, further down the same screen: the end of the tightest limit, one card each for Codex, Claude, Antigravity, OpenCode and OpenRouter, and the top of the Pro card."
+      },
+      "providers": {
+        "label": "Every provider",
+        "alt": "The web app on a phone, scrolled to one card per provider, each with a bar, the share used and the time until it resets."
+      },
+      "pro": {
+        "label": "Pro, 30 days free",
+        "alt": "The web app on a phone at the Pro card: history, alerts, extra accounts and cloud metering, and a button that starts the free 30 day Pro trial with no card needed."
       }
     }
   },

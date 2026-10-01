@@ -75,10 +75,10 @@ function LinkChevron() {
 function Column({ title, links }: { title: string; links: readonly FooterLink[] }) {
   return (
     <div className="grid grid-rows-[2rem_auto] gap-3" {...reveal}>
-      <p className="heading-face flex h-8 items-center justify-center text-heading">
+      <p className="heading-face flex h-8 items-center justify-center text-heading md:justify-start">
         {title}
       </p>
-      <div className="flex flex-col items-center gap-0.5">
+      <div className="flex flex-col items-center gap-0.5 md:items-start">
         {links.map((link) =>
           link.external === true ? (
             <a
@@ -151,10 +151,10 @@ function MailMark({ className = "h-4 w-4" }: { className?: string }) {
 function ContactColumn() {
   return (
     <div className="grid grid-rows-[2rem_auto] gap-3" {...reveal}>
-      <p className="heading-face flex h-8 items-center justify-center text-heading">
+      <p className="heading-face flex h-8 items-center justify-center text-heading md:justify-start">
         Contact
       </p>
-      <div className="flex flex-col items-center gap-2">
+      <div className="flex flex-col items-center gap-2 md:items-start">
         <a
           href={AUTHOR_SITE}
           target="_blank"
@@ -194,7 +194,7 @@ function ContactColumn() {
 function LanguageColumn({ title }: { title: string }) {
   return (
     <div className="grid grid-rows-[2rem_auto] gap-3" {...reveal}>
-      <p className="heading-face flex h-8 items-center justify-center text-heading">
+      <p className="heading-face flex h-8 items-center justify-center text-heading md:justify-start">
         {title}
       </p>
       <LocaleSwitcher vertical />
@@ -234,13 +234,13 @@ export function Footer({ localised = true }: { localised?: boolean }) {
        footer put a floating circle on top of the last sentence of the page.
        The button is 44 pixels tall and sits 20 from the edge, so 96 clears it
        with room left over. Wide screens never had the collision. */
-    <footer className={`${SHELL} site-footer pb-24 pt-4 text-center sm:pb-8 md:pb-16`}>
+    <footer className={`${SHELL} pb-24 pt-4 text-center sm:pb-8 md:pb-16 md:text-left`}>
       <div className="grid gap-8 border-t border-hairline pt-10 text-sm lg:grid-cols-[minmax(0,18rem)_minmax(0,0.75fr)_minmax(0,0.85fr)_minmax(0,1.4fr)_minmax(0,1fr)]">
-        <div className="mx-auto grid w-full max-w-[18rem] grid-rows-[2rem_auto] gap-3" {...reveal}>
+        <div className="mx-auto grid w-full max-w-[18rem] grid-rows-[2rem_auto] gap-3 md:mx-0" {...reveal}>
           <SiteLink
             href="/"
             aria-label={common("homeAria")}
-            className="focus-ring inline-flex h-8 items-center justify-center rounded"
+            className="focus-ring inline-flex h-8 items-center justify-center rounded md:justify-start"
           >
             <BrandLockup
               markClassName="h-8 w-8 flex-none text-brand"
@@ -257,7 +257,7 @@ export function Footer({ localised = true }: { localised?: boolean }) {
       </div>
 
       <div
-        className="mt-10 grid items-center gap-3 border-t border-hairline py-6 text-center"
+        className="mt-10 grid items-center gap-3 border-t border-hairline py-6 text-center md:grid-cols-[minmax(0,1fr)_auto] md:text-left"
         {...reveal}
       >
         <p className="text-xs leading-relaxed text-muted">
@@ -288,7 +288,7 @@ export function Footer({ localised = true }: { localised?: boolean }) {
             {privacy("title")}
           </SiteLink>
         </p>
-        <p className="justify-self-center text-xs leading-relaxed text-muted">
+        <p className="justify-self-center text-xs leading-relaxed text-muted md:justify-self-end">
           {t("builtBy")}{" "}
           <a
             href={AUTHOR_SITE}

@@ -42,14 +42,14 @@ function ToolTile({ tool }: { tool: Tool }) {
   return (
     <div
       title={toolTitle(tool, tToolTitle)}
-      className="lift elev-1 flex w-full flex-col items-center justify-center gap-[var(--ol-space-3)] text-center sm:w-[calc((100%-var(--ol-space-3))/2)] lg:w-[calc((100%-var(--ol-space-3)*2)/3)] rounded-xl border border-hairline bg-surface px-4 py-3.5 hover:border-hairline-strong hover:bg-raised"
+      className="lift elev-1 flex items-center gap-3.5 rounded-xl border border-hairline bg-surface px-4 py-3.5 hover:border-hairline-strong hover:bg-raised"
       {...reveal}
     >
       <span aria-hidden="true" className="flex-none text-heading">
         <tool.Mark className="h-5 w-5" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="heading-face block text-sm text-heading">
+        <span className="heading-face block truncate text-sm text-heading">
           {tool.name}
         </span>
         <span className="mt-0.5 block text-xs text-muted">
@@ -66,7 +66,7 @@ function GroupLabel({ title, note }: { title: string; note: string }) {
        goes away, so a short label and a long one wrap the same way instead of
        one of them squeezing the rule down to a stub. */
     <div
-      className="mb-4 flex flex-col items-center justify-center gap-[var(--ol-space-2)] text-center"
+      className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1"
       {...revealSm}
     >
       <p className="eyebrow font-mono text-2xs uppercase tracking-widest text-heading">
@@ -74,7 +74,7 @@ function GroupLabel({ title, note }: { title: string; note: string }) {
       </p>
       <span
         aria-hidden="true"
-        className="hidden"
+        className="hidden h-px flex-1 bg-hairline sm:block"
       />
       <p className="w-full text-xs text-muted sm:w-auto">{note}</p>
     </div>
@@ -92,7 +92,7 @@ export function WorksWith() {
         note={t("groups.today.note")}
       />
       <div
-        className="flex flex-wrap items-stretch justify-center gap-[var(--ol-space-3)]"
+        className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
         {...revealGroup}
       >
         {todayTools.map((tool) => (
@@ -124,7 +124,7 @@ export function WorksWith() {
       </p>
 
       <p
-        className="mt-4 w-full text-center text-xs leading-relaxed text-muted"
+        className="mt-4 w-full text-center text-xs leading-relaxed text-muted/80"
         {...reveal}
       >
         {t("compatibilityNote")}

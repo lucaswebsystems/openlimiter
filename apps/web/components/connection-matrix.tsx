@@ -316,7 +316,7 @@ const elsewhere = entries.filter(
 function Cell({ value }: { value: CellValue }) {
   return (
     <span
-      className={`font-mono text-xs uppercase tracking-wider ${
+      className={`font-mono text-2xs uppercase tracking-wider ${
         value.affirmative ? "text-heading" : "text-muted"
       }`}
     >
@@ -369,13 +369,13 @@ function StageCard({ row }: { row: Row }) {
     label: t(`columns.${key}`),
   }));
   return (
-    <li className="rounded-xl border border-hairline bg-surface p-[var(--ol-space-4)] text-center">
-      <div className="flex flex-col items-center justify-center gap-[var(--ol-space-3)]">
-        <span className="flex min-w-0 items-center justify-center gap-[var(--ol-space-3)]">
+    <li className="rounded-xl border border-hairline bg-surface p-4">
+      <div className="flex items-center justify-between gap-3">
+        <span className="flex min-w-0 items-center gap-2.5">
           <span className="flex-none text-soft">
             <row.Mark className="h-4 w-4" />
           </span>
-          <span className="heading-face text-sm text-heading">
+          <span className="heading-face truncate text-sm text-heading">
             {row.name}
           </span>
         </span>
@@ -384,11 +384,13 @@ function StageCard({ row }: { row: Row }) {
         </Chip>
       </div>
 
-      {/* Two columns preserve readable stage labels on narrow screens. */}
-      <dl className="mt-3 grid grid-cols-2 gap-[var(--ol-space-4)] border-t border-hairline pt-3">
+      {/* Four across, in the reading order the columns had. They fit because
+          the words are short and the labels are 11 pixel mono: stacking them
+          two by two doubled the card's height for no gain. */}
+      <dl className="mt-3 grid grid-cols-4 gap-x-2 border-t border-hairline pt-3">
         {columns.map((column, index) => (
           <div key={column.key} className="flex min-w-0 flex-col gap-0.5">
-            <dt className="font-mono text-xs uppercase tracking-wider text-muted">
+            <dt className="font-mono text-2xs uppercase tracking-wider text-muted">
               {column.label}
             </dt>
             <dd className="leading-tight">
@@ -400,7 +402,7 @@ function StageCard({ row }: { row: Row }) {
 
       {/* The provider fact only. The reader sentence the table carries would
           repeat what the Reader cell two lines above already says. */}
-      <p className="mt-3 text-sm leading-relaxed text-muted">
+      <p className="mt-3 text-xs leading-relaxed text-muted">
         {t(`providers.${row.factKey}.fact`)}
       </p>
     </li>
@@ -416,13 +418,13 @@ export function ConnectionMatrix() {
 
   return (
     <div className="mt-10" {...reveal}>
-      <div className="mb-4 flex flex-col items-center justify-center gap-[var(--ol-space-2)] text-center">
-        <p className="eyebrow font-mono text-xs uppercase tracking-widest text-heading">
+      <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <p className="eyebrow font-mono text-2xs uppercase tracking-widest text-heading">
           {t("heading.title")}
         </p>
         <span
           aria-hidden="true"
-          className="hidden"
+          className="hidden h-px flex-1 bg-hairline sm:block"
         />
         <p className="w-full text-xs text-muted sm:w-auto">
           {t("heading.note")}
@@ -431,7 +433,7 @@ export function ConnectionMatrix() {
 
       {/* One card per provider below the medium breakpoint. Same data, same
           derivation, laid out so all four stages are on the screen. */}
-      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:hidden">
+      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:hidden">
         {rows.map((row) => (
           <StageCard key={row.key} row={row} />
         ))}
@@ -440,20 +442,20 @@ export function ConnectionMatrix() {
       {/* The table, from the medium breakpoint up, where six columns fit. It
           still scrolls inside its own box rather than pushing the document
           sideways on the widths in between. */}
-      <div className="hidden overflow-x-auto rounded-xl border border-hairline bg-surface lg:block">
-        <table className="w-full min-w-[44rem] border-collapse text-center">
+      <div className="hidden overflow-x-auto rounded-xl border border-hairline bg-surface md:block">
+        <table className="w-full min-w-[44rem] border-collapse text-left">
           <caption className="sr-only">{t("table.caption")}</caption>
           <thead>
             <tr className="border-b border-hairline">
               <th
                 scope="col"
-                className="px-[var(--ol-space-3)] py-3 font-mono text-xs font-normal uppercase tracking-widest text-muted"
+                className="px-5 py-3 font-mono text-2xs font-normal uppercase tracking-widest text-muted"
               >
                 {t("table.provider")}
               </th>
               <th
                 scope="col"
-                className="px-[var(--ol-space-3)] py-3 font-mono text-xs font-normal uppercase tracking-widest text-muted"
+                className="px-5 py-3 font-mono text-2xs font-normal uppercase tracking-widest text-muted"
               >
                 {t("table.state")}
               </th>
@@ -461,7 +463,7 @@ export function ConnectionMatrix() {
                 <th
                   key={column.key}
                   scope="col"
-                  className="px-[var(--ol-space-3)] py-3 font-mono text-xs font-normal uppercase tracking-widest text-muted"
+                  className="px-5 py-3 font-mono text-2xs font-normal uppercase tracking-widest text-muted"
                 >
                   {column.label}
                 </th>
@@ -474,8 +476,8 @@ export function ConnectionMatrix() {
                 key={row.key}
                 className="border-b border-hairline last:border-b-0"
               >
-                <th scope="row" className="px-[var(--ol-space-3)] py-3.5 font-normal">
-                  <span className="flex items-center justify-center gap-2.5">
+                <th scope="row" className="px-5 py-3.5 font-normal">
+                  <span className="flex items-center gap-2.5">
                     <span className="text-soft">
                       <row.Mark className="h-4 w-4" />
                     </span>
@@ -483,12 +485,12 @@ export function ConnectionMatrix() {
                       {row.name}
                     </span>
                   </span>
-                  <span className="mx-auto mt-1 block max-w-xs text-sm leading-relaxed text-muted">
+                  <span className="mt-1 block text-xs leading-relaxed text-muted">
                     {t(`providers.${row.factKey}.fact`)}{" "}
                     {readerLine(t, row.entry)}
                   </span>
                 </th>
-                <td className="px-[var(--ol-space-3)] py-3.5 align-top">
+                <td className="px-5 py-3.5 align-top">
                   <Chip tone="neutral" className="whitespace-nowrap">
                     {stateOf(t, row.entry)}
                   </Chip>
@@ -500,7 +502,7 @@ export function ConnectionMatrix() {
                 {stagesOf(t, row.entry).map((stage, index) => (
                   <td
                     key={COLUMN_KEYS[index]}
-                    className="px-[var(--ol-space-3)] py-3.5 align-top"
+                    className="px-5 py-3.5 align-top"
                   >
                     <Cell value={stage} />
                   </td>
@@ -514,7 +516,7 @@ export function ConnectionMatrix() {
       {/* Full container width, matching the table and the card grid above it.
           Capped at a 70ch measure this note sat as a narrow column under a full
           width block and read as a different, smaller page. */}
-      <p className="mx-auto mt-4 max-w-3xl text-center text-sm leading-relaxed text-muted">
+      <p className="mt-4 w-full text-center text-sm leading-relaxed text-muted">
         {t("footnote.lead")}{" "}
         {unspecified > 0 && (
           <>

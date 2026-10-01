@@ -117,7 +117,7 @@ export function NavSheet({
   }, [open, close]);
 
   const rowClass =
-    "focus-ring rounded-lg px-3 py-2.5 text-center text-base text-body transition-colors hover:bg-raised hover:text-heading";
+    "focus-ring rounded-lg px-3 py-2.5 text-base text-body transition-colors hover:bg-raised hover:text-heading";
 
   return (
     <>
@@ -169,7 +169,7 @@ export function NavSheet({
             role="dialog"
             aria-modal="true"
             aria-label={t("menu")}
-            className="fixed inset-x-3 top-3 z-50 flex flex-col gap-1 rounded-2xl border border-hairline-strong bg-surface p-3 text-center shadow-sheet"
+            className="fixed inset-x-3 top-3 z-50 flex flex-col gap-1 rounded-2xl border border-hairline-strong bg-surface p-3 shadow-[0_24px_60px_-24px_rgb(0_0_0/0.6)]"
           >
             {links.map((link) => (
               <SiteLink key={link.href} href={link.href} onClick={close} className={rowClass}>
@@ -189,7 +189,7 @@ export function NavSheet({
                 {link.label}
               </a>
             ))}
-            <div className="mt-1 flex items-center justify-center gap-3 border-t border-hairline pt-3">
+            <div className="mt-1 flex items-center justify-between gap-3 border-t border-hairline pt-3">
               <span className="px-3 text-sm text-muted">{common("theme.label")}</span>
               {themeToggle}
             </div>

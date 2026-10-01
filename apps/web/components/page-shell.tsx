@@ -29,15 +29,15 @@ export function PageShell({
   return (
     <main
       id="main"
-      className={`${SHELL} page-shell text-center`}
+      className={`${SHELL} pb-6 md:pb-20`}
       {...(quietChrome ? { "data-quiet-chrome": "" } : {})}
     >
       {/* Centered at full wrapper width, the same rule the home sections
          follow: the founder's standard for every one column surface. The
          balance keeps the last line from stranding three words. */}
-      <header className="mb-section-heading space-y-4 text-center" {...reveal}>
+      <header className="mb-12 space-y-4 text-center" {...reveal}>
         <h1 className="text-3xl font-medium tracking-tight text-heading md:text-5xl">{title}</h1>
-        <p className="mx-auto max-w-[var(--ol-reading-width)] text-lg leading-relaxed text-soft [text-wrap:balance]">
+        <p className="mx-auto max-w-none text-lg leading-relaxed text-soft [text-wrap:balance]">
           {lead}
         </p>
       </header>
@@ -46,11 +46,7 @@ export function PageShell({
   );
 }
 
-/** Shared spacing for reading sections and marketing bands. */
+/** A section inside a shell, at the same 96 pixel rhythm the home page uses. */
 export function ShellSections({ children }: { children: ReactNode }) {
-  return <div className="shell-sections">{children}</div>;
-}
-
-export function SectionBand({ children, compact = false }: { children: ReactNode; compact?: boolean }) {
-  return <div className={compact ? "section-band section-band-compact" : "section-band"}>{children}</div>;
+  return <div className="space-y-24">{children}</div>;
 }
