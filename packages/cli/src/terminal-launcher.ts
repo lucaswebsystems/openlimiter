@@ -113,8 +113,20 @@ export async function verifyLauncher(launcher: Launcher): Promise<void> {
 
 /** Copy the shipped runtime, its production dependency closure and Node itself.
  * Never retain a reference to an npm cache directory that may be removed. */
+/**
+ * Remove runtimes displaced by earlier swaps. Windows refuses to delete a
+ * node.exe that is still running, so a swap may leave one behind; best effort.
+ */
+export async function sweepDisplacedRuntimes(directory: string): Promise<void> {
+  const names = await readdir(directory).catch(() => [] as string[]);
+  await Promise.all(names
+    .filter(name => /^terminal-runtime\.\d+\.[0-9a-f-]{36}\.old$/u.test(name))
+    .map(name => rm(path.join(directory, name), { recursive: true, force: true }).catch(() => undefined)));
+}
+
 export async function installLauncher(directory: string, source = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")): Promise<Launcher> {
   await mkdir(directory, { recursive: true });
+  await sweepDisplacedRuntimes(directory);
   const target = path.join(directory, "terminal-runtime");
   const sourceManifest = JSON.parse(await readFile(path.join(source, "package.json"), "utf8")) as { version?: unknown };
   if (typeof sourceManifest.version !== "string" || sourceManifest.version.length === 0) throw new Error("Invalid launcher");
@@ -151,7 +163,10 @@ export async function installLauncher(directory: string, source = path.resolve(p
     }
     await copyPackage(source);
     const node = path.join(staging, path.basename(result.node));
-    try { await link(process.execPath, node); } catch { await cp(process.execPath, node); }
+    /* A hard link to the system node on Windows shares its always running image,
+       so the runtime could never be removed or replaced while any node app runs. */
+    if (process.platform === "win32") await cp(process.execPath, node);
+    else try { await link(process.execPath, node); } catch { await cp(process.execPath, node); }
     await writeFile(path.join(staging, "openlimiter.cjs"), LAUNCHER_ENTRY_CONTENT, { mode: 0o600 });
     const stamp = { version, files: await runtimeFileHashes(staging) };
     await writeFile(path.join(staging, RUNTIME_STAMP_FILE_NAME), JSON.stringify(stamp) + "\n", { mode: 0o600 });
@@ -170,7 +185,9 @@ export async function installLauncher(directory: string, source = path.resolve(p
       if (hadExisting) await rename(displaced, target).catch(() => undefined);
       throw error;
     }
-    if (hadExisting) await rm(displaced, { recursive: true, force: true });
+    /* The swap already succeeded. A displaced runtime still running (Windows keeps
+       node.exe locked) is swept by the next install instead of failing this one. */
+    if (hadExisting) await rm(displaced, { recursive: true, force: true }).catch(() => undefined);
     await verifyLauncher(result);
     return result;
   } finally {
