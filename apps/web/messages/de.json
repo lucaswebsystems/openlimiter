@@ -2336,9 +2336,10 @@
     },
     "phoneInstall": {
       "add": "Zum Startbildschirm hinzufügen",
-      "iosOne": "Tippen Sie in der Safari Symbolleiste auf Teilen.",
-      "iosTwo": "Scrollen Sie zu Zum Startbildschirm.",
-      "iosThree": "Tippen Sie auf Hinzufügen. Die App öffnet sich im Vollbild von Ihrem Startbildschirm aus."
+      "androidMenu": "Tippen Sie auf ⋮, dann auf Zum Startbildschirm hinzufügen",
+      "ios": "Zum Startbildschirm",
+      "share": "Teilen",
+      "openSafari": "Zum Installieren in Safari öffnen"
     },
     "pairPage": {
       "retry": "Messungen aktualisieren",
@@ -2391,6 +2392,10 @@
           "title": "Die Kopplung konnte nicht abgeschlossen werden",
           "body": "Der Dienst hat nicht geantwortet. Daher wurde nichts gekoppelt und nichts geändert. Erzeugen Sie am Desktop einen neuen Code und scannen Sie ihn erneut."
         }
+      },
+      "codeEntry": {
+        "label": "Code von Ihrem Computer",
+        "pair": "Koppeln"
       },
       "pairedAs": "Gekoppelt als {label}",
       "openDashboard": "Dashboard öffnen"

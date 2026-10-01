@@ -2336,9 +2336,10 @@
     },
     "phoneInstall": {
       "add": "Adicionar à tela de início",
-      "iosOne": "Toque em Compartilhar na barra do Safari.",
-      "iosTwo": "Role até Adicionar à Tela de Início.",
-      "iosThree": "Toque em Adicionar. O aplicativo abre em tela cheia a partir da sua tela de início."
+      "androidMenu": "Toque em ⋮ e depois em Adicionar à tela inicial",
+      "ios": "Adicionar à Tela de Início",
+      "share": "Compartilhar",
+      "openSafari": "Abra no Safari para instalar"
     },
     "pairPage": {
       "retry": "Atualizar leituras",
@@ -2391,6 +2392,10 @@
           "title": "Não foi possível concluir o pareamento",
           "body": "O serviço não respondeu, então nada foi pareado e nada mudou. Gere um código novo no desktop e escaneie de novo."
         }
+      },
+      "codeEntry": {
+        "label": "Código do seu computador",
+        "pair": "Parear"
       },
       "pairedAs": "Pareado como {label}",
       "openDashboard": "Abrir o painel"

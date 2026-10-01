@@ -4,18 +4,22 @@ import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 
 /**
- * Adding the paired page to the phone's home screen, as one honest step.
+ * Adding the paired page to the phone's home screen, as one short row.
  *
  * The two platforms that matter expose completely different amounts of help,
  * and this component asks each for exactly what it offers:
  *
  *   Chrome on Android fires `beforeinstallprompt` when the page qualifies.
  *   Holding that event and replaying it from one button is the whole install:
- *   one press, the platform's own sheet, done.
+ *   one press, the platform's own sheet, done. Chrome only fires it after the
+ *   reader has tapped and lingered, so when it has not come within a moment
+ *   the row says where Chrome's own menu item is instead. Rendering nothing
+ *   there left the reader with no install at all.
  *
  *   iOS Safari fires nothing and exposes no API. The only honest thing the
- *   page can do there is say the two taps Apple requires, as three short
- *   lines.
+ *   page can do there is point at the Share button, drawn, and name the item.
+ *   Any other iOS browser or app webview either lacks that item or installs
+ *   without the cookie copy Safari makes, so it is sent to Safari.
  *
  * Once the page is already running installed, in standalone display mode,
  * nothing is shown at all: the step has nothing left to ask for.
@@ -33,10 +37,13 @@ interface InstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
-type InstallKind = "hidden" | "android" | "ios" | "none";
+type InstallKind = "hidden" | "android" | "androidMenu" | "ios" | "safari" | "none";
+
+/** How long Chrome gets to offer its own prompt before the menu line shows. */
+export const ANDROID_PROMPT_WAIT = 3_000;
 
 /** True when this page is already running as an installed application. */
-function runningInstalled(): boolean {
+export function runningInstalled(): boolean {
   if (typeof window === "undefined") return true;
   if (window.matchMedia("(display-mode: standalone)").matches) return true;
   /* Older iOS reports it here and nowhere else. */
@@ -44,21 +51,21 @@ function runningInstalled(): boolean {
   return legacy === true;
 }
 
+function isIos(): boolean {
+  return /iphone|ipad|ipod/iu.test(window.navigator.userAgent);
+}
+
 /**
  * True only for actual Safari on an iPhone or an iPad.
  *
- * Every browser on iOS is required to embed WebKit, so Chrome, Firefox and
- * Edge on an iPhone all carry "Safari" in their user agent string too; without
- * ruling those out explicitly, the three line "tap Share, then Add to Home
- * Screen" overlay would show inside a browser whose share sheet does not put
- * that option where Safari's does, or does not offer it at all.
+ * Every browser on iOS embeds WebKit, so Chrome, Firefox and Edge carry
+ * "Safari" in their user agent too and are ruled out by name. An app's own
+ * webview (a QR scanner, the Google app) has no "Version/" token, which real
+ * Safari always sends.
  */
 function isIosSafari(): boolean {
-  if (typeof window === "undefined") return false;
   const agent = window.navigator.userAgent;
-  if (!/iphone|ipad/iu.test(agent)) return false;
-  if (!/safari/iu.test(agent)) return false;
-  return !/crios|fxios|edgios|opios|opt\//iu.test(agent);
+  return /version\/.*safari\//iu.test(agent) && !/crios|fxios|edgios|opios|opt\//iu.test(agent);
 }
 
 /**
@@ -66,14 +73,36 @@ function isIosSafari(): boolean {
  *
  * `beforeinstallprompt` is a Chromium feature, not an Android one: desktop
  * Chrome and Chrome OS fire it too, for the same reasons a desktop tab can be
- * "installed" as an app window. Gating the Android button on the user agent as
- * well as the event is what keeps a desktop visitor from seeing a button whose
- * label and icon are drawn for a phone.
+ * "installed" as an app window. Gating on the user agent is what keeps a
+ * desktop visitor from seeing a row drawn for a phone.
  */
 function isAndroidUserAgent(): boolean {
-  if (typeof window === "undefined") return false;
   return /android/iu.test(window.navigator.userAgent);
 }
+
+/** The iOS Share symbol, drawn here: a tray open at the top, an arrow leaving it. */
+function ShareGlyph({ label }: { label: string }) {
+  return (
+    <svg
+      role="img"
+      aria-label={label}
+      viewBox="0 0 24 24"
+      className="h-6 w-6 flex-none text-brand"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 3v12" />
+      <path d="M8 7l4-4 4 4" />
+      <path d="M9 10H7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-2" />
+    </svg>
+  );
+}
+
+const ROW =
+  "flex items-center justify-center gap-2 rounded-2xl border border-hairline bg-surface px-4 py-3 text-sm font-medium text-heading";
 
 export function PairInstallStep() {
   const t = useTranslations("hub");
@@ -84,21 +113,22 @@ export function PairInstallStep() {
 
   useEffect(() => {
     if (runningInstalled()) return;
-    if (isIosSafari()) {
-      setKind("ios");
+    if (isIos()) {
+      setKind(isIosSafari() ? "ios" : "safari");
       return;
     }
-    /* Anything else waits on the one event that makes a button possible, and
-       only counts it on a platform the Android copy and icon actually fit. A
-       desktop Chromium browser firing the same event shows neither step. */
+    if (!isAndroidUserAgent()) return;
     const capture = (event: Event) => {
       event.preventDefault();
-      if (!isAndroidUserAgent()) return;
       setPrompt(event as InstallPromptEvent);
       setKind("android");
     };
+    const fallback = window.setTimeout(() => {
+      setKind((current) => (current === "hidden" ? "androidMenu" : current));
+    }, ANDROID_PROMPT_WAIT);
     window.addEventListener("beforeinstallprompt", capture);
     return () => {
+      window.clearTimeout(fallback);
       window.removeEventListener("beforeinstallprompt", capture);
     };
   }, []);
@@ -125,17 +155,19 @@ export function PairInstallStep() {
 
   if (kind === "ios") {
     return (
-      <div
-        role="status"
-        aria-live="polite"
-        className="rounded-2xl border border-hairline bg-surface p-5"
-      >
-        <ol className="list-decimal space-y-2 pl-5 text-sm leading-relaxed text-muted">
-          <li>{t("phoneInstall.iosOne")}</li>
-          <li>{t("phoneInstall.iosTwo")}</li>
-          <li>{t("phoneInstall.iosThree")}</li>
-        </ol>
-      </div>
+      <p role="status" aria-live="polite" className={ROW}>
+        <ShareGlyph label={t("phoneInstall.share")} />
+        <span aria-hidden="true" className="text-muted">→</span>
+        <span>{t("phoneInstall.ios")}</span>
+      </p>
+    );
+  }
+
+  if (kind === "safari" || kind === "androidMenu") {
+    return (
+      <p role="status" aria-live="polite" className={ROW}>
+        {kind === "safari" ? t("phoneInstall.openSafari") : t("phoneInstall.androidMenu")}
+      </p>
     );
   }
 
