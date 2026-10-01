@@ -372,17 +372,22 @@ const step = (kind, key, title = null) => ({ action: { kind, label: say(key), ti
  * setup. "connect" opens this window's own setup or key field for the tool;
  * "check" looks again after the person did the step in the tool itself.
  */
-function nextStep(code, name, { flag, flags, records, detection, claude }) {
+function nextStep(code, name, { flag, flags, records, detection, claude, claudePoll }) {
   const title = (key) => say(key, { name });
   const reasons = new Set(flags.map((entry) => entry.reason));
-  if (reasons.has("awaiting_statusline")) return { note: say("fixWaitingIssue", { name }) };
+  /* Waiting with the direct check still off: one click turns it on and reads. */
+  const waiting = code === "CLAUDE" && claudePoll === false
+    ? step("poll", "useClaudeSignIn", say("useClaudeSignInTitle"))
+    : { note: say("fixWaitingIssue", { name }) };
+  if (reasons.has("awaiting_statusline")) return waiting;
   const signInAgain = step("check", "fixSignInAgainIssue", title("fixToolDetail"));
-  if (reasons.has("account_unresolved")) return signInAgain;
+  /* Its action only looks again, so it says so. */
+  if (reasons.has("account_unresolved")) return step("check", "fixOpenAppAction", title("fixToolDetail"));
   const refused = records.some((record) => REFUSED.has(record.state));
   const loggedOut = detection?.state === "installed_logged_out";
   if (code === "CLAUDE") {
     if (loggedOut) return signInAgain;
-    if (claude === "READY_TO_ENABLE" || claude === "CONNECTED") return { note: say("fixWaitingIssue", { name }) };
+    if (claude === "READY_TO_ENABLE" || claude === "CONNECTED") return waiting;
     return step("connect", "connect");
   }
   if (code === "OPENROUTER") return records.length === 0 || refused ? step("connect", "connect") : step("check", "fixOpenAppAction");
@@ -399,9 +404,10 @@ function nextStep(code, name, { flag, flags, records, detection, claude }) {
  * row, is detected or connected, is flagged, or a person chose it; one that
  * was switched off leaves unless it always has a row. Measured tools come
  * first, tightest first, with their bars; every other tool follows with a
- * note or one step. `claude` is the Claude Code setup state Connections reads.
+ * note or one step. `claude` is the Claude Code setup state Connections reads, `claudePoll` the
+ * direct Claude check setting (false offers its one click, null is unknown).
  */
-export function inventoryModel({ snapshots = [], flags = [], detections = null, connections = [], configured = [], removed = [], claude = null } = {}, now) {
+export function inventoryModel({ snapshots = [], flags = [], detections = null, connections = [], configured = [], removed = [], claude = null, claudePoll = null } = {}, now) {
   const measured = limitsModel(snapshots, now);
   const shown = new Set(measured.map((tool) => tool.code));
   const off = switchedOff(flags, removed);
@@ -431,6 +437,7 @@ export function inventoryModel({ snapshots = [], flags = [], detections = null, 
         records: connections.filter((entry) => providerCode(entry.provider) === code),
         detection: detected.find((entry) => providerCode(entry.provider_id) === code),
         claude,
+        claudePoll,
       });
       return { code, name, windows: [], age: null, action: next.action ?? null, note: next.note ?? null, extra: [] };
     }),

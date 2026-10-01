@@ -54,6 +54,8 @@
     "addTool": "Add a tool",
     "fixToolDetail": "Sign in to {name} on this computer, then check again.",
     "fixSignInAgainIssue": "Sign in again",
+    "useClaudeSignIn": "Use my Claude sign in",
+    "useClaudeSignInTitle": "Uses your local Claude sign in to ask Anthropic for your limits while Claude Code is closed.",
     "fixWaitingIssue": "Waiting for {name}",
     "fixWaitingDetail": "The last window reset. Use {name} once and its limits show again.",
     "meterFallback": "Limit",
