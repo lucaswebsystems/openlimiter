@@ -210,17 +210,11 @@ fn normalize_configured_providers(values: Vec<String>) -> Vec<String> {
         .into_iter()
         .map(|value| value.to_ascii_uppercase().replace('-', "_"))
         .filter(|value| {
-            matches!(
-                value.as_str(),
-                "CLAUDE"
-                    | "OPENROUTER"
-                    | "CODEX"
-                    | "ANTIGRAVITY"
-                    | "GEMINI_CLI"
-                    | "OPENCODE"
-                    | "GROK"
-                    | "KIMI"
-            ) && seen.insert(value.clone())
+            let registered = crate::reader_registry::ProviderId::ALL
+                .iter()
+                .any(|provider| provider.code() == value);
+            (registered || matches!(value.as_str(), "CLAUDE" | "GEMINI_CLI"))
+                && seen.insert(value.clone())
         })
         .collect()
 }
@@ -1760,6 +1754,40 @@ mod tests {
             ]),
             vec!["CODEX".to_string(), "GEMINI_CLI".to_string()]
         );
+    }
+
+    #[test]
+    fn a_cursor_only_upload_envelope_contains_cursor() {
+        let now = time::OffsetDateTime::parse(
+            "2026-09-07T12:00:00Z",
+            &time::format_description::well_known::Rfc3339,
+        )
+        .expect("a clock");
+        let document = serde_json::json!({ "snapshots": [{
+            "provider": "CURSOR", "meter": "MONTHLY", "unit": "PERCENT", "value": 31.0,
+            "accountId": "cursor-personal", "resetAt": "2026-10-01T00:00:00.000Z",
+            "observedAt": "2026-09-07T11:59:30.000Z", "expiresAt": "2026-09-07T12:14:30.000Z"
+        }]});
+        let configured = normalize_configured_providers(vec!["cursor".to_string()])
+            .into_iter()
+            .collect::<HashSet<_>>();
+        let rows =
+            usage_samples_from_cache(&document, &configured, "2026-09-07T12:00:00.000Z", now)
+                .expect("Cursor rows");
+        let envelope = build_envelope(
+            EnvelopeIdentity {
+                device_id: "9c1d4f60-2e83-4b17-8a5c-71e0d3f95b46",
+                event_id: "3f7a2b18-5c94-4a6d-9f21-6b0d5c8e4a72",
+                previous_sequence: 0,
+                observed_at: "2026-09-07T12:00:00.000Z",
+                client_version: "2.0.3",
+            },
+            rows,
+            Vec::new(),
+        );
+
+        assert_eq!(envelope.usage_samples.len(), 1);
+        assert_eq!(envelope.usage_samples[0].provider, "CURSOR");
     }
 
     #[test]

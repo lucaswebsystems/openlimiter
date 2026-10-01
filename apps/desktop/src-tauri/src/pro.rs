@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::path::PathBuf;
+use std::sync::OnceLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -552,6 +553,11 @@ fn write_cache(token: &str) -> Result<(), ProFailure> {
     })
     .map_err(|_| ProFailure::Storage)?;
     crate::fsx::atomic_write(&path, &text).map_err(|_| ProFailure::Storage)
+}
+
+fn entitlement_commit_lock() -> &'static tokio::sync::Mutex<()> {
+    static LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| tokio::sync::Mutex::new(()))
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -1724,11 +1730,34 @@ where
     {
         return Err(ProFailure::InvalidEntitlement);
     }
+    /* Network requests may overlap, but their durable commit cannot. Read the
+    trust and cache again inside this gate so a delayed response can never
+    replace a token that another refresh already advanced past. */
+    let _commit = entitlement_commit_lock().lock().await;
+    let mut persisted_trust = load_trust(store, &account_id)?;
+    let persisted_cache = match read_cache()? {
+        Some(cache) => Some(verify_token_with_keys(&cache.token, keys)?),
+        None => None,
+    };
+    if token.claims.sub != persisted_trust.account_id
+        || token.claims.device_id != persisted_trust.device_id
+        || token.claims.seq < persisted_trust.highest_sequence
+        || token.claims.revocation_epoch < persisted_trust.highest_revocation_epoch
+        || (token.claims.seq == persisted_trust.highest_sequence
+            && persisted_trust.last_jti.as_deref().is_some_and(|jti| jti != token.claims.jti))
+        || persisted_cache.as_ref().is_some_and(|persisted| {
+            token.claims.seq < persisted.claims.seq
+                || (token.claims.seq == persisted.claims.seq
+                    && token.claims.jti != persisted.claims.jti)
+        })
+    {
+        return Err(ProFailure::InvalidEntitlement);
+    }
     write_cache(token_text)?;
     let local_now = now_seconds()?;
-    adopt_token(&mut trust, &token.claims, local_now);
-    save_trust(store, &trust)?;
-    status_for(&token, &trust, local_now)
+    adopt_token(&mut persisted_trust, &token.claims, local_now);
+    save_trust(store, &persisted_trust)?;
+    status_for(&token, &persisted_trust, local_now)
 }
 
 fn countable_refresh_failure(error: ProFailure) -> bool {
@@ -3976,6 +4005,76 @@ mod tests {
             async move { answer }
         })
         .await
+    }
+
+    #[tokio::test]
+    async fn a_delayed_refresh_cannot_replace_a_newer_token() {
+        let now = now_seconds().expect("clock");
+        let store = session_store(now);
+        let keys = test_keys();
+        let first_jti = "00000000-0000-4000-8000-000000000011";
+        let second_jti = "00000000-0000-4000-8000-000000000012";
+        let response = |body: &Value, sequence: u64, jti: &str| {
+            if body.get("action").and_then(Value::as_str) == Some("register") {
+                return json!({ "device": { "created": true } });
+            }
+            let mut claims = issued(now, now + 30 * DAY, "active", Some("monthly"));
+            claims["device_id"] = body["device_id"].clone();
+            claims["jti"] = json!(jti);
+            claims["seq"] = json!(sequence);
+            json!({ "token": signed_with(&claims, &test_key()) })
+        };
+        let (a_pending_tx, a_pending_rx) = tokio::sync::oneshot::channel();
+        let (release_a_tx, release_a_rx) = tokio::sync::oneshot::channel();
+
+        let delayed = async {
+            let mut a_pending_tx = Some(a_pending_tx);
+            let mut release_a_rx = Some(release_a_rx);
+            refresh_with(&store, &keys, |body| {
+                let wait = body.get("action").is_none();
+                let pending = wait.then(|| a_pending_tx.take().expect("one issue request"));
+                let release = wait.then(|| release_a_rx.take().expect("one release"));
+                let answer = response(&body, 1, first_jti);
+                async move {
+                    if let Some(pending) = pending {
+                        pending.send(()).expect("the coordinator is waiting");
+                    }
+                    if let Some(release) = release {
+                        release.await.expect("the delayed answer is released");
+                    }
+                    Ok(answer)
+                }
+            })
+            .await
+        };
+        let advance = async {
+            a_pending_rx.await.expect("A reached the issuer");
+            let first = refresh_with(&store, &keys, |body| {
+                let answer = response(&body, 1, first_jti);
+                async move { Ok(answer) }
+            })
+            .await
+            .expect("B commits T1");
+            assert_eq!(first.sequence, Some(1));
+            let second = refresh_with(&store, &keys, |body| {
+                let answer = response(&body, 2, second_jti);
+                async move { Ok(answer) }
+            })
+            .await
+            .expect("C commits T2");
+            assert_eq!(second.sequence, Some(2));
+            release_a_tx.send(()).expect("A is still pending");
+        };
+
+        let (delayed_result, ()) = tokio::join!(delayed, advance);
+        assert_eq!(delayed_result, Err(ProFailure::InvalidEntitlement));
+        let trust = load_trust(&store, ACCOUNT_ID).expect("final trust");
+        assert_eq!(trust.highest_sequence, 2);
+        assert_eq!(trust.last_jti.as_deref(), Some(second_jti));
+        let cache = read_cache().expect("cache").expect("cached T2");
+        let token = verify_token_with_keys(&cache.token, &keys).expect("verified cache");
+        assert_eq!(token.claims.seq, 2);
+        assert_eq!(token.claims.jti, second_jti);
     }
 
     fn device_of(store: &InMemorySecrets) -> String {
