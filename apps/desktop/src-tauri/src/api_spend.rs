@@ -27,6 +27,11 @@ const MAX_BACKOFF_SECONDS: i64 = 6 * 60 * 60;
 const MAX_PAGES: usize = 32;
 const MAX_SOURCES: usize = 100;
 const MAX_SAMPLES: usize = 4_096;
+/// Months of history kept per source, counted back from its newest sample.
+const RETAINED_MONTHS: i64 = 12;
+/// Load bound used only so a 2.0.2 file that outgrew the normal cap can be
+/// read once and compacted; saving still obeys the normal cap.
+const COMPACTION_READ_BYTES: u64 = 8 * 1_048_576;
 const MAX_SECRET_BYTES: usize = 8_192;
 const MAX_TEAM_ID_BYTES: usize = 128;
 const MAX_KEY_LABEL_CHARS: usize = 80;
@@ -768,18 +773,77 @@ fn account_slug(label: &str, source_id: &str) -> String {
     slug
 }
 
+/// Year and month of a sample's `month` field (`2026-09-01`) as one count.
+fn month_index(sample: &ApiSpendSample) -> Option<i64> {
+    let year: i64 = sample.month.get(0..4)?.parse().ok()?;
+    let month: i64 = sample.month.get(5..7)?.parse().ok()?;
+    (1..=12).contains(&month).then_some(year * 12 + month)
+}
+
+/// Bounds the sample history so the state file can never reach its size cap.
+///
+/// Per source, counted from its newest sample: the newest month keeps its
+/// first and newest samples, each older month of the last
+/// `RETAINED_MONTHS` keeps only its newest, and the rest go. The newest
+/// sample of a source is never dropped, and the OpenRouter month to date
+/// amount does not read samples (it reads the counter fields on the source),
+/// so nothing here changes a derived amount. Samples with an unreadable month
+/// are kept as they are.
+fn compact_samples(document: &mut ApiSpendDocument) {
+    let mut keep = vec![true; document.samples.len()];
+    let mut by_source: HashMap<&str, Vec<(usize, i64, i64)>> = HashMap::new();
+    for (position, sample) in document.samples.iter().enumerate() {
+        let (Some(month), Ok(at)) = (month_index(sample), parse_timestamp(&sample.observed_at))
+        else {
+            continue;
+        };
+        by_source
+            .entry(sample.source_id.as_str())
+            .or_default()
+            .push((position, month, at));
+    }
+    for entries in by_source.values_mut() {
+        // Position breaks ties so equal timestamps stay in written order.
+        entries.sort_by_key(|&(position, _, at)| (at, position));
+        let newest_month = entries.iter().map(|&(_, month, _)| month).max().unwrap_or(0);
+        let mut months: HashMap<i64, (usize, usize)> = HashMap::new();
+        for &(position, month, _) in entries.iter() {
+            months
+                .entry(month)
+                .and_modify(|range| range.1 = position)
+                .or_insert((position, position));
+        }
+        for &(position, month, _) in entries.iter() {
+            let (first, newest) = months[&month];
+            let wanted = month >= newest_month - RETAINED_MONTHS
+                && (position == newest || (month == newest_month && position == first));
+            keep[position] = wanted;
+        }
+    }
+    let mut index = 0;
+    document.samples.retain(|_| {
+        index += 1;
+        keep[index - 1]
+    });
+}
+
 fn load_at(path: &Path) -> Result<ApiSpendDocument, ApiSpendFailure> {
     if !path.exists() {
         return Ok(ApiSpendDocument::default());
     }
-    let text = crate::fsx::bounded_read(path).ok_or(ApiSpendFailure::Storage)?;
-    let document: ApiSpendDocument =
+    let text = crate::fsx::bounded_read_up_to(path, COMPACTION_READ_BYTES)
+        .ok_or(ApiSpendFailure::Storage)?;
+    let mut document: ApiSpendDocument =
         serde_json::from_str(&text).map_err(|_| ApiSpendFailure::Storage)?;
+    compact_samples(&mut document);
     validate_document(&document)?;
     Ok(document)
 }
 
 fn save_at(path: &Path, document: &ApiSpendDocument) -> Result<(), ApiSpendFailure> {
+    let mut document = document.clone();
+    compact_samples(&mut document);
+    let document = &document;
     validate_document(document)?;
     let parent = path.parent().ok_or(ApiSpendFailure::Storage)?;
     crate::fsx::ensure_private_dir(parent).map_err(|_| ApiSpendFailure::Storage)?;
@@ -2986,5 +3050,232 @@ mod tests {
             serde_json::to_value(load_at(&path).expect("reload")).expect("JSON"),
             expected
         );
+    }
+
+    const SEPTEMBER_START: i64 = 1_788_220_800; // 2026-09-01T00:00:00Z
+
+    fn parsed(lifetime: u32) -> ParsedProviderValue {
+        ParsedProviderValue {
+            value: Some(Decimal::from(lifetime)),
+            raw_unit_scale: "lifetime_usd",
+            incomplete: false,
+            next_page: None,
+            note: None,
+        }
+    }
+
+    fn openrouter_named(id: &str, credential: &str, label: &str) -> ApiSpendSource {
+        let mut named = source(ApiSpendProvider::Openrouter);
+        named.id = id.to_string();
+        named.credential_id = credential.to_string();
+        named.key_label = label.to_string();
+        named
+    }
+
+    fn samples_of(document: &ApiSpendDocument, id: &str) -> Vec<ApiSpendSample> {
+        document
+            .samples
+            .iter()
+            .filter(|sample| sample.source_id == id)
+            .cloned()
+            .collect()
+    }
+
+    #[test]
+    fn two_thousand_observations_keep_saving_and_the_month_amount_is_unchanged() {
+        let directory = TempDir::new();
+        let path = directory.path().join(STATE_FILE_NAME);
+        let mut reference = ApiSpendDocument::default();
+        reference.sources.push(source(ApiSpendProvider::Openrouter));
+        save_at(&path, &reference).expect("empty save");
+        let id = reference.sources[0].id.clone();
+
+        for step in 0..2_000_i64 {
+            let now = SEPTEMBER_START + 3_600 + step * 1_728; // about 40 days
+            let lifetime = 100 + step as u32;
+            record_observation(&mut reference, 0, parsed(lifetime), now).expect("reference");
+
+            let mut live = load_at(&path).expect("load");
+            record_observation(&mut live, 0, parsed(lifetime), now).expect("record");
+            save_at(&path, &live).unwrap_or_else(|_| panic!("save failed at step {step}"));
+        }
+
+        let size = std::fs::metadata(&path).expect("file").len();
+        assert!(size < 20_000, "file stayed small, got {size}");
+        let live = load_at(&path).expect("reload");
+        let kept = samples_of(&live, &id);
+        let all = samples_of(&reference, &id);
+        let october: Vec<_> = kept.iter().filter(|s| s.month == "2026-10-01").collect();
+        let first_october = all.iter().find(|s| s.month == "2026-10-01").expect("first");
+        assert_eq!(october.len(), 2);
+        // Ids are random per run, so the two documents are matched by observation time.
+        assert_eq!(october[0].observed_at, first_october.observed_at);
+        assert_eq!(
+            kept.last().expect("newest").observed_at,
+            all.last().expect("newest").observed_at
+        );
+        assert_eq!(kept.iter().filter(|s| s.month == "2026-09-01").count(), 1);
+        assert_eq!(
+            kept.last().unwrap().spend_usd,
+            all.last().unwrap().spend_usd,
+            "month to date amount matches the uncompacted reference"
+        );
+        assert_eq!(
+            live.sources[0].counter_baseline_usd,
+            reference.sources[0].counter_baseline_usd
+        );
+    }
+
+    #[test]
+    fn an_openrouter_month_rollover_keeps_the_baseline_and_the_derived_spend() {
+        let mut document = ApiSpendDocument::default();
+        document.sources.push(source(ApiSpendProvider::Openrouter));
+        let id = document.sources[0].id.clone();
+        let october = SEPTEMBER_START + 30 * 86_400;
+        for step in 0..60_i64 {
+            let now = october - 30 * 3_600 + step * 3_600; // spans the rollover
+            record_observation(&mut document, 0, parsed(200 + step as u32), now).expect("record");
+        }
+        let before = document.clone();
+        let mut after = document;
+        compact_samples(&mut after);
+
+        let kept = samples_of(&after, &id);
+        let all = samples_of(&before, &id);
+        let last_september = all.iter().rev().find(|s| s.month == "2026-09-01").unwrap();
+        let first_october = all.iter().find(|s| s.month == "2026-10-01").unwrap();
+        let september: Vec<_> = kept.iter().filter(|s| s.month == "2026-09-01").collect();
+        let october_kept: Vec<_> = kept.iter().filter(|s| s.month == "2026-10-01").collect();
+        assert_eq!(september.len(), 1);
+        assert_eq!(september[0].id, last_september.id);
+        assert_eq!(october_kept.len(), 2);
+        assert_eq!(october_kept[0].id, first_october.id);
+        assert_eq!(kept.last().unwrap().id, all.last().unwrap().id);
+        assert_eq!(kept.last().unwrap().spend_usd, all.last().unwrap().spend_usd);
+        assert_eq!(
+            after.sources[0].counter_baseline_usd,
+            before.sources[0].counter_baseline_usd
+        );
+        assert_eq!(after.sources[0].last_counter_usd, before.sources[0].last_counter_usd);
+    }
+
+    #[test]
+    fn a_state_file_over_the_old_cap_loads_compacts_and_saves() {
+        let directory = TempDir::new();
+        let path = directory.path().join(STATE_FILE_NAME);
+        let mut document = ApiSpendDocument::default();
+        let ids = [
+            ("00000000-0000-4000-8000-0000000000a1", "10000000-0000-4000-8000-0000000000a1"),
+            ("00000000-0000-4000-8000-0000000000a2", "10000000-0000-4000-8000-0000000000a2"),
+        ];
+        for (n, (id, credential)) in ids.iter().enumerate() {
+            document
+                .sources
+                .push(openrouter_named(id, credential, &format!("Key {n}")));
+        }
+        for step in 0..2_000_i64 {
+            let now = SEPTEMBER_START + 3_600 + step * 1_728;
+            let id = ids[(step % 2) as usize].0;
+            let mut sample = spend_sample(ApiSpendProvider::Openrouter, id, "1");
+            sample.observed_at = timestamp(now).unwrap();
+            sample.created_at = sample.observed_at.clone();
+            sample.month = month_bounds(now).unwrap().2;
+            sample.source_period = format!(
+                "[{}, {})",
+                timestamp(SEPTEMBER_START).unwrap(),
+                sample.observed_at
+            );
+            document.samples.push(sample);
+        }
+        // Written raw, the way 2.0.2 did, bypassing save_at.
+        let text = serde_json::to_string(&document).unwrap();
+        assert!(
+            text.len() as u64 > crate::fsx::MAX_STATE_FILE_BYTES,
+            "fixture is oversized"
+        );
+        std::fs::write(&path, &text).unwrap();
+
+        let healed = load_at(&path).expect("an oversized 2.0.2 file loads");
+        for (id, _) in ids {
+            let newest = document.samples.iter().rev().find(|s| s.source_id == id).unwrap();
+            let kept = samples_of(&healed, id);
+            assert_eq!(kept.last().unwrap().id, newest.id, "newest sample kept");
+            assert!(kept.len() <= 3);
+        }
+        save_at(&path, &healed).expect("save");
+        assert!(std::fs::metadata(&path).unwrap().len() < crate::fsx::MAX_STATE_FILE_BYTES);
+        assert_eq!(load_at(&path).unwrap().samples.len(), healed.samples.len());
+    }
+
+    #[test]
+    fn two_sources_of_one_provider_are_compacted_independently() {
+        let mut document = ApiSpendDocument::default();
+        let ids = [
+            "00000000-0000-4000-8000-0000000000b1",
+            "00000000-0000-4000-8000-0000000000b2",
+        ];
+        // One key observed through September, the other only on the 1st.
+        for (n, id) in ids.iter().enumerate() {
+            document.sources.push(openrouter_named(
+                id,
+                &format!("10000000-0000-4000-8000-0000000000b{}", n + 1),
+                &format!("Key {n}"),
+            ));
+        }
+        for day in 0..10_i64 {
+            for (n, id) in ids.iter().enumerate() {
+                if n == 1 && day > 0 {
+                    continue;
+                }
+                let mut sample = spend_sample(ApiSpendProvider::Openrouter, id, "1");
+                sample.observed_at = timestamp(SEPTEMBER_START + day * 86_400 + 60).unwrap();
+                sample.month = "2026-09-01".to_string();
+                document.samples.push(sample);
+            }
+        }
+        compact_samples(&mut document);
+        let first = samples_of(&document, ids[0]);
+        let second = samples_of(&document, ids[1]);
+        assert_eq!(first.len(), 2);
+        assert_eq!(first[0].observed_at, timestamp(SEPTEMBER_START + 60).unwrap());
+        assert_eq!(
+            first[1].observed_at,
+            timestamp(SEPTEMBER_START + 9 * 86_400 + 60).unwrap()
+        );
+        assert_eq!(second.len(), 1, "a lone sample is both first and newest");
+    }
+
+    #[test]
+    fn six_sources_over_thirteen_months_stay_far_under_the_cap() {
+        let mut document = ApiSpendDocument::default();
+        for n in 0..6_u32 {
+            let id = format!("00000000-0000-4000-8000-00000000c{n:03}");
+            document.sources.push(openrouter_named(
+                &id,
+                &format!("10000000-0000-4000-8000-00000000c{n:03}"),
+                &format!("Key {n}"),
+            ));
+            for month in 0..16_i64 {
+                for day in 0..28_i64 {
+                    let now = SEPTEMBER_START - 400 * 86_400 + month * 30 * 86_400 + day * 86_400;
+                    let mut sample = spend_sample(ApiSpendProvider::Openrouter, &id, "1");
+                    sample.observed_at = timestamp(now).unwrap();
+                    sample.month = month_bounds(now).unwrap().2;
+                    document.samples.push(sample);
+                }
+            }
+        }
+        compact_samples(&mut document);
+        assert!(document.samples.len() <= 6 * 14, "got {}", document.samples.len());
+        let bytes = serde_json::to_string(&document).unwrap().len();
+        assert!((bytes as u64) < crate::fsx::MAX_STATE_FILE_BYTES / 8, "got {bytes}");
+    }
+
+    #[test]
+    fn the_2_0_2_fixture_is_already_within_the_rules_and_survives_compaction() {
+        let mut document: ApiSpendDocument = serde_json::from_str(STATE_2_0_2).unwrap();
+        let before = serde_json::to_value(&document).unwrap();
+        compact_samples(&mut document);
+        assert_eq!(serde_json::to_value(&document).unwrap(), before);
     }
 }
