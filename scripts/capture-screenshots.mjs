@@ -558,9 +558,12 @@ async function captureProductDetails(browser, theme, port) {
     await page.locator('#key-rows [data-key-row]').first().waitFor();
     await page.locator('#agents-section:not([hidden])').waitFor();
     await closeWhatsNew(page);
-    const overflow = await page.evaluate(() => document.scrollingElement.scrollHeight - window.innerHeight);
-    if (overflow > 0) throw new Error(`Home runs ${overflow} pixels past the window, so its capture would cut it off.`);
+    /* The 2.0.3 one screen Home (tools, API keys, agents) is taller than the
+       old tabbed window, so the window grows to the content instead of cutting it. */
+    const homeHeight = await page.evaluate(() => document.scrollingElement.scrollHeight);
+    await page.setViewportSize({ width: 1000, height: homeHeight });
     await shoot("desktop-home");
+    await page.setViewportSize({ width: 1000, height: 760 });
     /* The panel reports the height its content needs, and native code sizes
        the window to it; the pictures place both windows the same way. */
     await page.goto(`${origin}/edge-panel-${theme}`, { waitUntil: "networkidle" });
