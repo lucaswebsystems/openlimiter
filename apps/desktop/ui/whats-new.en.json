@@ -3,6 +3,14 @@
   "versionLabel": "Version {version}",
   "dismiss": "Got it",
   "releases": {
+    "2.0.3": {
+      "heading": "One screen, every tool",
+      "screen": "Every tool and API key now fits on one screen.",
+      "tools": "Claude Code stays visible while idle. Antigravity shows again with a clear open button.",
+      "money": "Each API key shows its own amount. DeepSeek is included, and the terminal can show all six money cells.",
+      "pro": "Sign in works again, and Pro now unlocks trials, period end days, comps, devices and reconnects.",
+      "setup": "Terminal setup recovers after host edits. Phone setup includes install help and code entry."
+    },
     "2.0.2": {
       "heading": "One small tab, a clearer Home",
       "edge": "One small tab on the left edge of your screen replaces the Rail. Hover it to see your limits and agents. On Linux Wayland the tray takes its place.",

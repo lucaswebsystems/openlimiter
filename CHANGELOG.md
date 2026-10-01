@@ -2,6 +2,29 @@
 
 All notable project changes appear in this file.
 
+## [2.0.3]
+
+### Desktop
+
+* One screen now holds every tool, meter, action and API key. Settings moved into the menu, and the edge tab mark is larger.
+* Tools that report only while running keep an aged reading until reset. Closed tools now offer the right open or retry action.
+* Every saved API key shows its own amount. A new balance source is included, and long reading histories keep saving.
+
+### Terminal
+
+* Reinstall, upgrade and uninstall recover after a host edits its settings, with messages that match the result.
+* The status line can show `oa`, `an`, `xa`, `ms`, `ds` and `or` money cells.
+
+### Phone
+
+* Pairing opens the app only. Android always shows install help, iOS has one Add to Home Screen row, and the installed app accepts a code.
+
+### Pro
+
+* Desktop sign in works again.
+* Trials, the last days of a period and comps unlock correctly.
+* Device management works, hosted features keep the token, and stale devices offer Reconnect.
+
 ## [2.0.2]
 
 ### Desktop
