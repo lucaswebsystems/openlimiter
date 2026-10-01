@@ -69,13 +69,16 @@ pub enum CommandFailure {
     /// The provider refused a candidate credential before any local state was
     /// changed.
     Authentication,
+    /// A replacement step failed and at least one compensating write also
+    /// failed. The record is left in an error state for visible recovery.
+    CompensationFailed,
 }
 
 impl CommandFailure {
     /// Every variant, for the redaction test that formats them all. The
     /// product itself never needs the list.
     #[cfg(test)]
-    pub const ALL: [CommandFailure; 20] = [
+    pub const ALL: [CommandFailure; 21] = [
         CommandFailure::InvalidInput,
         CommandFailure::NotFound,
         CommandFailure::Full,
@@ -96,6 +99,7 @@ impl CommandFailure {
         CommandFailure::PlanCap,
         CommandFailure::Paused,
         CommandFailure::Authentication,
+        CommandFailure::CompensationFailed,
     ];
 }
 
@@ -132,6 +136,9 @@ impl fmt::Display for CommandFailure {
             }
             CommandFailure::Paused => "the connection is paused and cannot perform work",
             CommandFailure::Authentication => "the provider refused this credential",
+            CommandFailure::CompensationFailed => {
+                "the replacement failed and could not be restored. Reconnect this account."
+            }
         };
         formatter.write_str(sentence)
     }
@@ -594,7 +601,6 @@ pub(crate) async fn replace_connection_secret_core<T: Transport>(
         return Err(CommandFailure::Protocol);
     }
 
-    let old_secret = secrets.read_secret(&before.id)?;
     let mut after = before.clone();
     after.masked_label = if after.credential_kind == CredentialKind::CodexSession {
         MASK_DOTS.to_string()
@@ -612,30 +618,73 @@ pub(crate) async fn replace_connection_secret_core<T: Transport>(
     after.status = STATUS_AFTER_CREDENTIAL_STORED.to_string();
     validate_record(&after)?;
 
-    if let Err(error) = secrets.store_secret(&before.id, candidate) {
-        /* Some credential stores can report a failure after accepting a
-        write. Restoring the previous value makes that ambiguous outcome safe. */
-        let _ = secrets.store_secret(&before.id, &old_secret);
-        return Err(error.into());
-    }
-    let stored = match connections.replace_if_unchanged(&before, after) {
-        Ok(stored) => stored,
-        Err(error) => {
-            let _ = secrets.store_secret(&before.id, &old_secret);
+    connections.with_locked_connection(&before.id, |transaction| {
+        if transaction.current() != &before {
+            return Err(CommandFailure::StaleGeneration);
+        }
+        let old_secret = secrets.read_secret(&before.id)?;
+        let mut attention = before.clone();
+        attention.status = STATUS_ERROR.to_string();
+        attention.next_refresh_at = None;
+        transaction.save(attention.clone())?;
+
+        if let Err(error) = secrets.store_secret(&before.id, candidate) {
+            /* A credential store may report failure after accepting the
+            candidate. The durable error record is written first, so a failed
+            rollback is visible instead of being mistaken for the old state. */
+            if secrets.store_secret(&before.id, &old_secret).is_err() {
+                return Err(CommandFailure::CompensationFailed);
+            }
+            if transaction.save(before.clone()).is_err() {
+                return Err(CommandFailure::CompensationFailed);
+            }
             return Err(error.into());
         }
-    };
-    if let Err(error) =
-        crate::native_snapshot::purge_connection_rows(writer, stored.provider_id.code(), &stored.id)
-    {
-        let restored_record = connections.replace_if_unchanged(&stored, before.clone());
-        let restored_secret = secrets.store_secret(&before.id, &old_secret);
-        if restored_record.is_err() || restored_secret.is_err() {
-            return Err(CommandFailure::Storage);
+
+        let mut pending = after.clone();
+        pending.status = STATUS_ERROR.to_string();
+        let pending = match transaction.save(pending) {
+            Ok(pending) => pending,
+            Err(error) => {
+                if secrets.store_secret(&before.id, &old_secret).is_err() {
+                    return Err(CommandFailure::CompensationFailed);
+                }
+                if transaction.save(before.clone()).is_err() {
+                    return Err(CommandFailure::CompensationFailed);
+                }
+                return Err(error.into());
+            }
+        };
+
+        if let Err(error) = crate::native_snapshot::purge_connection_rows(
+            writer,
+            pending.provider_id.code(),
+            &pending.id,
+        ) {
+            /* The pending record is already a visible recovery marker. If
+            either external or record restoration fails, it stays visible and
+            the caller receives the distinct failure. */
+            if secrets.store_secret(&before.id, &old_secret).is_err() {
+                return Err(CommandFailure::CompensationFailed);
+            }
+            if transaction.save(before.clone()).is_err() {
+                return Err(CommandFailure::CompensationFailed);
+            }
+            return Err(error.into());
         }
-        return Err(error.into());
-    }
-    Ok(stored)
+        match transaction.save(after) {
+            Ok(stored) => Ok(stored),
+            Err(error) => {
+                if secrets.store_secret(&before.id, &old_secret).is_err() {
+                    return Err(CommandFailure::CompensationFailed);
+                }
+                if transaction.save(before.clone()).is_err() {
+                    return Err(CommandFailure::CompensationFailed);
+                }
+                Err(error.into())
+            }
+        }
+    })
 }
 
 /// The real connect boundary. Codex ignores any webview supplied secret and
@@ -1392,7 +1441,10 @@ mod tests {
     use crate::net::{ProviderEndpoint, TransportFailure};
     use crate::reader_registry::{MAX_BROWSER_SESSION_BYTES, MAX_KEY_SECRET_BYTES};
     use crate::test_support::{FailingTransport, InMemorySecrets, RecordingTransport, TempDir};
-    use std::sync::Mutex;
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc, Mutex,
+    };
 
     const SECRET_MARKER: &str = "SECRET-MARKER-4f9a-do-not-echo-1234";
     const HEADER_MARKER: &str = "Bearer SECRET-MARKER-4f9a-do-not-echo-1234";
@@ -1502,6 +1554,131 @@ mod tests {
 
         fn delete_secret(&self, connection_id: &str) -> Result<(), CredentialError> {
             self.inner.delete_secret(connection_id)
+        }
+    }
+
+    struct SnapshotReadSecrets {
+        inner: InMemorySecrets,
+        original: Mutex<Option<String>>,
+        snapshot_reads: AtomicUsize,
+    }
+
+    impl SnapshotReadSecrets {
+        fn new() -> Self {
+            Self {
+                inner: InMemorySecrets::new(),
+                original: Mutex::new(None),
+                snapshot_reads: AtomicUsize::new(0),
+            }
+        }
+
+        fn arm_two_original_reads(&self, connection_id: &str) {
+            let original = self
+                .inner
+                .read_secret(connection_id)
+                .expect("original secret");
+            *self.original.lock().expect("original slot") = Some(original.to_string());
+            self.snapshot_reads.store(2, Ordering::SeqCst);
+        }
+
+        fn finish_race(&self) {
+            self.snapshot_reads.store(0, Ordering::SeqCst);
+        }
+
+        fn stored_count(&self) -> usize {
+            self.inner.stored_count()
+        }
+    }
+
+    impl SecretStore for SnapshotReadSecrets {
+        fn store_secret(&self, connection_id: &str, secret: &str) -> Result<(), CredentialError> {
+            self.inner.store_secret(connection_id, secret)
+        }
+
+        fn read_secret(&self, connection_id: &str) -> Result<Zeroizing<String>, CredentialError> {
+            if self
+                .snapshot_reads
+                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |remaining| {
+                    remaining.checked_sub(1)
+                })
+                .is_ok()
+            {
+                return self
+                    .original
+                    .lock()
+                    .map_err(|_| CredentialError::Store)?
+                    .clone()
+                    .map(Zeroizing::new)
+                    .ok_or(CredentialError::NotFound);
+            }
+            self.inner.read_secret(connection_id)
+        }
+
+        fn delete_secret(&self, connection_id: &str) -> Result<(), CredentialError> {
+            self.inner.delete_secret(connection_id)
+        }
+    }
+
+    struct FailedWriteAndRollbackSecrets {
+        inner: InMemorySecrets,
+        failures_left: AtomicUsize,
+    }
+
+    impl FailedWriteAndRollbackSecrets {
+        fn new() -> Self {
+            Self {
+                inner: InMemorySecrets::new(),
+                failures_left: AtomicUsize::new(0),
+            }
+        }
+
+        fn fail_write_and_rollback(&self) {
+            self.failures_left.store(2, Ordering::SeqCst);
+        }
+    }
+
+    impl SecretStore for FailedWriteAndRollbackSecrets {
+        fn store_secret(&self, connection_id: &str, secret: &str) -> Result<(), CredentialError> {
+            self.inner.store_secret(connection_id, secret)?;
+            if self
+                .failures_left
+                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |remaining| {
+                    remaining.checked_sub(1)
+                })
+                .is_ok()
+            {
+                Err(CredentialError::Store)
+            } else {
+                Ok(())
+            }
+        }
+
+        fn read_secret(&self, connection_id: &str) -> Result<Zeroizing<String>, CredentialError> {
+            self.inner.read_secret(connection_id)
+        }
+
+        fn delete_secret(&self, connection_id: &str) -> Result<(), CredentialError> {
+            self.inner.delete_secret(connection_id)
+        }
+    }
+
+    struct ValidationBarrierTransport {
+        barrier: tokio::sync::Barrier,
+    }
+
+    impl Transport for ValidationBarrierTransport {
+        async fn send(
+            &self,
+            _request: &crate::net::EndpointRequest<'_>,
+            _secret: &str,
+        ) -> Result<crate::net::TransportReply, TransportFailure> {
+            self.barrier.wait().await;
+            Ok(crate::net::TransportReply {
+                status: 200,
+                body: br#"{"data":{"limit":20,"limit_remaining":7.53,"usage":12.47,"is_free_tier":false}}"#.to_vec(),
+                retry_after_seconds: None,
+                location_workspace: None,
+            })
         }
     }
 
@@ -3040,6 +3217,99 @@ mod tests {
         assert_eq!(
             &*secrets.read_secret(&record.id).expect("rolled back secret"),
             &*old_secret
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn concurrent_replacements_store_one_candidate_and_a_matching_record() {
+        let dir = TempDir::new();
+        let connections = Arc::new(ConnectionsStore::at(Some(dir.path().to_path_buf())));
+        let secrets = Arc::new(SnapshotReadSecrets::new());
+        let record =
+            connect_core(&connections, secrets.as_ref(), connect_input()).expect("connect");
+        let writer = Arc::new(CacheWriter::at(Some(dir.path().to_path_buf())));
+        seed_connection_cache(&dir, &record.id, "other-account");
+        secrets.arm_two_original_reads(&record.id);
+        let transport = Arc::new(ValidationBarrierTransport {
+            barrier: tokio::sync::Barrier::new(2),
+        });
+
+        let replace = |candidate: &'static str| {
+            let connections = Arc::clone(&connections);
+            let secrets = Arc::clone(&secrets);
+            let transport = Arc::clone(&transport);
+            let writer = Arc::clone(&writer);
+            let connection_id = record.id.clone();
+            tokio::spawn(async move {
+                replace_connection_secret_core(
+                    connections.as_ref(),
+                    secrets.as_ref(),
+                    transport.as_ref(),
+                    writer.as_ref(),
+                    ReplaceConnectionSecretInput {
+                        connection_id,
+                        secret: candidate.to_string(),
+                    },
+                )
+                .await
+            })
+        };
+        let alpha = "sk-or-concurrent-alpha";
+        let beta = "sk-or-concurrent-beta";
+        let (alpha_result, beta_result) = tokio::join!(replace(alpha), replace(beta));
+        let results = [
+            alpha_result.expect("alpha task"),
+            beta_result.expect("beta task"),
+        ];
+        secrets.finish_race();
+
+        assert_eq!(results.iter().filter(|result| result.is_ok()).count(), 1);
+        assert_eq!(
+            results
+                .iter()
+                .filter(|result| matches!(result, Err(CommandFailure::StaleGeneration)))
+                .count(),
+            1
+        );
+        let final_record = connections.get(&record.id).expect("final record");
+        let final_secret = secrets.read_secret(&record.id).expect("final secret");
+        assert_eq!(secrets.stored_count(), 1);
+        assert!(matches!(&*final_secret, value if value == alpha || value == beta));
+        assert_eq!(final_record.masked_label, mask_label(&final_secret));
+    }
+
+    #[tokio::test]
+    async fn failed_keyring_write_and_failed_rollback_surface_and_mark_attention() {
+        let dir = TempDir::new();
+        let connections = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        let secrets = FailedWriteAndRollbackSecrets::new();
+        let record = connect_core(&connections, &secrets, connect_input()).expect("connect");
+        let writer = CacheWriter::at(Some(dir.path().to_path_buf()));
+        secrets.fail_write_and_rollback();
+
+        let result = replace_connection_secret_core(
+            &connections,
+            &secrets,
+            &RecordingTransport::replying(
+                200,
+                br#"{"data":{"limit":20,"limit_remaining":7.53,"usage":12.47,"is_free_tier":false}}"#.to_vec(),
+                None,
+            ),
+            &writer,
+            ReplaceConnectionSecretInput {
+                connection_id: record.id.clone(),
+                secret: "sk-or-ambiguous-write".to_string(),
+            },
+        )
+        .await;
+
+        assert_eq!(result.map(|_| ()), Err(CommandFailure::CompensationFailed));
+        assert_eq!(
+            connections
+                .get(&record.id)
+                .expect("attention record")
+                .status,
+            STATUS_ERROR
         );
     }
 

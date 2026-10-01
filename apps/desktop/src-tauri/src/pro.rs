@@ -34,6 +34,7 @@ const TOKEN_REFRESH_AFTER_SECONDS: i64 = 12 * 60 * 60;
 const TOKEN_HONOR_UNTIL_SECONDS: i64 = 72 * 60 * 60;
 const NETWORK_TIMEOUT_SECONDS: u64 = 15;
 const MAX_CONSECUTIVE_REFRESH_FAILURES: u16 = 360;
+const STATUS_READ_ATTEMPTS: usize = 3;
 /// What this machine calls itself in the account's device list.
 const DEVICE_LABEL: &str = "Desktop";
 /* The production verifier key is public by design. Keeping the first key in
@@ -735,8 +736,25 @@ fn remove_state_file(name: &str) -> Result<(), ProFailure> {
         }
     }
     #[cfg(test)]
-    let _ = name;
+    TEST_REMOVED_STATE_FILES.with(|removed| removed.borrow_mut().push(name.to_string()));
     Ok(())
+}
+
+#[cfg(test)]
+thread_local! {
+    static TEST_REMOVED_STATE_FILES: std::cell::RefCell<Vec<String>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+}
+
+#[cfg(test)]
+fn reset_removed_state_files() {
+    TEST_REMOVED_STATE_FILES.with(|removed| removed.borrow_mut().clear());
+}
+
+#[cfg(test)]
+fn removed_state_files() -> Vec<String> {
+    TEST_REMOVED_STATE_FILES.with(|removed| removed.borrow().clone())
 }
 
 fn remove_hosted_trust() -> Result<(), ProFailure> {
@@ -758,10 +776,6 @@ fn clear_entitlement_and_context_locked() -> Result<(), ProFailure> {
     entitlement_cleared?;
     context_cleared?;
     trust_cleared
-}
-
-fn clear_entitlement_and_context() -> Result<(), ProFailure> {
-    coordinate_trust(clear_entitlement_and_context_locked)
 }
 
 pub(crate) fn clear_local_authorization(store: &dyn SecretStore) -> Result<(), ProFailure> {
@@ -933,10 +947,6 @@ fn strict_json<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, ProFailure> {
         .map(|value| value.0)
         .map_err(|_| ProFailure::InvalidEntitlement)?;
     serde_json::from_value(value).map_err(|_| ProFailure::InvalidEntitlement)
-}
-
-fn verify_token(raw: &str) -> Result<VerifiedToken, ProFailure> {
-    verify_token_with_keys(raw, &key_set()?)
 }
 
 fn verify_token_with_keys(
@@ -1186,65 +1196,133 @@ fn current_status(store: &dyn SecretStore) -> ProStatus {
 }
 
 fn current_status_inner(store: &dyn SecretStore) -> ProStatus {
-    if configured_service_url().is_empty() || key_set().is_err() {
+    if configured_service_url().is_empty() {
         return ProStatus::simple(ProEntitlementState::Unconfigured);
     }
+    let keys = match key_set() {
+        Ok(keys) => keys,
+        Err(_) => return ProStatus::simple(ProEntitlementState::Unconfigured),
+    };
+    current_status_inner_with_keys_after_trust(store, &keys, |_, _| {})
+}
+
+fn current_status_inner_with_keys_after_trust<F>(
+    store: &dyn SecretStore,
+    keys: &HashMap<String, VerifyingKey>,
+    mut after_trust: F,
+) -> ProStatus
+where
+    F: FnMut(usize, &TrustState),
+{
     let account_id = match crate::account::active_account_id(store) {
         Ok(value) => value,
         Err(_) => return ProStatus::simple(ProEntitlementState::Unlicensed),
     };
-    let mut trust = match load_trust(store, &account_id) {
-        Ok(value) => value,
-        Err(_) => {
-            let _ = clear_entitlement_and_context();
-            return ProStatus::simple(ProEntitlementState::Invalid);
-        }
-    };
-    let cache = match read_cache() {
-        Ok(Some(value)) => value,
-        Ok(None) => return ProStatus::simple(ProEntitlementState::Unlicensed),
-        Err(_) => {
-            let _ = clear_entitlement_and_context();
-            return ProStatus::simple(ProEntitlementState::Invalid);
-        }
-    };
-    let token = match verify_token(&cache.token) {
-        Ok(value) => value,
-        Err(ProFailure::Unconfigured) => {
-            return ProStatus::simple(ProEntitlementState::Unconfigured)
-        }
-        Err(_) => {
-            let _ = clear_entitlement_and_context();
-            return ProStatus::simple(ProEntitlementState::Invalid);
-        }
-    };
-    if reconcile_cached_token(store, &mut trust, &token).is_err() {
-        let _ = clear_entitlement_and_context();
-        return ProStatus::simple(ProEntitlementState::Invalid);
-    }
-    match now_seconds().and_then(|now| status_for(&token, &trust, now)) {
-        Ok(status) => {
-            if matches!(
-                status.state,
-                ProEntitlementState::Expired
-                    | ProEntitlementState::Invalid
-                    | ProEntitlementState::ClockInvalid
-            ) {
-                let _ = remove_state_file(AGENT_CONTEXT_FILE_NAME);
-                let _ = remove_hosted_trust();
+    for attempt in 0..STATUS_READ_ATTEMPTS {
+        let mut trust = match load_trust(store, &account_id) {
+            Ok(value) => value,
+            Err(_) => return ProStatus::simple(ProEntitlementState::Invalid),
+        };
+        let loaded_revision = TrustRevision::from(&trust);
+        after_trust(attempt, &trust);
+        let cache = match read_cache() {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                if finish_status_read(store, &loaded_revision, StatusCleanup::None) {
+                    return ProStatus::simple(ProEntitlementState::Unlicensed);
+                }
+                continue;
             }
-            status
+            Err(_) => {
+                if finish_status_read(store, &loaded_revision, StatusCleanup::All) {
+                    return ProStatus::simple(ProEntitlementState::Invalid);
+                }
+                continue;
+            }
+        };
+        let token = match verify_token_with_keys(&cache.token, keys) {
+            Ok(value) => value,
+            Err(ProFailure::Unconfigured) => {
+                return ProStatus::simple(ProEntitlementState::Unconfigured)
+            }
+            Err(_) => {
+                if finish_status_read(store, &loaded_revision, StatusCleanup::All) {
+                    return ProStatus::simple(ProEntitlementState::Invalid);
+                }
+                continue;
+            }
+        };
+        if reconcile_cached_token(store, &mut trust, &token).is_err() {
+            if finish_status_read(store, &loaded_revision, StatusCleanup::All) {
+                return ProStatus::simple(ProEntitlementState::Invalid);
+            }
+            continue;
         }
-        Err(ProFailure::ClockInvalid) => {
-            let _ = remove_state_file(AGENT_CONTEXT_FILE_NAME);
-            let _ = remove_hosted_trust();
-            ProStatus::simple(ProEntitlementState::ClockInvalid)
-        }
-        Err(_) => {
-            let _ = clear_entitlement_and_context();
-            ProStatus::simple(ProEntitlementState::Invalid)
+        let current_revision = TrustRevision::from(&trust);
+        match now_seconds().and_then(|now| status_for(&token, &trust, now)) {
+            Ok(status) => {
+                let cleanup = if matches!(
+                    status.state,
+                    ProEntitlementState::Expired
+                        | ProEntitlementState::Invalid
+                        | ProEntitlementState::ClockInvalid
+                ) {
+                    StatusCleanup::Context
+                } else {
+                    StatusCleanup::None
+                };
+                if finish_status_read(store, &current_revision, cleanup) {
+                    return status;
+                }
+            }
+            Err(ProFailure::ClockInvalid) => {
+                if finish_status_read(store, &current_revision, StatusCleanup::Context) {
+                    return ProStatus::simple(ProEntitlementState::ClockInvalid);
+                }
+            }
+            Err(_) => {
+                if finish_status_read(store, &current_revision, StatusCleanup::All) {
+                    return ProStatus::simple(ProEntitlementState::Invalid);
+                }
+            }
         }
     }
+    ProStatus::simple(ProEntitlementState::Invalid)
+}
+
+#[derive(Clone, Copy)]
+enum StatusCleanup {
+    None,
+    Context,
+    All,
+}
+
+/// Linearize the end of a status read against trust writers. Cleanup is
+/// allowed only while the exact revision used by the read is still current.
+/// A changed revision asks the caller to retry and deletes nothing.
+fn finish_status_read(
+    store: &dyn SecretStore,
+    expected: &TrustRevision,
+    cleanup: StatusCleanup,
+) -> bool {
+    coordinate_trust(|| {
+        let Some(current) = existing_trust_locked(store, &expected.account_id)? else {
+            return Ok(false);
+        };
+        if !expected.matches(&current) {
+            return Ok(false);
+        }
+        match cleanup {
+            StatusCleanup::None => {}
+            StatusCleanup::Context => {
+                remove_state_file(AGENT_CONTEXT_FILE_NAME)?;
+                remove_hosted_trust()?;
+            }
+            StatusCleanup::All => clear_entitlement_and_context_locked()?,
+        }
+        Ok(true)
+    })
+    .unwrap_or(false)
 }
 
 /// Whether this machine may raise a native alert right now.
@@ -4299,6 +4377,66 @@ mod tests {
         let token = verify_token_with_keys(&cache.token, &keys).expect("verified cache");
         assert_eq!(token.claims.seq, 2);
         assert_eq!(token.claims.jti, second_jti);
+    }
+
+    #[test]
+    fn status_read_racing_a_t2_commit_keeps_t2_and_its_context() {
+        reset_removed_state_files();
+        let now = now_seconds().expect("clock");
+        let store = session_store(now);
+        let keys = test_keys();
+        let first_jti = "00000000-0000-4000-8000-000000000041";
+        let second_jti = "00000000-0000-4000-8000-000000000042";
+        let mut first_claims = issued(now, now + 30 * DAY, "active", Some("monthly"));
+        first_claims["jti"] = json!(first_jti);
+        let first_token = signed_with(&first_claims, &test_key());
+        let mut first_trust = trust(now);
+        first_trust.last_jti = Some(first_jti.to_string());
+        save_trust(&store, &first_trust).expect("T1 trust");
+        write_cache(&first_token).expect("T1 cache");
+
+        let mut second_claims = first_claims.clone();
+        second_claims["seq"] = json!(5);
+        second_claims["jti"] = json!(second_jti);
+        let second_token = signed_with(&second_claims, &test_key());
+        let context_path = state_file(AGENT_CONTEXT_FILE_NAME).expect("context path");
+        let context = "T2 context";
+        crate::fsx::atomic_write(&context_path, context).expect("T2 context");
+        let mut committed = false;
+
+        let status =
+            current_status_inner_with_keys_after_trust(&store, &keys, |attempt, loaded| {
+                if attempt != 0 || committed {
+                    return;
+                }
+                assert_eq!(loaded.highest_sequence, 4);
+                coordinate_trust(|| {
+                    write_cache(&second_token)?;
+                    let mut second_trust = first_trust.clone();
+                    second_trust.highest_sequence = 5;
+                    second_trust.last_jti = Some(second_jti.to_string());
+                    save_trust_locked(&store, &second_trust)
+                })
+                .expect("T2 commit");
+                committed = true;
+            });
+
+        assert_eq!(status.state, ProEntitlementState::Active);
+        assert_eq!(status.sequence, Some(5));
+        let cache = read_cache().expect("cache read").expect("T2 cache kept");
+        let token = verify_token_with_keys(&cache.token, &keys).expect("T2 verifies");
+        assert_eq!(token.claims.seq, 5);
+        assert_eq!(
+            crate::fsx::bounded_read(&context_path).as_deref(),
+            Some(context),
+            "T2 context stays present"
+        );
+        assert!(
+            !removed_state_files()
+                .iter()
+                .any(|name| name == ENTITLEMENT_FILE_NAME || name == AGENT_CONTEXT_FILE_NAME),
+            "a changed revision must not request destructive cleanup"
+        );
     }
 
     #[test]
