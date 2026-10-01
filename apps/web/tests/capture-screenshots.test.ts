@@ -33,6 +33,7 @@ describe("synthetic screenshot pipeline", () => {
     for (const request of [
       { action: "claim", code: "WRONG234", device: {} },
       { action: "claim", code: "ABCD2345" },
+      { action: "claim", code: "ABCD2345", device: [] },
       { action: "poll" },
       { action: "poll", claim_id: "another" },
       { action: "approve" },

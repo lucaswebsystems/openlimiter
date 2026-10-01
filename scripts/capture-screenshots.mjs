@@ -803,7 +803,7 @@ const CAPTURE_CLAIM_ID = "00000000-0000-4000-8000-000000000002";
  */
 export function pairingCaptureResponse(request, expiresAt) {
   const action = request?.action;
-  if (action === "claim" && request.code === CAPTURE_PAIR_CODE && request.device !== null && typeof request.device === "object") {
+  if (action === "claim" && request.code === CAPTURE_PAIR_CODE && request.device !== null && typeof request.device === "object" && !Array.isArray(request.device)) {
     return { status: 200, body: { claim_id: CAPTURE_CLAIM_ID, expires_at: expiresAt } };
   }
   if (action === "poll" && request.claim_id === CAPTURE_CLAIM_ID) return { status: 200, body: { status: "claimed" } };
