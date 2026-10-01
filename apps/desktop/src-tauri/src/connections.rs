@@ -493,6 +493,39 @@ pub struct ConnectionsStore {
     guard: Mutex<()>,
 }
 
+/// One connection document held behind the store's writer lock.
+///
+/// Operations that also mutate an external store use this handle so their
+/// record checks, durable record writes, and compensation all remain ordered
+/// with every ordinary connection writer.
+pub(crate) struct LockedConnectionTransaction<'a> {
+    store: &'a ConnectionsStore,
+    document: ConnectionsDocument,
+    index: usize,
+}
+
+impl LockedConnectionTransaction<'_> {
+    pub(crate) fn current(&self) -> &ConnectionRecord {
+        &self.document.connections[self.index]
+    }
+
+    pub(crate) fn save(
+        &mut self,
+        replacement: ConnectionRecord,
+    ) -> Result<ConnectionRecord, StoreError> {
+        if replacement.id != self.current().id {
+            return Err(StoreError::InvalidField);
+        }
+        validate_record(&replacement)?;
+        let previous = std::mem::replace(&mut self.document.connections[self.index], replacement);
+        if let Err(error) = self.store.save_document(&self.document) {
+            self.document.connections[self.index] = previous;
+            return Err(error);
+        }
+        Ok(self.current().clone())
+    }
+}
+
 impl ConnectionsStore {
     /// The store at the application's real state directory.
     pub fn at_state_directory() -> Self {
@@ -880,6 +913,31 @@ impl ConnectionsStore {
         }
         self.save_document(&document).map_err(E::from)?;
         Ok(changed)
+    }
+
+    /// Hold the same lock used by every record writer for a wider transaction.
+    ///
+    /// The callback may persist intermediate records through the supplied
+    /// handle while it changes an external store. No other connection writer
+    /// can observe or replace the record until the callback returns.
+    pub(crate) fn with_locked_connection<F, R, E>(&self, id: &str, operation: F) -> Result<R, E>
+    where
+        F: FnOnce(&mut LockedConnectionTransaction<'_>) -> Result<R, E>,
+        E: From<StoreError>,
+    {
+        let _held = self.guard.lock().map_err(|_| E::from(StoreError::Io))?;
+        let document = self.load().map_err(E::from)?;
+        let index = document
+            .connections
+            .iter()
+            .position(|record| record.id == id)
+            .ok_or_else(|| E::from(StoreError::NotFound))?;
+        let mut transaction = LockedConnectionTransaction {
+            store: self,
+            document,
+            index,
+        };
+        operation(&mut transaction)
     }
 
     /// Replace one complete record only if it is still the version a caller
