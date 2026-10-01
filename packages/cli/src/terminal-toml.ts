@@ -3,7 +3,7 @@
  * masquerade as assignments or table headers during an edit. */
 type Value = string | number | boolean | null | Value[] | { [key: string]: Value };
 interface Entry { keys: string[]; start: number; end: number; value: Value }
-interface Table { keys: string[]; insert: number; array: boolean }
+interface Table { keys: string[]; start: number; insert: number; array: boolean }
 const same = (a: string[], b: string[]): boolean => JSON.stringify(a) === JSON.stringify(b);
 
 class Parser {
@@ -150,7 +150,7 @@ class Parser {
       this.spaces(true);
       if (this.i === this.text.length) break;
       if (this.peek() === "[") {
-        this.i++;
+        const start = this.i++;
         const array = this.peek() === "[";
         if (array) this.i++;
         section = this.keys();
@@ -169,7 +169,7 @@ class Parser {
         const id = JSON.stringify(scope);
         if (tables.has(id) || dotted.has(id) || values.some(k => same(scope.slice(0, k.length), k))) this.fail();
         tables.add(id);
-        this.tables.push({ keys: section, insert: this.i, array: array || scope.some(k => k.includes("\u0000")) });
+        this.tables.push({ keys: section, start, insert: this.i, array: array || scope.some(k => k.includes("\u0000")) });
       } else {
         const keys = this.keys();
         const full = [...scope, ...keys];
@@ -279,6 +279,57 @@ export function editToml(text: string, table: string[], settings: Record<string,
   if (!hasManagedMarker) edits.push({ start: insertion, end: insertion, text: `\n# openlimiter managed\n${content.join("\n")}\n` });
   let result = text;
   for (const edit of edits.sort((a, b) => b.start - a.start)) result = result.slice(0, edit.start) + edit.text + result.slice(edit.end);
+  parseToml(result);
+  return result;
+}
+
+/**
+ * Uninstall after the person edited the file: put each OpenLimiter key under
+ * `table` back to its value in `original` or remove its line, drop the table
+ * when OpenLimiter created it and nothing else lives in it, and remove the
+ * managed marker. Every other line keeps its bytes.
+ */
+export function restoreToml(text: string, original: string, table: string[], keys: string[]): string {
+  const parsed = parseToml(text);
+  const before = parseToml(original);
+  const restored = (key: string): Value | undefined => tomlValue(original, [...table, key]);
+  const line = (start: number, end: number) => ({ start: text.lastIndexOf("\n", start - 1) + 1, end: text.indexOf("\n", end) + 1 || text.length, text: "" });
+  const under = (keys: string[]): boolean => keys.length > table.length && same(keys.slice(0, table.length), table);
+  const edits: { start: number; end: number; text: string }[] = [];
+  const inlineParent = parsed.entries.find(e => same(e.keys, table) && inlineTable(e.value) !== null);
+  if (inlineParent !== undefined) {
+    const updated = { ...(inlineTable(inlineParent.value) ?? {}) };
+    for (const key of keys) {
+      const value = restored(key);
+      if (value === undefined) delete updated[JSON.stringify([key])];
+      else updated[JSON.stringify([key])] = value;
+    }
+    edits.push({ start: inlineParent.start, end: inlineParent.end, text: serializeTomlValue(updated) });
+  } else {
+    const removed = new Set<Entry>();
+    for (const key of keys) {
+      const entry = parsed.entries.find(e => same(e.keys, [...table, key]));
+      if (entry === undefined) continue;
+      const value = restored(key);
+      if (value === undefined) removed.add(entry);
+      edits.push(value === undefined ? line(entry.start, entry.end) : { start: entry.start, end: entry.end, text: serializeTomlValue(value) });
+    }
+    const header = parsed.tables.find(t => same(t.keys, table) && !t.array);
+    if (header !== undefined && !before.tables.some(t => same(t.keys, table)) &&
+        parsed.entries.every(e => removed.has(e) || !under(e.keys)) && !parsed.tables.some(t => under(t.keys))) {
+      edits.push(line(header.start, header.start));
+    }
+  }
+  let result = text;
+  for (const edit of edits.sort((a, b) => b.start - a.start)) result = result.slice(0, edit.start) + edit.text + result.slice(edit.end);
+  // The marker went in after a blank line, so that line goes with it.
+  const lines = result.split("\n");
+  for (let n = lines.length - 1; n >= 0; n--) {
+    if (lines[n]!.trim() !== "# openlimiter managed") continue;
+    const blank = n > 0 && lines[n - 1]!.trim() === "";
+    lines.splice(blank ? n - 1 : n, blank ? 2 : 1);
+  }
+  result = lines.join("\n");
   parseToml(result);
   return result;
 }

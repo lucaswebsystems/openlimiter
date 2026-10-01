@@ -2,7 +2,12 @@ import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { acquireRefreshLock, writeFileAtomically } from "@openlimiter/core";
 
-interface Backup { version: 1; original: string | null; installed: string }
+/**
+ * `drifted` is set once a reinstall absorbed edits the person made after an
+ * install. From then on `original` predates those edits, so uninstall may only
+ * put OpenLimiter's own keys back. A backup without the field never drifted.
+ */
+interface Backup { version: 1; original: string | null; installed: string; drifted?: true }
 const backupPath = (file: string): string => `${file}.openlimiter-backup.json`;
 
 export async function readOptional(file: string): Promise<string | null> {
@@ -14,7 +19,8 @@ async function backup(file: string): Promise<Backup | null> {
   const raw = await readOptional(backupPath(file));
   if (raw === null) return null;
   const value = JSON.parse(raw) as Backup;
-  if (value.version !== 1 || !(value.original === null || typeof value.original === "string") || typeof value.installed !== "string") throw new Error("Invalid backup");
+  if (value.version !== 1 || !(value.original === null || typeof value.original === "string") || typeof value.installed !== "string" ||
+    !(value.drifted === undefined || value.drifted === true)) throw new Error("Invalid backup");
   return value;
 }
 
@@ -48,12 +54,16 @@ export async function isOwned(file: string, current: string, marker: boolean): P
 }
 
 /**
- * Whether a backup exists and the current file has drifted from what was installed.
- * Used by changeConfigHost to decide whether the host edited the file.
+ * Whether uninstall must patch OpenLimiter's keys instead of restoring the
+ * original bytes: the file changed since the last write, or an earlier
+ * reinstall absorbed such a change.
  */
-export async function hasDriftedBackup(file: string, current: string | null): Promise<boolean> {
+const drifted = (saved: Backup, current: string | null): boolean => saved.installed !== current || saved.drifted === true;
+
+/** The first configuration when uninstall has to patch rather than restore it, otherwise `undefined`. */
+export async function driftedOriginal(file: string, current: string | null): Promise<string | null | undefined> {
   const saved = await backup(file);
-  return saved !== null && saved.installed !== current;
+  return saved !== null && drifted(saved, current) ? saved.original : undefined;
 }
 
 /** Result of an ownership check used during install. */
@@ -126,7 +136,8 @@ export async function writeOwned(file: string, original: string | null, installe
     if (current === installed) return;
     const saved = await backup(file);
 
-    const next = { version: 1 as const, original: saved === null ? original : saved.original, installed } satisfies Backup;
+    // A reinstall keeps the backup's original and any recorded drift.
+    const next: Backup = saved === null ? { version: 1, original, installed } : { ...saved, installed };
     if (saved === null) {
       // Exclusive creation guarantees that a repeated install cannot replace the
       // original bytes. A write failure leaves the recoverable backup in place.
@@ -155,18 +166,20 @@ export async function writeDriftedOwned(file: string, priorCurrent: string | nul
     const saved = await backup(file);
 
     // Preserve the original; update installed to the new content.
-    const next = {
-      version: 1 as const,
+    // Record the drift: `original` now predates the person's edits, so a
+    // later uninstall must not write those bytes back over them.
+    const next: Backup = {
+      version: 1,
       original: saved !== null ? saved.original : priorCurrent,
-      installed
-    } satisfies Backup;
+      installed,
+      drifted: true
+    };
 
     if (current === installed) {
       // File is already correct but backup.installed may still point to the
       // first-install content. Update the backup so future drift detection
       // compares against the current content and correctly sees "owned".
-      const savedInstalled = saved !== null ? saved.installed : null;
-      if (savedInstalled !== installed) {
+      if (saved === null || saved.installed !== installed || saved.drifted !== true) {
         await writeFileAtomically(backupPath(file), JSON.stringify(next));
       }
       return;
@@ -219,8 +232,8 @@ export async function restoreOwned(
     const saved = await backup(file);
     if (!(marker && saved !== null)) return { kind: "not_owned" };
 
-    if (saved.installed === latest) {
-      // Clean case: restore exact original bytes.
+    if (!drifted(saved, latest)) {
+      // Clean case: nothing ever drifted, restore exact original bytes.
       if (saved.original === null) await rm(file);
       else await writeFileAtomically(file, saved.original);
       if (await readOptional(file) !== saved.original) return { kind: "concurrent_change", path: file };

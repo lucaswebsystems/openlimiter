@@ -81,6 +81,7 @@ export function moneyCells(document: unknown, options: MoneyOptions): readonly M
     }
   }
   const cells: MoneyCell[] = [];
+  let openRouter: { cell: MoneyCell; observedAt: number } | undefined;
   for (const source of (document["sources"] as unknown[]).slice(0, MAX_SOURCES)) {
     if (!isRecord(source) || source["enabled"] !== true || typeof source["id"] !== "string") continue;
     const provider = source["provider"];
@@ -114,7 +115,14 @@ export function moneyCells(document: unknown, options: MoneyOptions): readonly M
     if (!usd || spend === null || sample["month"] !== month) continue;
     const amount = mark + money(spend);
     const suffix = provider === "openrouter" ? " spent" : "";
-    cells.push({ plain: prefix + amount + suffix, prefix, amount: amount + suffix, band: budgetBand(spend, source["budgetUsd"]) });
+    const cell = { plain: prefix + amount + suffix, prefix, amount: amount + suffix, band: budgetBand(spend, source["budgetUsd"]) };
+    if (provider === "openrouter") {
+      // One `or` cell at most: the most recently observed source wins, the first on a tie.
+      const observedAt = Date.parse(String(sample["observedAt"]));
+      if (openRouter !== undefined && observedAt <= openRouter.observedAt) continue;
+      openRouter = { cell, observedAt };
+    }
+    cells.push(cell);
   }
-  return cells;
+  return cells.filter(cell => cell.prefix !== "or " || cell === openRouter?.cell);
 }
