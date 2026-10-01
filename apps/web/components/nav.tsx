@@ -1,5 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import { BrandLockup } from "./brand";
+import { HeaderLocale } from "./header-locale";
 import { HeaderState } from "./header-state";
 import { NavSheet } from "./nav-sheet";
 import { SiteLink } from "./site-link";
@@ -169,6 +170,7 @@ export async function Nav() {
                 <GitHubMark className="h-[18px] w-[18px]" />
                 {stars !== null && <span className="text-sm">{formatStarCount(stars)}</span>}
               </a>
+              <HeaderLocale />
               <ThemeToggle />
               <SiteLink href="/app" className={webAppClass}>
                 <GlobeGlyph />
