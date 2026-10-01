@@ -150,8 +150,9 @@ pub struct SaveApiSpendSourceInput {
     budget_usd: Option<String>,
     consent_version: u32,
     confirmed: bool,
-    /// Present, the key of this existing source is replaced and the source
-    /// keeps its identity and samples. Absent, a new source is added, so a
+    /// Present, the key of this existing source is replaced: the source keeps
+    /// its identity and starts over, with no samples or counters from the old
+    /// key, which may belong to another account. Absent, a new source is added, so a
     /// second key of one provider is a second account rather than a rotation.
     #[serde(default)]
     source_id: Option<String>,
@@ -938,6 +939,11 @@ fn save_source_core(
         source.last_counter_usd = None;
         source.last_counter_at = None;
         source.counter_gap = false;
+        /* Its money leaves with the old key for the same reason: every reader
+        selects samples by this source id, so nothing is shown here until the
+        new key's first good reading. */
+        let id = source.id.clone();
+        document.samples.retain(|sample| sample.source_id != id);
         Some(previous)
     } else {
         document.sources.push(ApiSpendSource {
@@ -2980,7 +2986,11 @@ mod tests {
         assert_eq!(kept.credential_id, untouched.credential_id);
         assert_eq!(kept.last_counter_usd, untouched.last_counter_usd);
         assert_eq!(store.stored_count(), 2);
-        assert_eq!(after.samples.len(), before.samples.len());
+        assert!(samples_of(&after, &first).is_empty());
+        assert_eq!(
+            samples_of(&after, &second).len(),
+            samples_of(&before, &second).len()
+        );
         let view = snapshot(&after, now + 1_000).expect("snapshot");
         assert_eq!(amount(newest_for(&view, &second)), "22.2");
 
@@ -3050,6 +3060,67 @@ mod tests {
             serde_json::to_value(load_at(&path).expect("reload")).expect("JSON"),
             expected
         );
+    }
+
+    /// The 2.0.2 state above, right after its xAI key was replaced at noon on
+    /// 7 September. The command line status row test reads this same file.
+    const STATE_REPLACED_KEY: &str =
+        include_str!("../tests/fixtures/api-spend-v1-replaced-key.json");
+
+    #[test]
+    fn a_replaced_key_shows_no_money_until_its_own_first_reading() {
+        let directory = TempDir::new();
+        let path = directory.path().join(STATE_FILE_NAME);
+        std::fs::write(&path, STATE_2_0_2).expect("fixture");
+        let store = InMemorySecrets::new();
+        let xai = "d4aebf73-9f2c-4e5a-9f86-7c3daf4b9e25";
+        let now = 1_788_782_400; // 2026-09-07T12:00:00Z
+        let mut input = save_input(
+            ApiSpendProvider::Xai,
+            "Team billing",
+            "xai-rotated-key-wxyz",
+            Some(xai),
+        );
+        input.team_id = Some("team_123".to_string());
+        let replaced = save_source_core(&path, &store, input, now).expect("replace");
+
+        /* The new key may be another account, so the old key's money leaves
+        with it and the row checks the key. */
+        assert!(replaced
+            .samples
+            .iter()
+            .all(|sample| sample.source_id != xai));
+        let source = replaced.sources.iter().find(|source| source.id == xai);
+        assert_eq!(source.expect("source").status, "pending_validation");
+        /* Every other source keeps its own. */
+        let work = "c39dae62-8f1b-4d4f-8e75-6b2c9f3a8d14";
+        assert_eq!(amount(newest_for(&replaced, work)), "22.2");
+
+        /* On disk it is exactly the state the status row fixture carries,
+        apart from the new key's random credential id. */
+        let mut written = serde_json::to_value(load_at(&path).expect("reload")).expect("JSON");
+        assert_ne!(
+            written["sources"][2]["credentialId"],
+            "a73b12a6-c25f-4b8d-8cb9-af60d27ecb58"
+        );
+        written["sources"][2]["credentialId"] = json!("a73b12a6-c25f-4b8d-8cb9-af60d27ecb59");
+        let expected: Value = serde_json::from_str(STATE_REPLACED_KEY).expect("fixture JSON");
+        assert_eq!(written, expected);
+
+        /* The new key's first good reading is the first amount it shows. */
+        let mut document = load_at(&path).expect("reload");
+        let index = index_of(&document, xai);
+        let reading = ParsedProviderValue {
+            value: Some(Decimal::new(42, 2)),
+            raw_unit_scale: "usd",
+            incomplete: false,
+            next_page: None,
+            note: None,
+        };
+        record_observation(&mut document, index, reading, now + 60).expect("record");
+        let view = snapshot(&document, now + 60).expect("snapshot");
+        assert_eq!(amount(newest_for(&view, xai)), "0.42");
+        assert_eq!(samples_of(&document, xai).len(), 1);
     }
 
     const SEPTEMBER_START: i64 = 1_788_220_800; // 2026-09-01T00:00:00Z

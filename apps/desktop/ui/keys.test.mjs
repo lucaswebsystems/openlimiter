@@ -136,6 +136,17 @@ test("after Save a row checks the key, then shows the amount, its period, the cu
   assert.deepEqual(calls, [["refresh", "openai"]]);
 });
 
+test("a replaced key checks the new key and never shows the amount from before the replace", () => {
+  const rows = keyRows({ status: status(
+    [source(FIRST, "openai", { status: "pending_validation", lastObservedAt: null })],
+    [sample(FIRST, "openai", "12.34")],
+  ) }, NOW);
+  assert.deepEqual([rows[1].state, rows[1].amount], ["checking", undefined]);
+  const text = draw(rows).row("openai").textContent;
+  assert.ok(text.includes("Checking key"));
+  assert.equal(text.includes("12.34"), false);
+});
+
 test("Incomplete and Unavailable show only when true, and last month is never this month", () => {
   const incomplete = keyRows({ status: status([source(FIRST, "openai")], [sample(FIRST, "openai", "3", { completeness: "period_incomplete" })]) }, NOW);
   assert.match(draw(incomplete).row("openai").textContent, /Incomplete/u);
@@ -199,19 +210,55 @@ test("errors are one short line that says what to do", async () => {
 });
 
 test("OpenRouter's row reads its quota connection: checking, then the balance with its age", () => {
-  const checking = keyRows({ openrouter: { records: [{ id: "c1", provider: "OPENROUTER", state: "READY_TO_ENABLE" }], reading: null } }, NOW)[0];
+  const checking = keyRows({ openrouter: { records: [{ id: "c1", provider: "OPENROUTER", state: "READY_TO_ENABLE" }], readings: [] } }, NOW)[0];
   assert.deepEqual([checking.kind, checking.state], ["quota", "checking"]);
   const reading = {
     provider: "OPENROUTER", meter: "CREDITS", value: 25, usedAmount: 12.5, limitAmount: 50, currency: "USD",
-    observedAt: "2026-09-29T11:58:00.000Z",
+    observedAt: "2026-09-29T11:58:00.000Z", accountId: "c1",
   };
-  const read = keyRows({ openrouter: { records: [{ id: "c1", provider: "OPENROUTER", state: "CONNECTED" }], reading } }, NOW);
+  const read = keyRows({ openrouter: { records: [{ id: "c1", provider: "OPENROUTER", state: "CONNECTED" }], readings: [reading] } }, NOW);
   assert.deepEqual([read[0].state, read[0].amount, read[0].period], ["reading", "$37.50", "balance"]);
   const text = draw(read).row("openrouter").textContent;
   for (const part of ["$37.50", "balance", "USD", "Updated 2 min ago"]) assert.ok(text.includes(part), part);
-  const refused = keyRows({ openrouter: { records: [{ id: "c1", provider: "OPENROUTER", state: "NEEDS_AUTH" }], reading: null } }, NOW)[0];
+  const refused = keyRows({ openrouter: { records: [{ id: "c1", provider: "OPENROUTER", state: "NEEDS_AUTH" }], readings: [] } }, NOW)[0];
   assert.deepEqual([refused.state, refused.error, refused.replace], ["error", "Key not accepted, paste a new one", true]);
   // Its field is right there, so the tool row's Connect has somewhere to go.
   const drawn = draw([refused]);
   assert.equal(drawn.field("openrouter").getAttribute("placeholder"), "API key");
+});
+
+test("two OpenRouter accounts each show, refresh and remove their own, and a paused one shows none", async () => {
+  const record = (id, active = true) => ({ id, provider: "OPENROUTER", state: "CONNECTED", active, maskedLabel: "sk-or-v1-..." + id });
+  const reading = (accountId, usedAmount, observedAt) => ({
+    provider: "OPENROUTER", meter: "CREDITS", value: 0, usedAmount, limitAmount: 50, currency: "USD", observedAt, accountId,
+  });
+  const records = [record("acct-a"), record("acct-b"), record("acct-paused", false)];
+  // The paused account's reading is the newest, so a pick across accounts would show it everywhere.
+  const readings = [
+    reading("acct-a", 40, "2026-09-29T11:50:00.000Z"),
+    reading("acct-b", 30, "2026-09-29T11:55:00.000Z"),
+    reading("acct-paused", 1, "2026-09-29T11:59:00.000Z"),
+  ];
+  const rows = keyRows({ openrouter: { records, readings } }, NOW).filter((row) => row.kind === "quota");
+  assert.deepEqual(rows.map((row) => [row.recordId, row.amount]), [["acct-a", "$10.00"], ["acct-b", "$20.00"]]);
+
+  const calls = [];
+  const act = (kind) => async (row) => { calls.push([kind, row.recordId]); return { ok: true }; };
+  const drawn = draw(rows, { refresh: act("refresh"), remove: act("remove") });
+  for (const index of [0, 1]) {
+    const [refresh, remove] = drawn.row("openrouter", index).all((node) => node.localName === "button");
+    await refresh.fire("click");
+    await remove.fire("click");
+    await remove.fire("click");
+  }
+  assert.deepEqual(calls, [["refresh", "acct-a"], ["remove", "acct-a"], ["refresh", "acct-b"], ["remove", "acct-b"]]);
+  assert.match(drawn.row("openrouter", 0).textContent, /\$10\.00/u);
+  assert.equal(drawn.row("openrouter", 0).textContent.includes("$20.00"), false);
+
+  // An account with no reading of its own shows none of another's.
+  const unread = keyRows({ openrouter: { records: [record("acct-c")], readings } }, NOW)[0];
+  assert.deepEqual([unread.recordId, unread.state, unread.amount], ["acct-c", "saved", undefined]);
+  // A paused connection alone has no row to read, refresh or remove.
+  const paused = keyRows({ openrouter: { records: [record("acct-paused", false)], readings } }, NOW)[0];
+  assert.deepEqual([paused.state, paused.recordId, paused.amount], ["empty", undefined, undefined]);
 });
