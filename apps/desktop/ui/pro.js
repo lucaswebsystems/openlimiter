@@ -517,7 +517,6 @@ function keyForm(doc, row, handlers, status) {
       status.textContent = keyError(row.provider, result?.kind);
       return;
     }
-    if (team !== null) team.value = "";
     input.blur?.();
     team?.blur?.();
     try {
@@ -579,21 +578,37 @@ function removeButton(doc, row, handlers, status) {
   return button;
 }
 
-function keyRowId(row) {
-  return row.sourceId ?? row.recordId ?? row.provider;
+/** Hold the latest repaint until focus leaves every input in the key section. */
+export function keyRepaintGate(doc, mount) {
+  let pending = null;
+  mount.addEventListener("focusout", (event) => {
+    if (mount.contains(event.relatedTarget)) return;
+    /* Switching to another window (to copy a key, say) also fires focusout;
+       the field keeps its text, so the repaint waits for a real leave. */
+    if (typeof doc.hasFocus === "function" && !doc.hasFocus()) return;
+    const repaint = pending;
+    pending = null;
+    repaint?.();
+  });
+  return (repaint) => {
+    const active = doc.activeElement;
+    if (active?.localName === "input" && mount.contains(active)) {
+      pending = repaint;
+      return false;
+    }
+    pending = null;
+    repaint();
+    return true;
+  };
 }
 
 /** Draw keyRows: one consent line above the first Save, then a row per key. */
-export function renderKeys(doc, mount, rows, handlers, { preserveRows = new Map() } = {}) {
+export function renderKeys(doc, mount, rows, handlers) {
   const consent = element(doc, "p", "q-note q-consent", KEY_CONSENT.text);
   consent.id = "key-consent";
   const asks = rows.some((row) => row.state === "empty" || row.replace === true);
   const desired = [...(asks ? [consent] : []), ...rows.map((row) => {
-    const id = keyRowId(row);
-    const preserved = preserveRows.get(id);
-    if (preserved !== undefined) return preserved;
     const line = element(doc, "div", "q-key");
-    line.dataset.keyId = id;
     line.dataset.keyRow = row.provider;
     line.dataset.state = row.state;
     const mark = element(doc, "span", "q-mark");
@@ -628,16 +643,5 @@ export function renderKeys(doc, mount, rows, handlers, { preserveRows = new Map(
     line.append(mark, name, body, tail, status);
     return line;
   })];
-  /* Reconcile direct children instead of replacing the whole mount. A row in
-     active edit mode never leaves the document, so focus and selection stay
-     owned by the same input while every other row is refreshed normally. */
-  for (let index = 0; index < desired.length; index += 1) {
-    const node = desired[index];
-    if (mount.children[index] !== node) {
-      mount.insertBefore(node, mount.children[index] ?? null);
-    }
-  }
-  for (const child of [...mount.children]) {
-    if (!desired.includes(child)) child.remove();
-  }
+  mount.replaceChildren(...desired);
 }
