@@ -254,8 +254,7 @@ impl CliRuntime for SystemCliRuntime {
             }) {
                 return false;
             }
-            let mut command =
-                Command::new(std::env::var_os("ComSpec").unwrap_or_else(|| "cmd.exe".into()));
+            let mut command = Command::new(crate::windows_system_tool::tool(&["cmd.exe"]));
             command.arg("/d").arg("/s").arg("/c");
             push_interpreter_line(&mut command, format!("\"{text}\" statusline --probe"));
             command
@@ -268,6 +267,8 @@ impl CliRuntime for SystemCliRuntime {
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null());
+        #[cfg(windows)]
+        command.current_dir(crate::windows_system_tool::system_directory());
         suppress_probe_window(&mut command);
         let Ok(mut child) = command.spawn() else {
             return false;

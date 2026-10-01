@@ -177,7 +177,13 @@ function execFilePromise(
     execFile(
       executable,
       [...args],
-      { timeout, windowsHide: true },
+      {
+        timeout,
+        windowsHide: true,
+        ...(process.platform === "win32" && path.win32.isAbsolute(executable)
+          ? { cwd: path.win32.dirname(executable) }
+          : {})
+      },
       (error, stdout) => {
         if (error) {
           resolve({ ok: false });
@@ -504,7 +510,7 @@ export async function enumerateAgyListeningPorts(
     if (trustedPids.size === 0) return [];
 
     const netstatRes = await runner(
-      "netstat.exe",
+      windowsSystemTool("netstat.exe", options?.env ?? process.env),
       ["-ano", "-p", "tcp"],
       AGY_PROBE_TIMEOUT_MILLISECONDS
     );

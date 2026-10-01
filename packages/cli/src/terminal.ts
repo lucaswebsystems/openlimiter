@@ -3,6 +3,7 @@ import path from "node:path";
 import { connectors } from "@openlimiter/connectors";
 import {
   type CredentialCommandRunner,
+  windowsPathTool,
   windowsSystemTool,
   writeFileAtomically
 } from "@openlimiter/core";
@@ -471,12 +472,9 @@ async function shellTarget(context: TerminalHostContext): Promise<{ kind: ShellK
     return { kind: "zsh", file: path.join(env["ZDOTDIR"] || context.homeDirectory, ".zshrc") };
   }
   if (name === "pwsh" || name === "pwsh.exe" || name === "powershell" || name === "powershell.exe") {
-    if (
-      context.platform === "win32" &&
-      (name === "powershell" || name === "powershell.exe") &&
-      !path.win32.isAbsolute(executable)
-    ) {
-      executable = windowsSystemTool(
+    if (context.platform === "win32" && !path.win32.isAbsolute(executable)) {
+      const program = name.endsWith(".exe") ? name : `${name}.exe`;
+      executable = await windowsPathTool(program, env) ?? windowsSystemTool(
         "WindowsPowerShell",
         "v1.0",
         "powershell.exe",

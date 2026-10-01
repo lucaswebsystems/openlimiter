@@ -45,6 +45,30 @@ mod state;
 mod test_support;
 mod tray;
 mod updates;
+mod windows_system_tool;
+
+#[cfg(all(test, windows))]
+mod windows_system_tool_tests {
+    use std::{ffi::OsStr, path::PathBuf};
+
+    #[test]
+    fn system_tools_are_absolute_under_the_given_windows_root() {
+        let cmd = crate::windows_system_tool::from_system_root(
+            Some(OsStr::new(r"D:\Windows")),
+            &["cmd.exe"],
+        );
+        assert!(cmd.is_absolute());
+        assert_eq!(cmd, PathBuf::from(r"D:\Windows\System32\cmd.exe"));
+    }
+
+    #[test]
+    fn default_windows_root_is_absolute() {
+        assert_eq!(
+            crate::windows_system_tool::from_system_root(None, &["netstat.exe"]),
+            PathBuf::from(r"C:\Windows\System32\netstat.exe")
+        );
+    }
+}
 
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, WindowEvent};

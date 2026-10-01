@@ -550,7 +550,7 @@ describe("P2 shell profiles", () => {
     expect((await installHost("shell", ctx)).ok).toBe(true);
     expect(calls).toEqual([
       windowsSystemTool("WindowsPowerShell", "v1.0", "powershell.exe", ctx.environment ?? {}),
-      "pwsh.exe"
+      windowsSystemTool("WindowsPowerShell", "v1.0", "powershell.exe", ctx.environment ?? {})
     ]);
     expect(await hostStatus("shell", ctx)).toBe(STATUS_WIRED);
     await uninstallHost("shell", ctx);

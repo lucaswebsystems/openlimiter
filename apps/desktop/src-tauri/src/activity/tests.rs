@@ -10,17 +10,6 @@ use std::{fs, path::PathBuf};
 
 const NOW: i64 = 1_790_596_800_000;
 
-#[cfg(windows)]
-fn windows_powershell_module_path() -> PathBuf {
-    PathBuf::from(
-        std::env::var_os("SystemRoot").unwrap_or_else(|| std::ffi::OsString::from(r"C:\Windows")),
-    )
-    .join("System32")
-    .join("WindowsPowerShell")
-    .join("v1.0")
-    .join("Modules")
-}
-
 struct Fixture {
     root: PathBuf,
 }
@@ -527,13 +516,17 @@ fn windows_checkpoint_acl_is_protected_and_owned_by_current_user() {
     let fixture = Fixture::new();
     Engine::default().save(&fixture.root).unwrap();
     let script = "$a = Get-Acl -LiteralPath $env:ACTIVITY_TEST_CHECKPOINT; $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; $allowed = @($sid,'S-1-5-18','S-1-5-32-544'); $r = @($a.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier])); $bad = @($r | Where-Object {$allowed -notcontains $_.IdentityReference.Value -or $_.IsInherited -or $_.AccessControlType -ne 'Allow' -or $_.FileSystemRights -ne 'FullControl'}); if (!$a.AreAccessRulesProtected -or $r.Count -ne 3 -or @($r | Where-Object {$_.IdentityReference.Value -eq $sid}).Count -ne 1 -or $bad.Count -ne 0 -or $a.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne $sid) { Write-Output ('protected={0}; count={1}; owner={2}; sid={3}; userRules={4}; bad={5}' -f $a.AreAccessRulesProtected,$r.Count,$a.GetOwner([System.Security.Principal.SecurityIdentifier]).Value,$sid,@($r | Where-Object {$_.IdentityReference.Value -eq $sid}).Count,$bad.Count); $r | ForEach-Object { Write-Output ('rule={0}; inherited={1}; rights={2}; type={3}' -f $_.IdentityReference.Value,$_.IsInherited,$_.FileSystemRights,$_.AccessControlType) }; exit 2 }";
-    let result = Command::new("powershell.exe")
+    let result = Command::new(crate::windows_system_tool::powershell())
         .args(["-NoProfile", "-NonInteractive", "-Command", script])
         .env(
             "ACTIVITY_TEST_CHECKPOINT",
             fixture.root.join("activity-desktop-v1.json"),
         )
-        .env("PSModulePath", windows_powershell_module_path())
+        .env(
+            "PSModulePath",
+            crate::windows_system_tool::powershell_module_path(),
+        )
+        .current_dir(crate::windows_system_tool::system_directory())
         .creation_flags(0x0800_0000)
         .output()
         .unwrap();
@@ -703,10 +696,11 @@ fn windows_junctions_are_allowed_only_for_state_root() {
     let fixture = Fixture::new();
     let outside = Fixture::new();
     let junction = |link: &std::path::Path, target: &std::path::Path| {
-        let result = Command::new("cmd.exe")
+        let result = Command::new(crate::windows_system_tool::tool(&["cmd.exe"]))
             .args(["/C", "mklink", "/J"])
             .arg(link)
             .arg(target)
+            .current_dir(crate::windows_system_tool::system_directory())
             .creation_flags(0x0800_0000)
             .output()
             .unwrap();

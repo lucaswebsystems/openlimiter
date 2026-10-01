@@ -326,6 +326,8 @@ describe("Antigravity loopback probe", () => {
   });
 
   it("verifies PID and executable path through PowerShell CIM query", async () => {
+    const windowsRoot = "D:\\Windows";
+    const netstat = path.win32.join(windowsRoot, "System32", "netstat.exe");
     const mockCimRunner = async (cmd: string) => {
       if (cmd.toLowerCase().endsWith("\\powershell.exe")) {
         expect(path.win32.isAbsolute(cmd)).toBe(true);
@@ -334,7 +336,8 @@ describe("Antigravity loopback probe", () => {
           stdout: "31415|C:\\Users\\lucas\\AppData\\Local\\Programs\\Antigravity\\agy.exe\r\n"
         };
       }
-      if (cmd === "netstat.exe") {
+      if (cmd === netstat) {
+        expect(path.win32.isAbsolute(cmd)).toBe(true);
         return {
           ok: true as const,
           stdout: "  TCP    127.0.0.1:41414        0.0.0.0:0              LISTENING       31415\r\n"
@@ -347,6 +350,7 @@ describe("Antigravity loopback probe", () => {
       platform: "win32",
       runCommand: mockCimRunner,
       env: {
+        SystemRoot: windowsRoot,
         USERPROFILE: "C:\\Users\\lucas"
       }
     });
