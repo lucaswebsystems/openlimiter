@@ -273,6 +273,11 @@ describe("Antigravity loopback probe", () => {
     expect(result.rows[0]?.status).toBe("stale");
     expect(result.rows[0]?.reason).toBe(AGY_NOT_RUNNING_SENTENCE);
     expect(result.reports).toHaveLength(0);
+    /* A closed client is an availability state, never drift: nothing answered
+       in a shape this build does not understand. */
+    expect(result.schedule["ANTIGRAVITY"]?.outcome).toBe("not_running");
+    expect(result.schedule["ANTIGRAVITY"]?.phase).toBe("probe");
+    expect(result.schedule["ANTIGRAVITY"]?.errorClass).toBe("not_running");
   });
 
   it("parses netstat output language-agnostically with wildcard peer check", () => {

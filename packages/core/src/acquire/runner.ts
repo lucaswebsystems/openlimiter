@@ -25,6 +25,7 @@ import {
   ACQUISITION_OUTCOME_SENTENCE,
   isProviderDue,
   nextAttemptInstant,
+  type AcquisitionPhase,
   type AcquisitionProviderSchedule,
   type AcquisitionSchedule
 } from "./cadence.js";
@@ -207,6 +208,19 @@ interface Attempt {
   readonly outcome: AcquisitionOutcome;
   readonly meters: readonly RawMeter[];
   readonly retryAfterSeconds: number | null;
+  /** Where a failed attempt stopped; asking, or reading the answer. */
+  readonly phase?: "request" | "parse";
+}
+
+/**
+ * A thrown failure as a code: a system error code or an error class name.
+ * Never the message, which can carry a path, a header or a token.
+ */
+export function errorClassOf(error: unknown): string {
+  const code = typeof error === "object" && error !== null ? (error as { code?: unknown }).code : undefined;
+  if (typeof code === "string" && /^E[A-Z0-9_]{1,30}$/u.test(code)) return code;
+  const name = error instanceof Error ? error.name : "";
+  return /^[A-Z][A-Za-z]{0,26}Error$/u.test(name) ? name : "exception";
 }
 
 export function credentialExpired(credential: AcquiredCredential, now: number): boolean {
@@ -233,14 +247,14 @@ async function attempt(
       return { outcome: "unauthorized", meters: [], retryAfterSeconds: null, expiredCredentials: true };
     }
     if (options.lease && !(await options.lease.stillOwned(at))) {
-      return { outcome: "transport", meters: [], retryAfterSeconds: null };
+      return { outcome: "transport", meters: [], retryAfterSeconds: null, phase: "request" };
     }
     const decided = step({ credential, previous });
     if (decided === null) {
-      return { outcome: "drift", meters: [], retryAfterSeconds: null };
+      return { outcome: "drift", meters: [], retryAfterSeconds: null, phase: "request" };
     }
     if ("stop" in decided) {
-      return { outcome: decided.stop, meters: [], retryAfterSeconds: retryAfter };
+      return { outcome: decided.stop, meters: [], retryAfterSeconds: retryAfter, phase: "request" };
     }
     const request = decided;
     let reply;
@@ -250,19 +264,19 @@ async function attempt(
       /* The error object is never inspected and never formatted. A transport
          failure carries a URL and sometimes a header, and neither belongs
          anywhere near a row a person reads. */
-      return { outcome: "transport", meters: [], retryAfterSeconds: null };
+      return { outcome: "transport", meters: [], retryAfterSeconds: null, phase: "request" };
     }
     retryAfter = reply.retryAfterSeconds;
     if (reply.status === 0) {
-      return { outcome: "too_large", meters: [], retryAfterSeconds: retryAfter };
+      return { outcome: "too_large", meters: [], retryAfterSeconds: retryAfter, phase: "request" };
     }
     const outcome = outcomeForStatus(reply.status);
-    if (outcome !== "ok") return { outcome, meters: [], retryAfterSeconds: retryAfter };
+    if (outcome !== "ok") return { outcome, meters: [], retryAfterSeconds: retryAfter, phase: "request" };
     let body: unknown;
     try {
       body = JSON.parse(reply.body) as unknown;
     } catch {
-      return { outcome: "drift", meters: [], retryAfterSeconds: retryAfter };
+      return { outcome: "drift", meters: [], retryAfterSeconds: retryAfter, phase: "parse" };
     }
     previous.push(body);
   }
@@ -278,10 +292,10 @@ async function attempt(
   try {
     meters = spec.parse(payload, options.now);
   } catch {
-    return { outcome: "drift", meters: [], retryAfterSeconds: retryAfter };
+    return { outcome: "drift", meters: [], retryAfterSeconds: retryAfter, phase: "parse" };
   }
   if (meters === null || meters.length === 0) {
-    return { outcome: "drift", meters: [], retryAfterSeconds: retryAfter };
+    return { outcome: "drift", meters: [], retryAfterSeconds: retryAfter, phase: "parse" };
   }
   return { outcome: "ok", meters, retryAfterSeconds: retryAfter };
 }
@@ -289,10 +303,11 @@ async function attempt(
 /**
  * Run every spec once, honouring the schedule.
  *
- * The returned schedule is the one to persist. A provider that was not asked,
- * because it is off or because nothing on this machine belongs to it, keeps the
- * schedule it had: a person who installs Codex this afternoon should not have
- * to wait out a backoff that was recorded before Codex existed here.
+ * The returned schedule is the one to persist. A provider that is off keeps
+ * the schedule it had. A provider whose local credential is absent, expired or
+ * unreadable loses its entry: nothing was asked of the provider, so an old
+ * outcome (yesterday's drift) must not read as today's. Every failure records
+ * its own instant, the phase it happened in and a code, never a message.
  */
 export async function runAcquisition(
   specs: readonly AcquisitionSpec[],
@@ -324,6 +339,10 @@ export async function runAcquisition(
     }));
     return createHash("sha256").update(JSON.stringify([credential, mtimes])).digest("hex");
   };
+  /* Where the provider being read is right now, for the outer catch. */
+  let phase: AcquisitionPhase = "credential";
+  const failure = (failedIn: AcquisitionPhase, outcome: AcquisitionOutcome) =>
+    outcome === "ok" ? {} : { phase: failedIn, errorClass: outcome };
   const refused = (outcome: AcquisitionOutcome) => outcome === "unauthorized" || outcome === "blocked" || outcome === "identity_refused";
   const refusalAvailability = (outcome: AcquisitionOutcome) => outcome === "unauthorized"
     ? { availability: "expired_credentials" as const }
@@ -337,6 +356,7 @@ export async function runAcquisition(
    */
   const readOne = async (spec: AcquisitionSpec): Promise<void> => {
     const existing = schedule[spec.provider];
+    phase = "credential";
     if (spec.enabled === false) {
       rows.push({
         provider: spec.provider,
@@ -364,6 +384,7 @@ export async function runAcquisition(
       return;
     }
     if (spec.provider === "ANTIGRAVITY" && options.probeAntigravity !== undefined) {
+      phase = "probe";
       let probeResult: AntigravityProbeResult;
       try {
         probeResult = await options.probeAntigravity({
@@ -419,7 +440,9 @@ export async function runAcquisition(
           if (fallbackResult.outcome !== "ok") {
             const expired = fallbackResult.expiredCredentials === true;
             const nextAttemptAt = expired ? null : nextAttemptInstant(fallbackResult.outcome, options.now, fallbackResult.retryAfterSeconds, existing?.attempts ?? options.lease?.attempts ?? 0);
+            if (expired) delete schedule[spec.provider];
             if (nextAttemptAt) schedule[spec.provider] = { lastAttemptAt: options.now, nextAttemptAt, outcome: fallbackResult.outcome, attempts: (existing?.attempts ?? options.lease?.attempts ?? 0) + 1,
+              ...failure(fallbackResult.phase ?? "request", fallbackResult.outcome),
               ...(refused(fallbackResult.outcome) ? { refusalRevision: await revisionFor(spec) } : {}) };
             rows.push({ provider: spec.provider, detected: true, status: "stale", reason: expired ? CREDENTIAL_FAILURE_SENTENCE.expired : ACQUISITION_OUTCOME_SENTENCE[fallbackResult.outcome], nextAttemptAt, disclosure: spec.disclosure,
               ...(expired ? { availability: "expired_credentials" as const } : fallbackResult.outcome === "rate_limited" && nextAttemptAt ? { availability: "rate_limited" as const, retryAt: nextAttemptAt } : refusalAvailability(fallbackResult.outcome)) });
@@ -463,11 +486,12 @@ export async function runAcquisition(
             }
           }
         }
-        const nextAttemptAt = nextAttemptInstant("ok", options.now);
+        const nextAttemptAt = nextAttemptInstant("not_running", options.now);
         schedule[spec.provider] = {
           lastAttemptAt: options.now,
           nextAttemptAt: nextAttemptAt ?? options.now,
-          outcome: "drift"
+          outcome: "not_running",
+          ...failure("probe", "not_running")
         };
         rows.push({
           provider: spec.provider,
@@ -480,9 +504,11 @@ export async function runAcquisition(
         return;
       }
     }
+    phase = "credential";
     const credential = await readCredential(spec.credentialProvider);
     if (!credential.ok) {
       const absent = credential.reason === "absent";
+      delete schedule[spec.provider];
       rows.push({
         ...(credential.reason === "expired" ? { availability: "expired_credentials" as const } : {}),
         provider: spec.provider,
@@ -498,6 +524,7 @@ export async function runAcquisition(
     }
     const held = credential.credential;
     if (credentialExpired(held, Date.parse(options.now))) {
+      delete schedule[spec.provider];
       rows.push({ provider: spec.provider, detected: true, status: "stale", accountId: acquisitionAccountId(spec.provider, held), availability: "expired_credentials", reason: CREDENTIAL_FAILURE_SENTENCE.expired, nextAttemptAt: null, disclosure: spec.disclosure });
       return;
     }
@@ -506,8 +533,10 @@ export async function runAcquisition(
     const disclosure = spec.disclosureFor?.(held) ?? spec.disclosure;
     const sentence = (outcome: AcquisitionOutcome): string =>
       spec.outcomeSentence?.[outcome] ?? ACQUISITION_OUTCOME_SENTENCE[outcome];
+    phase = "request";
     const result = await attempt(spec, held, options);
     if (result.expiredCredentials) {
+      delete schedule[spec.provider];
       rows.push({ provider: spec.provider, detected: true, status: "stale", accountId: acquisitionAccountId(spec.provider, held), availability: "expired_credentials", reason: CREDENTIAL_FAILURE_SENTENCE.expired, nextAttemptAt: null, disclosure });
       return;
     }
@@ -521,7 +550,8 @@ export async function runAcquisition(
       attempts: result.outcome === "ok" ? 0 : (existing?.attempts ?? options.lease?.attempts ?? 0) + 1,
       lastAttemptAt: options.now,
       nextAttemptAt: nextAttemptAt ?? options.now,
-      outcome: result.outcome
+      outcome: result.outcome,
+      ...failure(result.phase ?? "request", result.outcome)
     };
     const snapshots: readonly Snapshot[] = result.outcome === "ok"
       ? normalizeMeters(
@@ -566,7 +596,8 @@ export async function runAcquisition(
       ...(refused(outcome) ? { refusalRevision: await revisionFor(spec) } : {}),
       lastAttemptAt: options.now,
       nextAttemptAt: nextAttemptAt ?? options.now,
-      outcome
+      outcome,
+      ...failure(result.outcome === "ok" ? "parse" : result.phase ?? "request", outcome)
     };
     rows.push({
       provider: spec.provider,
@@ -584,6 +615,7 @@ export async function runAcquisition(
     let lease: MachineLease | null = null;
     try {
       if (options.stateDirectory !== undefined && spec.enabled !== false) {
+        phase = "lease";
         lease = await acquireMachineLease(spec.provider, options.stateDirectory, options.clock?.() ?? Date.parse(options.now), await revisionFor(spec));
         if (lease === null) {
           // A borrowed Gemini login describes the same quota. Reuse the observation
@@ -617,6 +649,8 @@ export async function runAcquisition(
         reports.push(...single.reports);
         const updated = single.schedule[spec.provider];
         if (updated) schedule[spec.provider] = updated;
+        else delete schedule[spec.provider];
+        phase = "persist";
         const entry = schedule[spec.provider];
         if (entry) await lease.complete(Date.parse(entry.nextAttemptAt), entry.attempts ?? 0, entry.refusalRevision);
         for (const row of single.rows) {
@@ -625,16 +659,26 @@ export async function runAcquisition(
       } else {
         await readOne(spec);
       }
-    } catch {
+    } catch (error) {
       /*
        * The last line of defence. A provider that threw where nothing was
        * supposed to throw is that provider's drift, recorded on the ordinary
-       * cadence, and the round carries on to everybody else.
+       * cadence, and the round carries on to everybody else. It is stamped
+       * with its own instant, phase and code: five unrelated throws must not
+       * read as one shared event at the round's start.
        */
+      let failedAt = options.now;
+      try {
+        if (options.clock) failedAt = new Date(options.clock()).toISOString();
+      } catch {
+        /* A clock that throws too keeps the round's own instant. */
+      }
       schedule[spec.provider] = {
-        lastAttemptAt: options.now,
-        nextAttemptAt: nextAttemptInstant("drift", options.now) ?? options.now,
-        outcome: "drift"
+        lastAttemptAt: failedAt,
+        nextAttemptAt: nextAttemptInstant("drift", failedAt) ?? failedAt,
+        outcome: "drift",
+        phase,
+        errorClass: errorClassOf(error)
       };
       rows.push({
         provider: spec.provider,

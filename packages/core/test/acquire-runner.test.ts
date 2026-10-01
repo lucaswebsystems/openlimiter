@@ -531,6 +531,65 @@ describe("one acquisition round", () => {
     expect(ACQUISITION_DISCLOSURE.claude).toContain("off unless you turn it on");
   });
 
+  it("records five separately thrown credential reads at their own instants, phase and class", async () => {
+    /*
+     * Astra's first reproduction: every outer catch stamped the round's start,
+     * so five unrelated failures looked like one shared event. Each entry now
+     * says when it failed, in which phase, and a code that never carries the
+     * message (which could hold a path or a token).
+     */
+    let tick = Date.parse(NOW);
+    const specs = [codexSpec(() => []), kimiSpec(() => []), grokSpec(() => []), openrouterSpec(() => []), geminiCliSpec(() => [])];
+    const result = await runAcquisition(specs, {
+      clock: () => (tick += 1_000),
+      transport: async () => reply(200, {}),
+      now: NOW,
+      schedule: {},
+      readCredential: async () => {
+        throw Object.assign(new Error("could not open C:\\Users\\someone\\secret-token-value"), { code: "EACCES" });
+      }
+    });
+    const entries = specs.map((spec) => result.schedule[spec.provider]);
+    expect(new Set(entries.map((entry) => entry?.lastAttemptAt)).size).toBe(5);
+    expect(entries.map((entry) => [entry?.phase, entry?.errorClass])).toEqual(
+      specs.map(() => ["credential", "EACCES"])
+    );
+    expect(JSON.stringify(result.schedule)).not.toMatch(/secret|someone/u);
+  });
+
+  it("clears yesterday's drift when the OpenRouter key is now absent", async () => {
+    /* Astra's second reproduction: the schedule started as a copy of the old
+       one and an absent credential returned without touching its entry. */
+    const result = await runAcquisition([openrouterSpec(() => [meter("OPENROUTER")])], {
+      transport: async () => reply(200, {}),
+      now: NOW,
+      schedule: {
+        OPENROUTER: { lastAttemptAt: "2025-12-31T09:00:00.000Z", nextAttemptAt: "2025-12-31T09:15:00.000Z", outcome: "drift" }
+      },
+      readCredential: async () => ({ ok: false, reason: "absent" })
+    });
+    expect(result.schedule["OPENROUTER"]).toBeUndefined();
+    expect(result.rows[0]?.status).toBe("not_detected");
+  });
+
+  it("names the phase and class of every failure it records", async () => {
+    const cases: readonly { reply: () => Promise<AcquisitionReply>; parse: () => RawMeter[] | null; phase: string; errorClass: string }[] = [
+      { reply: async () => reply(429, {}), parse: () => [meter("KIMI")], phase: "request", errorClass: "rate_limited" },
+      { reply: async () => ({ status: 200, body: "<html>", retryAfterSeconds: null }), parse: () => [meter("KIMI")], phase: "parse", errorClass: "drift" },
+      { reply: async () => reply(200, {}), parse: () => null, phase: "parse", errorClass: "drift" }
+    ];
+    for (const scenario of cases) {
+      const result = await runAcquisition([kimiSpec(scenario.parse)], {
+        transport: scenario.reply, now: NOW, schedule: {}, readCredential: async () => credential()
+      });
+      expect([result.schedule["KIMI"]?.phase, result.schedule["KIMI"]?.errorClass]).toEqual([scenario.phase, scenario.errorClass]);
+    }
+    const ok = await runAcquisition([kimiSpec(() => [meter("KIMI")])], {
+      transport: async () => reply(200, {}), now: NOW, schedule: {}, readCredential: async () => credential()
+    });
+    expect(ok.schedule["KIMI"]?.errorClass).toBeUndefined();
+  });
+
   it("maps an outcome onto the vocabulary the cache understands", () => {
     expect(collectionReasonFor("unauthorized")).toBe("authentication");
     expect(collectionReasonFor("rate_limited")).toBe("rate_limited");

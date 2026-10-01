@@ -164,11 +164,13 @@ function windowView(row, now) {
   const hasMoney = Number.isFinite(row.usedAmount) && Number.isFinite(row.limitAmount) && typeof row.currency === "string";
   const unbounded = row.unit === "CREDITS" && !hasMoney;
   const usedPercent = unbounded ? null : Math.min(100, Math.max(0, row.value));
+  const stale = freshness(row.observedAt, row.expiresAt, now) !== "fresh";
   return {
     key: row.meter,
     label: meterLabel(row.meter, row.provider),
     usedPercent,
-    band: usedPercent === null ? "none" : bandForPercent(usedPercent),
+    observedAt: row.observedAt,
+    band: stale ? "stale" : usedPercent === null ? "none" : bandForPercent(usedPercent),
     value: hasMoney ? money(row.usedAmount, row.currency)
       : unbounded ? String(Math.floor(row.value * 100) / 100) : `${Math.floor(usedPercent)}%`,
     limit: hasMoney ? money(row.limitAmount, row.currency) : null,
@@ -198,8 +200,9 @@ function tightestFirst(windows) {
  */
 export function limitsModel(snapshots, now) {
   const providers = new Map();
-  for (const row of snapshots) {
-    if (freshness(row.observedAt, row.expiresAt, now) !== "fresh") continue;
+  /* The one projection decides what is still drawable at `now`: fresh rows,
+     and a Claude status line row held, stale, until its window resets. */
+  for (const row of projectSnapshots(snapshots, now).snapshots) {
     const code = providerCode(row.provider);
     const accounts = providers.get(code) ?? new Map();
     providers.set(code, accounts);
@@ -216,7 +219,9 @@ export function limitsModel(snapshots, now) {
       // The count stays on the line of its word: "account 2" never breaks before the 2.
       return { ...view, label: say("accountOrdinal", { label: view.label, count: index + 1 }).replace(/ (?=\d+$)/u, "\u00a0") };
     }));
-    return { code, name: providerName(code), windows: tightestFirst(windows) };
+    /* A held reading says how old it is, by its oldest stale window. */
+    const stale = windows.filter((window) => window.band === "stale").map((window) => window.observedAt).sort();
+    return { code, name: providerName(code), windows: tightestFirst(windows), age: stale.length ? updatedLabel(stale[0], now) : null };
   });
   const headline = (provider) => provider.windows[0]?.usedPercent ?? -1;
   return model.sort((left, right) => headline(right) - headline(left) || left.name.localeCompare(right.name));
@@ -312,6 +317,7 @@ export function renderLimits(doc, mount, model, { compact = false } = {}) {
     group.setAttribute("aria-label", provider.name);
     const head = node(doc, "div", "q-prov");
     head.append(markNode(doc, provider.code), node(doc, "span", "q-pname", provider.name));
+    if (provider.age) head.append(node(doc, "span", "q-age", provider.age));
     group.append(head, ...provider.windows.map((window) => limitRow(doc, window, compact)));
     return group;
   }));
@@ -334,6 +340,11 @@ export function updatedLabel(instant, now) {
  * itself (the person signs in there, then checks again), or "none".
  */
 export function fixWords(flag, route) {
+  /* Two Claude states say what actually happened, not a generic refresh. */
+  if (flag.reason === "account_unresolved") {
+    return { issue: "fixSignInAgainIssue", detail: "fixToolDetail", action: route === "connect" ? "fixSignInAction" : "fixOpenAppAction" };
+  }
+  if (flag.reason === "awaiting_statusline") return { issue: "fixWaitingIssue", detail: "fixWaitingDetail", action: "fixOpenAppAction" };
   if (flag.fixKind === "unsupported" || route === "none") {
     return { issue: "fixUnsupportedIssue", detail: "fixUnsupportedDetail", action: null };
   }
@@ -362,7 +373,7 @@ export function renderAttention(doc, mount, flags, { fix, route = () => "rescan"
     const text = node(doc, "div", "q-ftext");
     const title = node(doc, "div", "q-fname");
     const issue = node(doc, "span", "q-issue");
-    issue.append(art(doc, "q-sico", ALERT_ICON), node(doc, "span", "", say(words.issue)));
+    issue.append(art(doc, "q-sico", ALERT_ICON), node(doc, "span", "", say(words.issue, { name })));
     title.append(node(doc, "span", "q-fname-text", name), issue);
     const detail = node(doc, "p", "q-fdetail", say(words.detail, { name }));
     text.append(title, detail);

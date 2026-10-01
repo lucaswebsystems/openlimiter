@@ -1434,7 +1434,7 @@ export function showAttention(flags) {
   const section = document.getElementById("needs-attention");
   const rows = document.getElementById("attention-rows");
   if (!section || !rows) return;
-  const key = JSON.stringify(flags.map((flag) => [flag.provider, flag.fixKind]));
+  const key = JSON.stringify(flags.map((flag) => [flag.provider, flag.fixKind, flag.reason]));
   if (key !== session.attentionKey) {
     session.attentionKey = key;
     renderAttention(document, rows, flags, { fix: fixAttention, route: attentionRoute });

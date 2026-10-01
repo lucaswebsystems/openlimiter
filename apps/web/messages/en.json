@@ -64,6 +64,9 @@
     "addTool": "Add a tool",
     "accountsNone": "Keys and logins you add appear here. On Free, one account per provider stays active.",
     "fixToolDetail": "Sign in to {name} on this computer, then check again.",
+    "fixSignInAgainIssue": "Sign in again",
+    "fixWaitingIssue": "Waiting for {name}",
+    "fixWaitingDetail": "The last window reset. Use {name} once and its limits show again.",
     "meterFallback": "Limit",
     "cacheUnreadable": "The saved readings could not be read just now, so only readings that are still fresh are shown."
   },

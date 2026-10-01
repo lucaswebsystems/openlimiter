@@ -30,8 +30,8 @@ export interface ConnectionFlag {
 
 export function fixKind(reason: string): FixKind {
   if (reason === "disabled") return "switch_on";
-  if (reason === "missing_credentials") return "sign_in";
-  if (["expired_credentials", "stale", "rate_limited", "network_failure", "not_measured"].includes(reason)) return "open_app";
+  if (reason === "missing_credentials" || reason === "account_unresolved") return "sign_in";
+  if (["expired_credentials", "stale", "rate_limited", "network_failure", "not_measured", "awaiting_statusline"].includes(reason)) return "open_app";
   if (["quota_unavailable", "unlimited", "placeholder", "schema_drift"].includes(reason)) return "unsupported";
   return "reconnect";
 }
@@ -44,14 +44,37 @@ export function displayReason(row: Snapshot, now: string): string | null {
   return null;
 }
 
+/** A reading Claude Code handed its status line. Rust twin: data_rules::claude_statusline. */
+function claudeStatusline(row: Snapshot): boolean {
+  return row.provider === "CLAUDE" && row.provenance?.sourceKind === "statusline_payload" &&
+    row.provenance.observedVia === "claude_code_statusline";
+}
+
+/**
+ * Freshness is not visibility, for Claude status line rows only.
+ *
+ * Claude Code writes them only while it runs, so an idle session would lose
+ * its card after two minutes. A stale row stays displayable (its age shows)
+ * until its window resets; after that the honest answer is waiting for Claude
+ * Code, never a number nobody measured.
+ */
+function heldReason(row: Snapshot, reason: string | null, now: string): string | null {
+  const current = Date.parse(now);
+  if (reason !== "stale" || !claudeStatusline(row) || !(Date.parse(row.observedAt) <= current)) return reason;
+  return current < Date.parse(row.resetAt ?? "") ? null : "awaiting_statusline";
+}
+
 /** Active identities come from credentials or connections, never observation age. */
 export function projectSnapshots(rows: readonly Snapshot[], now: string, active?: ReadonlyMap<string, ReadonlySet<string>>): { snapshots: Snapshot[]; flags: ConnectionFlag[] } {
   const snapshots: Snapshot[] = [];
   const flags = new Map<string, ConnectionFlag>();
   for (const row of rows) {
     const accounts = active?.get(row.provider);
+    /* An anonymous status line row cannot be attributed, so it is never shown;
+       its fix is a fresh Claude sign in that writes the account down. */
     const reason = row.availability ?? (accounts !== undefined && (!row.accountId || !accounts.has(row.accountId))
-      ? "account_not_connected" : displayReason(row, now));
+      ? (!row.accountId && claudeStatusline(row) ? "account_unresolved" : "account_not_connected")
+      : heldReason(row, displayReason(row, now), now));
     if (reason === null) snapshots.push({ ...row, expiresAt: freshnessPolicy({ ...row, sourceClass: row.source, now }).expiresAt });
     else flags.set([row.provider, row.accountId, reason].join(":"), {
       provider: row.provider, ...(row.accountId ? { accountId: row.accountId } : {}), reason, fixKind: fixKind(reason)

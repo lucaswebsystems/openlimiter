@@ -64,6 +64,9 @@
     "addTool": "Tool hinzufügen",
     "accountsNone": "Schlüssel und Anmeldungen, die du hinzufügst, erscheinen hier. Mit Free bleibt ein Konto pro Anbieter aktiv.",
     "fixToolDetail": "Melde dich auf diesem Computer bei {name} an und prüfe dann erneut.",
+    "fixSignInAgainIssue": "Erneut anmelden",
+    "fixWaitingIssue": "Warten auf {name}",
+    "fixWaitingDetail": "Das letzte Fenster wurde zurückgesetzt. Nutze {name} einmal, dann erscheinen die Limits wieder.",
     "meterFallback": "Limit",
     "cacheUnreadable": "Die gespeicherten Messungen konnten gerade nicht gelesen werden, daher werden nur noch aktuelle Messungen angezeigt."
   },
