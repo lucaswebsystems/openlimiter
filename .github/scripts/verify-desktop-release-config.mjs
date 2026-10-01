@@ -183,6 +183,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
         `${name} must be a nonempty release variable`,
       );
     }
+    /* The same two rules account.rs configured() applies at run time. 2.0.2
+       shipped a legacy JWT anon key, so every desktop sign in answered "not
+       configured"; a release now stops here instead. */
+    const supabase = URL.parse(process.env.OPENLIMITER_SUPABASE_URL.trim());
+    requireCondition(supabase?.protocol === "https:" && supabase.pathname === "/", "OPENLIMITER_SUPABASE_URL must be an https origin");
+    requireCondition(process.env.OPENLIMITER_SUPABASE_ANON_KEY.trim().startsWith("sb_publishable_"), "OPENLIMITER_SUPABASE_ANON_KEY must be a publishable key (sb_publishable_)");
   }
 
   console.log("Desktop release configuration verified");

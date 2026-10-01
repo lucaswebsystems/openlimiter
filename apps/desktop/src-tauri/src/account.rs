@@ -53,12 +53,14 @@ const SYNC_RESUME_WINDOW_HOURS: i64 = 23;
 /// The longest entitlement token this window will put on the wire.
 const MAX_ENTITLEMENT_BYTES: usize = 8_192;
 
+/* Trimmed: a build variable saved with a trailing newline must not turn into
+an invalid apikey header. */
 fn configured_url() -> &'static str {
-    option_env!("OPENLIMITER_SUPABASE_URL").unwrap_or("")
+    option_env!("OPENLIMITER_SUPABASE_URL").unwrap_or("").trim()
 }
 
 fn configured_key() -> &'static str {
-    option_env!("OPENLIMITER_SUPABASE_ANON_KEY").unwrap_or("")
+    option_env!("OPENLIMITER_SUPABASE_ANON_KEY").unwrap_or("").trim()
 }
 
 #[derive(Clone, Copy, Debug, Serialize)]
