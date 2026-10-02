@@ -160,6 +160,8 @@ export function usageSamplesFromSnapshots(
     if (snapshot.unit !== "PERCENT") continue;
     if (EXCLUDED_USAGE_METERS.has(snapshot.meter)) continue;
     if (snapshot.kind === "runtime_info") continue;
+    // A row carrying availability could not be read: never a number (types.ts).
+    if (snapshot.availability !== undefined) continue;
     if (!Number.isFinite(snapshot.value) || snapshot.value < 0 || snapshot.value > 100) continue;
     const accountId = accountIdOf(snapshot);
     if (accountId === null) continue;

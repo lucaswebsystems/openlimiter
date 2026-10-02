@@ -189,6 +189,14 @@ describe("usageSamplesFromSnapshots", () => {
     expect(rows[0]?.account_id).toBe("default");
   });
 
+  it("never uploads a reading that carries availability, whatever its value", () => {
+    const rows = usageSamplesFromSnapshots([
+      usageSnapshot({ provider: "OPENROUTER", meter: "CREDITS", value: 62.35, availability: "expired_credentials" }),
+      usageSnapshot(),
+    ], NOW);
+    expect(rows.map((row) => row.meter)).toEqual(["FIVE_HOUR"]);
+  });
+
   it("never uploads acquisition status as a quota meter", () => {
     const rows = usageSamplesFromSnapshots([
       usageSnapshot({ meter: "ACQUISITION", value: 0 }),

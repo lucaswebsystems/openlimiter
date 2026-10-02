@@ -864,6 +864,10 @@ fn usage_samples_from_cache(
         if snapshot.get("kind").and_then(serde_json::Value::as_str) == Some("runtime_info") {
             continue;
         }
+        // A row carrying availability could not be read, so it is never a number.
+        if snapshot.get("availability").is_some_and(|value| !value.is_null()) {
+            continue;
+        }
         let Some(provider) = snapshot.get("provider").and_then(serde_json::Value::as_str) else {
             continue;
         };
@@ -2585,6 +2589,12 @@ mod tests {
         let document = serde_json::json!({ "snapshots": [{
             "provider": "CLAUDE", "meter": "DIAGNOSTIC", "kind": "runtime_info",
             "unit": "PERCENT", "value": 70.0, "resetAt": null,
+            "observedAt": "2026-09-07T11:59:30.000Z",
+            "expiresAt": "2026-09-07T12:14:30.000Z"
+        }, {
+            // Unreadable, so never a number, whatever value it carries.
+            "provider": "CLAUDE", "meter": "SEVEN_DAY", "availability": "expired_credentials",
+            "unit": "PERCENT", "value": 62.35, "resetAt": null,
             "observedAt": "2026-09-07T11:59:30.000Z",
             "expiresAt": "2026-09-07T12:14:30.000Z"
         }]});
