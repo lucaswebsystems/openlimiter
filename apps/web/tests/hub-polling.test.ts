@@ -27,14 +27,16 @@ describe("the background poll's cadence", () => {
     const providers: SyncedProviderUsage[] = [
       {
         provider: "CLAUDE",
-        accountLabel: "work",
+        accountId: "claude-work",
+        accountLabel: "Work",
         windows: [
           { windowName: "FIVE_HOUR", percentage: 10, resetAt: null, observedAt: new Date(NOW - 10_000).toISOString(), stale: false },
         ],
       },
       {
         provider: "CODEX",
-        accountLabel: "work",
+        accountId: "codex-work",
+        accountLabel: "Work",
         windows: [
           { windowName: "PRIMARY", percentage: 20, resetAt: null, observedAt: new Date(NOW - 1_000).toISOString(), stale: false },
           { windowName: "SECONDARY", percentage: 5, resetAt: null, observedAt: new Date(NOW - 20_000).toISOString(), stale: false },
@@ -47,7 +49,7 @@ describe("the background poll's cadence", () => {
   it("has nothing to report for an account with no synced windows", () => {
     expect(mostRecentObservedAt([])).toBeNull();
     expect(
-      mostRecentObservedAt([{ provider: "CLAUDE", accountLabel: "work", windows: [] }]),
+      mostRecentObservedAt([{ provider: "CLAUDE", accountId: "claude-work", accountLabel: "Work", windows: [] }]),
     ).toBeNull();
   });
 });

@@ -17,6 +17,7 @@
     "moneyOf": "de {amount}",
     "creditsSpent": "créditos gastados",
     "accountOrdinal": "{label}, cuenta {count}",
+    "accountFallback": "Cuenta {count}",
     "updatedJustNow": "Actualizado ahora mismo",
     "updatedMinutes": "Actualizado hace {count} min",
     "updatedHours": "Actualizado hace {count} h",
@@ -2164,7 +2165,7 @@
       "getDesktop": "Descargar para escritorio",
       "close": "Cerrar"
     },
-    "syncedSpend": { "sourceThrough": "Sincronización del escritorio: {provider}, {account}, de {start} a {end}", "sourceUpTo": "Sincronización del escritorio: {provider}, {account}, de {start} hasta {end}" },
+    "syncedSpend": { "sourceThrough": "Sincronización del escritorio: {provider}, {account}, de {start} a {end}", "sourceUpTo": "Sincronización del escritorio: {provider}, {account}, de {start} hasta {end}", "sourceThroughSingle": "Sincronización del escritorio: {provider}, de {start} a {end}", "sourceUpToSingle": "Sincronización del escritorio: {provider}, de {start} hasta {end}" },
     "addAccount": "Agregar cuenta",
     "configuration": "Configuración",
     "backToBars": "Volver a las barras",

@@ -261,7 +261,7 @@ test("the tick reaches the track only through that projection", () => {
   assert.match(css, /\.tray-pace \{[\s\S]*?position: absolute;/u);
 });
 
-test("an unknown reading loses its number and its clock, and wears the hatch", () => {
+test("an unknown reading loses its number and its clock", () => {
   const built = buildRow(snapshot(), "unknown", alwaysGreen);
   assert.equal(built.value, null);
   assert.equal(built.resetAt, null);
@@ -278,7 +278,7 @@ test("an unknown reading loses its number and its clock, and wears the hatch", (
   );
 });
 
-test("a merely stale reading keeps the number it had and still wears the hatch", () => {
+test("a merely stale reading keeps the number it had", () => {
   const built = buildRow(snapshot(), "stale", alwaysGreen);
   assert.equal(built.value, 73.4);
   assert.equal(built.band, "stale");
@@ -289,16 +289,13 @@ test("a merely stale reading keeps the number it had and still wears the hatch",
   assert.equal(resetCellText(built, null), COPY.noReset);
 });
 
-test("the stylesheet paints the hatch for every row the renderer bands stale", () => {
+test("the stylesheet keeps stale width with a flat grey fill", () => {
   const css = read("tray.css");
   assert.match(
     css,
-    /\.tray-row\[data-band="stale"\] \.tray-meter \{\s*background: var\(--ol-band-hatched-pattern\);\s*\}/u,
+    /\.tray-row\[data-band="stale"\] \.tray-meter-fill \{[\s\S]*?background: var\(--ol-band-stale-fill\);[\s\S]*?opacity:/u,
   );
-  assert.match(
-    css,
-    /\.tray-row\[data-band="stale"\] \.tray-meter-fill \{\s*background: transparent;\s*\}/u,
-  );
+  assert.doesNotMatch(css, /hatched|repeating-linear-gradient/u);
   /* Both freshness states arrive at that one selector. */
   for (const state of ["stale", "unknown"]) {
     assert.equal(buildRow(snapshot(), state, alwaysGreen).band, "stale");

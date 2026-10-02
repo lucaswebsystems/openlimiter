@@ -36,6 +36,7 @@ export interface ProviderWindowView {
   detail: string;
   resetLabel: string | null;
   accessibleLabel: string;
+  updatedLabel: string | null;
 }
 
 export interface ProviderAccountRowView {
@@ -59,6 +60,8 @@ export interface ProviderAccountRowView {
 export interface ProviderRowOptions {
   demo?: boolean;
   providers?: readonly ProviderCode[];
+  accountLabel?: (accountId: string | null, count: number) => string;
+  updatedLabel?: (observedAt: string) => string | null;
 }
 
 const PROVIDER_NAMES: Record<ProviderCode, string> = {
@@ -181,7 +184,7 @@ const WINDOW_RANK: Readonly<Record<string, number>> = {
  * `tone` answers how much headroom is left and `state` answers whether the
  * reading can be trusted at all. A stale reading has no band, whatever its
  * last number was, so distrust wins over pressure here and the meter is drawn
- * hatched rather than coloured. Colour alone never carries the answer: every
+ * in a quiet flat grey. Colour alone never carries the answer: every
  * band ships a shape beside the percentage, which is what keeps the meter
  * legible in greyscale and to a person who does not separate red from green.
  */
@@ -379,7 +382,11 @@ function sourceLine(snapshot: Snapshot): string {
     : SOURCE_LABELS[snapshot.source] + ", " + precision;
 }
 
-function toWindowView(snapshot: Snapshot, now: string): ProviderWindowView {
+function toWindowView(
+  snapshot: Snapshot,
+  now: string,
+  updatedLabel: ProviderRowOptions["updatedLabel"],
+): ProviderWindowView {
   const state = freshness(snapshot.observedAt, snapshot.expiresAt, now);
   const label = windowName(snapshot.meter, snapshot.provider);
   const usedPercent = state === "unknown" ? null : clampPercent(snapshot.value);
@@ -400,6 +407,7 @@ function toWindowView(snapshot: Snapshot, now: string): ProviderWindowView {
       detail: "No reading",
       resetLabel,
       accessibleLabel: label + ", no reliable reading",
+      updatedLabel: updatedLabel?.(snapshot.observedAt) ?? null,
     };
   }
 
@@ -443,7 +451,14 @@ function toWindowView(snapshot: Snapshot, now: string): ProviderWindowView {
     detail,
     resetLabel,
     accessibleLabel: label + ", " + readout + ", " + detail + reset,
+    updatedLabel: updatedLabel?.(snapshot.observedAt) ?? null,
   };
+}
+
+function safeAccountLabel(snapshot: Snapshot | undefined, accountId: string | null): string | null {
+  const label = snapshot?.accountLabel?.trim() ?? "";
+  if (label === "" || label === accountId || label.includes("@") || label === "default") return null;
+  return label;
 }
 
 function compareAccountIds(left: string | null, right: string | null): number {
@@ -517,7 +532,7 @@ export function buildProviderAccountRows(
     }
 
     const accountIds = [...groups.keys()].sort(compareAccountIds);
-    for (const accountId of accountIds) {
+    for (const [accountIndex, accountId] of accountIds.entries()) {
       const accountSnapshots = [...(groups.get(accountId) ?? [])].sort(
         compareWindows
       );
@@ -530,11 +545,13 @@ export function buildProviderAccountRows(
         provider,
         providerLabel: PROVIDER_NAMES[provider],
         accountId,
-        accountLabel: lead?.accountLabel ?? accountId ?? "Local account",
+        accountLabel: safeAccountLabel(lead, accountId) ??
+          options.accountLabel?.(accountId, accountIndex + 1) ??
+          "Account " + String(accountIndex + 1),
         showAccountLabel: groups.size > 1,
         sourceLabel: lead === undefined ? null : sourceLine(lead),
         windows: accountSnapshots.map((snapshot) =>
-          toWindowView(snapshot, now)
+          toWindowView(snapshot, now, options.updatedLabel)
         ),
         fallback: null,
         failure: failureByProvider.get(provider) ?? null,
@@ -652,6 +669,9 @@ function compactResetLabel(resetLabel: string | null): string {
 
 function windowLineMarkup(window: ProviderWindowView): string {
   const reset = compactResetLabel(window.resetLabel);
+  const updated = window.updatedLabel === null
+    ? ""
+    : '<small class="window-updated">' + escapeText(window.updatedLabel) + "</small>";
   return (
     '<div class="window-line" data-tone="' +
     window.tone +
@@ -665,7 +685,7 @@ function windowLineMarkup(window: ProviderWindowView): string {
     '<span class="window-name" title="' +
     escapeText(window.label) +
     '">' +
-    escapeText(window.label) +
+    escapeText(window.label) + updated +
     "</span>" +
     meterMarkup(window, "window-meter") +
     '<span class="window-readout">' +
@@ -684,9 +704,12 @@ export function providerTableHeaderMarkup(): string {
 }
 
 export function providerRowMarkup(row: ProviderAccountRowView): string {
+  const accessibleName = row.showAccountLabel
+    ? row.providerLabel + ", " + row.accountLabel
+    : row.providerLabel;
   return (
     '<article class="row" aria-label="' +
-    escapeText(row.providerLabel + ", " + row.accountLabel) +
+    escapeText(accessibleName) +
     '">' +
     '<header class="identity"><span class="identity-name">' +
     '<span class="mark" aria-hidden="true">' +
@@ -731,7 +754,6 @@ const PROVIDER_ROW_STYLE = `
   --row-high-label: var(--ol-band-orange-label, var(--row-high));
   --row-critical-label: var(--ol-band-red-label, var(--row-critical));
   --row-stale-label: var(--ol-band-stale-label, var(--ol-muted, var(--muted)));
-  --row-hatched: var(--ol-band-hatched-pattern, var(--ol-track, var(--track)));
   --row-track: var(--ol-meter-empty, var(--meter-empty));
   --row-ghost: var(--ol-meter-ghost, var(--meter-ghost));
   --row-accent: var(--ol-accent, var(--accent));
@@ -882,6 +904,13 @@ const PROVIDER_ROW_STYLE = `
   color: var(--row-soft);
   font-size: var(--ol-text-body);
 }
+.window-updated {
+  display: block;
+  margin-top: var(--ol-space-1);
+  color: var(--row-muted);
+  font-size: var(--ol-text-micro);
+  font-weight: var(--ol-weight-normal);
+}
 .window-meter {
   position: relative;
   display: block;
@@ -903,13 +932,11 @@ const PROVIDER_ROW_STYLE = `
   background: transparent;
   box-shadow: inset 0 0 0 1px var(--row-hairline-strong);
 }
-/* A stale window is hatched across the whole track, not a faded colour bar.
-   The last number is still printed beside it, and the hatch is what says the
-   number is old. Fading the fill would have quietly broken its contrast. */
-.window-line[data-band="stale"] .window-meter {
-  background: var(--row-hatched);
+/* A stale window keeps the measured width in a quiet flat grey. */
+.window-line[data-band="stale"] .meter-fill {
+  background: var(--ol-band-stale-fill, var(--row-ghost));
+  opacity: 0.68;
 }
-.window-line[data-band="stale"] .meter-fill { background: transparent; }
 .window-readout {
   display: inline-flex;
   min-width: 0;

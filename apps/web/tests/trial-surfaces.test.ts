@@ -320,7 +320,7 @@ describe("the lock card", () => {
     expect(byText(view.container, "button", pro.prices.take)).not.toBeNull();
   });
 
-  it("hatches the horizon behind a plan that has ended", () => {
+  it("mutes the horizon behind a plan that has ended", () => {
     const view = lock(entitlement());
     expect(view.container.textContent).toContain(pro.expired.title);
     expect(view.container.textContent).toContain(pro.expired.lead);

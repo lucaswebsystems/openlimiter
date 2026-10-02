@@ -28,8 +28,8 @@
     "connectors/index.ts": "cb259accae69925b",
     "adapters/claude-code.ts": "d6d1183bd8093600",
     "ui/provider-connect.ts": "ac27de48b19b41e8",
-    "ui/provider-row.ts": "f68d629605d40072",
-    "ui/tokens.css": "413c0be6178ac150",
+    "ui/provider-row.ts": "940c2caa7c03f5f5",
+    "ui/tokens.css": "a9e371e5f642eb50",
     "provider_specs/provider-specs.json": "e2c36e16cda59ca6"
   }
 }

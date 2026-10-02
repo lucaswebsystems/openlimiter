@@ -8,7 +8,7 @@
  * splits the rows exactly the way the contract does:
  *
  *   a row with a percentage becomes an engine snapshot, so the phone renders it
- *   through the same bar, the same bands and the same stale hatch the desktop
+ *   through the same bar, the same bands and the same stale grey the desktop
  *   and the browser dashboard already use;
  *
  *   a row with only money, which is a spend meter or one of the three balance
@@ -124,7 +124,7 @@ export function amountRows(row: readonly MeterRow[], providers: readonly string[
 /**
  * A percentage row as the engine's own snapshot shape.
  *
- * The expiry is what makes the bar hatch: a row the service marked stale is
+ * The expiry is what selects the stale state: a row the service marked stale is
  * given an expiry equal to its own observation, so the freshness rule reads it
  * as stale without any surface having to special case it.
  */

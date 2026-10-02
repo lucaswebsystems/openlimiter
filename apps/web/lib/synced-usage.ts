@@ -27,13 +27,15 @@ export interface SyncedUsageWindow {
 
 export interface SyncedProviderUsage {
   provider: string;
-  accountLabel: string;
+  accountId: string;
+  accountLabel: string | null;
   windows: SyncedUsageWindow[];
 }
 
 export interface SyncedApiSpend {
   provider: string;
-  accountLabel: string;
+  accountId: string;
+  accountLabel: string | null;
   currency: string;
   amountMinor: number;
   periodStart: string;
@@ -57,6 +59,7 @@ interface UsageRow {
   resets_at: string | null;
   observed_at: string;
   stale: boolean;
+  account_label: string | null;
 }
 
 export function createSyncClient(): SupabaseClient | null {
@@ -70,6 +73,14 @@ function instantOf(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const milliseconds = Date.parse(value);
   return Number.isFinite(milliseconds) ? new Date(milliseconds).toISOString() : null;
+}
+
+function accountLabelOf(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const label = value.trim();
+  return label !== "" && label.length <= 80 && !/[\u0000-\u001f\u007f]/u.test(label)
+    ? label
+    : null;
 }
 
 function currencyOf(value: unknown): string | null {
@@ -137,6 +148,7 @@ function rowOf(value: unknown): UsageRow | null {
     resets_at: resetsAt,
     observed_at: observedAt,
     stale: row.stale === true,
+    account_label: accountLabelOf(row.account_label),
   };
 }
 
@@ -157,7 +169,8 @@ export function groupLatestSyncedUsage(values: unknown[]): SyncedProviderUsage[]
     const key = `${row.provider}${row.account_id}`;
     const provider = providers.get(key) ?? {
       provider: row.provider,
-      accountLabel: row.account_id,
+      accountId: row.account_id,
+      accountLabel: row.account_label,
       windows: [],
     };
     provider.windows.push({
@@ -179,7 +192,7 @@ export function groupLatestSyncedUsage(values: unknown[]): SyncedProviderUsage[]
     }))
     .sort((left, right) =>
       left.provider.localeCompare(right.provider) ||
-      left.accountLabel.localeCompare(right.accountLabel)
+      left.accountId.localeCompare(right.accountId)
     );
 }
 
@@ -212,7 +225,8 @@ export function apiSpendOf(value: unknown): SyncedApiSpend | null {
   }
   return {
     provider,
-    accountLabel: accountId,
+    accountId,
+    accountLabel: accountLabelOf(row.account_label),
     currency,
     amountMinor,
     periodStart,
@@ -227,7 +241,7 @@ export function readableApiSpend(values: unknown[]): SyncedApiSpend[] {
     .filter((row): row is SyncedApiSpend => row !== null)
     .sort((left, right) =>
       left.provider.localeCompare(right.provider) ||
-      left.accountLabel.localeCompare(right.accountLabel)
+      left.accountId.localeCompare(right.accountId)
     );
 }
 

@@ -17,6 +17,7 @@
     "moneyOf": "{amount} 中",
     "creditsSpent": "クレジット使用済み",
     "accountOrdinal": "{label}、アカウント {count}",
+    "accountFallback": "アカウント {count}",
     "updatedJustNow": "たった今更新",
     "updatedMinutes": "{count} 分前に更新",
     "updatedHours": "{count} 時間前に更新",
@@ -2164,7 +2165,7 @@
       "getDesktop": "デスクトップアプリを入手",
       "close": "閉じる"
     },
-    "syncedSpend": { "sourceThrough": "デスクトップから同期：{provider}、{account}、{start}から{end}まで", "sourceUpTo": "デスクトップから同期：{provider}、{account}、{start}から{end}まで" },
+    "syncedSpend": { "sourceThrough": "デスクトップから同期：{provider}、{account}、{start}から{end}まで", "sourceUpTo": "デスクトップから同期：{provider}、{account}、{start}から{end}まで", "sourceThroughSingle": "デスクトップから同期：{provider}、{start}から{end}まで", "sourceUpToSingle": "デスクトップから同期：{provider}、{start}から{end}まで" },
     "addAccount": "アカウントを追加",
     "configuration": "設定",
     "backToBars": "バー表示に戻る",

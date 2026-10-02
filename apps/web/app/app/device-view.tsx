@@ -9,7 +9,7 @@ import {
   type Snapshot,
 } from "./engine";
 import { LiveMeter } from "./live-meter";
-import { HeaderStrip, Panel, ProviderRows, SkeletonRows } from "./pieces";
+import { HeaderStrip, Panel, ProviderRows, SkeletonRows, observationAgeMinutes } from "./pieces";
 import { meterName } from "./language";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { clearDeviceSession, readDeviceSession } from "@/lib/device-session";
@@ -21,6 +21,8 @@ import {
   type MeterRow,
 } from "@/lib/device-snapshots";
 import { readDeviceSnapshots } from "@/lib/pro-device";
+import { useTranslations } from "next-intl";
+import { visibleQuotaSnapshots } from "./live-usage";
 
 /**
  * The dashboard, for a phone that was paired rather than signed in.
@@ -77,6 +79,7 @@ export function DeviceView({ lockup }: { lockup: ReactNode }) {
   const [now, setNow] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const locale = useRef("en");
+  const readingsT = useTranslations("desktopReadings");
 
   useEffect(() => {
     locale.current = navigator.language || "en";
@@ -120,9 +123,25 @@ export function DeviceView({ lockup }: { lockup: ReactNode }) {
     };
   }, [read]);
 
+  const shown = useMemo(
+    () => now === null
+      ? []
+      : visibleQuotaSnapshots(snapshots, now, (count) => readingsT("accountFallback", { count })),
+    [snapshots, now, readingsT],
+  );
+
   const rows = useMemo(
-    () => (now === null ? [] : buildProviderAccountRows(snapshots, now, [], {})),
-    [snapshots, now],
+    () => (now === null ? [] : buildProviderAccountRows(shown, now, [], {
+      accountLabel: (_accountId, count) => readingsT("accountFallback", { count }),
+      updatedLabel: (observedAt) => {
+        const age = observationAgeMinutes(observedAt, now);
+        if (age === null || age < 5) return null;
+        if (age < 60) return readingsT("updatedMinutes", { count: age });
+        if (age < 1_440) return readingsT("updatedHours", { count: Math.floor(age / 60) });
+        return readingsT("updatedDays", { count: Math.floor(age / 1_440) });
+      },
+    })),
+    [shown, now, readingsT],
   );
 
   return (
@@ -161,8 +180,8 @@ export function DeviceView({ lockup }: { lockup: ReactNode }) {
       {state === "ready" && (
         <div className="ol-panel">
           <div className="ol-home-stack">
-            {snapshots.length > 0 && now !== null && (
-              <LiveMeter snapshots={snapshots} now={now} demo={false} />
+            {shown.length > 0 && now !== null && (
+              <LiveMeter snapshots={shown} now={now} demo={false} />
             )}
             <ProviderRows rows={rows} />
             {money.length > 0 && (
@@ -177,7 +196,7 @@ export function DeviceView({ lockup }: { lockup: ReactNode }) {
                 </div>
               </Panel>
             )}
-            {snapshots.length === 0 && money.length === 0 && (
+            {shown.length === 0 && money.length === 0 && (
               <Notice title="Nothing has synced yet">
                 <p>
                   This account has no reading to show on a phone. Open OpenLimiter on the computer

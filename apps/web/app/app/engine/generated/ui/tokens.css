@@ -90,17 +90,6 @@
   /* Text on a yellow fill, as on Show app: 7.9:1 dark, 4.6:1 light. */
   --ol-on-band-yellow: #09090b;
 
-  /* Stale is drawn, not tinted. A hatch reads as "no live reading" at a
-     glance and survives greyscale, which a desaturated colour does not. */
-  --ol-band-hatched-pattern: repeating-linear-gradient(
-    45deg,
-    #72839b 0,
-    #72839b 6px,
-    #202b3b 6px,
-    #202b3b 12px
-  );
-  --ol-band-hatched-label: var(--ol-band-stale-label);
-
   /* The old ramp names now resolve to the bands, so every surface that
      already consumes them moves together and none of them matches by hand. */
   --ol-meter-ok: var(--ol-band-green-fill);
@@ -228,8 +217,6 @@
     0 20px 64px rgb(0 0 0 / 0.24);
   --ol-shadow-sheet: 0 24px 60px -24px rgb(0 0 0 / 0.6);
   --ol-shadow-floating: 0 8px 20px -10px rgb(0 0 0 / 0.6);
-  --ol-meter-hatched-pattern: var(--ol-band-hatched-pattern);
-
   /* Mechanical motion */
   --ol-motion-fast: 120ms;
   --ol-motion-base: 180ms;
@@ -329,13 +316,6 @@
   --ol-on-band-yellow: #ffffff;
   --ol-link: var(--ol-accent-hover);
   --ol-shadow-float: 0 4px 12px rgb(13 22 35 / 0.16);
-  --ol-band-hatched-pattern: repeating-linear-gradient(
-    45deg,
-    #617087 0,
-    #617087 6px,
-    #d7e1ee 6px,
-    #d7e1ee 12px
-  );
   --ol-meter-ghost: #aebed1;
   --ol-live: var(--ol-accent);
   --ol-live-soft: var(--ol-accent-subtle);

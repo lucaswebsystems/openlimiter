@@ -111,7 +111,7 @@ describe("band rendering", () => {
     }
   });
 
-  it("marks the stale band on the element the stylesheet hatches", () => {
+  it("marks the stale band on the element the stylesheet flattens", () => {
     const markup = markupAt(
       42,
       "2026-09-01T09:00:00.000Z",
@@ -169,9 +169,11 @@ describe("band tokens", () => {
     }
   });
 
-  it("hatches the stale track in both themes", () => {
-    expect(dark).toContain("--ol-band-hatched-pattern: repeating-linear-gradient(");
-    expect(light).toContain("--ol-band-hatched-pattern: repeating-linear-gradient(");
+  it("retires every stripe token and keeps a flat stale fill", () => {
+    expect(TOKENS).not.toContain("repeating-linear-gradient(");
+    expect(TOKENS).not.toContain("hatched-pattern");
+    expect(dark).toContain("--ol-band-stale-fill: #72839b;");
+    expect(light).toContain("--ol-band-stale-fill: #617087;");
   });
 
   it("leaves no blue ramp behind on the meter names", () => {

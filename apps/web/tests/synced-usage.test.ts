@@ -170,7 +170,8 @@ describe("the read path", () => {
       providers: [
         {
           provider: "CLAUDE",
-          accountLabel: "claude-personal",
+          accountId: "claude-personal",
+          accountLabel: null,
           windows: [
             {
               windowName: "FIVE_HOUR",
@@ -190,7 +191,8 @@ describe("the read path", () => {
         },
         {
           provider: "CODEX",
-          accountLabel: "codex-personal",
+          accountId: "codex-personal",
+          accountLabel: null,
           windows: [
             {
               windowName: "PRIMARY_WINDOW",
@@ -231,7 +233,8 @@ describe("the read path", () => {
     if (!result.ok) return;
 
     const claude = result.providers.find((provider) => provider.provider === "CLAUDE");
-    expect(claude?.accountLabel).toBe("claude-personal");
+    expect(claude?.accountId).toBe("claude-personal");
+    expect(claude?.accountLabel).toBeNull();
     expect(claude?.windows.map((window) => window.windowName)).toEqual([
       "FIVE_HOUR",
       "SEVEN_DAY_FABLE",
@@ -296,7 +299,8 @@ describe("the spend read path", () => {
       sources: [
         {
           provider: "OPENROUTER",
-          accountLabel: "openrouter-personal",
+          accountId: "openrouter-personal",
+          accountLabel: null,
           currency: "USD",
           amountMinor: 4090,
           periodStart: "2026-09-01T00:00:00.000Z",

@@ -169,16 +169,6 @@
   --ol-band-stale-label: #929ead;
   --ol-band-stale-subtle: rgb(114 131 155 / 0.14);
 
-  --ol-meter-hatched-pattern: repeating-linear-gradient(
-    45deg,
-    #72839b 0,
-    #72839b 6px,
-    #202b3b 6px,
-    #202b3b 12px
-  );
-  --ol-band-hatched-pattern: var(--ol-meter-hatched-pattern);
-  --ol-band-hatched-label: var(--ol-band-stale-label);
-
   --ol-announce: var(--ol-accent-solid);
   --ol-announce-fg: var(--ol-on-accent);
   --ol-announce-h: var(--ol-control-height);
@@ -209,15 +199,6 @@
   --ol-band-stale-label: #46566b;
   --ol-band-stale-subtle: rgb(97 112 135 / 0.14);
 
-  --ol-meter-hatched-pattern: repeating-linear-gradient(
-    45deg,
-    #617087 0,
-    #617087 6px,
-    #d7e1ee 6px,
-    #d7e1ee 12px
-  );
-  --ol-band-hatched-pattern: var(--ol-meter-hatched-pattern);
-  --ol-band-hatched-label: var(--ol-band-stale-label);
 }
 
 *,

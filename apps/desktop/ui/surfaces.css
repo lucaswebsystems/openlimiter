@@ -788,14 +788,14 @@ select.field:focus-visible {
 }
 
 /* Capped: the free ceiling was crossed, so the real amount never reaches
-   this window. The bar still says so, the same hatch a stale reading uses
-   everywhere else, drawn full because there is no percentage left to draw. */
+   this window. A full quiet grey bar states that no percentage remains. */
 .spend-budget[data-band="capped"] {
-  background: var(--ol-band-hatched-pattern);
+  background: var(--track);
 }
 .spend-budget-fill[data-band="capped"] {
   width: 100%;
-  background: transparent;
+  background: var(--ol-band-stale-fill);
+  opacity: 0.68;
 }
 
 .eligibility-list {
