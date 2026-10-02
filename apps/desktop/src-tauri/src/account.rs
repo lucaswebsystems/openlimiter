@@ -861,6 +861,9 @@ fn usage_samples_from_cache(
         if snapshot.get("unit").and_then(serde_json::Value::as_str) != Some("PERCENT") {
             continue;
         }
+        if snapshot.get("kind").and_then(serde_json::Value::as_str) == Some("runtime_info") {
+            continue;
+        }
         let Some(provider) = snapshot.get("provider").and_then(serde_json::Value::as_str) else {
             continue;
         };
@@ -2570,6 +2573,32 @@ mod tests {
             usage_samples_from_cache(&document, &configured, "2026-09-07T12:00:00.000Z", now)
                 .expect("rows");
         assert_eq!(usage_accounts(&rows), ["claude-personal", "default"]);
+    }
+
+    #[test]
+    fn runtime_information_never_becomes_a_synced_quota_row() {
+        let now = time::OffsetDateTime::parse(
+            "2026-09-07T12:00:00Z",
+            &time::format_description::well_known::Rfc3339,
+        )
+        .expect("a clock");
+        let document = serde_json::json!({ "snapshots": [{
+            "provider": "CLAUDE", "meter": "DIAGNOSTIC", "kind": "runtime_info",
+            "unit": "PERCENT", "value": 70.0, "resetAt": null,
+            "observedAt": "2026-09-07T11:59:30.000Z",
+            "expiresAt": "2026-09-07T12:14:30.000Z"
+        }]});
+        let configured = ["CLAUDE".to_string()].into_iter().collect::<HashSet<String>>();
+
+        let rows = usage_samples_from_cache(
+            &document,
+            &configured,
+            "2026-09-07T12:00:00.000Z",
+            now,
+        )
+        .expect("rows");
+
+        assert!(rows.is_empty());
     }
 
     #[test]

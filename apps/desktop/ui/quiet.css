@@ -315,7 +315,7 @@ button.q-show {
 
 /* A held reading keeps its last width in quiet grey, with its age beside it. */
 .q-row[data-band="stale"] { --q-fill: var(--ol-band-stale-fill); --q-label: var(--ol-band-stale-label); }
-.q-row[data-band="stale"] .q-bar > i { opacity: 0.68; }
+.q-row[data-band="stale"] .q-bar > i { opacity: var(--ol-band-stale-opacity); }
 
 .q-age {
   margin-left: auto;

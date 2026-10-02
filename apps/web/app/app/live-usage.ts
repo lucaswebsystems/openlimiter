@@ -1,4 +1,3 @@
-import registry from "../../lib/provider-specs.generated.json";
 import {
   freshness,
   freshnessPolicy,
@@ -19,46 +18,13 @@ const CONNECTOR_PROVIDERS: Readonly<Record<string, ProviderCode | undefined>> = 
   openrouter: "OPENROUTER",
 };
 
-interface RegistryEntry {
-  directory: { connectorId: string } | null;
-  displaySurfaces: readonly string[];
-  meters: readonly { kind: string; unit: string; meterCode: string | null }[];
-}
-
-const KNOWN_METERS = new Map<ProviderCode, Set<string>>();
-for (const entry of registry.providers as RegistryEntry[]) {
-  if (entry.directory === null) continue;
-  const provider = CONNECTOR_PROVIDERS[entry.directory.connectorId];
-  if (provider === undefined || !entry.displaySurfaces.includes("web")) continue;
-  const meters = KNOWN_METERS.get(provider) ?? new Set<string>();
-  for (const meter of entry.meters) {
-    if (
-      (meter.kind === "subscription_quota" || meter.kind === "model_quota") &&
-      meter.unit === "percent_used" && meter.meterCode !== null
-    ) {
-      meters.add(meter.meterCode);
-    }
-  }
-  KNOWN_METERS.set(provider, meters);
-}
-
-const CONNECTOR_ALIASES: Readonly<Partial<Record<ProviderCode, readonly string[]>>> = {
-  ANTIGRAVITY: ["FIVE_HOUR", "SEVEN_DAY", "THIRD_PARTY_SESSION", "THIRD_PARTY_WEEKLY"],
-  CODEX: ["FIVE_HOUR", "SEVEN_DAY", "PRIMARY", "SECONDARY", "PRIMARY_WINDOW", "SECONDARY_WINDOW"],
-  GROK: ["WEEKLY", "MONTHLY", "ON_DEMAND_MONTHLY"],
-};
-for (const [provider, meters] of Object.entries(CONNECTOR_ALIASES)) {
-  const known = KNOWN_METERS.get(provider as ProviderCode) ?? new Set<string>();
-  for (const meter of meters ?? []) known.add(meter);
-  KNOWN_METERS.set(provider as ProviderCode, known);
-}
-
-/** A provider quota meter that a checked connector or provider spec can emit. */
-export function isKnownQuotaMeter(provider: ProviderCode, meter: string): boolean {
-  if (meter === "ACQUISITION" || meter === "API_BUDGET_PERCENT") return false;
-  if (provider === "CLAUDE" && /^SEVEN_DAY_[A-Z0-9_]{1,36}$/u.test(meter)) return true;
-  if (provider === "MANUAL") return /^[A-Z0-9_]{2,48}$/u.test(meter);
-  return KNOWN_METERS.get(provider)?.has(meter) ?? false;
+/** A numeric quota row, identified by its contract rather than its meter name. */
+export function isKnownQuotaMeter(snapshot: Snapshot): boolean {
+  return snapshot.unit === "PERCENT" &&
+    (snapshot.kind === undefined || snapshot.kind === "quota_percent") &&
+    snapshot.availability === undefined &&
+    snapshot.meter !== "ACQUISITION" &&
+    snapshot.meter !== "API_BUDGET_PERCENT";
 }
 
 function safeAccountLabel(label: string | undefined, accountId: string): string | null {
@@ -111,7 +77,7 @@ export function visibleQuotaSnapshots(
       .map((row) => row.provider),
   );
   const live = snapshots.flatMap((snapshot) => {
-    if (snapshot.unit !== "PERCENT" || !isKnownQuotaMeter(snapshot.provider, snapshot.meter)) return [];
+    if (!isKnownQuotaMeter(snapshot)) return [];
     if (snapshot.accountId === "default" && identified.has(snapshot.provider)) return [];
     const expiresAt = liveExpiry(snapshot, now);
     return expiresAt === null ? [] : [{ ...snapshot, expiresAt }];

@@ -355,7 +355,7 @@ body.tray {
 /* A stale row keeps its measured width in a quiet flat grey. */
 .tray-row[data-band="stale"] .tray-meter-fill {
   background: var(--ol-band-stale-fill);
-  opacity: 0.68;
+  opacity: var(--ol-band-stale-opacity);
 }
 
 .tray-reset {

@@ -1,6 +1,15 @@
 // @vitest-environment node
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildProviderAccountRows } from "../app/app/engine";
+import { normalizeMeters } from "../app/app/engine/generated/core";
+import {
+  parseClaudePayload,
+  parseGeminiCliPayload,
+  parseKimiPayload,
+  parseOpenrouterPayload,
+} from "../app/app/engine/generated/connectors";
 import { featuredSnapshotOf } from "../app/app/live-meter";
 import {
   snapshotsFromSyncedUsage,
@@ -11,6 +20,13 @@ import type { SyncedProviderUsage } from "../lib/synced-usage";
 const NOW = "2026-10-01T12:00:00.000Z";
 const IDENTIFIED_CODEX = "codex-f97543643c7f784dcad92da4";
 const IDENTIFIED_CLAUDE = "claude-8920457716250c66b205c90d";
+
+function connectorFixture(name: string): Record<string, unknown> {
+  return JSON.parse(readFileSync(
+    path.join(process.cwd(), "..", "..", "packages", "connectors", "fixtures", name),
+    "utf8",
+  )) as Record<string, unknown>;
+}
 
 function provider(
   name: string,
@@ -44,6 +60,80 @@ const OWNER_SCREEN: readonly SyncedProviderUsage[] = [
 ];
 
 describe("live synced usage", () => {
+  it("shows every percentage meter emitted from the connector fixture families", () => {
+    const connectorNow = "2026-08-07T12:00:00.000Z";
+    const claude = connectorFixture("claude.usage.json");
+    const claudeMeters = parseClaudePayload({
+      ...claude,
+      five_hour_2: claude.five_hour,
+    }, connectorNow) ?? [];
+
+    const kimi = connectorFixture("kimi.usages.json");
+    const originalLimits = kimi.limits as Record<string, unknown>[];
+    const originalLimit = originalLimits[0] ?? {};
+    const originalDetail = originalLimit.detail as Record<string, unknown>;
+    const kimiMeters = parseKimiPayload({
+      ...kimi,
+      limits: [
+        ...originalLimits,
+        {
+          window: { duration: 1, timeUnit: "TIME_UNIT_DAY" },
+          detail: { ...originalDetail, resetTime: "2026-08-08T12:00:00.000Z" },
+        },
+        {
+          window: { duration: 5, timeUnit: "TIME_UNIT_MINUTE" },
+          detail: { ...originalDetail, resetTime: "2026-08-07T12:05:00.000Z" },
+        },
+        originalLimit,
+      ],
+    }, connectorNow) ?? [];
+
+    const snapshots = normalizeMeters([
+      ...(parseOpenrouterPayload(connectorFixture("openrouter.credits.json"), connectorNow) ?? []),
+      ...(parseGeminiCliPayload(connectorFixture("gemini-cli.quota.json"), connectorNow) ?? []),
+      ...claudeMeters,
+      ...kimiMeters,
+    ]);
+    const visible = visibleQuotaSnapshots(snapshots, connectorNow);
+    const meters = new Set(visible.map((row) => `${row.provider}:${row.meter}`));
+
+    expect(meters).toEqual(new Set([
+      "OPENROUTER:CREDITS",
+      "GEMINI_CLI:GEMINI_3_1_PRO_PREVIEW",
+      "GEMINI_CLI:GEMINI_3_FLASH_PREVIEW",
+      "CLAUDE:FIVE_HOUR",
+      "CLAUDE:FIVE_HOUR_2",
+      "CLAUDE:SEVEN_DAY",
+      "CLAUDE:SEVEN_DAY_OAUTH_APPS",
+      "CLAUDE:EXTRA_USAGE",
+      "CLAUDE:SEVEN_DAY_OPUS",
+      "CLAUDE:SEVEN_DAY_FABLE_5",
+      "KIMI:WEEKLY",
+      "KIMI:FIVE_HOUR",
+      "KIMI:DAILY",
+      "KIMI:FIVE_MINUTE",
+      "KIMI:FIVE_HOUR_2",
+    ]));
+    expect(visible.find((row) => row.provider === "OPENROUTER")?.expiresAt)
+      .toBe("2026-08-07T12:07:00.000Z");
+  });
+
+  it("excludes placeholders, runtime information, and non percentage rows by semantics", () => {
+    const base = normalizeMeters(
+      parseOpenrouterPayload(connectorFixture("openrouter.credits.json"), NOW) ?? [],
+    )[0];
+    expect(base).toBeDefined();
+    if (base === undefined) return;
+
+    expect(visibleQuotaSnapshots([
+      { ...base, meter: "DIAGNOSTIC", kind: "runtime_info" },
+      { ...base, meter: "ACQUISITION" },
+      { ...base, meter: "API_BUDGET_PERCENT" },
+      { ...base, meter: "UNLIMITED", availability: "unlimited" },
+      { ...base, meter: "TOKEN_BALANCE", unit: "TOKENS" },
+    ], NOW)).toEqual([]);
+  });
+
   it("reproduces the owner screen and keeps only current real quota meters", () => {
     const snapshots = snapshotsFromSyncedUsage(OWNER_SCREEN, NOW, (count) => `Account ${count}`);
     expect(snapshots.map((row) => [row.provider, row.accountId, row.meter, row.value])).toEqual([

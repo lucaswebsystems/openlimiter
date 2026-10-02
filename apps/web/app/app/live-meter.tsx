@@ -298,14 +298,14 @@ export function LiveMeter({ snapshots, now }: LiveMeterProps) {
               strokeLinecap="round"
               fill="none"
               className="ol-ring-progress"
-              opacity={isStale ? 0.68 : 1}
+              opacity={isStale ? "var(--ol-band-stale-opacity)" : 1}
             />
           </svg>
           {/* Centered Readout / Status Icon */}
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
             <span
               className="font-mono text-sm font-bold tracking-tight tabular-nums"
-              style={{ color: bandInfo.labelVar, opacity: isStale ? 0.68 : 1 }}
+              style={{ color: bandInfo.labelVar, opacity: isStale ? "var(--ol-band-stale-opacity)" : 1 }}
             >
               {Math.trunc(usedPercent)}%
             </span>
@@ -324,7 +324,7 @@ export function LiveMeter({ snapshots, now }: LiveMeterProps) {
               style={{
                 width: `${Math.min(100, Math.max(0, usedPercent))}%`,
                 background: isStale ? "var(--ol-band-stale-fill)" : bandInfo.fillVar,
-                opacity: isStale ? 0.68 : 1,
+                opacity: isStale ? "var(--ol-band-stale-opacity)" : 1,
               }}
             />
           </div>

@@ -928,7 +928,7 @@ const PROVIDER_ROW_STYLE = `
 /* A stale window keeps the measured width in a quiet flat grey. */
 .window-line[data-band="stale"] .meter-fill {
   background: var(--ol-band-stale-fill, var(--row-ghost));
-  opacity: 0.68;
+  opacity: var(--ol-band-stale-opacity, 0.88);
 }
 .window-readout {
   display: inline-flex;

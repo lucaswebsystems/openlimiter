@@ -159,7 +159,7 @@
 
 .ol-meter[data-state="stale"] .ol-meter-fill {
   background: var(--ol-band-stale-fill) !important;
-  opacity: 0.68;
+  opacity: var(--ol-band-stale-opacity);
 }
 
 /*
@@ -261,7 +261,7 @@
 .window-line[data-band="stale"] .meter-fill,
 .window-line[data-state="stale"] .meter-fill {
   background: var(--ol-band-stale-fill) !important;
-  opacity: 0.68 !important;
+  opacity: var(--ol-band-stale-opacity) !important;
 }
 .window-line[data-state="unknown"] .window-meter {
   background: transparent !important;
@@ -2249,7 +2249,7 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
 .ol-horizon-bar[data-band="stale"] > span {
   width: 48%;
   background: var(--ol-band-stale-fill);
-  opacity: 0.68;
+  opacity: var(--ol-band-stale-opacity);
   animation-delay: 360ms;
 }
 
@@ -3016,7 +3016,7 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
 
 .ol-horizon[data-tone="locked"] .ol-horizon-bar > span {
   background: var(--ol-band-stale-fill);
-  opacity: 0.68;
+  opacity: var(--ol-band-stale-opacity);
 }
 
 @media (max-width: 639px) {

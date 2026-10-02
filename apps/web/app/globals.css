@@ -168,6 +168,7 @@
   --ol-band-stale-fill: #72839b;
   --ol-band-stale-label: #929ead;
   --ol-band-stale-subtle: rgb(114 131 155 / 0.14);
+  --ol-band-stale-opacity: 0.88;
 
   --ol-announce: var(--ol-accent-solid);
   --ol-announce-fg: var(--ol-on-accent);
@@ -198,6 +199,7 @@
   --ol-band-stale-fill: #617087;
   --ol-band-stale-label: #46566b;
   --ol-band-stale-subtle: rgb(97 112 135 / 0.14);
+  --ol-band-stale-opacity: 0.88;
 
 }
 

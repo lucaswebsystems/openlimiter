@@ -66,7 +66,7 @@
    *   band 2  60 to 79    watch threshold      fill 5.66:1  label 9.57:1
    *   band 3  80 to 89    high utilisation     fill 4.24:1  label 9.62:1
    *   band 4  90 and up   critical depletion   fill 4.26:1  label 7.39:1
-   *   band 5  stale       no trustworthy read  fill 3.70:1  label 6.84:1
+   *   band 5  stale       no trustworthy read  fill 3.18:1  label 6.84:1
    */
   --ol-band-green-fill: #2ea043;
   --ol-band-green-label: #3fb950;
@@ -83,6 +83,7 @@
   --ol-band-stale-fill: #72839b;
   --ol-band-stale-label: #929ead;
   --ol-band-stale-subtle: rgb(114 131 155 / 0.14);
+  --ol-band-stale-opacity: 0.88;
   /* Text on a yellow fill, as on Show app: 7.9:1 dark, 4.6:1 light. */
   --ol-on-band-yellow: #09090b;
 
@@ -292,7 +293,7 @@
   --ol-solid-hover: #263446;
   --ol-on-solid: #fafafa;
   /* The same five bands, re measured against the light surface stack.
-     Fills 3.84 / 3.52 / 3.81 / 4.05 / 3.81 to 1 against the light track,
+     Fills 3.84 / 3.52 / 3.81 / 4.05 / 3.13 to 1 against the light track,
      labels 7.39 / 8.30 / 8.84 / 10.51 / 7.49 to 1 against the surface. */
   --ol-band-green-fill: #1a7f37;
   --ol-band-green-label: #116329;
@@ -309,6 +310,7 @@
   --ol-band-stale-fill: #617087;
   --ol-band-stale-label: #46566b;
   --ol-band-stale-subtle: rgb(97 112 135 / 0.12);
+  --ol-band-stale-opacity: 0.88;
   --ol-on-band-yellow: #ffffff;
   --ol-link: var(--ol-accent-hover);
   --ol-shadow-float: 0 4px 12px rgb(13 22 35 / 0.16);

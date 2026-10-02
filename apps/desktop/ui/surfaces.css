@@ -795,7 +795,7 @@ select.field:focus-visible {
 .spend-budget-fill[data-band="capped"] {
   width: 100%;
   background: var(--ol-band-stale-fill);
-  opacity: 0.68;
+  opacity: var(--ol-band-stale-opacity);
 }
 
 .eligibility-list {
