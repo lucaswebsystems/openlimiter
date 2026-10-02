@@ -14,12 +14,13 @@ import {
   claudeUsageRequest,
   codeAssistLoadRequest,
   codeAssistQuotaRequest,
-  codexUsageRequest,
   cursorUsageRequest,
   grokBillingRequest,
   kimiUsageRequest,
   openrouterKeyRequest
 } from "./transport.js";
+import { codexAppServerRequest } from "./codex-app-server.js";
+import { acquisitionAccountId } from "./identity.js";
 
 export type PayloadParser = (
   payload: unknown,
@@ -186,9 +187,14 @@ export function codexSpec(parse: PayloadParser): AcquisitionSpec {
     provider: "CODEX",
     credentialProvider: "CODEX",
     steps: [
-      ({ credential }) => credential.accountId === null
+      ({ credential }) => credential.accountId === null ||
+          credential.codexHome === undefined || credential.executable === undefined
         ? null
-        : codexUsageRequest(credential.secret, credential.accountId)
+        : codexAppServerRequest(
+            credential.executable,
+            credential.codexHome,
+            acquisitionAccountId("CODEX", credential)
+          )
     ],
     parse,
     disclosure: ACQUISITION_DISCLOSURE.codex

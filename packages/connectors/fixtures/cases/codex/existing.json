@@ -1,9 +1,11 @@
 {
-  "provider": "codex",
-  "case": "existing",
-  "reader": "usage",
-  "now": "2026-08-07T12:00:00.000Z",
-  "status": 200,
-  "headers": {},
-  "fixture": "codex.usage.json"
+  "provider": "codex", "case": "existing", "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z", "status": 200, "headers": {},
+  "body": {
+    "rateLimits": {
+      "limitId": "codex",
+      "primary": { "usedPercent": 25, "windowDurationMins": 300, "resetsAt": 1786107600 },
+      "secondary": { "usedPercent": 47, "windowDurationMins": 10080, "resetsAt": 1786107600 }
+    }
+  }
 }

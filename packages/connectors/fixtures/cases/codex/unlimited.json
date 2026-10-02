@@ -1,19 +1,9 @@
 {
-  "provider": "codex",
-  "case": "unlimited",
-  "reader": "usage",
-  "now": "2026-08-07T12:00:00.000Z",
-  "status": 200,
-  "headers": {},
-  "body": {
-    "rate_limit": {
-      "primary_window": null,
-      "secondary_window": null
-    },
-    "credits": {
-      "has_credits": true,
-      "unlimited": true,
-      "balance": null
-    }
-  }
+  "provider": "codex", "case": "unlimited", "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z", "status": 200, "headers": {},
+  "body": { "rateLimits": {
+    "limitId": "codex",
+    "primary": { "usedPercent": 12, "windowDurationMins": 300, "resetsAt": 1786107600 },
+    "credits": { "hasCredits": false, "unlimited": true, "balance": null }
+  } }
 }

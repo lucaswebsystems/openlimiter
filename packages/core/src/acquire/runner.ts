@@ -270,7 +270,7 @@ async function attempt(
     if (reply.status === 0) {
       return { outcome: "too_large", meters: [], retryAfterSeconds: retryAfter, phase: "request" };
     }
-    const outcome = outcomeForStatus(reply.status);
+    const outcome = reply.outcome ?? outcomeForStatus(reply.status);
     if (outcome !== "ok") return { outcome, meters: [], retryAfterSeconds: retryAfter, phase: "request" };
     let body: unknown;
     try {

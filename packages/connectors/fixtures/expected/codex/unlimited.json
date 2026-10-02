@@ -1,26 +1,6 @@
 {
-  "expected": {
-    "outcome": "readings",
-    "readings": [
-      {
-        "provider": "CODEX",
-        "meter": "CREDITS",
-        "value": 0,
-        "unit": "PERCENT",
-        "window": {
-          "kind": "unknown",
-          "durationSeconds": null
-        },
-        "resetAt": null,
-        "precision": "exact",
-        "source": "internal_payload",
-        "kind": "availability",
-        "availability": "unlimited",
-        "currency": null,
-        "usedAmount": null,
-        "limitAmount": null,
-        "observedAt": "2026-08-07T12:00:00.000Z"
-      }
-    ]
-  }
+  "expected": { "outcome": "readings", "readings": [
+    { "provider": "CODEX", "meter": "CREDITS", "value": 0, "unit": "PERCENT", "window": { "kind": "unknown", "durationSeconds": null }, "resetAt": null, "precision": "exact", "source": "documented_api", "kind": "availability", "availability": "unlimited", "currency": null, "usedAmount": null, "limitAmount": null, "observedAt": "2026-08-07T12:00:00.000Z" },
+    { "provider": "CODEX", "meter": "FIVE_HOUR", "value": 12, "unit": "PERCENT", "window": { "kind": "rolling", "durationSeconds": 18000 }, "resetAt": "2026-08-07T13:00:00.000Z", "precision": "exact", "source": "documented_api", "kind": null, "availability": null, "currency": null, "usedAmount": null, "limitAmount": null, "observedAt": "2026-08-07T12:00:00.000Z" }
+  ] }
 }

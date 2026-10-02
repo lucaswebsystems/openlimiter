@@ -569,6 +569,9 @@ pub(crate) async fn replace_connection_secret_core<T: Transport>(
     capped_connection_id(&input.connection_id)?;
     let candidate = Zeroizing::new(input.secret);
     let before = connections.get(&input.connection_id)?;
+    if before.provider_id == ProviderId::Codex {
+        return Err(CommandFailure::CodexLoginRequired);
+    }
     if !before.is_active() {
         return Err(CommandFailure::Paused);
     }
@@ -579,9 +582,10 @@ pub(crate) async fn replace_connection_secret_core<T: Transport>(
     )?;
     let candidate = candidate.trim();
     let route = reader_route(before.provider_id, before.credential_kind)?;
+    let endpoint = route.endpoint.ok_or(CommandFailure::Protocol)?;
     let response = fetch_endpoint(
         transport,
-        route.endpoint,
+        endpoint,
         route.auth,
         candidate,
         before.codex_account_id.as_deref(),
@@ -893,12 +897,16 @@ pub(crate) async fn probe_core<T: Transport>(
     and dropped. It is never part of the return value. */
     let secret = secrets.read_secret(&record.id)?;
     let migrated = migrate_codex_credential_if_needed(connections, secrets, &mut record, &secret)?;
+    if record.provider_id == ProviderId::Codex {
+        return Err(CommandFailure::CodexLoginRequired);
+    }
+    let endpoint = route.endpoint.ok_or(CommandFailure::Protocol)?;
     let request_secret = migrated.as_deref().unwrap_or(&secret);
     let opened = open_attempt(connections, &record.id)?;
     let attempt_generation = opened.attempt_generation;
     let fetched = fetch_endpoint(
         transport,
-        route.endpoint,
+        endpoint,
         route.auth,
         request_secret,
         record.codex_account_id.as_deref(),
@@ -2151,22 +2159,19 @@ mod tests {
             .expect("legacy credential shape");
 
         let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
-        let outcome = test_core(&connections, &secrets, &transport, probe(&record.id))
-            .await
-            .expect("migrated probe");
+        assert_eq!(
+            test_core(&connections, &secrets, &transport, probe(&record.id)).await,
+            Err(CommandFailure::CodexLoginRequired)
+        );
         assert_eq!(
             secrets.read_secret(&record.id).expect("rewritten").as_str(),
             TOKEN
         );
         let migrated = connections.get(&record.id).expect("migrated record");
         assert_eq!(migrated.codex_account_id.as_deref(), Some(ACCOUNT));
-        assert_eq!(transport.recorded_secrets(), vec![TOKEN.to_string()]);
-        assert_eq!(
-            transport.recorded_codex_account_ids(),
-            vec![Some(ACCOUNT.to_string())]
-        );
+        assert!(transport.recorded_secrets().is_empty());
+        assert!(transport.recorded_codex_account_ids().is_empty());
         for rendered in [
-            format!("{outcome:?}"),
             format!("{migrated:?}"),
             CommandFailure::Protocol.to_string(),
         ] {
@@ -2201,7 +2206,7 @@ mod tests {
 
     #[tokio::test]
     async fn every_provider_reaches_only_its_own_address() {
-        /* The endpoint confusion matrix, end to end: each of the five real
+        /* The HTTP endpoint confusion matrix, end to end: each real
         pairings is connected and probed, and each one must touch exactly one
         address, its own. */
         let expected = [
@@ -2214,11 +2219,6 @@ mod tests {
                 ProviderId::Openrouter,
                 CredentialKind::OpenrouterManagementKey,
                 ProviderEndpoint::OpenrouterCredits,
-            ),
-            (
-                ProviderId::Codex,
-                CredentialKind::CodexSession,
-                ProviderEndpoint::CodexUsage,
             ),
             (
                 ProviderId::Antigravity,
@@ -2237,9 +2237,6 @@ mod tests {
             let mut input = connect_input();
             input.provider_id = provider;
             input.credential_kind = credential;
-            if credential == CredentialKind::CodexSession {
-                input.secret = codex_test_secret();
-            }
             let record = connect_core(&connections, &secrets, input).expect("connect");
             let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
             test_core(&connections, &secrets, &transport, probe(&record.id))
@@ -2328,7 +2325,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn codex_auth_failure_becomes_needs_auth_for_codex_login() {
+    async fn a_stored_codex_connection_redirects_to_the_cli_login_path() {
         let dir = TempDir::new();
         let (connections, secrets) = stores(&dir);
         let input = ConnectProviderInput {
@@ -2338,14 +2335,12 @@ mod tests {
             secret: codex_test_secret(),
         };
         let record = connect_core(&connections, &secrets, input).expect("connect");
-        let transport = RecordingTransport::replying(401, Vec::new(), None);
-        test_core(&connections, &secrets, &transport, probe(&record.id))
-            .await
-            .expect("probe");
+        let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
         assert_eq!(
-            connections.get(&record.id).expect("record").status,
-            STATUS_NEEDS_AUTH
+            test_core(&connections, &secrets, &transport, probe(&record.id)).await,
+            Err(CommandFailure::CodexLoginRequired)
         );
+        assert!(transport.recorded_secrets().is_empty());
         assert_eq!(
             CommandFailure::CodexLoginRequired.to_string(),
             "Codex needs a current login. Run codex login."

@@ -5,7 +5,6 @@ use std::time::{Duration, SystemTime};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
-use crate::credentials::{valid_codex_account_id, valid_codex_token};
 use crate::reader_registry::AuthApplication;
 
 /// The network layer, closed by construction.
@@ -35,14 +34,6 @@ pub const OPENROUTER_CREDITS_URL: &str = "https://openrouter.ai/api/v1/credits";
 
 /// The Claude account usage report read with Claude Code's existing OAuth token.
 pub const CLAUDE_OAUTH_USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
-
-/// The Codex usage report, read with the session the Codex client holds.
-///
-/// Evidence, recorded 2026-08-07 from a working reader and restated in
-/// `provider_specs/openai/codex.yaml`: `GET`, bearer authorization, a product
-/// user agent, and `Accept: application/json`. OpenAI publishes no consumer
-/// quota API, so this is an internal endpoint and every surface says so.
-pub const CODEX_USAGE_URL: &str = "https://chatgpt.com/backend-api/wham/usage";
 
 /// The Grok Build billing report used by the official Grok CLI.
 pub const GROK_USAGE_URL: &str = "https://cli-chat-proxy.grok.com/v1/billing?format=credits";
@@ -119,7 +110,6 @@ pub const OPENCODE_WORKSPACE_URL_SUFFIX: &str = "/go";
 pub enum ProviderEndpoint {
     OpenrouterKey,
     OpenrouterCredits,
-    CodexUsage,
     AntigravityQuota,
     GeminiCliLoad,
     GeminiCliQuota,
@@ -134,10 +124,9 @@ impl ProviderEndpoint {
     /// The whole allowlist, for the tests that prove it closed. The product
     /// itself never needs the list, only a variant at a time.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [ProviderEndpoint; 11] = [
+    pub const ALL: [ProviderEndpoint; 10] = [
         ProviderEndpoint::OpenrouterKey,
         ProviderEndpoint::OpenrouterCredits,
-        ProviderEndpoint::CodexUsage,
         ProviderEndpoint::AntigravityQuota,
         ProviderEndpoint::GeminiCliLoad,
         ProviderEndpoint::GeminiCliQuota,
@@ -153,7 +142,6 @@ impl ProviderEndpoint {
         match self {
             ProviderEndpoint::OpenrouterKey => OPENROUTER_KEY_URL,
             ProviderEndpoint::OpenrouterCredits => OPENROUTER_CREDITS_URL,
-            ProviderEndpoint::CodexUsage => CODEX_USAGE_URL,
             ProviderEndpoint::AntigravityQuota => ANTIGRAVITY_QUOTA_URL,
             ProviderEndpoint::GeminiCliLoad => GEMINI_CLI_LOAD_URL,
             ProviderEndpoint::GeminiCliQuota => GEMINI_CLI_QUOTA_URL,
@@ -177,7 +165,6 @@ impl ProviderEndpoint {
         match self {
             ProviderEndpoint::OpenrouterKey
             | ProviderEndpoint::OpenrouterCredits
-            | ProviderEndpoint::CodexUsage
             | ProviderEndpoint::OpencodeUsage
             | ProviderEndpoint::ClaudeOauthUsage
             | ProviderEndpoint::GrokUsage
@@ -199,7 +186,6 @@ impl ProviderEndpoint {
             ProviderEndpoint::GeminiCliQuota => None,
             ProviderEndpoint::OpenrouterKey
             | ProviderEndpoint::OpenrouterCredits
-            | ProviderEndpoint::CodexUsage
             | ProviderEndpoint::OpencodeUsage
             | ProviderEndpoint::ClaudeOauthUsage
             | ProviderEndpoint::GrokUsage
@@ -229,15 +215,6 @@ pub const OPENLIMITER_USER_AGENT: &str = concat!(
     env!("CARGO_PKG_VERSION"),
     " (+https://openlimiter.com)"
 );
-
-/// The user agent the Codex usage endpoint is addressed with.
-pub const CODEX_USER_AGENT: &str = OPENLIMITER_USER_AGENT;
-
-/// The account header the ChatGPT backend reads alongside the bearer token.
-///
-/// The account identifier is imported beside the access token from the Codex
-/// session envelope. It is never accepted as a caller supplied request field.
-pub const CODEX_ACCOUNT_HEADER: &str = "chatgpt-account-id";
 
 /// The account identity the Grok billing service requires beside the token.
 pub const GROK_ACCOUNT_HEADER: &str = "x-userid";
@@ -582,14 +559,14 @@ async fn fetch_endpoint_inner<T: Transport>(
             return Err(NetError::Protocol);
         }
     }
-    if matches!(
-        auth,
-        AuthApplication::CodexSessionBearer | AuthApplication::GrokSessionBearer
-    ) {
+    if auth == AuthApplication::CodexSessionBearer {
+        return Err(NetError::Protocol);
+    }
+    if auth == AuthApplication::GrokSessionBearer {
         let account_id = provider_account_id
-            .filter(|value| valid_codex_account_id(value))
+            .filter(|value| crate::credentials::valid_codex_account_id(value))
             .ok_or(NetError::Protocol)?;
-        if !valid_codex_token(secret) {
+        if !crate::credentials::valid_codex_token(secret) {
             return Err(NetError::Protocol);
         }
         let request = EndpointRequest {
@@ -873,7 +850,6 @@ fn authenticated_builder(
     match request.auth {
         AuthApplication::BearerAuthorization
         | AuthApplication::ClaudeOauthBearer
-        | AuthApplication::CodexSessionBearer
         | AuthApplication::AntigravitySessionBearer
         | AuthApplication::GrokSessionBearer
         | AuthApplication::KimiSessionBearer
@@ -893,6 +869,7 @@ fn authenticated_builder(
             credential.push_str("::");
             credential.push_str(secret);
         }
+        AuthApplication::CodexSessionBearer => return Err(TransportFailure::Protocol),
         AuthApplication::BrowserSessionCookie => credential.push_str(secret),
     }
     let mut header_value = reqwest::header::HeaderValue::from_str(&credential)
@@ -908,19 +885,7 @@ fn authenticated_builder(
             .header(reqwest::header::USER_AGENT, CLAUDE_OAUTH_USER_AGENT)
             .header(reqwest::header::ACCEPT, "application/json")
             .header(CLAUDE_OAUTH_BETA_HEADER, CLAUDE_OAUTH_BETA_VALUE),
-        AuthApplication::CodexSessionBearer => {
-            let account_id = request
-                .provider_account_id
-                .ok_or(TransportFailure::Protocol)?;
-            let mut account_header = reqwest::header::HeaderValue::from_str(account_id)
-                .map_err(|_| TransportFailure::Protocol)?;
-            account_header.set_sensitive(true);
-            builder
-                .header(reqwest::header::AUTHORIZATION, header_value)
-                .header(reqwest::header::USER_AGENT, CODEX_USER_AGENT)
-                .header(reqwest::header::ACCEPT, "application/json")
-                .header(CODEX_ACCOUNT_HEADER, account_header)
-        }
+        AuthApplication::CodexSessionBearer => return Err(TransportFailure::Protocol),
         AuthApplication::GrokSessionBearer => {
             let account_id = request
                 .provider_account_id
@@ -1015,10 +980,9 @@ mod tests {
     use crate::reader_registry::{reader_route, CredentialKind, ProviderId};
     use crate::test_support::RecordingTransport;
 
-    const ROUTED_ENDPOINTS: [ProviderEndpoint; 9] = [
+    const ROUTED_ENDPOINTS: [ProviderEndpoint; 8] = [
         ProviderEndpoint::OpenrouterKey,
         ProviderEndpoint::OpenrouterCredits,
-        ProviderEndpoint::CodexUsage,
         ProviderEndpoint::AntigravityQuota,
         ProviderEndpoint::OpencodeUsage,
         ProviderEndpoint::ClaudeOauthUsage,
@@ -1043,7 +1007,7 @@ mod tests {
         for provider in ProviderId::ALL {
             for credential in CredentialKind::ALL {
                 if let Ok(route) = reader_route(provider, credential) {
-                    if route.endpoint == endpoint {
+                    if route.endpoint == Some(endpoint) {
                         return route.auth;
                     }
                 }
@@ -1052,17 +1016,14 @@ mod tests {
         panic!("every endpoint is reachable through a route");
     }
 
-    fn secret_for(endpoint: ProviderEndpoint) -> String {
-        if endpoint == ProviderEndpoint::CodexUsage {
-            return "fake-codex-access-token".to_string();
-        }
+    fn secret_for(_endpoint: ProviderEndpoint) -> String {
         "fake-secret-for-tests-only".to_string()
     }
 
     fn account_for(endpoint: ProviderEndpoint) -> Option<&'static str> {
         matches!(
             endpoint,
-            ProviderEndpoint::CodexUsage | ProviderEndpoint::GrokUsage | ProviderEndpoint::CursorUsage
+            ProviderEndpoint::GrokUsage | ProviderEndpoint::CursorUsage
         )
         .then_some("fake-account-id")
     }
@@ -1112,7 +1073,6 @@ mod tests {
             vec![
                 OPENROUTER_KEY_URL.to_string(),
                 OPENROUTER_CREDITS_URL.to_string(),
-                CODEX_USAGE_URL.to_string(),
                 ANTIGRAVITY_QUOTA_URL.to_string(),
                 /* Two hops, both built here from constants and one validated
                 handle. */
@@ -1303,50 +1263,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn codex_carries_the_real_account_id_beside_the_access_token() {
+    async fn codex_session_bearers_have_no_http_route() {
         let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
-        fetch_endpoint(
-            &transport,
-            ProviderEndpoint::CodexUsage,
-            AuthApplication::CodexSessionBearer,
-            "access-token-canary",
-            Some("account-id-canary"),
-        )
-        .await
-        .expect("fetch");
-        assert_eq!(transport.recorded_secrets(), vec!["access-token-canary"]);
         assert_eq!(
-            transport.recorded_codex_account_ids(),
-            vec![Some("account-id-canary".to_string())]
+            fetch_endpoint(
+                &transport,
+                ProviderEndpoint::OpenrouterKey,
+                AuthApplication::CodexSessionBearer,
+                "access-token-canary",
+                Some("account-id-canary"),
+            )
+            .await,
+            Err(NetError::Protocol)
         );
-    }
-
-    #[test]
-    fn the_codex_request_has_every_required_header_with_the_real_account_id() {
-        let _ = rustls::crypto::ring::default_provider().install_default();
-        let client = reqwest::Client::new();
-        let request = EndpointRequest {
-            url: CODEX_USAGE_URL,
-            method: HttpMethod::Get,
-            auth: AuthApplication::CodexSessionBearer,
-            provider_account_id: Some("account-id-canary"),
-            body: None,
-        };
-        let built = authenticated_builder(&client, &request, "access-token-canary")
-            .expect("headers")
-            .build()
-            .expect("request");
-        let headers = built.headers();
-        assert_eq!(headers[CODEX_ACCOUNT_HEADER], "account-id-canary");
-        assert_eq!(
-            headers[reqwest::header::AUTHORIZATION],
-            "Bearer access-token-canary"
-        );
-        assert_eq!(headers[reqwest::header::USER_AGENT], CODEX_USER_AGENT);
-        assert_eq!(CODEX_USER_AGENT, OPENLIMITER_USER_AGENT);
-        assert_eq!(headers[reqwest::header::ACCEPT], "application/json");
-        assert!(headers[CODEX_ACCOUNT_HEADER].is_sensitive());
-        assert!(headers[reqwest::header::AUTHORIZATION].is_sensitive());
+        assert!(transport.recorded_urls().is_empty());
+        assert!(transport.recorded_secrets().is_empty());
     }
 
     fn grok_request<'a>() -> EndpointRequest<'a> {
@@ -1449,10 +1380,6 @@ mod tests {
         for (auth, account) in [
             (AuthApplication::BearerAuthorization, None),
             (AuthApplication::ClaudeOauthBearer, None),
-            (
-                AuthApplication::CodexSessionBearer,
-                Some("account-id-canary"),
-            ),
             (
                 AuthApplication::GrokSessionBearer,
                 Some("account-id-canary"),
@@ -1758,7 +1685,7 @@ mod tests {
             .expect("the module has a body before its tests");
         assert_eq!(
             head.matches("https://").count(),
-            13,
+            12,
             "an address appeared outside the constants"
         );
     }
@@ -1793,7 +1720,6 @@ mod tests {
                 "Bearer SECRET-MARKER-4f9a-do-not-echo-1234",
                 "THE-BODY-MARKER",
                 OPENROUTER_KEY_URL,
-                CODEX_USAGE_URL,
                 ANTIGRAVITY_QUOTA_URL,
             ] {
                 assert!(!error.to_string().contains(marker));
@@ -1854,7 +1780,6 @@ mod tests {
                 env!("CARGO_PKG_VERSION")
             )
         );
-        assert_eq!(CODEX_USER_AGENT, OPENLIMITER_USER_AGENT);
         assert_eq!(CLAUDE_OAUTH_USER_AGENT, OPENLIMITER_USER_AGENT);
         assert_eq!(OPENCODE_USER_AGENT, OPENLIMITER_USER_AGENT);
         let written_by_hand = concat!("\"OpenLimiter/", "1.");

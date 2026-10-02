@@ -22,7 +22,7 @@ import {
   SYNTHETIC_GROK_USER,
   SYNTHETIC_PROJECT,
   SYNTHETIC_TOKEN,
-  codexCountdownResponse,
+  codexResetResponse,
   credentialDocuments,
   recordedResponses
 } from "./fixtures/acquisition.js";
@@ -103,6 +103,9 @@ function dependencies(
     environment: { OPENLIMITER_OPENROUTER_KEY: SYNTHETIC_TOKEN },
     now: () => now,
     colorOutput: false,
+    detectedAgentInstallations: {
+      codex: { version: "test", executable: process.execPath, fileSize: 1, mtimeMilliseconds: 1 }
+    },
     acquisitionTransport: transport
   };
 }
@@ -178,23 +181,27 @@ describe("openlimiter refresh", () => {
     const recorder = recordingTransport();
     await runCli(["refresh"], dependencies(state, home, recorder.transport));
     expect(recorder.sent.length).toBeGreaterThan(0);
-    for (const request of recorder.sent) {
+    for (const request of recorder.sent.filter((entry) => entry.kind !== "codex_app_server")) {
       expect(request.headers["user-agent"]).toBe(OPENLIMITER_USER_AGENT);
       expect(request.headers["authorization"]).toBe("Bearer " + SYNTHETIC_TOKEN);
     }
     const codex = recorder.sent.find((request) => request.endpoint === "codex_usage");
-    expect(codex?.headers["chatgpt-account-id"]).toBe(SYNTHETIC_CODEX_ACCOUNT);
+    expect(codex).toMatchObject({
+      kind: "codex_app_server",
+      executable: process.execPath,
+      expectedAccountId: opaqueAccountId("CODEX", SYNTHETIC_CODEX_ACCOUNT)
+    });
     const grok = recorder.sent.find((request) => request.endpoint === "grok_billing");
-    expect(grok?.headers["x-userid"]).toBe(SYNTHETIC_GROK_USER);
+    expect(grok !== undefined && grok.kind === undefined ? grok.headers["x-userid"] : undefined).toBe(SYNTHETIC_GROK_USER);
     /* No vendor client marker anywhere. xAI's own tool sends
        x-xai-token-auth: xai-grok-cli, and sending it would be claiming to be
        that tool. */
-    expect(Object.keys(grok?.headers ?? {})).not.toContain("x-xai-token-auth");
+    expect(Object.keys(grok !== undefined && grok.kind === undefined ? grok.headers : {})).not.toContain("x-xai-token-auth");
     expect(JSON.stringify(recorder.sent)).not.toContain("grok-cli");
     const quota = recorder.sent.find(
       (request) => request.endpoint === "code_assist_quota"
     );
-    expect(quota?.body).toContain(SYNTHETIC_PROJECT);
+    expect(quota !== undefined && quota.kind === undefined ? quota.body : null).toContain(SYNTHETIC_PROJECT);
   });
 
   it("keeps every token out of its own output and off the disk", async () => {
@@ -385,11 +392,11 @@ describe("openlimiter refresh", () => {
       .rejects.toThrow();
   });
 
-  it("reads a Codex window that states a countdown instead of an instant", async () => {
+  it("reads the documented Codex absolute reset instant", async () => {
     const state = await temporaryDirectory("openlimiter-state-");
     const home = await machineWithLogins();
     const recorder = recordingTransport(NOW, {
-      codex_usage: codexCountdownResponse()
+      codex_usage: codexResetResponse()
     });
     await runCli(["refresh"], dependencies(state, home, recorder.transport));
     const cached = await readSnapshotCache(state);
@@ -401,7 +408,7 @@ describe("openlimiter refresh", () => {
       "SEVEN_DAY"
     ]);
     expect(codex.find((snapshot) => snapshot.meter === "FIVE_HOUR")?.resetAt)
-      .toBe("2026-01-01T01:00:00.000Z");
+      .toBe("2026-09-07T13:00:00.000Z");
   });
 });
 
@@ -447,7 +454,7 @@ describe("the Claude poll switch", () => {
     const usage = recorder.sent.find(
       (request) => request.endpoint === "claude_usage"
     );
-    expect(usage?.headers["anthropic-beta"]).toBe("oauth-2025-04-20");
+    expect(usage !== undefined && usage.kind === undefined ? usage.headers["anthropic-beta"] : undefined).toBe("oauth-2025-04-20");
   });
 
   it("refuses a value that is not a switch", async () => {

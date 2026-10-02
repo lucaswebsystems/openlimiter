@@ -1013,6 +1013,10 @@ fn normalize_verbatim_prefix(path: PathBuf) -> PathBuf {
     path
 }
 
+fn canonical_existing_path(path: &Path) -> Option<PathBuf> {
+    fs::canonicalize(path).ok().map(normalize_verbatim_prefix)
+}
+
 /// Resolve an executable and prove that its real file remains inside one of
 /// the caller's trusted install directories. The caller owns the directory
 /// list because each vendor has a different canonical installation contract.
@@ -1031,13 +1035,13 @@ pub(crate) fn validated_executable_in_roots(path: &Path, roots: &[PathBuf]) -> O
     if !metadata.is_file() && !metadata.file_type().is_symlink() {
         return None;
     }
-    let resolved = normalize_verbatim_prefix(fs::canonicalize(path).ok()?);
+    let resolved = canonical_existing_path(path)?;
     if !fs::metadata(&resolved).is_ok_and(|metadata| metadata.is_file()) {
         return None;
     }
     roots
         .iter()
-        .filter_map(|root| fs::canonicalize(root).ok().map(normalize_verbatim_prefix))
+        .filter_map(|root| canonical_existing_path(root))
         .filter(|root| path_components_are_real_directory(root))
         .any(|root| resolved.starts_with(root))
         .then_some(resolved)
@@ -1207,7 +1211,55 @@ fn installed_executable(
         for name in &names {
             let candidate = directory.join(name);
             if let Some(resolved) = validated_launcher(provider, context, &candidate) {
+                if provider == DetectedProviderId::Codex
+                    && context.platform == DiscoveryPlatform::Windows
+                    && resolved.extension().is_some_and(|extension| {
+                        matches!(
+                            extension.to_string_lossy().to_ascii_lowercase().as_str(),
+                            "cmd" | "bat"
+                        )
+                    })
+                {
+                    if let Some(native) = codex_native_windows_executable(directory, context) {
+                        return Some(native);
+                    }
+                    continue;
+                }
                 return Some(resolved);
+            }
+        }
+    }
+    None
+}
+
+fn codex_native_windows_executable(
+    path_directory: &Path,
+    context: &DiscoveryContext,
+) -> Option<PathBuf> {
+    for (package, triple) in [
+        ("codex-win32-x64", "x86_64-pc-windows-msvc"),
+        ("codex-win32-arm64", "aarch64-pc-windows-msvc"),
+    ] {
+        for package_parts in [
+            vec!["@openai", "codex"],
+            vec!["@openai", "codex", "node_modules", "@openai", package],
+            vec!["@openai", package],
+        ] {
+            for binary_directory in ["bin", "codex"] {
+                let mut candidate = path_directory.join("node_modules");
+                for part in &package_parts {
+                    candidate.push(part);
+                }
+                candidate.push("vendor");
+                candidate.push(triple);
+                candidate.push(binary_directory);
+                candidate.push("codex.exe");
+                if let Some(native) = validated_executable_in_roots(
+                    &candidate,
+                    &provider_install_roots(DetectedProviderId::Codex, context),
+                ) {
+                    return Some(native);
+                }
             }
         }
     }
@@ -2154,6 +2206,19 @@ impl DetectionStore {
     /// Where this provider's installed client is, when it is installed.
     pub fn client_executable(&self, provider: DetectedProviderId) -> Option<PathBuf> {
         installed_executable(provider, &self.context)
+    }
+
+    /// The home containing the exact Codex credential selected for this account.
+    pub fn codex_home(&self, account_id: &str) -> Option<PathBuf> {
+        self.inventory
+            .read()
+            .ok()?
+            .credentials
+            .get(&(DetectedProviderId::Codex, account_id.to_string()))
+            .and_then(|reference| match &reference.source {
+                CredentialSource::File(path) => path.parent().map(Path::to_path_buf),
+                CredentialSource::AntigravityKeyring => None,
+            })
     }
 
     pub fn account_ids(&self, provider: DetectedProviderId) -> Vec<String> {
@@ -3362,6 +3427,15 @@ mod tests {
         package manifest lives below the prefix's node_modules directory. */
         let npm_bin = dir.path().join("bin");
         write(&npm_bin.join("codex.cmd"), "@echo off");
+        let native_codex = npm_bin
+            .join("node_modules")
+            .join("@openai")
+            .join("codex")
+            .join("vendor")
+            .join("x86_64-pc-windows-msvc")
+            .join("bin")
+            .join("codex.exe");
+        write(&native_codex, "native binary marker");
         write(
             &npm_bin
                 .join("node_modules")
@@ -3375,6 +3449,10 @@ mod tests {
         assert_eq!(
             installed_client_version(DetectedProviderId::Codex, &windows),
             Some("0.153.3".to_string())
+        );
+        assert_eq!(
+            installed_executable(DetectedProviderId::Codex, &windows),
+            Some(canonical_existing_path(&native_codex).expect("canonical native Codex"))
         );
 
         /* The npm layout: a shim in bin/, the manifest one level up. */

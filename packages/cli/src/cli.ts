@@ -765,7 +765,7 @@ function credentialReader(
             }
           };
     }
-    return await readAcquisitionCredential(provider, {
+    const result = await readAcquisitionCredential(provider, {
       ...(dependencies.stateDirectory === undefined ? {} : { stateDirectory: dependencies.stateDirectory }),
       platform: dependencies.platform,
       environment: dependencies.environment,
@@ -778,6 +778,27 @@ function credentialReader(
               await readWindowsCredentialWith(target, { runCommand: runner })
           })
     });
+    if (provider !== "CODEX" || !result.ok) return result;
+    const installation = Object.prototype.hasOwnProperty.call(
+      dependencies.detectedAgentInstallations,
+      "codex"
+    )
+      ? dependencies.detectedAgentInstallations.codex ?? null
+      : await detectAgentInstallation("codex", {
+          environment: dependencies.environment,
+          platform: dependencies.platform,
+          runCommand: async (executable, argumentsList, timeoutMilliseconds) => {
+            const command = await execFileRunner(executable, argumentsList, timeoutMilliseconds);
+            return command.ok
+              ? { ok: true, stdout: command.stdout, stderr: "" }
+              : command;
+          }
+        });
+    if (installation === null) return { ok: false, reason: "absent" };
+    return {
+      ok: true,
+      credential: { ...result.credential, executable: installation.executable }
+    };
   };
 }
 

@@ -20,7 +20,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { lstat, realpath } from "node:fs/promises";
 import { readJsonFileSafely, resolveStateDirectory, prepareStateDirectory, writeFileAtomically } from "../cache.js";
-import { codexUsageRequest } from "./transport.js";
+import { usableHeaderAccountId, usableHeaderSecret } from "./transport.js";
 import { cursorStatePath, readCursorSession } from "./cursor.js";
 import { credentialIdentityMaterial, credentialProviderAccount, opaqueAccountId } from "./identity.js";
 
@@ -86,6 +86,10 @@ export interface AcquiredCredential {
   readonly expiresAtMilliseconds: number | null;
   /** Where this credential came from, so a row can say whose login it is. */
   readonly origin: CredentialOrigin;
+  /** The selected Codex home, carried only to the local app server process. */
+  readonly codexHome?: string;
+  /** The native Codex binary resolved by the CLI runtime. */
+  readonly executable?: string;
 }
 
 export type CredentialResult =
@@ -247,7 +251,8 @@ export async function registerManagedCodexAccount(directory: string, sessionId: 
   if (!document.ok) return false;
   const parsed = readCredentialDocument("CODEX", document.value, Date.parse(now), "vendor_file");
   if (!parsed.ok || parsed.credential.accountId === null ||
-      codexUsageRequest(parsed.credential.secret, parsed.credential.accountId) === null) return false;
+      !usableHeaderSecret(parsed.credential.secret) ||
+      !usableHeaderAccountId(parsed.credential.accountId)) return false;
   await prepareStateDirectory(directory);
   await writeFileAtomically(path.join(directory, MANAGED_CODEX_REGISTRY), JSON.stringify({ version: 1, sessionId }));
   return true;
@@ -455,7 +460,14 @@ export async function readAcquisitionCredential(
       provider === "ANTIGRAVITY" ? "shared_code_assist" : "vendor_file",
       provider === "CLAUDE" ? await claudeIdentityHint(candidate) : null
     );
-    if (result.ok) return result;
+    if (result.ok) {
+      return provider === "CODEX"
+        ? {
+            ok: true,
+            credential: { ...result.credential, codexHome: path.dirname(candidate) }
+          }
+        : result;
+    }
     if (firstFailure === null) firstFailure = result.reason;
   }
   if (firstFailure !== null) return { ok: false, reason: firstFailure };

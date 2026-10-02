@@ -15,7 +15,6 @@ import {
   OPENLIMITER_USER_AGENT,
   claudeUsageRequest,
   codeAssistQuotaRequest,
-  codexUsageRequest,
   credentialCandidatePaths,
   credentialReadScript,
   decodeCredentialOutput,
@@ -59,7 +58,6 @@ describe("acquisition identity", () => {
     );
     for (const request of [
       claudeUsageRequest(SYNTHETIC_TOKEN),
-      codexUsageRequest(SYNTHETIC_TOKEN, "acct-1"),
       grokBillingRequest(SYNTHETIC_TOKEN, "user-1"),
       codeAssistLoadRequest(SYNTHETIC_TOKEN),
       kimiUsageRequest(SYNTHETIC_TOKEN),
@@ -83,7 +81,6 @@ describe("acquisition identity", () => {
     expect(grok?.headers["x-userid"]).toBe("user-1");
     for (const request of [
       claudeUsageRequest(SYNTHETIC_TOKEN),
-      codexUsageRequest(SYNTHETIC_TOKEN, "acct-1"),
       grok,
       kimiUsageRequest(SYNTHETIC_TOKEN),
       codeAssistLoadRequest(SYNTHETIC_TOKEN)
@@ -120,7 +117,6 @@ describe("acquisition identity", () => {
 
   it("refuses a header value that is not what that header may hold", () => {
     const claude = claudeUsageRequest(SYNTHETIC_TOKEN);
-    const codex = codexUsageRequest(SYNTHETIC_TOKEN, "acct-1");
     expect(claude).not.toBeNull();
     /* A name allowlist stops a cookie. It says nothing about an authorization
        header that is not a bearer token or a beta contract we never agreed. */
@@ -131,10 +127,6 @@ describe("acquisition identity", () => {
         headers: { ...claude!.headers, "anthropic-beta": "oauth-9999-01-01" }
       },
       { ...claude!, headers: { ...claude!.headers, accept: "text/html" } },
-      {
-        ...codex!,
-        headers: { ...codex!.headers, "chatgpt-account-id": "../../etc/passwd" }
-      },
       {
         ...claude!,
         headers: { ...claude!.headers, "content-type": "application/json" }
@@ -180,7 +172,6 @@ describe("acquisition identity", () => {
   it("refuses a secret that could inject a second header", () => {
     expect(claudeUsageRequest("good\r\nx-injected: 1")).toBeNull();
     expect(kimiUsageRequest("")).toBeNull();
-    expect(codexUsageRequest(SYNTHETIC_TOKEN, "acct 1")).toBeNull();
   });
 
   it("refuses a project identifier the provider tried to make into a payload", () => {

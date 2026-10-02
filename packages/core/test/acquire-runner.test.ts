@@ -39,6 +39,10 @@ function credential(
     credential: {
       secret: SYNTHETIC_TOKEN,
       accountId,
+      ...(accountId === null ? {} : {
+        codexHome: "/synthetic/codex-home",
+        executable: "/synthetic/codex"
+      }),
       expiresAtMilliseconds: null,
       origin
     }
@@ -81,7 +85,7 @@ describe("one acquisition round", () => {
     const result = await runAcquisition([codexSpec(() => [meter("CODEX")])], {
       transport: async (request) => {
         sent.push(request);
-        return reply(200, { rate_limit: {} });
+        return reply(200, { rateLimits: {} });
       },
       now: NOW,
       schedule: {},
@@ -89,8 +93,13 @@ describe("one acquisition round", () => {
       stamp: (meters) => meters.map((entry) => ({ ...entry, writer: "cli" }))
     });
     expect(sent).toHaveLength(1);
-    expect(sent[0]?.url).toBe("https://chatgpt.com/backend-api/wham/usage");
-    expect(sent[0]?.headers["chatgpt-account-id"]).toBe("acct-1");
+    expect(sent[0]).toMatchObject({
+      kind: "codex_app_server",
+      endpoint: "codex_usage",
+      codexHome: "/synthetic/codex-home",
+      executable: "/synthetic/codex",
+      expectedAccountId: acquisitionAccountId("CODEX", { secret: "fixture", accountId: "acct-1" })
+    });
     expect(result.rows).toEqual([{
       provider: "CODEX",
       accountId: acquisitionAccountId("CODEX", { secret: "fixture", accountId: "acct-1" }),
@@ -250,8 +259,8 @@ describe("one acquisition round", () => {
       }
     );
     expect(on.rows[0]?.status).toBe("read");
-    expect(sent[0]?.url).toBe("https://api.anthropic.com/api/oauth/usage");
-    expect(sent[0]?.headers["anthropic-beta"]).toBe("oauth-2025-04-20");
+    expect(sent[0] !== undefined && sent[0].kind === undefined ? sent[0].url : undefined).toBe("https://api.anthropic.com/api/oauth/usage");
+    expect(sent[0] !== undefined && sent[0].kind === undefined ? sent[0].headers["anthropic-beta"] : undefined).toBe("oauth-2025-04-20");
   });
 
   it("scopes the Code Assist quota read to the project the bootstrap named", async () => {
@@ -271,7 +280,7 @@ describe("one acquisition round", () => {
       "code_assist_load",
       "code_assist_quota"
     ]);
-    expect(sent[1]?.body).toContain("managed-project-123");
+    expect(sent[1] !== undefined && sent[1].kind === undefined ? sent[1].body : null).toContain("managed-project-123");
     expect(result.rows[0]?.status).toBe("read");
   });
 
@@ -556,7 +565,7 @@ describe("one acquisition round", () => {
       }
     });
     expect(asked).toEqual(["OPENROUTER"]);
-    expect(sent[0]?.url).toBe("https://openrouter.ai/api/v1/key");
+    expect(sent[0] !== undefined && sent[0].kind === undefined ? sent[0].url : undefined).toBe("https://openrouter.ai/api/v1/key");
   });
 
   it("drops a reading that survives parsing and fails validation", async () => {

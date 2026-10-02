@@ -4,7 +4,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  acquireRefreshLock, buildAdvice, codexUsageRequest, createFetchTransport,
+  acquireRefreshLock, buildAdvice, kimiUsageRequest, createFetchTransport,
   getAgyInstallRoots, isTrustedAgyExecutable, enumerateAgyListeningPorts,
   normalizeMeters, parseAgyQuotaSummary, readAcquisitionCredential,
   readSnapshotCache, registerManagedCodexAccount, shouldStartRefresh,
@@ -133,6 +133,9 @@ describe("P1 audit regressions", () => {
 
   it("08 renders each setup section once and acquires before host prompts", async () => {
     const d = await deps();
+    d.detectedAgentInstallations = {
+      codex: { version: "test", executable: process.execPath, fileSize: 1, mtimeMilliseconds: 1 }
+    };
     await mkdir(path.join(d.homeDirectory, ".codex"), { recursive: true });
     await writeFile(path.join(d.homeDirectory, ".codex", "auth.json"), JSON.stringify(credentialDocuments.codex));
     const emitted: string[] = [];
@@ -487,7 +490,7 @@ describe("P1 audit regressions", () => {
       const fakeFetch: typeof fetch = async () => new Response(body, { status: 200 });
       let returned = false;
       const pending = (kind === "hub" ? createFetchHubTransport(fakeFetch)(cliLoginStartRequest(ENV)!) :
-        createFetchTransport(fakeFetch)(codexUsageRequest("synthetic-access-token-0000", "synthetic-account")!)).then((reply) => {
+        createFetchTransport(fakeFetch)(kimiUsageRequest("synthetic-access-token-0000")!)).then((reply) => {
         returned = true;
         return reply;
       });

@@ -14,6 +14,7 @@
  */
 import { OPENLIMITER_USER_AGENT } from "./identity.js";
 import { readBoundedResponse } from "../bounded-stream.js";
+import { codexAppServerAcquisitionReply } from "./codex-app-server.js";
 
 /** One request's total budget, connect to last body byte. */
 export const ACQUISITION_TIMEOUT_MILLISECONDS = 15_000;
@@ -25,9 +26,6 @@ export const MAX_ACQUISITION_RESPONSE_BYTES = 1_048_576;
 
 /** The Claude account usage report, read with Claude Code's own OAuth token. */
 export const CLAUDE_OAUTH_USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
-
-/** The Codex usage report, read with the session the Codex CLI holds. */
-export const CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
 
 /** Gemini CLI's Code Assist account bootstrap, which names the project. */
 export const GEMINI_CLI_LOAD_URL =
@@ -57,7 +55,6 @@ export const OPENROUTER_KEY_URL = "https://openrouter.ai/api/v1/key";
  */
 export const ACQUISITION_ENDPOINTS = {
   claude_usage: { url: CLAUDE_OAUTH_USAGE_URL, method: "GET" },
-  codex_usage: { url: CODEX_USAGE_URL, method: "GET" },
   code_assist_load: { url: GEMINI_CLI_LOAD_URL, method: "POST" },
   code_assist_quota: { url: GEMINI_CLI_QUOTA_URL, method: "POST" },
   grok_billing: { url: GROK_USAGE_URL, method: "GET" },
@@ -73,9 +70,6 @@ export type AcquisitionEndpointId = keyof typeof ACQUISITION_ENDPOINTS;
 /** The beta contract the OAuth usage route answers. */
 export const CLAUDE_OAUTH_BETA_HEADER = "anthropic-beta";
 export const CLAUDE_OAUTH_BETA_VALUE = "oauth-2025-04-20";
-
-/** The account header the ChatGPT backend reads beside the bearer token. */
-export const CODEX_ACCOUNT_HEADER = "chatgpt-account-id";
 
 /** The account identity the Grok billing service reads beside the token. */
 export const GROK_ACCOUNT_HEADER = "x-userid";
@@ -93,13 +87,27 @@ export const CODE_ASSIST_LOAD_BODY = JSON.stringify({
   }
 });
 
-export interface AcquisitionRequest {
+export interface HttpAcquisitionRequest {
+  readonly kind?: never;
   readonly endpoint: AcquisitionEndpointId;
   readonly url: string;
   readonly method: "GET" | "POST";
   readonly headers: Readonly<Record<string, string>>;
   readonly body: string | null;
 }
+
+export interface CodexAppServerAcquisitionRequest {
+  readonly kind: "codex_app_server";
+  readonly endpoint: "codex_usage";
+  readonly executable: string;
+  readonly codexHome: string;
+  readonly expectedAccountId: string;
+  readonly argumentsPrefix?: readonly string[];
+  readonly environment?: NodeJS.ProcessEnv;
+  readonly timeoutMilliseconds?: number;
+}
+
+export type AcquisitionRequest = HttpAcquisitionRequest | CodexAppServerAcquisitionRequest;
 
 /**
  * Whether a secret may be written into a header at all.
@@ -135,7 +143,7 @@ function bearer(secret: string): Readonly<Record<string, string>> {
 }
 
 /** The Claude usage request. Our identity, and the documented beta contract. */
-export function claudeUsageRequest(secret: string): AcquisitionRequest | null {
+export function claudeUsageRequest(secret: string): HttpAcquisitionRequest | null {
   if (!usableHeaderSecret(secret)) return null;
   return {
     endpoint: "claude_usage",
@@ -146,23 +154,8 @@ export function claudeUsageRequest(secret: string): AcquisitionRequest | null {
   };
 }
 
-/** The Codex usage request, with the account header the backend requires. */
-export function codexUsageRequest(
-  secret: string,
-  accountId: string
-): AcquisitionRequest | null {
-  if (!usableHeaderSecret(secret) || !usableHeaderAccountId(accountId)) return null;
-  return {
-    endpoint: "codex_usage",
-    url: ACQUISITION_ENDPOINTS.codex_usage.url,
-    method: "GET",
-    headers: { ...bearer(secret), [CODEX_ACCOUNT_HEADER]: accountId },
-    body: null
-  };
-}
-
 /** The Code Assist bootstrap, which answers with the companion project. */
-export function codeAssistLoadRequest(secret: string): AcquisitionRequest | null {
+export function codeAssistLoadRequest(secret: string): HttpAcquisitionRequest | null {
   if (!usableHeaderSecret(secret)) return null;
   return {
     endpoint: "code_assist_load",
@@ -186,7 +179,7 @@ export const CODE_ASSIST_PROJECT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/
 export function codeAssistQuotaRequest(
   secret: string,
   project: string
-): AcquisitionRequest | null {
+): HttpAcquisitionRequest | null {
   if (!usableHeaderSecret(secret)) return null;
   if (!CODE_ASSIST_PROJECT_PATTERN.test(project)) return null;
   return {
@@ -216,7 +209,7 @@ export function codeAssistQuotaRequest(
 export function grokBillingRequest(
   secret: string,
   accountId: string | null
-): AcquisitionRequest | null {
+): HttpAcquisitionRequest | null {
   if (!usableHeaderSecret(secret)) return null;
   const account = accountId !== null && usableHeaderAccountId(accountId)
     ? accountId
@@ -234,7 +227,7 @@ export function grokBillingRequest(
 }
 
 /** The Kimi Code usage request. */
-export function kimiUsageRequest(secret: string): AcquisitionRequest | null {
+export function kimiUsageRequest(secret: string): HttpAcquisitionRequest | null {
   if (!usableHeaderSecret(secret)) return null;
   return {
     endpoint: "kimi_usage",
@@ -245,7 +238,7 @@ export function kimiUsageRequest(secret: string): AcquisitionRequest | null {
   };
 }
 
-export function cursorUsageRequest(secret: string, authId: string): AcquisitionRequest | null {
+export function cursorUsageRequest(secret: string, authId: string): HttpAcquisitionRequest | null {
   if (!/^[A-Za-z0-9._-]{1,16384}$/u.test(secret) || !/^[A-Za-z0-9._-]{1,16384}$/u.test(authId)) return null;
   return {
     endpoint: "cursor_usage", url: CURSOR_USAGE_URL, method: "GET", body: null,
@@ -257,7 +250,7 @@ export function cursorUsageRequest(secret: string, authId: string): AcquisitionR
 }
 
 /** The OpenRouter key report, the one documented interface in this table. */
-export function openrouterKeyRequest(secret: string): AcquisitionRequest | null {
+export function openrouterKeyRequest(secret: string): HttpAcquisitionRequest | null {
   if (!usableHeaderSecret(secret)) return null;
   return {
     endpoint: "openrouter_key",
@@ -309,6 +302,8 @@ export interface AcquisitionReply {
   readonly body: string;
   /** Retry-After in seconds when the provider stated one, otherwise null. */
   readonly retryAfterSeconds: number | null;
+  /** A local protocol decision that has no meaningful HTTP status. */
+  readonly outcome?: AcquisitionOutcome;
 }
 
 export type AcquisitionTransport = (
@@ -359,7 +354,6 @@ export const ALLOWED_REQUEST_HEADERS: readonly string[] = [
   "user-agent",
   "content-type",
   CLAUDE_OAUTH_BETA_HEADER,
-  CODEX_ACCOUNT_HEADER,
   GROK_ACCOUNT_HEADER
 ];
 
@@ -384,7 +378,7 @@ function validHeaderValue(name: string, value: string, method: string): boolean 
     return value.startsWith("Bearer ") && usableHeaderSecret(value.slice(7));
   }
   if (name === CLAUDE_OAUTH_BETA_HEADER) return value === CLAUDE_OAUTH_BETA_VALUE;
-  if (name === CODEX_ACCOUNT_HEADER || name === GROK_ACCOUNT_HEADER) {
+  if (name === GROK_ACCOUNT_HEADER) {
     return usableHeaderAccountId(value);
   }
   return false;
@@ -399,7 +393,7 @@ function validHeaderValue(name: string, value: string, method: string): boolean 
  * from the builder: this is the last point before the wire, and the last chance
  * to notice that a project identifier grew into something else.
  */
-function validRequestBody(request: AcquisitionRequest): boolean {
+function validRequestBody(request: HttpAcquisitionRequest): boolean {
   if (request.endpoint === "code_assist_load") {
     return request.body === CODE_ASSIST_LOAD_BODY;
   }
@@ -435,7 +429,7 @@ function validRequestBody(request: AcquisitionRequest): boolean {
  * answered against constants in this file. A request that fails any of them
  * never reaches the network.
  */
-export function validAcquisitionRequest(request: AcquisitionRequest): boolean {
+export function validAcquisitionRequest(request: HttpAcquisitionRequest): boolean {
   const endpoint = ACQUISITION_ENDPOINTS[request.endpoint];
   if (endpoint === undefined) return false;
   if (request.url !== endpoint.url || request.method !== endpoint.method) return false;
@@ -465,6 +459,9 @@ export function createFetchTransport(
   fetchImplementation: typeof globalThis.fetch = globalThis.fetch
 ): AcquisitionTransport {
   return async (request) => {
+    if (request.kind === "codex_app_server") {
+      return await codexAppServerAcquisitionReply(request);
+    }
     /* Payload free on purpose. The runner turns this into the `transport`
        outcome, and an error carrying a URL or a header would be the one place
        a credential could reach a log. */

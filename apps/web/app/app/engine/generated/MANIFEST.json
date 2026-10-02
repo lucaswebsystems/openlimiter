@@ -15,10 +15,10 @@
     "connectors/shared.ts": "999163f50865ac4f",
     "connectors/antigravity.ts": "29fe19aed737cfb9",
     "connectors/claude.ts": "553ef79750047420",
-    "connectors/codex.ts": "98a1e13a8befb71f",
+    "connectors/codex.ts": "f7e9ea4951d33372",
     "connectors/cursor.ts": "4f48ea7b33669ff4",
     "connectors/contract-gate.ts": "0be97577d12a40b1",
-    "connectors/fixtures.ts": "3cee18874694813e",
+    "connectors/fixtures.ts": "a9e6c750b3592708",
     "connectors/gemini-cli.ts": "6bdf5b986d6bc9be",
     "connectors/grok.ts": "2effd4e9325bd882",
     "connectors/kimi.ts": "247cffe264807106",
@@ -30,6 +30,6 @@
     "ui/provider-connect.ts": "ac27de48b19b41e8",
     "ui/provider-row.ts": "a16ee443bab6f93c",
     "ui/tokens.css": "11c79e1125538355",
-    "provider_specs/provider-specs.json": "dd40cfa2818ad6fa"
+    "provider_specs/provider-specs.json": "b34a5b0203369cad"
   }
 }

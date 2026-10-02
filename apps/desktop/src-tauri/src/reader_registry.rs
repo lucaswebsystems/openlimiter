@@ -292,8 +292,8 @@ pub enum AuthApplication {
     BearerAuthorization,
     /// A bearer token plus the fixed OAuth usage contract headers Claude Code uses.
     ClaudeOauthBearer,
-    /// A bearer token plus the fixed account header the ChatGPT backend
-    /// requires, while identifying the request as OpenLimiter.
+    /// Retired Codex route marker retained for stored record compatibility.
+    /// It has no HTTP endpoint, and `net.rs` refuses it before transport.
     CodexSessionBearer,
     /// A bearer token plus a non empty user agent. Not optional: the Google
     /// metadata plane answers 403 to a valid token when the header is absent,
@@ -323,7 +323,7 @@ pub enum AuthApplication {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 pub struct ReaderRoute {
     pub reader_id: ReaderId,
-    pub endpoint: ProviderEndpoint,
+    pub endpoint: Option<ProviderEndpoint>,
     pub auth: AuthApplication,
 }
 
@@ -357,12 +357,12 @@ pub const fn reader_route(
         ProviderId::Openrouter => match credential {
             CredentialKind::OpenrouterInferenceKey => Ok(ReaderRoute {
                 reader_id: ReaderId::OpenrouterKey,
-                endpoint: ProviderEndpoint::OpenrouterKey,
+                endpoint: Some(ProviderEndpoint::OpenrouterKey),
                 auth: AuthApplication::BearerAuthorization,
             }),
             CredentialKind::OpenrouterManagementKey => Ok(ReaderRoute {
                 reader_id: ReaderId::OpenrouterCredits,
-                endpoint: ProviderEndpoint::OpenrouterCredits,
+                endpoint: Some(ProviderEndpoint::OpenrouterCredits),
                 auth: AuthApplication::BearerAuthorization,
             }),
             CredentialKind::CodexSession
@@ -375,7 +375,7 @@ pub const fn reader_route(
         ProviderId::Codex => match credential {
             CredentialKind::CodexSession => Ok(ReaderRoute {
                 reader_id: ReaderId::CodexUsage,
-                endpoint: ProviderEndpoint::CodexUsage,
+                endpoint: None,
                 auth: AuthApplication::CodexSessionBearer,
             }),
             CredentialKind::OpenrouterInferenceKey
@@ -389,7 +389,7 @@ pub const fn reader_route(
         ProviderId::Antigravity => match credential {
             CredentialKind::AntigravitySession => Ok(ReaderRoute {
                 reader_id: ReaderId::AntigravityQuota,
-                endpoint: ProviderEndpoint::AntigravityQuota,
+                endpoint: Some(ProviderEndpoint::AntigravityQuota),
                 auth: AuthApplication::AntigravitySessionBearer,
             }),
             CredentialKind::OpenrouterInferenceKey
@@ -403,7 +403,7 @@ pub const fn reader_route(
         ProviderId::Opencode => match credential {
             CredentialKind::OpencodeBrowserSession => Ok(ReaderRoute {
                 reader_id: ReaderId::OpencodeUsage,
-                endpoint: ProviderEndpoint::OpencodeUsage,
+                endpoint: Some(ProviderEndpoint::OpencodeUsage),
                 auth: AuthApplication::BrowserSessionCookie,
             }),
             CredentialKind::OpenrouterInferenceKey
@@ -417,7 +417,7 @@ pub const fn reader_route(
         ProviderId::Grok => match credential {
             CredentialKind::GrokSession => Ok(ReaderRoute {
                 reader_id: ReaderId::GrokUsage,
-                endpoint: ProviderEndpoint::GrokUsage,
+                endpoint: Some(ProviderEndpoint::GrokUsage),
                 auth: AuthApplication::GrokSessionBearer,
             }),
             CredentialKind::OpenrouterInferenceKey
@@ -431,7 +431,7 @@ pub const fn reader_route(
         ProviderId::Kimi => match credential {
             CredentialKind::KimiSession => Ok(ReaderRoute {
                 reader_id: ReaderId::KimiUsage,
-                endpoint: ProviderEndpoint::KimiUsage,
+                endpoint: Some(ProviderEndpoint::KimiUsage),
                 auth: AuthApplication::KimiSessionBearer,
             }),
             CredentialKind::OpenrouterInferenceKey
@@ -445,7 +445,7 @@ pub const fn reader_route(
         ProviderId::Cursor => match credential {
             CredentialKind::CursorSession => Ok(ReaderRoute {
                 reader_id: ReaderId::CursorUsage,
-                endpoint: ProviderEndpoint::CursorUsage,
+                endpoint: Some(ProviderEndpoint::CursorUsage),
                 auth: AuthApplication::CursorSessionCookie,
             }),
             CredentialKind::OpenrouterInferenceKey
@@ -529,15 +529,17 @@ mod tests {
         for provider in ProviderId::ALL {
             for credential in CredentialKind::ALL {
                 if let Ok(route) = reader_route(provider, credential) {
-                    assert!(
-                        !seen.contains(&route.endpoint),
-                        "two credentials reached one endpoint"
-                    );
-                    seen.push(route.endpoint);
+                    if let Some(endpoint) = route.endpoint {
+                        assert!(
+                            !seen.contains(&endpoint),
+                            "two credentials reached one endpoint"
+                        );
+                        seen.push(endpoint);
+                    }
                 }
             }
         }
-        assert_eq!(seen.len(), ReaderId::ALL.len());
+        assert_eq!(seen.len(), ReaderId::ALL.len() - 1);
     }
 
     #[test]
@@ -609,13 +611,11 @@ mod tests {
     }
 
     #[test]
-    fn codex_refresh_is_a_read_surface_and_never_inference() {
+    fn codex_refresh_is_a_local_read_surface_and_never_an_http_endpoint() {
         let route = reader_route(ProviderId::Codex, CredentialKind::CodexSession)
             .expect("Codex session route");
         assert_eq!(route.reader_id, ReaderId::CodexUsage);
-        assert_eq!(route.endpoint, ProviderEndpoint::CodexUsage);
-        assert_eq!(route.endpoint.method(), crate::net::HttpMethod::Get);
-        assert_eq!(route.endpoint.body(), None);
+        assert_eq!(route.endpoint, None);
     }
 
     #[test]

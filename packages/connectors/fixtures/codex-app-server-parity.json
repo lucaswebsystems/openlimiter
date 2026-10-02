@@ -1,0 +1,38 @@
+{
+  "now": "2026-12-31T12:00:00.000Z",
+  "vectors": [
+    {
+      "name": "named standard windows",
+      "payload": {
+        "rateLimits": {
+          "limitId": "codex",
+          "primary": { "usedPercent": 23, "windowDurationMins": 300, "resetsAt": 1798783200 },
+          "secondary": { "usedPercent": 47, "windowDurationMins": 10080, "resetsAt": 1799388000 }
+        }
+      },
+      "meterIds": ["FIVE_HOUR", "SEVEN_DAY"]
+    },
+    {
+      "name": "camel case limit and stable null slot",
+      "payload": {
+        "rateLimits": {
+          "limitId": "codexOther",
+          "primary": { "usedPercent": 61, "windowDurationMins": 90, "resetsAt": 1798783200 },
+          "secondary": { "usedPercent": 17, "windowDurationMins": null, "resetsAt": null }
+        }
+      },
+      "meterIds": ["CODEX_OTHER_WINDOW_90_MINUTE", "CODEX_OTHER_SECONDARY"]
+    },
+    {
+      "name": "duplicates are renamed together",
+      "payload": {
+        "rateLimits": {
+          "limitId": "codex",
+          "primary": { "usedPercent": 10, "windowDurationMins": 300, "resetsAt": 1798783200 },
+          "secondary": { "usedPercent": 20, "windowDurationMins": 300, "resetsAt": 1798786800 }
+        }
+      },
+      "meterIds": ["FIVE_HOUR_PRIMARY", "FIVE_HOUR_SECONDARY"]
+    }
+  ]
+}

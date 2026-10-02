@@ -9,6 +9,7 @@ mod claude_connect;
 mod claude_detect;
 mod claude_oauth;
 mod claude_poll_setting;
+mod codex_app_server;
 mod codex_device_login;
 mod codex_oauth;
 mod collector;
