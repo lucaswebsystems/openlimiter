@@ -508,7 +508,7 @@
     "shots": {
       "meters": {
         "label": "Meter",
-        "alt": "スマートフォン上のWebアプリ。上部に最も余裕の少ない制限がリング、バー、リセットまでのカウントダウンで表示され、その下にプロバイダーごとのカードが並び、それぞれにバー、使用率、リセットまでの時間が表示されています。"
+        "alt": "スマートフォン上のWebアプリ。プロバイダーごとに統一された並べ替え可能なカードがあり、バー、使用率、リセット時刻が表示されています。"
       },
       "agentContext": {
         "label": "Agent context",
@@ -2170,6 +2170,30 @@
     "addAccount": "アカウントを追加",
     "configuration": "設定",
     "backToBars": "バー表示に戻る",
+    "grid": {
+      "label": "アカウント別のプロバイダー使用状況",
+      "account": "アカウント{count}",
+      "rearrange": "{name}を並べ替え",
+      "moveEarlier": "前へ移動",
+      "moveLater": "後ろへ移動",
+      "moved": "{name}を{total}件中{position}番目に移動しました",
+      "cancelled": "移動をキャンセルしました。{name}を{total}件中{position}番目に戻しました",
+      "keyboardHelp": "このボタンにフォーカスがあり、操作パネルが閉じているときは、矢印キーでカードを移動できます。",
+      "addAccount": "アカウントを追加"
+    },
+    "menu": {
+      "open": "メニューを開く",
+      "label": "アカウントメニュー",
+      "sync": "使用率を同期",
+      "theme": "テーマ",
+      "settings": "設定",
+      "phone": "スマートフォンで開く",
+      "install": "アプリをインストール",
+      "installed": "インストール済み",
+      "updates": "更新を確認",
+      "about": "OpenLimiterについて",
+      "logout": "ログアウト"
+    },
   "command": {
     "copy": "コマンドをコピー",
     "copied": "コマンドをコピーしました",
@@ -2246,8 +2270,13 @@
       "start": "Proを30日間無料で始める",
       "header": {
         "signIn": "サインインしてProの30日間無料トライアルを開始",
-        "dayLeft": "Proトライアル、残り1日",
-        "daysLeft": "Proトライアル、残り{count}日"
+        "start": "Proを試す",
+        "working": "開始中",
+        "complete": "Pro有効",
+        "dayLeft": "残り1日",
+        "daysLeft": "残り{count}日",
+        "dayLeftLabel": "Proトライアル、残り1日",
+        "daysLeftLabel": "Proトライアル、残り{count}日"
       },
       "free": "クレジットカードは不要です",
       "label": "無料トライアルを始める",

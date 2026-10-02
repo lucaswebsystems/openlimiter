@@ -1291,6 +1291,9 @@ describe("the pair page", () => {
     mounted = render(createElement(PairFlow));
     await flush(6);
     expect(mounted.container.textContent).toContain(hub.pairPage.bars.title);
+    expect(mounted.container.querySelector("openlimiter-provider-row")).not.toBeNull();
+    expect(mounted.container.querySelector(".ol-card-grip")).not.toBeNull();
+    expect(mounted.container.querySelector(".ol-live-meter-card")).toBeNull();
   });
 
   it("claims, receives approval, and establishes cookies without retaining credentials", async () => {

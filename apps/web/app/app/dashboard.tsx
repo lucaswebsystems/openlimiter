@@ -12,16 +12,13 @@ import {
   type ProviderFailure,
   type Snapshot,
 } from "./engine";
-import { InstallControl } from "./install";
+import { InstallControl, type InstallControlHandle } from "./install";
 import {
   BackGlyph,
   Button,
   DemoBanner,
-  GearGlyph,
   HeaderStrip,
-  IconButton,
   Panel,
-  PlusGlyph,
   ProviderDirectory,
   ProviderRows,
   observationAgeMinutes,
@@ -31,11 +28,10 @@ import {
 import { BarsEmpty, ConnectList } from "./connect";
 import { Onboarding } from "./onboarding";
 import { HeaderTrial, ProLockCard, TrialWizard } from "./trial";
-import PhoneButton from "./phone-button";
+import PhoneButton, { type PhoneButtonHandle } from "./phone-button";
 import { SignInCard } from "@/components/sign-in-card";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SectionPanel } from "@/components/ui";
-import { LiveMeter } from "./live-meter";
 import { NotificationBell, type AlertScope } from "./notification-bell";
 import {
   CONFIGURATION_DEEP_LINK_PARAM,
@@ -544,6 +540,11 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     [shown, now, shownFailures, demo, isDevPreview, readingsT],
   );
 
+  const phoneControl = useRef<PhoneButtonHandle | null>(null);
+  const installControl = useRef<InstallControlHandle | null>(null);
+  const menuTrigger = useRef<HTMLButtonElement | null>(null);
+  const [installInstalled, setInstallInstalled] = useState(true);
+
   const alertScopes = useMemo(() => {
     const scopes = new Map<string, AlertScope>();
     for (const snapshot of shown) {
@@ -572,6 +573,12 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     isDevPreview && IS_DEV
       ? ({ user: { id: "preview", email: "preview@openlimiter.com" } } as unknown as Session)
       : session;
+  const cardOrderScope = useMemo(
+    () => demo || isDevPreview
+      ? ({ kind: "demo" } as const)
+      : ({ kind: "user", id: effectiveSession?.user.id ?? "pending" } as const),
+    [demo, effectiveSession?.user.id, isDevPreview],
+  );
 
   /**
    * The bars themselves, drawn once and shown in two places.
@@ -586,17 +593,33 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   const awaitingFirstRead =
     syncEnabled && !demo && !isDevPreview && syncedUsage === null;
 
-  const barsPanel =
-    busy || dash === null || awaitingFirstRead ? (
-      <SkeletonRows />
-    ) : hasReadings ? (
+  const barsPanel = (interactive: boolean) => {
+    const addAccount = interactive ? () => setView("connect") : undefined;
+    if (busy || dash === null || awaitingFirstRead) {
+      return (
+        <div className="ol-home-stack">
+          <SkeletonRows />
+          {addAccount !== undefined && <ProviderRows rows={[]} onAddAccount={addAccount} />}
+        </div>
+      );
+    }
+    if (hasReadings) {
+      return (
+        <ProviderRows
+          rows={providerRows}
+          orderScope={interactive ? cardOrderScope : undefined}
+          reorderable={interactive}
+          onAddAccount={addAccount}
+        />
+      );
+    }
+    return (
       <div className="ol-home-stack">
-        <LiveMeter snapshots={shown} now={now} demo={demo} />
-        <ProviderRows rows={providerRows} />
+        <BarsEmpty />
+        {addAccount !== undefined && <ProviderRows rows={[]} onAddAccount={addAccount} />}
       </div>
-    ) : (
-      <BarsEmpty />
     );
+  };
 
   if (!mounted || effectiveSession === undefined) {
     return <div className="ol-dashboard"><SkeletonRows /></div>;
@@ -644,16 +667,6 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
         }
         actions={
           <>
-            {/* The name is carried by the control rather than by its text,
-                because the text is dropped at the phone width and a button
-                whose only label is display:none has no accessible name. */}
-            {view === "bars" && (
-              <Button tone="ghost" label={t("addAccount")} onClick={() => setView("connect")}>
-                <PlusGlyph />
-                <span className="hidden lg:inline">{t("addAccount")}</span>
-              </Button>
-            )}
-            {view === "bars" && syncClient !== null && <PhoneButton />}
             {syncClient !== null && (
               <NotificationBell
                 client={syncClient}
@@ -662,27 +675,17 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
                 onStartTrial={() => setView("trial")}
               />
             )}
-            <InstallControl />
-            <ThemeToggle className="h-9 w-9" />
-            {/* Not offered during the first run. Reaching configuration from
-                there would leave the flow without finishing it, and an
-                unfinished flow opens again on the next visit. Later and Skip
-                are the ways out, and both record that it is done. */}
-            {view !== "onboarding" && (
-              <IconButton
-                label={t("configuration")}
-                pressed={view === "configuration"}
-                onClick={() => setView(view === "configuration" ? "bars" : "configuration")}
-              >
-                <GearGlyph />
-              </IconButton>
-            )}
             <SettingsMenu
               accountEmail={effectiveSession.user.email ?? "Signed in"}
               syncEnabled={syncEnabled}
               onSyncChange={(enabled) => {
                 sessionRuntime.setSyncEnabled(enabled);
               }}
+              showSettings={view !== "onboarding"}
+              settingsSelected={view === "configuration"}
+              onSettings={() => setView(view === "configuration" ? "bars" : "configuration")}
+              onPhone={(returnFocus) => phoneControl.current?.open(returnFocus)}
+              onInstall={(returnFocus) => installControl.current?.activate(returnFocus)}
               onCheckUpdate={() => {
                 if (navigator.serviceWorker === undefined) return;
                 void navigator.serviceWorker.getRegistrations().then(async (registrations) => {
@@ -693,9 +696,19 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
               onLogout={() => {
                 void sessionRuntime.logout();
               }}
+              onOpen={() => phoneControl.current?.close()}
+              installed={installInstalled}
+              triggerRef={menuTrigger}
             />
           </>
         }
+      />
+
+      <PhoneButton ref={phoneControl} showButton={false} />
+      <InstallControl
+        ref={installControl}
+        showButton={false}
+        onInstalledChange={setInstallInstalled}
       />
 
       <p role="status" aria-live="polite" className="sr-only">
@@ -706,7 +719,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
         <div className="ol-panel">
           <Onboarding
             profile={effectiveSession.user as AccountProfile}
-            bars={barsPanel}
+            bars={barsPanel(false)}
             onSaveName={saveProfileName}
             onFinish={finishOnboarding}
           />
@@ -716,7 +729,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
       {view === "bars" && (
         <div className="ol-panel ol-home-stack">
           {trialStartedNotice && <p className="ol-trial-success" role="status">{t("trial.done.lead")}</p>}
-          {barsPanel}
+          {barsPanel(true)}
           {!demo && syncEnabled && <>
             <CloudSpendRows rows={cloudRows} now={now ?? new Date().toISOString()} failed={cloudFailed} />
             <SyncedSpendRows sources={syncedSpend} now={now ?? new Date().toISOString()} failed={spendFailed} />

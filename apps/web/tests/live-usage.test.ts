@@ -10,7 +10,6 @@ import {
   parseKimiPayload,
   parseOpenrouterPayload,
 } from "../app/app/engine/generated/connectors";
-import { featuredSnapshotOf } from "../app/app/live-meter";
 import {
   snapshotsFromSyncedUsage,
   visibleQuotaSnapshots,
@@ -143,7 +142,7 @@ describe("live synced usage", () => {
     ]);
     expect(snapshots.some((row) => row.accountId === "default")).toBe(false);
     expect(snapshots.some((row) => row.meter === "ACQUISITION")).toBe(false);
-    expect(featuredSnapshotOf(snapshots)?.value).toBe(84);
+    expect(Math.max(...snapshots.map((row) => row.value))).toBe(84);
 
     const rows = buildProviderAccountRows(snapshots, NOW);
     expect(rows).toHaveLength(2);

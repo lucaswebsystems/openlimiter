@@ -1,7 +1,20 @@
 "use client";
 
-import { createElement, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  createElement,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import {
   PROVIDER_ROW_TAG,
   buildProviderDirectory,
@@ -12,6 +25,15 @@ import {
 } from "./engine";
 import registry from "../../lib/provider-specs.generated.json";
 import { ProviderMark } from "./marks";
+import {
+  moveVisibleCard,
+  readCardOrder,
+  reconcileCardOrder,
+  visibleCardOrder,
+  writeCardOrder,
+  type CardOrderScope,
+} from "./card-order";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 /**
  * The parts the dashboard is built from.
@@ -39,7 +61,13 @@ import { ProviderMark } from "./marks";
 
 const CARD_SURFACE = "ol-product-panel";
 
-export function ProviderAccountRow({ row }: { row: ProviderAccountRowView }) {
+export function ProviderAccountRow({
+  row,
+  actions,
+}: {
+  row: ProviderAccountRowView;
+  actions?: ReactNode;
+}) {
   const host = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -47,26 +75,335 @@ export function ProviderAccountRow({ row }: { row: ProviderAccountRowView }) {
     if (host.current !== null) setProviderRowData(host.current, row);
   }, [row]);
 
-  return createElement(PROVIDER_ROW_TAG, {
-    ref: (element: HTMLElement | null) => {
-      host.current = element;
+  return createElement(
+    PROVIDER_ROW_TAG,
+    {
+      ref: (element: HTMLElement | null) => {
+        host.current = element;
+      },
+      "data-row-key": row.key,
+      suppressHydrationWarning: true,
     },
-    "data-row-key": row.key,
-    suppressHydrationWarning: true,
-  });
+    actions,
+  );
 }
 
-export function ProviderRows({ rows }: { rows: readonly ProviderAccountRowView[] }) {
-  const visibleRows = rows.filter((row) => row.windows.length > 0);
+function GripGlyph() {
   return (
-    <div aria-label="Provider usage by account" className="ol-telemetry-table">
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <circle cx="8" cy="7" r="1" /><circle cx="16" cy="7" r="1" />
+      <circle cx="8" cy="12" r="1" /><circle cx="16" cy="12" r="1" />
+      <circle cx="8" cy="17" r="1" /><circle cx="16" cy="17" r="1" />
+    </svg>
+  );
+}
+
+function EarlierGlyph() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>;
+}
+
+function LaterGlyph() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>;
+}
+
+function rowName(row: ProviderAccountRowView): string {
+  return row.showAccountLabel ? `${row.providerLabel}, ${row.accountLabel}` : row.providerLabel;
+}
+
+function cardStorage(): Storage | null {
+  if (typeof window === "undefined") return null;
+  try { return window.localStorage; }
+  catch { return null; }
+}
+
+export function ProviderRows({
+  rows,
+  orderScope,
+  reorderable = false,
+  onAddAccount,
+}: {
+  rows: readonly ProviderAccountRowView[];
+  orderScope?: CardOrderScope;
+  reorderable?: boolean;
+  onAddAccount?: () => void;
+}) {
+  const t = useTranslations("hub.grid");
+  const visibleRows = useMemo(() => rows.filter((row) => row.windows.length > 0), [rows]);
+  const presentKeys = useMemo(() => visibleRows.map((row) => row.key), [visibleRows]);
+  const presentSignature = presentKeys.join("\u001f");
+  const scopeSignature = orderScope === undefined
+    ? "none"
+    : orderScope.kind === "demo"
+      ? "demo"
+      : `${orderScope.kind}:${orderScope.id}`;
+  const [order, setOrder] = useState<readonly string[]>(presentKeys);
+  const committedOrderRef = useRef<readonly string[]>(order);
+  const orderRef = useRef<readonly string[]>(order);
+  const orderScopeRef = useRef(orderScope);
+  orderScopeRef.current = orderScope;
+  const loadedScope = useRef<string | null>(null);
+  const grips = useRef(new Map<string, HTMLButtonElement>());
+  const cards = useRef(new Map<string, HTMLDivElement>());
+  const actionPanels = useRef(new Map<string, HTMLDivElement>());
+  const drag = useRef<{ key: string; pointerId: number; original: readonly string[]; moved: boolean } | null>(null);
+  const suppressGripClick = useRef<string | null>(null);
+  const [draggingKey, setDraggingKey] = useState<string | null>(null);
+  const [openActionsKey, setOpenActionsKey] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  const keyboardHelpId = useId();
+
+  useEffect(() => {
+    const activeScope = orderScopeRef.current;
+    if (activeScope === undefined) return;
+    const storage = cardStorage();
+    const scopeChanged = loadedScope.current !== scopeSignature;
+    const seed = scopeChanged ? readCardOrder(storage, activeScope) : committedOrderRef.current;
+    const next = reconcileCardOrder(seed, presentKeys);
+    loadedScope.current = scopeSignature;
+    committedOrderRef.current = next;
+    const activeDrag = drag.current;
+    if (activeDrag !== null) {
+      activeDrag.original = next;
+      const preview = reconcileCardOrder(orderRef.current, presentKeys);
+      orderRef.current = preview;
+      setOrder(preview);
+      return;
+    }
+    orderRef.current = next;
+    setOrder(next);
+    writeCardOrder(storage, activeScope, next, presentKeys);
+  }, [presentKeys, presentSignature, scopeSignature]);
+
+  const orderedRows = useMemo(() => {
+    if (!reorderable || scopeSignature === "none") return visibleRows;
+    const byKey = new Map(visibleRows.map((row) => [row.key, row]));
+    return visibleCardOrder(reconcileCardOrder(order, presentKeys), presentKeys)
+      .map((key) => byKey.get(key))
+      .filter((row): row is ProviderAccountRowView => row !== undefined);
+  }, [order, presentKeys, reorderable, scopeSignature, visibleRows]);
+
+  function announceMove(key: string, next: readonly string[]): void {
+    const visible = visibleCardOrder(next, presentKeys);
+    const row = visibleRows.find((candidate) => candidate.key === key);
+    const position = visible.indexOf(key) + 1;
+    if (row !== undefined && position > 0) {
+      setAnnouncement(t("moved", { name: rowName(row), position, total: visible.length }));
+    }
+  }
+
+  function move(key: string, toIndex: number, focus = true, persist = true): void {
+    if (orderScope === undefined) return;
+    const next = moveVisibleCard(orderRef.current, presentKeys, key, toIndex);
+    if (next === orderRef.current) return;
+    orderRef.current = next;
+    setOrder(next);
+    announceMove(key, next);
+    if (persist && drag.current === null) {
+      committedOrderRef.current = next;
+      const storage = cardStorage();
+      writeCardOrder(storage, orderScope, next, presentKeys);
+    }
+    if (focus) grips.current.get(key)?.focus();
+  }
+
+  const cancelDrag = useCallback((): void => {
+    const active = drag.current;
+    if (active === null) return;
+    drag.current = null;
+    committedOrderRef.current = active.original;
+    orderRef.current = active.original;
+    setOrder(active.original);
+    setDraggingKey(null);
+    const storage = cardStorage();
+    if (orderScope !== undefined) writeCardOrder(storage, orderScope, active.original, presentKeys);
+    const visible = visibleCardOrder(active.original, presentKeys);
+    const row = visibleRows.find((candidate) => candidate.key === active.key);
+    const position = visible.indexOf(active.key) + 1;
+    if (row !== undefined && position > 0) {
+      setAnnouncement(t("cancelled", { name: rowName(row), position, total: visible.length }));
+    }
+    grips.current.get(active.key)?.focus();
+  }, [orderScope, presentKeys, t, visibleRows]);
+
+  useEffect(() => {
+    if (draggingKey === null) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      cancelDrag();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [cancelDrag, draggingKey]);
+
+  useEffect(() => {
+    if (openActionsKey === null) return undefined;
+    actionPanels.current.get(openActionsKey)
+      ?.querySelector<HTMLButtonElement>("button:not(:disabled)")
+      ?.focus();
+    const closeOutside = (event: PointerEvent) => {
+      const card = cards.current.get(openActionsKey);
+      if (event.target instanceof Node && card?.contains(event.target)) return;
+      setOpenActionsKey(null);
+    };
+    const closeWithEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setOpenActionsKey(null);
+      grips.current.get(openActionsKey)?.focus();
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeWithEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeWithEscape);
+    };
+  }, [openActionsKey]);
+
+  function onGripKey(event: ReactKeyboardEvent<HTMLButtonElement>, key: string): void {
+    if (document.activeElement !== event.currentTarget) return;
+    if (openActionsKey === key) {
+      if (["ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown"].includes(event.key)) {
+        event.preventDefault();
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        setOpenActionsKey(null);
+        event.currentTarget.focus();
+      }
+      return;
+    }
+    const visible = visibleCardOrder(orderRef.current, presentKeys);
+    const index = visible.indexOf(key);
+    if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      event.preventDefault();
+      move(key, index - 1);
+    } else if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      event.preventDefault();
+      move(key, index + 1);
+    } else if (event.key === "Escape") {
+      cancelDrag();
+    }
+  }
+
+  function onGripDown(event: ReactPointerEvent<HTMLButtonElement>, key: string): void {
+    if (event.button !== 0) return;
+    drag.current = { key, pointerId: event.pointerId, original: orderRef.current, moved: false };
+    setDraggingKey(key);
+    event.currentTarget.focus();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  }
+
+  function onGripMove(event: ReactPointerEvent<HTMLButtonElement>): void {
+    const active = drag.current;
+    if (active === null || active.pointerId !== event.pointerId) return;
+    const hit = document.elementFromPoint?.(event.clientX, event.clientY);
+    const card = hit?.closest<HTMLElement>("[data-card-key]");
+    const targetKey = card?.dataset["cardKey"];
+    if (targetKey === undefined || targetKey === active.key) return;
+    const visible = visibleCardOrder(orderRef.current, presentKeys);
+    active.moved = true;
+    setOpenActionsKey(null);
+    move(active.key, visible.indexOf(targetKey), false, false);
+  }
+
+  function finishDrag(event: ReactPointerEvent<HTMLButtonElement>): void {
+    const active = drag.current;
+    if (active === null || active.pointerId !== event.pointerId || orderScope === undefined) return;
+    drag.current = null;
+    if (active.moved) suppressGripClick.current = active.key;
+    setDraggingKey(null);
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    if (active.moved) {
+      committedOrderRef.current = orderRef.current;
+      const storage = cardStorage();
+      writeCardOrder(storage, orderScope, orderRef.current, presentKeys);
+    }
+  }
+
+  return (
+    <div aria-label={t("label")} className="ol-telemetry-table">
       <div role="list" className="ol-provider-row-list">
-        {visibleRows.map((row) => (
-          <div role="listitem" key={row.key} className="ol-rise">
-            <ProviderAccountRow row={row} />
+        {orderedRows.map((row, index) => (
+          <div
+            role="listitem"
+            key={row.key}
+            ref={(node) => { if (node === null) cards.current.delete(row.key); else cards.current.set(row.key, node); }}
+            data-card-key={row.key}
+            data-dragging={draggingKey === row.key ? "" : undefined}
+            data-actions-open={openActionsKey === row.key ? "" : undefined}
+            className="ol-provider-card ol-rise"
+          >
+            <ProviderAccountRow
+              row={row}
+              actions={reorderable ? (
+                <button
+                  ref={(node) => { if (node === null) grips.current.delete(row.key); else grips.current.set(row.key, node); }}
+                  slot="actions"
+                  type="button"
+                  className="ol-card-grip focus-ring"
+                  aria-label={t("rearrange", { name: rowName(row) })}
+                  aria-describedby={keyboardHelpId}
+                  aria-controls={`${keyboardHelpId}-actions-${index}`}
+                  aria-expanded={openActionsKey === row.key}
+                  onKeyDown={(event) => onGripKey(event, row.key)}
+                  onPointerDown={(event) => onGripDown(event, row.key)}
+                  onPointerMove={onGripMove}
+                  onPointerUp={finishDrag}
+                  onPointerCancel={cancelDrag}
+                  onClick={() => {
+                    if (suppressGripClick.current === row.key) {
+                      suppressGripClick.current = null;
+                      return;
+                    }
+                    setOpenActionsKey((current) => current === row.key ? null : row.key);
+                  }}
+                >
+                  <GripGlyph />
+                </button>
+              ) : undefined}
+            />
+            {reorderable && openActionsKey === row.key && (
+              <div
+                id={`${keyboardHelpId}-actions-${index}`}
+                ref={(node) => { if (node === null) actionPanels.current.delete(row.key); else actionPanels.current.set(row.key, node); }}
+                className="ol-card-move-popover"
+                role="group"
+                aria-label={t("rearrange", { name: rowName(row) })}
+              >
+                <button
+                  type="button"
+                  className="ol-card-move-option focus-ring"
+                  aria-label={`${t("moveEarlier")}: ${rowName(row)}`}
+                  disabled={index === 0}
+                  onClick={() => {
+                    setOpenActionsKey(null);
+                    move(row.key, index - 1);
+                  }}
+                ><EarlierGlyph /><span>{t("moveEarlier")}</span></button>
+                <button
+                  type="button"
+                  className="ol-card-move-option focus-ring"
+                  aria-label={`${t("moveLater")}: ${rowName(row)}`}
+                  disabled={index === orderedRows.length - 1}
+                  onClick={() => {
+                    setOpenActionsKey(null);
+                    move(row.key, index + 1);
+                  }}
+                ><LaterGlyph /><span>{t("moveLater")}</span></button>
+              </div>
+            )}
           </div>
         ))}
+        {onAddAccount !== undefined && (
+          <button type="button" className="ol-add-account-tile ol-rise focus-ring" onClick={onAddAccount}>
+            <PlusGlyph />
+            <span>{t("addAccount")}</span>
+          </button>
+        )}
       </div>
+      {reorderable && <p id={keyboardHelpId} className="sr-only">{t("keyboardHelp")}</p>}
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</p>
     </div>
   );
 }
@@ -152,14 +489,8 @@ export function HeaderStrip({
   busy: boolean;
   onRefresh: () => void;
   /**
-   * The one accent control, kept beside the logo rather than lumped in with
-   * the icon group.
-   *
-   * Below 800 px the strip already breaks onto two rows; without a place of
-   * its own the accent button used to fall in with every icon after it, and
-   * at 375 px that whole row ran out of space and wrapped again, three rows
-   * instead of two. Giving it a fixed seat on the logo's own row is what
-   * keeps the icon group and Sync to the one row meant for them.
+   * The one accent control. It leads the right hand controls, followed by Sync
+   * and the icon controls, while the logo keeps the left edge by itself.
    */
   accent?: ReactNode;
   actions?: ReactNode;
@@ -173,10 +504,9 @@ export function HeaderStrip({
       <div className="ol-commandbar-main">
         <div className="ol-commandbar-brand-row">
           <div className="ol-commandbar-brand">{lockup}</div>
-          {accent}
         </div>
         <div className="ol-commandbar-actions">
-          {actions}
+          {accent}
           {showRefresh && (
             <Button
               tone="ghost"
@@ -189,6 +519,7 @@ export function HeaderStrip({
               <span className="ol-sync-label">Sync</span>
             </Button>
           )}
+          {actions}
         </div>
       </div>
     </section>
@@ -534,22 +865,50 @@ export function SettingsMenu({
   accountEmail,
   syncEnabled,
   onSyncChange,
+  showSettings,
+  settingsSelected,
+  onSettings,
+  onPhone,
+  onInstall,
   onCheckUpdate,
   onLogout,
+  onOpen,
+  installed,
+  triggerRef,
 }: {
   accountEmail: string;
   syncEnabled: boolean;
   onSyncChange: (enabled: boolean) => void;
+  showSettings: boolean;
+  settingsSelected: boolean;
+  onSettings: () => void;
+  onPhone: (returnFocus: HTMLButtonElement) => void;
+  onInstall: (returnFocus: HTMLButtonElement) => void;
   onCheckUpdate: () => void;
   onLogout: () => void;
+  onOpen: () => void;
+  installed: boolean;
+  triggerRef: RefObject<HTMLButtonElement | null>;
 }) {
+  const t = useTranslations("hub.menu");
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement | null>(null);
+
+  const close = useCallback((restoreFocus = true): void => {
+    setOpen(false);
+    if (restoreFocus) triggerRef.current?.focus();
+  }, [triggerRef]);
+
+  function act(action: () => void): void {
+    setOpen(false);
+    action();
+    triggerRef.current?.focus();
+  }
 
   useEffect(() => {
     if (!open) return undefined;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") close();
     };
     const onDown = (event: MouseEvent) => {
       if (wrap.current !== null && !wrap.current.contains(event.target as Node)) {
@@ -562,20 +921,25 @@ export function SettingsMenu({
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("mousedown", onDown);
     };
-  }, [open]);
+  }, [close, open]);
 
   return (
     <div ref={wrap} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         aria-expanded={open}
         aria-haspopup="true"
-        aria-label="Open menu"
-        title="Open menu"
+        aria-label={t("open")}
+        title={t("open")}
         onClick={() => {
-          setOpen((current) => !current);
+          if (open) setOpen(false);
+          else {
+            onOpen();
+            setOpen(true);
+          }
         }}
-        className={`ol-tap focus-ring inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-hairline-strong text-heading hover:border-heading hover:bg-surface ${
+        className={`ol-icon-control ol-tap focus-ring ${
           open ? "bg-surface" : "bg-transparent"
         }`}
       >
@@ -583,22 +947,42 @@ export function SettingsMenu({
       </button>
 
       {open && (
-        <div className="ol-menu" role="group" aria-label="Account menu">
+        <div className="ol-menu" role="group" aria-label={t("label")}>
           <div className="px-3 py-3">
             <p className="ol-brand-font text-sm text-heading">{accountEmail}</p>
           </div>
           <label className="ol-menu-toggle border-t border-hairline px-3 py-3">
-            <span>Sync usage percentages</span>
+            <span>{t("sync")}</span>
             <input
               type="checkbox"
               checked={syncEnabled}
               onChange={(event) => onSyncChange(event.target.checked)}
             />
           </label>
+          <div className="ol-menu-toggle border-t border-hairline px-3 py-3">
+            <span>{t("theme")}</span>
+            <ThemeToggle />
+          </div>
           <div className="grid gap-2 border-t border-hairline px-3 py-3">
-            <Button onClick={onCheckUpdate}>Check for updates</Button>
-            <Link className="ol-menu-link focus-ring" href="/en/docs">About OpenLimiter</Link>
-            <Button tone="quiet" onClick={onLogout}>Log out</Button>
+            {showSettings && (
+              <button
+                type="button"
+                aria-pressed={settingsSelected}
+                className="ol-menu-action focus-ring"
+                onClick={() => act(onSettings)}
+              >{t("settings")}</button>
+            )}
+            <button type="button" className="ol-menu-action focus-ring" onClick={() => {
+              const trigger = triggerRef.current;
+              if (trigger !== null) act(() => onPhone(trigger));
+            }}>{t("phone")}</button>
+            <button type="button" disabled={installed} className="ol-menu-action focus-ring" onClick={() => {
+              const trigger = triggerRef.current;
+              if (trigger !== null) act(() => onInstall(trigger));
+            }}>{installed ? t("installed") : t("install")}</button>
+            <button type="button" className="ol-menu-action focus-ring" onClick={() => act(onCheckUpdate)}>{t("updates")}</button>
+            <Link className="ol-menu-link focus-ring" href="/en/docs" onClick={() => close(false)}>{t("about")}</Link>
+            <button type="button" className="ol-menu-action ol-menu-action-quiet focus-ring" onClick={() => act(onLogout)}>{t("logout")}</button>
           </div>
         </div>
       )}
@@ -664,6 +1048,7 @@ export function Button({
   disabled = false,
   type = "button",
   label,
+  describedBy,
   title,
   className = "",
   children,
@@ -674,6 +1059,7 @@ export function Button({
   type?: "button" | "submit" | "reset";
   /** Accessible name, for a control whose text alone is not enough. */
   label?: string;
+  describedBy?: string;
   /**
    * What the control actually does, when its own words cannot carry all of it.
    *
@@ -691,6 +1077,7 @@ export function Button({
      one, which keeps every call site that passes label alone unchanged. */
   const naming: Record<string, string> = {};
   if (label !== undefined) naming["aria-label"] = label;
+  if (describedBy !== undefined) naming["aria-describedby"] = describedBy;
   if (title !== undefined) naming.title = title;
   else if (label !== undefined) naming.title = label;
   return (

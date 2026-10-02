@@ -508,7 +508,7 @@
     "shots": {
       "meters": {
         "label": "Meters",
-        "alt": "O web app num celular, com o limite mais apertado no topo como um anel, uma barra e uma contagem regressiva até o reinício, e abaixo um cartão por provedor com uma barra, a parte usada e o tempo até reiniciar."
+        "alt": "O web app num celular, com um cartão uniforme e reorganizável por provedor, mostrando barras, uso e horários de reinício."
       },
       "agentContext": {
         "label": "Agent context",
@@ -2170,6 +2170,30 @@
     "addAccount": "Adicionar conta",
     "configuration": "Configuração",
     "backToBars": "Voltar para as barras",
+    "grid": {
+      "label": "Uso dos provedores por conta",
+      "account": "Conta {count}",
+      "rearrange": "Reorganizar {name}",
+      "moveEarlier": "Mover para antes",
+      "moveLater": "Mover para depois",
+      "moved": "Moveu {name} para a posição {position} de {total}",
+      "cancelled": "Movimento cancelado. {name} voltou para a posição {position} de {total}",
+      "keyboardHelp": "Quando este botão estiver em foco e as ações estiverem fechadas, use as teclas de seta para mover o cartão.",
+      "addAccount": "Adicionar conta"
+    },
+    "menu": {
+      "open": "Abrir menu",
+      "label": "Menu da conta",
+      "sync": "Sincronizar porcentagens de uso",
+      "theme": "Tema",
+      "settings": "Configurações",
+      "phone": "Abrir no celular",
+      "install": "Instalar aplicativo",
+      "installed": "Instalado",
+      "updates": "Verificar atualizações",
+      "about": "Sobre o OpenLimiter",
+      "logout": "Sair"
+    },
   "command": {
     "copy": "Copiar o comando",
     "copied": "Comando copiado",
@@ -2246,8 +2270,13 @@
       "start": "Começar o Pro grátis por 30 dias",
       "header": {
         "signIn": "Entre para começar seu teste gratuito do Pro por 30 dias",
-        "dayLeft": "Teste do Pro, falta 1 dia",
-        "daysLeft": "Teste do Pro, faltam {count} dias"
+        "start": "Testar Pro",
+        "working": "Iniciando",
+        "complete": "Pro ativo",
+        "dayLeft": "1 dia",
+        "daysLeft": "{count} dias",
+        "dayLeftLabel": "Teste Pro, resta 1 dia",
+        "daysLeftLabel": "Teste Pro, restam {count} dias"
       },
       "free": "Nenhum cartão de crédito é necessário",
       "label": "Comece seu teste grátis",
