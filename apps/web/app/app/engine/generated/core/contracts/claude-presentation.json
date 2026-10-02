@@ -1,0 +1,40 @@
+{
+  "copy": {
+    "claudeCurrentSession": "Current session",
+    "claudeWeeklyAllModels": "Weekly, all models",
+    "claudeWeeklyFable": "Weekly, Fable",
+    "claudeWeeklyModel": "Weekly, {model}",
+    "claudeExtraUsage": "Extra usage"
+  },
+  "fixed": {
+    "session": {
+      "meters": ["FIVE_HOUR", "SESSION"],
+      "labelKey": "claudeCurrentSession",
+      "compactLabel": "5h",
+      "order": 10
+    },
+    "weekly": {
+      "meters": ["SEVEN_DAY"],
+      "labelKey": "claudeWeeklyAllModels",
+      "compactLabel": "7d",
+      "order": 20
+    },
+    "extra": {
+      "meters": ["EXTRA_USAGE"],
+      "labelKey": "claudeExtraUsage",
+      "compactLabel": "Extra",
+      "order": 50
+    }
+  },
+  "modelWeekly": {
+    "prefix": "SEVEN_DAY_",
+    "labelKey": "claudeWeeklyModel",
+    "fablePrefix": "Fable",
+    "fableLabelKey": "claudeWeeklyFable",
+    "fableCompactLabel": "Fable",
+    "fableOrder": 30,
+    "opusOrder": 40,
+    "sonnetOrder": 41,
+    "otherOrder": 42
+  }
+}

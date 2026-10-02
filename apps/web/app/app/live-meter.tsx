@@ -183,7 +183,7 @@ function formatTickingCountdown(resetAt: string | null | undefined, currentMilli
 }
 
 export function LiveMeter({ snapshots, now }: LiveMeterProps) {
-  const readingsT = useTranslations("desktopReadings");
+  const readingsT = useTranslations("hub");
   const claudeMeterCopy = useClaudeMeterCopy();
   const [tickerMillis, setTickerMillis] = useState<number>(() => {
     const supplied = now === null ? Number.NaN : Date.parse(now);

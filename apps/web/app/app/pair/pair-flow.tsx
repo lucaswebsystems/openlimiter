@@ -34,7 +34,7 @@ import { serialPoll } from "@/lib/serial-poll";
 import { claimPairingCode, pollPairingClaim } from "@/lib/pro-device";
 import { PROVIDER_CODES, buildProviderAccountRows, parseQuotaText } from "../engine";
 import { DollarRow, ProviderRows, observationAgeMinutes } from "../pieces";
-import { meterName, type ClaudeMeterCopy } from "../language";
+import { claudeMeterOverride, meterName, type ClaudeMeterCopy } from "../language";
 import { useClaudeMeterCopy } from "../use-claude-meter-copy";
 import { PairInstallStep, runningInstalled } from "./pair-install";
 
@@ -210,7 +210,7 @@ function PhoneBars({ body, stale, locale, heading, staleLabel, now, freshLabel, 
   const providerRows = useMemo(
     () => buildProviderAccountRows(snapshots, now, [], {
       accountLabel: (_accountId, count) => accountLabel(count),
-      meterLabel: (code, provider) => meterName(code, provider, claudeMeterCopy),
+      meterLabel: (code, provider) => claudeMeterOverride(code, provider, claudeMeterCopy),
     }),
     [accountLabel, claudeMeterCopy, now, snapshots],
   );
@@ -321,7 +321,7 @@ function PairedPhone({
   });
   const locale = useRef("en");
   const claudeMeterCopy = useClaudeMeterCopy();
-  const readingsT = useTranslations("desktopReadings");
+  const readingsT = useTranslations("hub");
   const [now, setNow] = useState(() => new Date().toISOString());
   const retry = useRef<(() => Promise<void>) | null>(null);
   const unpairedRef = useRef(onUnpaired);

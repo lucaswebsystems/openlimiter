@@ -9,6 +9,8 @@ import {
   type ProviderCode,
   type SnapshotSourceKind,
   type SnapshotState,
+  PROVIDER_CODES,
+  providerMeterLabel,
 } from "./engine";
 
 export type ClaudeMeterCopy = Partial<Record<ClaudeMeterLabelKey, string>>;
@@ -192,6 +194,9 @@ export function meterName(
     const claude = claudeMeterLabel(code, claudeCopy);
     if (claude !== null) return claude;
   }
+  if (provider !== undefined && PROVIDER_CODES.includes(provider as ProviderCode)) {
+    return providerMeterLabel(code, provider as ProviderCode);
+  }
   const known = METER_NAMES[code];
   if (known !== undefined) return known;
   const modelWeekly = modelWeeklyName(code);
@@ -203,6 +208,15 @@ export function meterName(
       index === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word,
     )
     .join(" ");
+}
+
+/** Only Claude replaces the shared provider row vocabulary with localized copy. */
+export function claudeMeterOverride(
+  code: string,
+  provider: ProviderCode,
+  claudeCopy: ClaudeMeterCopy = {},
+): string | undefined {
+  return provider === "CLAUDE" ? meterName(code, provider, claudeCopy) : undefined;
 }
 
 /**

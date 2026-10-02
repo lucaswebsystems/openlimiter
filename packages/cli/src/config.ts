@@ -23,6 +23,7 @@ export type StatuslineColor = "auto" | "always" | "never";
 export type StatuslineStyle = "bar" | "cells";
 
 export const TERMINAL_SEGMENTS = ["model", "effort", "dir", "ctx", "style", "5h", "7d"] as const;
+export const TERMINAL_METER_SEGMENTS = ["fable", "opus", "sonnet", "oauth-apps", "extra"] as const;
 
 export interface StatuslineConfig {
   /**
@@ -164,7 +165,7 @@ export function normalizeStatusline(value: unknown): StatuslineConfig {
     ...(isRecord(value["visibility"]) ? {
       visibility: Object.fromEntries(Object.entries(value["visibility"]).filter(
         ([key, enabled]) => typeof enabled === "boolean" &&
-          ([...TERMINAL_SEGMENTS, ...connectorIds, ...Object.keys(MONEY_TAGS)] as readonly string[]).includes(key)
+          ([...TERMINAL_SEGMENTS, ...TERMINAL_METER_SEGMENTS, ...connectorIds, ...Object.keys(MONEY_TAGS)] as readonly string[]).includes(key)
       )) as Record<string, boolean>
     } : {}),
     hosts: normalizeHosts(value["hosts"])

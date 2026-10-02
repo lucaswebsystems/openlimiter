@@ -1131,6 +1131,30 @@ mod tests {
     }
 
     #[test]
+    fn parsed_extra_usage_survives_the_native_projection() {
+        let rows = parse_usage(&full_contract_body(), NOW, ACCOUNT).expect("usage");
+        let active = std::collections::BTreeMap::from([(
+            "CLAUDE".to_string(),
+            std::collections::BTreeSet::from([ACCOUNT.to_string()]),
+        )]);
+        let projected = crate::data_rules::project(
+            rows,
+            NOW as i64,
+            &active,
+            &std::collections::BTreeSet::new(),
+        );
+        let extra = projected
+            .snapshots
+            .iter()
+            .find(|row| row.meter == EXTRA_USAGE_METER)
+            .expect("extra usage survives");
+
+        assert_eq!(extra.window.kind, "unknown");
+        assert_eq!(extra.used_amount, Some(12.5));
+        assert_eq!(extra.limit_amount, Some(100.0));
+    }
+
+    #[test]
     fn optional_model_family_windows_are_emitted_when_the_endpoint_states_them() {
         let rows = parse_usage(
             r#"{

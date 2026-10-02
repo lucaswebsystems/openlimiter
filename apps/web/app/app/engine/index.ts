@@ -58,6 +58,7 @@ import {
   defineProviderTableHeaderElement,
   defineProviderRowElement,
   headroomTone,
+  providerMeterLabel,
   setProviderRowData,
   type HeadroomTone,
   type ProviderAccountRowView,
@@ -114,6 +115,7 @@ export {
      disagreeing about which colour 80 percent is. */
   bandForPercent,
   headroomTone,
+  providerMeterLabel,
   buildProviderAccountRows,
   defineProviderTableHeaderElement,
   defineProviderRowElement,

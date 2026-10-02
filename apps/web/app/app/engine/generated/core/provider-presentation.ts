@@ -5,6 +5,8 @@
  * Only import specifiers were rewritten. Edit the package instead, then run
  * the script again.
  */
+import contract from "./contracts/claude-presentation.json" with { type: "json" };
+
 /**
  * Claude's meter vocabulary and sequence, shared by every product surface.
  *
@@ -31,15 +33,14 @@ export interface ClaudeMeterPresentation {
 }
 
 export const CLAUDE_METER_ENGLISH: Readonly<Record<ClaudeMeterLabelKey, string>> =
-  Object.freeze({
-    claudeCurrentSession: "Current session",
-    claudeWeeklyAllModels: "Weekly, all models",
-    claudeWeeklyFable: "Weekly, Fable",
-    claudeWeeklyModel: "Weekly, {model}",
-    claudeExtraUsage: "Extra usage",
-  });
+  Object.freeze(contract.copy);
 
-const MODEL_WEEKLY_PREFIX = "SEVEN_DAY_";
+function contractLabelKey(value: string): ClaudeMeterLabelKey {
+  if (value in CLAUDE_METER_ENGLISH) return value as ClaudeMeterLabelKey;
+  throw new Error("Invalid Claude presentation label key");
+}
+
+const MODEL_WEEKLY_PREFIX = contract.modelWeekly.prefix;
 
 function modelName(code: string): string | null {
   if (!code.startsWith(MODEL_WEEKLY_PREFIX)) return null;
@@ -75,46 +76,55 @@ export function isClaudeModelScopedMeter(code: string): boolean {
 
 export function claudeMeterPresentation(code: string): ClaudeMeterPresentation | null {
   const meter = code.toUpperCase();
-  if (meter === "FIVE_HOUR" || meter === "SESSION") {
+  if (contract.fixed.session.meters.includes(meter)) {
     return {
-      labelKey: "claudeCurrentSession",
+      labelKey: contractLabelKey(contract.fixed.session.labelKey),
       defaultLabel: CLAUDE_METER_ENGLISH.claudeCurrentSession,
-      compactLabel: "5h",
-      order: 10,
+      compactLabel: contract.fixed.session.compactLabel,
+      order: contract.fixed.session.order,
       model: null,
       modelScoped: false,
     };
   }
-  if (meter === "SEVEN_DAY") {
+  if (contract.fixed.weekly.meters.includes(meter)) {
     return {
-      labelKey: "claudeWeeklyAllModels",
+      labelKey: contractLabelKey(contract.fixed.weekly.labelKey),
       defaultLabel: CLAUDE_METER_ENGLISH.claudeWeeklyAllModels,
-      compactLabel: "7d",
-      order: 20,
+      compactLabel: contract.fixed.weekly.compactLabel,
+      order: contract.fixed.weekly.order,
       model: null,
       modelScoped: false,
     };
   }
   const model = modelName(meter);
   if (model !== null) {
-    const fable = /^Fable(?:\s|$)/u.test(model);
-    const order = fable ? 30 : model === "Opus" ? 40 : model === "Sonnet" ? 41 : 42;
-    const key = fable ? "claudeWeeklyFable" : "claudeWeeklyModel";
+    const fable = model === contract.modelWeekly.fablePrefix ||
+      model.startsWith(contract.modelWeekly.fablePrefix + " ");
+    const order = fable
+      ? contract.modelWeekly.fableOrder
+      : model === "Opus"
+      ? contract.modelWeekly.opusOrder
+      : model === "Sonnet"
+      ? contract.modelWeekly.sonnetOrder
+      : contract.modelWeekly.otherOrder;
+    const key = contractLabelKey(fable
+      ? contract.modelWeekly.fableLabelKey
+      : contract.modelWeekly.labelKey);
     return {
       labelKey: key,
       defaultLabel: labelOf(key, model),
-      compactLabel: fable ? "Fable" : model,
+      compactLabel: fable ? contract.modelWeekly.fableCompactLabel : model,
       order,
       model,
       modelScoped: true,
     };
   }
-  if (meter === "EXTRA_USAGE") {
+  if (contract.fixed.extra.meters.includes(meter)) {
     return {
-      labelKey: "claudeExtraUsage",
+      labelKey: contractLabelKey(contract.fixed.extra.labelKey),
       defaultLabel: CLAUDE_METER_ENGLISH.claudeExtraUsage,
-      compactLabel: "Extra",
-      order: 50,
+      compactLabel: contract.fixed.extra.compactLabel,
+      order: contract.fixed.extra.order,
       model: null,
       modelScoped: false,
     };

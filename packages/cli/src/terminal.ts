@@ -10,6 +10,7 @@ import {
 import {
   DEFAULT_PROVIDERS,
   DEFAULT_STATUSLINE,
+  TERMINAL_METER_SEGMENTS,
   TERMINAL_SEGMENTS,
   readConfig,
   writeConfig,
@@ -837,7 +838,7 @@ export async function terminalStatusTable(
       statusline.show.includes(MONEY_TAGS[id] ?? "")
     );
   };
-  const ids = [...TERMINAL_SEGMENTS, ...Object.keys(PROVIDER_SHORT_TAGS).map((id) => id.toLowerCase()), ...Object.keys(MONEY_TAGS)];
+  const ids = [...TERMINAL_SEGMENTS, ...TERMINAL_METER_SEGMENTS, ...Object.keys(PROVIDER_SHORT_TAGS).map((id) => id.toLowerCase()), ...Object.keys(MONEY_TAGS)];
   rows.push(TERMINAL_VISIBILITY_TEXT.shown + (ids.filter(visible).join(", ") || "none"));
   rows.push(TERMINAL_VISIBILITY_TEXT.hidden + (ids.filter((id) => !visible(id)).join(", ") || "none"));
   rows.push(TERMINAL_VISIBILITY_TEXT.automatic);
@@ -878,7 +879,7 @@ async function terminalVisibility(
     [[provider.toLowerCase(), provider.toLowerCase()], [tag, provider.toLowerCase()]]));
   for (const [name, tag] of Object.entries(MONEY_TAGS)) aliases.set(name, name).set(tag, name);
   const resolved = ids.map((id) => aliases.get(id.toLowerCase()) ?? id.toLowerCase());
-  const known = new Set<string>([...TERMINAL_SEGMENTS, ...aliases.values()]);
+  const known = new Set<string>([...TERMINAL_SEGMENTS, ...TERMINAL_METER_SEGMENTS, ...aliases.values()]);
   if (resolved.length === 0 || resolved.some((id) => !known.has(id))) {
     return { ok: false, message: TERMINAL_VISIBILITY_TEXT.invalid + [...known].join(", ") + "." };
   }

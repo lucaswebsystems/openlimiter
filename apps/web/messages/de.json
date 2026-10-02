@@ -17,11 +17,7 @@
     "moneyOf": "von {amount}",
     "creditsSpent": "Credits verbraucht",
     "accountOrdinal": "{label}, Konto {count}",
-    "accountFallback": "Konto {count}",
     "updatedJustNow": "Gerade aktualisiert",
-    "updatedMinutes": "Aktualisiert vor {count} Min.",
-    "updatedHours": "Aktualisiert vor {count} Std.",
-    "updatedDays": "Aktualisiert vor {count} Tg.",
     "noReading": "Noch keine Messung",
     "refresh": "Aktualisieren",
     "loading": "Deine Limits werden geladen",
@@ -69,14 +65,8 @@
     "showTool": "Anzeigen",
     "removeTool": "Entfernen",
     "removeConfirm": "Zum Entfernen erneut drücken",
-    "claudeCurrentSession": "Aktuelle Sitzung",
-    "claudeWeeklyAllModels": "Wöchentlich, alle Modelle",
-    "claudeWeeklyFable": "Wöchentlich, Fable",
-    "claudeWeeklyModel": "Wöchentlich, {model}",
-    "claudeExtraUsage": "Zusätzliche Nutzung",
     "showClaudeFable": "Fable Limit anzeigen",
-    "showClaudeFableNote": "Verwendet deine Claude Anmeldung auf diesem Computer, um dieselbe Nutzung zu lesen, die Claude anzeigt.",
-    "claudeFableDesktopHint": "Aktiviere Fable Limit anzeigen in der Desktop App unter Tool hinzufügen, Claude Code."
+    "showClaudeFableNote": "Verwendet deine Claude Anmeldung auf diesem Computer, um dieselbe Nutzung zu lesen, die Claude anzeigt."
   },
   "meta": {
     "title": "OpenLimiter, KI Programmierlimits und Agentenaktivität",
@@ -2167,6 +2157,16 @@
     "restore": "Mit einem Abonnement kommt alles wie zuvor zurück. Ihre Einstellungen wurden behalten."
   },
   "hub": {
+    "accountFallback": "Konto {count}",
+    "updatedMinutes": "Aktualisiert vor {count} Min.",
+    "updatedHours": "Aktualisiert vor {count} Std.",
+    "updatedDays": "Aktualisiert vor {count} Tg.",
+    "claudeCurrentSession": "Aktuelle Sitzung",
+    "claudeWeeklyAllModels": "Wöchentlich, alle Modelle",
+    "claudeWeeklyFable": "Wöchentlich, Fable",
+    "claudeWeeklyModel": "Wöchentlich, {model}",
+    "claudeExtraUsage": "Zusätzliche Nutzung",
+    "claudeFableDesktopHint": "Aktiviere Fable Limit anzeigen in der Desktop App unter Tool hinzufügen, Claude Code.",
     "providers": {
       "title": "Anbieter",
       "automaticPrompt": "Öffne die Desktopanwendung. Dort beginnt die lokale Erkennung.",

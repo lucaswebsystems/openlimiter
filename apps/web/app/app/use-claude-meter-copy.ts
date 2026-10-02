@@ -6,7 +6,7 @@ import type { ClaudeMeterCopy } from "./language";
 
 /** The web locale adapter for the shared Claude meter contract. */
 export function useClaudeMeterCopy(): ClaudeMeterCopy {
-  const t = useTranslations("desktopReadings");
+  const t = useTranslations("hub");
   return useMemo(() => ({
     claudeCurrentSession: t("claudeCurrentSession"),
     claudeWeeklyAllModels: t("claudeWeeklyAllModels"),

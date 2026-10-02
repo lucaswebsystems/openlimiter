@@ -17,11 +17,7 @@
     "moneyOf": "de {amount}",
     "creditsSpent": "créditos gastos",
     "accountOrdinal": "{label}, conta {count}",
-    "accountFallback": "Conta {count}",
     "updatedJustNow": "Atualizado agora mesmo",
-    "updatedMinutes": "Atualizado há {count} min",
-    "updatedHours": "Atualizado há {count} h",
-    "updatedDays": "Atualizado há {count} d",
     "noReading": "Nenhuma leitura ainda",
     "refresh": "Atualizar",
     "loading": "Carregando seus limites",
@@ -69,14 +65,8 @@
     "showTool": "Mostrar",
     "removeTool": "Remover",
     "removeConfirm": "Clique de novo para remover",
-    "claudeCurrentSession": "Sessão atual",
-    "claudeWeeklyAllModels": "Semanal, todos os modelos",
-    "claudeWeeklyFable": "Semanal, Fable",
-    "claudeWeeklyModel": "Semanal, {model}",
-    "claudeExtraUsage": "Uso extra",
     "showClaudeFable": "Mostrar limite do Fable",
-    "showClaudeFableNote": "Usa seu login do Claude neste computador para ler o mesmo uso que o Claude mostra.",
-    "claudeFableDesktopHint": "Ative Mostrar limite do Fable no aplicativo para desktop, em Adicionar uma ferramenta, Claude Code."
+    "showClaudeFableNote": "Usa seu login do Claude neste computador para ler o mesmo uso que o Claude mostra."
   },
   "meta": {
     "title": "OpenLimiter, limites de codificação com IA e atividade de agentes",
@@ -2167,6 +2157,16 @@
     "restore": "Ao assinar, tudo volta ao que era. Suas preferências foram mantidas."
   },
   "hub": {
+    "accountFallback": "Conta {count}",
+    "updatedMinutes": "Atualizado há {count} min",
+    "updatedHours": "Atualizado há {count} h",
+    "updatedDays": "Atualizado há {count} d",
+    "claudeCurrentSession": "Sessão atual",
+    "claudeWeeklyAllModels": "Semanal, todos os modelos",
+    "claudeWeeklyFable": "Semanal, Fable",
+    "claudeWeeklyModel": "Semanal, {model}",
+    "claudeExtraUsage": "Uso extra",
+    "claudeFableDesktopHint": "Ative Mostrar limite do Fable no aplicativo para desktop, em Adicionar uma ferramenta, Claude Code.",
     "providers": {
       "title": "Provedores",
       "automaticPrompt": "Abra o aplicativo de desktop. A detecção local começa por lá.",

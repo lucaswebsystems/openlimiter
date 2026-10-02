@@ -1,6 +1,7 @@
 import {
   PROVIDER_CODES,
   claudeMeterCompactLabel,
+  claudeMeterPresentation,
   claudeMeterRank,
   floorFixed,
   freshness,
@@ -487,6 +488,27 @@ export function windowCode(snapshot: Snapshot): string {
   return "";
 }
 
+function visibilityKey(snapshot: Snapshot): string {
+  if (snapshot.provider === "CLAUDE") {
+    const presentation = claudeMeterPresentation(snapshot.meter);
+    if (presentation?.labelKey === "claudeWeeklyFable") return "fable";
+    if (presentation?.model !== null && presentation?.model !== undefined) {
+      return presentation.model.toLowerCase().replace(/[^a-z0-9]+/gu, "-").replace(/^-|-$/gu, "");
+    }
+    if (presentation?.labelKey === "claudeExtraUsage") return "extra";
+  }
+  return windowCode(snapshot).toLowerCase();
+}
+
+function windowVisible(snapshot: Snapshot, visibility: Readonly<Record<string, boolean>>): boolean {
+  const specific = visibility[visibilityKey(snapshot)];
+  if (specific !== undefined) return specific;
+  if (snapshot.provider === "CLAUDE" && claudeMeterPresentation(snapshot.meter)?.modelScoped) {
+    return visibility["7d"] !== false;
+  }
+  return true;
+}
+
 export function tenBlockBar(value: number, unicode = true): string {
   const clamped = Math.min(100, Math.max(0, value));
   const filled = clamped > 0 ? Math.max(1, Math.floor(clamped / 10)) : 0;
@@ -556,7 +578,7 @@ export function barStyleCells(
     if (!isAllowed) continue;
 
     const readings = readingsFor(snapshots, provider, now).filter(({ snapshot }) =>
-      visibility[windowCode(snapshot)] !== false);
+      windowVisible(snapshot, visibility));
     // Nothing measured means nothing drawn, even for a provider someone chose.
     if (readings.length === 0) continue;
 
@@ -605,6 +627,17 @@ export function barStyleCells(
         const amount = (stale ? "~" : "") + "$" + balance.toFixed(2);
         const band = balance < 1 ? 95 : balance < 5 ? 65 : 0;
         cells.push({ plain: "or " + amount, painted: "or " + (color ? paintBand(amount, band, "fresh") : amount), percent: band });
+        continue;
+      }
+
+      if (snapshot.provider === "CLAUDE" && snapshot.meter === "EXTRA_USAGE" &&
+          snapshot.usedAmount !== undefined && snapshot.limitAmount !== undefined &&
+          snapshot.currency === "USD") {
+        const amount = (stale ? "~" : "") + "$" + snapshot.usedAmount.toFixed(2) +
+          "/$" + snapshot.limitAmount.toFixed(2);
+        const tag = providerTag + (claudeMeterCompactLabel(snapshot.meter) ?? "Extra");
+        const plain = tag + " " + amount;
+        cells.push({ plain, painted: plain, percent: snapshot.value });
         continue;
       }
 

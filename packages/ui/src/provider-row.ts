@@ -57,7 +57,7 @@ export interface ProviderRowOptions {
   providers?: readonly ProviderCode[];
   accountLabel?: (accountId: string | null, count: number) => string;
   updatedLabel?: (observedAt: string) => string | null;
-  meterLabel?: (code: string, provider: ProviderCode) => string;
+  meterLabel?: (code: string, provider: ProviderCode) => string | undefined;
 }
 
 const PROVIDER_NAMES: Record<ProviderCode, string> = {
@@ -288,7 +288,7 @@ function modelWeeklyName(code: string): string | null {
   return "Weekly (" + model + ")";
 }
 
-function windowName(code: string, provider: ProviderCode): string {
+export function providerMeterLabel(code: string, provider: ProviderCode): string {
   if (provider === "CLAUDE") {
     const claude = claudeMeterLabel(code);
     if (claude !== null) return claude;
@@ -392,7 +392,7 @@ function toWindowView(
 ): ProviderWindowView {
   const state = freshness(snapshot.observedAt, snapshot.expiresAt, now);
   const label = meterLabel?.(snapshot.meter, snapshot.provider) ??
-    windowName(snapshot.meter, snapshot.provider);
+    providerMeterLabel(snapshot.meter, snapshot.provider);
   const usedPercent = state === "unknown" ? null : clampPercent(snapshot.value);
   const tone = usedPercent === null ? "none" : headroomTone(usedPercent);
   const resetLabel =
@@ -733,7 +733,7 @@ export function providerRowMarkup(row: ProviderAccountRowView): string {
     "</header>" +
     '<div class="windows">' +
     row.windows.map(windowLineMarkup).join("") +
-    "</div></article>"
+    '</div><slot name="footer"></slot></article>'
   );
 }
 
@@ -829,7 +829,7 @@ const PROVIDER_ROW_STYLE = `
   box-shadow: var(--ol-elev-1);
   transition: border-color var(--ol-motion-fast) var(--ol-ease-out), background-color var(--ol-motion-fast) var(--ol-ease-out), transform var(--ol-motion-base) var(--ol-ease-out);
   /* The one grid the heading and every line share, in one place. */
-  --row-columns: minmax(7rem, 0.85fr) minmax(8rem, 1.8fr) 4.5rem 5rem 2rem;
+  --row-columns: minmax(8rem, 1fr) minmax(7.5rem, 1.6fr) 4.5rem 5rem 2rem;
 }
 .identity {
   display: grid;
@@ -846,6 +846,22 @@ slot[name="actions"] { display: contents; }
 ::slotted([slot="actions"]) {
   grid-column: 5;
   justify-self: end;
+}
+slot[name="footer"] {
+  display: block;
+  min-width: 0;
+  margin-top: auto;
+}
+::slotted([slot="footer"]) {
+  display: block;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--row-muted);
+  font-size: var(--ol-text-micro);
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .identity-name {
   display: flex;

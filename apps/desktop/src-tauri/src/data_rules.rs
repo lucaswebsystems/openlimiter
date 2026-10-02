@@ -63,7 +63,11 @@ pub(crate) fn reason(row: &Snapshot, now: i64) -> Option<&str> {
     if let Some(reason) = row.availability.as_deref() {
         return Some(reason);
     }
-    if row.window.kind == "unknown"
+    let bounded_spend = row.used_amount.is_some_and(|used| used.is_finite() && used >= 0.0)
+        && row.limit_amount.is_some_and(|limit| limit.is_finite() && limit > 0.0)
+        && row.used_amount.zip(row.limit_amount).is_some_and(|(used, limit)| used <= limit)
+        && row.currency.as_deref() == Some("USD");
+    if row.window.kind == "unknown" && !bounded_spend
         || row.kind.as_deref() == Some("runtime_info")
         || row.meter == "ACQUISITION"
     {

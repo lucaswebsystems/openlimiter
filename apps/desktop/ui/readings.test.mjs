@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { normalizeMetersReport, projectSnapshots } from "../../../packages/core/dist/index.js";
+import { parseClaudePayload } from "../../../packages/connectors/dist/index.js";
 import { messyFixtures, ACCOUNTS } from "./messy-fixtures.mjs";
 import { agentName, meterLabel, providerCode, providerName, READINGS_COPY, say } from "./names.js";
 import { fakeDocument, leaks, spoken } from "./test-dom.mjs";
@@ -162,8 +163,19 @@ test("Home's model: tightest provider first, with Claude in its own meter order"
   const current = fixtures.projected.snapshots.find((row) => row.provider === "CLAUDE" && row.meter === "FIVE_HOUR");
   const weekly = fixtures.projected.snapshots.find((row) => row.provider === "CLAUDE" && row.meter === "SEVEN_DAY");
   assert.ok(current && weekly);
+  const parserOutput = parseClaudePayload({
+    extra_usage: { used_amount: 12.47, limit_amount: 20, currency: "USD" },
+  }, now) ?? [];
+  const parsedExtra = normalizeMetersReport(parserOutput.map((row) => ({
+    ...row,
+    accountId: weekly.accountId,
+  })));
+  assert.equal(parsedExtra.rejected.length, 0);
+  const extraUsage = projectSnapshots(parsedExtra.snapshots, now).snapshots
+    .find((row) => row.meter === "EXTRA_USAGE");
+  assert.ok(extraUsage);
   const expandedClaude = limitsModel([
-    { ...weekly, meter: "EXTRA_USAGE", value: 62.35, usedAmount: 12.47, limitAmount: 20, currency: "USD" },
+    extraUsage,
     { ...weekly, meter: "SEVEN_DAY_SONNET", value: 12.4 },
     { ...weekly, meter: "SEVEN_DAY_FABLE_5_1", value: 21.5 },
     { ...weekly, meter: "SEVEN_DAY_OPUS", value: 61 },
@@ -316,9 +328,18 @@ test("official marks are painted for any slot and never share a gradient id", ()
 test("the catalog has no dashes and ships translated in every locale", () => {
   for (const [key, value] of Object.entries(READINGS_COPY)) assert.doesNotMatch(value, /[-‐-―−]/u, key);
   const en = JSON.parse(read("../../web/messages/en.json"));
-  assert.deepEqual(en.desktopReadings, READINGS_COPY);
+  const hubKeys = [
+    "accountFallback", "updatedMinutes", "updatedHours", "updatedDays",
+    "claudeCurrentSession", "claudeWeeklyAllModels", "claudeWeeklyFable",
+    "claudeWeeklyModel", "claudeExtraUsage", "claudeFableDesktopHint",
+  ];
+  const readings = (catalog) => ({
+    ...catalog.desktopReadings,
+    ...Object.fromEntries(hubKeys.map((key) => [key, catalog.hub[key]])),
+  });
+  assert.deepEqual(readings(en), READINGS_COPY);
   for (const locale of ["de", "es", "ja", "pt-BR"]) {
-    const catalog = JSON.parse(read(`../../web/messages/${locale}.json`)).desktopReadings;
+    const catalog = readings(JSON.parse(read(`../../web/messages/${locale}.json`)));
     assert.deepEqual(Object.keys(catalog).sort(), Object.keys(READINGS_COPY).sort(), locale);
     for (const [key, value] of Object.entries(catalog)) {
       assert.doesNotMatch(value, /[-‐-―−]/u, `${locale} ${key}`);

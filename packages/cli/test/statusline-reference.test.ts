@@ -101,6 +101,25 @@ describe("Lucas reference layout", () => {
     expect(render([row({ provider: "OPENCODE", window: { kind: "rolling", durationSeconds: 14400 }, resetAt: null })]))
       .toBe("oc4h [█░░░░░░░░░] 17%");
   });
+  it("keeps weekly visibility stable while allowing a model override", () => {
+    const weekly = row({ meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604_800 } });
+    const fable = row({ meter: "SEVEN_DAY_FABLE_5_1", window: { kind: "rolling", durationSeconds: 604_800 } });
+    const opus = row({ meter: "SEVEN_DAY_OPUS", window: { kind: "rolling", durationSeconds: 604_800 } });
+    const hidden = normalizeStatusline({ visibility: { "7d": false, fable: true, opus: false } });
+
+    expect(hidden.visibility).toEqual({ "7d": false, fable: true, opus: false });
+    expect(render([weekly, fable, opus], { config: hidden })).toContain("Fable ");
+    expect(render([weekly, fable, opus], { config: hidden })).not.toContain("7d ");
+    expect(render([weekly, fable, opus], { config: hidden })).not.toContain("Opus ");
+  });
+
+  it("renders parsed Claude extra usage with its compact caption and both amounts", () => {
+    const parsed = normalizeMeters(parseClaudePayload({
+      extra_usage: { used_amount: 12.47, limit_amount: 20, currency: "USD" },
+    }, NOW) ?? []);
+
+    expect(render(parsed)).toBe("Extra $12.47/$20.00");
+  });
 });
 
 const roots: string[] = [];

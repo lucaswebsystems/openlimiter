@@ -65,9 +65,11 @@ const CARD_SURFACE = "ol-product-panel";
 export function ProviderAccountRow({
   row,
   actions,
+  footer,
 }: {
   row: ProviderAccountRowView;
   actions?: ReactNode;
+  footer?: ReactNode;
 }) {
   const host = useRef<HTMLElement | null>(null);
 
@@ -86,6 +88,7 @@ export function ProviderAccountRow({
       suppressHydrationWarning: true,
     },
     actions,
+    footer,
   );
 }
 
@@ -379,8 +382,10 @@ export function ProviderRows({
                     <GripGlyph />
                   </button>
                 ) : undefined}
+                footer={hint !== null && hint !== "" ? (
+                  <p slot="footer" className="ol-card-footer-note">{hint}</p>
+                ) : undefined}
               />
-              {hint !== null && hint !== "" && <p className="ol-command-note">{hint}</p>}
               {reorderable && openActionsKey === row.key && (
                 <div
                   id={`${keyboardHelpId}-actions-${index}`}

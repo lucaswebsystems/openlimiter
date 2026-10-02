@@ -9,7 +9,7 @@ import {
   type Snapshot,
 } from "./engine";
 import { HeaderStrip, Panel, ProviderRows, SkeletonRows, observationAgeMinutes } from "./pieces";
-import { meterName, type ClaudeMeterCopy } from "./language";
+import { claudeMeterOverride, meterName, type ClaudeMeterCopy } from "./language";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { clearDeviceSession, readDeviceSession } from "@/lib/device-session";
 import {
@@ -79,7 +79,7 @@ export function DeviceView({ lockup }: { lockup: ReactNode }) {
   const [now, setNow] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const locale = useRef("en");
-  const readingsT = useTranslations("desktopReadings");
+  const readingsT = useTranslations("hub");
   const claudeMeterCopy = useClaudeMeterCopy();
 
   useEffect(() => {
@@ -134,7 +134,7 @@ export function DeviceView({ lockup }: { lockup: ReactNode }) {
   const rows = useMemo(
     () => (now === null ? [] : buildProviderAccountRows(shown, now, [], {
       accountLabel: (_accountId, count) => readingsT("accountFallback", { count }),
-      meterLabel: (code, provider) => meterName(code, provider, claudeMeterCopy),
+      meterLabel: (code, provider) => claudeMeterOverride(code, provider, claudeMeterCopy),
       updatedLabel: (observedAt) => {
         const age = observationAgeMinutes(observedAt, now);
         if (age === null || age < 5) return null;

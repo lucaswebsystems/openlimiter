@@ -17,11 +17,7 @@
     "moneyOf": "de {amount}",
     "creditsSpent": "créditos gastados",
     "accountOrdinal": "{label}, cuenta {count}",
-    "accountFallback": "Cuenta {count}",
     "updatedJustNow": "Actualizado ahora mismo",
-    "updatedMinutes": "Actualizado hace {count} min",
-    "updatedHours": "Actualizado hace {count} h",
-    "updatedDays": "Actualizado hace {count} d",
     "noReading": "Aún no hay lecturas",
     "refresh": "Actualizar",
     "loading": "Cargando tus límites",
@@ -69,14 +65,8 @@
     "showTool": "Mostrar",
     "removeTool": "Quitar",
     "removeConfirm": "Pulsa de nuevo para quitar",
-    "claudeCurrentSession": "Sesión actual",
-    "claudeWeeklyAllModels": "Semanal, todos los modelos",
-    "claudeWeeklyFable": "Semanal, Fable",
-    "claudeWeeklyModel": "Semanal, {model}",
-    "claudeExtraUsage": "Uso adicional",
     "showClaudeFable": "Mostrar límite de Fable",
-    "showClaudeFableNote": "Usa tu inicio de sesión de Claude en este equipo para leer el mismo uso que muestra Claude.",
-    "claudeFableDesktopHint": "Activa Mostrar límite de Fable en la aplicación de escritorio, en Añadir una herramienta, Claude Code."
+    "showClaudeFableNote": "Usa tu inicio de sesión de Claude en este equipo para leer el mismo uso que muestra Claude."
   },
   "meta": {
     "title": "OpenLimiter, límites de programación con IA y actividad de agentes",
@@ -2167,6 +2157,16 @@
     "restore": "Al suscribirte, todo vuelve a estar como antes. Tus preferencias se conservaron."
   },
   "hub": {
+    "accountFallback": "Cuenta {count}",
+    "updatedMinutes": "Actualizado hace {count} min",
+    "updatedHours": "Actualizado hace {count} h",
+    "updatedDays": "Actualizado hace {count} d",
+    "claudeCurrentSession": "Sesión actual",
+    "claudeWeeklyAllModels": "Semanal, todos los modelos",
+    "claudeWeeklyFable": "Semanal, Fable",
+    "claudeWeeklyModel": "Semanal, {model}",
+    "claudeExtraUsage": "Uso adicional",
+    "claudeFableDesktopHint": "Activa Mostrar límite de Fable en la aplicación de escritorio, en Añadir una herramienta, Claude Code.",
     "providers": {
       "title": "Proveedores",
       "automaticPrompt": "Abre la aplicación de escritorio. La detección local empieza ahí.",
