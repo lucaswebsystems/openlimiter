@@ -863,12 +863,10 @@ slot[name="footer"] {
   display: block;
   min-width: 0;
   margin: 0;
-  overflow: hidden;
+  overflow-wrap: anywhere;
   color: var(--row-muted);
   font-size: var(--ol-text-micro);
   line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .identity-name {
   display: flex;

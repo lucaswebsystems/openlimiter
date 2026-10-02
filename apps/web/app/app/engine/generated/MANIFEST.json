@@ -3,7 +3,7 @@
   "sources": {
     "core/types.ts": "03b85c0bfdad747a",
     "core/connection-state.ts": "a99cf59208d5bbde",
-    "core/data-rules.ts": "2c0f39dca889bc4c",
+    "core/data-rules.ts": "092d75b89504f746",
     "core/failures.ts": "92c8818a6dcb3557",
     "core/format.ts": "060178a0ef47ac5d",
     "core/forecast.ts": "5155cb1a6fde4a0e",
@@ -30,7 +30,7 @@
     "connectors/index.ts": "cb259accae69925b",
     "adapters/claude-code.ts": "d6d1183bd8093600",
     "ui/provider-connect.ts": "ac27de48b19b41e8",
-    "ui/provider-row.ts": "cfa893a3cec3e067",
+    "ui/provider-row.ts": "6fcf5dbabeb03b73",
     "ui/tokens.css": "11c79e1125538355",
     "provider_specs/provider-specs.json": "0093e02a80603dec"
   }

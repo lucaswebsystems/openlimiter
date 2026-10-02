@@ -63,9 +63,9 @@ pub(crate) fn reason(row: &Snapshot, now: i64) -> Option<&str> {
     if let Some(reason) = row.availability.as_deref() {
         return Some(reason);
     }
+    // Spend past its cap is still a real reading, so only the bounds are checked.
     let bounded_spend = row.used_amount.is_some_and(|used| used.is_finite() && used >= 0.0)
         && row.limit_amount.is_some_and(|limit| limit.is_finite() && limit > 0.0)
-        && row.used_amount.zip(row.limit_amount).is_some_and(|(used, limit)| used <= limit)
         && row.currency.as_deref() == Some("USD");
     if row.window.kind == "unknown" && !bounded_spend
         || row.kind.as_deref() == Some("runtime_info")
@@ -370,6 +370,20 @@ mod tests {
             "observedAt": "2026-09-29T12:00:00.000Z", "expiresAt": "2026-09-29T12:20:00.000Z",
             "labels": { "credentialOrigin": "official-local-tool", "dataInterfaceStatus": "internal-endpoint", "automationRisk": "high", "verification": "UNVERIFIED" }
         })).unwrap()
+    }
+
+    #[test]
+    fn extra_usage_past_its_cap_is_still_a_reading() {
+        let now =
+            crate::native_time::epoch_ms_from_rfc3339("2026-09-29T12:00:00.000Z").unwrap() as i64;
+        let mut spend = measured(Some("fixture"));
+        spend.meter = "EXTRA_USAGE".to_string();
+        spend.window.kind = "unknown".to_string();
+        spend.value = 100.0;
+        spend.used_amount = Some(25.0);
+        spend.limit_amount = Some(20.0);
+        spend.currency = Some("USD".to_string());
+        assert_eq!(reason(&spend, now), None);
     }
 
     #[test]
