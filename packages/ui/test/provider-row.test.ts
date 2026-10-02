@@ -323,6 +323,9 @@ describe("provider account rows", () => {
     expect(
       byProvider.get("GROK")?.windows.map((window) => window.label)
     ).toEqual(["Weekly", "On demand monthly"]);
+    expect(byProvider.get("GROK")?.providerLabel).toBe(
+      "Grok weekly usage across Grok products"
+    );
     expect(
       byProvider.get("KIMI")?.windows.map((window) => window.label)
     ).toEqual(["5 hour session", "Weekly", "5 hour session 2"]);

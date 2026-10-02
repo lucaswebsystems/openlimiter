@@ -275,6 +275,39 @@ describe("one acquisition round", () => {
     expect(result.rows[0]?.status).toBe("read");
   });
 
+  it.each([
+    ["paid consumer wins over standard current tier", { currentTier: { id: "standard-tier" }, paidTier: { id: "g1-pro-tier" } }, false],
+    ["null current tier still reads paid tier", { currentTier: null, paidTier: { id: "free-tier" } }, false],
+    ["standard is collected", { currentTier: { id: "standard-tier" } }, true],
+    ["enterprise is collected", { currentTier: { id: "enterprise-tier" } }, true],
+    ["unknown is left to normal collection", { currentTier: { id: "unknown-tier" } }, true],
+  ] as const)("applies the verified Gemini tier decision before quota request, %s", async (_name, tier, collects) => {
+    const sent: AcquisitionRequest[] = [];
+    const result = await runAcquisition([geminiCliSpec(() => [meter("GEMINI_CLI")])], {
+      transport: async (request) => {
+        sent.push(request);
+        return request.endpoint === "code_assist_load"
+          ? reply(200, { cloudaicompanionProject: "managed-project-123", ...tier })
+          : reply(200, { buckets: [] });
+      },
+      now: NOW,
+      schedule: {},
+      readCredential: async () => credential()
+    });
+    expect(sent.map((request) => request.endpoint)).toEqual(
+      collects ? ["code_assist_load", "code_assist_quota"] : ["code_assist_load"]
+    );
+    if (collects) {
+      expect(result.rows[0]?.status).toBe("read");
+    } else {
+      expect(result.schedule["GEMINI_CLI"]?.outcome).toBe("quota_unavailable");
+      expect(result.rows[0]).toMatchObject({
+        availability: "quota_unavailable",
+        reason: "Google ended Gemini CLI sign in for this plan on June 18, 2026."
+      });
+    }
+  });
+
   it("names a provider that answers only its own tools, and waits a day", async () => {
     /*
      * Measured live on 2026-09-07: loadCodeAssist answered 200 to a request

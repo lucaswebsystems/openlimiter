@@ -88,8 +88,29 @@ export const CODE_ASSIST_IDENTITY_SENTENCE =
   "Google answers this quota only to its own tools, so it is read here only " +
   "when another tool on this machine has written it";
 
+export const GEMINI_CLI_CONSUMER_RETIRED_NOTE =
+  "Google ended Gemini CLI sign in for this plan on June 18, 2026.";
+
+const GEMINI_CLI_RETIRED_TIER_IDS = new Set([
+  "free-tier",
+  "g1-pro-tier",
+  "g1-ultra-tier"
+]);
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function tierId(value: unknown): string | null {
+  if (!isRecord(value)) return null;
+  return typeof value["id"] === "string" ? value["id"] : null;
+}
+
+export function isRetiredGeminiCliTier(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  const paidTier = tierId(value["paidTier"]);
+  const currentTier = tierId(value["currentTier"]);
+  return GEMINI_CLI_RETIRED_TIER_IDS.has(paidTier ?? currentTier ?? "");
 }
 
 /**
@@ -99,13 +120,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * that names no project produces no request, which the runner reads as a shape
  * this build did not understand rather than as a reason to ask anyway.
  */
-export function codeAssistSteps(): readonly AcquisitionStep[] {
+export function codeAssistSteps(options: { readonly retireConsumerTiers?: boolean } = {}): readonly AcquisitionStep[] {
   return [
     ({ credential }) => codeAssistLoadRequest(credential.secret),
     ({ credential, previous }) => {
       const bootstrap = previous[0];
       /* Not an object at all is a shape this build does not understand. */
       if (!isRecord(bootstrap)) return null;
+      if (options.retireConsumerTiers && isRetiredGeminiCliTier(bootstrap)) {
+        return { stop: "quota_unavailable" };
+      }
       const project = bootstrap[CODE_ASSIST_PROJECT_FIELD];
       if (typeof project === "string") {
         return codeAssistQuotaRequest(credential.secret, project);
@@ -127,7 +151,8 @@ export function codeAssistSteps(): readonly AcquisitionStep[] {
 
 /** The sentence overrides both Code Assist readers carry. */
 const codeAssistSentences = {
-  identity_refused: CODE_ASSIST_IDENTITY_SENTENCE
+  identity_refused: CODE_ASSIST_IDENTITY_SENTENCE,
+  quota_unavailable: GEMINI_CLI_CONSUMER_RETIRED_NOTE
 } as const;
 
 export interface ClaudeSpecOptions {
@@ -183,7 +208,7 @@ export function geminiCliSpec(parse: PayloadParser): AcquisitionSpec {
   return {
     provider: "GEMINI_CLI",
     credentialProvider: "GEMINI_CLI",
-    steps: codeAssistSteps(),
+    steps: codeAssistSteps({ retireConsumerTiers: true }),
     parse,
     disclosure: ACQUISITION_DISCLOSURE.gemini,
     outcomeSentence: codeAssistSentences

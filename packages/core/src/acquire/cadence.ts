@@ -91,7 +91,7 @@ export function backoffSecondsFor(
      a day against an answer that cannot change until we change. */
   const base = outcome === "rate_limited" || outcome === "remote_error" || outcome === "transport"
     ? retryPolicy({ attemptCount, retryAfter: null, now: "1970-01-01T00:00:00.000Z", jitterSeconds: 0, layer: "policy" }).localDelaySeconds
-    : outcome === "unauthorized" || outcome === "blocked" || outcome === "identity_refused"
+    : outcome === "unauthorized" || outcome === "blocked" || outcome === "identity_refused" || outcome === "quota_unavailable"
       ? ACQUISITION_BLOCKED_BACKOFF_SECONDS
       : ACQUISITION_INTERVAL_SECONDS;
   if (
@@ -100,7 +100,7 @@ export function backoffSecondsFor(
     retryAfterSeconds <= 0
   ) return base;
   // Refusals wait one day regardless of a server retry header.
-  if (outcome === "unauthorized" || outcome === "blocked" || outcome === "identity_refused") return base;
+  if (outcome === "unauthorized" || outcome === "blocked" || outcome === "identity_refused" || outcome === "quota_unavailable") return base;
   return Math.max(base, Math.min(7 * 86_400, retryAfterSeconds));
 }
 
@@ -241,5 +241,6 @@ export const ACQUISITION_OUTCOME_SENTENCE:
   too_large: "the provider's answer was larger than this build accepts",
   drift: "the provider answered in a shape this build does not understand",
   identity_refused: "the provider serves this reading only to its own tools",
+  quota_unavailable: "Google ended Gemini CLI sign in for this plan on June 18, 2026.",
   not_running: "the provider's app is not running on this machine, so nothing was read"
 };

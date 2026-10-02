@@ -126,7 +126,7 @@ export type AcquisitionStatus =
   | "off";
 
 export interface AcquisitionRow {
-  readonly availability?: "expired_credentials" | "access_denied" | "rate_limited";
+  readonly availability?: "expired_credentials" | "access_denied" | "quota_unavailable" | "rate_limited";
   readonly retryAt?: string;
   readonly provider: ProviderCode;
   /** The account these rows were filed under, when one was decided. */
@@ -344,7 +344,9 @@ export async function runAcquisition(
   const failure = (failedIn: AcquisitionPhase, outcome: AcquisitionOutcome) =>
     outcome === "ok" ? {} : { phase: failedIn, errorClass: outcome };
   const refused = (outcome: AcquisitionOutcome) => outcome === "unauthorized" || outcome === "blocked" || outcome === "identity_refused";
-  const refusalAvailability = (outcome: AcquisitionOutcome) => outcome === "unauthorized"
+  const outcomeAvailability = (outcome: AcquisitionOutcome) => outcome === "quota_unavailable"
+    ? { availability: "quota_unavailable" as const }
+    : outcome === "unauthorized"
     ? { availability: "expired_credentials" as const }
     : outcome === "blocked" || outcome === "identity_refused" ? { availability: "access_denied" as const } : {};
   /**
@@ -374,7 +376,7 @@ export async function runAcquisition(
         provider: spec.provider,
         detected: true,
         status: "waiting",
-        ...(existing ? refusalAvailability(existing.outcome) : {}),
+        ...(existing ? outcomeAvailability(existing.outcome) : {}),
         reason: existing === undefined
           ? null
           : ACQUISITION_OUTCOME_SENTENCE[existing.outcome],
@@ -444,8 +446,8 @@ export async function runAcquisition(
             if (nextAttemptAt) schedule[spec.provider] = { lastAttemptAt: options.now, nextAttemptAt, outcome: fallbackResult.outcome, attempts: (existing?.attempts ?? options.lease?.attempts ?? 0) + 1,
               ...failure(fallbackResult.phase ?? "request", fallbackResult.outcome),
               ...(refused(fallbackResult.outcome) ? { refusalRevision: await revisionFor(spec) } : {}) };
-            rows.push({ provider: spec.provider, detected: true, status: "stale", reason: expired ? CREDENTIAL_FAILURE_SENTENCE.expired : ACQUISITION_OUTCOME_SENTENCE[fallbackResult.outcome], nextAttemptAt, disclosure: spec.disclosure,
-              ...(expired ? { availability: "expired_credentials" as const } : fallbackResult.outcome === "rate_limited" && nextAttemptAt ? { availability: "rate_limited" as const, retryAt: nextAttemptAt } : refusalAvailability(fallbackResult.outcome)) });
+            rows.push({ provider: spec.provider, detected: true, status: "stale", reason: expired ? CREDENTIAL_FAILURE_SENTENCE.expired : spec.outcomeSentence?.[fallbackResult.outcome] ?? ACQUISITION_OUTCOME_SENTENCE[fallbackResult.outcome], nextAttemptAt, disclosure: spec.disclosure,
+              ...(expired ? { availability: "expired_credentials" as const } : fallbackResult.outcome === "rate_limited" && nextAttemptAt ? { availability: "rate_limited" as const, retryAt: nextAttemptAt } : outcomeAvailability(fallbackResult.outcome)) });
             return;
           }
           if (fallbackResult.outcome === "ok" && fallbackResult.meters.length > 0) {
@@ -604,7 +606,7 @@ export async function runAcquisition(
       ...(accountId === null ? {} : { accountId }),
       detected: true,
       status: "stale",
-      ...(outcome === "rate_limited" && nextAttemptAt ? { availability: "rate_limited" as const, retryAt: nextAttemptAt } : refusalAvailability(outcome)),
+      ...(outcome === "rate_limited" && nextAttemptAt ? { availability: "rate_limited" as const, retryAt: nextAttemptAt } : outcomeAvailability(outcome)),
       reason: sentence(outcome),
       nextAttemptAt,
       disclosure

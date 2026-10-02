@@ -178,6 +178,13 @@ describe("openrouter: finite key limits", () => {
     expect(parsed?.[0]?.limitAmount).toBeUndefined();
     expect(parsed?.[0]?.usedAmount).toBeUndefined();
   });
+
+  it("rounds the finite threshold consistently", () => {
+    const parsed = parseOpenrouterPayload({
+      data: { limit: 0.07, limit_remaining: 0.007, limit_reset: null, usage: 0 }
+    }, NOW);
+    expect(parsed?.[0]?.value).toBe(90);
+  });
 });
 
 describe("openrouter: everything it must refuse", () => {
