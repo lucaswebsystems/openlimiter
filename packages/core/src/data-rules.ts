@@ -38,7 +38,10 @@ export function fixKind(reason: string): FixKind {
 
 export function displayReason(row: Snapshot, now: string): string | null {
   if (row.availability !== undefined) return row.availability;
-  if (row.window.kind === "unknown" || row.kind === "runtime_info" || row.meter === "ACQUISITION") return "placeholder";
+  const boundedSpend = row.usedAmount !== undefined && Number.isFinite(row.usedAmount) && row.usedAmount >= 0 &&
+    row.limitAmount !== undefined && Number.isFinite(row.limitAmount) && row.limitAmount > 0 &&
+    row.currency === "USD"; // spend past its cap is still a real reading
+  if (row.window.kind === "unknown" && !boundedSpend || row.kind === "runtime_info" || row.meter === "ACQUISITION") return "placeholder";
   if (!Number.isFinite(row.value) || row.value < 0 || (row.unit === "PERCENT" && row.value > 100)) return "quota_unavailable";
   if (freshnessPolicy({ ...row, sourceClass: row.source, now }).availability !== "fresh") return "stale";
   return null;

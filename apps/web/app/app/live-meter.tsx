@@ -9,6 +9,7 @@ import {
   type Snapshot,
 } from "./engine";
 import { meterName, providerName } from "./language";
+import { useClaudeMeterCopy } from "./use-claude-meter-copy";
 import { ProviderMark } from "./marks";
 import { useTranslations } from "next-intl";
 
@@ -182,7 +183,8 @@ function formatTickingCountdown(resetAt: string | null | undefined, currentMilli
 }
 
 export function LiveMeter({ snapshots, now }: LiveMeterProps) {
-  const readingsT = useTranslations("desktopReadings");
+  const readingsT = useTranslations("hub");
+  const claudeMeterCopy = useClaudeMeterCopy();
   const [tickerMillis, setTickerMillis] = useState<number>(() => {
     const supplied = now === null ? Number.NaN : Date.parse(now);
     return Number.isFinite(supplied) ? supplied : Date.now();
@@ -221,7 +223,7 @@ export function LiveMeter({ snapshots, now }: LiveMeterProps) {
 
   const windowTitle =
     featuredSnapshot.meter && featuredSnapshot.meter !== "default"
-      ? meterName(featuredSnapshot.meter)
+      ? meterName(featuredSnapshot.meter, featuredSnapshot.provider, claudeMeterCopy)
       : "Live Ticking Session Window";
 
   /* SVG Ring properties */

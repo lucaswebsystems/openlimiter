@@ -194,7 +194,7 @@ async function checkMessyViews(browser, origin) {
   // What the projected messy set must read as, card by card, tightest first.
   const readings = [
     ["CODEX", "Codex", [["Weekly", "70%"]]],
-    ["CLAUDE", "Claude Code", [["Weekly", "46%"], ["Fable weekly", "31%"], ["5 hour", "6%"]]],
+    ["CLAUDE", "Claude Code", [["Current session", "6%"], ["Weekly, all models", "46%"], ["Weekly, Fable", "31%"]]],
     ["OPENROUTER", "OpenRouter", [["Credits", "$12.50"]]],
   ];
   // Each tool that cannot be measured, on its own row: its one step, or its note.

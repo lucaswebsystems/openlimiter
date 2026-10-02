@@ -96,6 +96,13 @@ it("measured zero survives while placeholders, stale rows and availability becom
   expect(projected.flags.map(flag => flag.fixKind)).toEqual(["open_app", "unsupported", "open_app"]);
 });
 
+it("extra usage past its cap is still a reading, never a placeholder", () => {
+  // Claude's extra usage has no billing cadence; $25 spent of a $20 cap is real.
+  const spend = { ...measured("fixture"), meter: "EXTRA_USAGE", window: { kind: "unknown" as const }, kind: "spend" as const,
+    value: 100, usedAmount: 25, limitAmount: 20, currency: "USD" as const };
+  expect(projectSnapshots([spend], now).snapshots).toHaveLength(1);
+});
+
 it("all cache writers prune old accounts at seven days and preserve the boundary", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "d1-cache-"));
   try {

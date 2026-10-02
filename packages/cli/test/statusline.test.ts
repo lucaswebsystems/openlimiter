@@ -224,18 +224,18 @@ describe("meter ordering", () => {
 
   it("orders a provider's meters session, daily, weekly, monthly, credits", () => {
     const many = [
-      reading({ meter: "LIFETIME", window: { kind: "lifetime" } }),
-      reading({ meter: "MONTHLY", window: { kind: "fixed" } }),
-      reading({ meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604_800 } }),
-      reading({ meter: "DAILY", window: { kind: "rolling", durationSeconds: 86_400 } }),
-      reading({ meter: "FIVE_HOUR", window: { kind: "rolling", durationSeconds: 18_000 } })
+      reading({ provider: "CODEX", meter: "LIFETIME", window: { kind: "lifetime" } }),
+      reading({ provider: "CODEX", meter: "MONTHLY", window: { kind: "fixed" } }),
+      reading({ provider: "CODEX", meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604_800 } }),
+      reading({ provider: "CODEX", meter: "DAILY", window: { kind: "rolling", durationSeconds: 86_400 } }),
+      reading({ provider: "CODEX", meter: "FIVE_HOUR", window: { kind: "rolling", durationSeconds: 18_000 } })
     ];
-    expect(cellsOf(many, ["CLAUDE"], "all").map((cell) => cell.split(" ")[0])).toEqual([
-      "CLAUDE:FIVE_HOUR",
-      "CLAUDE:DAILY",
-      "CLAUDE:SEVEN_DAY",
-      "CLAUDE:MONTHLY",
-      "CLAUDE:LIFETIME"
+    expect(cellsOf(many, ["CODEX"], "all").map((cell) => cell.split(" ")[0])).toEqual([
+      "CODEX:FIVE_HOUR",
+      "CODEX:DAILY",
+      "CODEX:SEVEN_DAY",
+      "CODEX:MONTHLY",
+      "CODEX:LIFETIME"
     ]);
   });
 });
@@ -250,8 +250,8 @@ describe("worst against all", () => {
   it("shows every meter as its own cell when asked", () => {
     const cells = cellsOf(everyProvider, DEFAULT_PROVIDER_ORDER, "all");
     expect(cells).toHaveLength(10);
-    expect(cells[0]).toBe("CLAUDE:FIVE_HOUR ##... 42.0%");
-    expect(cells[1]).toBe("CLAUDE:SEVEN_DAY ###.. 64.0%");
+    expect(cells[0]).toBe("CLAUDE:5h ##... 42.0%");
+    expect(cells[1]).toBe("CLAUDE:7d ###.. 64.0%");
   });
 
   it("keeps the worst cell agreeing with the reason code above it", () => {
@@ -483,6 +483,17 @@ describe("statusline bar rendering window codes and unknown cells", () => {
       meter: "MONTH"
     };
     expect(windowCode(manualMonthSnapshot)).toBe("mo");
+  });
+
+  it("keeps Claude's compact session, week and Fable identities distinct", () => {
+    const claude = (meter: string): Snapshot => ({
+      ...reading({ provider: "CLAUDE", meter }),
+      window: { kind: "rolling", durationSeconds: meter === "FIVE_HOUR" ? 18_000 : 604_800 },
+    });
+    expect(windowCode(claude("FIVE_HOUR"))).toBe("5h");
+    expect(windowCode(claude("SEVEN_DAY"))).toBe("7d");
+    expect(windowCode(claude("SEVEN_DAY_FABLE_5"))).toBe("Fable");
+    expect(windowCode(claude("SEVEN_DAY_FABLE_5_1"))).toBe("Fable");
   });
 
   it("keeps a usable percentage when the window is unknown", () => {

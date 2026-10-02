@@ -17,11 +17,7 @@
     "moneyOf": "of {amount}",
     "creditsSpent": "credits spent",
     "accountOrdinal": "{label}, account {count}",
-    "accountFallback": "Account {count}",
     "updatedJustNow": "Updated just now",
-    "updatedMinutes": "Updated {count} min ago",
-    "updatedHours": "Updated {count} h ago",
-    "updatedDays": "Updated {count} d ago",
     "noReading": "No reading yet",
     "refresh": "Refresh",
     "loading": "Loading your limits",
@@ -68,7 +64,9 @@
     "moreFor": "More for {name}",
     "showTool": "Show",
     "removeTool": "Remove",
-    "removeConfirm": "Press again to remove"
+    "removeConfirm": "Press again to remove",
+    "showClaudeFable": "Show Fable limit",
+    "showClaudeFableNote": "Uses your Claude sign in on this computer to read the same usage Claude shows."
   },
   "meta": {
     "title": "OpenLimiter, AI coding limits and agent activity",
@@ -2159,6 +2157,16 @@
     "restore": "Subscribe and everything comes back as it was. Your preferences were kept."
   },
   "hub": {
+    "accountFallback": "Account {count}",
+    "updatedMinutes": "Updated {count} min ago",
+    "updatedHours": "Updated {count} h ago",
+    "updatedDays": "Updated {count} d ago",
+    "claudeCurrentSession": "Current session",
+    "claudeWeeklyAllModels": "Weekly, all models",
+    "claudeWeeklyFable": "Weekly, Fable",
+    "claudeWeeklyModel": "Weekly, {model}",
+    "claudeExtraUsage": "Extra usage",
+    "claudeFableDesktopHint": "Turn on Show Fable limit in the desktop app under Add a tool, Claude Code.",
     "providers": {
       "title": "Providers",
       "automaticPrompt": "Open the desktop app. Local detection starts there.",

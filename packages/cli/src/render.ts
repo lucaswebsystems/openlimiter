@@ -1,4 +1,6 @@
 import {
+  claudeMeterLabel,
+  claudeMeterRank,
   collectionIdentity,
   failureSentence,
   floorFixed,
@@ -346,7 +348,11 @@ function providerIdentity(snapshot: Snapshot): string {
 }
 
 /** Display familiar windows and preserve provider supplied names. */
-function windowName(meter: string): string {
+function windowName(meter: string, provider: string): string {
+  if (provider === "CLAUDE") {
+    const claude = claudeMeterLabel(meter);
+    if (claude !== null) return claude;
+  }
   const names: Readonly<Record<string, string>> = {
     FIVE_HOUR: "5h",
     SEVEN_DAY: "Weekly",
@@ -404,7 +410,7 @@ function buildRow(
 ): Row {
   return {
     provider: truncateIdentity(providerIdentity(snapshot), MAX_PROVIDER_WIDTH),
-    meter: windowName(snapshot.meter),
+    meter: windowName(snapshot.meter, snapshot.provider),
     bar: meterBar(snapshot.value, state, color),
     usage: floorFixed(snapshot.value, 2) + snapshot.unit,
     amount: amountField(snapshot),
@@ -488,8 +494,16 @@ function orderSnapshots(
     return left[0].localeCompare(right[0]);
   });
   const result: FreshSnapshot[] = [];
-  for (const [, group] of ordered) {
+  for (const [provider, group] of ordered) {
     result.push(...[...group].sort((left, right) => {
+      if (provider === "CLAUDE") {
+        const account = providerIdentity(left.snapshot).localeCompare(providerIdentity(right.snapshot));
+        if (account !== 0) return account;
+        const rank = (claudeMeterRank(left.snapshot.meter) ?? 90) -
+          (claudeMeterRank(right.snapshot.meter) ?? 90);
+        if (rank !== 0) return rank;
+        return left.snapshot.meter.localeCompare(right.snapshot.meter);
+      }
       const stateRank = { fresh: 0, stale: 1, unknown: 2 } as const;
       if (stateRank[left.state] !== stateRank[right.state]) {
         return stateRank[left.state] - stateRank[right.state];

@@ -89,18 +89,20 @@ function snapshot(overrides = {}) {
 
 const alwaysGreen = () => "green";
 
-test("a model scoped weekly reads as the cadence with the model in brackets", () => {
-  assert.equal(windowLabel("SEVEN_DAY_FABLE", "CLAUDE"), "Weekly (Fable)");
-  assert.equal(windowLabel("SEVEN_DAY_FABLE_5", "CLAUDE"), "Weekly (Fable 5)");
-  assert.equal(windowLabel("SEVEN_DAY_HAIKU_4_5", "CLAUDE"), "Weekly (Haiku 4 5)");
-  /* A shipped label still wins over the generated one. */
-  assert.equal(windowLabel("SEVEN_DAY_OPUS", "CLAUDE"), "Weekly Opus");
-  assert.equal(windowLabel("SEVEN_DAY_OAUTH_APPS", "CLAUDE"), "Weekly OAuth apps");
+test("Claude model weeklies use the same product wording", () => {
+  assert.equal(windowLabel("FIVE_HOUR", "CLAUDE"), "Current session");
+  assert.equal(windowLabel("SEVEN_DAY", "CLAUDE"), "Weekly, all models");
+  assert.equal(windowLabel("SEVEN_DAY_FABLE", "CLAUDE"), "Weekly, Fable");
+  assert.equal(windowLabel("SEVEN_DAY_FABLE_5", "CLAUDE"), "Weekly, Fable");
+  assert.equal(windowLabel("SEVEN_DAY_FABLE_5_1", "CLAUDE"), "Weekly, Fable");
+  assert.equal(windowLabel("SEVEN_DAY_HAIKU_4_5", "CLAUDE"), "Weekly, Haiku 4.5");
+  assert.equal(windowLabel("SEVEN_DAY_OPUS", "CLAUDE"), "Weekly, Opus");
+  assert.equal(windowLabel("SEVEN_DAY_OAUTH_APPS", "CLAUDE"), "Weekly, OAuth Apps");
 });
 
 test("a numbered window keeps its base name and carries the number", () => {
   assert.equal(windowLabel("HOURLY_2", "CODEX"), "Hourly 2");
-  assert.equal(windowLabel("FIVE_HOUR_3", "CLAUDE"), "5 hour session 3");
+  assert.equal(windowLabel("FIVE_HOUR_3", "CLAUDE"), "5 hour 3");
   assert.equal(windowLabel("MONTHLY_12", "KIMI"), "Monthly 12");
   /* A suffix of one is not a suffix, so the humaniser takes it. */
   assert.equal(windowLabel("HOURLY_1", "CODEX"), "Hourly 1");
@@ -151,14 +153,16 @@ test("the tray names and ranks every window exactly as the main window does", ()
     ),
   );
   for (const code of Object.keys(names)) {
-    assert.equal(windowLabel(code, "CLAUDE"), names[code], code);
+    assert.equal(windowLabel(code, "CODEX"), names[code], code);
   }
 });
 
-test("one account reads session, then week, then model week, then month", () => {
+test("one Claude account reads session, all models, Fable, other models, then extra usage", () => {
   const ordered = sortRows([
     row({ meter: "THIRTY_DAY", value: 91 }),
-    row({ meter: "SEVEN_DAY_FABLE_5", value: 20 }),
+    row({ meter: "EXTRA_USAGE", value: 92 }),
+    row({ meter: "SEVEN_DAY_OPUS", value: 80 }),
+    row({ meter: "SEVEN_DAY_FABLE_5_1", value: 20 }),
     row({ meter: "SEVEN_DAY", value: 55 }),
     row({ meter: "FIVE_HOUR", value: 3 }),
   ]).map((each) => each.meter);
@@ -166,7 +170,9 @@ test("one account reads session, then week, then model week, then month", () => 
   assert.deepEqual(ordered, [
     "FIVE_HOUR",
     "SEVEN_DAY",
-    "SEVEN_DAY_FABLE_5",
+    "SEVEN_DAY_FABLE_5_1",
+    "SEVEN_DAY_OPUS",
+    "EXTRA_USAGE",
     "THIRTY_DAY",
   ]);
 });

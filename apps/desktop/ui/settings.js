@@ -30,7 +30,7 @@ import {
 } from "./backend.js";
 import { activityClient } from "./agents.js";
 import { homeSelectionControl } from "./configured-providers.js";
-import { providerName } from "./names.js";
+import { providerName, say } from "./names.js";
 
 // English catalog for the menu's settings. L7 owns translations.
 export const ALERTS_EN = Object.freeze({
@@ -48,8 +48,8 @@ export const ALERTS_EN = Object.freeze({
 
 /* The one sentence the menu keeps (plan 2.0.3, Step 2). */
 export const CLAUDE_POLL_EN = Object.freeze({
-  label: "Direct Claude check",
-  note: "Uses your local Claude sign in to ask Anthropic for your limits while Claude Code is closed.",
+  label: say("showClaudeFable"),
+  note: say("showClaudeFableNote"),
 });
 
 export const MENU_EN = Object.freeze({ tools: "Tools", preset: "Theme preset", agentAlerts: "Agent alerts" });

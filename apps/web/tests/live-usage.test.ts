@@ -106,7 +106,7 @@ describe("live synced usage", () => {
       "CLAUDE:SEVEN_DAY_OAUTH_APPS",
       "CLAUDE:EXTRA_USAGE",
       "CLAUDE:SEVEN_DAY_OPUS",
-      "CLAUDE:SEVEN_DAY_FABLE_5",
+      "CLAUDE:SEVEN_DAY_FABLE_5_1",
       "KIMI:WEEKLY",
       "KIMI:FIVE_HOUR",
       "KIMI:DAILY",

@@ -22,6 +22,7 @@
  * window exists.
  */
 import { BACKEND_ABSENT, readCache, readManual } from "./backend.js";
+import { meterLabel, meterRank } from "./names.js";
 
 const REFRESH_INTERVAL = 30_000;
 
@@ -184,6 +185,7 @@ function modelWeeklyName(code) {
  * session", with no release of this file required to make it legible.
  */
 function windowLabel(code, provider) {
+  if (provider === "CLAUDE") return meterLabel(code, provider);
   if (provider === "OPENROUTER" && (code === "CREDITS" || code === "BALANCE")) {
     return "Credit spend";
   }
@@ -213,7 +215,9 @@ function windowLabel(code, provider) {
 }
 
 /** Where a window sorts inside its own account: session, week, model, month. */
-function windowRank(code) {
+function windowRank(code, provider = null) {
+  const shared = meterRank(code, provider);
+  if (shared !== null) return shared;
   const known = held(WINDOW_RANK, code);
   if (known !== undefined) return known;
   return code.startsWith(MODEL_WEEKLY_PREFIX) ? MODEL_WEEKLY_RANK : 90;
@@ -296,7 +300,8 @@ function sortRows(rows) {
       if (named !== 0) return named;
       return (left.accountId ?? "").localeCompare(right.accountId ?? "");
     }
-    const rank = windowRank(left.meter) - windowRank(right.meter);
+    const rank = windowRank(left.meter, left.provider) -
+      windowRank(right.meter, right.provider);
     return rank !== 0 ? rank : left.meter.localeCompare(right.meter);
   });
 }
@@ -320,7 +325,7 @@ function leadRow(rows) {
     }
     if (
       row.value === lead.value &&
-      windowRank(row.meter) < windowRank(lead.meter)
+      windowRank(row.meter, row.provider) < windowRank(lead.meter, lead.provider)
     ) {
       lead = row;
     }

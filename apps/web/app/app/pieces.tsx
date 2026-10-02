@@ -19,6 +19,7 @@ import {
   PROVIDER_ROW_TAG,
   buildProviderDirectory,
   defineProviderRowElement,
+  isClaudeModelScopedMeter,
   setProviderRowData,
   type ProviderAccountRowView,
   type ProviderDirectoryRow,
@@ -64,9 +65,11 @@ const CARD_SURFACE = "ol-product-panel";
 export function ProviderAccountRow({
   row,
   actions,
+  footer,
 }: {
   row: ProviderAccountRowView;
   actions?: ReactNode;
+  footer?: ReactNode;
 }) {
   const host = useRef<HTMLElement | null>(null);
 
@@ -85,7 +88,16 @@ export function ProviderAccountRow({
       suppressHydrationWarning: true,
     },
     actions,
+    footer,
   );
+}
+
+export function claudeFableHint(
+  provider: string,
+  meters: readonly string[],
+  hint: string,
+): string | null {
+  return provider === "CLAUDE" && !meters.some(isClaudeModelScopedMeter) ? hint : null;
 }
 
 function GripGlyph() {
@@ -121,11 +133,13 @@ export function ProviderRows({
   orderScope,
   reorderable = false,
   onAddAccount,
+  claudeFableHintText = null,
 }: {
   rows: readonly ProviderAccountRowView[];
   orderScope?: CardOrderScope;
   reorderable?: boolean;
   onAddAccount?: () => void;
+  claudeFableHintText?: string | null;
 }) {
   const t = useTranslations("hub.grid");
   const visibleRows = useMemo(() => rows.filter((row) => row.windows.length > 0), [rows]);
@@ -324,77 +338,87 @@ export function ProviderRows({
   return (
     <div aria-label={t("label")} className="ol-telemetry-table">
       <div role="list" className="ol-provider-row-list">
-        {orderedRows.map((row, index) => (
-          <div
-            role="listitem"
-            key={row.key}
-            ref={(node) => { if (node === null) cards.current.delete(row.key); else cards.current.set(row.key, node); }}
-            data-card-key={row.key}
-            data-dragging={draggingKey === row.key ? "" : undefined}
-            data-actions-open={openActionsKey === row.key ? "" : undefined}
-            className="ol-provider-card ol-rise"
-          >
-            <ProviderAccountRow
-              row={row}
-              actions={reorderable ? (
-                <button
-                  ref={(node) => { if (node === null) grips.current.delete(row.key); else grips.current.set(row.key, node); }}
-                  slot="actions"
-                  type="button"
-                  className="ol-card-grip focus-ring"
+        {orderedRows.map((row, index) => {
+          const hint = claudeFableHint(
+            row.provider,
+            row.windows.map((window) => window.key),
+            claudeFableHintText ?? "",
+          );
+          return (
+            <div
+              role="listitem"
+              key={row.key}
+              ref={(node) => { if (node === null) cards.current.delete(row.key); else cards.current.set(row.key, node); }}
+              data-card-key={row.key}
+              data-dragging={draggingKey === row.key ? "" : undefined}
+              data-actions-open={openActionsKey === row.key ? "" : undefined}
+              className="ol-provider-card ol-rise"
+            >
+              <ProviderAccountRow
+                row={row}
+                actions={reorderable ? (
+                  <button
+                    ref={(node) => { if (node === null) grips.current.delete(row.key); else grips.current.set(row.key, node); }}
+                    slot="actions"
+                    type="button"
+                    className="ol-card-grip focus-ring"
+                    aria-label={t("rearrange", { name: rowName(row) })}
+                    aria-describedby={keyboardHelpId}
+                    aria-controls={`${keyboardHelpId}-actions-${index}`}
+                    aria-expanded={openActionsKey === row.key}
+                    onKeyDown={(event) => onGripKey(event, row.key)}
+                    onPointerDown={(event) => onGripDown(event, row.key)}
+                    onPointerMove={onGripMove}
+                    onPointerUp={finishDrag}
+                    onPointerCancel={cancelDrag}
+                    onClick={() => {
+                      if (suppressGripClick.current === row.key) {
+                        suppressGripClick.current = null;
+                        return;
+                      }
+                      setOpenActionsKey((current) => current === row.key ? null : row.key);
+                    }}
+                  >
+                    <GripGlyph />
+                  </button>
+                ) : undefined}
+                footer={hint !== null && hint !== "" ? (
+                  <p slot="footer" className="ol-card-footer-note">{hint}</p>
+                ) : undefined}
+              />
+              {reorderable && openActionsKey === row.key && (
+                <div
+                  id={`${keyboardHelpId}-actions-${index}`}
+                  ref={(node) => { if (node === null) actionPanels.current.delete(row.key); else actionPanels.current.set(row.key, node); }}
+                  className="ol-card-move-popover"
+                  role="group"
                   aria-label={t("rearrange", { name: rowName(row) })}
-                  aria-describedby={keyboardHelpId}
-                  aria-controls={`${keyboardHelpId}-actions-${index}`}
-                  aria-expanded={openActionsKey === row.key}
-                  onKeyDown={(event) => onGripKey(event, row.key)}
-                  onPointerDown={(event) => onGripDown(event, row.key)}
-                  onPointerMove={onGripMove}
-                  onPointerUp={finishDrag}
-                  onPointerCancel={cancelDrag}
-                  onClick={() => {
-                    if (suppressGripClick.current === row.key) {
-                      suppressGripClick.current = null;
-                      return;
-                    }
-                    setOpenActionsKey((current) => current === row.key ? null : row.key);
-                  }}
                 >
-                  <GripGlyph />
-                </button>
-              ) : undefined}
-            />
-            {reorderable && openActionsKey === row.key && (
-              <div
-                id={`${keyboardHelpId}-actions-${index}`}
-                ref={(node) => { if (node === null) actionPanels.current.delete(row.key); else actionPanels.current.set(row.key, node); }}
-                className="ol-card-move-popover"
-                role="group"
-                aria-label={t("rearrange", { name: rowName(row) })}
-              >
-                <button
-                  type="button"
-                  className="ol-card-move-option focus-ring"
-                  aria-label={`${t("moveEarlier")}: ${rowName(row)}`}
-                  disabled={index === 0}
-                  onClick={() => {
-                    setOpenActionsKey(null);
-                    move(row.key, index - 1);
-                  }}
-                ><EarlierGlyph /><span>{t("moveEarlier")}</span></button>
-                <button
-                  type="button"
-                  className="ol-card-move-option focus-ring"
-                  aria-label={`${t("moveLater")}: ${rowName(row)}`}
-                  disabled={index === orderedRows.length - 1}
-                  onClick={() => {
-                    setOpenActionsKey(null);
-                    move(row.key, index + 1);
-                  }}
-                ><LaterGlyph /><span>{t("moveLater")}</span></button>
-              </div>
-            )}
-          </div>
-        ))}
+                  <button
+                    type="button"
+                    className="ol-card-move-option focus-ring"
+                    aria-label={`${t("moveEarlier")}: ${rowName(row)}`}
+                    disabled={index === 0}
+                    onClick={() => {
+                      setOpenActionsKey(null);
+                      move(row.key, index - 1);
+                    }}
+                  ><EarlierGlyph /><span>{t("moveEarlier")}</span></button>
+                  <button
+                    type="button"
+                    className="ol-card-move-option focus-ring"
+                    aria-label={`${t("moveLater")}: ${rowName(row)}`}
+                    disabled={index === orderedRows.length - 1}
+                    onClick={() => {
+                      setOpenActionsKey(null);
+                      move(row.key, index + 1);
+                    }}
+                  ><LaterGlyph /><span>{t("moveLater")}</span></button>
+                </div>
+              )}
+            </div>
+          );
+        })}
         {onAddAccount !== undefined && (
           <button type="button" className="ol-add-account-tile ol-rise focus-ring" onClick={onAddAccount}>
             <PlusGlyph />

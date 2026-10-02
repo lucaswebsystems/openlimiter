@@ -9,7 +9,7 @@ import {
   type Snapshot,
 } from "./engine";
 import { HeaderStrip, Panel, ProviderRows, SkeletonRows, observationAgeMinutes } from "./pieces";
-import { meterName } from "./language";
+import { claudeMeterOverride, meterName, type ClaudeMeterCopy } from "./language";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { clearDeviceSession, readDeviceSession } from "@/lib/device-session";
 import {
@@ -22,6 +22,7 @@ import {
 import { readDeviceSnapshots } from "@/lib/pro-device";
 import { useTranslations } from "next-intl";
 import { visibleQuotaSnapshots } from "./live-usage";
+import { useClaudeMeterCopy } from "./use-claude-meter-copy";
 
 /**
  * The dashboard, for a phone that was paired rather than signed in.
@@ -48,12 +49,12 @@ const ENGINE_PROVIDERS: readonly string[] = PROVIDER_CODES;
 /** How often a phone left open asks again. */
 const REFRESH_MILLISECONDS = 60_000;
 
-function MoneyRow({ row, locale }: { row: MeterRow; locale: string }) {
+function MoneyRow({ row, locale, claudeMeterCopy }: { row: MeterRow; locale: string; claudeMeterCopy: ClaudeMeterCopy }) {
   const amount = formatAmount(row, locale);
   return (
     <div className="ol-device-money-row">
       <span className="ol-device-money-name">
-        {row.provider} {meterName(row.code)}
+        {row.provider} {meterName(row.code, row.provider, claudeMeterCopy)}
       </span>
       <span className="ol-device-money-value" data-state={row.stale ? "stale" : "fresh"}>
         {amount ?? "unknown"}
@@ -78,7 +79,8 @@ export function DeviceView({ lockup }: { lockup: ReactNode }) {
   const [now, setNow] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const locale = useRef("en");
-  const readingsT = useTranslations("desktopReadings");
+  const readingsT = useTranslations("hub");
+  const claudeMeterCopy = useClaudeMeterCopy();
 
   useEffect(() => {
     locale.current = navigator.language || "en";
@@ -132,6 +134,7 @@ export function DeviceView({ lockup }: { lockup: ReactNode }) {
   const rows = useMemo(
     () => (now === null ? [] : buildProviderAccountRows(shown, now, [], {
       accountLabel: (_accountId, count) => readingsT("accountFallback", { count }),
+      meterLabel: (code, provider) => claudeMeterOverride(code, provider, claudeMeterCopy),
       updatedLabel: (observedAt) => {
         const age = observationAgeMinutes(observedAt, now);
         if (age === null || age < 5) return null;
@@ -140,7 +143,7 @@ export function DeviceView({ lockup }: { lockup: ReactNode }) {
         return readingsT("updatedDays", { count: Math.floor(age / 1_440) });
       },
     })),
-    [shown, now, readingsT],
+    [shown, now, readingsT, claudeMeterCopy],
   );
 
   return (
@@ -183,6 +186,7 @@ export function DeviceView({ lockup }: { lockup: ReactNode }) {
               rows={rows}
               orderScope={{ kind: "paired", id: "current-device" }}
               reorderable
+              claudeFableHintText={readingsT("claudeFableDesktopHint")}
             />
             {money.length > 0 && (
               <Panel
@@ -191,7 +195,7 @@ export function DeviceView({ lockup }: { lockup: ReactNode }) {
               >
                 <div className="ol-device-money">
                   {money.map((row) => (
-                    <MoneyRow key={`${row.provider}:${row.accountId}:${row.code}`} row={row} locale={locale.current} />
+                    <MoneyRow key={`${row.provider}:${row.accountId}:${row.code}`} row={row} locale={locale.current} claudeMeterCopy={claudeMeterCopy} />
                   ))}
                 </div>
               </Panel>

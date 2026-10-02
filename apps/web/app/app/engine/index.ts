@@ -1,6 +1,9 @@
 import {
   PROVIDER_CODES,
   buildAdvice,
+  claudeMeterLabel,
+  claudeMeterPresentation,
+  claudeMeterRank,
   connectionNextAction,
   connectionSentence,
   dedupeFailures,
@@ -12,8 +15,10 @@ import {
   normalizeMeters,
   normalizeMetersReport,
   queryCatalogueRows,
+  isClaudeModelScopedMeter,
   type Advice,
   type CatalogueRow,
+  type ClaudeMeterLabelKey,
   type ConnectionState,
   type FailureCategory,
   type PlannedProviderEntry,
@@ -53,6 +58,7 @@ import {
   defineProviderTableHeaderElement,
   defineProviderRowElement,
   headroomTone,
+  providerMeterLabel,
   setProviderRowData,
   type HeadroomTone,
   type ProviderAccountRowView,
@@ -94,6 +100,10 @@ export {
   connectionNextAction,
   connectionSentence,
   queryCatalogueRows,
+  claudeMeterLabel,
+  claudeMeterPresentation,
+  claudeMeterRank,
+  isClaudeModelScopedMeter,
   failureSentence,
   floorFixed,
   freshness,
@@ -105,6 +115,7 @@ export {
      disagreeing about which colour 80 percent is. */
   bandForPercent,
   headroomTone,
+  providerMeterLabel,
   buildProviderAccountRows,
   defineProviderTableHeaderElement,
   defineProviderRowElement,
@@ -113,6 +124,7 @@ export {
 };
 
 export type {
+  ClaudeMeterLabelKey,
   HeadroomTone,
   ProviderAccountRowView,
   ProviderDirectoryRow,

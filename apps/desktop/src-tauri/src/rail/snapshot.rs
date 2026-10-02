@@ -18,6 +18,70 @@ fn registry() -> &'static serde_json::Value {
     })
 }
 
+fn claude_presentation() -> &'static serde_json::Value {
+    static CONTRACT: OnceLock<serde_json::Value> = OnceLock::new();
+    CONTRACT.get_or_init(|| {
+        serde_json::from_str(include_str!(
+            "../../../../../packages/core/src/contracts/claude-presentation.json"
+        ))
+        .expect("checked Claude presentation contract")
+    })
+}
+
+fn claude_model_name(meter: &str) -> Option<String> {
+    let contract = claude_presentation();
+    let prefix = contract["modelWeekly"]["prefix"].as_str()?;
+    let parts: Vec<_> = meter.strip_prefix(prefix)?.split('_').filter(|part| !part.is_empty()).collect();
+    let mut words: Vec<String> = Vec::new();
+    for part in parts {
+        if part.bytes().all(|byte| byte.is_ascii_digit())
+            && words
+                .last()
+                .is_some_and(|word| word.chars().last().is_some_and(|ch| ch.is_ascii_digit()))
+        {
+            words.last_mut()?.push('.');
+            words.last_mut()?.push_str(part);
+        } else if part.eq_ignore_ascii_case("oauth") {
+            words.push("OAuth".into());
+        } else if part.eq_ignore_ascii_case("api") {
+            words.push("API".into());
+        } else {
+            let mut chars = part.chars();
+            let first = chars.next()?.to_ascii_uppercase();
+            words.push(first.to_string() + &chars.as_str().to_ascii_lowercase());
+        }
+    }
+    (!words.is_empty()).then(|| words.join(" "))
+}
+
+fn claude_window_label(provider: &str, meter: &str) -> Option<String> {
+    if provider != "CLAUDE" {
+        return None;
+    }
+    let contract = claude_presentation();
+    for entry in contract["fixed"].as_object()?.values() {
+        if entry["meters"]
+            .as_array()?
+            .iter()
+            .any(|candidate| candidate.as_str() == Some(meter))
+        {
+            let key = entry["labelKey"].as_str()?;
+            return contract["copy"][key].as_str().map(str::to_string);
+        }
+    }
+    let model = claude_model_name(meter)?;
+    let model_contract = &contract["modelWeekly"];
+    let fable_prefix = model_contract["fablePrefix"].as_str()?;
+    let key = if model == fable_prefix || model.starts_with(&format!("{fable_prefix} ")) {
+        model_contract["fableLabelKey"].as_str()?
+    } else {
+        model_contract["labelKey"].as_str()?
+    };
+    contract["copy"][key]
+        .as_str()
+        .map(|template| template.replace("{model}", &model))
+}
+
 fn spec_id(provider: &str) -> Option<&'static str> {
     Some(match provider {
         "CODEX" => "openai/codex",
@@ -165,6 +229,20 @@ pub(super) fn accounts(rows: Vec<Snapshot>, now: i64) -> Vec<RailAccountViewMode
             let precision = reading
                 .map(|row| row.precision.as_str())
                 .unwrap_or("unknown");
+            let window_label = meter
+                .and_then(|meter| meter["label"].as_str())
+                .map(str::to_string)
+                .or_else(|| {
+                    selected.and_then(|row| claude_window_label(&provider, &row.meter))
+                })
+                .or_else(|| {
+                    selected.map(|row| match row.meter.as_str() {
+                        "FIVE_HOUR" => "Five hours",
+                        "SEVEN_DAY" => "Weekly usage",
+                        _ => "Usage",
+                    }.to_string())
+                })
+                .unwrap_or_else(|| "Usage".into());
             RailAccountViewModel {
                 provider,
                 account,
@@ -177,18 +255,7 @@ pub(super) fn accounts(rows: Vec<Snapshot>, now: i64) -> Vec<RailAccountViewMode
                     "used"
                 }
                 .into(),
-                window_label: meter
-                    .and_then(|meter| meter["label"].as_str())
-                    .unwrap_or_else(|| {
-                        selected
-                            .map(|row| match row.meter.as_str() {
-                                "FIVE_HOUR" => "Five hours",
-                                "SEVEN_DAY" => "Weekly usage",
-                                _ => "Usage",
-                            })
-                            .unwrap_or("Usage")
-                    })
-                    .into(),
+                window_label,
                 reset_at: selected.and_then(|row| row.reset_at.clone()),
                 observed_at: observed,
                 freshness: freshness.into(),
@@ -372,6 +439,16 @@ mod tests {
         assert_eq!(value[0]["availability"], "available");
         assert_eq!(value[0]["value"], 82.0);
         assert_ne!(value[0]["windowLabel"], "Unknown");
+    }
+
+    #[test]
+    fn claude_model_scoped_headlines_use_the_shared_presentation_contract() {
+        let value = project(
+            vec![quota("CLAUDE", "SEVEN_DAY_FABLE_5_1", None)],
+            NOW,
+        );
+
+        assert_eq!(value[0]["windowLabel"], "Weekly, Fable");
     }
 
     #[test]

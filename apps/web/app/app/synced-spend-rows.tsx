@@ -7,7 +7,7 @@ import { syncedPeriodOf } from "@/lib/synced-usage";
 
 export function SyncedSpendRows({ sources, now, failed = false }: { sources: SyncedApiSpend[]; now: string; failed?: boolean }) {
   const t = useTranslations("hub");
-  const readingsT = useTranslations("desktopReadings");
+  const readingsT = useTranslations("hub");
   const accounts = new Map<string, string[]>();
   for (const row of sources) {
     const held = accounts.get(row.provider) ?? [];

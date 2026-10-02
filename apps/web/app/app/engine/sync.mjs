@@ -59,6 +59,8 @@ const MIRROR = {
       "merge.ts",
       "normalizer.ts",
       "policy.ts",
+      "provider-presentation.ts",
+      "contracts/claude-presentation.json",
       "schedule.ts",
     ],
   },
@@ -190,13 +192,18 @@ function build() {
       manifest[`${packageName}/${file}`] = hash(source);
       written.set(
         path.join(packageName, file),
-        file.endsWith(".css")
+        file.endsWith(".json")
+          ? source
+          : file.endsWith(".css")
           ? CSS_HEADER + source
           : HEADER + rewrite(source, packageName),
       );
     }
   }
-  written.set(path.join("core", "index.ts"), coreBarrel(MIRROR.core.files));
+  written.set(
+    path.join("core", "index.ts"),
+    coreBarrel(MIRROR.core.files.filter((file) => file.endsWith(".ts"))),
+  );
   const registry = readFileSync(path.join(REPOSITORY, "provider_specs", "provider-specs.json"), "utf8");
   manifest["provider_specs/provider-specs.json"] = hash(registry);
   written.set("provider-specs.json", registry);

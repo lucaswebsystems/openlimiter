@@ -34,6 +34,8 @@ import { serialPoll } from "@/lib/serial-poll";
 import { claimPairingCode, pollPairingClaim } from "@/lib/pro-device";
 import { PROVIDER_CODES, buildProviderAccountRows, parseQuotaText } from "../engine";
 import { DollarRow, ProviderRows, observationAgeMinutes } from "../pieces";
+import { claudeMeterOverride, meterName, type ClaudeMeterCopy } from "../language";
+import { useClaudeMeterCopy } from "../use-claude-meter-copy";
 import { PairInstallStep, runningInstalled } from "./pair-install";
 
 /**
@@ -188,6 +190,8 @@ interface PhoneBarsProps {
   ageLabel: (minutes: number) => string;
   stateAnnouncement: (state: string) => string;
   accountLabel: (count: number) => string;
+  claudeMeterCopy?: ClaudeMeterCopy;
+  claudeFableHintText?: string;
 }
 
 /**
@@ -195,7 +199,7 @@ interface PhoneBarsProps {
  * browser dashboard draw, so one reading cannot look like two different
  * readings on two screens.
  */
-function PhoneBars({ body, stale, locale, heading, staleLabel, now, freshLabel, staleStateLabel, unknownAgeLabel, ageLabel, stateAnnouncement, accountLabel }: PhoneBarsProps) {
+function PhoneBars({ body, stale, locale, heading, staleLabel, now, freshLabel, staleStateLabel, unknownAgeLabel, ageLabel, stateAnnouncement, accountLabel, claudeMeterCopy = {}, claudeFableHintText = "" }: PhoneBarsProps) {
   const rows = useMemo(() => meterRowsOf(body), [body]);
   const snapshots = useMemo(() => {
     const raw = rows.map(snapshotFromMeterRow).filter((row) => row !== null);
@@ -206,8 +210,9 @@ function PhoneBars({ body, stale, locale, heading, staleLabel, now, freshLabel, 
   const providerRows = useMemo(
     () => buildProviderAccountRows(snapshots, now, [], {
       accountLabel: (_accountId, count) => accountLabel(count),
+      meterLabel: (code, provider) => claudeMeterOverride(code, provider, claudeMeterCopy),
     }),
-    [accountLabel, now, snapshots],
+    [accountLabel, claudeMeterCopy, now, snapshots],
   );
 
   return (
@@ -233,12 +238,13 @@ function PhoneBars({ body, stale, locale, heading, staleLabel, now, freshLabel, 
             rows={providerRows}
             orderScope={{ kind: "paired", id: "current-device" }}
             reorderable
+            claudeFableHintText={claudeFableHintText}
           />
         )}
         {money.length > 0 && (
           <div className={`${CARD} ol-device-money`}>
             {money.map((row) => (
-              <MoneyRow key={`${row.provider}:${row.accountId}:${row.code}`} row={row} locale={locale} now={now} offline={stale} freshLabel={freshLabel} staleStateLabel={staleStateLabel} unknownAgeLabel={unknownAgeLabel} ageLabel={ageLabel} stateAnnouncement={stateAnnouncement} />
+              <MoneyRow key={`${row.provider}:${row.accountId}:${row.code}`} row={row} locale={locale} now={now} offline={stale} freshLabel={freshLabel} staleStateLabel={staleStateLabel} unknownAgeLabel={unknownAgeLabel} ageLabel={ageLabel} stateAnnouncement={stateAnnouncement} claudeMeterCopy={claudeMeterCopy} />
             ))}
           </div>
         )}
@@ -250,12 +256,12 @@ function PhoneBars({ body, stale, locale, heading, staleLabel, now, freshLabel, 
   );
 }
 
-function MoneyRow({ row, locale, now, offline, freshLabel, staleStateLabel, unknownAgeLabel, ageLabel, stateAnnouncement }: { row: MeterRow; locale: string; now: string; offline: boolean; freshLabel: string; staleStateLabel: string; unknownAgeLabel: string; ageLabel: (minutes: number) => string; stateAnnouncement: (state: string) => string }) {
+function MoneyRow({ row, locale, now, offline, freshLabel, staleStateLabel, unknownAgeLabel, ageLabel, stateAnnouncement, claudeMeterCopy }: { row: MeterRow; locale: string; now: string; offline: boolean; freshLabel: string; staleStateLabel: string; unknownAgeLabel: string; ageLabel: (minutes: number) => string; stateAnnouncement: (state: string) => string; claudeMeterCopy: ClaudeMeterCopy }) {
   const age = observationAgeMinutes(row.observedAt, now);
   const stale = offline || row.stale || age === null || age > 5;
   return (
     <DollarRow
-      name={`${row.provider} ${row.code}`}
+      name={`${row.provider} ${meterName(row.code, row.provider, claudeMeterCopy)}`}
       amountText={formatAmount(row, locale) ?? "unknown"}
       stale={stale}
       freshLabel={freshLabel}
@@ -314,6 +320,8 @@ function PairedPhone({
     generation: 0,
   });
   const locale = useRef("en");
+  const claudeMeterCopy = useClaudeMeterCopy();
+  const readingsT = useTranslations("hub");
   const [now, setNow] = useState(() => new Date().toISOString());
   const retry = useRef<(() => Promise<void>) | null>(null);
   const unpairedRef = useRef(onUnpaired);
@@ -409,6 +417,8 @@ function PairedPhone({
         ageLabel={(minutes) => t("cloud.observationAge", { minutes })}
         stateAnnouncement={(state) => t("cloud.stateAnnouncement", { state })}
         accountLabel={(count) => t("grid.account", { count })}
+        claudeMeterCopy={claudeMeterCopy}
+        claudeFableHintText={readingsT("claudeFableDesktopHint")}
       />
       <button className={BUTTON_GHOST} onClick={() => { void retry.current?.(); }}>{t("pairPage.retry")}</button>
     </div>

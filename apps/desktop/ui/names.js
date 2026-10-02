@@ -9,6 +9,10 @@
  */
 import { PROVIDER_SPECS } from "./provider-specs.generated.js";
 import catalog from "./readings.en.json" with { type: "json" };
+import {
+  claudeMeterLabel,
+  claudeMeterRank,
+} from "../../../packages/core/dist/provider-presentation.js";
 
 /** The words Home, the edge panel and Needs attention say, in English. */
 export const READINGS_COPY = Object.freeze(catalog);
@@ -95,19 +99,30 @@ const identityShaped = (part) => part.length > 16 || (/^[0-9A-F]{8,}$/u.test(par
 
 /**
  * A meter code as a label. The two windows every tool shares come first, then
- * a model's own weekly pool ("Fable weekly"), then the label the reviewed
+ * a model's own weekly pool, then the label the reviewed
  * registry gives that provider's meter, then the code read out as words. A
  * code built on a reserved word or an id reads as the neutral "Limit".
  */
 export function meterLabel(code, provider) {
   const meter = providerCode(code);
   if (meter.split("_").some((part) => RESERVED.has(part) || identityShaped(part))) return say("meterFallback");
+  if (providerCode(provider) === "CLAUDE") {
+    const claude = claudeMeterLabel(meter, READINGS_COPY);
+    if (claude !== null) return claude;
+  }
   if (meter === "FIVE_HOUR" || meter === "SEVEN_DAY") return METERS[meter];
   const numbered = meter.match(/^(FIVE_HOUR|SEVEN_DAY)_([2-9]\d*)$/u);
   if (numbered) return `${METERS[numbered[1]]} ${numbered[2]}`;
   if (meter.startsWith("SEVEN_DAY_")) return `${words(meter.slice("SEVEN_DAY_".length), true)} weekly`;
   const registered = SPECS.get(providerCode(provider))?.meters?.find((entry) => entry.meterCode === meter)?.label;
   return registered ?? METERS[meter] ?? (words(meter, false) || "Usage");
+}
+
+/** Claude's provider order, or null when another provider owns the meter. */
+export function meterRank(code, provider) {
+  return providerCode(provider) === "CLAUDE"
+    ? claudeMeterRank(providerCode(code)) ?? 90
+    : null;
 }
 
 /* Agents report the tool they run in; Claude's agent is Claude Code. */

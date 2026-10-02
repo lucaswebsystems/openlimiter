@@ -11,7 +11,7 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { normalizeMeters, type RawMeter } from "@openlimiter/core";
+import { normalizeMeters, projectSnapshots, type RawMeter } from "@openlimiter/core";
 import { describe, expect, it } from "vitest";
 import {
   CLAUDE_DOCS_EXAMPLE_RESETS,
@@ -830,6 +830,17 @@ describe("claude reads the raw api/oauth/usage document", () => {
       ?.usedAmount).toBe(12.47);
   });
 
+  it("keeps parsed bounded extra usage visible when its billing cadence is unknown", () => {
+    const parsed = parseClaudePayload(usageDocument(), FIXTURE_NOW);
+    const projected = projectSnapshots(normalizeMeters(parsed ?? []), FIXTURE_NOW);
+    const extra = projected.snapshots.find((meter) => meter.meter === "EXTRA_USAGE");
+
+    expect(extra?.window).toEqual({ kind: "unknown" });
+    expect(extra?.usedAmount).toBe(12.47);
+    expect(extra?.limitAmount).toBe(20);
+    expect(projected.flags.some((flag) => flag.reason === "placeholder")).toBe(false);
+  });
+
   it("states no extra usage meter when the pool has no ceiling to spend against", () => {
     const parsed = parseClaudePayload({
       ...usageDocument(),
@@ -919,7 +930,7 @@ describe("claude frozen files, read off disk", () => {
       "SEVEN_DAY",
       "SEVEN_DAY_OAUTH_APPS",
       "SEVEN_DAY_OPUS",
-      "SEVEN_DAY_FABLE_5",
+      "SEVEN_DAY_FABLE_5_1",
       "EXTRA_USAGE"
     ]);
     expect(normalizeMeters(parsed ?? [])).toHaveLength(6);

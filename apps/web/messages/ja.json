@@ -17,11 +17,7 @@
     "moneyOf": "{amount} 中",
     "creditsSpent": "クレジット使用済み",
     "accountOrdinal": "{label}、アカウント {count}",
-    "accountFallback": "アカウント {count}",
     "updatedJustNow": "たった今更新",
-    "updatedMinutes": "{count} 分前に更新",
-    "updatedHours": "{count} 時間前に更新",
-    "updatedDays": "{count} 日前に更新",
     "noReading": "まだ読み取りがありません",
     "refresh": "更新",
     "loading": "上限を読み込み中",
@@ -68,7 +64,9 @@
     "moreFor": "{name} のその他の操作",
     "showTool": "表示",
     "removeTool": "削除",
-    "removeConfirm": "もう一度押すと削除します"
+    "removeConfirm": "もう一度押すと削除します",
+    "showClaudeFable": "Fable の上限を表示",
+    "showClaudeFableNote": "このコンピューターの Claude サインインを使い、Claude に表示されるものと同じ使用量を読み取ります。"
   },
   "meta": {
     "title": "OpenLimiter、AIコーディングの制限とエージェントの活動",
@@ -2159,6 +2157,16 @@
     "restore": "登録するとすべてが元の状態に戻ります。設定は保持されています。"
   },
   "hub": {
+    "accountFallback": "アカウント {count}",
+    "updatedMinutes": "{count} 分前に更新",
+    "updatedHours": "{count} 時間前に更新",
+    "updatedDays": "{count} 日前に更新",
+    "claudeCurrentSession": "現在のセッション",
+    "claudeWeeklyAllModels": "週間、全モデル",
+    "claudeWeeklyFable": "週間、Fable",
+    "claudeWeeklyModel": "週間、{model}",
+    "claudeExtraUsage": "追加使用量",
+    "claudeFableDesktopHint": "デスクトップアプリの「ツールを追加」、「Claude Code」で「Fable の上限を表示」をオンにしてください。",
     "providers": {
       "title": "プロバイダー",
       "automaticPrompt": "デスクトップアプリを開いてください。ローカル検出はそこから始まります。",

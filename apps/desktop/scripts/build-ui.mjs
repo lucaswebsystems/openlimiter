@@ -64,6 +64,7 @@ const COPY = {
       "merge.js",
       "normalizer.js",
       "policy.js",
+      "provider-presentation.js",
       "schedule.js",
     ],
   },
@@ -310,7 +311,11 @@ for (const file of WINDOW_FILES) {
   const source = path.join(DESKTOP, "ui", file);
   const output = path.join(DIST, file);
   if (file.endsWith(".js")) {
-    writeFileSync(output, browserJsonImports(readFileSync(source, "utf8"), source, output), "utf8");
+    const browserSource = readFileSync(source, "utf8").replace(
+      /from "\.\.\/\.\.\/\.\.\/packages\/core\/dist\/provider-presentation\.js"/gu,
+      'from "./engine/core/provider-presentation.js"',
+    );
+    writeFileSync(output, browserJsonImports(browserSource, source, output), "utf8");
   } else if (file.endsWith(".html")) {
     /* Keep the early theme script synchronous while satisfying script-src self
        even when the configured CSP is served verbatim by a static server. */

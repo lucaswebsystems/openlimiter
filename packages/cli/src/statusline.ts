@@ -1,5 +1,8 @@
 import {
   PROVIDER_CODES,
+  claudeMeterCompactLabel,
+  claudeMeterPresentation,
+  claudeMeterRank,
   floorFixed,
   freshness,
   type Advice,
@@ -238,6 +241,11 @@ function readingsFor(
     }))
     .filter((reading): reading is Reading => reading.state !== "unknown")
     .sort((left, right) => {
+      if (provider === "CLAUDE") {
+        const rank = (claudeMeterRank(left.snapshot.meter) ?? 90) -
+          (claudeMeterRank(right.snapshot.meter) ?? 90);
+        if (rank !== 0) return rank;
+      }
       const rank = METER_CLASS_RANK[meterClass(left.snapshot)] -
         METER_CLASS_RANK[meterClass(right.snapshot)];
       if (rank !== 0) return rank;
@@ -289,8 +297,11 @@ export function statuslineCells(
           cells.push(availabilityCell(provider, reading.snapshot, now));
           continue;
         }
+        const meterTag = provider === "CLAUDE"
+          ? claudeMeterCompactLabel(reading.snapshot.meter) ?? reading.snapshot.meter
+          : reading.snapshot.meter;
         cells.push(buildCell(
-          provider + ":" + reading.snapshot.meter,
+          provider + ":" + meterTag,
           reading.snapshot,
           reading.state,
           color,
@@ -454,6 +465,10 @@ export const TEN_BLOCK_FULL = "█";
 export const TEN_BLOCK_EMPTY = "░";
 
 export function windowCode(snapshot: Snapshot): string {
+  if (snapshot.provider === "CLAUDE") {
+    const claude = claudeMeterCompactLabel(snapshot.meter);
+    if (claude !== null) return claude;
+  }
   if (snapshot.unit === "CREDITS" || snapshot.window.kind === "lifetime") {
     return "";
   }
@@ -471,6 +486,27 @@ export function windowCode(snapshot: Snapshot): string {
   if (meterName === "WEEKLY" || meterName === "SEVEN_DAY") return "7d";
   if (meterName === "MONTHLY" || meterName === "MONTH") return "mo";
   return "";
+}
+
+function visibilityKey(snapshot: Snapshot): string {
+  if (snapshot.provider === "CLAUDE") {
+    const presentation = claudeMeterPresentation(snapshot.meter);
+    if (presentation?.labelKey === "claudeWeeklyFable") return "fable";
+    if (presentation?.model !== null && presentation?.model !== undefined) {
+      return presentation.model.toLowerCase().replace(/[^a-z0-9]+/gu, "-").replace(/^-|-$/gu, "");
+    }
+    if (presentation?.labelKey === "claudeExtraUsage") return "extra";
+  }
+  return windowCode(snapshot).toLowerCase();
+}
+
+function windowVisible(snapshot: Snapshot, visibility: Readonly<Record<string, boolean>>): boolean {
+  const specific = visibility[visibilityKey(snapshot)];
+  if (specific !== undefined) return specific;
+  if (snapshot.provider === "CLAUDE" && claudeMeterPresentation(snapshot.meter)?.modelScoped) {
+    return visibility["7d"] !== false;
+  }
+  return true;
 }
 
 export function tenBlockBar(value: number, unicode = true): string {
@@ -542,7 +578,7 @@ export function barStyleCells(
     if (!isAllowed) continue;
 
     const readings = readingsFor(snapshots, provider, now).filter(({ snapshot }) =>
-      visibility[windowCode(snapshot)] !== false);
+      windowVisible(snapshot, visibility));
     // Nothing measured means nothing drawn, even for a provider someone chose.
     if (readings.length === 0) continue;
 
@@ -591,6 +627,17 @@ export function barStyleCells(
         const amount = (stale ? "~" : "") + "$" + balance.toFixed(2);
         const band = balance < 1 ? 95 : balance < 5 ? 65 : 0;
         cells.push({ plain: "or " + amount, painted: "or " + (color ? paintBand(amount, band, "fresh") : amount), percent: band });
+        continue;
+      }
+
+      if (snapshot.provider === "CLAUDE" && snapshot.meter === "EXTRA_USAGE" &&
+          snapshot.usedAmount !== undefined && snapshot.limitAmount !== undefined &&
+          snapshot.currency === "USD") {
+        const amount = (stale ? "~" : "") + "$" + snapshot.usedAmount.toFixed(2) +
+          "/$" + snapshot.limitAmount.toFixed(2);
+        const tag = providerTag + (claudeMeterCompactLabel(snapshot.meter) ?? "Extra");
+        const plain = tag + " " + amount;
+        cells.push({ plain, painted: plain, percent: snapshot.value });
         continue;
       }
 

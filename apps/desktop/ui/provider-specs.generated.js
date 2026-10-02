@@ -143,7 +143,7 @@ export const PROVIDER_SPECS = {
         },
         {
           "id": "weekly_7d",
-          "label": "Weekly",
+          "label": "Weekly, all models",
           "kind": "subscription_quota",
           "unit": "percent_used",
           "scope": "account",

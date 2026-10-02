@@ -55,6 +55,8 @@ import { createAccountSessionRuntime } from "@/lib/session-runtime";
 import { getDevPreviewSnapshots } from "./dev-preview";
 import { useTranslations } from "next-intl";
 import { snapshotsFromSyncedUsage, visibleQuotaSnapshots } from "./live-usage";
+import { claudeMeterOverride } from "./language";
+import { useClaudeMeterCopy } from "./use-claude-meter-copy";
 
 const IS_DEV = process.env.NODE_ENV !== "production";
 
@@ -290,7 +292,8 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   const [deepLinkConfiguration, setDeepLinkConfiguration] = useState(false);
   const busyTimer = useRef<number | null>(null);
   const t = useTranslations("hub");
-  const readingsT = useTranslations("desktopReadings");
+  const readingsT = useTranslations("hub");
+  const claudeMeterCopy = useClaudeMeterCopy();
   /** The account the opening view was decided for, so a token refresh cannot
       throw somebody out of the screen they are reading. */
   const decidedFor = useRef<string | null>(null);
@@ -529,6 +532,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
         : buildProviderAccountRows(shown, now, shownFailures, {
           demo: demo || isDevPreview,
           accountLabel: (_accountId, count) => readingsT("accountFallback", { count }),
+          meterLabel: (code, provider) => claudeMeterOverride(code, provider, claudeMeterCopy),
           updatedLabel: (observedAt) => {
             const age = observationAgeMinutes(observedAt, now);
             if (age === null || age < 5) return null;
@@ -537,7 +541,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
             return readingsT("updatedDays", { count: Math.floor(age / 1_440) });
           },
         }),
-    [shown, now, shownFailures, demo, isDevPreview, readingsT],
+    [shown, now, shownFailures, demo, isDevPreview, readingsT, claudeMeterCopy],
   );
 
   const phoneControl = useRef<PhoneButtonHandle | null>(null);
@@ -599,7 +603,13 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
       return (
         <div className="ol-home-stack">
           <SkeletonRows />
-          {addAccount !== undefined && <ProviderRows rows={[]} onAddAccount={addAccount} />}
+          {addAccount !== undefined && (
+            <ProviderRows
+              rows={[]}
+              onAddAccount={addAccount}
+              claudeFableHintText={readingsT("claudeFableDesktopHint")}
+            />
+          )}
         </div>
       );
     }
@@ -610,13 +620,20 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
           orderScope={interactive ? cardOrderScope : undefined}
           reorderable={interactive}
           onAddAccount={addAccount}
+          claudeFableHintText={readingsT("claudeFableDesktopHint")}
         />
       );
     }
     return (
       <div className="ol-home-stack">
         <BarsEmpty />
-        {addAccount !== undefined && <ProviderRows rows={[]} onAddAccount={addAccount} />}
+        {addAccount !== undefined && (
+          <ProviderRows
+            rows={[]}
+            onAddAccount={addAccount}
+            claudeFableHintText={readingsT("claudeFableDesktopHint")}
+          />
+        )}
       </div>
     );
   };

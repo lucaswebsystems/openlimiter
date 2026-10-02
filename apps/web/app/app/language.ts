@@ -1,12 +1,19 @@
 import {
+  claudeMeterLabel,
+  claudeMeterRank,
   floorFixed,
   type Advice,
+  type ClaudeMeterLabelKey,
   type ConnectionState,
   type MeterView,
   type ProviderCode,
   type SnapshotSourceKind,
   type SnapshotState,
+  PROVIDER_CODES,
+  providerMeterLabel,
 } from "./engine";
+
+export type ClaudeMeterCopy = Partial<Record<ClaudeMeterLabelKey, string>>;
 
 /** The engine's four overall reason codes. */
 type AdviceReason = Advice["reason"];
@@ -178,7 +185,18 @@ function modelWeeklyName(code: string): string | null {
   return "Weekly (" + model + ")";
 }
 
-export function meterName(code: string): string {
+export function meterName(
+  code: string,
+  provider?: string,
+  claudeCopy: ClaudeMeterCopy = {},
+): string {
+  if (provider === "CLAUDE") {
+    const claude = claudeMeterLabel(code, claudeCopy);
+    if (claude !== null) return claude;
+  }
+  if (provider !== undefined && PROVIDER_CODES.includes(provider as ProviderCode)) {
+    return providerMeterLabel(code, provider as ProviderCode);
+  }
   const known = METER_NAMES[code];
   if (known !== undefined) return known;
   const modelWeekly = modelWeeklyName(code);
@@ -190,6 +208,15 @@ export function meterName(code: string): string {
       index === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word,
     )
     .join(" ");
+}
+
+/** Only Claude replaces the shared provider row vocabulary with localized copy. */
+export function claudeMeterOverride(
+  code: string,
+  provider: ProviderCode,
+  claudeCopy: ClaudeMeterCopy = {},
+): string | undefined {
+  return provider === "CLAUDE" ? meterName(code, provider, claudeCopy) : undefined;
 }
 
 /**
@@ -231,7 +258,8 @@ const METER_RANK: Record<string, number> = {
 const MODEL_WEEKLY_RANK = 45;
 
 /** Unmapped codes sort after every known one, then alphabetically. */
-export function meterRank(code: string): number {
+export function meterRank(code: string, provider?: string): number {
+  if (provider === "CLAUDE") return claudeMeterRank(code) ?? 90;
   const known = METER_RANK[code];
   if (known !== undefined) return known;
   return code.startsWith(MODEL_WEEKLY_PREFIX) ? MODEL_WEEKLY_RANK : 90;
