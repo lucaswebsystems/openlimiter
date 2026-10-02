@@ -137,7 +137,7 @@ describe("grok build: the shape the official client reads", () => {
     /* Finding F-203. The product is Grok Build. The stored id stays grok-cli,
        because a rename would orphan every persisted snapshot keyed on it, and a
        product name is not an identity. */
-    expect(grokConnector.displayName).toBe("Grok Build");
+    expect(grokConnector.displayName).toBe("Grok");
     expect(grokConnector.id).toBe("grok");
   });
 

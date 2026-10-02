@@ -392,6 +392,7 @@ function nextStep(code, name, { flag, flags, records, detection, claude, claudeP
   }
   if (code === "OPENROUTER") return records.length === 0 || refused ? step("connect", "connect") : step("check", "fixOpenAppAction");
   if (code === "ANTIGRAVITY" && !refused) return step("check", "openAntigravity", title("fixOpenAppDetail"));
+  if (code === "GEMINI_CLI" && flag?.reason === "quota_unavailable") return { note: say("geminiCliConsumerRetired") };
   if (flag?.fixKind === "unsupported") return { note: say("fixUnsupportedIssue") };
   if (CONNECTABLE.has(code) && (refused || flag?.fixKind === "reconnect" || flag?.fixKind === "sign_in")) return step("connect", "connect");
   if (loggedOut || flag?.fixKind === "sign_in") return signInAgain;
@@ -464,4 +465,3 @@ export function fixWords(flag, route) {
     ? { issue: `fix${words}Issue`, detail: `fix${words}Detail`, action: `fix${words}Action` }
     : { issue: `fix${words}Issue`, detail: "fixToolDetail", action: "fixOpenAppAction" };
 }
-

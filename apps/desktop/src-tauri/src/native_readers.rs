@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use chrono::{Datelike, TimeZone, Utc};
 use serde_json::{Map, Value};
 
 use crate::native_opencode::parse_opencode;
@@ -110,6 +111,63 @@ fn safe_meter(value: &str) -> bool {
             .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit() || byte == b'_')
 }
 
+fn openrouter_window(
+    value: Option<&Value>,
+    now_ms: u64,
+) -> Option<(SnapshotWindow, Option<String>)> {
+    let current = Utc
+        .timestamp_millis_opt(i64::try_from(now_ms).ok()?)
+        .single()?;
+    let reset = match value {
+        None | Some(Value::Null) => {
+            return Some((
+                SnapshotWindow {
+                    kind: "lifetime".to_string(),
+                    duration_seconds: None,
+                },
+                None,
+            ))
+        }
+        Some(Value::String(value)) if value == "daily" => current
+            .date_naive()
+            .succ_opt()?
+            .and_hms_opt(0, 0, 0)?
+            .and_utc(),
+        Some(Value::String(value)) if value == "weekly" => {
+            // The next Monday 00:00 UTC: 7 days from a Monday, 1 from a Sunday.
+            let days_until_monday = 7 - current.weekday().num_days_from_monday();
+            current
+                .date_naive()
+                .checked_add_days(chrono::Days::new(u64::from(days_until_monday)))?
+                .and_hms_opt(0, 0, 0)?
+                .and_utc()
+        }
+        Some(Value::String(value)) if value == "monthly" => {
+            let (year, month) = if current.month() == 12 {
+                (current.year() + 1, 1)
+            } else {
+                (current.year(), current.month() + 1)
+            };
+            Utc.with_ymd_and_hms(year, month, 1, 0, 0, 0).single()?
+        }
+        _ => return None,
+    };
+    let reset_ms = reset.timestamp_millis();
+    let now_ms = i64::try_from(now_ms).ok()?;
+    let duration_seconds = u64::try_from((reset_ms - now_ms + 999) / 1_000).ok()?;
+    if duration_seconds == 0 {
+        return None;
+    }
+    let reset_ms = u64::try_from(reset_ms).ok()?;
+    Some((
+        SnapshotWindow {
+            kind: "fixed".to_string(),
+            duration_seconds: Some(duration_seconds),
+        },
+        iso_from_epoch_ms(reset_ms),
+    ))
+}
+
 fn parse_openrouter(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
     let root: Value = serde_json::from_str(body).ok()?;
     let data = root.get("data")?.as_object()?;
@@ -128,22 +186,52 @@ fn parse_openrouter(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Sna
     )?;
     let unlimited = key_response && data.get("limit").is_some_and(Value::is_null);
     // Availability uses the required legacy scalar slot without claiming a percentage.
-    let percent = if unlimited {
-        0.0
+    let (window, reset_at, percent, used, limit) = if unlimited {
+        (
+            SnapshotWindow {
+                kind: "lifetime".to_string(),
+                duration_seconds: None,
+            },
+            None,
+            0.0,
+            None,
+            None,
+        )
+    } else if key_response {
+        let remaining = number(data.get("limit_remaining"), 1_000_000_000_000.0)?;
+        let credits = credits?;
+        if credits <= 0.0 || remaining > credits {
+            return None;
+        }
+        let (window, reset_at) = openrouter_window(data.get("limit_reset"), now_ms)?;
+        let used = ((credits - remaining) * 1_000_000_000_000.0).round() / 1_000_000_000_000.0;
+        let percent = (used / credits * 100.0 * 1_000_000_000_000.0).round() / 1_000_000_000_000.0;
+        (window, reset_at, percent, Some(used), Some(credits))
     } else {
-        percent_of(usage, credits?)?
+        let credits = credits?;
+        let percent = percent_of(usage, credits)?;
+        (
+            SnapshotWindow {
+                kind: "lifetime".to_string(),
+                duration_seconds: None,
+            },
+            None,
+            percent,
+            Some(usage),
+            Some(credits),
+        )
     };
+    if !percent.is_finite() || !(0.0..=100.0).contains(&percent) {
+        return None;
+    }
     let observed_at = iso_from_epoch_ms(now_ms)?;
     let expires_at = iso_from_epoch_ms(now_ms.saturating_add(60_000))?;
     let mut snapshot = base_snapshot(
         "OPENROUTER",
         "CREDITS",
         percent,
-        SnapshotWindow {
-            kind: "lifetime".to_string(),
-            duration_seconds: None,
-        },
-        None,
+        window,
+        reset_at,
         "documented_api",
         "exact",
         &observed_at,
@@ -155,8 +243,8 @@ fn parse_openrouter(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Sna
         snapshot.kind = Some("availability".to_string());
         snapshot.availability = Some("unlimited".to_string());
     } else {
-        snapshot.used_amount = Some(usage);
-        snapshot.limit_amount = credits;
+        snapshot.used_amount = used;
+        snapshot.limit_amount = limit;
         snapshot.currency = Some("USD".to_string());
     }
     Some(vec![snapshot])
@@ -736,6 +824,71 @@ mod tests {
                     })
             }));
         }
+    }
+
+    #[test]
+    fn openrouter_key_uses_remaining_balance_and_preserves_reset_shape() {
+        let monthly = serde_json::json!({
+            "data": {
+                "limit": 100,
+                "limit_remaining": 90,
+                "limit_reset": "monthly",
+                "usage": 500
+            }
+        });
+        let rows = parse_body(
+            ReaderId::OpenrouterKey,
+            &monthly.to_string(),
+            now(),
+            ACCOUNT,
+        )
+        .expect("monthly key");
+        assert_eq!(rows[0].value, 10.0);
+        assert_eq!(rows[0].used_amount, Some(10.0));
+        assert_eq!(rows[0].limit_amount, Some(100.0));
+        assert_eq!(rows[0].window.kind, "fixed");
+        assert_eq!(
+            rows[0].reset_at.as_deref(),
+            Some("2026-09-01T00:00:00.000Z")
+        );
+
+        // The fixture clock is a Sunday: a weekly limit resets the next day, Monday 00:00 UTC.
+        let weekly = serde_json::json!({
+            "data": { "limit": 100, "limit_remaining": 90, "limit_reset": "weekly", "usage": 500 }
+        });
+        let rows = parse_body(ReaderId::OpenrouterKey, &weekly.to_string(), now(), ACCOUNT)
+            .expect("weekly key");
+        assert_eq!(
+            rows[0].reset_at.as_deref(),
+            Some("2026-08-17T00:00:00.000Z")
+        );
+
+        let no_reset = serde_json::json!({
+            "data": { "limit": 100, "limit_remaining": 90, "limit_reset": null, "usage": 500 }
+        });
+        let rows = parse_body(
+            ReaderId::OpenrouterKey,
+            &no_reset.to_string(),
+            now(),
+            ACCOUNT,
+        )
+        .expect("unbounded period");
+        assert_eq!(rows[0].window.kind, "lifetime");
+        assert_eq!(rows[0].reset_at, None);
+
+        let unlimited = serde_json::json!({
+            "data": { "limit": null, "limit_remaining": null, "usage": 500 }
+        });
+        let rows = parse_body(
+            ReaderId::OpenrouterKey,
+            &unlimited.to_string(),
+            now(),
+            ACCOUNT,
+        )
+        .expect("unlimited key");
+        assert_eq!(rows[0].availability.as_deref(), Some("unlimited"));
+        assert_eq!(rows[0].limit_amount, None);
+        assert_eq!(rows[0].used_amount, None);
     }
 
     #[test]

@@ -20,16 +20,16 @@
     "connectors/contract-gate.ts": "0be97577d12a40b1",
     "connectors/fixtures.ts": "3cee18874694813e",
     "connectors/gemini-cli.ts": "6bdf5b986d6bc9be",
-    "connectors/grok.ts": "cc44feff09514286",
+    "connectors/grok.ts": "2effd4e9325bd882",
     "connectors/kimi.ts": "247cffe264807106",
     "connectors/manual.ts": "2b158d66e87d44fb",
     "connectors/opencode.ts": "e6623e0897aa6b9f",
-    "connectors/openrouter.ts": "8dcaf636664386f5",
+    "connectors/openrouter.ts": "578109b322b3015a",
     "connectors/index.ts": "cb259accae69925b",
     "adapters/claude-code.ts": "d6d1183bd8093600",
     "ui/provider-connect.ts": "ac27de48b19b41e8",
     "ui/provider-row.ts": "3441fb78f45bfed5",
     "ui/tokens.css": "11c79e1125538355",
-    "provider_specs/provider-specs.json": "e2c36e16cda59ca6"
+    "provider_specs/provider-specs.json": "dd40cfa2818ad6fa"
   }
 }

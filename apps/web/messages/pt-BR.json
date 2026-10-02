@@ -28,6 +28,7 @@
     "emptyTitle": "Nada mensurável ainda",
     "emptyPanel": "Abra o app para conectar uma ferramenta.",
     "unavailable": "Seus limites estão indisponíveis agora.",
+    "geminiCliConsumerRetired": "O Google encerrou o login do Gemini CLI para este plano em 18 de junho de 2026.",
     "agentsUnavailable": "A atividade dos agentes está indisponível",
     "agentName": "Agente",
     "stateWaiting": "Precisa de você",

@@ -1470,7 +1470,7 @@ export const PROVIDER_SPECS = {
       "id": "xai/grok-cli",
       "providerId": "xai",
       "productId": "grok-cli",
-      "displayName": "Grok Build",
+      "displayName": "Grok",
       "headlineMeter": "current_period",
       "noQuotaConcept": false,
       "acquisitionSurfaces": [
@@ -1538,7 +1538,7 @@ export const PROVIDER_SPECS = {
       "meters": [
         {
           "id": "current_period",
-          "label": "Current billing period",
+          "label": "Grok weekly usage across Grok products",
           "kind": "subscription_quota",
           "unit": "percent_used",
           "scope": "account",

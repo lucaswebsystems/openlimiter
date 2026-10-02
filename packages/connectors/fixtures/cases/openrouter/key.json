@@ -9,6 +9,7 @@
     "data": {
       "limit": 20,
       "limit_remaining": 7.53,
+      "limit_reset": null,
       "usage": 12.47,
       "is_free_tier": false
     }

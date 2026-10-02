@@ -63,6 +63,11 @@ describe("api money cells in the bar status line", () => {
     expect(render(fullDocument())).toBe("oa $12.34 | an $85.00 | ms $3.00 | ds $0.80 | ds CNY | or $7.50 spent");
   });
 
+  it("uses Moonshot available balance even when a spend field is present", () => {
+    const doc = document([[source("moonshot"), { balanceUsd: "3", spendUsd: "999" }]]);
+    expect(render(doc)).toBe("ms $3.00");
+  });
+
   it("colours budget spend by band and balances like the or cell", () => {
     const painted = render(fullDocument(), [], true);
     expect(painted).toContain("oa $12.34 | an " + ESC + "[38;5;208m$85.00" + ESC + "[0m");

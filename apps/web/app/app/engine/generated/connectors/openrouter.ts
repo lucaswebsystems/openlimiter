@@ -35,6 +35,36 @@ export const openrouterCredential = {
   readMode: "read_only"
 } as const;
 
+function finiteLimitWindow(limitReset: unknown, now: string): {
+  window: { kind: "fixed"; durationSeconds: number } | { kind: "lifetime" };
+  resetAt: string | null;
+} | null {
+  const current = Date.parse(now);
+  if (!Number.isFinite(current)) return null;
+  if (limitReset === null || limitReset === undefined) {
+    return { window: { kind: "lifetime" }, resetAt: null };
+  }
+  if (typeof limitReset !== "string" || !["daily", "weekly", "monthly"].includes(limitReset)) return null;
+  const date = new Date(current);
+  let reset: Date;
+  if (limitReset === "daily") {
+    reset = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + 1));
+  } else if (limitReset === "weekly") {
+    const daysUntilMonday = ((8 - date.getUTCDay()) % 7) || 7;
+    reset = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + daysUntilMonday));
+  } else {
+    reset = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1));
+  }
+  const seconds = Math.ceil((reset.getTime() - current) / 1_000);
+  return seconds > 0 && Number.isFinite(seconds)
+    ? { window: { kind: "fixed", durationSeconds: seconds }, resetAt: reset.toISOString() }
+    : null;
+}
+
+function roundedAmount(value: number): number {
+  return Math.round(value * 1_000_000_000_000) / 1_000_000_000_000;
+}
+
 export function parseOpenrouterPayload(payload: unknown, now: string): RawMeter[] | null {
   const root = record(payload);
   const data = record(root?.["data"]);
@@ -62,6 +92,27 @@ export function parseOpenrouterPayload(payload: unknown, now: string): RawMeter[
       labels: openrouterLabels
     }];
   }
+  if (keyResponse) {
+    const remaining = boundedNumber(data["limit_remaining"], 1_000_000_000_000);
+    const reset = finiteLimitWindow(data["limit_reset"], now);
+    if (credits === null || remaining === null || usage === null || credits <= 0 || remaining > credits || reset === null || expiresAt === null) return null;
+    const used = roundedAmount(credits - remaining);
+    const percent = roundedAmount((used / credits) * 100);
+    if (!Number.isFinite(percent) || percent < 0 || percent > 100) return null;
+    return [rawMeter({
+      provider: "OPENROUTER",
+      meter: "CREDITS",
+      value: percent,
+      window: reset.window,
+      resetAt: reset.resetAt,
+      source: "documented_api",
+      precision: "exact",
+      observedAt: now,
+      expiresAt,
+      labels: openrouterLabels,
+      amounts: { usedAmount: used, limitAmount: credits, currency: "USD" }
+    })];
+  }
   if (
     credits === null ||
     usage === null ||
@@ -72,11 +123,9 @@ export function parseOpenrouterPayload(payload: unknown, now: string): RawMeter[
   const percent = (usage / credits) * 100;
   if (!Number.isFinite(percent) || percent < 0 || percent > 100) return null;
   /*
-   * OpenRouter is the one provider whose documented shape states money rather
-   * than a percentage: total_credits is what the plan holds and total_usage is
-   * what has been spent out of it. Both are handed on as they were read. The
-   * normalizer decides whether they are believable and drops all three fields
-   * together if they are not, which leaves the percentage above intact.
+   * The management credits endpoint states lifetime money: total_credits is
+   * what the plan holds and total_usage is what has been spent out of it.
+   * The normalizer decides whether the figures are believable.
    */
   return [rawMeter({
     provider: "OPENROUTER",

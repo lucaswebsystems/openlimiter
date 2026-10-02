@@ -28,6 +28,7 @@
     "emptyTitle": "Aún no hay nada medible",
     "emptyPanel": "Abre la app para conectar una herramienta.",
     "unavailable": "Tus límites no están disponibles en este momento.",
+    "geminiCliConsumerRetired": "Google terminó el inicio de sesión de Gemini CLI para este plan el 18 de junio de 2026.",
     "agentsUnavailable": "La actividad de los agentes no está disponible",
     "agentName": "Agente",
     "stateWaiting": "Te necesita",

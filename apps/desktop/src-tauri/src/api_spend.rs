@@ -806,7 +806,11 @@ fn compact_samples(document: &mut ApiSpendDocument) {
     for entries in by_source.values_mut() {
         // Position breaks ties so equal timestamps stay in written order.
         entries.sort_by_key(|&(position, _, at)| (at, position));
-        let newest_month = entries.iter().map(|&(_, month, _)| month).max().unwrap_or(0);
+        let newest_month = entries
+            .iter()
+            .map(|&(_, month, _)| month)
+            .max()
+            .unwrap_or(0);
         let mut months: HashMap<i64, (usize, usize)> = HashMap::new();
         for &(position, month, _) in entries.iter() {
             months
@@ -2128,6 +2132,7 @@ mod tests {
             moonshot.value.map(decimal_text).as_deref(),
             Some("49.58894")
         );
+        assert_eq!(moonshot.raw_unit_scale, "current_balance_usd");
         assert_eq!(
             ApiSpendProvider::Moonshot.metric_kind(),
             ApiSpendMetricKind::Balance
@@ -3222,12 +3227,18 @@ mod tests {
         assert_eq!(october_kept.len(), 2);
         assert_eq!(october_kept[0].id, first_october.id);
         assert_eq!(kept.last().unwrap().id, all.last().unwrap().id);
-        assert_eq!(kept.last().unwrap().spend_usd, all.last().unwrap().spend_usd);
+        assert_eq!(
+            kept.last().unwrap().spend_usd,
+            all.last().unwrap().spend_usd
+        );
         assert_eq!(
             after.sources[0].counter_baseline_usd,
             before.sources[0].counter_baseline_usd
         );
-        assert_eq!(after.sources[0].last_counter_usd, before.sources[0].last_counter_usd);
+        assert_eq!(
+            after.sources[0].last_counter_usd,
+            before.sources[0].last_counter_usd
+        );
     }
 
     #[test]
@@ -3236,8 +3247,14 @@ mod tests {
         let path = directory.path().join(STATE_FILE_NAME);
         let mut document = ApiSpendDocument::default();
         let ids = [
-            ("00000000-0000-4000-8000-0000000000a1", "10000000-0000-4000-8000-0000000000a1"),
-            ("00000000-0000-4000-8000-0000000000a2", "10000000-0000-4000-8000-0000000000a2"),
+            (
+                "00000000-0000-4000-8000-0000000000a1",
+                "10000000-0000-4000-8000-0000000000a1",
+            ),
+            (
+                "00000000-0000-4000-8000-0000000000a2",
+                "10000000-0000-4000-8000-0000000000a2",
+            ),
         ];
         for (n, (id, credential)) in ids.iter().enumerate() {
             document
@@ -3268,7 +3285,12 @@ mod tests {
 
         let healed = load_at(&path).expect("an oversized 2.0.2 file loads");
         for (id, _) in ids {
-            let newest = document.samples.iter().rev().find(|s| s.source_id == id).unwrap();
+            let newest = document
+                .samples
+                .iter()
+                .rev()
+                .find(|s| s.source_id == id)
+                .unwrap();
             let kept = samples_of(&healed, id);
             assert_eq!(kept.last().unwrap().id, newest.id, "newest sample kept");
             assert!(kept.len() <= 3);
@@ -3308,7 +3330,10 @@ mod tests {
         let first = samples_of(&document, ids[0]);
         let second = samples_of(&document, ids[1]);
         assert_eq!(first.len(), 2);
-        assert_eq!(first[0].observed_at, timestamp(SEPTEMBER_START + 60).unwrap());
+        assert_eq!(
+            first[0].observed_at,
+            timestamp(SEPTEMBER_START + 60).unwrap()
+        );
         assert_eq!(
             first[1].observed_at,
             timestamp(SEPTEMBER_START + 9 * 86_400 + 60).unwrap()
@@ -3337,9 +3362,16 @@ mod tests {
             }
         }
         compact_samples(&mut document);
-        assert!(document.samples.len() <= 6 * 14, "got {}", document.samples.len());
+        assert!(
+            document.samples.len() <= 6 * 14,
+            "got {}",
+            document.samples.len()
+        );
         let bytes = serde_json::to_string(&document).unwrap().len();
-        assert!((bytes as u64) < crate::fsx::MAX_STATE_FILE_BYTES / 8, "got {bytes}");
+        assert!(
+            (bytes as u64) < crate::fsx::MAX_STATE_FILE_BYTES / 8,
+            "got {bytes}"
+        );
     }
 
     #[test]
