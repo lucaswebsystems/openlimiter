@@ -810,7 +810,7 @@ async function resolvedAgentExecutable(
           if (stat.isSymbolicLink() && agent === "codex" && platform !== "win32") {
             const resolved = await realpath(file);
             const suffix = path.join("node_modules", "@openai", "codex", "bin", "codex.js");
-            if (resolved.endsWith(suffix) && (await lstat(resolved)).isFile()) return resolved;
+            if (resolved.endsWith(path.sep + suffix) && (await lstat(resolved)).isFile()) return resolved;
           }
           if (stat.isFile() && !stat.isSymbolicLink() && !(await pathContainsLink(file, directory))) {
             return file;

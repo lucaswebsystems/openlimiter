@@ -27,6 +27,17 @@ static CODEX_APP_SERVER_TEST_RESPONSES: std::sync::LazyLock<
     std::sync::Mutex<std::collections::BTreeMap<String, Result<String, AppServerFailure>>>,
 > = std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::BTreeMap::new()));
 
+#[cfg(test)]
+enum TestCodexRuntime {
+    Resolved(Option<(std::path::PathBuf, std::path::PathBuf)>),
+    StoredHome(std::path::PathBuf),
+}
+
+#[cfg(test)]
+static CODEX_RUNTIME_TEST_RESPONSES: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::BTreeMap<String, TestCodexRuntime>>,
+> = std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::BTreeMap::new()));
+
 /// The connection command surface: one Tauri command per verb, serde structs
 /// in and out, and one closed failure enum whose `Display` is a fixed
 /// sentence per variant, so nothing dynamic can ride an error into the
@@ -909,6 +920,26 @@ pub(crate) async fn probe_core<T: Transport>(
             .as_deref()
             .ok_or(CommandFailure::Protocol)?;
         #[cfg(test)]
+        let runtime = CODEX_RUNTIME_TEST_RESPONSES
+            .lock()
+            .ok()
+            .and_then(|mut responses| responses.remove(&record.id))
+            .and_then(|runtime| match runtime {
+                TestCodexRuntime::Resolved(runtime) => runtime,
+                TestCodexRuntime::StoredHome(home) => {
+                    crate::provider_detection::codex_runtime_for_test_home(
+                        provider_account_id,
+                        &home,
+                    )
+                }
+            });
+        #[cfg(not(test))]
+        let runtime = crate::provider_detection::current_codex_runtime(provider_account_id);
+        let Some((executable, codex_home)) = runtime else {
+            settle_request(connections, &record.id, None, false, attempt_generation)?;
+            return Err(CommandFailure::CodexLoginRequired);
+        };
+        #[cfg(test)]
         let injected = CODEX_APP_SERVER_TEST_RESPONSES
             .lock()
             .ok()
@@ -918,12 +949,6 @@ pub(crate) async fn probe_core<T: Transport>(
         let response = if let Some(injected) = injected {
             injected.map(|body| crate::codex_app_server::RateLimitsPayload { body })
         } else {
-            let Some((executable, codex_home)) =
-                crate::provider_detection::current_codex_runtime(provider_account_id)
-            else {
-                settle_request(connections, &record.id, None, false, attempt_generation)?;
-                return Err(CommandFailure::CodexLoginRequired);
-            };
             let expected_account_id = crate::provider_detection::opaque_account_id(
                 crate::provider_detection::DetectedProviderId::Codex,
                 provider_account_id,
@@ -953,7 +978,13 @@ pub(crate) async fn probe_core<T: Transport>(
                 })
             }
             Err(AppServerFailure::NeedsSignIn) => {
-                settle_request(connections, &record.id, Some(401), false, attempt_generation)?;
+                settle_request(
+                    connections,
+                    &record.id,
+                    Some(401),
+                    false,
+                    attempt_generation,
+                )?;
                 Ok(ProbeOutcome::Response {
                     connection_id: record.id,
                     reader_id: route.reader_id,
@@ -964,7 +995,13 @@ pub(crate) async fn probe_core<T: Transport>(
                 })
             }
             Err(AppServerFailure::IdentityMismatch) => {
-                settle_request(connections, &record.id, Some(403), false, attempt_generation)?;
+                settle_request(
+                    connections,
+                    &record.id,
+                    Some(403),
+                    false,
+                    attempt_generation,
+                )?;
                 Ok(ProbeOutcome::Response {
                     connection_id: record.id,
                     reader_id: route.reader_id,
@@ -978,6 +1015,23 @@ pub(crate) async fn probe_core<T: Transport>(
                 settle_request(connections, &record.id, None, false, attempt_generation)?;
                 Err(CommandFailure::CodexLoginRequired)
             }
+            Err(AppServerFailure::RateLimited(retry_after_seconds)) => {
+                settle_request(
+                    connections,
+                    &record.id,
+                    Some(429),
+                    false,
+                    attempt_generation,
+                )?;
+                Ok(ProbeOutcome::Response {
+                    connection_id: record.id,
+                    reader_id: route.reader_id,
+                    attempt_generation,
+                    status: 429,
+                    body: None,
+                    retry_after_seconds,
+                })
+            }
             Err(failure) => {
                 settle_request(connections, &record.id, None, false, attempt_generation)?;
                 Ok(ProbeOutcome::TransportFailure {
@@ -990,7 +1044,8 @@ pub(crate) async fn probe_core<T: Transport>(
                         AppServerFailure::Protocol => ProbeFailure::InvalidUtf8,
                         AppServerFailure::NeedsSignIn
                         | AppServerFailure::IdentityMismatch
-                        | AppServerFailure::MissingExecutable => unreachable!(),
+                        | AppServerFailure::MissingExecutable
+                        | AppServerFailure::RateLimited(_) => unreachable!(),
                     },
                 })
             }
@@ -1542,6 +1597,7 @@ mod tests {
     use crate::net::{ProviderEndpoint, TransportFailure};
     use crate::reader_registry::{MAX_BROWSER_SESSION_BYTES, MAX_KEY_SECRET_BYTES};
     use crate::test_support::{FailingTransport, InMemorySecrets, RecordingTransport, TempDir};
+    use std::fs;
     use std::sync::{
         atomic::{AtomicUsize, Ordering},
         Arc, Mutex,
@@ -1799,6 +1855,16 @@ mod tests {
     }
 
     fn codex_app_server_reply(connection_id: &str, response: Result<&str, AppServerFailure>) {
+        CODEX_RUNTIME_TEST_RESPONSES
+            .lock()
+            .expect("test runtime registry")
+            .insert(
+                connection_id.to_string(),
+                TestCodexRuntime::Resolved(Some((
+                    "synthetic-codex".into(),
+                    "synthetic-codex-home".into(),
+                ))),
+            );
         CODEX_APP_SERVER_TEST_RESPONSES
             .lock()
             .expect("test response registry")
@@ -2258,8 +2324,24 @@ mod tests {
             .store_secret(&record.id, &legacy)
             .expect("legacy credential shape");
 
+        let codex_home = dir.path().join(".codex");
+        fs::create_dir_all(dir.path().join("bin")).expect("bin");
+        fs::write(dir.path().join("bin").join("codex"), "native executable")
+            .expect("native executable");
+        fs::create_dir_all(&codex_home).expect("Codex home");
+        fs::write(codex_home.join("auth.json"), &legacy).expect("stored Codex credential");
         let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
-        codex_app_server_reply(&record.id, Ok("{}"));
+        CODEX_RUNTIME_TEST_RESPONSES
+            .lock()
+            .expect("test runtime registry")
+            .insert(
+                record.id.clone(),
+                TestCodexRuntime::StoredHome(dir.path().to_path_buf()),
+            );
+        CODEX_APP_SERVER_TEST_RESPONSES
+            .lock()
+            .expect("test response registry")
+            .insert(record.id.clone(), Ok("{}".to_string()));
         let outcome = test_core(&connections, &secrets, &transport, probe(&record.id))
             .await
             .expect("migrated probe");

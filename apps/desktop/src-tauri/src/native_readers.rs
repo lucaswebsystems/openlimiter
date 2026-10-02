@@ -1044,7 +1044,7 @@ pub fn parse_body(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::native_snapshot::{epoch_ms_from_rfc3339, iso_from_epoch_ms};
+    use crate::native_snapshot::{epoch_ms_from_rfc3339, iso_from_epoch_ms, normalize_snapshot};
 
     const NOW_TEXT: &str = "2026-08-16T12:00:00.000Z";
     const ACCOUNT: &str = "reader-test-account";
@@ -1074,6 +1074,7 @@ mod tests {
             let actual = parse_body(ReaderId::CodexUsage, &body, at, ACCOUNT)
                 .expect("documented meters")
                 .into_iter()
+                .filter_map(normalize_snapshot)
                 .map(|row| row.meter)
                 .collect::<Vec<_>>();
             let expected = vector

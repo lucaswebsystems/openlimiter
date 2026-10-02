@@ -207,15 +207,6 @@ impl RecordingTransport {
             .expect("the body record is intact")
             .clone()
     }
-
-    pub(crate) fn take_reply(&self) -> (u16, Vec<u8>, Option<u64>) {
-        let mut replies = self.replies.lock().expect("the reply script is intact");
-        let reply = replies.front().expect("a transport script needs one reply").clone();
-        if replies.len() > 1 {
-            replies.pop_front();
-        }
-        (reply.status, reply.body, reply.retry_after_seconds)
-    }
 }
 
 /// A transport that always fails the same typed way, so the probe path's

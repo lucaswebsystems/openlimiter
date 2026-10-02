@@ -18,6 +18,7 @@ pub enum AppServerFailure {
     Timeout,
     Unavailable,
     MissingExecutable,
+    RateLimited(Option<u64>),
     Protocol,
 }
 
@@ -266,7 +267,10 @@ mod tests {
     #[test]
     fn missing_or_null_response_identity_uses_the_resolved_home_identity() {
         for scenario in ["missing-identity", "null-identity"] {
-            assert!(fixture_read(scenario, Duration::from_secs(2)).is_ok(), "{scenario}");
+            assert!(
+                fixture_read(scenario, Duration::from_secs(2)).is_ok(),
+                "{scenario}"
+            );
         }
     }
 

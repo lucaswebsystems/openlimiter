@@ -121,6 +121,28 @@ describe("lifecycle hook installers", () => {
     })).toBeNull();
   });
 
+  it.runIf(process.platform !== "win32")("refuses a Codex launcher under an evilnode_modules suffix lookalike", async () => {
+    const options = setup();
+    const launcher = path.join(
+      options.homeDirectory,
+      "evilnode_modules",
+      "@openai",
+      "codex",
+      "bin",
+      "codex.js"
+    );
+    mkdirSync(path.dirname(launcher), { recursive: true });
+    writeFileSync(launcher, "lookalike launcher fixture\n");
+    symlinkSync(launcher, path.join(options.homeDirectory, "codex"));
+    const runCommand = async () => ({ ok: true as const, stdout: "codex 9.9.9", stderr: "" });
+
+    await expect(detectAgentInstallation("codex", {
+      ...options,
+      runCommand,
+      environment: { PATH: options.homeDirectory }
+    })).resolves.toBeNull();
+  });
+
   it.each(["claude", "codex", "muse", "gemini", "cursor"] as const)("installs, reinstalls, and removes exactly owned %s lifecycle handlers while preserving edits", async (agent) => {
     const options = setup();
     const install = await changeAgentHookFixture(agent, "install", options);

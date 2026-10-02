@@ -62,7 +62,7 @@ collection:
   reader: implemented
   auth: implemented
   readers:
-    - reader_id: codex_app_server
+    - reader_id: codex_usage
       endpoint_id: codex_app_server
       credential_kind: codex_session
       evidence_fixture: codex.sanitized_live.usage
