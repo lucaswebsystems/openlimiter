@@ -17,6 +17,7 @@
     "moneyOf": "von {amount}",
     "creditsSpent": "Credits verbraucht",
     "accountOrdinal": "{label}, Konto {count}",
+    "accountFallback": "Konto {count}",
     "updatedJustNow": "Gerade aktualisiert",
     "updatedMinutes": "Aktualisiert vor {count} Min.",
     "updatedHours": "Aktualisiert vor {count} Std.",
@@ -2164,7 +2165,7 @@
       "getDesktop": "Desktop App herunterladen",
       "close": "Schließen"
     },
-    "syncedSpend": { "sourceThrough": "Vom Desktop synchronisiert: {provider}, {account}, {start} bis {end}", "sourceUpTo": "Vom Desktop synchronisiert: {provider}, {account}, {start} bis {end}" },
+    "syncedSpend": { "sourceThrough": "Vom Desktop synchronisiert: {provider}, {account}, {start} bis {end}", "sourceUpTo": "Vom Desktop synchronisiert: {provider}, {account}, {start} bis {end}", "sourceThroughSingle": "Vom Desktop synchronisiert: {provider}, {start} bis {end}", "sourceUpToSingle": "Vom Desktop synchronisiert: {provider}, {start} bis {end}" },
     "addAccount": "Konto hinzufügen",
     "configuration": "Konfiguration",
     "backToBars": "Zurück zu den Balken",

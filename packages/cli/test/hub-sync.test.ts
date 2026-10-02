@@ -61,6 +61,7 @@ function usageSnapshot(overrides: Partial<Snapshot> = {}): Snapshot {
       automationRisk: "low",
       verification: "UNVERIFIED"
     },
+    accountId: "claude-personal",
     ...overrides
   };
 }
@@ -179,12 +180,29 @@ describe("usageSamplesFromSnapshots", () => {
     expect(rows.map((row) => row.provider).sort()).toEqual(["CLAUDE", "KIMI"]);
   });
 
-  it("drops a row whose account id is present but not shaped like one, rather than defaulting it", () => {
+  it("drops a row whose account id is present but not shaped like one, and keeps the single account case", () => {
     const malformed = usageSnapshot({ accountId: "Not Valid!" });
     const missing = usageSnapshot({ meter: "SEVEN_DAY" });
+    delete missing.accountId;
     const rows = usageSamplesFromSnapshots([malformed, missing], NOW);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.account_id).toBe("default");
+  });
+
+  it("never uploads a reading that carries availability, whatever its value", () => {
+    const rows = usageSamplesFromSnapshots([
+      usageSnapshot({ provider: "OPENROUTER", meter: "CREDITS", value: 62.35, availability: "expired_credentials" }),
+      usageSnapshot(),
+    ], NOW);
+    expect(rows.map((row) => row.meter)).toEqual(["FIVE_HOUR"]);
+  });
+
+  it("never uploads acquisition status as a quota meter", () => {
+    const rows = usageSamplesFromSnapshots([
+      usageSnapshot({ meter: "ACQUISITION", value: 0 }),
+      usageSnapshot(),
+    ], NOW);
+    expect(rows.map((row) => row.meter)).toEqual(["FIVE_HOUR"]);
   });
 });
 

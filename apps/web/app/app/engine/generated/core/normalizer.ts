@@ -224,7 +224,9 @@ function readWriter(value: unknown): SnapshotWriter | null {
   return value as SnapshotWriter;
 }
 
-export function normalizeMeter(raw: RawMeter): Snapshot | null {
+export function normalizeMeter(input: unknown): Snapshot | null {
+  if (!isRecord(input)) return null;
+  const raw = input as unknown as RawMeter;
   if (raw.kind !== undefined && (typeof raw.kind !== "string" || !kinds.has(raw.kind))) return null;
   if (raw.availability !== undefined && (
     typeof raw.availability !== "string" || !availabilities.has(raw.availability)
@@ -284,7 +286,7 @@ export function normalizeMeter(raw: RawMeter): Snapshot | null {
   };
 }
 
-export function normalizeMeters(rawMeters: readonly RawMeter[]): Snapshot[] {
+export function normalizeMeters(rawMeters: readonly unknown[]): Snapshot[] {
   return rawMeters.flatMap((raw) => {
     const normalized = normalizeMeter(raw);
     return normalized === null ? [] : [normalized];
@@ -312,7 +314,7 @@ export interface NormalizeReport {
 }
 
 export function normalizeMetersReport(
-  rawMeters: readonly RawMeter[]
+  rawMeters: readonly unknown[]
 ): NormalizeReport {
   const snapshots: Snapshot[] = [];
   const rejected = new Set<ProviderCode>();
@@ -324,8 +326,9 @@ export function normalizeMetersReport(
       continue;
     }
     dropped += 1;
-    if (typeof raw.provider === "string" && providerCodes.has(raw.provider)) {
-      rejected.add(raw.provider as ProviderCode);
+    const provider = isRecord(raw) ? raw["provider"] : undefined;
+    if (typeof provider === "string" && providerCodes.has(provider)) {
+      rejected.add(provider as ProviderCode);
     }
   }
   return { snapshots, rejected: [...rejected], dropped };

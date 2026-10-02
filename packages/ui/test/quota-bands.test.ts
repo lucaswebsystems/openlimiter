@@ -23,6 +23,34 @@ const TOKENS = readFileSync(
   "utf8"
 );
 
+function token(section: string, name: string): string {
+  return section.match(new RegExp(`${name}:\\s*([^;]+);`, "u"))?.[1]?.trim() ?? "";
+}
+
+function rgb(hex: string): readonly [number, number, number] {
+  const value = hex.replace("#", "");
+  return [0, 2, 4].map((start) => Number.parseInt(value.slice(start, start + 2), 16)) as unknown as readonly [number, number, number];
+}
+
+function luminance(colour: readonly number[]): number {
+  const [red = 0, green = 0, blue = 0] = colour.map((channel) => {
+    const value = channel / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+}
+
+function contrast(fill: string, track: string, opacity: number): number {
+  const foreground = rgb(fill);
+  const background = rgb(track);
+  const composite = foreground.map((channel, index) =>
+    Math.round(channel * opacity + (background[index] ?? 0) * (1 - opacity))
+  );
+  const lighter = Math.max(luminance(composite), luminance(background));
+  const darker = Math.min(luminance(composite), luminance(background));
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
 function snapshot(value: number, observedAt = NOW, expiresAt = "2026-09-01T13:00:00.000Z"): Snapshot {
   return {
     provider: "CLAUDE" as ProviderCode,
@@ -111,7 +139,7 @@ describe("band rendering", () => {
     }
   });
 
-  it("marks the stale band on the element the stylesheet hatches", () => {
+  it("marks the stale band on the element the stylesheet flattens", () => {
     const markup = markupAt(
       42,
       "2026-09-01T09:00:00.000Z",
@@ -169,9 +197,21 @@ describe("band tokens", () => {
     }
   });
 
-  it("hatches the stale track in both themes", () => {
-    expect(dark).toContain("--ol-band-hatched-pattern: repeating-linear-gradient(");
-    expect(light).toContain("--ol-band-hatched-pattern: repeating-linear-gradient(");
+  it("retires every stripe token and keeps a flat stale fill", () => {
+    expect(TOKENS).not.toContain("repeating-linear-gradient(");
+    expect(TOKENS).not.toContain("hatched-pattern");
+    expect(dark).toContain("--ol-band-stale-fill: #72839b;");
+    expect(light).toContain("--ol-band-stale-fill: #617087;");
+  });
+
+  it("keeps the composited stale fill at three to one against both tracks", () => {
+    for (const section of [dark, light]) {
+      expect(contrast(
+        token(section, "--ol-band-stale-fill"),
+        token(section, "--ol-track"),
+        Number(token(section, "--ol-band-stale-opacity")),
+      )).toBeGreaterThanOrEqual(3);
+    }
   });
 
   it("leaves no blue ramp behind on the meter names", () => {

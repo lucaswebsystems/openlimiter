@@ -71,7 +71,7 @@ export async function recordAcquisitionAvailability(provider: ProviderCode, avai
     const matching = rows.filter(matches);
     if (matching.some(row => row.observedAt > now)) return;
     const seed: Snapshot = {
-      provider, ...(accountId ? { accountId } : {}), meter: "ACQUISITION", value: 0, unit: "PERCENT", window: { kind: "unknown" }, resetAt: null,
+      provider, ...(accountId ? { accountId } : {}), meter: "ACQUISITION", value: 0, unit: "PERCENT", kind: "runtime_info", window: { kind: "unknown" }, resetAt: null,
       source: "internal_payload", precision: "exact", observedAt: now, writer: "cli",
       expiresAt: freshnessPolicy({ sourceClass: "internal_payload", observedAt: now, now }).expiresAt,
       labels: { credentialOrigin: "official-local-tool", dataInterfaceStatus: "internal-endpoint", automationRisk: "high", verification: "UNVERIFIED" }

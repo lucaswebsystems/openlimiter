@@ -148,7 +148,7 @@
   --ol-pressure-base: var(--ol-band-stale-fill);
 }
 
-/* Fresh paints the pressure colour itself. A stale bar renders the hatched pattern. */
+/* Fresh paints pressure. Stale keeps its measured width in quiet grey. */
 .ol-meter {
   --ol-pressure: var(--ol-pressure-base);
 }
@@ -158,7 +158,8 @@
 }
 
 .ol-meter[data-state="stale"] .ol-meter-fill {
-  background: var(--ol-meter-hatched-pattern) !important;
+  background: var(--ol-band-stale-fill) !important;
+  opacity: var(--ol-band-stale-opacity);
 }
 
 /*
@@ -256,23 +257,15 @@
 .window-line[data-band="red"] .meter-fill { background: var(--ol-band-red-fill) !important; }
 .window-line[data-band="red"] .window-readout { color: var(--ol-band-red-label) !important; }
 
-/* Stale and unknown both draw hatched, and they hatch DIFFERENT elements.
- *
- * A stale window has a reading that is merely too old to trust, so it still
- * renders a fill span and the fill is what carries the hatch. An unknown window
- * has no reading at all: provider-row.ts renders no fill span when usedPercent
- * is null, so a rule keyed on .meter-fill there styles nothing and the track
- * stayed a plain empty bar that reads as zero used. The track itself,
- * .window-meter, is the only thing there is to draw, which is exactly what
- * packages/ui does for the same state. */
+/* Stale keeps the measured width. Unknown has no fill to claim. */
 .window-line[data-band="stale"] .meter-fill,
 .window-line[data-state="stale"] .meter-fill {
-  background: var(--ol-meter-hatched-pattern) !important;
-  opacity: 1 !important;
+  background: var(--ol-band-stale-fill) !important;
+  opacity: var(--ol-band-stale-opacity) !important;
 }
 .window-line[data-state="unknown"] .window-meter {
-  background: var(--ol-meter-hatched-pattern) !important;
-  opacity: 1 !important;
+  background: transparent !important;
+  box-shadow: inset 0 0 0 1px var(--ol-band-stale-fill);
 }
 .window-line[data-band="stale"] .window-readout,
 .window-line[data-state="stale"] .window-readout,
@@ -2255,7 +2248,8 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
 
 .ol-horizon-bar[data-band="stale"] > span {
   width: 48%;
-  background: var(--ol-band-hatched-pattern);
+  background: var(--ol-band-stale-fill);
+  opacity: var(--ol-band-stale-opacity);
   animation-delay: 360ms;
 }
 
@@ -2866,7 +2860,7 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
 
   One card for two sides of the same four services: what an account has not had
   yet, and what stopped. The horizon behind it carries the difference without a
-  word, because the locked tone hatches every bar in the pattern the meters
+  word, because the locked tone mutes every bar in the same grey the meters
   already use for a window with no trustworthy reading.
 */
 
@@ -3014,15 +3008,15 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
   opacity: 0.14;
 }
 
-/* The horizon, with the light pulled back and every bar hatched. Same
-   primitive, one mood apart. See app/app/horizon.tsx. */
+/* The horizon with its light pulled back into one quiet grey. */
 .ol-horizon[data-tone="locked"] .ol-horizon-mesh {
   opacity: 0.24;
   filter: blur(64px) saturate(0.3);
 }
 
 .ol-horizon[data-tone="locked"] .ol-horizon-bar > span {
-  background: var(--ol-band-hatched-pattern);
+  background: var(--ol-band-stale-fill);
+  opacity: var(--ol-band-stale-opacity);
 }
 
 @media (max-width: 639px) {

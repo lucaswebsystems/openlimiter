@@ -861,6 +861,13 @@ fn usage_samples_from_cache(
         if snapshot.get("unit").and_then(serde_json::Value::as_str) != Some("PERCENT") {
             continue;
         }
+        if snapshot.get("kind").and_then(serde_json::Value::as_str) == Some("runtime_info") {
+            continue;
+        }
+        // A row carrying availability could not be read, so it is never a number.
+        if snapshot.get("availability").is_some_and(|value| !value.is_null()) {
+            continue;
+        }
         let Some(provider) = snapshot.get("provider").and_then(serde_json::Value::as_str) else {
             continue;
         };
@@ -870,6 +877,8 @@ fn usage_samples_from_cache(
         let Some(window) = snapshot.get("meter").and_then(serde_json::Value::as_str) else {
             continue;
         };
+        /* Absent is "default", the ordinary single account case; the web app
+        hides it once the same provider has an identified account. */
         let account_id = snapshot
             .get("accountId")
             .and_then(serde_json::Value::as_str)
@@ -879,7 +888,7 @@ fn usage_samples_from_cache(
         };
         if !valid_code(provider, 32)
             || !valid_code(window, 48)
-            || window == "API_BUDGET_PERCENT"
+            || matches!(window, "ACQUISITION" | "API_BUDGET_PERCENT")
             || provider == "MOONSHOT"
             || !valid_account(account_id)
             || !usage_percent.is_finite()
@@ -902,7 +911,7 @@ fn usage_samples_from_cache(
             _ => envelope_observed_at.to_string(),
         };
         /* A reading past its own freshness window travels with that fact
-        attached, so the hub can hatch the bar instead of drawing a number
+        attached, so the hub can treat it as old instead of drawing a number
         nobody has confirmed for hours. */
         let stale = snapshot
             .get("expiresAt")
@@ -2571,6 +2580,38 @@ mod tests {
     }
 
     #[test]
+    fn runtime_information_never_becomes_a_synced_quota_row() {
+        let now = time::OffsetDateTime::parse(
+            "2026-09-07T12:00:00Z",
+            &time::format_description::well_known::Rfc3339,
+        )
+        .expect("a clock");
+        let document = serde_json::json!({ "snapshots": [{
+            "provider": "CLAUDE", "meter": "DIAGNOSTIC", "kind": "runtime_info",
+            "unit": "PERCENT", "value": 70.0, "resetAt": null,
+            "observedAt": "2026-09-07T11:59:30.000Z",
+            "expiresAt": "2026-09-07T12:14:30.000Z"
+        }, {
+            // Unreadable, so never a number, whatever value it carries.
+            "provider": "CLAUDE", "meter": "SEVEN_DAY", "availability": "expired_credentials",
+            "unit": "PERCENT", "value": 62.35, "resetAt": null,
+            "observedAt": "2026-09-07T11:59:30.000Z",
+            "expiresAt": "2026-09-07T12:14:30.000Z"
+        }]});
+        let configured = ["CLAUDE".to_string()].into_iter().collect::<HashSet<String>>();
+
+        let rows = usage_samples_from_cache(
+            &document,
+            &configured,
+            "2026-09-07T12:00:00.000Z",
+            now,
+        )
+        .expect("rows");
+
+        assert!(rows.is_empty());
+    }
+
+    #[test]
     fn the_cache_becomes_contract_rows_and_a_model_scoped_window_keeps_its_own() {
         let now = time::OffsetDateTime::parse(
             "2026-09-07T12:00:00Z",
@@ -2592,6 +2633,11 @@ mod tests {
                 "provider": "CLAUDE", "meter": "SEVEN_DAY_FABLE", "unit": "PERCENT", "value": 62.5,
                 "accountId": "claude-personal", "resetAt": "2026-09-11T09:00:00.000Z",
                 "observedAt": "2026-09-07T09:00:00.000Z", "expiresAt": "2026-09-07T09:15:00.000Z"
+            },
+            {
+                "provider": "CLAUDE", "meter": "ACQUISITION", "unit": "PERCENT", "value": 0.0,
+                "accountId": "claude-personal", "resetAt": null,
+                "observedAt": "2026-09-07T11:59:00.000Z", "expiresAt": "2026-09-07T12:14:00.000Z"
             },
             {
                 "provider": "GROK", "meter": "SEVEN_DAY", "unit": "PERCENT", "value": 12.0,

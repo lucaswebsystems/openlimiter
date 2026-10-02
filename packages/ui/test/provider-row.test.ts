@@ -54,7 +54,7 @@ describe("provider account rows", () => {
     );
 
     expect(rows).toHaveLength(2);
-    expect(rows.map((row) => row.accountLabel)).toEqual(["personal", "work"]);
+    expect(rows.map((row) => row.accountLabel)).toEqual(["Account 1", "Account 2"]);
     expect(rows[0]?.windows.map((window) => window.label)).toEqual([
       "Weekly",
       "Custom burst",
@@ -80,10 +80,7 @@ describe("provider account rows", () => {
 
     expect(rows).toHaveLength(2);
     expect(new Set(rows.map((row) => row.key)).size).toBe(2);
-    expect(rows.map((row) => row.accountLabel)).toEqual([
-      "Local account",
-      "none",
-    ]);
+    expect(rows.map((row) => row.accountLabel)).toEqual(["Account 1", "Account 2"]);
   });
 
   it("shows no provider until one is explicitly configured", () => {
@@ -144,7 +141,7 @@ describe("provider account rows", () => {
 
     expect(row).toBeDefined();
     const markup = providerRowMarkup(row!);
-    expect(markup).toContain("primary");
+    expect(markup).not.toContain("primary");
     expect(markup).toContain("5 hour session");
     expect(markup).toContain("Weekly");
     expect(markup).toContain("63.0%");
@@ -161,7 +158,7 @@ describe("provider account rows", () => {
     expect(markup).not.toContain('<span class="account-value"');
   });
 
-  it("keeps account identity accessible without rendering an account badge", () => {
+  it("omits account identity when a provider has one shown account", () => {
     const row = buildProviderAccountRows(
       [snapshot("CODEX", "FIVE_HOUR", 63, "work")],
       NOW,
@@ -171,7 +168,8 @@ describe("provider account rows", () => {
 
     expect(row).toBeDefined();
     const markup = providerRowMarkup(row!);
-    expect(markup).toContain('aria-label="Codex, work"');
+    expect(markup).toContain('aria-label="Codex"');
+    expect(markup).not.toContain("work");
     expect(markup).not.toContain('<span class="account-value"');
   });
 
@@ -392,7 +390,7 @@ describe("provider account rows", () => {
   it("renders no meter fill at all for a window whose state is unknown", () => {
     /* The fact every stylesheet keying the unknown state on .meter-fill gets
        wrong. A window with no reliable reading has no percentage, so there is
-       no fill span to hatch: the track itself, .window-meter, is the only thing
+       no fill span to style: the track itself, .window-meter, is the only thing
        there is to draw. Pinned here so an override written against it cannot
        rot silently. */
     const future = "2026-08-19T13:00:00.000Z";
@@ -408,5 +406,31 @@ describe("provider account rows", () => {
     expect(markup).toContain('data-state="unknown"');
     expect(markup).toContain('class="window-meter"');
     expect(markup).not.toContain("meter-fill");
+  });
+
+  it("keeps a safe account label, hides every raw id, and renders a quiet update age", () => {
+    const rows = buildProviderAccountRows(
+      [
+        { ...snapshot("CLAUDE", "FIVE_HOUR", 42, "claude-a"), accountLabel: "Work" },
+        { ...snapshot("CLAUDE", "SEVEN_DAY", 52, "claude-b"), accountLabel: "person@example.test" },
+      ],
+      NOW,
+      [],
+      {
+        providers: ["CLAUDE"],
+        accountLabel: (_accountId, count) => `Compte ${count}`,
+        updatedLabel: () => "Updated 8 min ago",
+      },
+    );
+    expect(rows.map((row) => row.accountLabel)).toEqual(["Work", "Compte 2"]);
+    const markup = rows.map(providerRowMarkup).join("");
+    expect(markup).not.toContain("claude-a");
+    expect(markup).not.toContain("claude-b");
+    expect(markup).not.toContain("person@example.test");
+    expect(markup).toContain("Updated 8 min ago");
+    expect(markup).toContain(
+      '<span class="window-name" title="5 hour session">5 hour session<small class="window-updated">Updated 8 min ago</small></span>',
+    );
+    expect(markup).not.toContain('title="5 hour session<small');
   });
 });

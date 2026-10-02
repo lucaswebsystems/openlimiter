@@ -352,14 +352,10 @@ body.tray {
   transform: translateX(-50%);
 }
 
-/* A hatched track says the number beside it is old. The fill is cleared to
-   transparent rather than faded, because a faded colour quietly loses its
-   contrast while still looking like a live reading. */
-.tray-row[data-band="stale"] .tray-meter {
-  background: var(--ol-band-hatched-pattern);
-}
+/* A stale row keeps its measured width in a quiet flat grey. */
 .tray-row[data-band="stale"] .tray-meter-fill {
-  background: transparent;
+  background: var(--ol-band-stale-fill);
+  opacity: var(--ol-band-stale-opacity);
 }
 
 .tray-reset {

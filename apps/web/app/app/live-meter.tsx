@@ -10,6 +10,7 @@ import {
 } from "./engine";
 import { meterName, providerName } from "./language";
 import { ProviderMark } from "./marks";
+import { useTranslations } from "next-intl";
 
 export interface LiveMeterProps {
   snapshots: readonly Snapshot[];
@@ -180,8 +181,12 @@ function formatTickingCountdown(resetAt: string | null | undefined, currentMilli
   return `${pad(minutes)}m ${pad(seconds)}s`;
 }
 
-export function LiveMeter({ snapshots }: LiveMeterProps) {
-  const [tickerMillis, setTickerMillis] = useState<number>(() => Date.now());
+export function LiveMeter({ snapshots, now }: LiveMeterProps) {
+  const readingsT = useTranslations("desktopReadings");
+  const [tickerMillis, setTickerMillis] = useState<number>(() => {
+    const supplied = now === null ? Number.NaN : Date.parse(now);
+    return Number.isFinite(supplied) ? supplied : Date.now();
+  });
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -203,6 +208,14 @@ export function LiveMeter({ snapshots }: LiveMeterProps) {
   const bandInfo = getBandDetails(usedPercent, isStale);
   const headroomPercent = Math.max(0, Math.trunc(100 - usedPercent));
   const countdownText = formatTickingCountdown(featuredSnapshot.resetAt, tickerMillis);
+  const ageMinutes = Math.floor((tickerMillis - Date.parse(featuredSnapshot.observedAt)) / 60_000);
+  const updatedLabel = !Number.isFinite(ageMinutes) || ageMinutes < 5
+    ? null
+    : ageMinutes < 60
+      ? readingsT("updatedMinutes", { count: ageMinutes })
+      : ageMinutes < 1_440
+        ? readingsT("updatedHours", { count: Math.floor(ageMinutes / 60) })
+        : readingsT("updatedDays", { count: Math.floor(ageMinutes / 1_440) });
 
   const providerTitle = providerName(featuredSnapshot.provider);
 
@@ -214,9 +227,8 @@ export function LiveMeter({ snapshots }: LiveMeterProps) {
   /* SVG Ring properties */
   const radius = 28;
   const circumference = 2 * Math.PI * radius; // ~175.93
-  const strokeDashoffset = isStale
-    ? 0
-    : circumference - (Math.min(100, Math.max(0, usedPercent)) / 100) * circumference;
+  const strokeDashoffset = circumference -
+    (Math.min(100, Math.max(0, usedPercent)) / 100) * circumference;
 
   return (
     <section
@@ -286,20 +298,17 @@ export function LiveMeter({ snapshots }: LiveMeterProps) {
               strokeLinecap="round"
               fill="none"
               className="ol-ring-progress"
+              opacity={isStale ? "var(--ol-band-stale-opacity)" : 1}
             />
           </svg>
           {/* Centered Readout / Status Icon */}
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-            {isStale ? (
-              <DisconnectedCircleIcon className="h-5 w-5 text-muted" />
-            ) : (
-              <span
-                className="font-mono text-sm font-bold tracking-tight tabular-nums"
-                style={{ color: bandInfo.labelVar }}
-              >
-                {Math.trunc(usedPercent)}%
-              </span>
-            )}
+            <span
+              className="font-mono text-sm font-bold tracking-tight tabular-nums"
+              style={{ color: bandInfo.labelVar, opacity: isStale ? "var(--ol-band-stale-opacity)" : 1 }}
+            >
+              {Math.trunc(usedPercent)}%
+            </span>
           </div>
         </div>
 
@@ -313,8 +322,9 @@ export function LiveMeter({ snapshots }: LiveMeterProps) {
             <div
               className="ol-live-meter-bar-fill h-full rounded-full"
               style={{
-                width: isStale ? "100%" : `${Math.min(100, Math.max(0, usedPercent))}%`,
-                background: isStale ? "var(--ol-meter-hatched-pattern)" : bandInfo.fillVar,
+                width: `${Math.min(100, Math.max(0, usedPercent))}%`,
+                background: isStale ? "var(--ol-band-stale-fill)" : bandInfo.fillVar,
+                opacity: isStale ? "var(--ol-band-stale-opacity)" : 1,
               }}
             />
           </div>
@@ -326,6 +336,7 @@ export function LiveMeter({ snapshots }: LiveMeterProps) {
                 ? "Stale snapshot observation"
                 : `${Math.trunc(usedPercent)}% Used (${headroomPercent}% Headroom Remaining)`}
             </span>
+            {updatedLabel !== null && <span>{updatedLabel}</span>}
             {countdownText !== null && (
               <span className="flex items-center gap-1.5 font-medium text-heading">
                 <ClockGlyph className="h-3.5 w-3.5 text-muted flex-none" />

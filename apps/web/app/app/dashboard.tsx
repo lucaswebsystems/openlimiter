@@ -4,7 +4,6 @@ import Link from "next/link";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  PROVIDER_CODES,
   buildProviderAccountRows,
   dashboardView,
   parseQuotaText,
@@ -25,6 +24,7 @@ import {
   PlusGlyph,
   ProviderDirectory,
   ProviderRows,
+  observationAgeMinutes,
   SettingsMenu,
   SkeletonRows,
 } from "./pieces";
@@ -56,11 +56,9 @@ import { clearIntent, pendingIntent, rememberIntent } from "@/lib/pending-intent
 import { proAccessState } from "@/lib/pro";
 import { offersTrial } from "@/lib/pro-trial";
 import { createAccountSessionRuntime } from "@/lib/session-runtime";
-import {
-  type SyncedProviderUsage,
-} from "@/lib/synced-usage";
 import { getDevPreviewSnapshots } from "./dev-preview";
 import { useTranslations } from "next-intl";
+import { snapshotsFromSyncedUsage, visibleQuotaSnapshots } from "./live-usage";
 
 const IS_DEV = process.env.NODE_ENV !== "production";
 
@@ -120,37 +118,6 @@ const BUSY_FLOOR_MILLISECONDS = 240;
 
 /** Set on the document once this component has mounted. Clears the splash. */
 const READY_ATTR = "data-ol-ready";
-
-const SYNC_FRESH_MILLISECONDS = 5 * 60_000;
-
-function snapshotsFromSync(providers: readonly SyncedProviderUsage[]): Snapshot[] {
-  const supported = new Set<string>(PROVIDER_CODES);
-  return providers.flatMap((provider) => {
-    if (!supported.has(provider.provider)) return [];
-    return provider.windows.map((window): Snapshot => ({
-      provider: provider.provider as Snapshot["provider"],
-      meter: window.windowName,
-      value: window.percentage,
-      unit: "PERCENT",
-      window: { kind: "rolling" },
-      resetAt: window.resetAt,
-      source: "documented_api",
-      precision: "exact",
-      observedAt: window.observedAt,
-      expiresAt: new Date(
-        Date.parse(window.observedAt) + SYNC_FRESH_MILLISECONDS,
-      ).toISOString(),
-      accountId: provider.accountLabel,
-      labels: {
-        credentialOrigin: "official-local-tool",
-        dataInterfaceStatus: "documented-api",
-        automationRisk: "low",
-        verification: "UNVERIFIED",
-      },
-      provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
-    }));
-  });
-}
 
 type Mode = "live" | "demo";
 
@@ -327,6 +294,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   const [deepLinkConfiguration, setDeepLinkConfiguration] = useState(false);
   const busyTimer = useRef<number | null>(null);
   const t = useTranslations("hub");
+  const readingsT = useTranslations("desktopReadings");
   /** The account the opening view was decided for, so a token refresh cannot
       throw somebody out of the screen they are reading. */
   const decidedFor = useRef<string | null>(null);
@@ -518,10 +486,16 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   );
 
   const syncedSnapshots = useMemo(
-    () => (syncedUsage?.ok === true ? snapshotsFromSync(syncedUsage.providers) : []),
-    [syncedUsage],
+    () => (syncedUsage?.ok === true && now !== null
+      ? snapshotsFromSyncedUsage(
+        syncedUsage.providers,
+        now,
+        (count) => readingsT("accountFallback", { count }),
+      )
+      : []),
+    [syncedUsage, now, readingsT],
   );
-  const showingSync = syncEnabled && !demo && syncedSnapshots.length > 0;
+  const showingSync = syncEnabled && !demo && syncedUsage?.ok === true;
 
   const devSnapshots = useMemo(
     () => (isDevPreview && now !== null ? getDevPreviewSnapshots(now) : []),
@@ -529,13 +503,19 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   );
 
   /* One trusted source is on screen at a time, and this is where that is decided. */
-  const shown = isDevPreview
+  const selected = isDevPreview
     ? devSnapshots
     : demo
       ? demoSnapshots
       : showingSync
         ? syncedSnapshots
         : live;
+  const shown = useMemo(
+    () => now === null
+      ? []
+      : visibleQuotaSnapshots(selected, now, (count) => readingsT("accountFallback", { count })),
+    [selected, now, readingsT],
+  );
   const shownFailures = isDevPreview || demo || showingSync ? NO_FAILURES : failures;
 
   /* The rendered shape of every reading. */
@@ -550,8 +530,18 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     () =>
       now === null
         ? []
-        : buildProviderAccountRows(shown, now, shownFailures, { demo: demo || isDevPreview }),
-    [shown, now, shownFailures, demo, isDevPreview],
+        : buildProviderAccountRows(shown, now, shownFailures, {
+          demo: demo || isDevPreview,
+          accountLabel: (_accountId, count) => readingsT("accountFallback", { count }),
+          updatedLabel: (observedAt) => {
+            const age = observationAgeMinutes(observedAt, now);
+            if (age === null || age < 5) return null;
+            if (age < 60) return readingsT("updatedMinutes", { count: age });
+            if (age < 1_440) return readingsT("updatedHours", { count: Math.floor(age / 60) });
+            return readingsT("updatedDays", { count: Math.floor(age / 1_440) });
+          },
+        }),
+    [shown, now, shownFailures, demo, isDevPreview, readingsT],
   );
 
   const alertScopes = useMemo(() => {

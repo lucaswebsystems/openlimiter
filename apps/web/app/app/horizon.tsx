@@ -20,8 +20,7 @@ const BANDS = ["green", "yellow", "orange", "red", "stale"] as const;
  * The two moods this composition has.
  *
  * `bands` is the ramp as the product draws it. `locked` is the same
- * composition with every bar hatched and the light pulled back, which is the
- * hatch the meters already use for a window with no trustworthy reading: it is
+ * composition with every bar in quiet grey and the light pulled back. It is
  * the shape of a screen somebody used to have. It is the same primitive
  * either way, so the locked state cannot drift into a second picture.
  */

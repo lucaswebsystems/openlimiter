@@ -115,17 +115,15 @@ export interface SyncEnvelope {
 
 const ACCOUNT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/u;
 
-/** The meter a budget reading uses, PERCENT unit and all: never a usage window. */
-const EXCLUDED_USAGE_METER = "API_BUDGET_PERCENT";
+/** Percent shaped records that describe status or money, never quota windows. */
+const EXCLUDED_USAGE_METERS = new Set(["ACQUISITION", "API_BUDGET_PERCENT"]);
 
 /**
  * A row's account id, exactly as the desktop's own cache reader decides it.
  *
- * See `usage_samples_from_cache` in account.rs: absent is "default", the
- * ordinary single account case, but present and not shaped like an account id
- * is not quietly corrected to "default" either, because merging a malformed
- * id into the shared default bucket is its own wrong reading. Null here means
- * the row this id belongs to is dropped, not defaulted.
+ * Absent is "default", the ordinary single account case (the web app hides
+ * it once the same provider has an identified account); present and not
+ * shaped like an account id is dropped, never quietly defaulted.
  */
 function accountIdOf(snapshot: Snapshot): string | null {
   if (snapshot.accountId === undefined) return "default";
@@ -160,7 +158,10 @@ export function usageSamplesFromSnapshots(
   const rows: UsageSample[] = [];
   for (const snapshot of snapshots) {
     if (snapshot.unit !== "PERCENT") continue;
-    if (snapshot.meter === EXCLUDED_USAGE_METER) continue;
+    if (EXCLUDED_USAGE_METERS.has(snapshot.meter)) continue;
+    if (snapshot.kind === "runtime_info") continue;
+    // A row carrying availability could not be read: never a number (types.ts).
+    if (snapshot.availability !== undefined) continue;
     if (!Number.isFinite(snapshot.value) || snapshot.value < 0 || snapshot.value > 100) continue;
     const accountId = accountIdOf(snapshot);
     if (accountId === null) continue;

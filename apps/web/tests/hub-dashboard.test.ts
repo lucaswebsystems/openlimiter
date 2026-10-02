@@ -235,7 +235,9 @@ describe("which view a session lands on", () => {
     const view = await open();
     await flush(4);
     expect(spend).toHaveBeenCalled();
-    expect(view.container.textContent).toContain("Desktop sync: OPENROUTER, personal");
+    // One desktop source: the row names the provider and period, never an account.
+    expect(view.container.textContent).toContain("Desktop sync: OPENROUTER, 2026-09-01");
+    expect(view.container.textContent).not.toContain("personal");
     expect(view.container.textContent).toContain(new Intl.NumberFormat(undefined, { style: "currency", currency: "JPY" }).format(1250));
     expect(view.container.textContent).toContain("2026-09-01");
     expect(view.container.textContent).toContain("2026-09-30");
@@ -251,7 +253,7 @@ describe("which view a session lands on", () => {
     const cloud = vi.spyOn(cloudMeter, "listCloudKeys").mockImplementation(async () => ({ ok: true, value: [{ id: "cloud", provider: "xai", label: "Cloud account", lastStatus: "ok", amount: minor / 100, currency: "USD", observedAt: "2026-09-08T12:00:00Z" }] }));
     const view = await open();
     await flush(6);
-    expect(view.container.textContent).toContain("Desktop sync: OPENROUTER, work");
+    expect(view.container.textContent).toContain("Desktop sync: OPENROUTER, 2026-09-01");
     expect(view.container.textContent).toContain("2026-09-01");
     expect(view.container.textContent).toContain("2026-09-30");
     expect(view.container.textContent).toContain("Cloud account");
@@ -403,7 +405,7 @@ describe("account bound reads", () => {
     let readCalls = 0;
     let resolveA: ((value: unknown) => void) | null = null;
     let resolveB: ((value: unknown) => void) | null = null;
-    let spendLabel = "account A";
+    let spendMinor = 100;
     currentRead = () => {
       readCalls += 1;
       if (readCalls === 1) return Promise.resolve({ ok: false, reason: "signed_out" });
@@ -416,9 +418,9 @@ describe("account bound reads", () => {
       ok: true,
       sources: [{
         provider: "OPENROUTER",
-        accountLabel: spendLabel,
+        accountLabel: "personal",
         currency: "USD",
-        amountMinor: 100,
+        amountMinor: spendMinor,
         periodStart: "2026-09-01T00:00:00Z",
         periodEnd: "2026-10-01T00:00:00Z",
         observedAt: "2026-09-08T12:00:00Z",
@@ -427,7 +429,7 @@ describe("account bound reads", () => {
     const view = await open();
     expect(resolveA).not.toBeNull();
 
-    spendLabel = "account B";
+    spendMinor = 200;
     await view.run(async () => {
       authCallback?.("SIGNED_IN", signedIn({ [ONBOARDED_METADATA_KEY]: true }, "user-2"));
       await flush(3);
@@ -438,13 +440,14 @@ describe("account bound reads", () => {
       resolveA?.({ ok: true, providers: [] });
       await flush(2);
     });
-    expect(view.container.textContent).not.toContain("account A");
+    expect(view.container.textContent).not.toContain(new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(1));
 
     await view.run(async () => {
       resolveB?.({ ok: true, providers: [] });
       await flush(3);
     });
-    expect(view.container.textContent).toContain("Desktop sync: OPENROUTER, account B");
+    expect(view.container.textContent).toContain("Desktop sync: OPENROUTER, 2026-09-01");
+    expect(view.container.textContent).toContain(new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(2));
   });
 
   it("removes the previous plan when the new account plan read fails", async () => {

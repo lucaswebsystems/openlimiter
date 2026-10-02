@@ -32,7 +32,10 @@ const markup = buildProviderAccountRows([
   row("SEVEN_DAY", 20, { accountId: "second" }),
   row("SEVEN_DAY", 12, { provider: "OPENROUTER", meter: "CREDITS", unit: "CREDITS", accountId: "second" }),
   row("SEVEN_DAY", 40, { expiresAt: "2026-09-29T11:59:00.000Z", accountId: "second" }),
-], now, [], { providers: ["CLAUDE", "OPENROUTER"] }).map(providerRowMarkup).join("") + providerTableHeaderMarkup();
+], now, [], {
+  providers: ["CLAUDE", "OPENROUTER"],
+  updatedLabel: () => "Updated 2 min ago",
+}).map(providerRowMarkup).join("") + providerTableHeaderMarkup();
 const drawn = new Set([...markup.matchAll(/class="([^"]+)"/gu)].flatMap((match) => match[1].split(/\s+/u)));
 
 test("every class the shared row styles is one its markup draws", () => {

@@ -9,8 +9,8 @@
     "core/forecast.ts": "5155cb1a6fde4a0e",
     "core/freshness.ts": "ac39aeaff84f6eda",
     "core/merge.ts": "f76276beab46e36c",
-    "core/normalizer.ts": "c0bc94a7ffa38265",
-    "core/policy.ts": "19e9302f94e60c47",
+    "core/normalizer.ts": "651d84c067002a43",
+    "core/policy.ts": "bbeb1db71a103c02",
     "core/schedule.ts": "8c4afef8c2109573",
     "connectors/shared.ts": "999163f50865ac4f",
     "connectors/antigravity.ts": "29fe19aed737cfb9",
@@ -20,7 +20,7 @@
     "connectors/contract-gate.ts": "0be97577d12a40b1",
     "connectors/fixtures.ts": "3cee18874694813e",
     "connectors/gemini-cli.ts": "6bdf5b986d6bc9be",
-    "connectors/grok.ts": "603a6eaf0a7da573",
+    "connectors/grok.ts": "cc44feff09514286",
     "connectors/kimi.ts": "247cffe264807106",
     "connectors/manual.ts": "2b158d66e87d44fb",
     "connectors/opencode.ts": "e6623e0897aa6b9f",
@@ -28,8 +28,8 @@
     "connectors/index.ts": "cb259accae69925b",
     "adapters/claude-code.ts": "d6d1183bd8093600",
     "ui/provider-connect.ts": "ac27de48b19b41e8",
-    "ui/provider-row.ts": "f68d629605d40072",
-    "ui/tokens.css": "413c0be6178ac150",
+    "ui/provider-row.ts": "3441fb78f45bfed5",
+    "ui/tokens.css": "11c79e1125538355",
     "provider_specs/provider-specs.json": "e2c36e16cda59ca6"
   }
 }

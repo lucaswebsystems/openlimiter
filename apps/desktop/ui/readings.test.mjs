@@ -174,7 +174,7 @@ function idleClaude(ageMinutes, resetMinutes) {
   };
 }
 
-test("an idle Claude Code card keeps its last reading, hatched with its age, until that window resets", () => {
+test("an idle Claude Code card keeps its last reading, flat grey with its age, until that window resets", () => {
   const readings = projectReadings(JSON.stringify({ version: 2, snapshots: [idleClaude(45, 75)], flags: [] }), null, now);
   const model = limitsModel(readings.snapshots, now);
   assert.deepEqual(model.map((provider) => [provider.code, provider.age]), [["CLAUDE", "Updated 45 min ago"]]);

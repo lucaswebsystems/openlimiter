@@ -154,7 +154,7 @@ describe("meter contract v2", () => {
     );
   });
 
-  it("expires a stale row at its own observation, which is what draws the hatch", () => {
+  it("expires a stale row at its own observation, which selects the stale state", () => {
     const row = meterRowOf({ ...percentRow, stale: true })!;
     const snapshot = snapshotFromMeterRow(row)!;
     expect(snapshot.expiresAt).toBe(snapshot.observedAt);

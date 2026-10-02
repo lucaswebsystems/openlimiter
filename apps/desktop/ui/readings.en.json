@@ -10,6 +10,7 @@
   "moneyOf": "of {amount}",
   "creditsSpent": "credits spent",
   "accountOrdinal": "{label}, account {count}",
+  "accountFallback": "Account {count}",
   "updatedJustNow": "Updated just now",
   "updatedMinutes": "Updated {count} min ago",
   "updatedHours": "Updated {count} h ago",

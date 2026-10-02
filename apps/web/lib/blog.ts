@@ -61,7 +61,7 @@ export const posts: readonly Post[] = [
           "An amount with the currency the provider stated, for the plans that are money rather than a percentage.",
           "A balance, which stays a balance: available, voucher and cash are three separate figures, and none of them becomes a monthly total or a forecast.",
           "The reset window in the words a person would use, two units at most, so it can be planned around instead of watched.",
-          "A hatched track when a reading is too old to trust. Stale is never painted as a colour band, because a colour says the number is current and a hatch says it is not.",
+          "A flat grey bar at its last measured width when a reading is too old to trust. Stale never borrows a live pressure colour.",
         ],
       },
       {

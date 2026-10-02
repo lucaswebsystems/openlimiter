@@ -51,6 +51,14 @@ function recommendationFor(known: readonly AdviceProvider[]): AdviceRecommendati
   };
 }
 
+function isAdviceQuota(snapshot: Snapshot): boolean {
+  return snapshot.unit === "PERCENT" &&
+    snapshot.availability === undefined &&
+    (snapshot.kind === undefined || snapshot.kind === "quota_percent") &&
+    snapshot.meter !== "ACQUISITION" &&
+    snapshot.window.kind !== "unknown";
+}
+
 export function buildAdvice(
   snapshots: readonly Snapshot[],
   now: string,
@@ -59,7 +67,7 @@ export function buildAdvice(
   const known: AdviceProvider[] = [];
   for (const provider of expectedProviders) {
     const candidates = snapshots
-      .filter((snapshot) => snapshot.provider === provider && snapshot.unit === "PERCENT")
+      .filter((snapshot) => snapshot.provider === provider && isAdviceQuota(snapshot))
       .map((snapshot) => ({
         snapshot,
         state: freshness(snapshot.observedAt, snapshot.expiresAt, now)

@@ -7,6 +7,7 @@ import {
   failureSentence,
   floorFixed,
   freshness,
+  freshnessPolicy,
   mergeSnapshots,
   normalizeMeters,
   normalizeMetersReport,
@@ -95,6 +96,8 @@ export {
   queryCatalogueRows,
   failureSentence,
   floorFixed,
+  freshness,
+  freshnessPolicy,
   PROVIDER_TABLE_HEADER_TAG,
   PROVIDER_ROW_TAG,
   /* The band scale itself, so this application never restates the thresholds.

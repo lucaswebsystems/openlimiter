@@ -17,6 +17,7 @@
     "moneyOf": "of {amount}",
     "creditsSpent": "credits spent",
     "accountOrdinal": "{label}, account {count}",
+    "accountFallback": "Account {count}",
     "updatedJustNow": "Updated just now",
     "updatedMinutes": "Updated {count} min ago",
     "updatedHours": "Updated {count} h ago",
@@ -2164,7 +2165,7 @@
       "getDesktop": "Get desktop",
       "close": "Close"
     },
-    "syncedSpend": { "sourceThrough": "Desktop sync: {provider}, {account}, {start} through {end}", "sourceUpTo": "Desktop sync: {provider}, {account}, {start} up to {end}" },
+    "syncedSpend": { "sourceThrough": "Desktop sync: {provider}, {account}, {start} through {end}", "sourceUpTo": "Desktop sync: {provider}, {account}, {start} up to {end}", "sourceThroughSingle": "Desktop sync: {provider}, {start} through {end}", "sourceUpToSingle": "Desktop sync: {provider}, {start} up to {end}" },
     "addAccount": "Add account",
     "configuration": "Configuration",
     "backToBars": "Back to bars",
