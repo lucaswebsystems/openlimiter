@@ -148,6 +148,45 @@ describe("openrouter: money edge cases", () => {
   });
 });
 
+describe("openrouter: finite key limits", () => {
+  it("uses remaining balance and the configured monthly reset instead of lifetime usage", () => {
+    const now = "2026-08-07T12:00:00.000Z";
+    const parsed = parseOpenrouterPayload({
+      data: { limit: 100, limit_remaining: 90, limit_reset: "monthly", usage: 500 }
+    }, now);
+    expect(parsed?.[0]?.value).toBe(10);
+    expect(parsed?.[0]?.usedAmount).toBe(10);
+    expect(parsed?.[0]?.limitAmount).toBe(100);
+    expect(parsed?.[0]?.window).toEqual({ kind: "fixed", durationSeconds: 2_116_800 });
+    expect(parsed?.[0]?.resetAt).toBe("2026-09-01T00:00:00.000Z");
+  });
+
+  it("keeps a finite key without a reset as a lifetime window", () => {
+    const parsed = parseOpenrouterPayload({
+      data: { limit: 100, limit_remaining: 90, limit_reset: null, usage: 500 }
+    }, NOW);
+    expect(parsed?.[0]?.value).toBe(10);
+    expect(parsed?.[0]?.window).toEqual({ kind: "lifetime" });
+    expect(parsed?.[0]?.resetAt).toBeNull();
+  });
+
+  it("keeps an unlimited key as availability without inventing a ceiling", () => {
+    const parsed = parseOpenrouterPayload({
+      data: { limit: null, limit_remaining: null, usage: 500 }
+    }, NOW);
+    expect(parsed?.[0]).toMatchObject({ kind: "availability", availability: "unlimited", value: 0 });
+    expect(parsed?.[0]?.limitAmount).toBeUndefined();
+    expect(parsed?.[0]?.usedAmount).toBeUndefined();
+  });
+
+  it("rounds the finite threshold consistently", () => {
+    const parsed = parseOpenrouterPayload({
+      data: { limit: 0.07, limit_remaining: 0.007, limit_reset: null, usage: 0 }
+    }, NOW);
+    expect(parsed?.[0]?.value).toBe(90);
+  });
+});
+
 describe("openrouter: everything it must refuse", () => {
   const refused: readonly (readonly [string, unknown])[] = [
     ["no payload at all", undefined],

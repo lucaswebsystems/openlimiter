@@ -62,7 +62,7 @@ export function withPolicyFreshness(snapshot: Snapshot): Snapshot {
   return { ...snapshot, expiresAt: freshnessPolicy({ ...snapshot, sourceClass: snapshot.source, now: snapshot.observedAt }).expiresAt };
 }
 
-export async function recordAcquisitionAvailability(provider: ProviderCode, availability: "expired_credentials" | "access_denied" | "rate_limited", now: string, retryAt: string | undefined, directory = resolveStateDirectory(), accountId?: string): Promise<void> {
+export async function recordAcquisitionAvailability(provider: ProviderCode, availability: "expired_credentials" | "access_denied" | "quota_unavailable" | "rate_limited", now: string, retryAt: string | undefined, directory = resolveStateDirectory(), accountId?: string): Promise<void> {
   await withCacheLock(directory, async () => {
     const state = await readCacheState(directory);
     if (!state.ok && state.reason !== "missing") throw new Error("Unreadable snapshot cache");

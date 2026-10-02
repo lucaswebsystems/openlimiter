@@ -3,7 +3,7 @@ provider_id: xai
 # snapshot, credential entry and cache row keyed on it, and a product name
 # is not an identity. Only the display name follows the official name.
 product_id: grok-cli
-display_name: Grok Build
+display_name: Grok
 
 headlineMeter: current_period
 acquisitionSurfaces:
@@ -80,7 +80,7 @@ honesty:
 
 meters:
   - id: current_period
-    label: Current billing period
+    label: Grok weekly usage across Grok products
     kind: subscription_quota
     unit: percent_used
     scope: account

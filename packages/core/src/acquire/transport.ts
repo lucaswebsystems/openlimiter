@@ -296,6 +296,7 @@ export const ACQUISITION_OUTCOMES = [
   "too_large",
   "drift",
   "identity_refused",
+  "quota_unavailable",
   /* The provider's own app, the only thing that could answer, is closed. An
      availability state, not drift: nothing answered in an unknown shape. */
   "not_running"

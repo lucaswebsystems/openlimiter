@@ -110,6 +110,15 @@ test("each unmeasured provider keeps its most useful fix, never one Home measure
   ], []).map((flag) => flag.fixKind), ["open_app"]);
 });
 
+test("retired Gemini consumer plans keep the unavailable state and explain why", () => {
+  const model = inventoryModel({
+    flags: [{ provider: "GEMINI_CLI", reason: "quota_unavailable", fixKind: "unsupported" }]
+  }, now);
+  const gemini = model.find((tool) => tool.code === "GEMINI_CLI");
+  assert.equal(gemini?.note, "Google ended Gemini CLI sign in for this plan on June 18, 2026.");
+  assert.equal(gemini?.windows.length, 0);
+});
+
 test("the list holds what is measured, detected, keyed or flagged, never a switched off tool", () => {
   const readings = projectReadings(JSON.stringify(fixtures.projected), null, now);
   const detections = { providers: [

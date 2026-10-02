@@ -71,7 +71,7 @@ const PROVIDER_NAMES: Record<ProviderCode, string> = {
   ANTIGRAVITY: "Antigravity",
   GEMINI_CLI: "Gemini CLI",
   OPENCODE: "OpenCode",
-  GROK: "Grok Build",
+  GROK: "Grok weekly usage across Grok products",
   KIMI: "Kimi",
   CURSOR: "Cursor",
   MANUAL: "Manual",

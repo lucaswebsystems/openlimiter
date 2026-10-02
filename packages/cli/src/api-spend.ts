@@ -22,6 +22,8 @@ export const MONEY_TAGS: Readonly<Record<string, string>> = {
   deepseek: "ds"
 };
 
+const BALANCE_PROVIDERS = new Set(["moonshot", "deepseek"]);
+
 const MAX_SOURCES = 64;
 
 export async function readApiSpend(stateDirectory: string): Promise<unknown> {
@@ -96,7 +98,9 @@ export function moneyCells(document: unknown, options: MoneyOptions): readonly M
     const prefix = tag + " ";
     const mark = stale ? "~" : "";
     const usd = sample["currencySource"] === "provider_usd";
-    if (provider === "moonshot" || provider === "deepseek") {
+    /* Moonshot's available_balance and DeepSeek's balance are current balances,
+       never spend for the current month. */
+    if (BALANCE_PROVIDERS.has(provider)) {
       const balance = decimal(sample["balanceUsd"]);
       const tooLow = source["status"] === "too_low_for_api_calls";
       if (usd && balance !== null) {

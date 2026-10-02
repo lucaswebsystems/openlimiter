@@ -37,6 +37,7 @@ pub enum GeminiCliFailure {
     ProviderResponse,
     RateLimited,
     ProviderBlocked,
+    QuotaUnavailable,
     Drift,
     Cache,
 }
@@ -189,6 +190,26 @@ fn project_from_load(body: &str) -> Option<GeminiProjectId> {
     GeminiProjectId::parse(project)
 }
 
+fn retired_consumer_tier(body: &str) -> bool {
+    let Ok(root) = serde_json::from_str::<Value>(body) else {
+        return false;
+    };
+    let paid_id = root
+        .get("paidTier")
+        .and_then(Value::as_object)
+        .and_then(|tier| tier.get("id"))
+        .and_then(Value::as_str);
+    let current_id = root
+        .get("currentTier")
+        .and_then(Value::as_object)
+        .and_then(|tier| tier.get("id"))
+        .and_then(Value::as_str);
+    matches!(
+        paid_id.or(current_id),
+        Some("free-tier" | "g1-pro-tier" | "g1-ultra-tier")
+    )
+}
+
 fn meter_from_model(value: &str) -> Option<String> {
     if value.is_empty() || value.len() > MAX_MODEL_ID_BYTES || !value.is_ascii() {
         return None;
@@ -316,6 +337,17 @@ async fn fallback_report(writer: Arc<CacheWriter>, account_id: &str, drift: bool
     let _ = commit_report(writer, account_id.to_string(), report).await;
 }
 
+async fn retired_consumer_report(writer: Arc<CacheWriter>, account_id: &str, now_ms: u64) {
+    fallback_report(Arc::clone(&writer), account_id, false, now_ms).await;
+    let _ = writer.record_availability(
+        "GEMINI_CLI",
+        Some(account_id),
+        "quota_unavailable",
+        None,
+        now_ms,
+    );
+}
+
 async fn status_outcome(
     runtime: &GeminiCliOauthRuntime,
     writer: Arc<CacheWriter>,
@@ -387,6 +419,10 @@ async fn collect_with_secret<T: Transport>(
                 response.retry_after_seconds,
             )
             .await;
+        }
+        if response.body.as_deref().is_some_and(retired_consumer_tier) {
+            retired_consumer_report(Arc::clone(&writer), account_id, now_ms).await;
+            return GeminiCliOutcome::fallback(account_id, GeminiCliFailure::QuotaUnavailable);
         }
         let Some(project) = response.body.as_deref().and_then(project_from_load) else {
             fallback_report(writer, account_id, true, now_ms).await;
@@ -559,6 +595,18 @@ fn complete_outcome(
             true
         }
         GeminiCliOutcome::Fallback {
+            reason: GeminiCliFailure::QuotaUnavailable,
+            ..
+        } => {
+            policy.complete_after(
+                DetectedProviderId::GeminiCli,
+                &account_id,
+                now_ms,
+                REFRESH_SECONDS,
+            );
+            false
+        }
+        GeminiCliOutcome::Fallback {
             reason: GeminiCliFailure::RateLimited,
             retry_after_seconds,
             ..
@@ -641,6 +689,20 @@ mod tests {
             account_id: "fixture".into(),
             message: "Open the CLI once.".into()
         }));
+    }
+
+    #[test]
+    fn bootstrap_tier_classes_only_retire_consumer_plans() {
+        for (body, retired) in [
+            (r#"{"currentTier":{"id":"standard-tier"},"paidTier":{"id":"g1-pro-tier"}}"#, true),
+            (r#"{"currentTier":null,"paidTier":{"id":"free-tier"}}"#, true),
+            (r#"{"currentTier":{"id":"free-tier"}}"#, true),
+            (r#"{"currentTier":{"id":"standard-tier"}}"#, false),
+            (r#"{"currentTier":{"id":"enterprise-tier"}}"#, false),
+            (r#"{"currentTier":{"id":"unknown-tier"}}"#, false),
+        ] {
+            assert_eq!(retired_consumer_tier(body), retired, "body {body}");
+        }
     }
 
     use std::collections::VecDeque;
@@ -850,6 +912,77 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn retired_consumer_tier_skips_quota_and_records_unavailable_state() {
+        for tier in ["free-tier", "g1-pro-tier", "g1-ultra-tier"] {
+            let dir = TempDir::new();
+            let body = format!(
+                r#"{{"cloudaicompanionProject":"managed-project-123","currentTier":{{"id":"standard-tier"}},"paidTier":{{"id":"{tier}"}}}}"#
+            );
+            let transport = ScriptedTransport::new(vec![(200, body.into_bytes(), None)]);
+            let account = format!("gemini-retired-{tier}");
+            let outcome = collect_with_secret(
+                &GeminiCliOauthRuntime::default(),
+                &transport,
+                writer(&dir),
+                &account,
+                &secret(tier),
+                NOW,
+            )
+            .await;
+            assert!(matches!(
+                outcome,
+                GeminiCliOutcome::Fallback {
+                    reason: GeminiCliFailure::QuotaUnavailable,
+                    ..
+                }
+            ));
+            assert_eq!(transport.urls(), vec![GEMINI_CLI_LOAD_URL.to_string()]);
+            let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
+            assert!(cache.contains("quota_unavailable"));
+            assert!(!cache.contains(GEMINI_CLI_QUOTA_URL));
+        }
+    }
+
+    #[tokio::test]
+    async fn guarded_retirement_preserves_quota_unavailable_and_continues() {
+        let dir = TempDir::new();
+        let detection = detection(&dir);
+        let account = detection
+            .account_ids(DetectedProviderId::GeminiCli)
+            .pop()
+            .expect("Gemini account");
+        let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
+        let transport = ScriptedTransport::new(vec![
+            (
+                200,
+                br#"{"cloudaicompanionProject":"managed-project-123","currentTier":{"id":"standard-tier"},"paidTier":{"id":"g1-pro-tier"}}"#.to_vec(),
+                None,
+            ),
+        ]);
+        let (outcome, abort_provider) = collect_account_guarded(
+            &detection,
+            &GeminiCliOauthRuntime::default(),
+            &policy,
+            &transport,
+            writer(&dir),
+            account,
+            NOW,
+        )
+        .await;
+        assert!(matches!(
+            outcome,
+            GeminiCliOutcome::Fallback {
+                reason: GeminiCliFailure::QuotaUnavailable,
+                ..
+            }
+        ));
+        assert!(!abort_provider);
+        let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
+        assert!(cache.contains("quota_unavailable"));
+        assert!(!cache.contains("access_denied"));
+    }
+
     #[test]
     fn cadence_is_per_account_across_credential_revisions() {
         let runtime = GeminiCliOauthRuntime::default();
@@ -921,8 +1054,14 @@ mod tests {
             reset_at: Some("2026-08-19T15:00:00.000Z".to_string()),
             source: "internal_payload".to_string(),
             precision: "estimated".to_string(),
-            observed_at: crate::native_snapshot::iso_from_epoch_ms(crate::connections::now_epoch_ms()).unwrap(),
-            expires_at: crate::native_snapshot::iso_from_epoch_ms(crate::connections::now_epoch_ms() + 1_200_000).unwrap(),
+            observed_at: crate::native_snapshot::iso_from_epoch_ms(
+                crate::connections::now_epoch_ms(),
+            )
+            .unwrap(),
+            expires_at: crate::native_snapshot::iso_from_epoch_ms(
+                crate::connections::now_epoch_ms() + 1_200_000,
+            )
+            .unwrap(),
             labels: ConnectorLabels {
                 credential_origin: "official-local-tool".to_string(),
                 data_interface_status: "internal-endpoint".to_string(),
