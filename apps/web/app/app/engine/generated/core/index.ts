@@ -24,5 +24,6 @@ export * from "./freshness";
 export * from "./merge";
 export * from "./normalizer";
 export * from "./policy";
+export * from "./provider-presentation";
 export * from "./schedule";
 export { readSnapshotCache, type CacheReadResult } from "../../browser-cache";

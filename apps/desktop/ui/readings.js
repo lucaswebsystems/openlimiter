@@ -21,7 +21,7 @@ import {
 } from "./engine/core/index.js";
 import { parseManualPayload } from "./engine/connectors/manual.js";
 import { bandForPercent, bandIconSvg, closestToLimit, providerMarkMarkup, windowRank } from "./engine/ui/provider-row.js";
-import { duration, meterLabel, providerCode, providerName, say, updatedLabel } from "./names.js";
+import { duration, meterLabel, meterRank, providerCode, providerName, say, updatedLabel } from "./names.js";
 
 export { updatedLabel };
 
@@ -156,6 +156,13 @@ function tightestFirst(windows) {
   return ordered;
 }
 
+function orderedWindows(provider, windows) {
+  if (provider !== "CLAUDE") return tightestFirst(windows);
+  return [...windows].sort((left, right) =>
+    (meterRank(left.key, provider) ?? 90) - (meterRank(right.key, provider) ?? 90) ||
+    left.key.localeCompare(right.key));
+}
+
 /**
  * One entry per provider, tightest window first and tightest provider first.
  *
@@ -186,9 +193,9 @@ export function limitsModel(snapshots, now) {
     }));
     /* A held reading says how old it is, by its oldest stale window. */
     const stale = windows.filter((window) => window.band === "stale").map((window) => window.observedAt).sort();
-    return { code, name: providerName(code), windows: tightestFirst(windows), age: stale.length ? updatedLabel(stale[0], now) : null };
+    return { code, name: providerName(code), windows: orderedWindows(code, windows), age: stale.length ? updatedLabel(stale[0], now) : null };
   });
-  const headline = (provider) => provider.windows[0]?.usedPercent ?? -1;
+  const headline = (provider) => Math.max(-1, ...provider.windows.map((window) => window.usedPercent ?? -1));
   return model.sort((left, right) => headline(right) - headline(left) || left.name.localeCompare(right.name));
 }
 
@@ -377,7 +384,7 @@ function nextStep(code, name, { flag, flags, records, detection, claude, claudeP
   const reasons = new Set(flags.map((entry) => entry.reason));
   /* Waiting with the direct check still off: one click turns it on and reads. */
   const waiting = code === "CLAUDE" && claudePoll === false
-    ? step("poll", "useClaudeSignIn", say("useClaudeSignInTitle"))
+    ? { ...step("poll", "showClaudeFable", say("showClaudeFableNote")), note: say("showClaudeFableNote") }
     : { note: say("fixWaitingIssue", { name }) };
   if (reasons.has("awaiting_statusline")) return waiting;
   const signInAgain = step("check", "fixSignInAgainIssue", title("fixToolDetail"));
@@ -427,7 +434,11 @@ export function inventoryModel({ snapshots = [], flags = [], detections = null, 
     .sort((left, right) => rank(left) - rank(right) || providerName(left).localeCompare(providerName(right)));
   return [
     ...measured.map((tool) => ({
-      ...tool, action: null, note: null,
+      ...tool,
+      action: tool.code === "CLAUDE" && claudePoll === false
+        ? step("poll", "showClaudeFable", say("showClaudeFableNote")).action
+        : null,
+      note: tool.code === "CLAUDE" && claudePoll === false ? say("showClaudeFableNote") : null,
       extra: flags.filter((flag) => flag.provider === tool.code && ACCOUNT_FIXES.has(flag.fixKind)),
     })),
     ...waiting.map((code) => {

@@ -919,7 +919,7 @@ describe("claude frozen files, read off disk", () => {
       "SEVEN_DAY",
       "SEVEN_DAY_OAUTH_APPS",
       "SEVEN_DAY_OPUS",
-      "SEVEN_DAY_FABLE_5",
+      "SEVEN_DAY_FABLE_5_1",
       "EXTRA_USAGE"
     ]);
     expect(normalizeMeters(parsed ?? [])).toHaveLength(6);

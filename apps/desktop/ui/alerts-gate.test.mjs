@@ -44,7 +44,7 @@ test("the menu names its controls in short labels, and keeps the Claude poll's o
     }
     assert.doesNotMatch(ALERTS_EN[key], /[-\u2010-\u2015]/u);
   }
-  assert.equal(CLAUDE_POLL_EN.note, "Uses your local Claude sign in to ask Anthropic for your limits while Claude Code is closed.");
+  assert.equal(CLAUDE_POLL_EN.note, "Uses your Claude sign in on this computer to read the same usage Claude shows.");
   /* Contract 5.2: equal times are no quiet period, so the switch is the truth. */
   assert.equal(quietOn({ quietStart: "22:00", quietEnd: "07:00" }), true);
   assert.equal(quietOn({ quietStart: "00:00", quietEnd: "00:00" }), false);

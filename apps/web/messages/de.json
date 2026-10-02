@@ -68,7 +68,15 @@
     "moreFor": "Mehr zu {name}",
     "showTool": "Anzeigen",
     "removeTool": "Entfernen",
-    "removeConfirm": "Zum Entfernen erneut drücken"
+    "removeConfirm": "Zum Entfernen erneut drücken",
+    "claudeCurrentSession": "Aktuelle Sitzung",
+    "claudeWeeklyAllModels": "Wöchentlich, alle Modelle",
+    "claudeWeeklyFable": "Wöchentlich, Fable",
+    "claudeWeeklyModel": "Wöchentlich, {model}",
+    "claudeExtraUsage": "Zusätzliche Nutzung",
+    "showClaudeFable": "Fable Limit anzeigen",
+    "showClaudeFableNote": "Verwendet deine Claude Anmeldung auf diesem Computer, um dieselbe Nutzung zu lesen, die Claude anzeigt.",
+    "claudeFableDesktopHint": "Aktiviere Fable Limit anzeigen in der Desktop App unter Tool hinzufügen, Claude Code."
   },
   "meta": {
     "title": "OpenLimiter, KI Programmierlimits und Agentenaktivität",

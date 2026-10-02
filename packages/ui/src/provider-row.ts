@@ -1,4 +1,6 @@
 import {
+  claudeMeterLabel,
+  claudeMeterRank,
   dedupeFailures,
   failureSentence,
   floorFixed,
@@ -55,6 +57,7 @@ export interface ProviderRowOptions {
   providers?: readonly ProviderCode[];
   accountLabel?: (accountId: string | null, count: number) => string;
   updatedLabel?: (observedAt: string) => string | null;
+  meterLabel?: (code: string, provider: ProviderCode) => string;
 }
 
 const PROVIDER_NAMES: Record<ProviderCode, string> = {
@@ -286,6 +289,10 @@ function modelWeeklyName(code: string): string | null {
 }
 
 function windowName(code: string, provider: ProviderCode): string {
+  if (provider === "CLAUDE") {
+    const claude = claudeMeterLabel(code);
+    if (claude !== null) return claude;
+  }
   if (provider === "OPENROUTER" && (code === "CREDITS" || code === "BALANCE")) {
     return "Credit spend";
   }
@@ -316,14 +323,16 @@ function windowName(code: string, provider: ProviderCode): string {
     .join(" ");
 }
 
-export function windowRank(code: string): number {
+export function windowRank(code: string, provider?: ProviderCode): number {
+  if (provider === "CLAUDE") return claudeMeterRank(code) ?? 90;
   const known = WINDOW_RANK[code];
   if (known !== undefined) return known;
   return code.startsWith(MODEL_WEEKLY_PREFIX) ? MODEL_WEEKLY_RANK : 90;
 }
 
 function compareWindows(left: Snapshot, right: Snapshot): number {
-  const rank = windowRank(left.meter) - windowRank(right.meter);
+  const rank = windowRank(left.meter, left.provider) -
+    windowRank(right.meter, right.provider);
   return rank !== 0 ? rank : left.meter.localeCompare(right.meter);
 }
 
@@ -379,9 +388,11 @@ function toWindowView(
   snapshot: Snapshot,
   now: string,
   updatedLabel: ProviderRowOptions["updatedLabel"],
+  meterLabel: ProviderRowOptions["meterLabel"],
 ): ProviderWindowView {
   const state = freshness(snapshot.observedAt, snapshot.expiresAt, now);
-  const label = windowName(snapshot.meter, snapshot.provider);
+  const label = meterLabel?.(snapshot.meter, snapshot.provider) ??
+    windowName(snapshot.meter, snapshot.provider);
   const usedPercent = state === "unknown" ? null : clampPercent(snapshot.value);
   const tone = usedPercent === null ? "none" : headroomTone(usedPercent);
   const resetLabel =
@@ -544,7 +555,7 @@ export function buildProviderAccountRows(
         showAccountLabel: groups.size > 1,
         sourceLabel: lead === undefined ? null : sourceLine(lead),
         windows: accountSnapshots.map((snapshot) =>
-          toWindowView(snapshot, now, options.updatedLabel)
+          toWindowView(snapshot, now, options.updatedLabel, options.meterLabel)
         ),
         fallback: null,
         failure: failureByProvider.get(provider) ?? null,

@@ -59,6 +59,7 @@ const MIRROR = {
       "merge.ts",
       "normalizer.ts",
       "policy.ts",
+      "provider-presentation.ts",
       "schedule.ts",
     ],
   },

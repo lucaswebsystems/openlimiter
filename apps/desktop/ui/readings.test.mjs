@@ -32,9 +32,10 @@ test("one case insensitive name for every provider code, from the registry", () 
 
 test("meter codes read as words, and an unfamiliar code is read out of its parts", () => {
   const cases = [
-    ["FIVE_HOUR", "CLAUDE", "5 hour"], ["five_hour", "KIMI", "5 hour"], ["SEVEN_DAY", "CODEX", "Weekly"],
-    ["SEVEN_DAY_FABLE", "CLAUDE", "Fable weekly"], ["SEVEN_DAY_OPUS", "CLAUDE", "Opus weekly"],
-    ["SEVEN_DAY_HAIKU_4_5", "CLAUDE", "Haiku 4.5 weekly"], ["SEVEN_DAY_OAUTH_APPS", "CLAUDE", "OAuth Apps weekly"],
+    ["FIVE_HOUR", "CLAUDE", "Current session"], ["five_hour", "KIMI", "5 hour"], ["SEVEN_DAY", "CODEX", "Weekly"],
+    ["SEVEN_DAY", "CLAUDE", "Weekly, all models"], ["SEVEN_DAY_FABLE", "CLAUDE", "Weekly, Fable"],
+    ["SEVEN_DAY_FABLE_5_1", "CLAUDE", "Weekly, Fable"], ["SEVEN_DAY_OPUS", "CLAUDE", "Weekly, Opus"],
+    ["SEVEN_DAY_HAIKU_4_5", "CLAUDE", "Weekly, Haiku 4.5"], ["SEVEN_DAY_OAUTH_APPS", "CLAUDE", "Weekly, OAuth Apps"],
     ["FIVE_HOUR_2", "CLAUDE", "5 hour 2"], ["PRIMARY", "CODEX", "Primary window"], ["CREDITS", "OPENROUTER", "Credits"],
     ["GEMINI_3_1_PRO_PREVIEW", "GEMINI_CLI", "Gemini 3.1 Pro Preview"], ["BRAND_NEW_WINDOW", "CLAUDE", "Brand new window"],
     ["MONTHLY", "SOMEONE", "Monthly"],
@@ -51,7 +52,7 @@ test("a reserved or id shaped meter code reads as the neutral Limit, never as it
   }
   // Ordinary codes with numbers in them still read as words.
   assert.equal(meterLabel("TEAM_PLAN", "MANUAL"), "Team plan");
-  assert.equal(meterLabel("SEVEN_DAY_HAIKU_4_5", "CLAUDE"), "Haiku 4.5 weekly");
+  assert.equal(meterLabel("SEVEN_DAY_HAIKU_4_5", "CLAUDE"), "Weekly, Haiku 4.5");
   assert.equal(meterLabel("DEADBEEF", "MANUAL"), "Deadbeef");
   // The bar's aria label is the meter label, so it is neutral too.
   const doc = fakeDocument();
@@ -153,17 +154,36 @@ test("rows already on screen are held to the one freshness policy when a read fa
   assert.deepEqual(holdReadings(rows, new Date(NOW + 30 * 60_000).toISOString()), []);
 });
 
-test("Home's model: one entry per provider, tightest window and tightest provider first", () => {
+test("Home's model: tightest provider first, with Claude in its own meter order", () => {
   const model = limitsModel(projectReadings(JSON.stringify(fixtures.projected), null, now).snapshots, now);
   assert.deepEqual(model.map((provider) => provider.name), ["Codex", "Claude Code", "OpenRouter"]);
   assert.deepEqual(model[1].windows.map((window) => [window.label, window.value, window.band]),
-    [["Weekly", "46%", "green"], ["Fable weekly", "31%", "green"], ["5 hour", "6%", "green"]]);
+    [["Current session", "6%", "green"], ["Weekly, all models", "46%", "green"], ["Weekly, Fable", "31%", "green"]]);
+  const current = fixtures.projected.snapshots.find((row) => row.provider === "CLAUDE" && row.meter === "FIVE_HOUR");
+  const weekly = fixtures.projected.snapshots.find((row) => row.provider === "CLAUDE" && row.meter === "SEVEN_DAY");
+  assert.ok(current && weekly);
+  const expandedClaude = limitsModel([
+    { ...weekly, meter: "EXTRA_USAGE", value: 62.35, usedAmount: 12.47, limitAmount: 20, currency: "USD" },
+    { ...weekly, meter: "SEVEN_DAY_SONNET", value: 12.4 },
+    { ...weekly, meter: "SEVEN_DAY_FABLE_5_1", value: 21.5 },
+    { ...weekly, meter: "SEVEN_DAY_OPUS", value: 61 },
+    weekly,
+    current,
+  ], now)[0];
+  assert.deepEqual(expandedClaude.windows.map((window) => window.label), [
+    "Current session",
+    "Weekly, all models",
+    "Weekly, Fable",
+    "Weekly, Opus",
+    "Weekly, Sonnet",
+    "Extra usage",
+  ]);
   assert.deepEqual([model[0].windows[0].label, model[0].windows[0].band, model[0].windows[0].reset], ["Weekly", "yellow", "4d 0h"]);
   assert.deepEqual([model[2].windows[0].value, model[2].windows[0].limit], ["$12.50", "$50.00"]);
   // The raw cache still gives one card per provider; a second account says so by position.
   const raw = limitsModel(projectReadings(JSON.stringify(fixtures.raw), null, now).snapshots, now);
   assert.deepEqual(raw.map((provider) => provider.code), ["CODEX", "CLAUDE", "OPENROUTER"]);
-  assert.ok(raw[1].windows.some((window) => window.label === "Weekly, account\u00a02"));
+  assert.ok(raw[1].windows.some((window) => window.label === "Weekly, all models, account\u00a02"));
   // Rows that went stale since the projection are not drawn.
   const later = new Date(NOW + 3_600_000).toISOString();
   assert.equal(limitsModel(fixtures.projected.snapshots, later).length, 0);
@@ -363,22 +383,32 @@ test("Claude waits for Claude Code with no button, asks to sign in again, and co
   assert.equal(noteIn(row).textContent, "Waiting for Claude Code");
 });
 
-test("Claude waiting with the direct check off offers one click, and with it on only the note", async () => {
+test("every Claude card with the direct check off offers the one click Fable action", async () => {
   const waitingFlag = [{ provider: "CLAUDE", reason: "awaiting_statusline", fixKind: "open_app" }];
-  const title = "Uses your local Claude sign in to ask Anthropic for your limits while Claude Code is closed.";
+  const title = "Uses your Claude sign in on this computer to read the same usage Claude shows.";
   for (const input of [{ flags: waitingFlag }, { claude: "READY_TO_ENABLE" }, { claude: "CONNECTED" }]) {
     const off = inventoryModel({ ...input, claudePoll: false }, now)[0];
-    assert.deepEqual([off.note, off.action], [null, { kind: "poll", label: "Use my Claude sign in", title }]);
+    assert.deepEqual([off.note, off.action], [title, { kind: "poll", label: "Show Fable limit", title }]);
     const on = inventoryModel({ ...input, claudePoll: true }, now)[0];
     assert.deepEqual([on.action, on.note], [null, "Waiting for Claude Code"]);
   }
+  const measured = inventoryModel({ snapshots: fixtures.projected.snapshots, claudePoll: false }, now)
+    .find((tool) => tool.code === "CLAUDE");
+  assert.deepEqual([measured.note, measured.action], [title, { kind: "poll", label: "Show Fable limit", title }]);
+  const measuredWithoutModelWindow = inventoryModel({
+    snapshots: fixtures.projected.snapshots.filter((snapshot) =>
+      snapshot.provider !== "CLAUDE" || !snapshot.meter.startsWith("SEVEN_DAY_")
+    ),
+    claudePoll: true,
+  }, now).find((tool) => tool.code === "CLAUDE");
+  assert.deepEqual([measuredWithoutModelWindow.note, measuredWithoutModelWindow.action], [null, null]);
   const calls = [];
   const doc = fakeDocument();
   const mount = doc.createElement("div");
   const model = inventoryModel({ flags: waitingFlag, claudePoll: false }, now).filter((tool) => tool.code === "CLAUDE");
   renderLimits(doc, mount, model, { handlers: { poll: async (code) => { calls.push(code); return true; } } });
   const button = buttonIn(rowsOf(mount)[0]);
-  assert.equal(button.textContent, "Use my Claude sign in");
+  assert.equal(button.textContent, "Show Fable limit");
   await button.fire("click");
   assert.deepEqual(calls, ["CLAUDE"]);
 });

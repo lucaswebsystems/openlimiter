@@ -1,5 +1,7 @@
 import {
   PROVIDER_CODES,
+  claudeMeterCompactLabel,
+  claudeMeterRank,
   floorFixed,
   freshness,
   type Advice,
@@ -238,6 +240,11 @@ function readingsFor(
     }))
     .filter((reading): reading is Reading => reading.state !== "unknown")
     .sort((left, right) => {
+      if (provider === "CLAUDE") {
+        const rank = (claudeMeterRank(left.snapshot.meter) ?? 90) -
+          (claudeMeterRank(right.snapshot.meter) ?? 90);
+        if (rank !== 0) return rank;
+      }
       const rank = METER_CLASS_RANK[meterClass(left.snapshot)] -
         METER_CLASS_RANK[meterClass(right.snapshot)];
       if (rank !== 0) return rank;
@@ -289,8 +296,11 @@ export function statuslineCells(
           cells.push(availabilityCell(provider, reading.snapshot, now));
           continue;
         }
+        const meterTag = provider === "CLAUDE"
+          ? claudeMeterCompactLabel(reading.snapshot.meter) ?? reading.snapshot.meter
+          : reading.snapshot.meter;
         cells.push(buildCell(
-          provider + ":" + reading.snapshot.meter,
+          provider + ":" + meterTag,
           reading.snapshot,
           reading.state,
           color,
@@ -454,6 +464,10 @@ export const TEN_BLOCK_FULL = "█";
 export const TEN_BLOCK_EMPTY = "░";
 
 export function windowCode(snapshot: Snapshot): string {
+  if (snapshot.provider === "CLAUDE") {
+    const claude = claudeMeterCompactLabel(snapshot.meter);
+    if (claude !== null) return claude;
+  }
   if (snapshot.unit === "CREDITS" || snapshot.window.kind === "lifetime") {
     return "";
   }

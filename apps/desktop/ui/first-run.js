@@ -6,6 +6,7 @@ import {
   readConfiguredProviders,
   homeSelectionControl,
 } from "./configured-providers.js";
+import { say } from "./names.js";
 
 /**
  * The launch truth shown before provider setup begins.
@@ -124,9 +125,8 @@ const VERIFIED_ON_INSTALL = "Verified on install";
 const GEMINI_DISCLOSURE =
   "Reads the login the Gemini CLI stored, may break when Google changes it";
 
-const CLAUDE_POLL_LABEL = "Poll Anthropic when Claude Code is closed";
-const CLAUDE_POLL_NOTE =
-  "Off by default. When it is on, OpenLimiter reads your own Claude token to ask Anthropic for your percentage while Claude Code is not running.";
+const CLAUDE_POLL_LABEL = say("showClaudeFable");
+const CLAUDE_POLL_NOTE = say("showClaudeFableNote");
 
 /**
  * The rows of step two, in the order they are drawn.

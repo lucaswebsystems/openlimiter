@@ -335,10 +335,9 @@ describe("table", () => {
     /* Every data row carries a bar, an exact percent, and a reset indicator. */
     for (const line of lines.slice(1)) {
       const tokens = line.split(/\s+/);
-      expect(tokens.length).toBeGreaterThanOrEqual(9);
-      expect(tokens[2]).toHaveLength(10);
-      expect(tokens[3]).toMatch(/^\d+\.\d\d(PERCENT|TOKENS|REQUESTS)/);
-      expect(tokens[7]).not.toBe("");
+      expect(tokens.some((token) => /^[#.]{10}$/u.test(token))).toBe(true);
+      expect(tokens.some((token) => /^\d+\.\d\d(PERCENT|TOKENS|REQUESTS)/u.test(token))).toBe(true);
+      expect(tokens.at(-2)).not.toBe("");
     }
   });
 
@@ -383,6 +382,31 @@ describe("table", () => {
     );
     const providers = table.split("\n").slice(1).map((line) => line.trim().split(/\s+/)[0]);
     expect(providers).toEqual(["CLAUDE", "CODEX", "ANTIGRAVITY", "OPENROUTER"]);
+  });
+
+  it("renders Claude's labels and sequence independently of pressure", () => {
+    const claude = (meter: string, value: number): Snapshot => reading({
+      provider: "CLAUDE",
+      meter,
+      value,
+      window: { kind: "rolling", durationSeconds: meter === "FIVE_HOUR" ? 18_000 : 604_800 },
+    });
+    const table = renderTable([
+      claude("EXTRA_USAGE", 99),
+      claude("SEVEN_DAY_OPUS", 98),
+      claude("SEVEN_DAY_FABLE_5_1", 97),
+      claude("SEVEN_DAY", 96),
+      claude("FIVE_HOUR", 1),
+    ], NOW, false);
+    const labels = [
+      "Current session",
+      "Weekly, all models",
+      "Weekly, Fable",
+      "Weekly, Opus",
+      "Extra usage",
+    ];
+    const lines = table.split("\n").slice(1);
+    expect(labels.map((label) => lines.findIndex((line) => line.includes(label)))).toEqual([0, 1, 2, 3, 4]);
   });
 
   it("says so plainly when there is nothing to show", () => {

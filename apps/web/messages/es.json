@@ -68,7 +68,15 @@
     "moreFor": "Más opciones de {name}",
     "showTool": "Mostrar",
     "removeTool": "Quitar",
-    "removeConfirm": "Pulsa de nuevo para quitar"
+    "removeConfirm": "Pulsa de nuevo para quitar",
+    "claudeCurrentSession": "Sesión actual",
+    "claudeWeeklyAllModels": "Semanal, todos los modelos",
+    "claudeWeeklyFable": "Semanal, Fable",
+    "claudeWeeklyModel": "Semanal, {model}",
+    "claudeExtraUsage": "Uso adicional",
+    "showClaudeFable": "Mostrar límite de Fable",
+    "showClaudeFableNote": "Usa tu inicio de sesión de Claude en este equipo para leer el mismo uso que muestra Claude.",
+    "claudeFableDesktopHint": "Activa Mostrar límite de Fable en la aplicación de escritorio, en Añadir una herramienta, Claude Code."
   },
   "meta": {
     "title": "OpenLimiter, límites de programación con IA y actividad de agentes",

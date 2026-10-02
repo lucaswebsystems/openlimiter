@@ -1,6 +1,9 @@
 import {
   PROVIDER_CODES,
   buildAdvice,
+  claudeMeterLabel,
+  claudeMeterPresentation,
+  claudeMeterRank,
   connectionNextAction,
   connectionSentence,
   dedupeFailures,
@@ -12,8 +15,10 @@ import {
   normalizeMeters,
   normalizeMetersReport,
   queryCatalogueRows,
+  isClaudeModelScopedMeter,
   type Advice,
   type CatalogueRow,
+  type ClaudeMeterLabelKey,
   type ConnectionState,
   type FailureCategory,
   type PlannedProviderEntry,
@@ -94,6 +99,10 @@ export {
   connectionNextAction,
   connectionSentence,
   queryCatalogueRows,
+  claudeMeterLabel,
+  claudeMeterPresentation,
+  claudeMeterRank,
+  isClaudeModelScopedMeter,
   failureSentence,
   floorFixed,
   freshness,
@@ -113,6 +122,7 @@ export {
 };
 
 export type {
+  ClaudeMeterLabelKey,
   HeadroomTone,
   ProviderAccountRowView,
   ProviderDirectoryRow,

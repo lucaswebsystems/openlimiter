@@ -142,8 +142,8 @@ describe("provider account rows", () => {
     expect(row).toBeDefined();
     const markup = providerRowMarkup(row!);
     expect(markup).not.toContain("primary");
-    expect(markup).toContain("5 hour session");
-    expect(markup).toContain("Weekly");
+    expect(markup).toContain("Current session");
+    expect(markup).toContain("Weekly, all models");
     expect(markup).toContain("63.0%");
     expect(markup).toContain('<slot name="actions"></slot>');
     expect(markup).toContain("<svg");
@@ -188,7 +188,7 @@ describe("provider account rows", () => {
 
     expect(row).toBeDefined();
     expect(closestToLimit(row!.windows)).toMatchObject({
-      label: "Weekly",
+      label: "Weekly, all models",
       usedPercent: 62,
     });
     expect(windowForMetric(row!.windows, "session")).toMatchObject({
@@ -201,8 +201,8 @@ describe("provider account rows", () => {
       usedPercent: 41,
     });
     const markup = providerRowMarkup(row!);
-    expect(markup).toContain(">5 hour session</span>");
-    expect(markup).toContain(">Weekly</span>");
+    expect(markup).toContain(">Current session</span>");
+    expect(markup).toContain(">Weekly, all models</span>");
     expect(markup).toContain(">Monthly</span>");
     expect(markup).toContain(">38.0%</strong>");
     expect(markup).toContain(">62.0%</strong>");
@@ -223,12 +223,12 @@ describe("provider account rows", () => {
     )[0];
 
     expect(row?.windows.map((window) => window.label)).toEqual([
-      "Weekly",
-      "Weekly Opus",
-      "Weekly Sonnet",
+      "Weekly, all models",
+      "Weekly, Opus",
+      "Weekly, Sonnet",
     ]);
     expect(windowForMetric(row?.windows ?? [], "week")).toMatchObject({
-      label: "Weekly Opus",
+      label: "Weekly, Opus",
       usedPercent: 51,
     });
   });
@@ -335,19 +335,16 @@ describe("provider account rows", () => {
     ).toEqual(["Gemini 3.1 Pro Preview", "Gemini 3 Flash Preview"]);
   });
 
-  it("labels a model specific weekly bucket and sorts it with its own week", () => {
-    /* Claude states one weekly pool per model and generates their codes from
-       names it chose, so no table here can hold a label for each one. The
-       cadence leads, the model follows in brackets, and the whole weekly group
-       sorts together instead of scattering after the month. */
+  it("uses Claude's own labels and order for every returned allowance", () => {
     const rows = buildProviderAccountRows(
       [
-        snapshot("CLAUDE", "SEVEN_DAY_FABLE_5", 21.5, "claude-account"),
+        snapshot("CLAUDE", "EXTRA_USAGE", 62.35, "claude-account"),
         snapshot("CLAUDE", "MONTHLY", 9, "claude-account"),
         snapshot("CLAUDE", "SEVEN_DAY_SONNET", 12.4, "claude-account"),
         snapshot("CLAUDE", "SEVEN_DAY", 41.2, "claude-account"),
         snapshot("CLAUDE", "SEVEN_DAY_OPUS", 61, "claude-account"),
         snapshot("CLAUDE", "SEVEN_DAY_OAUTH_APPS", 3.1, "claude-account"),
+        snapshot("CLAUDE", "SEVEN_DAY_FABLE_5_1", 21.5, "claude-account"),
         snapshot("CLAUDE", "FIVE_HOUR", 23.5, "claude-account"),
       ],
       NOW,
@@ -355,12 +352,13 @@ describe("provider account rows", () => {
       { providers: ["CLAUDE"] }
     );
     expect(rows[0]?.windows.map((window) => window.label)).toEqual([
-      "5 hour session",
-      "Weekly",
-      "Weekly Opus",
-      "Weekly Sonnet",
-      "Weekly OAuth apps",
-      "Weekly (Fable 5)",
+      "Current session",
+      "Weekly, all models",
+      "Weekly, Fable",
+      "Weekly, Opus",
+      "Weekly, Sonnet",
+      "Weekly, OAuth Apps",
+      "Extra usage",
       "Monthly",
     ]);
   });
@@ -376,8 +374,8 @@ describe("provider account rows", () => {
       { providers: ["CLAUDE"] }
     );
     expect(rows[0]?.windows.map((window) => window.label)).toEqual([
-      "Weekly Opus",
-      "Weekly (Haiku 4 5)",
+      "Weekly, Opus",
+      "Weekly, Haiku 4.5",
     ]);
   });
 
@@ -433,8 +431,8 @@ describe("provider account rows", () => {
     expect(markup).not.toContain("person@example.test");
     expect(markup).toContain("Updated 8 min ago");
     expect(markup).toContain(
-      '<span class="window-name" title="5 hour session">5 hour session<small class="window-updated">Updated 8 min ago</small></span>',
+      '<span class="window-name" title="Current session">Current session<small class="window-updated">Updated 8 min ago</small></span>',
     );
-    expect(markup).not.toContain('title="5 hour session<small');
+    expect(markup).not.toContain('title="Current session<small');
   });
 });

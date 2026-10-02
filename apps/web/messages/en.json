@@ -68,7 +68,15 @@
     "moreFor": "More for {name}",
     "showTool": "Show",
     "removeTool": "Remove",
-    "removeConfirm": "Press again to remove"
+    "removeConfirm": "Press again to remove",
+    "claudeCurrentSession": "Current session",
+    "claudeWeeklyAllModels": "Weekly, all models",
+    "claudeWeeklyFable": "Weekly, Fable",
+    "claudeWeeklyModel": "Weekly, {model}",
+    "claudeExtraUsage": "Extra usage",
+    "showClaudeFable": "Show Fable limit",
+    "showClaudeFableNote": "Uses your Claude sign in on this computer to read the same usage Claude shows.",
+    "claudeFableDesktopHint": "Turn on Show Fable limit in the desktop app under Add a tool, Claude Code."
   },
   "meta": {
     "title": "OpenLimiter, AI coding limits and agent activity",

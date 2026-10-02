@@ -68,7 +68,15 @@
     "moreFor": "{name} のその他の操作",
     "showTool": "表示",
     "removeTool": "削除",
-    "removeConfirm": "もう一度押すと削除します"
+    "removeConfirm": "もう一度押すと削除します",
+    "claudeCurrentSession": "現在のセッション",
+    "claudeWeeklyAllModels": "週間、全モデル",
+    "claudeWeeklyFable": "週間、Fable",
+    "claudeWeeklyModel": "週間、{model}",
+    "claudeExtraUsage": "追加使用量",
+    "showClaudeFable": "Fable の上限を表示",
+    "showClaudeFableNote": "このコンピューターの Claude サインインを使い、Claude に表示されるものと同じ使用量を読み取ります。",
+    "claudeFableDesktopHint": "デスクトップアプリの「ツールを追加」、「Claude Code」で「Fable の上限を表示」をオンにしてください。"
   },
   "meta": {
     "title": "OpenLimiter、AIコーディングの制限とエージェントの活動",

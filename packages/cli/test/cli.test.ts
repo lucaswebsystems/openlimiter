@@ -136,7 +136,7 @@ describe("CLI", () => {
     });
     expect(result.exitCode).toBe(0);
     /* The padded table carries every bounded meter with its percent and bar. */
-    expect(result.stdout).toMatch(/CLAUDE\s+5h\s+[^\s]{10}\s+42\.00PERCENT/);
+    expect(result.stdout).toMatch(/CLAUDE\s+Current session\s+[^\s]{10}\s+42\.00PERCENT/);
     expect(result.stdout).toMatch(/OPENROUTER\s+Credits\s+[^\s]{10}\s+62\.35PERCENT/);
     expect(result.stdout.includes("demo@example.test")).toBe(false);
   });
@@ -173,35 +173,35 @@ describe("CLI", () => {
         payloads
       });
       expect(result.stdout).toBe([
-        "PROVIDER    METER             BAR        USAGE        AMOUNT        " +
+        "PROVIDER    METER              BAR        USAGE        AMOUNT        " +
           "STATE RESET                    IN    SOURCE       ",
-        "OPENCODE    5h                #########. 92.00PERCENT NONE          " +
+        "OPENCODE    5h                 #########. 92.00PERCENT NONE          " +
           "fresh 2026-01-01T20:00:00.000Z 20h0m [import only]",
-        "OPENCODE    Weekly            ####...... 40.00PERCENT NONE          " +
+        "OPENCODE    Weekly             ####...... 40.00PERCENT NONE          " +
           "fresh 2026-01-06T20:00:00.000Z 5d20h [import only]",
-        "OPENCODE    Monthly           #......... 15.00PERCENT NONE          " +
+        "OPENCODE    Monthly            #......... 15.00PERCENT NONE          " +
           "fresh 2026-01-22T00:00:00.000Z 21d0h [import only]",
-        "CODEX       5h                ########.. 84.00PERCENT NONE          " +
+        "CODEX       5h                 ########.. 84.00PERCENT NONE          " +
           "fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
-        "KIMI        5h                ######.... 69.50PERCENT NONE          " +
+        "KIMI        5h                 ######.... 69.50PERCENT NONE          " +
           "fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
-        "KIMI        Weekly            #......... 10.44PERCENT NONE          " +
+        "KIMI        Weekly             #......... 10.44PERCENT NONE          " +
           "fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
-        "CLAUDE      Weekly            ######.... 64.00PERCENT NONE          " +
-          "fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
-        "CLAUDE      5h                ####...... 42.00PERCENT NONE          " +
+        "CLAUDE      Current session    ####...... 42.00PERCENT NONE          " +
           "fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
-        "OPENROUTER  Credits           ######.... 62.35PERCENT $12.47/$20.00 " +
+        "CLAUDE      Weekly, all models ######.... 64.00PERCENT NONE          " +
+          "fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
+        "OPENROUTER  Credits            ######.... 62.35PERCENT $12.47/$20.00 " +
           "fresh NONE                     NONE  [import only]",
-        "GROK        Weekly            ####...... 42.50PERCENT NONE          " +
+        "GROK        Weekly             ####...... 42.50PERCENT NONE          " +
           "fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
-        "GROK        On demand monthly .......... 6.00PERCENT  NONE          " +
+        "GROK        On demand monthly  .......... 6.00PERCENT  NONE          " +
           "fresh NONE                     NONE  [import only]",
-        "MANUAL      Monthly           ###....... 35.00PERCENT NONE          " +
+        "MANUAL      Monthly            ###....... 35.00PERCENT NONE          " +
           "fresh 2026-02-01T00:00:00.000Z 31d0h [import only]",
-        "ANTIGRAVITY 5h                ##........ 28.00PERCENT NONE          " +
+        "ANTIGRAVITY 5h                 ##........ 28.00PERCENT NONE          " +
           "fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
-        "ANTIGRAVITY Weekly            #......... 10.00PERCENT NONE          " +
+        "ANTIGRAVITY Weekly             #......... 10.00PERCENT NONE          " +
           "fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]"
       ].join("\n"));
     });
@@ -884,7 +884,7 @@ describe("CLI", () => {
       colorOutput: false,
       payloads: { claude: payloads.claude }
     });
-    expect(result.stdout).toMatch(/CLAUDE\s+5h/);
+    expect(result.stdout).toMatch(/CLAUDE\s+Current session/);
     for (const category of [
       "PAYLOAD_UNREADABLE",
       "SESSION_EXPIRED",
@@ -1055,10 +1055,10 @@ describe("CLI", () => {
           colorOutput: false
         });
     expect(statusline.stdout).toContain(ESCAPE + "[31m");
-    expect(statusline.stdout).toContain("CLAUDE:FIVE_HOUR");
-    expect(statusline.stdout).toContain("CLAUDE:SEVEN_DAY");
+    expect(statusline.stdout).toContain("CLAUDE:5h");
+    expect(statusline.stdout).toContain("CLAUDE:7d");
     expect(statusline.stdout.indexOf("OPENROUTER:CREDITS"))
-      .toBeLessThan(statusline.stdout.indexOf("CLAUDE:FIVE_HOUR"));
+      .toBeLessThan(statusline.stdout.indexOf("CLAUDE:5h"));
   });
 
   it("keeps drawing the statusline when the configuration is nonsense", async () => {
