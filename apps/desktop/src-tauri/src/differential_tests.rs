@@ -146,6 +146,18 @@ fn run_provider(provider: &str) {
                 }
             }
         }
+        if id == "codex/existing" {
+            let row = rows
+                .as_ref()
+                .and_then(|rows| rows.first())
+                .expect("Codex app server reading");
+            assert_eq!(row.precision, "exact");
+            assert_eq!(row.source, "documented_api");
+            assert_eq!(row.labels.credential_origin, "official-local-tool");
+            assert_eq!(row.labels.data_interface_status, "documented-api");
+            assert_eq!(row.labels.automation_risk, "low");
+            assert_eq!(row.labels.verification, "VERIFIED_FIXTURES");
+        }
         let actual = normalize(rows);
         assert!(divergences.trim().is_empty(), "{id}: stale divergence list");
         assert_json(&actual, &answer["expected"], &id);

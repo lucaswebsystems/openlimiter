@@ -6,6 +6,7 @@ use tauri::State;
 use zeroize::Zeroizing;
 
 use crate::cache_write::{CacheWriteBegin, CacheWriteError, CacheWriter, MAX_JSON_FILE_BYTES};
+use crate::codex_app_server::{read_rate_limits_for_home, AppServerFailure};
 use crate::claude_connect::{self, ClaudeConnectInput, ClaudePreflightVerdict};
 use crate::claude_detect::{self, LocalToolDetection};
 use crate::connections::{
@@ -20,6 +21,22 @@ use crate::native_readers::parse_body;
 use crate::net::{fetch_endpoint, NetError, ReqwestTransport, Transport};
 use crate::provider_detection::{DetectionReport, DetectionStore};
 use crate::reader_registry::{reader_route, CredentialKind, ProviderId, ReaderId, RouteError};
+
+#[cfg(test)]
+static CODEX_APP_SERVER_TEST_RESPONSES: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::BTreeMap<String, Result<String, AppServerFailure>>>,
+> = std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::BTreeMap::new()));
+
+#[cfg(test)]
+enum TestCodexRuntime {
+    Resolved(Option<(std::path::PathBuf, std::path::PathBuf)>),
+    StoredHome(std::path::PathBuf),
+}
+
+#[cfg(test)]
+static CODEX_RUNTIME_TEST_RESPONSES: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::BTreeMap<String, TestCodexRuntime>>,
+> = std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::BTreeMap::new()));
 
 /// The connection command surface: one Tauri command per verb, serde structs
 /// in and out, and one closed failure enum whose `Display` is a fixed
@@ -579,9 +596,10 @@ pub(crate) async fn replace_connection_secret_core<T: Transport>(
     )?;
     let candidate = candidate.trim();
     let route = reader_route(before.provider_id, before.credential_kind)?;
+    let endpoint = route.endpoint.ok_or(CommandFailure::Protocol)?;
     let response = fetch_endpoint(
         transport,
-        route.endpoint,
+        endpoint,
         route.auth,
         candidate,
         before.codex_account_id.as_deref(),
@@ -896,9 +914,147 @@ pub(crate) async fn probe_core<T: Transport>(
     let request_secret = migrated.as_deref().unwrap_or(&secret);
     let opened = open_attempt(connections, &record.id)?;
     let attempt_generation = opened.attempt_generation;
+    if record.provider_id == ProviderId::Codex {
+        let provider_account_id = record
+            .codex_account_id
+            .as_deref()
+            .ok_or(CommandFailure::Protocol)?;
+        #[cfg(test)]
+        let runtime = CODEX_RUNTIME_TEST_RESPONSES
+            .lock()
+            .ok()
+            .and_then(|mut responses| responses.remove(&record.id))
+            .and_then(|runtime| match runtime {
+                TestCodexRuntime::Resolved(runtime) => runtime,
+                TestCodexRuntime::StoredHome(home) => {
+                    crate::provider_detection::codex_runtime_for_test_home(
+                        provider_account_id,
+                        &home,
+                    )
+                }
+            });
+        #[cfg(not(test))]
+        let runtime = crate::provider_detection::current_codex_runtime(provider_account_id);
+        let Some((executable, codex_home)) = runtime else {
+            settle_request(connections, &record.id, None, false, attempt_generation)?;
+            return Err(CommandFailure::CodexLoginRequired);
+        };
+        #[cfg(test)]
+        let injected = CODEX_APP_SERVER_TEST_RESPONSES
+            .lock()
+            .ok()
+            .and_then(|mut responses| responses.remove(&record.id));
+        #[cfg(not(test))]
+        let injected: Option<Result<String, AppServerFailure>> = None;
+        let response = if let Some(injected) = injected {
+            injected.map(|body| crate::codex_app_server::RateLimitsPayload { body })
+        } else {
+            let expected_account_id = crate::provider_detection::opaque_account_id(
+                crate::provider_detection::DetectedProviderId::Codex,
+                provider_account_id,
+            );
+            tauri::async_runtime::spawn_blocking(move || {
+                read_rate_limits_for_home(&executable, &codex_home, &expected_account_id)
+            })
+            .await
+            .map_err(|_| CommandFailure::Storage)?
+        };
+        return match response {
+            Ok(payload) => {
+                settle_request(
+                    connections,
+                    &record.id,
+                    Some(200),
+                    !payload.body.is_empty(),
+                    attempt_generation,
+                )?;
+                Ok(ProbeOutcome::Response {
+                    connection_id: record.id,
+                    reader_id: route.reader_id,
+                    attempt_generation,
+                    status: 200,
+                    body: Some(payload.body),
+                    retry_after_seconds: None,
+                })
+            }
+            Err(AppServerFailure::NeedsSignIn) => {
+                settle_request(
+                    connections,
+                    &record.id,
+                    Some(401),
+                    false,
+                    attempt_generation,
+                )?;
+                Ok(ProbeOutcome::Response {
+                    connection_id: record.id,
+                    reader_id: route.reader_id,
+                    attempt_generation,
+                    status: 401,
+                    body: None,
+                    retry_after_seconds: None,
+                })
+            }
+            Err(AppServerFailure::IdentityMismatch) => {
+                settle_request(
+                    connections,
+                    &record.id,
+                    Some(403),
+                    false,
+                    attempt_generation,
+                )?;
+                Ok(ProbeOutcome::Response {
+                    connection_id: record.id,
+                    reader_id: route.reader_id,
+                    attempt_generation,
+                    status: 403,
+                    body: None,
+                    retry_after_seconds: None,
+                })
+            }
+            Err(AppServerFailure::MissingExecutable) => {
+                settle_request(connections, &record.id, None, false, attempt_generation)?;
+                Err(CommandFailure::CodexLoginRequired)
+            }
+            Err(AppServerFailure::RateLimited(retry_after_seconds)) => {
+                settle_request(
+                    connections,
+                    &record.id,
+                    Some(429),
+                    false,
+                    attempt_generation,
+                )?;
+                Ok(ProbeOutcome::Response {
+                    connection_id: record.id,
+                    reader_id: route.reader_id,
+                    attempt_generation,
+                    status: 429,
+                    body: None,
+                    retry_after_seconds,
+                })
+            }
+            Err(failure) => {
+                settle_request(connections, &record.id, None, false, attempt_generation)?;
+                Ok(ProbeOutcome::TransportFailure {
+                    connection_id: record.id,
+                    reader_id: route.reader_id,
+                    attempt_generation,
+                    failure: match failure {
+                        AppServerFailure::Timeout => ProbeFailure::Timeout,
+                        AppServerFailure::Unavailable => ProbeFailure::Connect,
+                        AppServerFailure::Protocol => ProbeFailure::InvalidUtf8,
+                        AppServerFailure::NeedsSignIn
+                        | AppServerFailure::IdentityMismatch
+                        | AppServerFailure::MissingExecutable
+                        | AppServerFailure::RateLimited(_) => unreachable!(),
+                    },
+                })
+            }
+        };
+    }
+    let endpoint = route.endpoint.ok_or(CommandFailure::Protocol)?;
     let fetched = fetch_endpoint(
         transport,
-        route.endpoint,
+        endpoint,
         route.auth,
         request_secret,
         record.codex_account_id.as_deref(),
@@ -1441,6 +1597,7 @@ mod tests {
     use crate::net::{ProviderEndpoint, TransportFailure};
     use crate::reader_registry::{MAX_BROWSER_SESSION_BYTES, MAX_KEY_SECRET_BYTES};
     use crate::test_support::{FailingTransport, InMemorySecrets, RecordingTransport, TempDir};
+    use std::fs;
     use std::sync::{
         atomic::{AtomicUsize, Ordering},
         Arc, Mutex,
@@ -1695,6 +1852,23 @@ mod tests {
         encode_codex_session_v1("codex-access-token-for-tests", "codex-account-for-tests")
             .expect("fixture envelope")
             .to_string()
+    }
+
+    fn codex_app_server_reply(connection_id: &str, response: Result<&str, AppServerFailure>) {
+        CODEX_RUNTIME_TEST_RESPONSES
+            .lock()
+            .expect("test runtime registry")
+            .insert(
+                connection_id.to_string(),
+                TestCodexRuntime::Resolved(Some((
+                    "synthetic-codex".into(),
+                    "synthetic-codex-home".into(),
+                ))),
+            );
+        CODEX_APP_SERVER_TEST_RESPONSES
+            .lock()
+            .expect("test response registry")
+            .insert(connection_id.to_string(), response.map(str::to_string));
     }
 
     fn probe(connection_id: &str) -> ProbeInput {
@@ -2150,7 +2324,24 @@ mod tests {
             .store_secret(&record.id, &legacy)
             .expect("legacy credential shape");
 
+        let codex_home = dir.path().join(".codex");
+        fs::create_dir_all(dir.path().join("bin")).expect("bin");
+        fs::write(dir.path().join("bin").join("codex"), "native executable")
+            .expect("native executable");
+        fs::create_dir_all(&codex_home).expect("Codex home");
+        fs::write(codex_home.join("auth.json"), &legacy).expect("stored Codex credential");
         let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
+        CODEX_RUNTIME_TEST_RESPONSES
+            .lock()
+            .expect("test runtime registry")
+            .insert(
+                record.id.clone(),
+                TestCodexRuntime::StoredHome(dir.path().to_path_buf()),
+            );
+        CODEX_APP_SERVER_TEST_RESPONSES
+            .lock()
+            .expect("test response registry")
+            .insert(record.id.clone(), Ok("{}".to_string()));
         let outcome = test_core(&connections, &secrets, &transport, probe(&record.id))
             .await
             .expect("migrated probe");
@@ -2160,11 +2351,8 @@ mod tests {
         );
         let migrated = connections.get(&record.id).expect("migrated record");
         assert_eq!(migrated.codex_account_id.as_deref(), Some(ACCOUNT));
-        assert_eq!(transport.recorded_secrets(), vec![TOKEN.to_string()]);
-        assert_eq!(
-            transport.recorded_codex_account_ids(),
-            vec![Some(ACCOUNT.to_string())]
-        );
+        assert!(transport.recorded_secrets().is_empty());
+        assert!(transport.recorded_codex_account_ids().is_empty());
         for rendered in [
             format!("{outcome:?}"),
             format!("{migrated:?}"),
@@ -2216,11 +2404,6 @@ mod tests {
                 ProviderEndpoint::OpenrouterCredits,
             ),
             (
-                ProviderId::Codex,
-                CredentialKind::CodexSession,
-                ProviderEndpoint::CodexUsage,
-            ),
-            (
                 ProviderId::Antigravity,
                 CredentialKind::AntigravitySession,
                 ProviderEndpoint::AntigravityQuota,
@@ -2237,9 +2420,6 @@ mod tests {
             let mut input = connect_input();
             input.provider_id = provider;
             input.credential_kind = credential;
-            if credential == CredentialKind::CodexSession {
-                input.secret = codex_test_secret();
-            }
             let record = connect_core(&connections, &secrets, input).expect("connect");
             let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
             test_core(&connections, &secrets, &transport, probe(&record.id))
@@ -2339,6 +2519,7 @@ mod tests {
         };
         let record = connect_core(&connections, &secrets, input).expect("connect");
         let transport = RecordingTransport::replying(401, Vec::new(), None);
+        codex_app_server_reply(&record.id, Err(AppServerFailure::NeedsSignIn));
         test_core(&connections, &secrets, &transport, probe(&record.id))
             .await
             .expect("probe");

@@ -807,16 +807,55 @@ async function resolvedAgentExecutable(
       for (const file of alternatives) {
         try {
           const stat = await lstat(file);
-          if (
-            stat.isFile() &&
-            !stat.isSymbolicLink() &&
-            !(await pathContainsLink(file, directory))
-          ) return file;
+          if (stat.isSymbolicLink() && agent === "codex" && platform !== "win32") {
+            const resolved = await realpath(file);
+            const suffix = path.join("node_modules", "@openai", "codex", "bin", "codex.js");
+            if (resolved.endsWith(path.sep + suffix) && (await lstat(resolved)).isFile()) return resolved;
+          }
+          if (stat.isFile() && !stat.isSymbolicLink() && !(await pathContainsLink(file, directory))) {
+            return file;
+          }
         } catch (error) {
           if (errorCode(error) !== "ENOENT") continue;
         }
       }
     }
+  }
+  return null;
+}
+
+async function codexNativeExecutable(executable: string, platform: NodeJS.Platform): Promise<string | null> {
+  const isNpmLauncher = /codex\.js$/u.test(executable);
+  const isWindowsShim = platform === "win32" && /\.(?:cmd|bat)$/iu.test(executable);
+  if (!isNpmLauncher && !isWindowsShim) return executable;
+  const arch = process.arch === "arm64" ? "arm64" : "x64";
+  const platformName = platform === "win32" ? "win32" : platform === "darwin" ? "darwin" : "linux";
+  const triple = platform === "win32"
+    ? arch === "arm64" ? "aarch64-pc-windows-msvc" : "x86_64-pc-windows-msvc"
+    : platform === "darwin"
+      ? arch === "arm64" ? "aarch64-apple-darwin" : "x86_64-apple-darwin"
+      : arch === "arm64" ? "aarch64-unknown-linux-musl" : "x86_64-unknown-linux-musl";
+  const packageName = `codex-${platformName}-${arch}`;
+  const windowsPrefix = path.dirname(executable);
+  const packageRoot = isNpmLauncher
+    ? path.dirname(path.dirname(executable))
+    : path.join(windowsPrefix, "node_modules", "@openai", "codex");
+  const packageParent = path.dirname(packageRoot);
+  const candidates = [
+    path.join(packageRoot, "vendor", triple),
+    path.join(packageRoot, "node_modules", "@openai", packageName, "vendor", triple),
+    path.join(packageParent, packageName, "vendor", triple)
+  ];
+  for (const vendor of candidates) {
+    for (const binaryDirectory of ["codex", "bin"]) {
+      const candidate = path.join(vendor, binaryDirectory, platform === "win32" ? "codex.exe" : "codex");
+        try {
+          const stat = await lstat(candidate);
+          if (stat.isFile() && !stat.isSymbolicLink()) return await realpath(candidate);
+        } catch {
+          // Try the next official npm package layout.
+        }
+      }
   }
   return null;
 }
@@ -846,8 +885,12 @@ export async function detectAgentInstallation(
     platform
   );
   if (executable === null) return null;
+  const launchExecutable = agent === "codex"
+    ? await codexNativeExecutable(executable, platform)
+    : executable;
+  if (launchExecutable === null) return null;
   const version = await executableVersion(
-    executable,
+    launchExecutable,
     options.runCommand ?? ((command, argumentsList, timeoutMilliseconds) => runCommandWithWindowsShim(
       command,
       argumentsList,
@@ -858,11 +901,11 @@ export async function detectAgentInstallation(
   );
   if (version === null) return null;
   try {
-    const stat = await lstat(executable);
+    const stat = await lstat(launchExecutable);
     if (!stat.isFile() || stat.isSymbolicLink()) return null;
     return {
       version,
-      executable,
+      executable: launchExecutable,
       fileSize: stat.size,
       mtimeMilliseconds: stat.mtimeMs
     };

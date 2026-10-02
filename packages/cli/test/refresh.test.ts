@@ -103,6 +103,14 @@ function dependencies(
     environment: { OPENLIMITER_OPENROUTER_KEY: SYNTHETIC_TOKEN },
     now: () => now,
     colorOutput: false,
+    detectedAgentInstallations: {
+      codex: {
+        version: "0.153.3",
+        executable: "synthetic-codex",
+        fileSize: 1,
+        mtimeMilliseconds: 1
+      }
+    },
     acquisitionTransport: transport
   };
 }
@@ -179,12 +187,25 @@ describe("openlimiter refresh", () => {
     await runCli(["refresh"], dependencies(state, home, recorder.transport));
     expect(recorder.sent.length).toBeGreaterThan(0);
     for (const request of recorder.sent) {
+      if (request.kind === "codex_app_server") continue;
       expect(request.headers["user-agent"]).toBe(OPENLIMITER_USER_AGENT);
       expect(request.headers["authorization"]).toBe("Bearer " + SYNTHETIC_TOKEN);
     }
     const codex = recorder.sent.find((request) => request.endpoint === "codex_usage");
-    expect(codex?.headers["chatgpt-account-id"]).toBe(SYNTHETIC_CODEX_ACCOUNT);
+    expect(codex).toMatchObject({
+      kind: "codex_app_server",
+      endpoint: "codex_usage",
+      codexHome: path.join(home, ".codex"),
+      expectedAccountId: opaqueAccountId("CODEX", SYNTHETIC_CODEX_ACCOUNT)
+    });
+    expect(JSON.stringify(codex)).not.toContain(SYNTHETIC_TOKEN);
+    expect(JSON.stringify(codex)).not.toContain("Bearer ");
+    expect(Object.keys(codex ?? {})).not.toEqual(expect.arrayContaining([
+      "headers", "body", "url"
+    ]));
     const grok = recorder.sent.find((request) => request.endpoint === "grok_billing");
+    expect(grok?.kind).not.toBe("codex_app_server");
+    if (grok === undefined || grok.kind === "codex_app_server") throw new Error("missing Grok request");
     expect(grok?.headers["x-userid"]).toBe(SYNTHETIC_GROK_USER);
     /* No vendor client marker anywhere. xAI's own tool sends
        x-xai-token-auth: xai-grok-cli, and sending it would be claiming to be
@@ -194,6 +215,8 @@ describe("openlimiter refresh", () => {
     const quota = recorder.sent.find(
       (request) => request.endpoint === "code_assist_quota"
     );
+    expect(quota?.kind).not.toBe("codex_app_server");
+    if (quota === undefined || quota.kind === "codex_app_server") throw new Error("missing quota request");
     expect(quota?.body).toContain(SYNTHETIC_PROJECT);
   });
 
@@ -447,6 +470,8 @@ describe("the Claude poll switch", () => {
     const usage = recorder.sent.find(
       (request) => request.endpoint === "claude_usage"
     );
+    expect(usage?.kind).not.toBe("codex_app_server");
+    if (usage === undefined || usage.kind === "codex_app_server") throw new Error("missing Claude request");
     expect(usage?.headers["anthropic-beta"]).toBe("oauth-2025-04-20");
   });
 

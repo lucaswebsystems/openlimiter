@@ -94,6 +94,18 @@ describe("shared differential provider corpus", () => {
         // Even error bodies reach the parser. No test-only HTTP status shortcut can hide acceptance.
         const rows = parsers[provider](body, spec.now);
         const actual = normalize(rows);
+        if (provider === "codex" && spec.case === "existing") {
+          expect(rows?.[0]).toMatchObject({
+            precision: "exact",
+            source: "documented_api",
+            labels: {
+              credentialOrigin: "official-local-tool",
+              dataInterfaceStatus: "documented-api",
+              automationRisk: "low",
+              verification: "VERIFIED_FIXTURES"
+            }
+          });
+        }
         if (provider === "cursor" && rows !== null) {
           expect(normalizeMeters(rows)).toHaveLength(rows.length);
           for (const row of rows) expect(row.labels).toMatchObject({ verification: "VERIFIED_FIXTURES" });

@@ -1,4 +1,3 @@
-// This interface is UNOFFICIAL and may break.
 import type {
   ConnectionTool,
   ConnectorContract,
@@ -18,81 +17,117 @@ import {
   windowSeconds
 } from "./shared.js";
 
-/**
- * The Codex usage reader.
- *
- * The shape below is the one a working reader observed against a real account
- * on 2026-08-07, recorded in `Product Idea/reference-implementation`. OpenAI
- * publishes nothing about it, so it is DESIGN evidence and not verification
- * evidence: it tells us what to parse, and it does not turn an internal
- * endpoint into an official API. The labels below stay as they are, and the
- * provider stays UNVERIFIED, until a sanitized capture lands in the fixture
- * slot and even then the interface is still internal.
- *
- * The reader used to parse `rate_limits` with an s, a shape carried over from
- * an early prototype and never seen on the wire. The real field is
- * `rate_limit`, singular. That one letter is the whole reason the drift
- * machinery exists: both shapes are well formed JSON, both would have arrived
- * with a 200, and the wrong one produces no reading at all rather than a wrong
- * one only because this parser refuses whatever it was not told to expect.
- */
-
 export const codexLabels = {
+  credentialOrigin: "official-local-tool",
+  dataInterfaceStatus: "documented-api",
+  automationRisk: "low",
+  verification: "VERIFIED_FIXTURES"
+} as const satisfies ConnectorLabels;
+
+export const codexInput = {
+  kind: "local_command",
+  command: "codex app-server",
+  readMode: "read_only"
+} as const;
+
+/** What this reader reads. JSON, because the app server answers JSONL messages. */
+export const codexEncoding = "json" as const;
+
+const legacyCodexLabels = {
   credentialOrigin: "official-local-tool",
   dataInterfaceStatus: "internal-endpoint",
   automationRisk: "high",
   verification: "UNVERIFIED"
 } as const satisfies ConnectorLabels;
 
-export const codexInput = {
-  kind: "provider_managed_payload",
-  pathTemplate: "{providerState}/usage.json",
-  readMode: "read_only"
-} as const;
+function meterIdForMinutes(minutes: number | null, slot: "primary" | "secondary"): string {
+  if (minutes === null) return slot.toUpperCase();
+  if (minutes === 300) return "FIVE_HOUR";
+  if (minutes === 10_080) return "SEVEN_DAY";
+  return slot.toUpperCase();
+}
 
-/** What this reader reads. JSON, because the endpoint answers JSON. */
-export const codexEncoding = "json" as const;
+function readableLimitId(value: string): string | null {
+  const readable = value
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/gu, "$1_$2")
+    .replace(/[^A-Za-z0-9]+/gu, "_")
+    .replace(/^_+|_+$/gu, "")
+    .toUpperCase();
+  return readable.length > 0 ? readable : null;
+}
 
-/**
- * The observed response, reduced to what may be believed.
- *
- * `used_percent` is a percentage and `reset_at` is Unix epoch SECONDS. The
- * encoding was not guessed: the reference reader passes `reset_at` through
- * untouched into a cache whose consumers format it with an epoch formatter,
- * while it explicitly converts the other two providers' RFC3339 stamps first.
- *
- * `limit_window_seconds` is the window's own length, stated by the provider. It
- * is optional, because the reference treats it as optional, and its absence
- * costs only the plausibility bound: a window whose length is unknown cannot be
- * called rolling, so it is reported as an unknown window rather than as a five
- * hour one this build made up.
- *
- * Every window carried in the rate limit object is parsed into its own meter,
- * identified by its own `limit_window_seconds`. Plans may carry a weekly
- * primary window, a secondary window, or model-specific buckets, and ignoring
- * any window would present a partial picture of the user's quota.
- */
-/**
- * The meter id for a window, from its length rather than its name.
- *
- * The two lengths that have names here are the two a reader elsewhere already
- * uses, so a five hour Codex window and a five hour Claude window are called the
- * same thing and the dashboard can group them. Anything else keeps its own key,
- * uppercased, which is enough to keep two windows apart without inventing a
- * vocabulary for buckets we have not seen yet.
- */
-/**
- * A reset stated as a countdown rather than as an instant.
- *
- * Some responses carry `reset_after_seconds` where others carry `reset_at`, and
- * a reader that knows only the second reports no countdown at all against the
- * first. The countdown is turned into an instant against the supplied clock and
- * held to the same plausibility bound the instant form is held to, so a window
- * cannot claim to reset years after the window it belongs to has ended.
- *
- * Zero and negative are refused rather than read as now: a window that reset in
- * the past says nothing about the window running now.
- */
+function prefixedMeter(limitId: string, duration: string): string {
+  if (limitId === "CODEX") return duration;
+  const prefixLength = Math.max(1, 31 - duration.length);
+  return `${limitId.slice(0, prefixLength).replace(/_+$/u, "")}_${duration}`;
+}
+
+function suffixedMeter(meter: string, slot: string): string {
+  const suffix = `_${slot.toUpperCase()}`;
+  return `${meter.slice(0, 32 - suffix.length).replace(/_+$/u, "")}${suffix}`;
+}
+
+function decimal(value: unknown): number | null {
+  if (typeof value !== "string" || !/^(?:0|[1-9]\d*)(?:\.\d+)?$/u.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function windowsFrom(
+  snapshot: Record<string, unknown>,
+  limitId: string,
+  now: string,
+  expiresAt: string
+): RawMeter[] {
+  const windows = ["primary", "secondary"] as const;
+  const parsed: Array<{ slot: string; meter: RawMeter }> = [];
+  for (const slot of windows) {
+    const window = record(snapshot[slot]);
+    if (window === null) continue;
+    const percent = boundedNumber(window["usedPercent"]);
+    const minutes = window["windowDurationMins"];
+    if (percent === null) continue;
+    if (minutes !== null && (
+      typeof minutes !== "number" ||
+      !Number.isSafeInteger(minutes) ||
+      minutes <= 0 ||
+      minutes > 525_600
+    )) continue;
+    const resetValue = window["resetsAt"];
+    const resetAt = resetValue === undefined || resetValue === null
+      ? null
+      : futureInstantFromEpochSeconds(resetValue, now);
+    if (resetValue !== undefined && resetValue !== null && resetAt === null) continue;
+    const durationMeter = meterIdForMinutes(minutes, slot);
+    parsed.push({
+      slot,
+      meter: rawMeter({
+        provider: "CODEX",
+        meter: prefixedMeter(limitId, durationMeter),
+        value: percent,
+        window: minutes === null
+          ? { kind: "unknown" }
+          : { kind: "rolling", durationSeconds: minutes * 60 },
+        resetAt,
+        source: "documented_api",
+        precision: "exact",
+        observedAt: now,
+        expiresAt,
+        labels: codexLabels
+      })
+    });
+  }
+  const counts = new Map<string, number>();
+  for (const { meter } of parsed) {
+    const meterId = meter.meter as string;
+    counts.set(meterId, (counts.get(meterId) ?? 0) + 1);
+  }
+  return parsed.map(({ slot, meter }) => (counts.get(meter.meter as string) ?? 0) > 1
+    ? { ...meter, meter: suffixedMeter(meter.meter as string, slot) }
+    : meter);
+}
+
 function resetFromCountdown(
   value: unknown,
   now: string,
@@ -110,7 +145,7 @@ function meterIdFor(lengthSeconds: number | null, windowKey: string): string {
   return windowKey.replace(/_window$/, "").toUpperCase();
 }
 
-export function parseCodexPayload(payload: unknown, now: string): RawMeter[] | null {
+function parseLegacyCodexPayload(payload: unknown, now: string): RawMeter[] | null {
   const root = record(payload);
   const limits = record(root?.["rate_limit"]);
   const expiresAt = shortExpiry(now);
@@ -175,7 +210,7 @@ export function parseCodexPayload(payload: unknown, now: string): RawMeter[] | n
         precision: "estimated",
         observedAt: now,
         expiresAt,
-        labels: codexLabels
+        labels: legacyCodexLabels
       })
     );
   }
@@ -194,8 +229,77 @@ export function parseCodexPayload(payload: unknown, now: string): RawMeter[] | n
       precision: "exact",
       observedAt: now,
       expiresAt,
+      labels: legacyCodexLabels
+    });
+  }
+  return meters.length === 0 ? null : meters;
+}
+
+export function parseCodexPayload(payload: unknown, now: string): RawMeter[] | null {
+  const root = record(payload);
+  const defaultLimits = record(root?.["rateLimits"]);
+  const expiresAt = shortExpiry(now);
+  if (root === null || expiresAt === null) return null;
+  if (defaultLimits === null) return parseLegacyCodexPayload(payload, now);
+  const meters: RawMeter[] = [];
+  const statedDefaultId = typeof defaultLimits["limitId"] === "string"
+    ? defaultLimits["limitId"]
+    : "codex";
+  const defaultLimitId = readableLimitId(statedDefaultId);
+  let defaultCovered = false;
+  const byLimitId = record(root["rateLimitsByLimitId"]);
+  if (byLimitId !== null) {
+    for (const [mapId, value] of Object.entries(byLimitId)) {
+      const snapshot = record(value);
+      if (snapshot === null) continue;
+      const statedId = typeof snapshot["limitId"] === "string"
+        ? snapshot["limitId"]
+        : mapId;
+      const limitId = readableLimitId(statedId);
+      if (limitId === null) continue;
+      const entryMeters = windowsFrom(snapshot, limitId, now, expiresAt);
+      if (entryMeters.length > 0 && limitId === defaultLimitId) defaultCovered = true;
+      meters.push(...entryMeters);
+    }
+  }
+  if (!defaultCovered && defaultLimitId !== null) {
+    meters.unshift(...windowsFrom(defaultLimits, defaultLimitId, now, expiresAt));
+  }
+  const credits = record(defaultLimits["credits"]);
+  if (credits?.["unlimited"] === true) {
+    meters.push({
+      provider: "CODEX",
+      meter: "CREDITS",
+      kind: "availability",
+      availability: "unlimited",
+      // Required legacy transport fields; availability carries no percentage.
+      value: 0,
+      unit: "PERCENT",
+      window: { kind: "unknown" },
+      resetAt: null,
+      source: "documented_api",
+      precision: "exact",
+      observedAt: now,
+      expiresAt,
       labels: codexLabels
     });
+  } else if (credits?.["hasCredits"] === true) {
+    const balance = decimal(credits["balance"]);
+    if (balance !== null) {
+      meters.push({
+        provider: "CODEX",
+        meter: "CREDITS",
+        value: balance,
+        unit: "CREDITS",
+        window: { kind: "lifetime" },
+        resetAt: null,
+        source: "documented_api",
+        precision: "exact",
+        observedAt: now,
+        expiresAt,
+        labels: codexLabels
+      });
+    }
   }
   return meters.length === 0 ? null : meters;
 }

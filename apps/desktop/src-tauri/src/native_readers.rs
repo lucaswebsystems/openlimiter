@@ -26,6 +26,16 @@ fn labels(origin: &str, interface: &str, risk: &str) -> ConnectorLabels {
     }
 }
 
+fn documented_codex_labels() -> ConnectorLabels {
+    ConnectorLabels {
+        credential_origin: "official-local-tool".to_string(),
+        data_interface_status: "documented-api".to_string(),
+        automation_risk: "low".to_string(),
+        verification: "VERIFIED_FIXTURES".to_string(),
+        verification_evidence: None,
+    }
+}
+
 fn provenance() -> Option<Value> {
     Some(serde_json::json!({
         "observedVia": "remote_http",
@@ -93,11 +103,6 @@ fn percent_of(used: f64, limit: f64) -> Option<f64> {
     }
     let percent = used / limit * 100.0;
     (percent.is_finite() && (0.0..=100.0).contains(&percent)).then_some(percent)
-}
-
-fn window_seconds(value: Option<&Value>) -> Option<u64> {
-    let value = value?.as_u64()?;
-    (value > 0 && value <= MAX_WINDOW_SECONDS).then_some(value)
 }
 
 fn safe_meter(value: &str) -> bool {
@@ -250,6 +255,11 @@ fn parse_openrouter(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Sna
     Some(vec![snapshot])
 }
 
+fn window_seconds(value: Option<&Value>) -> Option<u64> {
+    let value = value?.as_u64()?;
+    (value > 0 && value <= MAX_WINDOW_SECONDS).then_some(value)
+}
+
 fn codex_meter_id(length: Option<u64>, key: &str) -> Option<String> {
     let meter = match length {
         Some(18_000) => "FIVE_HOUR".to_string(),
@@ -262,7 +272,7 @@ fn codex_meter_id(length: Option<u64>, key: &str) -> Option<String> {
     safe_meter(&meter).then_some(meter)
 }
 
-fn parse_codex(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
+fn parse_codex_legacy(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
     let root: Value = serde_json::from_str(body).ok()?;
     let limits = root.get("rate_limit").and_then(Value::as_object);
     let observed_at = iso_from_epoch_ms(now_ms)?;
@@ -362,6 +372,272 @@ fn parse_codex(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot
         snapshot.kind = Some("availability".to_string());
         snapshot.availability = Some("unlimited".to_string());
         snapshots.push(snapshot);
+    }
+    (!snapshots.is_empty()).then_some(snapshots)
+}
+
+fn codex_duration_meter(minutes: u64, slot: &str) -> String {
+    match minutes {
+        300 => "FIVE_HOUR".to_string(),
+        10_080 => "SEVEN_DAY".to_string(),
+        _ => slot.to_ascii_uppercase(),
+    }
+}
+
+fn codex_suffixed_meter(meter: &str, slot: &str) -> String {
+    let suffix = format!("_{}", slot.to_ascii_uppercase());
+    let keep = 32usize.saturating_sub(suffix.len());
+    let prefix = meter.chars().take(keep).collect::<String>();
+    format!("{}{}", prefix.trim_end_matches('_'), suffix)
+}
+
+fn codex_decimal(value: &str) -> Option<f64> {
+    let mut parts = value.split('.');
+    let whole = parts.next()?;
+    let fraction = parts.next();
+    if parts.next().is_some()
+        || whole.is_empty()
+        || !whole.bytes().all(|byte| byte.is_ascii_digit())
+        || (whole.len() > 1 && whole.starts_with('0'))
+        || fraction.is_some_and(|part| part.is_empty() || !part.bytes().all(|byte| byte.is_ascii_digit()))
+    {
+        return None;
+    }
+    value.parse::<f64>().ok().filter(|number| number.is_finite())
+}
+
+fn codex_limit_id(value: &str) -> Option<String> {
+    let mut output = String::new();
+    let mut previous_was_lower_or_digit = false;
+    for character in value.trim().chars() {
+        if character.is_ascii_alphanumeric() {
+            if character.is_ascii_uppercase()
+                && previous_was_lower_or_digit
+                && !output.ends_with('_')
+            {
+                output.push('_');
+            }
+            output.push(character.to_ascii_uppercase());
+            previous_was_lower_or_digit =
+                character.is_ascii_lowercase() || character.is_ascii_digit();
+        } else {
+            if !output.is_empty() && !output.ends_with('_') {
+                output.push('_');
+            }
+            previous_was_lower_or_digit = false;
+        }
+    }
+    let output = output.trim_matches('_').to_string();
+    (!output.is_empty()).then_some(output)
+}
+
+fn codex_meter(limit_id: &str, duration: &str) -> String {
+    if limit_id == "CODEX" {
+        return duration.to_string();
+    }
+    let keep = 31usize.saturating_sub(duration.len()).max(1);
+    let prefix = limit_id
+        .chars()
+        .take(keep)
+        .collect::<String>()
+        .trim_end_matches('_')
+        .to_string();
+    format!("{prefix}_{duration}")
+}
+
+fn codex_windows(
+    limits: &Map<String, Value>,
+    limit_id: &str,
+    now_ms: u64,
+    observed_at: &str,
+    expires_at: &str,
+    account_id: &str,
+) -> Vec<Snapshot> {
+    let mut rows = Vec::new();
+    for slot in ["primary", "secondary"] {
+        let Some(window) = limits.get(slot).and_then(Value::as_object) else {
+            continue;
+        };
+        let Some(percent) = number(window.get("usedPercent"), 100.0) else {
+            continue;
+        };
+        let minutes = match window.get("windowDurationMins") {
+            Some(Value::Null) => None,
+            Some(value) => {
+                let Some(minutes) = value.as_u64() else {
+                    continue;
+                };
+                Some(minutes)
+            }
+            None => continue,
+        };
+        if minutes.is_some_and(|minutes| minutes == 0 || minutes > MAX_WINDOW_SECONDS / 60) {
+            continue;
+        }
+        let reset_value = window.get("resetsAt").filter(|value| !value.is_null());
+        let reset_at = reset_value
+            .and_then(Value::as_f64)
+            .and_then(|seconds| future_epoch_seconds(seconds, now_ms, None));
+        if reset_value.is_some() && reset_at.is_none() {
+            continue;
+        }
+        let duration = minutes
+            .map(|minutes| codex_duration_meter(minutes, slot))
+            .unwrap_or_else(|| slot.to_ascii_uppercase());
+        let meter = codex_meter(limit_id, &duration);
+        if !safe_meter(&meter) {
+            continue;
+        }
+        rows.push((
+            slot,
+            base_snapshot(
+                "CODEX",
+                &meter,
+                percent,
+                minutes.map_or(
+                    SnapshotWindow {
+                        kind: "unknown".to_string(),
+                        duration_seconds: None,
+                    },
+                    |minutes| SnapshotWindow {
+                        kind: "rolling".to_string(),
+                        duration_seconds: Some(minutes * 60),
+                    },
+                ),
+                reset_at,
+                "documented_api",
+                "exact",
+                observed_at,
+                expires_at,
+                documented_codex_labels(),
+                account_id,
+            ),
+        ));
+    }
+    let mut counts = BTreeMap::new();
+    for (_, row) in &rows {
+        *counts.entry(row.meter.clone()).or_insert(0usize) += 1;
+    }
+    for (slot, row) in &mut rows {
+        if counts.get(&row.meter).copied().unwrap_or_default() > 1 {
+            row.meter = codex_suffixed_meter(&row.meter, slot);
+        }
+    }
+    rows.into_iter().map(|(_, row)| row).collect()
+}
+
+/// Parses the documented account/rateLimits/read response.
+fn parse_codex(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
+    let root: Value = serde_json::from_str(body).ok()?;
+    let Some(limits) = root.get("rateLimits").and_then(Value::as_object) else {
+        return parse_codex_legacy(body, now_ms, account_id);
+    };
+    let observed_at = iso_from_epoch_ms(now_ms)?;
+    let expires_at = iso_from_epoch_ms(now_ms.saturating_add(60_000))?;
+    let mut snapshots = Vec::new();
+    let default_limit_id = limits
+        .get("limitId")
+        .and_then(Value::as_str)
+        .and_then(codex_limit_id)
+        .unwrap_or_else(|| "CODEX".to_string());
+    let mut default_covered = false;
+    if let Some(by_limit) = root.get("rateLimitsByLimitId").and_then(Value::as_object) {
+        for (map_id, value) in by_limit {
+            let Some(bucket) = value.as_object() else {
+                continue;
+            };
+            let stated = bucket
+                .get("limitId")
+                .and_then(Value::as_str)
+                .unwrap_or(map_id);
+            let Some(limit_id) = codex_limit_id(stated) else {
+                continue;
+            };
+            let entry = codex_windows(
+                bucket,
+                &limit_id,
+                now_ms,
+                &observed_at,
+                &expires_at,
+                account_id,
+            );
+            if !entry.is_empty() && limit_id == default_limit_id {
+                default_covered = true;
+            }
+            snapshots.extend(entry);
+        }
+    }
+    if !default_covered {
+        let mut default_snapshots = codex_windows(
+            limits,
+            &default_limit_id,
+            now_ms,
+            &observed_at,
+            &expires_at,
+            account_id,
+        );
+        default_snapshots.append(&mut snapshots);
+        snapshots = default_snapshots;
+    }
+    if limits
+        .get("credits")
+        .and_then(|credits| credits.get("unlimited"))
+        .and_then(Value::as_bool)
+        == Some(true)
+    {
+        let mut snapshot = base_snapshot(
+            "CODEX",
+            "CREDITS",
+            0.0,
+            SnapshotWindow {
+                kind: "unknown".to_string(),
+                duration_seconds: None,
+            },
+            None,
+            "documented_api",
+            "exact",
+            &observed_at,
+            &expires_at,
+            documented_codex_labels(),
+            account_id,
+        );
+        snapshot.kind = Some("availability".to_string());
+        snapshot.availability = Some("unlimited".to_string());
+        snapshots.push(snapshot);
+    } else if let Some(credits) = limits.get("credits").and_then(Value::as_object) {
+        let balance = credits
+            .get("balance")
+            .and_then(Value::as_str)
+            .and_then(codex_decimal)
+            .filter(|value| *value >= 0.0);
+        if credits.get("hasCredits").and_then(Value::as_bool) == Some(true) {
+            if let Some(balance) = balance {
+                let mut snapshot = base_snapshot(
+                    "CODEX",
+                    "CREDITS",
+                    balance,
+                    SnapshotWindow {
+                        kind: "lifetime".to_string(),
+                        duration_seconds: None,
+                    },
+                    None,
+                    "documented_api",
+                    "exact",
+                    &observed_at,
+                    &expires_at,
+                    documented_codex_labels(),
+                    account_id,
+                );
+                snapshot.unit = "CREDITS".to_string();
+                snapshots.push(snapshot);
+            }
+        }
+    }
+    for snapshot in &mut snapshots {
+        snapshot.provenance = Some(serde_json::json!({
+            "sourceKind": "remote_api",
+            "observedVia": "local_command"
+        }));
     }
     (!snapshots.is_empty()).then_some(snapshots)
 }
@@ -768,13 +1044,48 @@ pub fn parse_body(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::native_snapshot::{epoch_ms_from_rfc3339, iso_from_epoch_ms};
+    use crate::native_snapshot::{epoch_ms_from_rfc3339, iso_from_epoch_ms, normalize_snapshot};
 
     const NOW_TEXT: &str = "2026-08-16T12:00:00.000Z";
     const ACCOUNT: &str = "reader-test-account";
 
     fn now() -> u64 {
         epoch_ms_from_rfc3339(NOW_TEXT).expect("fixture clock")
+    }
+
+    #[test]
+    fn codex_meter_ids_match_the_shared_typescript_vectors() {
+        let vectors: Value = serde_json::from_str(include_str!(
+            "../../../../packages/connectors/fixtures/codex-app-server-parity.json"
+        ))
+        .expect("shared parity vectors");
+        let at = vectors
+            .get("now")
+            .and_then(Value::as_str)
+            .and_then(epoch_ms_from_rfc3339)
+            .expect("vector clock");
+        for vector in vectors
+            .get("vectors")
+            .and_then(Value::as_array)
+            .expect("vectors")
+        {
+            let body = serde_json::to_string(vector.get("payload").expect("payload"))
+                .expect("payload json");
+            let actual = parse_body(ReaderId::CodexUsage, &body, at, ACCOUNT)
+                .expect("documented meters")
+                .into_iter()
+                .filter_map(normalize_snapshot)
+                .map(|row| row.meter)
+                .collect::<Vec<_>>();
+            let expected = vector
+                .get("meterIds")
+                .and_then(Value::as_array)
+                .expect("meter ids")
+                .iter()
+                .map(|value| value.as_str().expect("meter id").to_string())
+                .collect::<Vec<_>>();
+            assert_eq!(actual, expected, "{}", vector.get("name").unwrap());
+        }
     }
 
     #[test]
@@ -790,11 +1101,12 @@ mod tests {
             (
                 ReaderId::CodexUsage,
                 serde_json::json!({
-                    "rate_limit": {
-                        "primary_window": {
-                            "used_percent": 25,
-                            "limit_window_seconds": 18_000,
-                            "reset_at": reset_seconds
+                    "rateLimits": {
+                        "limitId": "codex",
+                        "primary": {
+                            "usedPercent": 25,
+                            "windowDurationMins": 300,
+                            "resetsAt": reset_seconds
                         }
                     }
                 })
@@ -820,7 +1132,13 @@ mod tests {
                 row.provider == provider
                     && row.account_id.as_deref() == Some(ACCOUNT)
                     && row.provenance.as_ref().is_some_and(|value| {
-                        value["sourceKind"] == "remote_api" && value["observedVia"] == "remote_http"
+                        value["sourceKind"] == "remote_api"
+                            && value["observedVia"]
+                                == if reader == ReaderId::CodexUsage {
+                                    "local_command"
+                                } else {
+                                    "remote_http"
+                                }
                     })
             }));
         }
@@ -1011,16 +1329,17 @@ mod tests {
     fn one_malformed_codex_window_keeps_the_usable_sibling() {
         let reset_seconds = (now() + 3_600_000) / 1_000;
         let body = serde_json::json!({
-            "rate_limit": {
-                "primary_window": {
-                    "used_percent": 25,
-                    "limit_window_seconds": 18_000,
-                    "reset_at": reset_seconds
+            "rateLimits": {
+                "limitId": "codex",
+                "primary": {
+                    "usedPercent": 25,
+                    "windowDurationMins": 300,
+                    "resetsAt": reset_seconds
                 },
-                "secondary_window": {
-                    "used_percent": "unknown",
-                    "limit_window_seconds": 604_800,
-                    "reset_at": reset_seconds
+                "secondary": {
+                    "usedPercent": "unknown",
+                    "windowDurationMins": 10_080,
+                    "resetsAt": reset_seconds
                 }
             }
         })
@@ -1035,13 +1354,14 @@ mod tests {
     fn an_explicitly_absent_codex_secondary_window_is_not_drift() {
         let reset_seconds = (now() + 3_600_000) / 1_000;
         let body = serde_json::json!({
-            "rate_limit": {
-                "primary_window": {
-                    "used_percent": 25,
-                    "limit_window_seconds": 18_000,
-                    "reset_at": reset_seconds
+            "rateLimits": {
+                "limitId": "codex",
+                "primary": {
+                    "usedPercent": 25,
+                    "windowDurationMins": 300,
+                    "resetsAt": reset_seconds
                 },
-                "secondary_window": null
+                "secondary": null
             }
         })
         .to_string();

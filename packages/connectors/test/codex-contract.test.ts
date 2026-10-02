@@ -179,9 +179,9 @@ describe("codex: the shape a real account produced", () => {
     const meters = parseCodexPayload(codexFixture(NOW), NOW);
     expect(meters?.[0]?.labels).toEqual(codexLabels);
     expect(codexLabels.credentialOrigin).toBe("official-local-tool");
-    expect(codexLabels.dataInterfaceStatus).toBe("internal-endpoint");
-    expect(codexLabels.automationRisk).toBe("high");
-    expect(codexLabels.verification).toBe("UNVERIFIED");
+    expect(codexLabels.dataInterfaceStatus).toBe("documented-api");
+    expect(codexLabels.automationRisk).toBe("low");
+    expect(codexLabels.verification).toBe("VERIFIED_FIXTURES");
   });
 
   it("never lets provider text reach a field a person reads", () => {
@@ -215,11 +215,11 @@ describe("codex: the evidence behind it", () => {
     expect(meters).toHaveLength(codexSanitizedLive.expectedMeters);
   });
 
-  it("stays UNVERIFIED whatever the evidence says", () => {
-    /* A capture proves we observed a shape. It does not turn an internal
-       endpoint or an authenticated page into an official API, so this label
-       does not move when the slot above is filled. */
-    expect(codexLabels.verification).toBe("UNVERIFIED");
+  it("marks the documented app server contract as fixture verified", () => {
+    /* The interface is published and its frozen response shape is exercised by
+       the shared corpus, so this label describes stronger evidence than the
+       legacy private endpoint parser retained for old payload compatibility. */
+    expect(codexLabels.verification).toBe("VERIFIED_FIXTURES");
   });
 });
 

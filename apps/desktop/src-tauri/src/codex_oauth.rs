@@ -5,14 +5,13 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
 use crate::cache_write::CacheWriter;
+use crate::codex_app_server::{read_rate_limits_for_home, AppServerFailure, RateLimitsPayload};
 use crate::native_readers::parse_body;
 use crate::native_snapshot::{iso_from_epoch_ms, write_report, CacheReport};
-use crate::net::{fetch_endpoint, NetError, ProviderEndpoint, ReqwestTransport, Transport};
+use crate::net::{ReqwestTransport, Transport};
 use crate::poll_identity::PollIdentity;
-use crate::provider_detection::{
-    DetectedCredentialError, DetectedProviderId, DetectedSecret, DetectionStore,
-};
-use crate::reader_registry::{AuthApplication, ProviderId, ReaderId};
+use crate::provider_detection::{DetectedCredentialError, DetectedProviderId, DetectionStore};
+use crate::reader_registry::{ProviderId, ReaderId};
 use crate::request_policy::{GateRejection, RequestPolicy};
 
 pub const REFRESH_SECONDS: u64 = 300;
@@ -43,6 +42,9 @@ pub enum CodexOutcome {
     Cached {
         account_id: String,
         retry_at: String,
+    },
+    MissingCredential {
+        account_id: String,
     },
     ReopenCli {
         account_id: String,
@@ -90,6 +92,28 @@ pub struct CodexOauthRuntime {
     next_allowed: Mutex<BTreeMap<String, u64>>,
 }
 
+trait AppServerReader: Send + Sync {
+    fn read(
+        &self,
+        executable: &std::path::Path,
+        codex_home: &std::path::Path,
+        expected_account_id: &str,
+    ) -> Result<RateLimitsPayload, AppServerFailure>;
+}
+
+struct NativeAppServerReader;
+
+impl AppServerReader for NativeAppServerReader {
+    fn read(
+        &self,
+        executable: &std::path::Path,
+        codex_home: &std::path::Path,
+        expected_account_id: &str,
+    ) -> Result<RateLimitsPayload, AppServerFailure> {
+        read_rate_limits_for_home(executable, codex_home, expected_account_id)
+    }
+}
+
 impl CodexOauthRuntime {
     fn begin(&self, account_id: &str, now_ms: u64) -> Result<(), u64> {
         let mut entries = self.next_allowed.lock().map_err(|_| now_ms)?;
@@ -121,15 +145,24 @@ impl CodexOauthRuntime {
             );
         }
     }
+
+    fn cancel(&self, account_id: &str) {
+        if let Ok(mut entries) = self.next_allowed.lock() {
+            entries.remove(account_id);
+        }
+    }
 }
 
-fn net_failure(error: NetError) -> CodexFailure {
+fn app_server_failure(error: AppServerFailure) -> CodexFailure {
     match error {
-        NetError::Timeout => CodexFailure::Timeout,
-        NetError::Connect => CodexFailure::Connect,
-        NetError::Tls => CodexFailure::Tls,
-        NetError::TooLarge => CodexFailure::TooLarge,
-        NetError::Protocol => CodexFailure::Protocol,
+        AppServerFailure::Timeout => CodexFailure::Timeout,
+        AppServerFailure::Unavailable => CodexFailure::Connect,
+        AppServerFailure::MissingExecutable => CodexFailure::Connect,
+        AppServerFailure::RateLimited(_) => CodexFailure::RateLimited,
+        AppServerFailure::Protocol => CodexFailure::Protocol,
+        AppServerFailure::NeedsSignIn | AppServerFailure::IdentityMismatch => {
+            CodexFailure::ProviderBlocked
+        }
     }
 }
 
@@ -153,12 +186,13 @@ async fn fallback_report(writer: Arc<CacheWriter>, account_id: &str, drift: bool
     let _ = commit_report(writer, account_id.to_string(), report).await;
 }
 
-async fn collect_with_secret<T: Transport>(
+async fn collect_with_app_server(
     runtime: &CodexOauthRuntime,
-    transport: &T,
+    app_server: Arc<dyn AppServerReader>,
     writer: Arc<CacheWriter>,
     account_id: &str,
-    secret: &DetectedSecret,
+    executable: &std::path::Path,
+    codex_home: &std::path::Path,
     now_ms: u64,
 ) -> CodexOutcome {
     if let Err(retry_ms) = runtime.begin(account_id, now_ms) {
@@ -168,70 +202,69 @@ async fn collect_with_secret<T: Transport>(
                 .unwrap_or_else(|| "1970-01-01T00:00:00.000Z".to_string()),
         };
     }
-    let response = match fetch_endpoint(
-        transport,
-        ProviderEndpoint::CodexUsage,
-        AuthApplication::CodexSessionBearer,
-        &secret.access_token,
-        secret.provider_account_id.as_deref(),
-    )
-    .await
-    {
-        Ok(response) => response,
-        Err(error) => {
+    let executable = executable.to_path_buf();
+    let codex_home = codex_home.to_path_buf();
+    let expected_account_id = account_id.to_string();
+    let response = tauri::async_runtime::spawn_blocking(move || {
+        app_server.read(&executable, &codex_home, &expected_account_id)
+    })
+    .await;
+    let payload = match response {
+        Ok(Ok(payload)) => payload,
+        Ok(Err(AppServerFailure::NeedsSignIn)) => {
+            runtime.postpone(account_id, now_ms, BLOCKED_BACKOFF_SECONDS);
+            fallback_report(writer, account_id, false, now_ms).await;
+            return CodexOutcome::reopen(account_id);
+        }
+        Ok(Err(AppServerFailure::IdentityMismatch)) => {
+            runtime.postpone(account_id, now_ms, BLOCKED_BACKOFF_SECONDS);
+            fallback_report(writer, account_id, false, now_ms).await;
+            return CodexOutcome::fallback(account_id, CodexFailure::ProviderBlocked);
+        }
+        Ok(Err(AppServerFailure::MissingExecutable)) => {
+            runtime.cancel(account_id);
+            return CodexOutcome::MissingCredential {
+                account_id: account_id.to_string(),
+            };
+        }
+        Ok(Err(AppServerFailure::RateLimited(retry_after_seconds))) => {
+            runtime.postpone(account_id, now_ms, 0);
+            fallback_report(writer, account_id, false, now_ms).await;
+            return CodexOutcome::rate_limited(account_id, retry_after_seconds);
+        }
+        Ok(Err(error)) => {
             return CodexOutcome::Failed {
                 account_id: account_id.to_string(),
-                reason: net_failure(error),
+                reason: app_server_failure(error),
+            }
+        }
+        Err(_) => {
+            return CodexOutcome::Failed {
+                account_id: account_id.to_string(),
+                reason: CodexFailure::Connect,
             }
         }
     };
-    match response.status {
-        200..=299 => {
-            let snapshots = response
-                .body
-                .as_deref()
-                .and_then(|body| parse_body(ReaderId::CodexUsage, body, now_ms, account_id));
-            let Some(snapshots) = snapshots else {
-                fallback_report(writer, account_id, true, now_ms).await;
-                return CodexOutcome::fallback(account_id, CodexFailure::Drift);
-            };
-            if commit_report(
-                writer,
-                account_id.to_string(),
-                CacheReport::Success(snapshots),
-            )
-            .await
-            {
-                CodexOutcome::CacheCommitted {
-                    account_id: account_id.to_string(),
-                }
-            } else {
-                CodexOutcome::Failed {
-                    account_id: account_id.to_string(),
-                    reason: CodexFailure::Cache,
-                }
-            }
-        }
-        401 => {
-            runtime.postpone(account_id, now_ms, BLOCKED_BACKOFF_SECONDS);
-            fallback_report(writer, account_id, false, now_ms).await;
-            CodexOutcome::reopen(account_id)
-        }
-        403 | 404 | 410 => {
-            runtime.postpone(account_id, now_ms, BLOCKED_BACKOFF_SECONDS);
-            fallback_report(writer, account_id, false, now_ms).await;
-            CodexOutcome::fallback(account_id, CodexFailure::ProviderBlocked)
-        }
-        429 | 503 if response.status == 429 || response.retry_after_seconds.is_some() => {
-            let retry_after_seconds = response.retry_after_seconds;
-            runtime.postpone(account_id, now_ms, 0);
-            fallback_report(writer, account_id, false, now_ms).await;
-            CodexOutcome::rate_limited(account_id, retry_after_seconds)
-        }
-        _ => CodexOutcome::Failed {
+    let Some(snapshots) = parse_body(ReaderId::CodexUsage, &payload.body, now_ms, account_id)
+    else {
+        fallback_report(writer, account_id, true, now_ms).await;
+        return CodexOutcome::fallback(account_id, CodexFailure::Drift);
+    };
+    if commit_report(
+        writer,
+        account_id.to_string(),
+        CacheReport::Success(snapshots),
+    )
+    .await
+    {
+        CodexOutcome::CacheCommitted {
             account_id: account_id.to_string(),
-            reason: CodexFailure::ProviderResponse,
-        },
+        }
+    } else {
+        CodexOutcome::Failed {
+            account_id: account_id.to_string(),
+            reason: CodexFailure::Cache,
+        }
     }
 }
 
@@ -258,13 +291,40 @@ pub async fn collect_account<T: Transport>(
             return credential_failure(&account_id, error);
         }
     };
-    let outcome =
-        collect_with_secret(runtime, transport, writer, &account_id, &secret, now_ms).await;
+    let executable = match detection.client_executable(DetectedProviderId::Codex) {
+        Some(executable) => executable,
+        None => {
+            detection.mark_stale(DetectedProviderId::Codex, &account_id);
+            return credential_failure(&account_id, DetectedCredentialError::NotFound);
+        }
+    };
+    let codex_home = match detection.codex_home(&account_id) {
+        Some(home) => home,
+        None => {
+            detection.mark_stale(DetectedProviderId::Codex, &account_id);
+            return credential_failure(&account_id, DetectedCredentialError::NotFound);
+        }
+    };
+    let _ = transport;
+    let _ = secret;
+    let outcome = collect_with_app_server(
+        runtime,
+        Arc::new(NativeAppServerReader),
+        writer,
+        &account_id,
+        &executable,
+        &codex_home,
+        now_ms,
+    )
+    .await;
     match &outcome {
         CodexOutcome::CacheCommitted { .. } => {
             detection.mark_ready(DetectedProviderId::Codex, &account_id)
         }
         CodexOutcome::ReopenCli { .. } => {
+            detection.mark_stale(DetectedProviderId::Codex, &account_id)
+        }
+        CodexOutcome::MissingCredential { .. } => {
             detection.mark_stale(DetectedProviderId::Codex, &account_id)
         }
         CodexOutcome::Fallback { .. } => {
@@ -326,18 +386,24 @@ pub(crate) async fn collect_account_guarded<T: Transport>(
         now_ms,
     )
     .await;
-    let abort_provider = complete_outcome(policy, &account_id, now_ms, &outcome);
+    let abort_provider = complete_outcome(policy, runtime, &account_id, now_ms, &outcome);
     (outcome, abort_provider)
 }
 
 fn complete_outcome(
     policy: &RequestPolicy,
+    runtime: &CodexOauthRuntime,
     account_id: &str,
     now_ms: u64,
     outcome: &CodexOutcome,
 ) -> bool {
     match outcome {
         CodexOutcome::Cached { .. } => false,
+        CodexOutcome::MissingCredential { .. } => {
+            runtime.cancel(account_id);
+            policy.cancel_unstarted(DetectedProviderId::Codex, account_id);
+            false
+        }
         CodexOutcome::Failed { .. } => {
             policy.retry_account(DetectedProviderId::Codex, &account_id, now_ms, None, false);
             false
@@ -457,13 +523,54 @@ mod tests {
     use std::fs;
 
     use crate::cache_write::CACHE_FILE_NAME;
-    use crate::net::CODEX_USAGE_URL;
     use crate::provider_detection::opaque_account_id;
-    use crate::test_support::{RecordingTransport, TempDir};
-    use zeroize::Zeroizing;
+    use crate::test_support::TempDir;
+    use std::collections::VecDeque;
 
     const NOW: u64 = 1_787_136_000_000;
     const TOKEN: &str = "codex-access-token-for-tests-only";
+
+    struct StubAppServer {
+        replies: Mutex<VecDeque<Result<RateLimitsPayload, AppServerFailure>>>,
+        accounts: Mutex<Vec<String>>,
+    }
+
+    impl StubAppServer {
+        fn new(replies: impl IntoIterator<Item = Result<String, AppServerFailure>>) -> Arc<Self> {
+            Arc::new(Self {
+                replies: Mutex::new(
+                    replies
+                        .into_iter()
+                        .map(|reply| reply.map(|body| RateLimitsPayload { body }))
+                        .collect(),
+                ),
+                accounts: Mutex::new(Vec::new()),
+            })
+        }
+
+        fn accounts(&self) -> Vec<String> {
+            self.accounts.lock().expect("accounts").clone()
+        }
+    }
+
+    impl AppServerReader for StubAppServer {
+        fn read(
+            &self,
+            _executable: &std::path::Path,
+            _codex_home: &std::path::Path,
+            expected_account_id: &str,
+        ) -> Result<RateLimitsPayload, AppServerFailure> {
+            self.accounts
+                .lock()
+                .expect("accounts")
+                .push(expected_account_id.to_string());
+            self.replies
+                .lock()
+                .expect("replies")
+                .pop_front()
+                .expect("stub response")
+        }
+    }
 
     #[test]
     fn a_connected_account_has_only_one_collection_path_per_cadence() {
@@ -493,31 +600,23 @@ mod tests {
         assert_eq!(automatic, vec![detected_account_id]);
     }
 
-    fn valid_body() -> Vec<u8> {
+    fn valid_body() -> String {
         serde_json::json!({
-            "rate_limit": {
-                "primary_window": {
-                    "used_percent": 23.5,
-                    "limit_window_seconds": 18_000,
-                    "reset_at": (NOW + 3_600_000) / 1_000
+            "rateLimits": {
+                "limitId": "codex",
+                "primary": {
+                    "usedPercent": 23.5,
+                    "windowDurationMins": 300,
+                    "resetsAt": (NOW + 3_600_000) / 1_000
                 },
-                "secondary_window": {
-                    "used_percent": 41.2,
-                    "limit_window_seconds": 604_800,
-                    "reset_at": (NOW + 86_400_000) / 1_000
+                "secondary": {
+                    "usedPercent": 41.2,
+                    "windowDurationMins": 10_080,
+                    "resetsAt": (NOW + 86_400_000) / 1_000
                 }
             }
         })
         .to_string()
-        .into_bytes()
-    }
-
-    fn secret(token: &str, provider_account_id: &str, revision: &str) -> DetectedSecret {
-        DetectedSecret {
-            access_token: Zeroizing::new(token.to_string()),
-            provider_account_id: Some(provider_account_id.to_string()),
-            credential_revision: revision.to_string(),
-        }
     }
 
     fn writer(dir: &TempDir) -> Arc<CacheWriter> {
@@ -525,29 +624,22 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn automatic_read_uses_the_known_endpoint_and_account_header() {
+    async fn automatic_read_passes_the_account_identity_at_the_app_server_boundary() {
         let dir = TempDir::new();
         let runtime = CodexOauthRuntime::default();
-        let transport = RecordingTransport::replying(200, valid_body(), None);
-        let outcome = collect_with_secret(
+        let app_server = StubAppServer::new([Ok(valid_body())]);
+        let outcome = collect_with_app_server(
             &runtime,
-            &transport,
+            app_server.clone(),
             writer(&dir),
             "opaque-account-one",
-            &secret(TOKEN, "provider-account-one", "revision-one"),
+            std::path::Path::new("synthetic-codex"),
+            std::path::Path::new("synthetic-codex-home"),
             NOW,
         )
         .await;
         assert!(matches!(outcome, CodexOutcome::CacheCommitted { .. }));
-        assert_eq!(transport.recorded_urls(), vec![CODEX_USAGE_URL]);
-        assert_eq!(
-            transport.recorded_auths(),
-            vec![AuthApplication::CodexSessionBearer]
-        );
-        assert_eq!(
-            transport.recorded_codex_account_ids(),
-            vec![Some("provider-account-one".to_string())]
-        );
+        assert_eq!(app_server.accounts(), vec!["opaque-account-one"]);
         let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
         assert!(cache.contains("FIVE_HOUR"));
         assert!(cache.contains("SEVEN_DAY"));
@@ -558,33 +650,23 @@ mod tests {
     async fn two_detected_accounts_keep_distinct_cache_rows() {
         let dir = TempDir::new();
         let runtime = CodexOauthRuntime::default();
-        let transport = RecordingTransport::replying(200, valid_body(), None);
-        for (opaque, provider, token, revision) in [
-            ("opaque-account-one", "provider-account-one", TOKEN, "one"),
-            (
-                "opaque-account-two",
-                "provider-account-two",
-                "second-codex-token-for-tests-only",
-                "two",
-            ),
-        ] {
-            let outcome = collect_with_secret(
+        let app_server = StubAppServer::new([Ok(valid_body()), Ok(valid_body())]);
+        for opaque in ["opaque-account-one", "opaque-account-two"] {
+            let outcome = collect_with_app_server(
                 &runtime,
-                &transport,
+                app_server.clone(),
                 writer(&dir),
                 opaque,
-                &secret(token, provider, revision),
+                std::path::Path::new("synthetic-codex"),
+                std::path::Path::new("synthetic-codex-home"),
                 NOW,
             )
             .await;
             assert!(matches!(outcome, CodexOutcome::CacheCommitted { .. }));
         }
         assert_eq!(
-            transport.recorded_codex_account_ids(),
-            vec![
-                Some("provider-account-one".to_string()),
-                Some("provider-account-two".to_string())
-            ]
+            app_server.accounts(),
+            vec!["opaque-account-one", "opaque-account-two"]
         );
         let cache: serde_json::Value = serde_json::from_str(
             &fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache"),
@@ -607,47 +689,46 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_token_rotation_does_not_reset_the_account_cadence() {
+    async fn account_cadence_skips_a_second_app_server_read() {
         let dir = TempDir::new();
         let runtime = CodexOauthRuntime::default();
-        let transport = RecordingTransport::replying(200, valid_body(), None);
-        let _ = collect_with_secret(
+        let app_server = StubAppServer::new([Ok(valid_body())]);
+        let _ = collect_with_app_server(
             &runtime,
-            &transport,
+            app_server.clone(),
             writer(&dir),
             "opaque-account-one",
-            &secret(TOKEN, "provider-account-one", "revision-one"),
+            std::path::Path::new("synthetic-codex"),
+            std::path::Path::new("synthetic-codex-home"),
             NOW,
         )
         .await;
-        let second = collect_with_secret(
+        let second = collect_with_app_server(
             &runtime,
-            &transport,
+            app_server.clone(),
             writer(&dir),
             "opaque-account-one",
-            &secret(
-                "rotated-codex-token-for-tests-only",
-                "provider-account-one",
-                "revision-two",
-            ),
+            std::path::Path::new("synthetic-codex"),
+            std::path::Path::new("synthetic-codex-home"),
             NOW + 1_000,
         )
         .await;
         assert!(matches!(second, CodexOutcome::Cached { .. }));
-        assert_eq!(transport.recorded_urls().len(), 1);
+        assert_eq!(app_server.accounts().len(), 1);
     }
 
     #[tokio::test]
     async fn response_drift_suppresses_old_rows_instead_of_writing_zero() {
         let dir = TempDir::new();
         let runtime = CodexOauthRuntime::default();
-        let transport = RecordingTransport::replying(200, br#"{"rate_limit":{}}"#.to_vec(), None);
-        let outcome = collect_with_secret(
+        let app_server = StubAppServer::new([Ok(r#"{"rateLimits":{}}"#.to_string())]);
+        let outcome = collect_with_app_server(
             &runtime,
-            &transport,
+            app_server,
             writer(&dir),
             "opaque-account-one",
-            &secret(TOKEN, "provider-account-one", "drift"),
+            std::path::Path::new("synthetic-codex"),
+            std::path::Path::new("synthetic-codex-home"),
             NOW,
         )
         .await;
@@ -665,16 +746,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn an_expired_session_names_the_recovery_without_leaking_the_token() {
+    async fn authentication_failure_names_the_recovery_without_leaking_the_token() {
         let dir = TempDir::new();
         let runtime = CodexOauthRuntime::default();
-        let transport = RecordingTransport::replying(401, Vec::new(), None);
-        let outcome = collect_with_secret(
+        let app_server = StubAppServer::new([Err(AppServerFailure::NeedsSignIn)]);
+        let outcome = collect_with_app_server(
             &runtime,
-            &transport,
+            app_server,
             writer(&dir),
             "opaque-account-one",
-            &secret(TOKEN, "provider-account-one", "stale"),
+            std::path::Path::new("synthetic-codex"),
+            std::path::Path::new("synthetic-codex-home"),
             NOW,
         )
         .await;
@@ -687,52 +769,35 @@ mod tests {
     #[tokio::test]
     async fn guarded_acquisitions_follow_shared_exponential_retry() {
         let dir = TempDir::new();
-        let path = dir.path().join(".codex/auth.json");
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(
-            &path,
-            r#"{"access_token":"synthetic-test-token","account_id":"synthetic-account"}"#,
-        )
-        .unwrap();
-        let detection = DetectionStore::for_test_home(dir.path(), NOW);
-        let account = detection
-            .account_ids(DetectedProviderId::Codex)
-            .pop()
-            .expect("synthetic account");
-        let runtime = CodexOauthRuntime::default();
-        let transport = RecordingTransport::replying(429, Vec::new(), None);
+        let account = "synthetic-account";
         let mut at = NOW;
-        for (index, seconds) in [60, 120, 240, 480, 900, 900].into_iter().enumerate() {
+        for seconds in [60, 120, 240, 480, 900, 900] {
             // Reopen the policy to prove attempts survive a process restart.
             let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
-            let (outcome, _) = collect_account_guarded(
-                &detection,
-                &runtime,
+            let _lease = policy
+                .begin_with_revision(DetectedProviderId::Codex, account, at, Some("revision"))
+                .expect("due attempt");
+            complete_outcome(
                 &policy,
-                &transport,
-                writer(&dir),
-                account.clone(),
+                &CodexOauthRuntime::default(),
+                account,
                 at,
-            )
-            .await;
-            assert!(
-                matches!(outcome, CodexOutcome::Fallback { .. }),
-                "{outcome:?}"
+                &CodexOutcome::Failed {
+                    account_id: account.to_string(),
+                    reason: CodexFailure::Connect,
+                },
             );
-            assert_eq!(transport.recorded_urls().len(), index + 1);
+            drop(_lease);
             let next = at + seconds * 1000;
-            let (early, _) = collect_account_guarded(
-                &detection,
-                &runtime,
-                &policy,
-                &transport,
-                writer(&dir),
-                account.clone(),
-                next - 1,
-            )
-            .await;
-            assert!(matches!(early, CodexOutcome::Cached { .. }), "{early:?}");
-            assert_eq!(transport.recorded_urls().len(), index + 1);
+            assert!(matches!(
+                policy.begin_with_revision(
+                    DetectedProviderId::Codex,
+                    account,
+                    next - 1,
+                    Some("revision")
+                ),
+                Err(GateRejection::Deferred { retry_at }) if retry_at == next
+            ));
             at = next;
         }
     }
@@ -753,6 +818,7 @@ mod tests {
             .unwrap();
         complete_outcome(
             &policy,
+            &CodexOauthRuntime::default(),
             account,
             at,
             &CodexOutcome::Cached {
@@ -773,14 +839,59 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_restored_executable_can_run_immediately_after_it_was_missing() {
+        let dir = TempDir::new();
+        let runtime = CodexOauthRuntime::default();
+        let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
+        let account = "restored-executable-account";
+        let lease = policy
+            .begin_with_revision(DetectedProviderId::Codex, account, NOW, Some("revision"))
+            .expect("first attempt");
+        let missing = collect_with_app_server(
+            &runtime,
+            StubAppServer::new([Err(AppServerFailure::MissingExecutable)]),
+            writer(&dir),
+            account,
+            std::path::Path::new("missing-codex"),
+            std::path::Path::new("synthetic-codex-home"),
+            NOW,
+        )
+        .await;
+        complete_outcome(&policy, &runtime, account, NOW, &missing);
+        drop(lease);
+
+        let restored_lease = policy
+            .begin_with_revision(
+                DetectedProviderId::Codex,
+                account,
+                NOW + 1,
+                Some("revision"),
+            )
+            .expect("restored executable is immediately due");
+        let restored = collect_with_app_server(
+            &runtime,
+            StubAppServer::new([Ok(valid_body())]),
+            writer(&dir),
+            account,
+            std::path::Path::new("restored-codex"),
+            std::path::Path::new("synthetic-codex-home"),
+            NOW + 1,
+        )
+        .await;
+        assert!(matches!(restored, CodexOutcome::CacheCommitted { .. }));
+        drop(restored_lease);
+    }
+
+    #[tokio::test]
     async fn service_retry_after_reaches_the_shared_policy_boundary() {
         let dir = TempDir::new();
-        let outcome = collect_with_secret(
+        let outcome = collect_with_app_server(
             &CodexOauthRuntime::default(),
-            &RecordingTransport::replying(503, Vec::new(), Some(7_200)),
+            StubAppServer::new([Err(AppServerFailure::RateLimited(Some(7_200)))]),
             writer(&dir),
             "opaque-account-one",
-            &secret(TOKEN, "provider-account-one", "service-backoff"),
+            std::path::Path::new("synthetic-codex"),
+            std::path::Path::new("synthetic-codex-home"),
             NOW,
         )
         .await;

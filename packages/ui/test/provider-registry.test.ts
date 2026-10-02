@@ -36,6 +36,24 @@ describe("generated provider directory", () => {
 });
 
 describe("provider registry generator", () => {
+  it("keeps the Codex runtime reader identity", () => {
+    expect(registry.providers.find((spec) => spec.id === "openai/codex")?.collection?.readers)
+      .toContainEqual(expect.objectContaining({ readerId: "codex_usage" }));
+  });
+
+  it("limits the documented fixture verification exception to Codex", async () => {
+    const { parseYamlSubset, validateSpec } = await import(pathToFileURL(path.resolve("scripts/validate-provider-specs.mjs")).href);
+    const file = "provider_specs/openai/codex.yaml";
+    const spec = parseYamlSubset(readFileSync(file, "utf8"), file);
+    spec.honesty.connector_id = "grok";
+    spec.directory.connectorId = "grok";
+    const fixtureIds = new Set(spec.verification.fixture_ids);
+
+    expect(() => validateSpec(spec, file, "openai/codex.yaml", fixtureIds)).toThrow(
+      "verification is UNVERIFIED until a verifier exists"
+    );
+  });
+
   it("keeps the four desktop only API billing sources experimental", () => {
     for (const id of ["anthropic/api", "openai/api", "xai/api", "moonshot/api"]) {
       expect(registry.providers.find((spec) => spec.id === id))

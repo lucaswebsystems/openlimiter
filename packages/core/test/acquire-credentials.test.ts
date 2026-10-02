@@ -6,6 +6,7 @@ import {
   ACQUISITION_CLIENT_VERSION,
   ANTIGRAVITY_CREDENTIAL_TARGET,
   codeAssistLoadRequest,
+  codexAppServerRequest,
   createFetchTransport,
   validAcquisitionRequest,
   CREDENTIAL_FAILURE_SENTENCE,
@@ -15,7 +16,6 @@ import {
   OPENLIMITER_USER_AGENT,
   claudeUsageRequest,
   codeAssistQuotaRequest,
-  codexUsageRequest,
   credentialCandidatePaths,
   credentialReadScript,
   decodeCredentialOutput,
@@ -23,6 +23,7 @@ import {
   grokBillingRequest,
   kimiUsageRequest,
   openrouterKeyRequest,
+  opaqueAccountId,
   readAcquisitionCredential,
   readCredentialDocument,
   readWindowsCredentialWith
@@ -59,7 +60,6 @@ describe("acquisition identity", () => {
     );
     for (const request of [
       claudeUsageRequest(SYNTHETIC_TOKEN),
-      codexUsageRequest(SYNTHETIC_TOKEN, "acct-1"),
       grokBillingRequest(SYNTHETIC_TOKEN, "user-1"),
       codeAssistLoadRequest(SYNTHETIC_TOKEN),
       kimiUsageRequest(SYNTHETIC_TOKEN),
@@ -71,6 +71,22 @@ describe("acquisition identity", () => {
       expect(agent).toBe(OPENLIMITER_USER_AGENT);
       expect(agent).not.toMatch(/claude-code|codex-cli|antigravity|gemini/iu);
     }
+    const codex = codexAppServerRequest(
+      "synthetic-codex",
+      "/synthetic/codex-home",
+      opaqueAccountId("CODEX", "acct-1")
+    );
+    expect(codex).toMatchObject({
+      kind: "codex_app_server",
+      endpoint: "codex_usage",
+      executable: "synthetic-codex",
+      codexHome: "/synthetic/codex-home"
+    });
+    expect(JSON.stringify(codex)).not.toContain(SYNTHETIC_TOKEN);
+    expect(JSON.stringify(codex)).not.toContain("Bearer ");
+    expect(Object.keys(codex ?? {})).not.toEqual(expect.arrayContaining([
+      "headers", "body", "url"
+    ]));
   });
 
   it("names no vendor's own client on any request", () => {
@@ -83,7 +99,6 @@ describe("acquisition identity", () => {
     expect(grok?.headers["x-userid"]).toBe("user-1");
     for (const request of [
       claudeUsageRequest(SYNTHETIC_TOKEN),
-      codexUsageRequest(SYNTHETIC_TOKEN, "acct-1"),
       grok,
       kimiUsageRequest(SYNTHETIC_TOKEN),
       codeAssistLoadRequest(SYNTHETIC_TOKEN)
@@ -120,7 +135,6 @@ describe("acquisition identity", () => {
 
   it("refuses a header value that is not what that header may hold", () => {
     const claude = claudeUsageRequest(SYNTHETIC_TOKEN);
-    const codex = codexUsageRequest(SYNTHETIC_TOKEN, "acct-1");
     expect(claude).not.toBeNull();
     /* A name allowlist stops a cookie. It says nothing about an authorization
        header that is not a bearer token or a beta contract we never agreed. */
@@ -131,10 +145,6 @@ describe("acquisition identity", () => {
         headers: { ...claude!.headers, "anthropic-beta": "oauth-9999-01-01" }
       },
       { ...claude!, headers: { ...claude!.headers, accept: "text/html" } },
-      {
-        ...codex!,
-        headers: { ...codex!.headers, "chatgpt-account-id": "../../etc/passwd" }
-      },
       {
         ...claude!,
         headers: { ...claude!.headers, "content-type": "application/json" }
@@ -180,7 +190,7 @@ describe("acquisition identity", () => {
   it("refuses a secret that could inject a second header", () => {
     expect(claudeUsageRequest("good\r\nx-injected: 1")).toBeNull();
     expect(kimiUsageRequest("")).toBeNull();
-    expect(codexUsageRequest(SYNTHETIC_TOKEN, "acct 1")).toBeNull();
+    expect(codexAppServerRequest("", "/synthetic/codex-home", "account")).toBeNull();
   });
 
   it("refuses a project identifier the provider tried to make into a payload", () => {

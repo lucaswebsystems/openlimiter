@@ -191,10 +191,11 @@ describe.each(cases)("$name parser", ({ parser, fixture, provider, huge }) => {
 });
 
 describe("connector contracts", () => {
-  it("ships ten connectors with only Cursor verified on fixtures", () => {
+  it("ships ten connectors with Codex and Cursor verified on fixtures", () => {
     expect(connectors).toHaveLength(10);
+    const fixtureVerified = new Set(["codex", "cursor"]);
     expect(connectors.every((connector) => connector.labels.verification ===
-      (connector.id === "cursor" ? "VERIFIED_FIXTURES" : "UNVERIFIED")))
+      (fixtureVerified.has(connector.id) ? "VERIFIED_FIXTURES" : "UNVERIFIED")))
       .toBe(true);
   });
 

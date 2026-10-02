@@ -22,7 +22,7 @@ different venture or shell context.
 | Product surface | Bucket | Local client | Credential storage by operating system | Read interface | Evidence and confidence |
 | --- | --- | --- | --- | --- | --- |
 | Claude Code subscription | 1 AUTOMATIC | `claude` | Windows keychain or `home/.claude/.credentials.json`; macOS Keychain or the same file; Linux secret service or the same file | `GET https://api.anthropic.com/api/oauth/usage` | Existing certified reader. Anthropic documents Claude Code OAuth, while the usage route remains private. High confidence in the local contract, high automation risk. |
-| OpenAI Codex subscription | 1 AUTOMATIC | `codex` | Windows, macOS, Linux: `CODEX_HOME/auth.json`, default `home/.codex/auth.json` | `GET https://chatgpt.com/backend-api/wham/usage` | Existing certified reader and [official Codex source](https://github.com/openai/codex). Private endpoint, high automation risk. |
+| OpenAI Codex subscription | 1 AUTOMATIC | `codex` | Windows, macOS, Linux: the Codex home selected by the existing discovery rules | `codex app-server`, then documented `account/rateLimits/read` over JSONL stdio | [Official app server documentation](https://learn.chatgpt.com/docs/app-server). Documented local command, low automation risk. |
 | Google Antigravity | 1 AUTOMATIC | `antigravity` | Windows Credential Manager; macOS Keychain; Linux secret service. Exact service and account contract are implemented from the native client evidence already recorded in this repository | `POST https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary` | Existing certified reader. Private endpoint, high automation risk. |
 | Gemini CLI with Google sign in | 1 AUTOMATIC | `gemini` | Windows `home/.gemini/oauth_creds.json`; macOS and Linux the same path. `settings.json` is only an install or login marker | First `POST https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist`, then `POST https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota` | [Google server source](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/code_assist/server.ts), [request and response types](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/code_assist/types.ts), [Windows credential evidence](https://github.com/google-gemini/gemini-cli/issues/26715), [cross platform credential evidence](https://github.com/google-gemini/gemini-cli/issues/5474), and [full quota response evidence](https://github.com/google-gemini/gemini-cli/issues/27363). High confidence in the fixture contract, private endpoint and high automation risk. |
 | GitHub Copilot CLI | 1 AUTOMATIC | `copilot` | Windows Credential Manager, macOS Keychain, Linux libsecret, service `copilot-cli`. Fallback on every system is `home/.copilot/config.json`. The keychain account selector is `UNKNOWN` | `GET https://api.github.com/copilot_internal/user` | [Official auth storage](https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/authenticate-copilot-cli), [official config state](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference), and [endpoint evidence in the official repository](https://github.com/github/copilot-cli/issues/3311). Bucket qualification is high, production reader confidence is insufficient because the selector and quota response schema are not documented. |
@@ -1035,21 +1035,17 @@ numbers were found in Google's own Gemini CLI repository instead, where
 daily caps, 1,000 requests mixed model against 250 Flash only, for what
 reads as the same free API key path.
 
-## Four internal connectors, not web research
+## Three internal connectors and one documented local connector
 
 A follow up to the twelve above. These four document connectors this
-repository already ships, `packages/connectors/src/*.ts`, not a provider's
-public documentation, so each gets one line rather than the five question
-treatment above. Source of truth is the parser code, its fixtures in
-`fixtures.ts`, and this repository alone; `reviewed_at` is 2026-08-10 and
-`source_status` is provisional on all four, since `docs_url` names a
-repository path rather than an https address.
+repository already ships, `packages/connectors/src/*.ts`. Codex now uses its
+provider documented local app server. The other three remain based on the
+repository's parser code and fixtures.
 
 - **Codex** (`openai/codex.yaml`): the parser reads
-  `rate_limits.primary_window.used_percent` and `.reset_at` from
-  `codex.ts`, an interface OpenAI does not document and that the file's
-  own header comment calls unofficial and liable to break; fixture
-  `codex.provisional.usage`.
+  `rateLimits.primary.usedPercent` and `.resetsAt` from the documented
+  `account/rateLimits/read` app server response; fixture
+  `codex.documented.app_server_rate_limits`.
 - **Antigravity** (`google/antigravity.yaml`): the parser reads
   `quota.used_percent` and `.reset_at` from `antigravity.ts`, equally
   undocumented and equally called unofficial in its own header; fixture

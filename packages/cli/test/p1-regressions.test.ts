@@ -4,7 +4,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  acquireRefreshLock, buildAdvice, codexUsageRequest, createFetchTransport,
+  acquireRefreshLock, buildAdvice, createFetchTransport, kimiUsageRequest,
   getAgyInstallRoots, isTrustedAgyExecutable, enumerateAgyListeningPorts,
   normalizeMeters, parseAgyQuotaSummary, readAcquisitionCredential,
   readSnapshotCache, registerManagedCodexAccount, shouldStartRefresh,
@@ -60,7 +60,15 @@ async function deps(): Promise<CliDependencies> {
     colorOutput: false, readStandardInput: async () => null,
     nodeExecutable: process.execPath, openLimiterScript: "test-cli.js",
     spawnDetached: () => undefined, emit: () => undefined, sleep: async () => undefined,
-    openBrowser: () => undefined, detectedAgentInstallations: {},
+    openBrowser: () => undefined,
+    detectedAgentInstallations: {
+      codex: {
+        version: "0.153.3",
+        executable: "synthetic-codex",
+        fileSize: 1,
+        mtimeMilliseconds: 1
+      }
+    },
     credentialStore: { get: async () => null, set: async () => undefined },
     acquisitionTransport: async (request) => {
       const body = recordedResponses(NOW)[request.endpoint];
@@ -487,7 +495,7 @@ describe("P1 audit regressions", () => {
       const fakeFetch: typeof fetch = async () => new Response(body, { status: 200 });
       let returned = false;
       const pending = (kind === "hub" ? createFetchHubTransport(fakeFetch)(cliLoginStartRequest(ENV)!) :
-        createFetchTransport(fakeFetch)(codexUsageRequest("synthetic-access-token-0000", "synthetic-account")!)).then((reply) => {
+        createFetchTransport(fakeFetch)(kimiUsageRequest("synthetic-access-token-0000")!)).then((reply) => {
         returned = true;
         return reply;
       });

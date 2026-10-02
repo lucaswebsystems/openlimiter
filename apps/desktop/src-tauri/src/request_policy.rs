@@ -300,6 +300,15 @@ impl RequestPolicy {
         });
     }
 
+    pub(crate) fn cancel_unstarted(&self, provider: DetectedProviderId, account_id: &str) {
+        self.mutate_durable(|document| {
+            if let Some(state) = document.providers.get_mut(&provider) {
+                state.accounts.remove(account_id);
+                state.next_request_at = None;
+            }
+        });
+    }
+
     pub(crate) fn refuse_account(
         &self,
         provider: DetectedProviderId,

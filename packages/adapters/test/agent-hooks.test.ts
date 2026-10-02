@@ -428,6 +428,11 @@ describe("hook configuration mutation", () => {
     created.push(directory);
     const executable = path.join(directory, "codex.cmd");
     await writeFile(executable, "@echo off\r\necho codex 0.153.3\r\n", "utf8");
+    const packageName = process.arch === "arm64" ? "codex-win32-arm64" : "codex-win32-x64";
+    const triple = process.arch === "arm64" ? "aarch64-pc-windows-msvc" : "x86_64-pc-windows-msvc";
+    const native = path.join(directory, "node_modules", "@openai", packageName, "vendor", triple, "bin", "codex.exe");
+    await mkdir(path.dirname(native), { recursive: true });
+    await writeFile(native, "synthetic native Codex", "utf8");
     const seen: { executable: string; argumentsList: readonly string[] } = { executable: "", argumentsList: [] };
     await expect(detectAgentInstallation("codex", {
       platform: "win32",
@@ -437,9 +442,62 @@ describe("hook configuration mutation", () => {
         seen.argumentsList = argumentsList;
         return { ok: true, stdout: "codex 0.153.3", stderr: "" };
       }
-    })).resolves.toMatchObject({ version: "0.153.3" });
-    expect(seen.executable).toBe(executable);
+    })).resolves.toMatchObject({ version: "0.153.3", executable: native });
+    expect(seen.executable).toBe(native);
     expect(seen.argumentsList).toEqual(["--version"]);
+  });
+
+  it("resolves the official bundled Codex vendor fallback without a shell", async () => {
+    const directory = await mkdtemp(path.join(await scratchRoot(), "openlimiter-codex-vendor-"));
+    created.push(directory);
+    const launcher = path.join(directory, "codex.cmd");
+    await writeFile(launcher, "@echo off\r\n", "utf8");
+    const triple = process.arch === "arm64" ? "aarch64-pc-windows-msvc" : "x86_64-pc-windows-msvc";
+    const native = path.join(directory, "node_modules", "@openai", "codex", "vendor", triple, "bin", "codex.exe");
+    await mkdir(path.dirname(native), { recursive: true });
+    await writeFile(native, "synthetic native Codex", "utf8");
+    const seen: string[] = [];
+    const installation = await detectAgentInstallation("codex", {
+      platform: "win32",
+      environment: { Path: directory, PATHEXT: ".CMD" },
+      runCommand: async (command) => {
+        seen.push(command);
+        return { ok: true, stdout: "codex 0.153.3", stderr: "" };
+      }
+    });
+    expect(installation?.executable).toBe(native);
+    expect(seen).toEqual([native]);
+  });
+
+  it.skipIf(process.platform === "win32")("resolves a POSIX npm launcher symlink to the native Codex binary", async () => {
+    const directory = await mkdtemp(path.join(await scratchRoot(), "openlimiter-codex-posix-"));
+    created.push(directory);
+    const bin = path.join(directory, "bin");
+    const packageRoot = path.join(directory, "lib", "node_modules", "@openai", "codex");
+    const launcher = path.join(packageRoot, "bin", "codex.js");
+    const platformName = process.platform === "darwin" ? "darwin" : "linux";
+    const archName = process.arch === "arm64" ? "arm64" : "x64";
+    const triple = process.platform === "darwin"
+      ? process.arch === "arm64" ? "aarch64-apple-darwin" : "x86_64-apple-darwin"
+      : process.arch === "arm64" ? "aarch64-unknown-linux-musl" : "x86_64-unknown-linux-musl";
+    const native = path.join(packageRoot, "node_modules", "@openai", `codex-${platformName}-${archName}`, "vendor", triple, "codex", "codex");
+    await mkdir(path.dirname(launcher), { recursive: true });
+    await mkdir(path.dirname(native), { recursive: true });
+    await mkdir(bin, { recursive: true });
+    await writeFile(launcher, "synthetic launcher", "utf8");
+    await writeFile(native, "synthetic native Codex", "utf8");
+    await symlink(launcher, path.join(bin, "codex"));
+    const seen: string[] = [];
+    const installation = await detectAgentInstallation("codex", {
+      platform: process.platform,
+      environment: { PATH: bin },
+      runCommand: async (command) => {
+        seen.push(command);
+        return { ok: true, stdout: "codex 0.153.3", stderr: "" };
+      }
+    });
+    expect(installation?.executable).toBe(await realpath(native));
+    expect(seen).toEqual([await realpath(native)]);
   });
 
   it("ignores relative PATH entries during executable discovery", async () => {

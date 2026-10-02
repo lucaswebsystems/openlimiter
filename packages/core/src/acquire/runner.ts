@@ -205,6 +205,7 @@ export function collectionReasonFor(
 
 interface Attempt {
   readonly expiredCredentials?: boolean;
+  readonly missingCredential?: boolean;
   readonly outcome: AcquisitionOutcome;
   readonly meters: readonly RawMeter[];
   readonly retryAfterSeconds: number | null;
@@ -267,10 +268,13 @@ async function attempt(
       return { outcome: "transport", meters: [], retryAfterSeconds: null, phase: "request" };
     }
     retryAfter = reply.retryAfterSeconds;
+    if (reply.missingCredential === true) {
+      return { outcome: "transport", meters: [], retryAfterSeconds: null, phase: "request", missingCredential: true };
+    }
     if (reply.status === 0) {
       return { outcome: "too_large", meters: [], retryAfterSeconds: retryAfter, phase: "request" };
     }
-    const outcome = outcomeForStatus(reply.status);
+    const outcome = reply.outcome ?? outcomeForStatus(reply.status);
     if (outcome !== "ok") return { outcome, meters: [], retryAfterSeconds: retryAfter, phase: "request" };
     let body: unknown;
     try {
@@ -539,6 +543,18 @@ export async function runAcquisition(
       spec.outcomeSentence?.[outcome] ?? ACQUISITION_OUTCOME_SENTENCE[outcome];
     phase = "request";
     const result = await attempt(spec, held, options);
+    if (result.missingCredential === true) {
+      delete schedule[spec.provider];
+      rows.push({
+        provider: spec.provider,
+        detected: false,
+        status: "not_detected",
+        reason: CREDENTIAL_FAILURE_SENTENCE.absent,
+        nextAttemptAt: null,
+        disclosure
+      });
+      return;
+    }
     if (result.expiredCredentials) {
       delete schedule[spec.provider];
       rows.push({ provider: spec.provider, detected: true, status: "stale", accountId: acquisitionAccountId(spec.provider, held), availability: "expired_credentials", reason: CREDENTIAL_FAILURE_SENTENCE.expired, nextAttemptAt: null, disclosure });

@@ -434,7 +434,7 @@ const ENDPOINT_IDS = new Set([
   "cursor_usage",
   "openrouter_key",
   "openrouter_credits",
-  "codex_usage",
+  "codex_app_server",
   "antigravity_quota",
   "gemini_cli_quota",
   "opencode_usage",
@@ -986,8 +986,11 @@ export function validateSpec(document, file, relative, fixtureIds) {
       parser === "implemented" && verificationStatus === "experimental" &&
       collection?.readers.some((entry) => entry.readerId === "cursor_usage" &&
         entry.evidenceStatus === "pending_capture");
+    const codexDocumentedFixtures = connectorId === "codex" && status === "official" &&
+      verificationStatus === "verified" && parser === "implemented" &&
+      collection?.readers.every((entry) => entry.evidenceStatus === "captured");
     if (verification !== "UNVERIFIED" &&
-        !(verification === "VERIFIED_FIXTURES" && cursorFixtures)) {
+        !(verification === "VERIFIED_FIXTURES" && (cursorFixtures || codexDocumentedFixtures))) {
       fail(where, "verification is UNVERIFIED until a verifier exists");
     }
     /* A scrape or an internal endpoint is never low risk. The pair would read
