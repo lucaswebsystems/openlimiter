@@ -214,9 +214,9 @@ async function open(): Promise<Mounted> {
 }
 
 const heading = (view: Mounted) => view.container.querySelector("h2")?.textContent ?? null;
-const gear = (view: Mounted) =>
+const menu = (view: Mounted) =>
   all(view.container, "button").find(
-    (node) => node.getAttribute("aria-label") === hub.configuration,
+    (node) => node.getAttribute("aria-label") === hub.menu.open,
   ) ?? null;
 
 function press(node: Element | null): void {
@@ -297,14 +297,22 @@ describe("which view a session lands on", () => {
     expect(view.container.textContent).toContain(hub.empty.desktop.title);
   });
 
-  it("offers no way into configuration until the first run is over", async () => {
+  it("keeps onboarding out of settings and the interactive provider grid", async () => {
     currentSession = signedIn();
     const view = await open();
-    expect(gear(view)).toBeNull();
+    expect(menu(view)).not.toBeNull();
+    press(menu(view));
+    expect(byText(view.container, "button", hub.menu.settings)).toBeNull();
+    expect(view.container.querySelector(".ol-add-account-tile")).toBeNull();
+    expect(view.container.querySelector(".ol-card-grip")).toBeNull();
+    press(menu(view));
 
     press(byText(view.container, "button", hub.onboarding.profile.later));
     await flush();
-    expect(gear(view)).not.toBeNull();
+    expect(view.container.querySelector(".ol-provider-row-list")).not.toBeNull();
+    expect(view.container.querySelector(".ol-add-account-tile")).not.toBeNull();
+    press(menu(view));
+    expect(byText(view.container, "button", hub.menu.settings)).not.toBeNull();
   });
 });
 
@@ -472,7 +480,7 @@ describe("the trial return path", () => {
     currentRead = async () => ({ ok: true, providers: [] });
     const view = await open();
     const start = all(view.container, "button").find(
-      (node) => node.textContent?.trim() === hub.trial.start,
+      (node) => node.textContent?.trim() === hub.trial.header.start,
     ) ?? null;
     press(start);
     await flush(3);

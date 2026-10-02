@@ -523,11 +523,11 @@ describe("Hub Configuration", () => {
     mounted = render(createElement(Dashboard, { lockup: null }));
     await flush(3);
 
-    // Open configuration via the gear icon
-    const gear = all(mounted.container, "button").find(
-      (node) => node.getAttribute("aria-label") === hub.configuration,
+    const menu = all(mounted.container, "button").find(
+      (node) => node.getAttribute("aria-label") === hub.menu.open,
     );
-    press(gear ?? null);
+    press(menu ?? null);
+    press(byText(mounted.container, "button", hub.menu.settings));
     await flush();
 
     // Check that the terminal row is rendered and links to /app/cli

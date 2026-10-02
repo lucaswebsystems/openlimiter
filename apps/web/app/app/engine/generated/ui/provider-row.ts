@@ -725,6 +725,7 @@ export function providerRowMarkup(row: ProviderAccountRowView): string {
        turns a stack of lines into a table a person can read down. */
     '<span class="column-label">Used</span>' +
     '<span class="column-label">Resets in</span>' +
+    '<slot name="actions"></slot>' +
     "</header>" +
     '<div class="windows">' +
     row.windows.map(windowLineMarkup).join("") +
@@ -736,6 +737,8 @@ const PROVIDER_ROW_STYLE = `
 :host {
   display: block;
   min-width: 0;
+  height: 100%;
+  container-type: inline-size;
   color: var(--ol-heading, var(--heading));
   font-family: var(--ol-font-sans, ui-sans-serif, system-ui, sans-serif);
   --row-surface: var(--ol-surface, var(--surface));
@@ -812,8 +815,10 @@ const PROVIDER_ROW_STYLE = `
   gap: var(--ol-space-3);
   min-width: 0;
   min-height: 0;
+  height: 100%;
   padding: var(--ol-space-4);
   overflow: hidden;
+  container-type: inline-size;
   border: 1px solid var(--row-hairline);
   border-radius: var(--ol-radius-md);
   background: var(--row-surface);
@@ -826,12 +831,17 @@ const PROVIDER_ROW_STYLE = `
   display: grid;
   min-width: 0;
   min-height: 0;
-  grid-template-columns: var(--row-columns);
+  grid-template-columns: var(--row-columns) auto;
   align-items: center;
   gap: var(--ol-space-3);
   padding: 0 0 var(--ol-space-3);
   border: 0;
   border-bottom: 1px solid var(--row-hairline);
+}
+slot[name="actions"] { display: contents; }
+::slotted([slot="actions"]) {
+  grid-column: 5;
+  justify-self: end;
 }
 .identity-name {
   display: flex;
@@ -992,22 +1002,25 @@ const PROVIDER_ROW_STYLE = `
   font-size: var(--ol-text-micro);
   text-align: right;
 }
-@media (max-width: 639px) {
-  .row { padding: var(--ol-space-3); }
+@container (max-width: 30rem) {
   .identity {
     min-height: 0;
+    grid-template-columns: minmax(0, 1fr) 2rem;
     padding: 0;
     border: 0;
   }
-  .row {
-    gap: var(--ol-space-2);
-    /* One override, and the heading follows the lines because they read the
-       same variable rather than repeating the same four values twice. */
-    --row-columns: minmax(4.8rem, 0.9fr) minmax(4.5rem, 1.25fr) 3.35rem 3.5rem;
+  .identity-name {
+    grid-column: 1;
   }
   .windows { gap: var(--ol-space-2); }
   .identity,
   .window-line { gap: var(--ol-space-2); }
+  .window-line {
+    grid-template-columns: minmax(4.25rem, 0.9fr) minmax(3rem, 1.25fr) minmax(max-content, 3rem) minmax(max-content, 3.5rem);
+    column-gap: 0.375rem;
+  }
+  .column-label { display: none; }
+  ::slotted([slot="actions"]) { grid-column: 2; }
   .account-label { display: none; }
   .window-name,
   .window-percent { font-size: var(--ol-text-micro); }

@@ -508,7 +508,7 @@
     "shots": {
       "meters": {
         "label": "Meters",
-        "alt": "The web app on a phone, with the tightest limit at the top as a ring, a bar and a countdown to its reset, then one card per provider with a bar, the share used and the time until it resets."
+        "alt": "The web app on a phone, showing one matching rearrangeable card per provider with its bars, used share and reset times."
       },
       "agentContext": {
         "label": "Agent context",
@@ -2170,6 +2170,27 @@
     "addAccount": "Add account",
     "configuration": "Configuration",
     "backToBars": "Back to bars",
+    "grid": {
+      "label": "Provider usage by account",
+      "account": "Account {count}",
+      "rearrange": "Rearrange {name}",
+      "moveEarlier": "Move earlier",
+      "moveLater": "Move later",
+      "moved": "Moved {name} to position {position} of {total}",
+      "addAccount": "Add account"
+    },
+    "menu": {
+      "open": "Open menu",
+      "label": "Account menu",
+      "sync": "Sync usage percentages",
+      "theme": "Theme",
+      "settings": "Settings",
+      "phone": "Open on your phone",
+      "install": "Install app",
+      "updates": "Check for updates",
+      "about": "About OpenLimiter",
+      "logout": "Log out"
+    },
   "command": {
     "copy": "Copy command",
     "copied": "Command copied",
@@ -2246,8 +2267,11 @@
       "start": "Start your free 30 day Pro trial",
       "header": {
         "signIn": "Sign in to start your free 30 day Pro trial",
-        "dayLeft": "Pro trial, 1 day left",
-        "daysLeft": "Pro trial, {count} days left"
+        "start": "Try Pro",
+        "working": "Starting",
+        "complete": "Pro is on",
+        "dayLeft": "1 day",
+        "daysLeft": "{count} days"
       },
       "free": "No credit card needed",
       "label": "Start your free trial",

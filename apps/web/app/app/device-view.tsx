@@ -8,7 +8,6 @@ import {
   PROVIDER_CODES,
   type Snapshot,
 } from "./engine";
-import { LiveMeter } from "./live-meter";
 import { HeaderStrip, Panel, ProviderRows, SkeletonRows, observationAgeMinutes } from "./pieces";
 import { meterName } from "./language";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -180,10 +179,11 @@ export function DeviceView({ lockup }: { lockup: ReactNode }) {
       {state === "ready" && (
         <div className="ol-panel">
           <div className="ol-home-stack">
-            {shown.length > 0 && now !== null && (
-              <LiveMeter snapshots={shown} now={now} demo={false} />
-            )}
-            <ProviderRows rows={rows} />
+            <ProviderRows
+              rows={rows}
+              orderScope={{ kind: "paired", id: "current-device" }}
+              reorderable
+            />
             {money.length > 0 && (
               <Panel
                 title="Spend and balance"

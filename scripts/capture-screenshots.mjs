@@ -832,7 +832,7 @@ function wholeLinesScroll(from) {
   walk(document.body);
   const height = window.innerHeight;
   const end = document.scrollingElement.scrollHeight - height;
-  const card = document.querySelector(".ol-live-meter-card")?.getBoundingClientRect();
+  const card = document.querySelector("openlimiter-provider-row")?.getBoundingClientRect();
   const target = from === "top" ? 0
     : from === "end" ? end
     : from === "middle" ? Math.round(end / 2)
@@ -928,7 +928,7 @@ async function capturePhone(browser, theme, snapshots, now) {
         for (const name of ["Claude", "Codex"]) {
           await page.getByText(name, { exact: true }).first().waitFor({ timeout: 20000 });
         }
-        await page.locator(".ol-live-meter-card").waitFor();
+        await page.locator("openlimiter-provider-row article.row").first().waitFor();
         if (!syncedReads) throw new Error("Phone capture requires a signed in fixture API read. Rebuild with the documented synthetic API configuration.");
       } else if (view.screen === "onboarding") {
         const profile = page.locator('.ol-onboarding-card[data-step="profile"]');

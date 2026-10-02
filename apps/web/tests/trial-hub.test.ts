@@ -198,7 +198,7 @@ describe("the header", () => {
     expect(view.container.querySelector(".ol-header-trial [role=status]")).toBeNull();
   });
 
-  it("starts once from a single header click and replaces the button with a billing chip", async () => {
+  it("starts once from a single header click and replaces the button with success", async () => {
     const view = await open();
     const start = view.container.querySelector(".ol-header-trial button");
     press(start);
@@ -206,9 +206,9 @@ describe("the header", () => {
     await flush(4);
     expect(trialCalls).toBe(1);
     expect(view.container.querySelector(".ol-header-trial button")).toBeNull();
-    const chip = view.container.querySelector<HTMLAnchorElement>(".ol-trial-chip");
-    expect(chip?.textContent).toBe("Pro trial, 10 days left");
-    expect(chip?.getAttribute("href")).toBe("/pro");
+    const chip = view.container.querySelector<HTMLElement>(".ol-trial-chip");
+    expect(chip?.textContent).toBe(trial.header.complete);
+    expect(chip?.tagName).toBe("SPAN");
     expect(view.container.querySelector(".ol-header-trial [role=status]")?.textContent).toBe(trial.done.title);
   });
 
@@ -223,10 +223,8 @@ describe("the header", () => {
   it("carries the button for an account that has never had a plan", async () => {
     const view = await open();
     expect(starters(view).length).toBeGreaterThan(0);
-    /* Beside the logo, on its own row at phone width, not lumped in with the
-       icon group: see pieces.tsx HeaderStrip's `accent` prop. */
-    expect(view.container.querySelector(".ol-commandbar-brand-row")?.textContent).toContain(
-      trial.start,
+    expect(view.container.querySelector(".ol-commandbar-actions")?.textContent).toContain(
+      trial.header.start,
     );
   });
 
@@ -236,14 +234,15 @@ describe("the header", () => {
     expect(view.container.querySelector(".ol-commandbar-actions")?.textContent).not.toContain(
       trial.start,
     );
-    expect(view.container.querySelector(".ol-trial-chip")?.textContent).toBe("Pro trial, 10 days left");
+    expect(view.container.querySelector(".ol-trial-chip")?.textContent)
+      .toBe(trial.header.daysLeft.replace("{count}", "10"));
   });
 
   it("counts a partial final day as one and removes the chip when the trial ends", async () => {
     const clock = vi.spyOn(Date, "now").mockReturnValue(NOW);
     entitlementRow = { plan_state: "trialing", trial_ends_at: new Date(NOW + 1000).toISOString() };
     const view = await open();
-    expect(view.container.querySelector(".ol-trial-chip")?.textContent).toBe("Pro trial, 1 day left");
+    expect(view.container.querySelector(".ol-trial-chip")?.textContent).toBe(trial.header.dayLeft);
     clock.mockReturnValue(NOW + 1000);
     view.run(() => { document.dispatchEvent(new Event("visibilitychange")); });
     await flush(2);
@@ -373,7 +372,7 @@ describe("the deep link the tray opens", () => {
 
   it("starts directly from the header without opening the deep link wizard", async () => {
     const view = await open();
-    press(starters(view)[0] ?? null);
+    press(view.container.querySelector(".ol-header-trial button"));
     await flush();
     expect(view.container.querySelector(".ol-trial-card")).toBeNull();
     expect(trialCalls).toBe(1);

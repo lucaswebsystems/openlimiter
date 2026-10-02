@@ -32,9 +32,8 @@ import {
 import { createPhoneSessionRuntime } from "@/lib/session-runtime";
 import { serialPoll } from "@/lib/serial-poll";
 import { claimPairingCode, pollPairingClaim } from "@/lib/pro-device";
-import { PROVIDER_CODES, parseQuotaText } from "../engine";
-import { LiveMeter } from "../live-meter";
-import { DollarRow, observationAgeMinutes } from "../pieces";
+import { PROVIDER_CODES, buildProviderAccountRows, parseQuotaText } from "../engine";
+import { DollarRow, ProviderRows, observationAgeMinutes } from "../pieces";
 import { PairInstallStep, runningInstalled } from "./pair-install";
 
 /**
@@ -188,6 +187,7 @@ interface PhoneBarsProps {
   unknownAgeLabel: string;
   ageLabel: (minutes: number) => string;
   stateAnnouncement: (state: string) => string;
+  accountLabel: (count: number) => string;
 }
 
 /**
@@ -195,7 +195,7 @@ interface PhoneBarsProps {
  * browser dashboard draw, so one reading cannot look like two different
  * readings on two screens.
  */
-function PhoneBars({ body, stale, locale, heading, staleLabel, now, freshLabel, staleStateLabel, unknownAgeLabel, ageLabel, stateAnnouncement }: PhoneBarsProps) {
+function PhoneBars({ body, stale, locale, heading, staleLabel, now, freshLabel, staleStateLabel, unknownAgeLabel, ageLabel, stateAnnouncement, accountLabel }: PhoneBarsProps) {
   const rows = useMemo(() => meterRowsOf(body), [body]);
   const snapshots = useMemo(() => {
     const raw = rows.map(snapshotFromMeterRow).filter((row) => row !== null);
@@ -203,10 +203,16 @@ function PhoneBars({ body, stale, locale, heading, staleLabel, now, freshLabel, 
     return parsed.ok ? parsed.snapshots : [];
   }, [rows]);
   const money = useMemo(() => amountRows(rows, ENGINE_PROVIDERS), [rows]);
+  const providerRows = useMemo(
+    () => buildProviderAccountRows(snapshots, now, [], {
+      accountLabel: (_accountId, count) => accountLabel(count),
+    }),
+    [accountLabel, now, snapshots],
+  );
 
   return (
-    <section className={CARD} data-stale={stale ? "" : undefined}>
-      <h1 className="flex items-center gap-2 text-lg font-medium text-heading">
+    <section className="space-y-3" data-stale={stale ? "" : undefined}>
+      <h1 className="flex items-center justify-center gap-2 text-lg font-medium text-heading">
         <span
           aria-hidden="true"
           className={`h-2 w-2 flex-none rounded-full ${stale ? "bg-muted" : "bg-accent-solid"}`}
@@ -221,19 +227,23 @@ function PhoneBars({ body, stale, locale, heading, staleLabel, now, freshLabel, 
           </span>
         )}
       </h1>
-      <div className="mt-3 space-y-3">
+      <div className="space-y-3">
         {snapshots.length > 0 && (
-          <LiveMeter snapshots={snapshots} now={now} demo={false} />
+          <ProviderRows
+            rows={providerRows}
+            orderScope={{ kind: "paired", id: "current-device" }}
+            reorderable
+          />
         )}
         {money.length > 0 && (
-          <div className="ol-device-money">
+          <div className={`${CARD} ol-device-money`}>
             {money.map((row) => (
               <MoneyRow key={`${row.provider}:${row.accountId}:${row.code}`} row={row} locale={locale} now={now} offline={stale} freshLabel={freshLabel} staleStateLabel={staleStateLabel} unknownAgeLabel={unknownAgeLabel} ageLabel={ageLabel} stateAnnouncement={stateAnnouncement} />
             ))}
           </div>
         )}
         {snapshots.length === 0 && money.length === 0 && (
-          <p className="text-sm leading-relaxed text-muted">{heading}</p>
+          <p className={`${CARD} text-sm leading-relaxed text-muted`}>{heading}</p>
         )}
       </div>
     </section>
@@ -398,6 +408,7 @@ function PairedPhone({
         unknownAgeLabel={t("cloud.observationUnknown")}
         ageLabel={(minutes) => t("cloud.observationAge", { minutes })}
         stateAnnouncement={(state) => t("cloud.stateAnnouncement", { state })}
+        accountLabel={(count) => t("grid.account", { count })}
       />
       <button className={BUTTON_GHOST} onClick={() => { void retry.current?.(); }}>{t("pairPage.retry")}</button>
     </div>

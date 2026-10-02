@@ -508,7 +508,7 @@
     "shots": {
       "meters": {
         "label": "Meter",
-        "alt": "Die Web App auf einem Handy, oben mit dem knappsten Limit als Ring, Balken und Countdown bis zum Zurücksetzen, darunter eine Karte pro Provider mit Balken, verbrauchtem Anteil und der Zeit bis zum Zurücksetzen."
+        "alt": "Die Web App auf einem Handy mit einer einheitlichen, neu anordenbaren Karte je Anbieter, samt Balken, Verbrauch und Rücksetzzeiten."
       },
       "agentContext": {
         "label": "Agent context",
@@ -2170,6 +2170,27 @@
     "addAccount": "Konto hinzufügen",
     "configuration": "Konfiguration",
     "backToBars": "Zurück zu den Balken",
+    "grid": {
+      "label": "Anbieternutzung nach Konto",
+      "account": "Konto {count}",
+      "rearrange": "{name} neu anordnen",
+      "moveEarlier": "Nach vorne verschieben",
+      "moveLater": "Nach hinten verschieben",
+      "moved": "{name} wurde an Position {position} von {total} verschoben",
+      "addAccount": "Konto hinzufügen"
+    },
+    "menu": {
+      "open": "Menü öffnen",
+      "label": "Kontomenü",
+      "sync": "Nutzungsprozente synchronisieren",
+      "theme": "Darstellung",
+      "settings": "Einstellungen",
+      "phone": "Auf dem Telefon öffnen",
+      "install": "App installieren",
+      "updates": "Nach Updates suchen",
+      "about": "Über OpenLimiter",
+      "logout": "Abmelden"
+    },
   "command": {
     "copy": "Befehl kopieren",
     "copied": "Befehl kopiert",
@@ -2246,8 +2267,11 @@
       "start": "Pro 30 Tage kostenlos starten",
       "header": {
         "signIn": "Melde dich an, um deine kostenlose Pro Testphase von 30 Tagen zu starten",
-        "dayLeft": "Pro Testphase, noch 1 Tag",
-        "daysLeft": "Pro Testphase, noch {count} Tage"
+        "start": "Pro testen",
+        "working": "Startet",
+        "complete": "Pro aktiv",
+        "dayLeft": "1 Tag",
+        "daysLeft": "{count} Tage"
       },
       "free": "Keine Kreditkarte erforderlich",
       "label": "Starten Sie Ihre kostenlose Testphase",

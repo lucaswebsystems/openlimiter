@@ -508,7 +508,7 @@
     "shots": {
       "meters": {
         "label": "Meters",
-        "alt": "La aplicación web en un teléfono, con el límite más ajustado arriba como un anillo, una barra y una cuenta regresiva hasta su reinicio, y debajo una tarjeta por proveedor con una barra, la parte usada y el tiempo hasta que se reinicia."
+        "alt": "La aplicación web en un teléfono, con una tarjeta uniforme y reordenable por proveedor que muestra barras, uso y tiempos de reinicio."
       },
       "agentContext": {
         "label": "Agent context",
@@ -2170,6 +2170,27 @@
     "addAccount": "Agregar cuenta",
     "configuration": "Configuración",
     "backToBars": "Volver a las barras",
+    "grid": {
+      "label": "Uso de proveedores por cuenta",
+      "account": "Cuenta {count}",
+      "rearrange": "Reorganizar {name}",
+      "moveEarlier": "Mover antes",
+      "moveLater": "Mover después",
+      "moved": "Se movió {name} a la posición {position} de {total}",
+      "addAccount": "Añadir cuenta"
+    },
+    "menu": {
+      "open": "Abrir menú",
+      "label": "Menú de la cuenta",
+      "sync": "Sincronizar porcentajes de uso",
+      "theme": "Tema",
+      "settings": "Configuración",
+      "phone": "Abrir en tu teléfono",
+      "install": "Instalar aplicación",
+      "updates": "Buscar actualizaciones",
+      "about": "Acerca de OpenLimiter",
+      "logout": "Cerrar sesión"
+    },
   "command": {
     "copy": "Copiar el comando",
     "copied": "Comando copiado",
@@ -2246,8 +2267,11 @@
       "start": "Iniciar Pro gratis durante 30 días",
       "header": {
         "signIn": "Inicia sesión para comenzar tu prueba gratuita de Pro de 30 días",
-        "dayLeft": "Prueba de Pro, queda 1 día",
-        "daysLeft": "Prueba de Pro, quedan {count} días"
+        "start": "Probar Pro",
+        "working": "Iniciando",
+        "complete": "Pro activo",
+        "dayLeft": "1 día",
+        "daysLeft": "{count} días"
       },
       "free": "No necesitas tarjeta de crédito",
       "label": "Comienza tu prueba gratuita",

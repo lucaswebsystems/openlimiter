@@ -145,6 +145,7 @@ describe("provider account rows", () => {
     expect(markup).toContain("5 hour session");
     expect(markup).toContain("Weekly");
     expect(markup).toContain("63.0%");
+    expect(markup).toContain('<slot name="actions"></slot>');
     expect(markup).toContain("<svg");
     expect(markup).toContain('d="m4.7144 15.9555');
     expect(markup).not.toContain('d="M12 2v20M2 12h20');

@@ -2,7 +2,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useLocale, useTranslations } from "next-intl";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { localePath } from "@/i18n/routing";
 import { isLocale } from "@/i18n/locales";
@@ -115,6 +115,7 @@ export function HeaderTrial({ client, entitlement, onStarted }: {
   const [complete, setComplete] = useState(false);
   const [failure, setFailure] = useState<TrialFailure | null>(null);
   const inFlight = useRef(false);
+  const descriptionId = useId();
   useEffect(() => {
     const update = () => setNow(Date.now());
     const timer = window.setInterval(update, 60_000);
@@ -150,17 +151,18 @@ export function HeaderTrial({ client, entitlement, onStarted }: {
   if (state !== null && state !== "none" && state !== "trial") return null;
   return (
     <div className="ol-header-trial">
+      <span id={descriptionId} className="sr-only">{t("free")}</span>
       {offering && <>
-        <Button tone="primary" onClick={() => void start()} disabled={starting}>
-          {starting ? t("push.working") : t("start")}
+        <Button tone="primary" onClick={() => void start()} disabled={starting} describedBy={descriptionId}>
+          {starting ? t("header.working") : t("header.start")}
         </Button>
-        <p className="ol-header-trial-note">{t("free")}</p>
       </>}
-      {running && <Link className="ol-trial-chip" href={localePath(isLocale(locale) ? locale : "en", "/pro")}>
+      {running && !complete && <Link className="ol-trial-chip" href={localePath(isLocale(locale) ? locale : "en", "/pro")}>
         {days === 1 ? t("header.dayLeft") : t("header.daysLeft", { count: days })}
       </Link>}
-      {complete && <p className="ol-header-trial-note" role="status">{t("done.title")}</p>}
-      {failure !== null && <p className="ol-trial-error" role="alert">{t(`error.${failure}`)}</p>}
+      {complete && <span className="ol-trial-chip">{t("header.complete")}</span>}
+      {complete && <p className="ol-header-trial-feedback" role="status">{t("done.title")}</p>}
+      {failure !== null && <p className="ol-header-trial-feedback ol-trial-error" role="alert">{t(`error.${failure}`)}</p>}
     </div>
   );
 }

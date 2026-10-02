@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Button } from "./pieces";
 import { encodeQr, type QrMatrix } from "@/lib/qr";
 import { SITE_URL } from "@/lib/site";
@@ -83,12 +83,27 @@ function QrSvg({ matrix, label }: { matrix: QrMatrix; label: string }) {
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-export default function PhoneButton() {
+export interface PhoneButtonHandle {
+  open: (returnFocus?: HTMLElement) => void;
+}
+
+const PhoneButton = forwardRef<PhoneButtonHandle, { showButton?: boolean }>(function PhoneButton(
+  { showButton = true },
+  forwardedRef,
+) {
   const t = useTranslations("hub");
   const [open, setOpen] = useState(false);
   const [matrix, setMatrix] = useState<QrMatrix | null>(null);
   const wrap = useRef<HTMLDivElement | null>(null);
   const panel = useRef<HTMLDivElement | null>(null);
+  const returnFocus = useRef<HTMLElement | null>(null);
+
+  useImperativeHandle(forwardedRef, () => ({
+    open: (node) => {
+      returnFocus.current = node ?? null;
+      setOpen(true);
+    },
+  }), []);
 
   /* The symbol is computed the first time the panel opens, not on every
      render and not before anyone has asked for it. */
@@ -116,7 +131,7 @@ export default function PhoneButton() {
   useEffect(() => {
     if (!open) return;
     const node = panel.current;
-    const trigger = wrap.current;
+    const trigger = returnFocus.current ?? wrap.current;
     node?.focus();
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -141,7 +156,8 @@ export default function PhoneButton() {
       }
     };
     const onDown = (event: MouseEvent) => {
-      if (trigger !== null && !trigger.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (node !== null && !node.contains(target) && (trigger === null || !trigger.contains(target))) {
         setOpen(false);
       }
     };
@@ -155,22 +171,26 @@ export default function PhoneButton() {
          component does not forward. The wrapper node itself is snapshotted
          above, not read again here, since a ref's `.current` can already
          point elsewhere by the time this cleanup runs. */
-      trigger?.querySelector<HTMLButtonElement>(":scope > button")?.focus();
+      if (returnFocus.current !== null) returnFocus.current.focus();
+      else trigger?.querySelector<HTMLButtonElement>(":scope > button")?.focus();
+      returnFocus.current = null;
     };
   }, [open]);
 
   return (
-    <div ref={wrap} className="relative">
-      <Button
-        tone="ghost"
-        onClick={() => {
-          setOpen((current) => !current);
-        }}
-        title={t("phone.button")}
-      >
-        <PhoneGlyph />
-        {t("phone.button")}
-      </Button>
+    <div ref={wrap} className={showButton ? "relative" : "contents"}>
+      {showButton && (
+        <Button
+          tone="ghost"
+          onClick={() => {
+            setOpen((current) => !current);
+          }}
+          title={t("phone.button")}
+        >
+          <PhoneGlyph />
+          {t("phone.button")}
+        </Button>
+      )}
 
       {open && (
         <div
@@ -179,7 +199,9 @@ export default function PhoneButton() {
           aria-modal="true"
           aria-label={t("phone.button")}
           tabIndex={-1}
-          className="elev-2 absolute right-0 top-full z-40 mt-2 w-64 rounded-xl border border-hairline bg-surface p-4 focus:outline-none"
+          className={showButton
+            ? "elev-2 absolute right-0 top-full z-40 mt-2 w-64 rounded-xl border border-hairline bg-surface p-4 focus:outline-none"
+            : "elev-2 fixed left-1/2 top-20 z-50 w-64 -translate-x-1/2 rounded-xl border border-hairline bg-surface p-4 focus:outline-none"}
         >
           <p className="text-sm leading-relaxed text-muted">{t("phone.line")}</p>
           <div className="mt-3 overflow-hidden rounded-lg border border-hairline">
@@ -201,4 +223,6 @@ export default function PhoneButton() {
       )}
     </div>
   );
-}
+});
+
+export default PhoneButton;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Button } from "./pieces";
 
 /**
@@ -162,7 +162,14 @@ function Step({
   );
 }
 
-export function InstallControl() {
+export interface InstallControlHandle {
+  activate: (returnFocus?: HTMLElement) => void;
+}
+
+export const InstallControl = forwardRef<InstallControlHandle, { showButton?: boolean }>(function InstallControl(
+  { showButton = true },
+  forwardedRef,
+) {
   /* Installed until proven otherwise, so the control can never flash onto the
      screen of somebody who already has it and then vanish. */
   const [installed, setInstalled] = useState(true);
@@ -175,6 +182,7 @@ export function InstallControl() {
   const [apple, setApple] = useState(false);
   const [sheet, setSheet] = useState(false);
   const trigger = useRef<HTMLSpanElement | null>(null);
+  const externalReturnFocus = useRef<HTMLElement | null>(null);
   const panel = useRef<HTMLDivElement | null>(null);
   const close = useRef<HTMLButtonElement | null>(null);
 
@@ -267,7 +275,9 @@ export function InstallControl() {
       /* Returns focus to the button that opened the sheet. The shared Button
          component renders a plain <button>, so the first one found inside
          this wrapper is always it. */
-      triggerNode?.querySelector<HTMLElement>("button")?.focus();
+      if (externalReturnFocus.current !== null) externalReturnFocus.current.focus();
+      else triggerNode?.querySelector<HTMLElement>("button")?.focus();
+      externalReturnFocus.current = null;
     };
   }, [sheet]);
 
@@ -287,25 +297,39 @@ export function InstallControl() {
     setSheet(true);
   }, [prompt]);
 
+  useImperativeHandle(forwardedRef, () => ({
+    activate: (node) => {
+      externalReturnFocus.current = node ?? null;
+      if (installed || justInstalled) {
+        node?.focus();
+        return;
+      }
+      install();
+      if (prompt !== null) node?.focus();
+    },
+  }), [install, installed, justInstalled, prompt]);
+
   if (installed) return null;
 
   return (
     <>
-      <span ref={trigger} className="contents">
-        <Button
-          tone="ghost"
-          onClick={install}
-          disabled={justInstalled}
-          label={
-            justInstalled
-              ? "OpenLimiter is installed"
-              : "Install OpenLimiter as an application"
-          }
-        >
-          {justInstalled ? <CheckGlyph /> : <DownloadGlyph />}
-          {justInstalled ? "Installed" : "Install app"}
-        </Button>
-      </span>
+      {showButton && (
+        <span ref={trigger} className="contents">
+          <Button
+            tone="ghost"
+            onClick={install}
+            disabled={justInstalled}
+            label={
+              justInstalled
+                ? "OpenLimiter is installed"
+                : "Install OpenLimiter as an application"
+            }
+          >
+            {justInstalled ? <CheckGlyph /> : <DownloadGlyph />}
+            {justInstalled ? "Installed" : "Install app"}
+          </Button>
+        </span>
+      )}
 
       {sheet && (
         <div
@@ -385,4 +409,4 @@ export function InstallControl() {
       )}
     </>
   );
-}
+});
