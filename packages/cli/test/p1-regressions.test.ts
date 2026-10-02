@@ -67,7 +67,8 @@ async function deps(): Promise<CliDependencies> {
       if (request.endpoint === "codex_app_server") {
         return {
           status: 200,
-          body: JSON.stringify({ rateLimits: { limitId: "codex", primary: {
+          // The documented response carries the ChatGPT account; without it the reading has no identity and draws nothing.
+          body: JSON.stringify({ accountId: "synthetic-chatgpt-account", rateLimits: { limitId: "codex", primary: {
             usedPercent: 20, windowDurationMins: 300, resetsAt: 1_789_387_200
           } } }),
           retryAfterSeconds: null
@@ -294,7 +295,9 @@ describe("P1 audit regressions", () => {
   it("23 serializes explicit and background renewal and preserves the replacement session and cursor", async () => {
     const d = await deps();
     await writeSession(session(), { directory: d.stateDirectory!, platform: "linux" });
-    await writeSnapshotCache([row()], d.stateDirectory);
+    /* A provider this run does not acquire: with no Codex installed, refresh now
+       correctly marks a Codex row unavailable, and this test is about renewal. */
+    await writeSnapshotCache([row({ provider: "GROK", meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604800 } })], d.stateDirectory);
     let renewals = 0;
     let sequence = 0;
     d.hubTransport = async (request) => {
