@@ -227,6 +227,19 @@ function press(node: Element | null): void {
 }
 
 describe("which view a session lands on", () => {
+  it("closes the phone dialog before reopening the account menu", async () => {
+    currentSession = signedIn({ [ONBOARDED_METADATA_KEY]: true });
+    const view = await open();
+
+    press(menu(view));
+    press(byText(view.container, "button", hub.menu.phone));
+    expect(view.container.querySelector('[role="dialog"][aria-modal="true"]')).not.toBeNull();
+
+    press(menu(view));
+    expect(view.container.querySelector('[role="dialog"][aria-modal="true"]')).toBeNull();
+    expect(view.container.querySelector(".ol-menu")).not.toBeNull();
+  });
+
   it("20: renders desktop spend with provider, account, currency and UTC reporting period", async () => {
     currentSession = signedIn({ [ONBOARDED_METADATA_KEY]: true });
     currentRead = async () => ({ ok: true, providers: [] });

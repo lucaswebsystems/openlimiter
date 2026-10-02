@@ -2177,6 +2177,8 @@
       "moveEarlier": "前へ移動",
       "moveLater": "後ろへ移動",
       "moved": "{name}を{total}件中{position}番目に移動しました",
+      "cancelled": "移動をキャンセルしました。{name}を{total}件中{position}番目に戻しました",
+      "keyboardHelp": "このボタンにフォーカスがあり、操作パネルが閉じているときは、矢印キーでカードを移動できます。",
       "addAccount": "アカウントを追加"
     },
     "menu": {
@@ -2187,6 +2189,7 @@
       "settings": "設定",
       "phone": "スマートフォンで開く",
       "install": "アプリをインストール",
+      "installed": "インストール済み",
       "updates": "更新を確認",
       "about": "OpenLimiterについて",
       "logout": "ログアウト"
@@ -2271,7 +2274,9 @@
         "working": "開始中",
         "complete": "Pro有効",
         "dayLeft": "残り1日",
-        "daysLeft": "残り{count}日"
+        "daysLeft": "残り{count}日",
+        "dayLeftLabel": "Proトライアル、残り1日",
+        "daysLeftLabel": "Proトライアル、残り{count}日"
       },
       "free": "クレジットカードは不要です",
       "label": "無料トライアルを始める",

@@ -2177,6 +2177,8 @@
       "moveEarlier": "Mover para antes",
       "moveLater": "Mover para depois",
       "moved": "Moveu {name} para a posição {position} de {total}",
+      "cancelled": "Movimento cancelado. {name} voltou para a posição {position} de {total}",
+      "keyboardHelp": "Quando este botão estiver em foco e as ações estiverem fechadas, use as teclas de seta para mover o cartão.",
       "addAccount": "Adicionar conta"
     },
     "menu": {
@@ -2187,6 +2189,7 @@
       "settings": "Configurações",
       "phone": "Abrir no celular",
       "install": "Instalar aplicativo",
+      "installed": "Instalado",
       "updates": "Verificar atualizações",
       "about": "Sobre o OpenLimiter",
       "logout": "Sair"
@@ -2271,7 +2274,9 @@
         "working": "Iniciando",
         "complete": "Pro ativo",
         "dayLeft": "1 dia",
-        "daysLeft": "{count} dias"
+        "daysLeft": "{count} dias",
+        "dayLeftLabel": "Teste Pro, resta 1 dia",
+        "daysLeftLabel": "Teste Pro, restam {count} dias"
       },
       "free": "Nenhum cartão de crédito é necessário",
       "label": "Comece seu teste grátis",

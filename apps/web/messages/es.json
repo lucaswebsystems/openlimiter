@@ -2177,6 +2177,8 @@
       "moveEarlier": "Mover antes",
       "moveLater": "Mover después",
       "moved": "Se movió {name} a la posición {position} de {total}",
+      "cancelled": "Movimiento cancelado. {name} volvió a la posición {position} de {total}",
+      "keyboardHelp": "Cuando este botón tenga el foco y las acciones estén cerradas, usa las teclas de flecha para mover la tarjeta.",
       "addAccount": "Añadir cuenta"
     },
     "menu": {
@@ -2187,6 +2189,7 @@
       "settings": "Configuración",
       "phone": "Abrir en tu teléfono",
       "install": "Instalar aplicación",
+      "installed": "Instalada",
       "updates": "Buscar actualizaciones",
       "about": "Acerca de OpenLimiter",
       "logout": "Cerrar sesión"
@@ -2271,7 +2274,9 @@
         "working": "Iniciando",
         "complete": "Pro activo",
         "dayLeft": "1 día",
-        "daysLeft": "{count} días"
+        "daysLeft": "{count} días",
+        "dayLeftLabel": "Prueba Pro, queda 1 día",
+        "daysLeftLabel": "Prueba Pro, quedan {count} días"
       },
       "free": "No necesitas tarjeta de crédito",
       "label": "Comienza tu prueba gratuita",

@@ -166,8 +166,11 @@ export interface InstallControlHandle {
   activate: (returnFocus?: HTMLElement) => void;
 }
 
-export const InstallControl = forwardRef<InstallControlHandle, { showButton?: boolean }>(function InstallControl(
-  { showButton = true },
+export const InstallControl = forwardRef<InstallControlHandle, {
+  showButton?: boolean;
+  onInstalledChange?: (installed: boolean) => void;
+}>(function InstallControl(
+  { showButton = true, onInstalledChange },
   forwardedRef,
 ) {
   /* Installed until proven otherwise, so the control can never flash onto the
@@ -219,6 +222,10 @@ export const InstallControl = forwardRef<InstallControlHandle, { showButton?: bo
       media.removeEventListener("change", watch);
     };
   }, []);
+
+  useEffect(() => {
+    onInstalledChange?.(installed || justInstalled);
+  }, [installed, justInstalled, onInstalledChange]);
 
   useEffect(() => {
     if (!sheet) return undefined;

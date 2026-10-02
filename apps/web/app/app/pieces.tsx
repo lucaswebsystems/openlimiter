@@ -4,6 +4,7 @@ import {
   createElement,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -136,26 +137,38 @@ export function ProviderRows({
       ? "demo"
       : `${orderScope.kind}:${orderScope.id}`;
   const [order, setOrder] = useState<readonly string[]>(presentKeys);
+  const committedOrderRef = useRef<readonly string[]>(order);
   const orderRef = useRef<readonly string[]>(order);
   const orderScopeRef = useRef(orderScope);
   orderScopeRef.current = orderScope;
   const loadedScope = useRef<string | null>(null);
   const grips = useRef(new Map<string, HTMLButtonElement>());
   const cards = useRef(new Map<string, HTMLDivElement>());
+  const actionPanels = useRef(new Map<string, HTMLDivElement>());
   const drag = useRef<{ key: string; pointerId: number; original: readonly string[]; moved: boolean } | null>(null);
   const suppressGripClick = useRef<string | null>(null);
   const [draggingKey, setDraggingKey] = useState<string | null>(null);
   const [openActionsKey, setOpenActionsKey] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
+  const keyboardHelpId = useId();
 
   useEffect(() => {
     const activeScope = orderScopeRef.current;
     if (activeScope === undefined) return;
     const storage = cardStorage();
     const scopeChanged = loadedScope.current !== scopeSignature;
-    const seed = scopeChanged ? readCardOrder(storage, activeScope) : orderRef.current;
+    const seed = scopeChanged ? readCardOrder(storage, activeScope) : committedOrderRef.current;
     const next = reconcileCardOrder(seed, presentKeys);
     loadedScope.current = scopeSignature;
+    committedOrderRef.current = next;
+    const activeDrag = drag.current;
+    if (activeDrag !== null) {
+      activeDrag.original = next;
+      const preview = reconcileCardOrder(orderRef.current, presentKeys);
+      orderRef.current = preview;
+      setOrder(preview);
+      return;
+    }
     orderRef.current = next;
     setOrder(next);
     writeCardOrder(storage, activeScope, next, presentKeys);
@@ -185,22 +198,32 @@ export function ProviderRows({
     orderRef.current = next;
     setOrder(next);
     announceMove(key, next);
-    if (persist) {
+    if (persist && drag.current === null) {
+      committedOrderRef.current = next;
       const storage = cardStorage();
       writeCardOrder(storage, orderScope, next, presentKeys);
     }
     if (focus) grips.current.get(key)?.focus();
   }
 
-  function cancelDrag(): void {
+  const cancelDrag = useCallback((): void => {
     const active = drag.current;
     if (active === null) return;
     drag.current = null;
+    committedOrderRef.current = active.original;
     orderRef.current = active.original;
     setOrder(active.original);
     setDraggingKey(null);
+    const storage = cardStorage();
+    if (orderScope !== undefined) writeCardOrder(storage, orderScope, active.original, presentKeys);
+    const visible = visibleCardOrder(active.original, presentKeys);
+    const row = visibleRows.find((candidate) => candidate.key === active.key);
+    const position = visible.indexOf(active.key) + 1;
+    if (row !== undefined && position > 0) {
+      setAnnouncement(t("cancelled", { name: rowName(row), position, total: visible.length }));
+    }
     grips.current.get(active.key)?.focus();
-  }
+  }, [orderScope, presentKeys, t, visibleRows]);
 
   useEffect(() => {
     if (draggingKey === null) return undefined;
@@ -211,10 +234,13 @@ export function ProviderRows({
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [draggingKey]);
+  }, [cancelDrag, draggingKey]);
 
   useEffect(() => {
     if (openActionsKey === null) return undefined;
+    actionPanels.current.get(openActionsKey)
+      ?.querySelector<HTMLButtonElement>("button:not(:disabled)")
+      ?.focus();
     const closeOutside = (event: PointerEvent) => {
       const card = cards.current.get(openActionsKey);
       if (event.target instanceof Node && card?.contains(event.target)) return;
@@ -235,23 +261,28 @@ export function ProviderRows({
   }, [openActionsKey]);
 
   function onGripKey(event: ReactKeyboardEvent<HTMLButtonElement>, key: string): void {
+    if (document.activeElement !== event.currentTarget) return;
+    if (openActionsKey === key) {
+      if (["ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown"].includes(event.key)) {
+        event.preventDefault();
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        setOpenActionsKey(null);
+        event.currentTarget.focus();
+      }
+      return;
+    }
     const visible = visibleCardOrder(orderRef.current, presentKeys);
     const index = visible.indexOf(key);
     if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
       event.preventDefault();
-      setOpenActionsKey(null);
       move(key, index - 1);
     } else if (event.key === "ArrowRight" || event.key === "ArrowDown") {
       event.preventDefault();
-      setOpenActionsKey(null);
       move(key, index + 1);
     } else if (event.key === "Escape") {
-      if (openActionsKey === key) {
-        event.preventDefault();
-        setOpenActionsKey(null);
-      } else {
-        cancelDrag();
-      }
+      cancelDrag();
     }
   }
 
@@ -283,8 +314,11 @@ export function ProviderRows({
     if (active.moved) suppressGripClick.current = active.key;
     setDraggingKey(null);
     event.currentTarget.releasePointerCapture?.(event.pointerId);
-    const storage = cardStorage();
-    writeCardOrder(storage, orderScope, orderRef.current, presentKeys);
+    if (active.moved) {
+      committedOrderRef.current = orderRef.current;
+      const storage = cardStorage();
+      writeCardOrder(storage, orderScope, orderRef.current, presentKeys);
+    }
   }
 
   return (
@@ -309,7 +343,8 @@ export function ProviderRows({
                   type="button"
                   className="ol-card-grip focus-ring"
                   aria-label={t("rearrange", { name: rowName(row) })}
-                  aria-haspopup="menu"
+                  aria-describedby={keyboardHelpId}
+                  aria-controls={`${keyboardHelpId}-actions-${index}`}
                   aria-expanded={openActionsKey === row.key}
                   onKeyDown={(event) => onGripKey(event, row.key)}
                   onPointerDown={(event) => onGripDown(event, row.key)}
@@ -329,10 +364,15 @@ export function ProviderRows({
               ) : undefined}
             />
             {reorderable && openActionsKey === row.key && (
-              <div className="ol-card-move-popover" role="menu" aria-label={t("rearrange", { name: rowName(row) })}>
+              <div
+                id={`${keyboardHelpId}-actions-${index}`}
+                ref={(node) => { if (node === null) actionPanels.current.delete(row.key); else actionPanels.current.set(row.key, node); }}
+                className="ol-card-move-popover"
+                role="group"
+                aria-label={t("rearrange", { name: rowName(row) })}
+              >
                 <button
                   type="button"
-                  role="menuitem"
                   className="ol-card-move-option focus-ring"
                   aria-label={`${t("moveEarlier")}: ${rowName(row)}`}
                   disabled={index === 0}
@@ -343,7 +383,6 @@ export function ProviderRows({
                 ><EarlierGlyph /><span>{t("moveEarlier")}</span></button>
                 <button
                   type="button"
-                  role="menuitem"
                   className="ol-card-move-option focus-ring"
                   aria-label={`${t("moveLater")}: ${rowName(row)}`}
                   disabled={index === orderedRows.length - 1}
@@ -363,6 +402,7 @@ export function ProviderRows({
           </button>
         )}
       </div>
+      {reorderable && <p id={keyboardHelpId} className="sr-only">{t("keyboardHelp")}</p>}
       <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</p>
     </div>
   );
@@ -832,6 +872,8 @@ export function SettingsMenu({
   onInstall,
   onCheckUpdate,
   onLogout,
+  onOpen,
+  installed,
   triggerRef,
 }: {
   accountEmail: string;
@@ -844,6 +886,8 @@ export function SettingsMenu({
   onInstall: (returnFocus: HTMLButtonElement) => void;
   onCheckUpdate: () => void;
   onLogout: () => void;
+  onOpen: () => void;
+  installed: boolean;
   triggerRef: RefObject<HTMLButtonElement | null>;
 }) {
   const t = useTranslations("hub.menu");
@@ -889,7 +933,11 @@ export function SettingsMenu({
         aria-label={t("open")}
         title={t("open")}
         onClick={() => {
-          setOpen((current) => !current);
+          if (open) setOpen(false);
+          else {
+            onOpen();
+            setOpen(true);
+          }
         }}
         className={`ol-icon-control ol-tap focus-ring ${
           open ? "bg-surface" : "bg-transparent"
@@ -928,10 +976,10 @@ export function SettingsMenu({
               const trigger = triggerRef.current;
               if (trigger !== null) act(() => onPhone(trigger));
             }}>{t("phone")}</button>
-            <button type="button" className="ol-menu-action focus-ring" onClick={() => {
+            <button type="button" disabled={installed} className="ol-menu-action focus-ring" onClick={() => {
               const trigger = triggerRef.current;
               if (trigger !== null) act(() => onInstall(trigger));
-            }}>{t("install")}</button>
+            }}>{installed ? t("installed") : t("install")}</button>
             <button type="button" className="ol-menu-action focus-ring" onClick={() => act(onCheckUpdate)}>{t("updates")}</button>
             <Link className="ol-menu-link focus-ring" href="/en/docs" onClick={() => close(false)}>{t("about")}</Link>
             <button type="button" className="ol-menu-action ol-menu-action-quiet focus-ring" onClick={() => act(onLogout)}>{t("logout")}</button>

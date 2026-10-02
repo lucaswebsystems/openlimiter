@@ -543,6 +543,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   const phoneControl = useRef<PhoneButtonHandle | null>(null);
   const installControl = useRef<InstallControlHandle | null>(null);
   const menuTrigger = useRef<HTMLButtonElement | null>(null);
+  const [installInstalled, setInstallInstalled] = useState(true);
 
   const alertScopes = useMemo(() => {
     const scopes = new Map<string, AlertScope>();
@@ -695,6 +696,8 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
               onLogout={() => {
                 void sessionRuntime.logout();
               }}
+              onOpen={() => phoneControl.current?.close()}
+              installed={installInstalled}
               triggerRef={menuTrigger}
             />
           </>
@@ -702,7 +705,11 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
       />
 
       <PhoneButton ref={phoneControl} showButton={false} />
-      <InstallControl ref={installControl} showButton={false} />
+      <InstallControl
+        ref={installControl}
+        showButton={false}
+        onInstalledChange={setInstallInstalled}
+      />
 
       <p role="status" aria-live="polite" className="sr-only">
         {busy ? "Reading." : "Ready."}

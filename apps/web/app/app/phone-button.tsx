@@ -85,6 +85,7 @@ const FOCUSABLE_SELECTOR =
 
 export interface PhoneButtonHandle {
   open: (returnFocus?: HTMLElement) => void;
+  close: () => void;
 }
 
 const PhoneButton = forwardRef<PhoneButtonHandle, { showButton?: boolean }>(function PhoneButton(
@@ -103,6 +104,7 @@ const PhoneButton = forwardRef<PhoneButtonHandle, { showButton?: boolean }>(func
       returnFocus.current = node ?? null;
       setOpen(true);
     },
+    close: () => setOpen(false),
   }), []);
 
   /* The symbol is computed the first time the panel opens, not on every

@@ -928,7 +928,11 @@ async function capturePhone(browser, theme, snapshots, now) {
         for (const name of ["Claude", "Codex"]) {
           await page.getByText(name, { exact: true }).first().waitFor({ timeout: 20000 });
         }
-        await page.locator("openlimiter-provider-row article.row").first().waitFor();
+        const firstCard = page.locator("openlimiter-provider-row article.row").first();
+        await firstCard.waitFor();
+        for (const selector of [".window-name", ".window-percent", ".window-reset"]) {
+          await firstCard.locator(selector).first().waitFor({ state: "attached" });
+        }
         if (!syncedReads) throw new Error("Phone capture requires a signed in fixture API read. Rebuild with the documented synthetic API configuration.");
       } else if (view.screen === "onboarding") {
         const profile = page.locator('.ol-onboarding-card[data-step="profile"]');

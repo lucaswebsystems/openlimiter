@@ -157,7 +157,11 @@ export function HeaderTrial({ client, entitlement, onStarted }: {
           {starting ? t("header.working") : t("header.start")}
         </Button>
       </>}
-      {running && !complete && <Link className="ol-trial-chip" href={localePath(isLocale(locale) ? locale : "en", "/pro")}>
+      {running && !complete && <Link
+        className="ol-trial-chip"
+        href={localePath(isLocale(locale) ? locale : "en", "/pro")}
+        aria-label={days === 1 ? t("header.dayLeftLabel") : t("header.daysLeftLabel", { count: days })}
+      >
         {days === 1 ? t("header.dayLeft") : t("header.daysLeft", { count: days })}
       </Link>}
       {complete && <span className="ol-trial-chip">{t("header.complete")}</span>}

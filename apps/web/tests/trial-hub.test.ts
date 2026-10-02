@@ -236,6 +236,8 @@ describe("the header", () => {
     );
     expect(view.container.querySelector(".ol-trial-chip")?.textContent)
       .toBe(trial.header.daysLeft.replace("{count}", "10"));
+    expect(view.container.querySelector(".ol-trial-chip")?.getAttribute("aria-label"))
+      .toBe(trial.header.daysLeftLabel.replace("{count}", "10"));
   });
 
   it("counts a partial final day as one and removes the chip when the trial ends", async () => {
@@ -243,6 +245,8 @@ describe("the header", () => {
     entitlementRow = { plan_state: "trialing", trial_ends_at: new Date(NOW + 1000).toISOString() };
     const view = await open();
     expect(view.container.querySelector(".ol-trial-chip")?.textContent).toBe(trial.header.dayLeft);
+    expect(view.container.querySelector(".ol-trial-chip")?.getAttribute("aria-label"))
+      .toBe(trial.header.dayLeftLabel);
     clock.mockReturnValue(NOW + 1000);
     view.run(() => { document.dispatchEvent(new Event("visibilitychange")); });
     await flush(2);

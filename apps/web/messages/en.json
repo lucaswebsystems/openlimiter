@@ -2177,6 +2177,8 @@
       "moveEarlier": "Move earlier",
       "moveLater": "Move later",
       "moved": "Moved {name} to position {position} of {total}",
+      "cancelled": "Move cancelled. {name} returned to position {position} of {total}",
+      "keyboardHelp": "When this button has focus and actions are closed, use the arrow keys to move the card.",
       "addAccount": "Add account"
     },
     "menu": {
@@ -2187,6 +2189,7 @@
       "settings": "Settings",
       "phone": "Open on your phone",
       "install": "Install app",
+      "installed": "Installed",
       "updates": "Check for updates",
       "about": "About OpenLimiter",
       "logout": "Log out"
@@ -2271,7 +2274,9 @@
         "working": "Starting",
         "complete": "Pro is on",
         "dayLeft": "1 day",
-        "daysLeft": "{count} days"
+        "daysLeft": "{count} days",
+        "dayLeftLabel": "Pro trial, 1 day left",
+        "daysLeftLabel": "Pro trial, {count} days left"
       },
       "free": "No credit card needed",
       "label": "Start your free trial",

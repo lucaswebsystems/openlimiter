@@ -1096,10 +1096,15 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
   font-weight: var(--ol-weight-semibold);
 }
 
-.ol-menu-action:hover,
+.ol-menu-action:not(:disabled):hover,
 .ol-menu-link:hover {
   border-color: var(--ol-heading);
   background: var(--ol-raised);
+}
+
+.ol-menu-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .ol-menu-action-quiet {

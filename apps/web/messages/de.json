@@ -2177,6 +2177,8 @@
       "moveEarlier": "Nach vorne verschieben",
       "moveLater": "Nach hinten verschieben",
       "moved": "{name} wurde an Position {position} von {total} verschoben",
+      "cancelled": "Verschieben abgebrochen. {name} ist wieder an Position {position} von {total}",
+      "keyboardHelp": "Wenn diese Schaltfläche den Fokus hat und die Aktionen geschlossen sind, verschieben Sie die Karte mit den Pfeiltasten.",
       "addAccount": "Konto hinzufügen"
     },
     "menu": {
@@ -2187,6 +2189,7 @@
       "settings": "Einstellungen",
       "phone": "Auf dem Telefon öffnen",
       "install": "App installieren",
+      "installed": "Installiert",
       "updates": "Nach Updates suchen",
       "about": "Über OpenLimiter",
       "logout": "Abmelden"
@@ -2271,7 +2274,9 @@
         "working": "Startet",
         "complete": "Pro aktiv",
         "dayLeft": "1 Tag",
-        "daysLeft": "{count} Tage"
+        "daysLeft": "{count} Tage",
+        "dayLeftLabel": "Pro Testphase, noch 1 Tag",
+        "daysLeftLabel": "Pro Testphase, noch {count} Tage"
       },
       "free": "Keine Kreditkarte erforderlich",
       "label": "Starten Sie Ihre kostenlose Testphase",

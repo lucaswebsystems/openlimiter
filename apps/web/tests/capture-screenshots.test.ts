@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 // @ts-expect-error The repo uses jsdom without a separate declaration package.
 import { JSDOM } from "jsdom";
 // @ts-expect-error Capture scripts run directly in Node.
@@ -11,6 +12,14 @@ import { demoSnapshots, edgeLayout, edgePage, edgeScene, pairingCaptureResponse,
 const now = "2026-09-28T12:00:00.000Z";
 
 describe("synthetic screenshot pipeline", () => {
+  it("waits for rendered provider card contents without the removed hero", () => {
+    const source = readFileSync(new URL("../../../scripts/capture-screenshots.mjs", import.meta.url), "utf8");
+    // The wait loops over the card's rendered parts inside the shadow card.
+    expect(source).toContain('[".window-name", ".window-percent", ".window-reset"]');
+    expect(source).toContain("firstCard.locator(selector)");
+    expect(source).not.toContain(".ol-live-meter-card");
+  });
+
   it("rejects emails and profile paths, including escaped JSON paths", () => {
     for (const value of ["demo@example.test", "C:\\Users\\example\\project", "/home/example/project", { path: "C:\\Users\\example" }]) {
       expect(() => assertCaptureSafe(value)).toThrow(/Capture refused/);
