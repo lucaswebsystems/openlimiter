@@ -343,7 +343,9 @@ export async function runAcquisition(
   let phase: AcquisitionPhase = "credential";
   const failure = (failedIn: AcquisitionPhase, outcome: AcquisitionOutcome) =>
     outcome === "ok" ? {} : { phase: failedIn, errorClass: outcome };
-  const refused = (outcome: AcquisitionOutcome) => outcome === "unauthorized" || outcome === "blocked" || outcome === "identity_refused";
+  /* Outcomes that wait a day and belong to the credential itself, so a new
+     credential releases them: a retired plan is one of those (Astra, 2026-10-01). */
+  const refused = (outcome: AcquisitionOutcome) => outcome === "unauthorized" || outcome === "blocked" || outcome === "identity_refused" || outcome === "quota_unavailable";
   const outcomeAvailability = (outcome: AcquisitionOutcome) => outcome === "quota_unavailable"
     ? { availability: "quota_unavailable" as const }
     : outcome === "unauthorized"

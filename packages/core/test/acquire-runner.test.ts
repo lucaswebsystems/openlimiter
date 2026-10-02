@@ -308,6 +308,31 @@ describe("one acquisition round", () => {
     }
   });
 
+  it("releases a retired plan's day of backoff as soon as the credential changes", async () => {
+    // Astra, 2026-10-01: a retired consumer login at 00:00, supported credentials at 00:01.
+    const retired = await runAcquisition([geminiCliSpec(() => [meter("GEMINI_CLI")])], {
+      transport: async () => reply(200, { cloudaicompanionProject: "managed-project-123", currentTier: { id: "free-tier" } }),
+      now: NOW,
+      schedule: {},
+      readCredential: async () => credential("user-1")
+    });
+    expect(retired.schedule["GEMINI_CLI"]?.outcome).toBe("quota_unavailable");
+    const sent: AcquisitionRequest[] = [];
+    const replaced = await runAcquisition([geminiCliSpec(() => [meter("GEMINI_CLI")])], {
+      transport: async (request) => {
+        sent.push(request);
+        return request.endpoint === "code_assist_load"
+          ? reply(200, { cloudaicompanionProject: "managed-project-123", currentTier: { id: "standard-tier" } })
+          : reply(200, { buckets: [] });
+      },
+      now: "2026-01-01T00:01:00.000Z",
+      schedule: retired.schedule,
+      readCredential: async () => credential("user-2")
+    });
+    expect(sent.map((request) => request.endpoint)).toEqual(["code_assist_load", "code_assist_quota"]);
+    expect(replaced.rows[0]?.status).toBe("read");
+  });
+
   it("names a provider that answers only its own tools, and waits a day", async () => {
     /*
      * Measured live on 2026-09-07: loadCodeAssist answered 200 to a request
