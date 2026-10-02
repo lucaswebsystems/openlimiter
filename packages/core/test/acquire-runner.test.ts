@@ -32,7 +32,8 @@ const SYNTHETIC_TOKEN = "synthetic-access-token-0000";
 function credential(
   accountId: string | null = null,
   origin: "vendor_file" | "vendor_store" | "shared_code_assist" | "user_key" =
-    "vendor_file"
+    "vendor_file",
+  executable?: string
 ): CredentialResult {
   return {
     ok: true,
@@ -40,7 +41,13 @@ function credential(
       secret: SYNTHETIC_TOKEN,
       accountId,
       expiresAtMilliseconds: null,
-      origin
+      origin,
+      ...(executable === undefined ? {} : {
+        executable,
+        ...(accountId === null ? {} : {
+          verifiedAccountId: acquisitionAccountId("CODEX", { secret: "fixture", accountId })
+        })
+      })
     }
   };
 }
@@ -85,12 +92,19 @@ describe("one acquisition round", () => {
       },
       now: NOW,
       schedule: {},
-      readCredential: async () => credential("acct-1"),
+      readCredential: async () => credential("acct-1", "vendor_file", "C:\\Codex\\codex.exe"),
       stamp: (meters) => meters.map((entry) => ({ ...entry, writer: "cli" }))
     });
     expect(sent).toHaveLength(1);
-    expect(sent[0]?.url).toBe("https://chatgpt.com/backend-api/wham/usage");
-    expect(sent[0]?.headers["chatgpt-account-id"]).toBe("acct-1");
+    expect(sent[0]).toEqual({
+      kind: "codex_app_server",
+      endpoint: "codex_app_server",
+      url: "stdio:codex-app-server",
+      method: "POST",
+      headers: {},
+      body: null,
+      executable: "C:\\Codex\\codex.exe"
+    });
     expect(result.rows).toEqual([{
       provider: "CODEX",
       accountId: acquisitionAccountId("CODEX", { secret: "fixture", accountId: "acct-1" }),
@@ -105,6 +119,41 @@ describe("one acquisition round", () => {
     expect(report?.ok).toBe(true);
     expect(report?.ok === true ? report.snapshots[0]?.writer : null).toBe("cli");
     expect(result.schedule["CODEX"]?.outcome).toBe("ok");
+  });
+
+  it("draws no Codex meters when neither documented identity source is available", async () => {
+    const result = await runAcquisition([codexSpec(() => [meter("CODEX")])], {
+      transport: async () => reply(200, { rateLimits: {} }),
+      now: NOW,
+      schedule: {},
+      readCredential: async () => credential(null, "vendor_store", "C:\\Codex\\codex.exe")
+    });
+    expect(result.reports).toEqual([]);
+    expect(result.rows[0]).toMatchObject({
+      provider: "CODEX",
+      status: "stale",
+      reason: "Codex returned limits before its account identity was available."
+    });
+    expect(result.rows[0]).not.toHaveProperty("accountId");
+    expect(result.rows[0]).not.toHaveProperty("availability");
+  });
+
+  it("targets a failed Codex read at the last identity verified for that home", async () => {
+    const verifiedAccountId = acquisitionAccountId("CODEX", {
+      secret: "fixture",
+      accountId: "acct-1"
+    });
+    const result = await runAcquisition([codexSpec(() => [meter("CODEX")])], {
+      transport: async () => reply(401, {}),
+      now: NOW,
+      schedule: {},
+      readCredential: async () => credential("acct-1", "vendor_store", "C:\\Codex\\codex.exe")
+    });
+    expect(result.rows[0]).toMatchObject({
+      provider: "CODEX",
+      accountId: verifiedAccountId,
+      availability: "missing_credentials"
+    });
   });
 
   it("asks nothing while a provider is inside its own backoff", async () => {
@@ -494,7 +543,7 @@ describe("one acquisition round", () => {
       schedule: {},
       readCredential: async (provider) => {
         if (provider === "KIMI") throw new Error("a credential reader gave up");
-        return credential("acct-1");
+        return credential("acct-1", "vendor_file", "C:\\Codex\\codex.exe");
       }
     });
     expect(result.rows).toHaveLength(2);
@@ -515,7 +564,7 @@ describe("one acquisition round", () => {
       transport: async () => reply(200, {}),
       now: NOW,
       schedule: {},
-      readCredential: async () => credential("acct-1")
+      readCredential: async () => credential("acct-1", "vendor_file", "C:\\Codex\\codex.exe")
     });
     expect(result.schedule["CODEX"]?.outcome).toBe("drift");
     expect(result.rows[1]?.status).toBe("read");
@@ -530,7 +579,7 @@ describe("one acquisition round", () => {
       transport: async () => reply(200, {}),
       now: NOW,
       schedule: {},
-      readCredential: async () => credential("acct-1")
+      readCredential: async () => credential("acct-1", "vendor_file", "C:\\Codex\\codex.exe")
     });
     expect(result.rows).toHaveLength(2);
     expect(result.schedule["KIMI"]?.outcome).toBe("drift");

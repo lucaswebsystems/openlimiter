@@ -47,12 +47,13 @@ await settle();
 
 const commands = () => calls.map(([command]) => command);
 
-test("Connect for Codex imports its own login in one press and proves it reads", async () => {
+test("Connect for Codex scans and reads through its local app server without importing a login", async () => {
   calls.length = 0;
   assert.equal(await connectTool("CODEX"), true);
-  const connect = calls.find(([command]) => command === "connect_provider")[1].input;
-  assert.deepEqual([connect.provider_id, connect.credential_kind, connect.account_alias], ["codex", "codex_session", "default"]);
-  assert.ok(commands().includes("test_provider"));
+  assert.ok(commands().includes("rescan_detected_providers"));
+  assert.deepEqual(calls.find(([command]) => command === "refresh_home")[1], { providers: ["codex"] });
+  assert.ok(!commands().includes("connect_provider"));
+  assert.ok(!commands().includes("test_provider"));
   assert.deepEqual(opened, []);
 });
 

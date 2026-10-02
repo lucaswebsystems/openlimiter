@@ -116,7 +116,7 @@
       "file": "codex.usage.json",
       "encoding": "json",
       "parser": "parseCodexPayload",
-      "evidence": "observed",
+      "evidence": "documented",
       "expectedMeters": 2,
       "expect": [
         {

@@ -1098,11 +1098,12 @@ mod tests {
 
     fn codex_body(now: u64) -> String {
         serde_json::json!({
-            "rate_limit": {
-                "primary_window": {
-                    "used_percent": 40,
-                    "limit_window_seconds": 18_000,
-                    "reset_at": (now + 3_600_000) / 1_000
+            "rateLimits": {
+                "limitId": "codex",
+                "primary": {
+                    "usedPercent": 40,
+                    "windowDurationMins": 300,
+                    "resetsAt": (now + 3_600_000) / 1_000
                 }
             }
         })

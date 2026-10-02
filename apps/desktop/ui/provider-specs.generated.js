@@ -914,8 +914,8 @@ export const PROVIDER_SPECS = {
         "web",
         "phone"
       ],
-      "acquisitionMethod": "remote_http_internal",
-      "d5Review": "Internal provider interface; high automation risk and capture pending.",
+      "acquisitionMethod": "local_command",
+      "d5Review": "Documented local app server interface; low automation risk.",
       "maturity": "headline",
       "directory": {
         "order": 0,
@@ -924,37 +924,37 @@ export const PROVIDER_SPECS = {
         "connectorId": "codex",
         "access": "automatic"
       },
-      "docsUrl": "packages/connectors/src/codex.ts",
-      "reviewedAt": "2026-08-10",
-      "sourceStatus": "provisional",
+      "docsUrl": "https://learn.chatgpt.com/docs/app-server",
+      "reviewedAt": "2026-10-01",
+      "sourceStatus": "official",
       "support": {
         "parser": "implemented",
         "reader": "implemented",
         "auth": "implemented",
-        "verification": "unverified"
+        "verification": "verified"
       },
       "collection": {
         "readers": [
           {
             "readerId": "codex_usage",
-            "endpointId": "codex_usage",
+            "endpointId": "codex_app_server",
             "credentialKind": "codex_session",
             "evidenceFixture": "codex.sanitized_live.usage",
             "evidenceStatus": "captured",
-            "lastVerifiedAt": "2026-09-01"
+            "lastVerifiedAt": "2026-10-01"
           }
         ]
       },
       "honesty": {
         "connectorId": "codex",
         "credentialOrigin": "official-local-tool",
-        "dataInterfaceStatus": "internal-endpoint",
-        "automationRisk": "high",
-        "verification": "UNVERIFIED"
+        "dataInterfaceStatus": "documented-api",
+        "automationRisk": "low",
+        "verification": "VERIFIED_FIXTURES"
       },
-      "lastVerifiedAt": null,
+      "lastVerifiedAt": "2026-10-01",
       "readers": [
-        "experimental"
+        "local_command"
       ],
       "authModes": [
         "existing_local_cli"

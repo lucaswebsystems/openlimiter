@@ -156,7 +156,7 @@ export const posts: readonly Post[] = [
       {
         kind: "list",
         items: [
-          "Six read only connectors: Claude through the statusline payload Claude Code already produces, OpenRouter through its documented credits shape, Codex and Antigravity through internal shapes, OpenCode through a session you already opened, and manual entry for anything without a connector.",
+          "Six read only connectors: Claude through the statusline payload Claude Code already produces, OpenRouter through its documented credits shape, Codex through its documented local app server, Antigravity through its internal shape, OpenCode through a session you already opened, and manual entry for anything without a connector.",
           "A command line tool with nine commands: init, snapshot, statusline, hook, doctor, demo, export, ingest and serve.",
           "A Claude Code adapter: a compact statusline and a prompt hook that injects bounded budget state and routing advice.",
           "One hundred tests, running on Windows and Linux on every push.",

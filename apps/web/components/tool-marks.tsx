@@ -347,7 +347,7 @@ export const todayTools: readonly Tool[] = [
     name: "OpenAI Codex",
     Mark: OpenAIMark,
     state: "today",
-    detail: "Reads the usage shape the Codex tooling writes. Internal, so it can change.",
+    detail: "Reads documented rate limits through the local Codex app server.",
   },
   {
     name: "Google Antigravity",

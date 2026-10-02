@@ -6,14 +6,10 @@
   "status": 200,
   "headers": {},
   "body": {
-    "rate_limit": {
-      "primary_window": null,
-      "secondary_window": null
-    },
-    "credits": {
-      "has_credits": true,
-      "unlimited": true,
-      "balance": null
+    "rateLimits": {
+      "limitId": "codex",
+      "primary": { "usedPercent": 12, "windowDurationMins": 300, "resetsAt": 1786107600 },
+      "credits": { "hasCredits": false, "unlimited": true, "balance": null }
     }
   }
 }

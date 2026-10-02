@@ -12,10 +12,7 @@ use crate::connections::{
     now_epoch_ms, valid_alias, validate_record, ConnectionRecord, ConnectionsStore, StoreError,
     MAX_ATTEMPT_GENERATION, MAX_CONSECUTIVE_FAILURES, MAX_ID_CHARS,
 };
-use crate::credentials::{
-    mask_label, parse_codex_session_v1, read_codex_cli_secret_in_home, valid_codex_account_id,
-    valid_codex_token, CodexCredentialError, CredentialError, KeyringStore, SecretStore, MASK_DOTS,
-};
+use crate::credentials::{mask_label, CredentialError, KeyringStore, SecretStore};
 use crate::native_readers::parse_body;
 use crate::net::{fetch_endpoint, NetError, ReqwestTransport, Transport};
 use crate::provider_detection::{DetectionReport, DetectionStore};
@@ -168,15 +165,6 @@ impl From<CredentialError> for CommandFailure {
         match error {
             CredentialError::NotFound => CommandFailure::NotFound,
             CredentialError::Store => CommandFailure::CredentialStore,
-        }
-    }
-}
-
-impl From<CodexCredentialError> for CommandFailure {
-    fn from(error: CodexCredentialError) -> Self {
-        match error {
-            CodexCredentialError::LoginRequired => CommandFailure::CodexLoginRequired,
-            CodexCredentialError::InvalidEnvelope => CommandFailure::Protocol,
         }
     }
 }
@@ -448,17 +436,8 @@ fn connect_core_for_plan(
     so every return path below scrubs it, including the rejections. */
     let secret = Zeroizing::new(secret);
     if credential_kind == CredentialKind::CodexSession {
-        let session = parse_codex_session_v1(&secret)?;
-        return connect_with_secret(
-            connections,
-            secrets,
-            provider_id,
-            credential_kind,
-            account_alias,
-            session.access_token,
-            Some(session.account_id),
-            multi_account,
-        );
+        reader_route(provider_id, credential_kind)?;
+        return Err(CommandFailure::CodexLoginRequired);
     }
     connect_with_secret(
         connections,
@@ -467,7 +446,6 @@ fn connect_core_for_plan(
         credential_kind,
         account_alias,
         &secret,
-        None,
         multi_account,
     )
 }
@@ -479,7 +457,6 @@ fn connect_with_secret(
     credential_kind: CredentialKind,
     account_alias: String,
     secret: &str,
-    codex_account_id: Option<&str>,
     multi_account: bool,
 ) -> Result<ConnectionRecord, CommandFailure> {
     let route = reader_route(provider_id, credential_kind)?;
@@ -489,7 +466,7 @@ fn connect_with_secret(
     key's size and a key is not given a cookie's slack. Over the bound is
     refused whole; nothing is ever truncated, because half a credential fails
     authentication in a way nobody can debug. */
-    validate_secret_shape(credential_kind, secret, codex_account_id)?;
+    validate_secret_shape(credential_kind, secret)?;
     let trimmed = secret.trim();
     let record = ConnectionRecord {
         id: uuid::Uuid::new_v4().to_string(),
@@ -497,13 +474,8 @@ fn connect_with_secret(
         reader_id: route.reader_id,
         credential_kind,
         account_alias,
-        codex_account_id: codex_account_id.map(str::to_string),
-        /* Codex tokens stay fully masked so no token edge enters the record. */
-        masked_label: if credential_kind == CredentialKind::CodexSession {
-            MASK_DOTS.to_string()
-        } else {
-            mask_label(trimmed)
-        },
+        codex_account_id: None,
+        masked_label: mask_label(trimmed),
         created_at: now_epoch_ms(),
         base_seconds: route.reader_id.base_seconds(),
         next_refresh_at: None,
@@ -539,18 +511,8 @@ fn connect_with_secret(
 fn validate_secret_shape(
     credential_kind: CredentialKind,
     secret: &str,
-    codex_account_id: Option<&str>,
 ) -> Result<(), CommandFailure> {
     if secret.len() > credential_kind.max_secret_bytes() || secret.trim().is_empty() {
-        return Err(CommandFailure::InvalidInput);
-    }
-    if credential_kind == CredentialKind::CodexSession {
-        if !valid_codex_token(secret.trim())
-            || !codex_account_id.is_some_and(valid_codex_account_id)
-        {
-            return Err(CommandFailure::Protocol);
-        }
-    } else if codex_account_id.is_some() {
         return Err(CommandFailure::InvalidInput);
     }
     Ok(())
@@ -569,20 +531,21 @@ pub(crate) async fn replace_connection_secret_core<T: Transport>(
     capped_connection_id(&input.connection_id)?;
     let candidate = Zeroizing::new(input.secret);
     let before = connections.get(&input.connection_id)?;
+    if before.provider_id == ProviderId::Codex {
+        return Err(CommandFailure::CodexLoginRequired);
+    }
     if !before.is_active() {
         return Err(CommandFailure::Paused);
     }
-    validate_secret_shape(
-        before.credential_kind,
-        &candidate,
-        before.codex_account_id.as_deref(),
-    )?;
+    validate_secret_shape(before.credential_kind, &candidate)?;
     let candidate = candidate.trim();
     let route = reader_route(before.provider_id, before.credential_kind)?;
+    let endpoint = route.endpoint.ok_or(CommandFailure::Protocol)?;
+    let auth = route.auth.ok_or(CommandFailure::Protocol)?;
     let response = fetch_endpoint(
         transport,
-        route.endpoint,
-        route.auth,
+        endpoint,
+        auth,
         candidate,
         before.codex_account_id.as_deref(),
     )
@@ -602,11 +565,7 @@ pub(crate) async fn replace_connection_secret_core<T: Transport>(
     }
 
     let mut after = before.clone();
-    after.masked_label = if after.credential_kind == CredentialKind::CodexSession {
-        MASK_DOTS.to_string()
-    } else {
-        mask_label(candidate)
-    };
+    after.masked_label = mask_label(candidate);
     after.next_refresh_at = None;
     after.attempt_generation = after
         .attempt_generation
@@ -687,9 +646,8 @@ pub(crate) async fn replace_connection_secret_core<T: Transport>(
     })
 }
 
-/// The real connect boundary. Codex ignores any webview supplied secret and
-/// imports both fields from the bounded vendor login file instead, then sends
-/// each field to its own persistent store.
+/// The real connect boundary. Codex is connected by its documented app-server
+/// session, never by importing the bearer that its CLI owns.
 pub(crate) fn connect_from_home_core(
     connections: &ConnectionsStore,
     secrets: &impl SecretStore,
@@ -711,25 +669,9 @@ fn connect_from_home_core_for_plan(
     {
         return connect_core_for_plan(connections, secrets, input, multi_account);
     }
-    let ConnectProviderInput {
-        provider_id,
-        credential_kind,
-        account_alias,
-        secret,
-    } = input;
-    let _discarded_webview_secret = Zeroizing::new(secret);
-    let home = home.ok_or(CommandFailure::CodexLoginRequired)?;
-    let imported = read_codex_cli_secret_in_home(home)?;
-    connect_with_secret(
-        connections,
-        secrets,
-        provider_id,
-        credential_kind,
-        account_alias,
-        &imported.access_token,
-        Some(&imported.account_id),
-        multi_account,
-    )
+    let _discarded_webview_secret = Zeroizing::new(input.secret);
+    let _ = home;
+    Err(CommandFailure::CodexLoginRequired)
 }
 
 /// The status a non `2xx` answer puts a connection in, and whether it counts
@@ -759,54 +701,6 @@ fn escalated(failures_after: u32) -> &'static str {
     } else {
         STATUS_DEGRADED
     }
-}
-
-/// Split a legacy v1 Codex envelope exactly once. The connection update lands
-/// first; if the smaller token write fails, the new field is rolled back so
-/// the old envelope remains a complete retryable source.
-fn migrate_codex_credential_if_needed(
-    connections: &ConnectionsStore,
-    secrets: &impl SecretStore,
-    record: &mut ConnectionRecord,
-    stored: &str,
-) -> Result<Option<Zeroizing<String>>, CommandFailure> {
-    if record.credential_kind != CredentialKind::CodexSession {
-        return Ok(None);
-    }
-    let Ok(legacy) = parse_codex_session_v1(stored) else {
-        if valid_codex_token(stored)
-            && record
-                .codex_account_id
-                .as_deref()
-                .is_some_and(valid_codex_account_id)
-        {
-            return Ok(None);
-        }
-        return Err(CommandFailure::Protocol);
-    };
-    if record
-        .codex_account_id
-        .as_deref()
-        .is_some_and(|account_id| account_id != legacy.account_id)
-    {
-        return Err(CommandFailure::Protocol);
-    }
-    let token = Zeroizing::new(legacy.access_token.to_string());
-    let account_id = legacy.account_id.to_string();
-    let added_account_id = record.codex_account_id.is_none();
-    if added_account_id {
-        *record = connections.update(&record.id, |it| {
-            it.codex_account_id = Some(account_id.clone());
-        })?;
-    }
-    if let Err(error) = secrets.store_secret(&record.id, &token) {
-        if added_account_id {
-            let _ = connections.update(&record.id, |it| it.codex_account_id = None);
-            record.codex_account_id = None;
-        }
-        return Err(error.into());
-    }
-    Ok(Some(token))
 }
 
 /// Open one attempt: bump the generation, stamp the attempt time, and hand back
@@ -881,9 +775,14 @@ pub(crate) async fn probe_core<T: Transport>(
     input: ProbeInput,
 ) -> Result<ProbeOutcome, CommandFailure> {
     capped_connection_id(&input.connection_id)?;
-    let mut record = connections.get(&input.connection_id)?;
+    let record = connections.get(&input.connection_id)?;
     if !record.is_active() {
         return Err(CommandFailure::Paused);
+    }
+    if record.provider_id == ProviderId::Codex {
+        // Stored Codex connections are migrated by the command and recurring
+        // collector entry points before the legacy HTTP probe can be reached.
+        return Err(CommandFailure::CodexLoginRequired);
     }
     /* The address comes from the record's own provider and credential kind,
     through the one routing function, and from nowhere else. A tampered record
@@ -892,15 +791,15 @@ pub(crate) async fn probe_core<T: Transport>(
     /* The secret is read inside this privileged call, used for one request,
     and dropped. It is never part of the return value. */
     let secret = secrets.read_secret(&record.id)?;
-    let migrated = migrate_codex_credential_if_needed(connections, secrets, &mut record, &secret)?;
-    let request_secret = migrated.as_deref().unwrap_or(&secret);
     let opened = open_attempt(connections, &record.id)?;
     let attempt_generation = opened.attempt_generation;
+    let endpoint = route.endpoint.ok_or(CommandFailure::Protocol)?;
+    let auth = route.auth.ok_or(CommandFailure::Protocol)?;
     let fetched = fetch_endpoint(
         transport,
-        route.endpoint,
-        route.auth,
-        request_secret,
+        endpoint,
+        auth,
+        &secret,
         record.codex_account_id.as_deref(),
     )
     .await;
@@ -1202,8 +1101,24 @@ pub async fn test_provider(
     runtime: State<'_, crate::collector_runtime::CollectorRuntime>,
     policy: State<'_, crate::request_policy::RequestPolicy>,
     detection: State<'_, DetectionStore>,
+    codex_runtime: State<'_, crate::codex_oauth::CodexOauthRuntime>,
     input: ProbeInput,
 ) -> Result<crate::collector::CollectionOutcome, CommandFailure> {
+    if connections.get(&input.connection_id)?.provider_id == ProviderId::Codex {
+        let outcome = collect_stored_codex_connection(
+            &connections,
+            &*transport,
+            &writer,
+            &policy,
+            &detection,
+            &codex_runtime,
+            input.connection_id,
+            crate::collector::CollectionMode::Test,
+        )
+        .await?;
+        runtime.record_pass(outcome.failure(), true);
+        return Ok(outcome);
+    }
     let outcome = crate::collector_runtime::run_guarded(
         &runtime,
         &detection.switches,
@@ -1229,8 +1144,24 @@ pub async fn refresh_provider(
     runtime: State<'_, crate::collector_runtime::CollectorRuntime>,
     policy: State<'_, crate::request_policy::RequestPolicy>,
     detection: State<'_, DetectionStore>,
+    codex_runtime: State<'_, crate::codex_oauth::CodexOauthRuntime>,
     input: ProbeInput,
 ) -> Result<crate::collector::CollectionOutcome, CommandFailure> {
+    if connections.get(&input.connection_id)?.provider_id == ProviderId::Codex {
+        let outcome = collect_stored_codex_connection(
+            &connections,
+            &*transport,
+            &writer,
+            &policy,
+            &detection,
+            &codex_runtime,
+            input.connection_id,
+            crate::collector::CollectionMode::Refresh,
+        )
+        .await?;
+        runtime.record_pass(outcome.failure(), true);
+        return Ok(outcome);
+    }
     let outcome = crate::collector_runtime::run_guarded(
         &runtime,
         &detection.switches,
@@ -1245,6 +1176,107 @@ pub async fn refresh_provider(
     .await?;
     runtime.record_pass(outcome.failure(), true);
     Ok(outcome)
+}
+
+async fn collect_stored_codex_connection<T: Transport>(
+    connections: &ConnectionsStore,
+    transport: &T,
+    writer: &Arc<CacheWriter>,
+    policy: &crate::request_policy::RequestPolicy,
+    detection: &DetectionStore,
+    runtime: &crate::codex_oauth::CodexOauthRuntime,
+    connection_id: String,
+    mode: crate::collector::CollectionMode,
+) -> Result<crate::collector::CollectionOutcome, CommandFailure> {
+    use crate::codex_oauth::{CodexFailure, CodexOutcome};
+    use crate::collector::CollectionOutcome;
+    use crate::provider_detection::{opaque_account_id, DetectedProviderId};
+
+    let record = connections.get(&connection_id)?;
+    if !record.is_active() {
+        return Err(CommandFailure::Paused);
+    }
+    let home = detection
+        .default_codex_home()
+        .ok_or(CommandFailure::CodexLoginRequired)?;
+    let outcome = if let Some(material) = record.codex_account_id.as_deref() {
+        let account_id = opaque_account_id(DetectedProviderId::Codex, material);
+        detection.remember_stored_codex_identity(&home, &account_id);
+        crate::codex_oauth::collect_account_guarded(
+            detection,
+            runtime,
+            policy,
+            transport,
+            Arc::clone(writer),
+            account_id,
+            now_epoch_ms(),
+        )
+        .await
+        .0
+    } else {
+        crate::codex_oauth::collect_home(
+            detection,
+            runtime,
+            transport,
+            Arc::clone(writer),
+            home,
+            None,
+            now_epoch_ms(),
+        )
+        .await
+    };
+    Ok(match outcome {
+        CodexOutcome::CacheCommitted { .. } => match mode {
+            crate::collector::CollectionMode::Test => CollectionOutcome::Tested { connection_id },
+            crate::collector::CollectionMode::Refresh => {
+                CollectionOutcome::CacheCommitted { connection_id }
+            }
+        },
+        CodexOutcome::Cached { .. } => CollectionOutcome::CacheCommitted { connection_id },
+        CodexOutcome::Fallback {
+            reason,
+            retry_after_seconds,
+            ..
+        } => CollectionOutcome::Failed {
+            connection_id,
+            reason: codex_collector_failure(reason),
+            status: None,
+            retry_after_seconds,
+        },
+        CodexOutcome::ReopenCli { .. } => CollectionOutcome::Failed {
+            connection_id,
+            reason: codex_collector_failure(CodexFailure::ProviderBlocked),
+            status: None,
+            retry_after_seconds: None,
+        },
+        CodexOutcome::Failed { reason, .. } | CodexOutcome::Unavailable { reason } => {
+            CollectionOutcome::Failed {
+                connection_id,
+                reason: codex_collector_failure(reason),
+                status: None,
+                retry_after_seconds: None,
+            }
+        }
+    })
+}
+
+fn codex_collector_failure(
+    reason: crate::codex_oauth::CodexFailure,
+) -> crate::collector::CollectorFailure {
+    use crate::codex_oauth::CodexFailure;
+    use crate::collector::CollectorFailure;
+    match reason {
+        CodexFailure::Timeout => CollectorFailure::Timeout,
+        CodexFailure::Connect => CollectorFailure::Connect,
+        CodexFailure::Tls => CollectorFailure::Tls,
+        CodexFailure::TooLarge => CollectorFailure::Oversize,
+        CodexFailure::Drift => CollectorFailure::Drift,
+        CodexFailure::Cache => CollectorFailure::Cache,
+        CodexFailure::Protocol
+        | CodexFailure::ProviderResponse
+        | CodexFailure::RateLimited
+        | CodexFailure::ProviderBlocked => CollectorFailure::ProviderResponse,
+    }
 }
 
 #[tauri::command]
@@ -1437,7 +1469,6 @@ pub async fn cache_commit_write(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::credentials::encode_codex_session_v1;
     use crate::net::{ProviderEndpoint, TransportFailure};
     use crate::reader_registry::{MAX_BROWSER_SESSION_BYTES, MAX_KEY_SECRET_BYTES};
     use crate::test_support::{FailingTransport, InMemorySecrets, RecordingTransport, TempDir};
@@ -1486,36 +1517,6 @@ mod tests {
         let text = std::fs::read_to_string(dir.path().join(crate::cache_write::CACHE_FILE_NAME))
             .expect("cache");
         serde_json::from_str(&text).expect("cache document")
-    }
-
-    /// Models Windows Credential Manager's 2560 byte UTF 16 blob ceiling.
-    struct WindowsCeilingSecrets {
-        inner: InMemorySecrets,
-    }
-
-    impl WindowsCeilingSecrets {
-        fn new() -> Self {
-            Self {
-                inner: InMemorySecrets::new(),
-            }
-        }
-    }
-
-    impl SecretStore for WindowsCeilingSecrets {
-        fn store_secret(&self, connection_id: &str, secret: &str) -> Result<(), CredentialError> {
-            if secret.encode_utf16().count() * 2 > 2_560 {
-                return Err(CredentialError::Store);
-            }
-            self.inner.store_secret(connection_id, secret)
-        }
-
-        fn read_secret(&self, connection_id: &str) -> Result<Zeroizing<String>, CredentialError> {
-            self.inner.read_secret(connection_id)
-        }
-
-        fn delete_secret(&self, connection_id: &str) -> Result<(), CredentialError> {
-            self.inner.delete_secret(connection_id)
-        }
     }
 
     struct FailNextWriteSecrets {
@@ -1691,12 +1692,6 @@ mod tests {
         }
     }
 
-    fn codex_test_secret() -> String {
-        encode_codex_session_v1("codex-access-token-for-tests", "codex-account-for-tests")
-            .expect("fixture envelope")
-            .to_string()
-    }
-
     fn probe(connection_id: &str) -> ProbeInput {
         ProbeInput {
             connection_id: connection_id.to_string(),
@@ -1848,7 +1843,7 @@ mod tests {
     }
 
     #[test]
-    fn codex_connect_imports_both_fields_and_ignores_the_webview_secret() {
+    fn codex_connect_refuses_bearer_import_and_ignores_the_webview_secret() {
         const TOKEN: &str = "codex-token-import-canary-123456789";
         const ACCOUNT: &str = "codex-account-import-canary-987654321";
         const WEBVIEW: &str = "webview-secret-must-be-ignored";
@@ -1867,60 +1862,10 @@ mod tests {
             account_alias: "personal".to_string(),
             secret: WEBVIEW.to_string(),
         };
-        let record = connect_from_home_core(&connections, &secrets, input, Some(dir.path()))
-            .expect("connect");
-        let stored = secrets.read_secret(&record.id).expect("stored token");
-        assert_eq!(stored.as_str(), TOKEN);
-        assert_eq!(record.codex_account_id.as_deref(), Some(ACCOUNT));
-        assert!(!stored.contains(WEBVIEW));
-        let wire = serde_json::to_string(&record).expect("record wire");
-        for canary in [TOKEN, WEBVIEW] {
-            assert!(!wire.contains(canary));
-        }
-        assert!(wire.contains(ACCOUNT));
-        assert!(!format!("{record:?}").contains(ACCOUNT));
-        let file =
-            std::fs::read_to_string(dir.path().join(crate::connections::CONNECTIONS_FILE_NAME))
-                .expect("connections file");
-        assert!(file.contains(ACCOUNT));
-        assert!(!file.contains(TOKEN));
-        assert_eq!(record.masked_label, MASK_DOTS);
-    }
-
-    #[test]
-    fn realistic_codex_token_fits_the_windows_credential_ceiling() {
-        let token = format!("eyJ.{}", "t".repeat(1_196));
-        let account_id = format!("acct-{}", "a".repeat(75));
-        let legacy = encode_codex_session_v1(&token, &account_id).expect("legacy envelope");
-        assert!(legacy.encode_utf16().count() * 2 > 2_560);
-        assert!(token.encode_utf16().count() * 2 <= 2_560);
-
-        let dir = TempDir::new();
-        let codex = dir.path().join(".codex");
-        std::fs::create_dir_all(&codex).expect("directory");
-        std::fs::write(
-            codex.join("auth.json"),
-            format!(r#"{{"tokens":{{"access_token":"{token}","account_id":"{account_id}"}}}}"#),
-        )
-        .expect("fixture");
-        let connections = ConnectionsStore::at(Some(dir.path().to_path_buf()));
-        let secrets = WindowsCeilingSecrets::new();
-        let input = ConnectProviderInput {
-            provider_id: ProviderId::Codex,
-            credential_kind: CredentialKind::CodexSession,
-            account_alias: "personal".to_string(),
-            secret: "ignored".to_string(),
-        };
-        let record = connect_from_home_core(&connections, &secrets, input, Some(dir.path()))
-            .expect("the token only write fits");
-        assert_eq!(
-            secrets.read_secret(&record.id).expect("stored").as_str(),
-            token
-        );
-        assert_eq!(
-            record.codex_account_id.as_deref(),
-            Some(account_id.as_str())
-        );
+        let failure = connect_from_home_core(&connections, &secrets, input, Some(dir.path()))
+            .expect_err("the documented app server owns this login");
+        assert_eq!(failure, CommandFailure::CodexLoginRequired);
+        assert_eq!(secrets.stored_count(), 0);
     }
 
     #[test]
@@ -2068,13 +2013,12 @@ mod tests {
                 let mut input = connect_input();
                 input.provider_id = provider;
                 input.credential_kind = credential;
-                if credential == CredentialKind::CodexSession {
-                    input.secret = codex_test_secret();
-                }
                 /* On a plan that allows more than one account, so the thing
                 under test is the route table and not the Free cap. */
                 let outcome = connect_core_for_plan(&connections, &secrets, input, true);
-                if reader_route(provider, credential).is_ok() {
+                if provider == ProviderId::Codex && credential == CredentialKind::CodexSession {
+                    assert_eq!(outcome.map(|_| ()), Err(CommandFailure::CodexLoginRequired));
+                } else if reader_route(provider, credential).is_ok() {
                     assert!(outcome.is_ok());
                     accepted += 1;
                 } else {
@@ -2086,7 +2030,7 @@ mod tests {
                 }
             }
         }
-        assert_eq!(accepted, crate::reader_registry::ReaderId::ALL.len());
+        assert_eq!(accepted + 1, crate::reader_registry::ReaderId::ALL.len());
         assert_eq!(
             secrets.stored_count(),
             accepted,
@@ -2128,54 +2072,6 @@ mod tests {
     /* ------------------------------------------------------------- probe */
 
     #[tokio::test]
-    async fn a_legacy_codex_envelope_is_split_and_rewritten_once() {
-        const TOKEN: &str = "codex-migration-token-never-log";
-        const ACCOUNT: &str = "codex-migration-account-never-log";
-        let dir = TempDir::new();
-        let (connections, secrets) = stores(&dir);
-        let legacy = encode_codex_session_v1(TOKEN, ACCOUNT)
-            .expect("legacy")
-            .to_string();
-        let input = ConnectProviderInput {
-            provider_id: ProviderId::Codex,
-            credential_kind: CredentialKind::CodexSession,
-            account_alias: "personal".to_string(),
-            secret: legacy.clone(),
-        };
-        let record = connect_core(&connections, &secrets, input).expect("initial record");
-        connections
-            .update(&record.id, |it| it.codex_account_id = None)
-            .expect("legacy record shape");
-        secrets
-            .store_secret(&record.id, &legacy)
-            .expect("legacy credential shape");
-
-        let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
-        let outcome = test_core(&connections, &secrets, &transport, probe(&record.id))
-            .await
-            .expect("migrated probe");
-        assert_eq!(
-            secrets.read_secret(&record.id).expect("rewritten").as_str(),
-            TOKEN
-        );
-        let migrated = connections.get(&record.id).expect("migrated record");
-        assert_eq!(migrated.codex_account_id.as_deref(), Some(ACCOUNT));
-        assert_eq!(transport.recorded_secrets(), vec![TOKEN.to_string()]);
-        assert_eq!(
-            transport.recorded_codex_account_ids(),
-            vec![Some(ACCOUNT.to_string())]
-        );
-        for rendered in [
-            format!("{outcome:?}"),
-            format!("{migrated:?}"),
-            CommandFailure::Protocol.to_string(),
-        ] {
-            assert!(!rendered.contains(TOKEN));
-            assert!(!rendered.contains(ACCOUNT));
-        }
-    }
-
-    #[tokio::test]
     async fn a_probe_routes_from_the_record_and_never_from_the_caller() {
         let dir = TempDir::new();
         let (connections, secrets) = stores(&dir);
@@ -2201,7 +2097,7 @@ mod tests {
 
     #[tokio::test]
     async fn every_provider_reaches_only_its_own_address() {
-        /* The endpoint confusion matrix, end to end: each of the five real
+        /* The HTTP endpoint confusion matrix, end to end: each real
         pairings is connected and probed, and each one must touch exactly one
         address, its own. */
         let expected = [
@@ -2214,11 +2110,6 @@ mod tests {
                 ProviderId::Openrouter,
                 CredentialKind::OpenrouterManagementKey,
                 ProviderEndpoint::OpenrouterCredits,
-            ),
-            (
-                ProviderId::Codex,
-                CredentialKind::CodexSession,
-                ProviderEndpoint::CodexUsage,
             ),
             (
                 ProviderId::Antigravity,
@@ -2237,9 +2128,6 @@ mod tests {
             let mut input = connect_input();
             input.provider_id = provider;
             input.credential_kind = credential;
-            if credential == CredentialKind::CodexSession {
-                input.secret = codex_test_secret();
-            }
             let record = connect_core(&connections, &secrets, input).expect("connect");
             let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
             test_core(&connections, &secrets, &transport, probe(&record.id))
@@ -2325,31 +2213,6 @@ mod tests {
         let after = connections.get(&record.id).expect("get");
         assert_eq!(after.last_success_at, None);
         assert_eq!(after.status, STATUS_AUTH_EXPIRED);
-    }
-
-    #[tokio::test]
-    async fn codex_auth_failure_becomes_needs_auth_for_codex_login() {
-        let dir = TempDir::new();
-        let (connections, secrets) = stores(&dir);
-        let input = ConnectProviderInput {
-            provider_id: ProviderId::Codex,
-            credential_kind: CredentialKind::CodexSession,
-            account_alias: "personal".to_string(),
-            secret: codex_test_secret(),
-        };
-        let record = connect_core(&connections, &secrets, input).expect("connect");
-        let transport = RecordingTransport::replying(401, Vec::new(), None);
-        test_core(&connections, &secrets, &transport, probe(&record.id))
-            .await
-            .expect("probe");
-        assert_eq!(
-            connections.get(&record.id).expect("record").status,
-            STATUS_NEEDS_AUTH
-        );
-        assert_eq!(
-            CommandFailure::CodexLoginRequired.to_string(),
-            "Codex needs a current login. Run codex login."
-        );
     }
 
     #[tokio::test]

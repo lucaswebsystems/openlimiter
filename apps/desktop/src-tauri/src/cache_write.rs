@@ -321,6 +321,9 @@ impl CacheWriter {
                 }
             }
             for row in rows.iter_mut().filter(|row| matches(row)) {
+                row["value"] = serde_json::json!(0);
+                row["window"] = serde_json::json!({"kind": "unknown"});
+                row["resetAt"] = serde_json::Value::Null;
                 row["availability"] = serde_json::json!(availability);
                 if let Some(retry) = retry_at {
                     row["retryAt"] = serde_json::json!(policy_iso(retry));
@@ -550,6 +553,49 @@ mod tests {
         writer
             .commit("{\"snapshots\":[]}", begun.generation)
             .expect("commit");
+    }
+
+    #[test]
+    fn codex_availability_clears_only_the_failed_accounts_numbers() {
+        let dir = TempDir::new();
+        fs::write(
+            cache_path(&dir),
+            serde_json::json!({
+                "version": 2,
+                "snapshots": [
+                    {"provider":"CODEX","accountId":"codex-failing","meter":"PRIMARY","value":73,"unit":"PERCENT","window":{"kind":"rolling","seconds":3600},"resetAt":"2026-10-01T13:00:00.000Z"},
+                    {"provider":"CODEX","accountId":"codex-healthy","meter":"PRIMARY","value":41,"unit":"PERCENT","window":{"kind":"rolling","seconds":3600},"resetAt":"2026-10-01T13:00:00.000Z"}
+                ]
+            })
+            .to_string(),
+        )
+        .expect("seed");
+        writer(&dir)
+            .record_availability(
+                "CODEX",
+                Some("codex-failing"),
+                "network_failure",
+                None,
+                1_790_854_400_000,
+            )
+            .expect("availability");
+        let document: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(cache_path(&dir)).unwrap()).unwrap();
+        let rows = document["snapshots"].as_array().unwrap();
+        let failed = rows
+            .iter()
+            .find(|row| row["accountId"] == "codex-failing")
+            .unwrap();
+        let healthy = rows
+            .iter()
+            .find(|row| row["accountId"] == "codex-healthy")
+            .unwrap();
+        assert_eq!(failed["value"], 0);
+        assert_eq!(failed["window"], serde_json::json!({"kind":"unknown"}));
+        assert!(failed["resetAt"].is_null());
+        assert_eq!(failed["availability"], "network_failure");
+        assert_eq!(healthy["value"], 41);
+        assert!(healthy.get("availability").is_none());
     }
 
     #[cfg(unix)]

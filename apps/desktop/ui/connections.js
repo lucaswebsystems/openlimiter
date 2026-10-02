@@ -11,8 +11,9 @@
  * Two kinds of step, the two a row's button can carry:
  *
  *   connect, for a tool this window can set up itself: Claude Code's settings
- *   block, Codex's login import, a session token for Antigravity or OpenCode,
- *   and OpenRouter's key (whose field is in the key rows, owned by app.js);
+ *   block, a session token for Antigravity or OpenCode, and OpenRouter's key
+ *   (whose field is in the key rows, owned by app.js). Codex uses this label
+ *   to run its documented local app server check without importing a token;
  *
  *   check, for a sign in that lives in the tool itself: the person signs in
  *   or opens it there, and this asks native code to look again and read once.
@@ -405,16 +406,13 @@ export async function replaceOpenrouterKey(recordId, secret) {
 }
 
 /**
- * The connect step. Codex imports its own login file in one press; Claude
+ * The connect step. Codex is rescanned through its documented app server; Claude
  * Code, Antigravity and OpenCode open their setup panel under the list.
  * Resolves false when nothing could be done.
  */
 export async function connectTool(code) {
   if (code === "CODEX") {
-    /* The backend imports the token from the Codex login file and discards
-       what this window sends, so the secret here is a placeholder. */
-    const result = await connectCredential("CODEX", { providerId: "codex", credentialKind: "codex_session" }, "imported from the codex login file");
-    return result.ok;
+    return checkTool(code);
   }
   if (SETUP_TARGETS[code]) {
     configureProvider(code);

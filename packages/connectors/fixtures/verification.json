@@ -16,11 +16,11 @@
     },
     "codex": {
       "fixtureVerified": true,
-      "evidence": "observed",
+      "evidence": "documented",
       "liveEvidenceClass": "sanitized_live",
       "liveEvidenceFile": "live/codex.usage.capture.json",
       "lastVerifiedAt": "2026-09-01",
-      "reason": "The usage response was read from the personal Codex account on 2026-09-01 and reduced to the percentage, window length, and reset duration. The captured fixture parses to the one window the provider returned. The honesty label stays UNVERIFIED because the endpoint is internal and OpenAI publishes nothing about it."
+      "reason": "OpenAI documents account/rateLimits/read on the Codex app server. The frozen fixture covers the documented window fields, while the earlier sanitized capture is rebuilt into the same response shape."
     },
     "antigravity": {
       "fixtureVerified": true,

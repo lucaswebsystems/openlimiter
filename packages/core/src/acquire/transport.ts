@@ -26,9 +26,6 @@ export const MAX_ACQUISITION_RESPONSE_BYTES = 1_048_576;
 /** The Claude account usage report, read with Claude Code's own OAuth token. */
 export const CLAUDE_OAUTH_USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
 
-/** The Codex usage report, read with the session the Codex CLI holds. */
-export const CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
-
 /** Gemini CLI's Code Assist account bootstrap, which names the project. */
 export const GEMINI_CLI_LOAD_URL =
   "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist";
@@ -57,7 +54,6 @@ export const OPENROUTER_KEY_URL = "https://openrouter.ai/api/v1/key";
  */
 export const ACQUISITION_ENDPOINTS = {
   claude_usage: { url: CLAUDE_OAUTH_USAGE_URL, method: "GET" },
-  codex_usage: { url: CODEX_USAGE_URL, method: "GET" },
   code_assist_load: { url: GEMINI_CLI_LOAD_URL, method: "POST" },
   code_assist_quota: { url: GEMINI_CLI_QUOTA_URL, method: "POST" },
   grok_billing: { url: GROK_USAGE_URL, method: "GET" },
@@ -73,9 +69,6 @@ export type AcquisitionEndpointId = keyof typeof ACQUISITION_ENDPOINTS;
 /** The beta contract the OAuth usage route answers. */
 export const CLAUDE_OAUTH_BETA_HEADER = "anthropic-beta";
 export const CLAUDE_OAUTH_BETA_VALUE = "oauth-2025-04-20";
-
-/** The account header the ChatGPT backend reads beside the bearer token. */
-export const CODEX_ACCOUNT_HEADER = "chatgpt-account-id";
 
 /** The account identity the Grok billing service reads beside the token. */
 export const GROK_ACCOUNT_HEADER = "x-userid";
@@ -93,13 +86,29 @@ export const CODE_ASSIST_LOAD_BODY = JSON.stringify({
   }
 });
 
-export interface AcquisitionRequest {
+export interface HttpAcquisitionRequest {
   readonly endpoint: AcquisitionEndpointId;
   readonly url: string;
   readonly method: "GET" | "POST";
   readonly headers: Readonly<Record<string, string>>;
   readonly body: string | null;
 }
+
+export interface CodexAppServerAcquisitionRequest {
+  readonly kind: "codex_app_server";
+  /** Compatibility metadata for acquisition tracing. Never passed to fetch. */
+  readonly endpoint: "codex_app_server";
+  readonly url: "stdio:codex-app-server";
+  readonly method: "POST";
+  readonly headers: Readonly<Record<string, string>>;
+  readonly body: null;
+  readonly executable: string;
+  readonly argumentsPrefix?: readonly string[];
+  readonly environment?: NodeJS.ProcessEnv;
+  readonly timeoutMilliseconds?: number;
+}
+
+export type AcquisitionRequest = HttpAcquisitionRequest | CodexAppServerAcquisitionRequest;
 
 /**
  * Whether a secret may be written into a header at all.
@@ -142,21 +151,6 @@ export function claudeUsageRequest(secret: string): AcquisitionRequest | null {
     url: ACQUISITION_ENDPOINTS.claude_usage.url,
     method: "GET",
     headers: { ...bearer(secret), [CLAUDE_OAUTH_BETA_HEADER]: CLAUDE_OAUTH_BETA_VALUE },
-    body: null
-  };
-}
-
-/** The Codex usage request, with the account header the backend requires. */
-export function codexUsageRequest(
-  secret: string,
-  accountId: string
-): AcquisitionRequest | null {
-  if (!usableHeaderSecret(secret) || !usableHeaderAccountId(accountId)) return null;
-  return {
-    endpoint: "codex_usage",
-    url: ACQUISITION_ENDPOINTS.codex_usage.url,
-    method: "GET",
-    headers: { ...bearer(secret), [CODEX_ACCOUNT_HEADER]: accountId },
     body: null
   };
 }
@@ -359,7 +353,6 @@ export const ALLOWED_REQUEST_HEADERS: readonly string[] = [
   "user-agent",
   "content-type",
   CLAUDE_OAUTH_BETA_HEADER,
-  CODEX_ACCOUNT_HEADER,
   GROK_ACCOUNT_HEADER
 ];
 
@@ -384,7 +377,7 @@ function validHeaderValue(name: string, value: string, method: string): boolean 
     return value.startsWith("Bearer ") && usableHeaderSecret(value.slice(7));
   }
   if (name === CLAUDE_OAUTH_BETA_HEADER) return value === CLAUDE_OAUTH_BETA_VALUE;
-  if (name === CODEX_ACCOUNT_HEADER || name === GROK_ACCOUNT_HEADER) {
+  if (name === GROK_ACCOUNT_HEADER) {
     return usableHeaderAccountId(value);
   }
   return false;
@@ -399,7 +392,7 @@ function validHeaderValue(name: string, value: string, method: string): boolean 
  * from the builder: this is the last point before the wire, and the last chance
  * to notice that a project identifier grew into something else.
  */
-function validRequestBody(request: AcquisitionRequest): boolean {
+function validRequestBody(request: HttpAcquisitionRequest): boolean {
   if (request.endpoint === "code_assist_load") {
     return request.body === CODE_ASSIST_LOAD_BODY;
   }
@@ -435,21 +428,24 @@ function validRequestBody(request: AcquisitionRequest): boolean {
  * answered against constants in this file. A request that fails any of them
  * never reaches the network.
  */
-export function validAcquisitionRequest(request: AcquisitionRequest): boolean {
-  const endpoint = ACQUISITION_ENDPOINTS[request.endpoint];
+export function validAcquisitionRequest(request: unknown): request is HttpAcquisitionRequest {
+  if (typeof request !== "object" || request === null || "kind" in request) return false;
+  const candidate = request as Partial<HttpAcquisitionRequest>;
+  if (typeof candidate.endpoint !== "string") return false;
+  const endpoint = ACQUISITION_ENDPOINTS[candidate.endpoint as AcquisitionEndpointId];
   if (endpoint === undefined) return false;
-  if (request.url !== endpoint.url || request.method !== endpoint.method) return false;
-  if (request.headers["user-agent"] !== OPENLIMITER_USER_AGENT) return false;
-  if (request.endpoint === "cursor_usage") {
-    if (Object.keys(request.headers).sort().join(",") !== "accept,cookie,user-agent") return false;
-  } else if (request.headers["cookie"] !== undefined) return false;
-  for (const name of Object.keys(request.headers)) {
+  if (candidate.url !== endpoint.url || candidate.method !== endpoint.method) return false;
+  if (candidate.headers === undefined || candidate.headers["user-agent"] !== OPENLIMITER_USER_AGENT) return false;
+  if (candidate.endpoint === "cursor_usage") {
+    if (Object.keys(candidate.headers).sort().join(",") !== "accept,cookie,user-agent") return false;
+  } else if (candidate.headers["cookie"] !== undefined) return false;
+  for (const name of Object.keys(candidate.headers)) {
     if (!ALLOWED_REQUEST_HEADERS.includes(name)) return false;
-    const value = request.headers[name];
+    const value = candidate.headers[name];
     if (value === undefined) return false;
-    if (!validHeaderValue(name, value, request.method)) return false;
+    if (!validHeaderValue(name, value, candidate.method)) return false;
   }
-  return validRequestBody(request);
+  return validRequestBody(candidate as HttpAcquisitionRequest);
 }
 
 /**
@@ -468,7 +464,7 @@ export function createFetchTransport(
     /* Payload free on purpose. The runner turns this into the `transport`
        outcome, and an error carrying a URL or a header would be the one place
        a credential could reach a log. */
-    if (!validAcquisitionRequest(request)) {
+    if ("kind" in request || !validAcquisitionRequest(request)) {
       throw new Error("Refused a request outside the acquisition contract");
     }
     const controller = new AbortController();

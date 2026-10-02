@@ -15,7 +15,7 @@ import {
   OPENLIMITER_USER_AGENT,
   claudeUsageRequest,
   codeAssistQuotaRequest,
-  codexUsageRequest,
+  codexAppServerRequest,
   credentialCandidatePaths,
   credentialReadScript,
   decodeCredentialOutput,
@@ -25,7 +25,10 @@ import {
   openrouterKeyRequest,
   readAcquisitionCredential,
   readCredentialDocument,
-  readWindowsCredentialWith
+  readWindowsCredentialWith,
+  rememberVerifiedCodexAccount,
+  verifiedCodexAccountForHome,
+  codexLoginRevision
 } from "../src/index.js";
 
 /* A token shaped string that belongs to no account anywhere. Every assertion
@@ -59,7 +62,6 @@ describe("acquisition identity", () => {
     );
     for (const request of [
       claudeUsageRequest(SYNTHETIC_TOKEN),
-      codexUsageRequest(SYNTHETIC_TOKEN, "acct-1"),
       grokBillingRequest(SYNTHETIC_TOKEN, "user-1"),
       codeAssistLoadRequest(SYNTHETIC_TOKEN),
       kimiUsageRequest(SYNTHETIC_TOKEN),
@@ -83,7 +85,6 @@ describe("acquisition identity", () => {
     expect(grok?.headers["x-userid"]).toBe("user-1");
     for (const request of [
       claudeUsageRequest(SYNTHETIC_TOKEN),
-      codexUsageRequest(SYNTHETIC_TOKEN, "acct-1"),
       grok,
       kimiUsageRequest(SYNTHETIC_TOKEN),
       codeAssistLoadRequest(SYNTHETIC_TOKEN)
@@ -113,14 +114,13 @@ describe("acquisition identity", () => {
     const transport = createFetchTransport(async () => {
       throw new Error("the network must not be reached");
     });
-    return expect(transport(tampered[0]!)).rejects.toThrow(
+    return expect(transport(tampered[0]! as never)).rejects.toThrow(
       /acquisition contract/u
     );
   });
 
   it("refuses a header value that is not what that header may hold", () => {
     const claude = claudeUsageRequest(SYNTHETIC_TOKEN);
-    const codex = codexUsageRequest(SYNTHETIC_TOKEN, "acct-1");
     expect(claude).not.toBeNull();
     /* A name allowlist stops a cookie. It says nothing about an authorization
        header that is not a bearer token or a beta contract we never agreed. */
@@ -131,10 +131,6 @@ describe("acquisition identity", () => {
         headers: { ...claude!.headers, "anthropic-beta": "oauth-9999-01-01" }
       },
       { ...claude!, headers: { ...claude!.headers, accept: "text/html" } },
-      {
-        ...codex!,
-        headers: { ...codex!.headers, "chatgpt-account-id": "../../etc/passwd" }
-      },
       {
         ...claude!,
         headers: { ...claude!.headers, "content-type": "application/json" }
@@ -180,7 +176,7 @@ describe("acquisition identity", () => {
   it("refuses a secret that could inject a second header", () => {
     expect(claudeUsageRequest("good\r\nx-injected: 1")).toBeNull();
     expect(kimiUsageRequest("")).toBeNull();
-    expect(codexUsageRequest(SYNTHETIC_TOKEN, "acct 1")).toBeNull();
+    expect(codexAppServerRequest("")).toBeNull();
   });
 
   it("refuses a project identifier the provider tried to make into a payload", () => {
@@ -250,15 +246,7 @@ describe("credential discovery", () => {
       "CODEX",
       { tokens: { access_token: SYNTHETIC_TOKEN, account_id: "acct-1" } },
       now
-    )).toEqual({
-      ok: true,
-      credential: {
-        secret: SYNTHETIC_TOKEN,
-        accountId: "acct-1",
-        expiresAtMilliseconds: null,
-        origin: "vendor_file"
-      }
-    });
+    )).toEqual({ ok: false, reason: "invalid" });
     const kimi = readCredentialDocument(
       "KIMI",
       { access_token: SYNTHETIC_TOKEN },
@@ -347,6 +335,24 @@ describe("credential discovery", () => {
       environment: {},
       now: "2026-01-01T00:00:00.000Z"
     })).toEqual({ ok: false, reason: "keychain_not_read" });
+  });
+});
+
+describe("Codex verified home identity", () => {
+  it("persists only the opaque identity and changes the login revision from metadata", async () => {
+    const directory = await temporaryDirectory();
+    const home = path.join(directory, ".codex-work");
+    await mkdir(home, { recursive: true });
+    const before = await codexLoginRevision(home);
+    await rememberVerifiedCodexAccount(
+      directory,
+      home,
+      "codex-824c7eddd1cf39d1d49b3ee8"
+    );
+    expect(await verifiedCodexAccountForHome(directory, home))
+      .toBe("codex-824c7eddd1cf39d1d49b3ee8");
+    await writeFile(path.join(home, "auth.json"), "synthetic login marker", "utf8");
+    expect(await codexLoginRevision(home)).not.toBe(before);
   });
 });
 

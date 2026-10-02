@@ -1,5 +1,5 @@
 use crate::connections::ConnectionRecord;
-use crate::credentials::{parse_codex_session_v1, SecretStore};
+use crate::credentials::SecretStore;
 
 use crate::provider_detection::{
     opaque_account_id, provider_singleton_account_id, resolved_credential_account_id,
@@ -134,13 +134,7 @@ pub(crate) fn resolve_connection(
         collector cache, authorization policy, UI row, and poll planner. */
         record.id.clone()
     } else if record.provider_id == ProviderId::Codex {
-        let provider_account_id = record.codex_account_id.clone().or_else(|| {
-            let stored = secrets.read_secret(&record.id).ok()?;
-            parse_codex_session_v1(&stored)
-                .ok()
-                .map(|session| session.account_id.to_string())
-        });
-        provider_account_id.map_or_else(
+        record.codex_account_id.clone().map_or_else(
             || provider_singleton_account_id(DetectedProviderId::Codex),
             |provider_account_id| {
                 opaque_account_id(DetectedProviderId::Codex, &provider_account_id)

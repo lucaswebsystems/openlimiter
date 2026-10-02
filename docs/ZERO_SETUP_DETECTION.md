@@ -92,9 +92,8 @@ the credential keeps different accounts apart without exposing the credential.
 The public identifier is a provider scoped SHA 256 digest.
 
 Claude account metadata in `.claude.json` supplies a stable identity and masked
-email when available. Codex account identifiers and JWT claims remain private
-inputs to the digest. A token is read again from its original file immediately
-before a request, then its owned buffer is cleared on drop.
+email when available. Codex account identity comes from the documented app
+server response. OpenLimiter never reads the Codex bearer from `auth.json`.
 
 OpenLimiter does not copy a detected token into Windows Credential Manager,
 macOS Keychain or Linux Secret Service. It never mints a token, refreshes one or

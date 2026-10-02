@@ -3,10 +3,11 @@ import { mkdtemp, realpath, rm, writeFile, mkdir, utimes } from "node:fs/promise
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { acquireMachineLease, freshnessPolicy, leasePolicy, retryPolicy, readSnapshotCache, recordAcquisitionAvailability } from "../src/cache.js";
+import { acquireMachineLease, freshnessPolicy, leasePolicy, mergeSnapshotCache, retryPolicy, readSnapshotCache, recordAcquisitionAvailability } from "../src/cache.js";
 import { claudeUsageRequest, retryAfterSeconds } from "../src/acquire/transport.js";
 import { runAcquisition, type AcquisitionSpec } from "../src/acquire/runner.js";
 import { readAcquisitionSchedule, writeAcquisitionSchedule } from "../src/acquire/cadence.js";
+import { snapshot } from "./helpers.js";
 
 type Vector<T> = { id: string; input: T; expected: unknown };
 const vectors = JSON.parse(readFileSync(path.resolve("packages/core/src/contracts/policy-vectors.json"), "utf8")).vectors as {
@@ -82,6 +83,26 @@ it("parses an HTTP date and retains a blocked reading's observation time on rest
     const cached = await readSnapshotCache(dir);
     expect(cached.ok && cached.snapshots[0]?.observedAt).toBe(observed);
     expect(cached.ok && cached.snapshots[0]?.retryAt).toBe(retry);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+it("clears stale numbers only for the unavailable Codex account", async () => {
+  const dir = await directory();
+  const observed = new Date(now).toISOString();
+  try {
+    await mergeSnapshotCache([
+      snapshot({ provider: "CODEX", accountId: "codex-failing", meter: "PRIMARY", value: 73, resetAt: new Date(now + 3600_000).toISOString(), observedAt: new Date(now - 1_000).toISOString(), expiresAt: new Date(now + 300_000).toISOString() }),
+      snapshot({ provider: "CODEX", accountId: "codex-healthy", meter: "PRIMARY", value: 41, observedAt: new Date(now - 1_000).toISOString(), expiresAt: new Date(now + 300_000).toISOString() })
+    ], dir, now);
+    await recordAcquisitionAvailability("CODEX", "network_failure", observed, undefined, dir, "codex-failing");
+    const cached = await readSnapshotCache(dir);
+    expect(cached.ok).toBe(true);
+    if (!cached.ok) return;
+    const failing = cached.snapshots.find(row => row.accountId === "codex-failing");
+    const healthy = cached.snapshots.find(row => row.accountId === "codex-healthy");
+    expect(failing).toMatchObject({ value: 0, window: { kind: "unknown" }, resetAt: null, availability: "network_failure" });
+    expect(healthy).toMatchObject({ value: 41 });
+    expect(healthy?.availability).toBeUndefined();
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
@@ -186,5 +207,40 @@ it("a changed credential file modification time releases only its refusal deadli
     await utimes(file, new Date(now), new Date(now));
     await runAcquisition([spec], { ...options, schedule: result.schedule });
     expect(calls).toBe(2);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+it("Codex login metadata change lets Check again collect after an auth failure", async () => {
+  const dir = await directory();
+  let revision = "auth-metadata-before-login";
+  let calls = 0;
+  const accountId = "codex-verified-account";
+  const spec: AcquisitionSpec = {
+    provider: "CODEX",
+    credentialProvider: "CODEX",
+    accountIdFor: credential => credential.verifiedAccountId ?? null,
+    steps: [({ credential }) => claudeUsageRequest(credential.secret)],
+    parse: () => [snapshot({ provider: "CODEX", accountId, meter: "PRIMARY", value: 23 })],
+    disclosure: null
+  };
+  const options = {
+    stateDirectory: dir,
+    now: new Date(now).toISOString(),
+    schedule: {},
+    readCredential: async () => ({ ok: true as const, credential: { secret: "app-server", accountId: null, verifiedAccountId: accountId, credentialRevision: revision, expiresAtMilliseconds: null, origin: "vendor_store" as const } }),
+    transport: async () => { calls++; return revision.endsWith("before-login") ? { status: 401, body: "", retryAfterSeconds: null } : { status: 200, body: "{}", retryAfterSeconds: null }; }
+  };
+  try {
+    const failed = await runAcquisition([spec], options);
+    expect(failed.rows[0]?.availability).toBe("missing_credentials");
+    await runAcquisition([spec], { ...options, schedule: failed.schedule, now: new Date(now + 1_000).toISOString() });
+    expect(calls).toBe(1);
+    revision = "auth-metadata-after-login";
+    const collected = await runAcquisition([spec], { ...options, schedule: failed.schedule, now: new Date(now + 1_000).toISOString() });
+    expect(calls).toBe(2);
+    expect(collected.reports[0]).toEqual(expect.objectContaining({
+      ok: true,
+      snapshots: [expect.objectContaining({ accountId, meter: "PRIMARY", value: 23 })]
+    }));
   } finally { await rm(dir, { recursive: true, force: true }); }
 });

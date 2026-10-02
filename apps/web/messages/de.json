@@ -543,8 +543,8 @@
         "detail": "Parst die Credits Form, die OpenRouter dokumentiert. Der Key gehört in den Zugangsdatenspeicher deines Betriebssystems, nie in eine Datei."
       },
       "codex": {
-        "tag": "liest eine interne Usage Payload",
-        "detail": "Parst die Usage Form, die das Codex Tooling erzeugt. Die Form ist intern, kann sich also ohne Ankündigung ändern, und schlägt dann geschlossen fehl."
+        "tag": "liest dokumentierte Codex Limits",
+        "detail": "Liest account/rateLimits/read über den lokalen Codex App Server. Die ChatGPT Anmeldung bleibt im Codex Prozess."
       },
       "antigravity": {
         "tag": "liest eine interne Quota Payload",
@@ -1432,7 +1432,7 @@
               }
             },
             "riskTitle": "Einige Schnittstellen werden nicht unterstützt",
-            "riskBody": "Claude OAuth, Codex, Antigravity und OpenCode hängen von privaten Anbieter Schnittstellen ab, die sich ändern oder verschwinden können. Eine Vertragsänderung erzeugt für diesen Anbieter sichtbar unbekannt und lässt alle anderen Anbieter weiterarbeiten. OpenRouter nutzt eine dokumentierte API."
+            "riskBody": "Claude OAuth, Antigravity und OpenCode hängen von privaten Anbieter Schnittstellen ab, die sich ändern oder verschwinden können. Eine Vertragsänderung erzeugt für diesen Anbieter sichtbar unbekannt und lässt alle anderen Anbieter weiterarbeiten. Codex und OpenRouter nutzen dokumentierte Schnittstellen."
           },
           "privacy": {
             "title": "Datenschutzgrenze",

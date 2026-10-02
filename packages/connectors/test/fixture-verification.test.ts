@@ -93,11 +93,11 @@ function loadFixture(entry: ManifestProvider): unknown {
 }
 
 describe("fixture verification markers", () => {
-  it("keeps legacy markers separate and recognizes Cursor fixture verification", () => {
+  it("keeps legacy markers separate and recognizes fixture verified connectors", () => {
     expect(verification.note.toLowerCase()).toContain("unverified");
-    // Cursor's separate differential corpus establishes its fixture verification.
+    // Cursor has its differential corpus. Codex has the documented app-server schema.
     expect(connectors.every((connector) => connector.labels.verification ===
-      (connector.id === "cursor" ? "VERIFIED_FIXTURES" : "UNVERIFIED")))
+      (["cursor", "codex"].includes(connector.id) ? "VERIFIED_FIXTURES" : "UNVERIFIED")))
       .toBe(true);
   });
 

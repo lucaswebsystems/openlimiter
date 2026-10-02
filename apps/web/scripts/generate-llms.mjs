@@ -80,7 +80,7 @@ Nine ship in ${site.CURRENT_VERSION}. Every one is marked UNVERIFIED, which mean
 
 - \`claude\`: reads the Claude Code status line automatically, plus an opt in poll of Anthropic's usage endpoint. Native payload and documented API. Low automation risk.
 - \`openrouter\`: real OAuth from the hub, then a documented key and usage report. Low automation risk.
-- \`codex\`: reads the login the Codex CLI stored, or signs in from inside ${site.SITE_NAME}. Internal endpoint. May break without notice.
+- \`codex\`: reads documented limits through the local Codex app server. ChatGPT authentication stays inside Codex.
 - \`antigravity\`: read only, from the credential the Antigravity CLI stored. Internal endpoint. May break without notice.
 - \`gemini_cli\`: read only, from the login the Gemini CLI stored. Internal endpoint. High automation risk.
 - \`grok\`: reads the login the Grok CLI stored, with its weekly credit window. Internal endpoint. High automation risk.

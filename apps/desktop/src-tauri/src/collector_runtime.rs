@@ -234,6 +234,7 @@ struct CollectionPlan {
     records: Vec<ConnectionRecord>,
     covered: HashSet<PollIdentity>,
     known_providers: HashSet<DetectedProviderId>,
+    stored_codex_accounts: Vec<String>,
 }
 
 fn canonical_record(records: &[ConnectionRecord]) -> Option<ConnectionRecord> {
@@ -255,10 +256,15 @@ fn collection_plan(
     let mut groups = HashMap::<PollIdentity, Vec<ConnectionRecord>>::new();
     let mut covered = HashSet::new();
     let mut known_providers = HashSet::new();
+    let mut stored_codex_accounts = HashSet::new();
 
     for record in records {
-        known_providers.insert(detected_provider(record.provider_id));
         let identity = resolve_connection(&record, secrets);
+        if record.provider_id == crate::reader_registry::ProviderId::Codex {
+            stored_codex_accounts.insert(identity.account_id().to_string());
+            continue;
+        }
+        known_providers.insert(detected_provider(record.provider_id));
         covered.insert(identity.clone());
         if !record.is_active() {
             continue;
@@ -291,10 +297,13 @@ fn collection_plan(
             .cmp(&right.created_at)
             .then_with(|| left.id.cmp(&right.id))
     });
+    let mut stored_codex_accounts: Vec<_> = stored_codex_accounts.into_iter().collect();
+    stored_codex_accounts.sort();
     CollectionPlan {
         records: planned,
         covered,
         known_providers,
+        stored_codex_accounts,
     }
 }
 
@@ -471,6 +480,11 @@ pub async fn run_pass(
             });
             match coverage {
                 Ok(coverage) => {
+                    if let Some(home) = detection.default_codex_home() {
+                        for account_id in &coverage.stored_codex_accounts {
+                            detection.remember_stored_codex_identity(&home, account_id);
+                        }
+                    }
                     if allowed(DetectedProviderId::Codex)
                         && !crate::codex_oauth::run_pass(
                             app,
@@ -837,8 +851,9 @@ mod tests {
             .collect();
         let plan = collection_plan(records, &secrets, NOW);
 
-        assert_eq!(plan.records.len(), 1);
-        assert_eq!(plan.covered.len(), 1);
+        assert!(plan.records.is_empty());
+        assert!(plan.covered.is_empty());
+        assert_eq!(plan.stored_codex_accounts.len(), 1);
     }
 
     #[test]
@@ -911,6 +926,30 @@ mod tests {
         assert_eq!(
             automatic_account_limit(false, &known, DetectedProviderId::Codex),
             0
+        );
+    }
+
+    #[test]
+    fn a_stored_codex_connection_migrates_without_zeroing_the_free_automatic_limit() {
+        let plan = collection_plan(
+            vec![record(
+                "legacy-codex",
+                ProviderId::Codex,
+                ReaderId::CodexUsage,
+                CredentialKind::CodexSession,
+                Some("same-provider-account"),
+                1,
+                None,
+            )],
+            &InMemorySecrets::new(),
+            NOW,
+        );
+        assert!(plan.records.is_empty());
+        assert_eq!(plan.stored_codex_accounts.len(), 1);
+        assert!(!plan.known_providers.contains(&DetectedProviderId::Codex));
+        assert_eq!(
+            automatic_account_limit(false, &plan.known_providers, DetectedProviderId::Codex),
+            1
         );
     }
 }

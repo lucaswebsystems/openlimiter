@@ -26,6 +26,8 @@ export const SYNTHETIC_TOKEN = "synthetic-access-token-0000";
 
 /** The account identifiers the request headers carry, both invented. */
 export const SYNTHETIC_CODEX_ACCOUNT = "acct-synthetic-0001";
+/** The byte exact main 342f8cc alias for SYNTHETIC_CODEX_ACCOUNT. */
+export const SYNTHETIC_CODEX_OPAQUE_ACCOUNT = "codex-bfd7d96c96aa728138c84fa4";
 export const SYNTHETIC_GROK_USER = "user-synthetic-0001";
 
 /** The companion project the Code Assist bootstrap answers with. */
@@ -62,23 +64,22 @@ export function codeAssistLoadResponse(): Record<string, unknown> {
 }
 
 /**
- * A Codex window that states its reset as a countdown rather than an instant.
- *
- * Kept beside the ordinary fixture rather than replacing it, so both encodings
- * the endpoint uses are proved and neither expectation moves.
+ * A documented Codex response with both standard windows.
  */
-export function codexCountdownResponse(): Record<string, unknown> {
+export function codexCountdownResponse(now: string): Record<string, unknown> {
   return {
-    rate_limit: {
-      primary_window: {
-        used_percent: 61,
-        limit_window_seconds: FIVE_HOURS,
-        reset_after_seconds: 3_600
+    accountId: SYNTHETIC_CODEX_OPAQUE_ACCOUNT,
+    rateLimits: {
+      limitId: "codex",
+      primary: {
+        usedPercent: 61,
+        windowDurationMins: FIVE_HOURS / 60,
+        resetsAt: Math.floor(Date.parse(now) / 1_000) + 3_600
       },
-      secondary_window: {
-        used_percent: 22,
-        limit_window_seconds: SEVEN_DAYS,
-        reset_after_seconds: 172_800
+      secondary: {
+        usedPercent: 22,
+        windowDurationMins: SEVEN_DAYS / 60,
+        resetsAt: Math.floor(Date.parse(now) / 1_000) + 172_800
       }
     }
   };
@@ -88,7 +89,7 @@ export function codexCountdownResponse(): Record<string, unknown> {
 export function recordedResponses(now: string): Readonly<Record<string, unknown>> {
   return {
     claude_usage: claudeUsageResponse(now),
-    codex_usage: codexFixture(now),
+    codex_app_server: { ...codexFixture(now), accountId: SYNTHETIC_CODEX_OPAQUE_ACCOUNT },
     code_assist_load: codeAssistLoadResponse(),
     code_assist_quota: geminiCliFixture(now),
     grok_billing: grokFixture(now),

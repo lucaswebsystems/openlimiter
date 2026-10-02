@@ -4,7 +4,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  acquireRefreshLock, buildAdvice, codexUsageRequest, createFetchTransport,
+  acquireRefreshLock, buildAdvice, kimiUsageRequest, createFetchTransport,
   getAgyInstallRoots, isTrustedAgyExecutable, enumerateAgyListeningPorts,
   normalizeMeters, parseAgyQuotaSummary, readAcquisitionCredential,
   readSnapshotCache, registerManagedCodexAccount, shouldStartRefresh,
@@ -61,8 +61,18 @@ async function deps(): Promise<CliDependencies> {
     nodeExecutable: process.execPath, openLimiterScript: "test-cli.js",
     spawnDetached: () => undefined, emit: () => undefined, sleep: async () => undefined,
     openBrowser: () => undefined, detectedAgentInstallations: {},
+    detectCodexInstallation: async () => null,
     credentialStore: { get: async () => null, set: async () => undefined },
     acquisitionTransport: async (request) => {
+      if (request.endpoint === "codex_app_server") {
+        return {
+          status: 200,
+          body: JSON.stringify({ rateLimits: { limitId: "codex", primary: {
+            usedPercent: 20, windowDurationMins: 300, resetsAt: 1_789_387_200
+          } } }),
+          retryAfterSeconds: null
+        };
+      }
       const body = recordedResponses(NOW)[request.endpoint];
       return { status: body === undefined ? 404 : 200, body: JSON.stringify(body ?? {}), retryAfterSeconds: null };
     },
@@ -95,6 +105,18 @@ describe("P1 audit regressions", () => {
     const result = await runCli(["setup"], {
       ...d, emit: (line) => emitted.push(line),
       detectedAgentInstallations: { codex: { version: "0.153.3", executable: "synthetic-codex", fileSize: 1, mtimeMilliseconds: 1 } },
+      detectCodexInstallation: async () => ({ version: "0.153.3", executable: "synthetic-codex", fileSize: 1, mtimeMilliseconds: 1 }),
+      acquisitionTransport: async (request) => request.endpoint === "codex_app_server"
+        ? {
+            status: "environment" in request && request.environment?.["CODEX_HOME"] === managed ? 200 : 401,
+            body: JSON.stringify({ accountId: "codex-824c7eddd1cf39d1d49b3ee8", rateLimits: { limitId: "codex", primary: {
+              usedPercent: 20,
+              windowDurationMins: 300,
+              resetsAt: Math.floor(Date.parse(NOW) / 1_000) + 3_600
+            } } }),
+            retryAfterSeconds: null
+          }
+        : await d.acquisitionTransport(request),
       promptChoice: async (question) => question.startsWith("Codex has") ? "" : "s",
       codexDeviceLoginRunnerFactory: () => ({ start: async (home) => {
         managed = home;
@@ -105,15 +127,15 @@ describe("P1 audit regressions", () => {
     expect(emitted).toContain("Codex: signed in.");
     expect(managed).not.toBe("");
     const found = await readAcquisitionCredential("CODEX", { stateDirectory: d.stateDirectory!, homeDirectory: d.homeDirectory, environment: {}, platform: "linux", now: NOW });
-    expect(found.ok).toBe(true);
+    expect(found).toEqual({ ok: false, reason: "absent" });
     const cache = await readSnapshotCache(d.stateDirectory);
     expect(cache.ok && cache.snapshots.some((snapshot) => snapshot.provider === "CODEX")).toBe(true);
     const invalid = path.join(d.stateDirectory!, "accounts", "codex", "invalid");
     await mkdir(invalid, { recursive: true });
+    await writeFile(path.join(invalid, "auth.json"), "");
+    expect(await registerManagedCodexAccount(d.stateDirectory!, "invalid", NOW)).toBe(false);
     await writeFile(path.join(invalid, "auth.json"), "{}");
-    expect(await registerManagedCodexAccount(d.stateDirectory!, "invalid", NOW)).toBe(false);
-    await writeFile(path.join(invalid, "auth.json"), JSON.stringify({ tokens: { access_token: "synthetic-access-token-0000" } }));
-    expect(await registerManagedCodexAccount(d.stateDirectory!, "invalid", NOW)).toBe(false);
+    expect(await registerManagedCodexAccount(d.stateDirectory!, "invalid", NOW)).toBe(true);
   });
 
   it("07 fresh Claude ingestion cannot suppress stale Codex acquisition or independently due sync", async () => {
@@ -133,12 +155,25 @@ describe("P1 audit regressions", () => {
 
   it("08 renders each setup section once and acquires before host prompts", async () => {
     const d = await deps();
+    d.detectCodexInstallation = async () => ({
+      version: "0.153.3",
+      executable: "synthetic-codex",
+      fileSize: 1,
+      mtimeMilliseconds: 1
+    });
     await mkdir(path.join(d.homeDirectory, ".codex"), { recursive: true });
     await writeFile(path.join(d.homeDirectory, ".codex", "auth.json"), JSON.stringify(credentialDocuments.codex));
     const emitted: string[] = [];
     const timeline: string[] = [];
     d.acquisitionTransport = async (request) => {
       timeline.push("acquire:" + request.endpoint);
+      if (request.endpoint === "codex_app_server") {
+        return { status: 200, body: JSON.stringify({ accountId: "codex-824c7eddd1cf39d1d49b3ee8", rateLimits: { limitId: "codex", primary: {
+          usedPercent: 20,
+          windowDurationMins: 300,
+          resetsAt: Math.floor(Date.parse(NOW) / 1_000) + 3_600
+        } } }), retryAfterSeconds: null };
+      }
       const body = recordedResponses(NOW)[request.endpoint];
       return { status: body === undefined ? 404 : 200, body: JSON.stringify(body ?? {}), retryAfterSeconds: null };
     };
@@ -160,11 +195,11 @@ describe("P1 audit regressions", () => {
     expect(output.match(/^2\. Connect$/gm)?.length).toBe(1);
     expect(output.match(/^3\. Show bars in$/gm)?.length).toBe(1);
     expect(output.match(/^CODEX/gm)?.length).toBe(1);
-    expect(timeline.findIndex((entry) => entry === "acquire:codex_usage")).toBeGreaterThan(
+    expect(timeline.findIndex((entry) => entry === "acquire:codex_app_server")).toBeLessThan(
       timeline.findIndex((entry) => entry === "prompt:Enter to accept: ")
     );
     expect(timeline.findIndex((entry) => entry.startsWith("prompt:claude: Enter to install"))).toBeGreaterThan(
-      timeline.findIndex((entry) => entry === "acquire:codex_usage")
+      timeline.findIndex((entry) => entry === "acquire:codex_app_server")
     );
     const cache = await readSnapshotCache(d.stateDirectory);
     expect(cache.ok && cache.snapshots.length > 0).toBe(true);
@@ -487,7 +522,7 @@ describe("P1 audit regressions", () => {
       const fakeFetch: typeof fetch = async () => new Response(body, { status: 200 });
       let returned = false;
       const pending = (kind === "hub" ? createFetchHubTransport(fakeFetch)(cliLoginStartRequest(ENV)!) :
-        createFetchTransport(fakeFetch)(codexUsageRequest("synthetic-access-token-0000", "synthetic-account")!)).then((reply) => {
+        createFetchTransport(fakeFetch)(kimiUsageRequest("synthetic-access-token-0000")!)).then((reply) => {
         returned = true;
         return reply;
       });

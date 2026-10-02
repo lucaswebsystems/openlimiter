@@ -821,6 +821,44 @@ async function resolvedAgentExecutable(
   return null;
 }
 
+async function codexNativeWindowsExecutable(executable: string): Promise<string | null> {
+  if (!/\.(?:cmd|bat)$/iu.test(executable)) return executable;
+  const prefix = path.dirname(executable);
+  const triples = process.arch === "arm64"
+    ? ["aarch64-pc-windows-msvc"]
+    : ["x86_64-pc-windows-msvc"];
+  for (const triple of triples) {
+    const packageName = triple.startsWith("aarch64")
+      ? "codex-win32-arm64"
+      : "codex-win32-x64";
+    for (const nested of [
+      ["@openai", "codex"],
+      ["@openai", "codex", "node_modules", "@openai", packageName],
+      ["@openai", packageName]
+    ]) {
+      for (const binaryDirectory of ["bin", "codex"]) {
+        const candidate = path.join(
+          prefix,
+          "node_modules",
+          ...nested,
+          "vendor",
+          triple,
+          binaryDirectory,
+          "codex.exe"
+        );
+        try {
+          const stat = await lstat(candidate);
+          if (stat.isFile() && !stat.isSymbolicLink() &&
+              !(await pathContainsLink(candidate, prefix))) return candidate;
+        } catch {
+          // Try the next official npm package layout.
+        }
+      }
+    }
+  }
+  return null;
+}
+
 async function executableVersion(
   executable: string,
   runCommand: (executable: string, argumentsList: readonly string[], timeoutMilliseconds: number) => Promise<CommandRunResult>
@@ -846,8 +884,12 @@ export async function detectAgentInstallation(
     platform
   );
   if (executable === null) return null;
+  const launchExecutable = agent === "codex" && platform === "win32"
+    ? await codexNativeWindowsExecutable(executable)
+    : executable;
+  if (launchExecutable === null) return null;
   const version = await executableVersion(
-    executable,
+    launchExecutable,
     options.runCommand ?? ((command, argumentsList, timeoutMilliseconds) => runCommandWithWindowsShim(
       command,
       argumentsList,
@@ -858,11 +900,11 @@ export async function detectAgentInstallation(
   );
   if (version === null) return null;
   try {
-    const stat = await lstat(executable);
+    const stat = await lstat(launchExecutable);
     if (!stat.isFile() || stat.isSymbolicLink()) return null;
     return {
       version,
-      executable,
+      executable: launchExecutable,
       fileSize: stat.size,
       mtimeMilliseconds: stat.mtimeMs
     };

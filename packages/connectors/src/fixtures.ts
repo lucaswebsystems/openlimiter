@@ -166,11 +166,12 @@ export function openrouterFixture(): Record<string, unknown> {
  */
 export function codexFixture(now: string = FIXTURE_NOW): Record<string, unknown> {
   return {
-    rate_limit: {
-      primary_window: {
-        used_percent: 84,
-        reset_at: epochOffset(now, FIVE_HOURS),
-        limit_window_seconds: FIVE_HOURS
+    rateLimits: {
+      limitId: "codex",
+      primary: {
+        usedPercent: 84,
+        resetsAt: epochOffset(now, FIVE_HOURS),
+        windowDurationMins: FIVE_HOURS / 60
       }
     }
   };
@@ -189,10 +190,11 @@ export function codexFixture(now: string = FIXTURE_NOW): Record<string, unknown>
 export function codexNoResetFixture(now: string = FIXTURE_NOW): Record<string, unknown> {
   void now;
   return {
-    rate_limit: {
-      primary_window: {
-        used_percent: 73,
-        limit_window_seconds: FIVE_HOURS
+    rateLimits: {
+      limitId: "codex",
+      primary: {
+        usedPercent: 73,
+        windowDurationMins: FIVE_HOURS / 60
       }
     }
   };
@@ -465,14 +467,13 @@ export const documentedFixtures: readonly DocumentedFixture[] = [
     build: () => openrouterFixture()
   },
   {
-    id: "codex.provisional.usage",
+    id: "codex.documented.app_server_rate_limits",
     connector: "codex",
-    docsUrl: null,
+    docsUrl: "https://learn.chatgpt.com/docs/app-server#rate-limits",
     reviewedAt: FIXTURE_REVIEWED_AT,
-    sourceStatus: "provisional",
-    note: "Shape observed against a real account on 2026-08-07 by the reference " +
-      "reader: rate_limit.primary_window, singular, with reset_at in epoch " +
-      "seconds. OpenAI publishes nothing, so this is design evidence only.",
+    sourceStatus: "official",
+    note: "Published account/rateLimits/read response with usedPercent, " +
+      "windowDurationMins and resetsAt.",
     expectedMeters: 1,
     build: (now) => codexFixture(now)
   },
@@ -687,22 +688,9 @@ export const claudeSanitizedLive: SanitizedLiveFixture = {
 };
 
 /**
- * PENDING CAPTURE: Codex usage.
- *
- * The REQUEST contract for this reader is known, reproducible and recorded, in
- * `provider_specs/openai/codex.yaml` and in the endpoint constants in
- * `apps/desktop/src-tauri/src/net.rs`: the method, the address, the
- * authentication, the fixed headers and the behaviour of an expired login were
- * all taken from a reader that ran against a real account on 2026-08-07.
- *
- * The RESPONSE is a different question, and it is open. No sanitized response
- * from that account has been committed here, and the shape the shipped parser
- * reads was observed in the original prototype rather than captured through
- * this code. Writing a payload from memory to make this slot look full would
- * rebuild exactly the fault the fixture classes exist to prevent, so the slot
- * stays empty and loud: every test that would use it skips and says why, the
- * provider stays UNVERIFIED, and the registry validator reports the gap on
- * every run and fails outright under --require-captures.
+ * Sanitized Codex rate limits captured before the documented app server was
+ * adopted. The reduced values are rebuilt into the current documented
+ * account/rateLimits/read result shape.
  */
 export const codexSanitizedLive: SanitizedLiveFixture = {
   id: "codex.sanitized_live.usage",
@@ -859,11 +847,11 @@ export function rebuildCodexCapture(capture: unknown, now: string): unknown {
   if (percent === null || resetsIn === null) return null;
   const length = captureNumber(reduced?.["limitWindowSeconds"]);
   const primary: Record<string, unknown> = {
-    used_percent: percent,
-    reset_at: epochOffset(now, resetsIn)
+    usedPercent: percent,
+    resetsAt: epochOffset(now, resetsIn)
   };
-  if (length !== null) primary["limit_window_seconds"] = length;
-  return { rate_limit: { primary_window: primary } };
+  if (length !== null) primary["windowDurationMins"] = length / 60;
+  return { rateLimits: { limitId: "codex", primary } };
 }
 
 export function rebuildAntigravityCapture(capture: unknown, now: string): unknown {

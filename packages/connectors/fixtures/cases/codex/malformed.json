@@ -7,11 +7,7 @@
   "headers": {},
   "body": {
     "rate_limit": {
-      "primary_window": {
-        "used_percent": "not-a-number",
-        "reset_at": 1786118400,
-        "limit_window_seconds": 18000
-      }
+      "primary_window": { "used_percent": 25, "limit_window_seconds": 18000, "reset_at": 1786107600 }
     }
   }
 }

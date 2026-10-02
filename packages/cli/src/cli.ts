@@ -3,7 +3,11 @@ import {
   captureStatuslineAccount,
   pruneSnapshotCache,
   ACQUISITION_PROVIDERS,
-  registerManagedCodexAccount,
+    registerManagedCodexAccount,
+    registeredManagedCodexHome,
+    codexLoginRevision,
+    verifiedCodexAccountForHome,
+    rememberVerifiedCodexAccount,
   CREDENTIAL_FAILURE_SENTENCE,
   PROVIDER_CODES,
   acquireRefreshLock,
@@ -15,6 +19,8 @@ import {
   buildAdvice,
   canonicalJson,
   claudeSpec,
+  codexAppServerAcquisitionReply,
+  codexAppServerRequest,
   codexSpec,
   cursorSpec,
   dedupeFailures,
@@ -33,6 +39,7 @@ import {
   readAcquisitionCredential,
   readAcquisitionSchedule,
   readSnapshotCache,
+  recordAcquisitionAvailability,
   readWindowsCredentialWith,
   resolveStateDirectory,
   runAcquisition,
@@ -234,6 +241,8 @@ export interface CliDependencies {
   nodeExecutable: string;
   platform: NodeJS.Platform;
   detectedAgentInstallations: Readonly<Partial<Record<AgentId, AgentInstallation | null>>>;
+  /** Resolve the trusted Codex executable for the documented app server RPC. */
+  detectCodexInstallation: () => Promise<AgentInstallation | null>;
   launcherTimeoutMilliseconds?: number;
   hostedContextTrust?: HostedContextTrust;
   hostedContextPublicKeys?: HostedTrustLoadOptions["pinnedPublicKeys"];
@@ -361,6 +370,7 @@ function defaults(): CliDependencies {
     nodeExecutable: process.execPath,
     platform: process.platform,
     detectedAgentInstallations: {},
+    detectCodexInstallation: async () => null,
     /*
      * The library defaults reach nothing outside this process, exactly as the
      * standard input reader above does. The executable injects the real
@@ -526,9 +536,13 @@ export function runtimeDependencies(): Pick<
   | "emit"
   | "windowsAclRunner"
   | "codexDeviceLoginRunnerFactory"
+  | "detectCodexInstallation"
 > {
+  const httpTransport = createFetchTransport();
   return {
-    acquisitionTransport: createFetchTransport(),
+    acquisitionTransport: async (request) => "kind" in request
+      ? await codexAppServerAcquisitionReply(request)
+      : await httpTransport(request),
     probeAntigravity: (options) => probeAntigravity({
       ...options,
       runCommand: options?.runCommand ?? execFileRunner
@@ -561,7 +575,12 @@ export function runtimeDependencies(): Pick<
     emit: (line) => {
       process.stdout.write(line + "\n");
     },
-    codexDeviceLoginRunnerFactory: (executable) => new SystemDeviceLoginRunner(executable, process.platform)
+    codexDeviceLoginRunnerFactory: (executable) =>
+      new SystemDeviceLoginRunner(executable, process.platform),
+    detectCodexInstallation: async () => await detectAgentInstallation("codex", {
+      environment: process.env,
+      platform: process.platform
+    })
   };
 }
 
@@ -738,6 +757,42 @@ function credentialReader(
 ): (provider: AcquisitionProvider) => Promise<CredentialResult> {
   const runner = dependencies.windowsCredentialRunner;
   return async (provider) => {
+    if (provider === "CODEX") {
+      const known = Object.prototype.hasOwnProperty.call(
+        dependencies.detectedAgentInstallations,
+        "codex"
+      );
+      const installation = known
+        ? dependencies.detectedAgentInstallations["codex"] ?? null
+        : await dependencies.detectCodexInstallation();
+      const managedHome = dependencies.stateDirectory === undefined
+        ? null
+        : await registeredManagedCodexHome(dependencies.stateDirectory);
+      const configuredHome = dependencies.environment["CODEX_HOME"]?.trim();
+      const codexHome = managedHome ??
+        (configuredHome === undefined || configuredHome === "" ? null : configuredHome) ??
+        path.join(dependencies.homeDirectory, ".codex");
+      const stateDirectory = dependencies.stateDirectory ?? resolveStateDirectory();
+      const verifiedAccountId = await verifiedCodexAccountForHome(stateDirectory, codexHome);
+      return installation === null && verifiedAccountId === null
+        ? { ok: false, reason: "absent" }
+        : {
+            ok: true,
+            credential: {
+              secret: "",
+              accountId: null,
+              expiresAtMilliseconds: null,
+              origin: "vendor_store",
+              executable: installation?.executable ?? "",
+              codexHome,
+              verifiedAccountId,
+              credentialRevision: await codexLoginRevision(codexHome),
+              ...(managedHome === null
+                ? {}
+                : { appServerEnvironment: { ...dependencies.environment, CODEX_HOME: managedHome } })
+            }
+          };
+    }
     if (provider === "OPENROUTER") {
       let secret: string | null;
       try {
@@ -785,15 +840,16 @@ function credentialReader(
  * What is written onto every acquired reading before it is validated.
  *
  * Two facts, both about this process rather than about the provider: the
- * reading arrived over the network just now, and this command is what wrote it.
- * The second is what stops two refreshers on one machine from both polling.
+ * reader that carried the result, and this command as the writer.
  */
 function acquisitionStamp(
   meters: readonly RawMeter[],
   credential: AcquiredCredential
 ): RawMeter[] {
-  void credential;
-  return withProvenance(meters, ACQUISITION_PROVENANCE).map(
+  const provenance = credential.executable === undefined
+    ? ACQUISITION_PROVENANCE
+    : { sourceKind: "remote_api" as const, observedVia: "local_command" as const };
+  return withProvenance(meters, provenance).map(
     (meter) => ({ ...meter, writer: "cli" as const })
   );
 }
@@ -995,6 +1051,27 @@ async function refreshCommand(
       now,
       schedule,
       readCredential: credentialReader(dependencies),
+      rememberAccountId: async (credential, accountId) => {
+        if (credential.codexHome !== undefined) {
+          if (credential.verifiedAccountId !== null &&
+              credential.verifiedAccountId !== undefined &&
+              credential.verifiedAccountId !== accountId) {
+            await recordAcquisitionAvailability(
+              "CODEX",
+              "missing_credentials",
+              now,
+              undefined,
+              dependencies.stateDirectory ?? resolveStateDirectory(),
+              credential.verifiedAccountId
+            );
+          }
+          await rememberVerifiedCodexAccount(
+            dependencies.stateDirectory ?? resolveStateDirectory(),
+            credential.codexHome,
+            accountId
+          );
+        }
+      },
       stamp: acquisitionStamp,
       ...(dependencies.probeAntigravity === undefined
         ? {}
@@ -1130,7 +1207,7 @@ function doctorRows(
       connector.id,
       connector.detect(environment) ? "yes" : "no",
       state,
-      "UNVERIFIED"
+      connector.labels.verification
     ].join(" "));
   }
   return lines.join("\n");
@@ -2334,6 +2411,27 @@ async function connectRowState(
   return credential.ok ? "use_current_login" : "sign_in";
 }
 
+async function codexConnectRowState(
+  dependencies: CliDependencies,
+  installed: AgentInstallation | null
+): Promise<ConnectRowState> {
+  if (installed === null) return "install";
+  const stateDirectory = dependencies.stateDirectory ?? resolveStateDirectory();
+  const managedHome = await registeredManagedCodexHome(stateDirectory);
+  const request = codexAppServerRequest(installed.executable, {
+    ...(managedHome === null
+      ? {}
+      : { environment: { ...dependencies.environment, CODEX_HOME: managedHome } })
+  });
+  if (request === null) return "sign_in";
+  try {
+    const reply = await dependencies.acquisitionTransport(request);
+    return reply.status === 200 ? "use_current_login" : "sign_in";
+  } catch {
+    return "sign_in";
+  }
+}
+
 function codexFailureSentence(reason: DeviceLoginFailure): string {
   if (reason === "not_installed") return "not installed";
   if (reason === "too_old") return "this version is too old, upgrade Codex";
@@ -2381,7 +2479,7 @@ async function runCodexDeviceSignIn(
     const state = await session.state(Date.now());
     if (state.kind === "complete") {
       if (!(await registerManagedCodexAccount(stateDirectory, sessionId, dependencies.now())) ||
-          !(await credentialReader(dependencies)("CODEX")).ok) {
+          await codexConnectRowState(dependencies, installed) !== "use_current_login") {
         return "Codex: " + codexFailureSentence("storage") + ".";
       }
       return "Codex: signed in.";
@@ -2417,11 +2515,15 @@ async function setupConnectStep(dependencies: CliDependencies): Promise<string[]
   for (const agent of CONNECT_AGENT_IDS) {
     const installed = Object.prototype.hasOwnProperty.call(dependencies.detectedAgentInstallations, agent)
       ? dependencies.detectedAgentInstallations[agent] ?? null
-      : await detectAgentInstallation(agent, {
-        environment,
-        platform: dependencies.platform
-      });
-    const state = await connectRowState(agent, installed, readCredential);
+      : agent === "codex"
+        ? await dependencies.detectCodexInstallation()
+        : await detectAgentInstallation(agent, {
+          environment,
+          platform: dependencies.platform
+        });
+    const state = agent === "codex"
+      ? await codexConnectRowState(dependencies, installed)
+      : await connectRowState(agent, installed, readCredential);
     add(agent + ": " + CONNECT_ROW_LABEL[state]);
     if (agent === "codex") {
       codexInstalled = installed;

@@ -18,9 +18,9 @@
  */
 import { homedir } from "node:os";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { lstat, realpath } from "node:fs/promises";
-import { readJsonFileSafely, resolveStateDirectory, prepareStateDirectory, writeFileAtomically } from "../cache.js";
-import { codexUsageRequest } from "./transport.js";
+import { readJsonFileSafely, prepareStateDirectory, writeFileAtomically } from "../cache.js";
 import { cursorStatePath, readCursorSession } from "./cursor.js";
 import { credentialIdentityMaterial, credentialProviderAccount, opaqueAccountId } from "./identity.js";
 
@@ -86,6 +86,16 @@ export interface AcquiredCredential {
   readonly expiresAtMilliseconds: number | null;
   /** Where this credential came from, so a row can say whose login it is. */
   readonly origin: CredentialOrigin;
+  /** Validated local command used instead of a bearer, for command RPC readers. */
+  readonly executable?: string;
+  /** Complete child environment when a managed vendor home is selected. */
+  readonly appServerEnvironment?: NodeJS.ProcessEnv;
+  /** Last account identity verified by this exact Codex home. */
+  readonly verifiedAccountId?: string | null;
+  /** Codex home used by the app server, never a credential file. */
+  readonly codexHome?: string;
+  /** Bounded metadata revision that changes when the vendor login file changes. */
+  readonly credentialRevision?: string;
 }
 
 export type CredentialResult =
@@ -216,15 +226,8 @@ export function credentialCandidatePaths(
 export const ANTIGRAVITY_CREDENTIAL_TARGET = "gemini:antigravity";
 
 const MANAGED_CODEX_REGISTRY = "openlimiter-codex-account.json";
+const CODEX_IDENTITY_REGISTRY = "codex-identities.json";
 const MANAGED_SESSION_ID = /^[a-zA-Z0-9]{1,64}$/u;
-
-async function registeredCodexPath(directory: string): Promise<string | null> {
-  const registry = await readJsonFileSafely(path.join(directory, MANAGED_CODEX_REGISTRY));
-  if (!registry.ok || !isRecord(registry.value)) return null;
-  const id = registry.value["sessionId"];
-  if (typeof id !== "string" || !MANAGED_SESSION_ID.test(id)) return null;
-  return await safeManagedCodexPath(directory, id);
-}
 
 async function safeManagedCodexPath(directory: string, id: string): Promise<string | null> {
   const home = path.join(directory, "accounts", "codex", id);
@@ -243,14 +246,81 @@ export async function registerManagedCodexAccount(directory: string, sessionId: 
   if (!MANAGED_SESSION_ID.test(sessionId)) return false;
   const file = await safeManagedCodexPath(directory, sessionId);
   if (file === null) return false;
-  const document = await readJsonFileSafely(file, MAX_CREDENTIAL_FILE_BYTES);
-  if (!document.ok) return false;
-  const parsed = readCredentialDocument("CODEX", document.value, Date.parse(now), "vendor_file");
-  if (!parsed.ok || parsed.credential.accountId === null ||
-      codexUsageRequest(parsed.credential.secret, parsed.credential.accountId) === null) return false;
+  void now;
+  try {
+    const metadata = await lstat(file);
+    if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size < 1 ||
+        metadata.size > MAX_CREDENTIAL_FILE_BYTES) return false;
+  } catch {
+    return false;
+  }
   await prepareStateDirectory(directory);
   await writeFileAtomically(path.join(directory, MANAGED_CODEX_REGISTRY), JSON.stringify({ version: 1, sessionId }));
   return true;
+}
+
+/** Resolve OpenLimiter's own managed Codex home without opening auth.json. */
+export async function registeredManagedCodexHome(directory: string): Promise<string | null> {
+  const registry = await readJsonFileSafely(
+    path.join(directory, MANAGED_CODEX_REGISTRY),
+    MAX_CREDENTIAL_FILE_BYTES
+  );
+  if (!registry.ok || typeof registry.value !== "object" || registry.value === null) return null;
+  const value = registry.value as Record<string, unknown>;
+  const sessionId = value["sessionId"];
+  if (value["version"] !== 1 || typeof sessionId !== "string" ||
+      !MANAGED_SESSION_ID.test(sessionId)) return null;
+  const file = await safeManagedCodexPath(directory, sessionId);
+  return file === null ? null : path.dirname(file);
+}
+
+function codexHomeKey(home: string): string {
+  const normalized = path.resolve(home).replaceAll("\\", "/").toLowerCase();
+  return createHash("sha256").update(normalized).digest("hex");
+}
+
+export async function verifiedCodexAccountForHome(
+  directory: string,
+  home: string
+): Promise<string | null> {
+  const registry = await readJsonFileSafely(
+    path.join(directory, CODEX_IDENTITY_REGISTRY),
+    MAX_CREDENTIAL_FILE_BYTES
+  );
+  if (!registry.ok || !isRecord(registry.value) || registry.value["version"] !== 1 ||
+      !isRecord(registry.value["identities"])) return null;
+  const accountId = registry.value["identities"][codexHomeKey(home)];
+  return typeof accountId === "string" && /^codex-[0-9a-f]{24}$/u.test(accountId)
+    ? accountId
+    : null;
+}
+
+export async function rememberVerifiedCodexAccount(
+  directory: string,
+  home: string,
+  accountId: string
+): Promise<void> {
+  if (!/^codex-[0-9a-f]{24}$/u.test(accountId)) return;
+  const file = path.join(directory, CODEX_IDENTITY_REGISTRY);
+  const previous = await readJsonFileSafely(file, MAX_CREDENTIAL_FILE_BYTES);
+  const identities = previous.ok && isRecord(previous.value) &&
+      previous.value["version"] === 1 && isRecord(previous.value["identities"])
+    ? previous.value["identities"]
+    : {};
+  await prepareStateDirectory(directory);
+  await writeFileAtomically(file, JSON.stringify({
+    version: 1,
+    identities: { ...identities, [codexHomeKey(home)]: accountId }
+  }));
+}
+
+export async function codexLoginRevision(home: string): Promise<string> {
+  try {
+    const metadata = await lstat(path.join(home, "auth.json"));
+    return `${metadata.size}:${metadata.mtimeMs}`;
+  } catch {
+    return "missing";
+  }
 }
 
 /** The macOS keychain service Claude Code writes to, which this path skips. */
@@ -293,7 +363,7 @@ const CONTAINERS: Readonly<Record<AcquisitionProvider, readonly string[]>> = {
 const SECRET_FIELDS: Readonly<Record<AcquisitionProvider, readonly string[]>> = {
   CURSOR: [],
   CLAUDE: ["accessToken", "access_token", "token"],
-  CODEX: ["access_token", "accessToken"],
+  CODEX: [],
   GEMINI_CLI: ["access_token", "accessToken"],
   ANTIGRAVITY: ["access_token", "accessToken", "token"],
   GROK: ["access_token", "accessToken", "key"],
@@ -408,6 +478,9 @@ export async function readAcquisitionCredential(
   const context = resolve(options);
   const nowMilliseconds = Date.parse(options.now ?? new Date().toISOString());
   const clock = Number.isFinite(nowMilliseconds) ? nowMilliseconds : Date.now();
+  /* Codex authentication stays inside the vendor process. Its documented
+     app-server RPC reads the account and limits without exposing auth.json. */
+  if (provider === "CODEX") return { ok: false, reason: "absent" };
   if (provider === "CURSOR") {
     const file = cursorStatePath({ ...options, homeDirectory: context.home });
     return file === null ? { ok: false, reason: "absent" } : readCursorSession(file, clock);
@@ -433,11 +506,6 @@ export async function readAcquisitionCredential(
   }
   let firstFailure: CredentialFailureReason | null = null;
   const candidates = credentialCandidatePaths(provider, options);
-  if (provider === "CODEX") {
-    const directory = options.stateDirectory ?? resolveStateDirectory(options);
-    const managed = await registeredCodexPath(directory);
-    if (managed !== null) candidates.splice(context.environment["CODEX_HOME"] ? 1 : 0, 0, managed);
-  }
   for (const candidate of candidates) {
     const document = await readJsonFileSafely(candidate, MAX_CREDENTIAL_FILE_BYTES);
     if (!document.ok) {

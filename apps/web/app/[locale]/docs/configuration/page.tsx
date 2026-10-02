@@ -249,7 +249,7 @@ openlimiter config: unknown statusline key. Known keys: order, meters, width, ro
 CONNECTOR DETECTED FRESHNESS DRIFT
 claude no unknown UNVERIFIED
 openrouter no unknown UNVERIFIED
-codex no unknown UNVERIFIED
+codex no unknown VERIFIED_FIXTURES
 antigravity no unknown UNVERIFIED
 opencode no unknown UNVERIFIED
 manual yes fresh UNVERIFIED

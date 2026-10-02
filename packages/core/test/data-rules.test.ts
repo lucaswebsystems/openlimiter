@@ -40,7 +40,6 @@ it("credential parsing stamps the Rust identity for every file based acquisition
   const account_id = "fixture-account-a";
   const documents: Partial<Record<AcquisitionProvider, unknown>> = {
     CLAUDE: { claudeAiOauth: { accessToken: "fixture", accountUuid: account_id } },
-    CODEX: { tokens: { access_token: "fixture", account_id } },
     GEMINI_CLI: { access_token: "fixture", account_id },
     ANTIGRAVITY: { token: { access_token: "fixture", account_id } },
     GROK: { auth: { key: "fixture", user_id: account_id } },
@@ -52,7 +51,7 @@ it("credential parsing stamps the Rust identity for every file based acquisition
     expect(parsed.ok).toBe(true);
     if (parsed.ok) expect(acquisitionAccountId(provider as ProviderCode, parsed.credential)).toBe(vectors.find(row => row.provider === provider && row.material === account_id)?.expected);
   }
-  for (const [provider, claims] of [["CODEX", { chatgpt_account_id: account_id }], ["GROK", { sub: account_id }]] as const) {
+  for (const [provider, claims] of [["GROK", { sub: account_id }]] as const) {
     const token = "header." + Buffer.from(JSON.stringify(claims)).toString("base64url") + ".signature";
     const parsed = readCredentialDocument(provider, { access_token: token }, at);
     expect(parsed.ok && parsed.credential.accountId).toBe(account_id);

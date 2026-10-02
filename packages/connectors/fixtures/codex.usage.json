@@ -1,19 +1,16 @@
 {
-  "plan_type": "plus",
-  "rate_limit": {
-    "limit_reached": false,
-    "primary_window": {
-      "used_percent": 84.0,
-      "reset_at": 1786118400,
-      "limit_window_seconds": 18000
+  "accountId": "synthetic-account",
+  "rateLimits": {
+    "limitId": "codex",
+    "primary": {
+      "usedPercent": 84,
+      "windowDurationMins": 300,
+      "resetsAt": 1786118400
     },
-    "secondary_window": {
-      "used_percent": 96.0,
-      "reset_at": 1786363200,
-      "limit_window_seconds": 604800
+    "secondary": {
+      "usedPercent": 96,
+      "windowDurationMins": 10080,
+      "resetsAt": 1786363200
     }
-  },
-  "credits": {
-    "balance": "REDACTED"
   }
 }

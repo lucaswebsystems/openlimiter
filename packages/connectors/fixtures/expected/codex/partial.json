@@ -2,25 +2,7 @@
   "expected": {
     "outcome": "readings",
     "readings": [
-      {
-        "provider": "CODEX",
-        "meter": "FIVE_HOUR",
-        "value": 25,
-        "unit": "PERCENT",
-        "window": {
-          "kind": "rolling",
-          "durationSeconds": 18000
-        },
-        "resetAt": "2026-08-07T16:00:00.000Z",
-        "precision": "estimated",
-        "source": "internal_payload",
-        "kind": null,
-        "availability": null,
-        "currency": null,
-        "usedAmount": null,
-        "limitAmount": null,
-        "observedAt": "2026-08-07T12:00:00.000Z"
-      }
+      { "provider": "CODEX", "meter": "WINDOW_90_MINUTE", "value": 19, "unit": "PERCENT", "window": { "kind": "rolling", "durationSeconds": 5400 }, "resetAt": "2026-08-07T13:00:00.000Z", "precision": "exact", "source": "documented_api", "kind": null, "availability": null, "currency": null, "usedAmount": null, "limitAmount": null, "observedAt": "2026-08-07T12:00:00.000Z" }
     ]
   }
 }

@@ -60,8 +60,8 @@ which field.
 Save one raw response to a file. Nothing is uploaded, logged or transmitted:
 the script reads a file and prints to your terminal.
 
-- **Codex** — the JSON body of `GET https://chatgpt.com/backend-api/wham/usage`,
-  authorised with the session the Codex client already holds. Save as `.json`.
+- **Codex** — the `result` object from the documented
+  `account/rateLimits/read` app server method. Save as `.json`.
 - **Antigravity** — the JSON body of the
   `POST .../v1internal:retrieveUserQuotaSummary` call, empty `{}` body, bearer
   token, and a **non empty** User-Agent (the same valid token is answered 403

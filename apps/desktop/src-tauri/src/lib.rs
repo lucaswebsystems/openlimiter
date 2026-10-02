@@ -11,6 +11,7 @@ mod claude_oauth;
 mod claude_poll_setting;
 mod codex_device_login;
 mod codex_oauth;
+mod codex_app_server;
 mod collector;
 mod collector_runtime;
 mod collector_schedule;

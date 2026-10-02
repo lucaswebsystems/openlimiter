@@ -26,6 +26,7 @@ import {
 import { MAX_CACHE_ENTRIES, mergeSnapshots, snapshotIdentity } from "./merge.js";
 import { canonicalJson, normalizeMeter, normalizeMeters } from "./normalizer.js";
 import type { ProviderCode, RawMeter, Snapshot } from "./types.js";
+import type { SnapshotAvailability } from "./connection-state.js";
 
 export const CACHE_FILE_NAME = "openlimiter-cache.json";
 export const MAX_POLICY_TIMESTAMP = 253_402_300_799_999;
@@ -62,12 +63,13 @@ export function withPolicyFreshness(snapshot: Snapshot): Snapshot {
   return { ...snapshot, expiresAt: freshnessPolicy({ ...snapshot, sourceClass: snapshot.source, now: snapshot.observedAt }).expiresAt };
 }
 
-export async function recordAcquisitionAvailability(provider: ProviderCode, availability: "expired_credentials" | "access_denied" | "quota_unavailable" | "rate_limited", now: string, retryAt: string | undefined, directory = resolveStateDirectory(), accountId?: string): Promise<void> {
+export async function recordAcquisitionAvailability(provider: ProviderCode, availability: SnapshotAvailability, now: string, retryAt: string | undefined, directory = resolveStateDirectory(), accountId?: string): Promise<void> {
   await withCacheLock(directory, async () => {
     const state = await readCacheState(directory);
     if (!state.ok && state.reason !== "missing") throw new Error("Unreadable snapshot cache");
     const rows = retainSnapshots(state.ok ? state.state.snapshots : [], Date.parse(now));
-    const matches = (row: Snapshot) => row.provider === provider && row.accountId === accountId;
+    const matches = (row: Snapshot) => row.provider === provider &&
+      (accountId === undefined || row.accountId === accountId);
     const matching = rows.filter(matches);
     if (matching.some(row => row.observedAt > now)) return;
     const seed: Snapshot = {
@@ -78,7 +80,14 @@ export async function recordAcquisitionAvailability(provider: ProviderCode, avai
     };
     const snapshots = [...rows.filter((row) => !matches(row)), ...(matching.length ? matching : [seed]).map((row) => {
       const { retryAt: _oldRetry, ...rest } = row;
-      return { ...rest, availability, ...(availability === "rate_limited" && retryAt ? { retryAt } : {}) };
+      return {
+        ...rest,
+        value: 0,
+        window: { kind: "unknown" as const },
+        resetAt: null,
+        availability,
+        ...(availability === "rate_limited" && retryAt ? { retryAt } : {})
+      };
     })];
     await replaceCache(directory, snapshots, state.ok ? state.state.suppressions : []);
   });

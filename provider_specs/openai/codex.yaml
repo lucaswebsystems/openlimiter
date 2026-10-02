@@ -1,15 +1,8 @@
 # Codex, OpenAI's coding CLI.
 #
-# OpenAI publishes no consumer quota interface, so this is an internal endpoint
-# and every surface says so: source_status provisional, verification unverified,
-# and the connector's own header comment states "This interface is UNOFFICIAL
-# and may break."
-#
-# The reader is live. The request it makes, its method, its headers and its
-# permitted statuses are Rust constants in
-# apps/desktop/src-tauri/src/net.rs, documented there with the date they were
-# observed. They are deliberately absent from this file: a registry that names
-# an address is a registry that appears to choose one.
+# OpenAI documents account/rateLimits/read on the local Codex app server. The
+# user owned Codex process keeps the ChatGPT credential and answers over JSONL
+# stdio, so OpenLimiter does not read or transmit auth.json.
 #
 # What the parser reads is stated once, in the meters block below, and nothing
 # here paraphrases it. The last time this file described the parser in prose,
@@ -34,8 +27,8 @@ platforms:
   - windows
   - macos
   - linux
-acquisitionMethod: remote_http_internal
-d5Review: Internal provider interface; high automation risk and capture pending.
+acquisitionMethod: local_command
+d5Review: Documented local app server interface; low automation risk.
 maturity: headline
 directory:
   order: 0
@@ -45,9 +38,9 @@ directory:
   access: automatic
 
 source:
-  docs_url: packages/connectors/src/codex.ts
-  reviewed_at: "2026-08-10"
-  source_status: provisional
+  docs_url: https://learn.chatgpt.com/docs/app-server
+  reviewed_at: "2026-10-01"
+  source_status: official
 
 availability:
   requires_plan: any
@@ -70,14 +63,14 @@ collection:
   auth: implemented
   readers:
     - reader_id: codex_usage
-      endpoint_id: codex_usage
+      endpoint_id: codex_app_server
       credential_kind: codex_session
       evidence_fixture: codex.sanitized_live.usage
       evidence_status: captured
-      last_verified_at: "2026-09-01"
+      last_verified_at: "2026-10-01"
 
 connections:
-  - reader: experimental
+  - reader: local_command
     auth_mode: existing_local_cli
     platforms:
       - windows
@@ -85,14 +78,14 @@ connections:
       - linux
 
 verification:
-  verification_status: unverified
-  last_verified_at: null
+  verification_status: verified
+  last_verified_at: "2026-10-01"
   fixture_ids:
-    - codex.provisional.usage
+    - codex.documented.app_server_rate_limits
     - codex.sanitized_live.usage
 
 # The window is provider_defined rather than a fixed rolling length because the
-# payload states its own: limit_window_seconds. A registry that hard coded five
+# payload states its own: windowDurationMins. A registry that hard coded five
 # hours would be describing a plan rather than the interface, and the parser
 # reports an unknown window when the field is absent rather than assuming one.
 # The four honesty labels, in the exact words every surface must print.
@@ -106,9 +99,9 @@ verification:
 honesty:
   connector_id: codex
   credential_origin: official-local-tool
-  data_interface_status: internal-endpoint
-  automation_risk: high
-  verification: UNVERIFIED
+  data_interface_status: documented-api
+  automation_risk: low
+  verification: VERIFIED_FIXTURES
 
 meters:
   - id: primary
@@ -119,8 +112,8 @@ meters:
     window:
       kind: provider_defined
     source_format: json_path
-    source_path: rate_limit.primary_window.used_percent
-    reset_path: rate_limit.primary_window.reset_at
+    source_path: rateLimits.primary.usedPercent
+    reset_path: rateLimits.primary.resetsAt
     reset_encoding: unix_seconds
     optional: false
     meter_code: PRIMARY

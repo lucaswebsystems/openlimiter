@@ -6,7 +6,7 @@ Checked against official project pages on 20 August 2026. This category changes 
 
 OpenLimiter does not have the widest provider list. OpenUsage, ClaudeBar, and CodexBar cover more providers.
 
-The concrete provider lead is against Overclock Redline. OpenLimiter implements six automatic local readers: Claude Code, Codex, Antigravity, Gemini CLI, Grok, and Kimi. Redline lists four: Claude, Codex, Grok, and Kimi. All OpenLimiter readers remain labelled `UNVERIFIED`. Codex and Antigravity use contracts observed against real accounts. The other four are implemented with fixture evidence rather than current live account verification.
+The concrete provider lead is against Overclock Redline. OpenLimiter implements six automatic local readers: Claude Code, Codex, Antigravity, Gemini CLI, Grok, and Kimi. Redline lists four: Claude, Codex, Grok, and Kimi. Codex uses OpenAI's documented local app server and is fixture verified. The remaining automatic readers retain their provider specific verification labels.
 
 OpenLimiter keeps rows current in place. The Redline detail surface reviewed here is a static snapshot, although Redline polls providers every five minutes. OpenUsage, ClaudeBar, and CodexBar also have live views, so live data is not unique to OpenLimiter.
 

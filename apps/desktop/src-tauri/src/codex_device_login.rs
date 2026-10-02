@@ -47,7 +47,6 @@ use crate::cache_write::CacheWriter;
 use crate::codex_oauth::CodexOauthRuntime;
 use crate::net::ReqwestTransport;
 use crate::provider_detection::DetectionStore;
-use crate::request_policy::RequestPolicy;
 
 /// The client release that first carried `--device-auth`.
 ///
@@ -265,8 +264,9 @@ pub fn managed_home(session_id: &str) -> Option<PathBuf> {
 
 /// Whether the client has written its credential into this folder yet.
 fn credential_written(home: &Path) -> bool {
-    crate::fsx::bounded_read(&home.join(CREDENTIAL_FILE))
-        .is_some_and(|content| !content.trim().is_empty())
+    std::fs::symlink_metadata(home.join(CREDENTIAL_FILE)).is_ok_and(|metadata| {
+        metadata.is_file() && !metadata.file_type().is_symlink() && metadata.len() > 0
+    })
 }
 
 /// Where every managed login lives, and the boundary none may leave.
@@ -640,6 +640,10 @@ fn quota_state(outcome: &crate::codex_oauth::CodexOutcome) -> DeviceLoginQuotaSt
                 }
             }
         }
+        CodexOutcome::Unavailable { .. } => DeviceLoginQuotaState::Pending {
+            reason: "Quota identity is not available yet. OpenLimiter will try again soon."
+                .to_string(),
+        },
     }
 }
 
@@ -892,7 +896,6 @@ pub async fn codex_device_login_status(
     detection: State<'_, DetectionStore>,
     open: State<'_, OpenDeviceLogin>,
     runtime: State<'_, CodexOauthRuntime>,
-    policy: State<'_, RequestPolicy>,
     transport: State<'_, ReqwestTransport>,
     writer: State<'_, Arc<CacheWriter>>,
 ) -> Result<DeviceLoginState, DeviceLoginFailure> {
@@ -906,7 +909,7 @@ pub async fn codex_device_login_status(
             let state = session.state(Instant::now());
             if matches!(&state, DeviceLoginState::Complete { .. }) {
                 let home = session.home().to_path_buf();
-                let account_id = tauri::async_runtime::spawn_blocking(move || {
+                let home = tauri::async_runtime::spawn_blocking(move || {
                     use tauri::Manager;
                     app.state::<DetectionStore>()
                         .register_managed_account(&home)
@@ -914,13 +917,13 @@ pub async fn codex_device_login_status(
                 .await
                 .map_err(|_| DeviceLoginFailure::Storage)?
                 .ok_or(DeviceLoginFailure::Storage)?;
-                let (outcome, _) = crate::codex_oauth::collect_account_guarded(
+                let outcome = crate::codex_oauth::collect_home(
                     &detection,
                     &runtime,
-                    &policy,
                     &*transport,
                     Arc::clone(&writer),
-                    account_id,
+                    home,
+                    None,
                     crate::connections::now_epoch_ms(),
                 )
                 .await;

@@ -15,6 +15,7 @@ use crate::native_snapshot::{epoch_ms_from_rfc3339, iso_from_epoch_ms};
 
 const MAX_PROFILE_DIRECTORIES: usize = 32;
 const MAX_MANAGED_CODEX_ACCOUNTS: usize = 32;
+const MAX_MANAGED_CODEX_AUTH_BYTES: u64 = 65_536;
 const MAX_ACCOUNTS_PER_FILE: usize = 16;
 const MAX_TOKEN_BYTES: usize = 4_096;
 const MAX_IDENTITY_BYTES: usize = 512;
@@ -781,7 +782,7 @@ fn managed_codex_candidates(root: Option<&Path>) -> Vec<CandidatePath> {
     let Some(root) = root else {
         return Vec::new();
     };
-    let Ok(resolved_root) = fs::canonicalize(root) else {
+    let Some(resolved_root) = canonical_existing_path(root) else {
         return Vec::new();
     };
     let Ok(entries) = fs::read_dir(root) else {
@@ -809,7 +810,7 @@ fn managed_codex_candidates(root: Option<&Path>) -> Vec<CandidatePath> {
         if metadata.file_type().is_symlink() || !metadata.is_dir() {
             continue;
         }
-        let Ok(resolved) = fs::canonicalize(&path) else {
+        let Some(resolved) = canonical_existing_path(&path) else {
             continue;
         };
         if resolved.parent() != Some(resolved_root.as_path()) {
@@ -1013,6 +1014,10 @@ fn normalize_verbatim_prefix(path: PathBuf) -> PathBuf {
     path
 }
 
+fn canonical_existing_path(path: &Path) -> Option<PathBuf> {
+    fs::canonicalize(path).ok().map(normalize_verbatim_prefix)
+}
+
 /// Resolve an executable and prove that its real file remains inside one of
 /// the caller's trusted install directories. The caller owns the directory
 /// list because each vendor has a different canonical installation contract.
@@ -1031,13 +1036,13 @@ pub(crate) fn validated_executable_in_roots(path: &Path, roots: &[PathBuf]) -> O
     if !metadata.is_file() && !metadata.file_type().is_symlink() {
         return None;
     }
-    let resolved = normalize_verbatim_prefix(fs::canonicalize(path).ok()?);
+    let resolved = canonical_existing_path(path)?;
     if !fs::metadata(&resolved).is_ok_and(|metadata| metadata.is_file()) {
         return None;
     }
     roots
         .iter()
-        .filter_map(|root| fs::canonicalize(root).ok().map(normalize_verbatim_prefix))
+        .filter_map(|root| canonical_existing_path(root))
         .filter(|root| path_components_are_real_directory(root))
         .any(|root| resolved.starts_with(root))
         .then_some(resolved)
@@ -1207,7 +1212,55 @@ fn installed_executable(
         for name in &names {
             let candidate = directory.join(name);
             if let Some(resolved) = validated_launcher(provider, context, &candidate) {
+                if provider == DetectedProviderId::Codex
+                    && context.platform == DiscoveryPlatform::Windows
+                    && resolved.extension().is_some_and(|extension| {
+                        matches!(
+                            extension.to_string_lossy().to_ascii_lowercase().as_str(),
+                            "cmd" | "bat"
+                        )
+                    })
+                {
+                    if let Some(native) = codex_native_windows_executable(directory, context) {
+                        return Some(native);
+                    }
+                    continue;
+                }
                 return Some(resolved);
+            }
+        }
+    }
+    None
+}
+
+fn codex_native_windows_executable(
+    path_directory: &Path,
+    context: &DiscoveryContext,
+) -> Option<PathBuf> {
+    for (package, triple) in [
+        ("codex-win32-x64", "x86_64-pc-windows-msvc"),
+        ("codex-win32-arm64", "aarch64-pc-windows-msvc"),
+    ] {
+        for package_parts in [
+            vec!["@openai", "codex"],
+            vec!["@openai", "codex", "node_modules", "@openai", package],
+            vec!["@openai", package],
+        ] {
+            for binary_directory in ["bin", "codex"] {
+                let mut candidate = path_directory.join("node_modules");
+                for part in &package_parts {
+                    candidate.push(part);
+                }
+                candidate.push("vendor");
+                candidate.push(triple);
+                candidate.push(binary_directory);
+                candidate.push("codex.exe");
+                if let Some(native) = validated_executable_in_roots(
+                    &candidate,
+                    &provider_install_roots(DetectedProviderId::Codex, context),
+                ) {
+                    return Some(native);
+                }
             }
         }
     }
@@ -1512,7 +1565,7 @@ fn token_object<'a>(
 ) -> &'a Map<String, Value> {
     let names: &[&str] = match provider {
         DetectedProviderId::Claude => &["claudeAiOauth", "oauth", "credentials"],
-        DetectedProviderId::Codex => &["tokens", "oauth", "credentials"],
+        DetectedProviderId::Codex => &[],
         DetectedProviderId::Antigravity => &["oauth", "token", "tokens", "credentials"],
         DetectedProviderId::GeminiCli => &["oauth", "tokens", "credentials"],
         DetectedProviderId::Opencode => &["session", "auth", "credentials"],
@@ -1530,7 +1583,7 @@ fn access_token<'a>(
 ) -> Option<&'a str> {
     let names: &[&str] = match provider {
         DetectedProviderId::Claude => &["accessToken", "access_token", "token"],
-        DetectedProviderId::Codex => &["access_token", "accessToken"],
+        DetectedProviderId::Codex => &[],
         DetectedProviderId::Antigravity => &["access_token", "accessToken", "token"],
         DetectedProviderId::GeminiCli => &["access_token", "accessToken"],
         DetectedProviderId::Opencode => &["cookie", "session", "access_token", "accessToken"],
@@ -1586,6 +1639,11 @@ pub(crate) fn provider_singleton_account_id(provider: DetectedProviderId) -> Str
 }
 
 fn parse_credential_file(provider: DetectedProviderId, path: &Path) -> Vec<ParsedCredential> {
+    // Codex authentication belongs to `codex app-server`. Do not open or parse
+    // auth.json, even for identity. account/rateLimits/read supplies accountId.
+    if provider == DetectedProviderId::Codex {
+        return Vec::new();
+    }
     if provider == DetectedProviderId::Cursor {
         let Ok(session) = crate::native_readers::cursor::session(path) else {
             return Vec::new();
@@ -1938,7 +1996,91 @@ pub struct DetectionStore {
     pub switches: crate::provider_switches::ProviderSwitches,
     context: DiscoveryContext,
     inventory: RwLock<Inventory>,
+    codex_homes: RwLock<BTreeMap<PathBuf, Option<String>>>,
+    codex_registry: Option<PathBuf>,
     scan_gate: Mutex<Option<Instant>>,
+}
+
+fn codex_home_inventory(context: &DiscoveryContext) -> BTreeMap<PathBuf, Option<String>> {
+    let mut candidates = candidate_paths(DetectedProviderId::Codex, context);
+    candidates.extend(profile_candidates(
+        DetectedProviderId::Codex,
+        context.home.as_deref(),
+    ));
+    let mut homes = BTreeMap::new();
+    for candidate in candidates {
+        if candidate.kind != CandidateKind::Credential || !safe_path_present(&candidate.path) {
+            continue;
+        }
+        if let Some(home) = candidate.path.parent() {
+            let home = canonical_existing_path(home).unwrap_or_else(|| home.to_path_buf());
+            homes.entry(home).or_insert(None);
+        }
+    }
+    if let Some(home) = context
+        .codex_home
+        .clone()
+        .or_else(|| context.home.as_ref().map(|home| home.join(".codex")))
+    {
+        let home = canonical_existing_path(&home).unwrap_or(home);
+        homes.entry(home).or_insert(None);
+    }
+    homes
+}
+
+fn codex_registry_path(context: &DiscoveryContext) -> Option<PathBuf> {
+    Some(
+        context
+            .managed_codex_root
+            .as_ref()?
+            .parent()?
+            .parent()?
+            .join("codex-identities.json"),
+    )
+}
+
+fn restore_codex_identities(
+    homes: &mut BTreeMap<PathBuf, Option<String>>,
+    registry: Option<&Path>,
+) {
+    let Some(text) = registry.and_then(fsx::bounded_read) else {
+        return;
+    };
+    let Ok(value) = serde_json::from_str::<Value>(&text) else {
+        return;
+    };
+    let Some(entries) = value
+        .get("identities")
+        .and_then(Value::as_object)
+        .filter(|_| value.get("version").and_then(Value::as_u64) == Some(1))
+    else {
+        return;
+    };
+    for (home, slot) in homes.iter_mut() {
+        let Some(account_id) = entries
+            .get(&codex_home_key(home))
+            .and_then(Value::as_str)
+        else {
+            continue;
+        };
+        if valid_opaque_codex_account_id(account_id) {
+            *slot = Some(account_id.to_string());
+        }
+    }
+}
+
+fn codex_home_key(home: &Path) -> String {
+    let home = canonical_existing_path(home)
+        .unwrap_or_else(|| normalize_verbatim_prefix(home.to_path_buf()));
+    token_digest(&home.to_string_lossy().replace('\\', "/").to_lowercase())
+}
+
+fn valid_opaque_codex_account_id(account_id: &str) -> bool {
+    account_id.len() == 30
+        && account_id.starts_with("codex-")
+        && account_id[6..]
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 pub fn spawn_rescans(app: tauri::AppHandle) {
@@ -1982,10 +2124,15 @@ impl DetectionStore {
             credentials: BTreeMap::new(),
             statusline_accounts: BTreeSet::new(),
         };
+        let codex_registry = codex_registry_path(&context);
+        let mut codex_homes = codex_home_inventory(&context);
+        restore_codex_identities(&mut codex_homes, codex_registry.as_deref());
         Self {
             switches,
             context,
             inventory: RwLock::new(inventory),
+            codex_homes: RwLock::new(codex_homes),
+            codex_registry,
             scan_gate: Mutex::new(None),
         }
     }
@@ -2017,6 +2164,11 @@ impl DetectionStore {
             &self.switches,
         );
         let report = self.merge_inventory(next);
+        if let Ok(mut homes) = self.codex_homes.write() {
+            for (home, account) in codex_home_inventory(&self.context) {
+                homes.entry(home).or_insert(account);
+            }
+        }
         *gate = Some(Instant::now());
         report
     }
@@ -2078,18 +2230,18 @@ impl DetectionStore {
             .unwrap_or_default()
     }
 
-    /// Validate one device login home, rescan the owned account root, and
-    /// return the opaque account id that the automatic Codex collector uses.
+    /// Validate one device login home without opening auth.json and return the
+    /// opaque account id that the automatic Codex collector uses.
     /// The home must be a direct child of the state directory this process
-    /// owns, and the vendor file must contain exactly one readable account.
-    pub fn register_managed_account(&self, home: &Path) -> Option<String> {
+    /// owns, and the vendor file must be a bounded regular file.
+    pub fn register_managed_account(&self, home: &Path) -> Option<PathBuf> {
         let mut gate = self.scan_gate.lock().ok()?;
         let root = self.context.managed_codex_root.as_deref()?;
         if fs::symlink_metadata(home).ok()?.file_type().is_symlink() || is_reparse_point(home) {
             return None;
         }
-        let resolved_root = fs::canonicalize(root).ok()?;
-        let resolved_home = fs::canonicalize(home).ok()?;
+        let resolved_root = canonical_existing_path(root)?;
+        let resolved_home = canonical_existing_path(home)?;
         if !path_components_are_real_directory(&resolved_root)
             || !path_components_are_real_directory(&resolved_home)
         {
@@ -2108,33 +2260,104 @@ impl DetectionStore {
         {
             return None;
         }
-        let mut parsed =
-            parse_credential_file(DetectedProviderId::Codex, &resolved_home.join("auth.json"));
-        if parsed.len() != 1 {
+        let auth = resolved_home.join("auth.json");
+        let metadata = fs::symlink_metadata(&auth).ok()?;
+        if !metadata.file_type().is_file()
+            || metadata.file_type().is_symlink()
+            || metadata.len() == 0
+            || metadata.len() > MAX_MANAGED_CODEX_AUTH_BYTES
+        {
             return None;
         }
-        let account_id = opaque_account_id(DetectedProviderId::Codex, &parsed[0].identity_material);
-        drop(parsed.pop());
-        /* Keep the whole registration pass on the canonical root captured
-        above. A later scan through the original path could observe a
-        parent replacement and read a different account tree. */
-        let mut context = self.context.clone();
-        context.managed_codex_root = Some(resolved_root);
-        let next =
-            scan_enabled_inventory(&context, crate::connections::now_epoch_ms(), &self.switches);
-        let report = self.merge_inventory(next);
+        self.codex_homes
+            .write()
+            .ok()?
+            .entry(resolved_home.clone())
+            .or_insert(None);
         *gate = Some(Instant::now());
-        report
-            .providers
+        Some(resolved_home)
+    }
+
+    pub(crate) fn managed_codex_home(&self, account_id: &str) -> Option<PathBuf> {
+        self.codex_homes.read().ok()?.iter().find_map(|(home, verified)| {
+            (verified.as_deref() == Some(account_id)).then(|| home.clone())
+        })
+    }
+
+    pub(crate) fn codex_targets(&self) -> Vec<(PathBuf, Option<String>)> {
+        if !self.switches.enabled(DetectedProviderId::Codex) {
+            return Vec::new();
+        }
+        self.codex_homes
+            .read()
+            .map(|homes| homes.iter().map(|(home, account)| (home.clone(), account.clone())).collect())
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn remember_codex_identity(&self, home: &Path, material: &str) -> Option<String> {
+        let account_id = opaque_account_id(DetectedProviderId::Codex, material);
+        let home = canonical_existing_path(home)
+            .unwrap_or_else(|| normalize_verbatim_prefix(home.to_path_buf()));
+        self.codex_homes
+            .write()
+            .ok()?
+            .insert(home, Some(account_id.clone()));
+        self.persist_codex_identities();
+        Some(account_id)
+    }
+
+    pub(crate) fn remember_stored_codex_identity(&self, home: &Path, account_id: &str) {
+        if valid_opaque_codex_account_id(account_id) {
+            let home = canonical_existing_path(home)
+                .unwrap_or_else(|| normalize_verbatim_prefix(home.to_path_buf()));
+            if let Ok(mut homes) = self.codex_homes.write() {
+                homes.insert(home, Some(account_id.to_string()));
+            }
+            self.persist_codex_identities();
+        }
+    }
+
+    fn persist_codex_identities(&self) {
+        let Some(registry) = self.codex_registry.as_deref() else {
+            return;
+        };
+        let Ok(homes) = self.codex_homes.read() else {
+            return;
+        };
+        let identities: BTreeMap<String, &str> = homes
             .iter()
-            .find(|provider| provider.provider_id == DetectedProviderId::Codex)
-            .is_some_and(|provider| {
-                provider
-                    .accounts
-                    .iter()
-                    .any(|account| account.account_id == account_id)
+            .filter_map(|(home, account_id)| {
+                Some((codex_home_key(home), account_id.as_deref()?))
             })
-            .then_some(account_id)
+            .collect();
+        let Ok(text) = serde_json::to_string(&serde_json::json!({
+            "version": 1,
+            "identities": identities,
+        })) else {
+            return;
+        };
+        if let Some(parent) = registry.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        let _ = fsx::atomic_write(registry, &text);
+    }
+
+    pub(crate) fn default_codex_home(&self) -> Option<PathBuf> {
+        self.context
+            .codex_home
+            .clone()
+            .or_else(|| self.context.home.as_ref().map(|home| home.join(".codex")))
+    }
+
+    pub(crate) fn codex_login_revision(&self, home: &Path) -> String {
+        let auth = home.join("auth.json");
+        let metadata = fs::symlink_metadata(auth).ok();
+        let modified = metadata
+            .as_ref()
+            .and_then(|metadata| metadata.modified().ok())
+            .and_then(|modified| modified.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|duration| (duration.as_secs(), duration.subsec_nanos()));
+        token_digest(&format!("{:?}:{modified:?}", metadata.map(|metadata| metadata.len())))
     }
 
     /// The version of this provider's installed client, when the installation
@@ -2159,6 +2382,13 @@ impl DetectionStore {
     pub fn account_ids(&self, provider: DetectedProviderId) -> Vec<String> {
         if !self.switches.enabled(provider) {
             return Vec::new();
+        }
+        if provider == DetectedProviderId::Codex {
+            return self
+                .codex_homes
+                .read()
+                .map(|homes| homes.values().filter_map(Clone::clone).collect())
+                .unwrap_or_default();
         }
         self.inventory
             .read()
@@ -2320,10 +2550,15 @@ impl DetectionStore {
             path_entries: vec![home.join("bin")],
         };
         let inventory = scan_inventory(&context, now_ms);
+        let codex_registry = codex_registry_path(&context);
+        let mut codex_homes = codex_home_inventory(&context);
+        restore_codex_identities(&mut codex_homes, codex_registry.as_deref());
         Self {
             switches: crate::provider_switches::ProviderSwitches::at(Some(home.to_path_buf())),
             context,
             inventory: RwLock::new(inventory),
+            codex_homes: RwLock::new(codex_homes),
+            codex_registry,
             scan_gate: Mutex::new(None),
         }
     }
@@ -2475,7 +2710,7 @@ mod tests {
     }
 
     #[test]
-    fn rescan_preserves_refusal_until_vendor_rotates_credentials() {
+    fn codex_auth_changes_never_create_importable_credentials() {
         let root = TempDir::new();
         let file = root.path().join(".codex/auth.json");
         write(
@@ -2483,23 +2718,17 @@ mod tests {
             r#"{"tokens":{"access_token":"fixture-a","account_id":"fixture"}}"#,
         );
         let store = DetectionStore::for_test_home(root.path(), 1_800_000_000_000);
-        let id = store.account_ids(DetectedProviderId::Codex).pop().unwrap();
-        store.mark_stale(DetectedProviderId::Codex, &id);
-        let report = store.rescan();
-        assert_eq!(
-            provider(&report, DetectedProviderId::Codex).accounts[0].auth_state,
-            DetectedAuthState::Stale
-        );
+        assert!(store.account_ids(DetectedProviderId::Codex).is_empty());
         write(
             &file,
             r#"{"tokens":{"access_token":"fixture-b","account_id":"fixture"}}"#,
         );
         let report = store.rescan();
         assert_eq!(
-            provider(&report, DetectedProviderId::Codex).accounts[0].auth_state,
-            DetectedAuthState::ExpiryUnknown
+            provider(&report, DetectedProviderId::Codex).state,
+            ProviderPresence::InstalledLoggedOut
         );
-        assert_eq!(store.account_ids(DetectedProviderId::Codex), vec![id]);
+        assert!(store.account_ids(DetectedProviderId::Codex).is_empty());
     }
 
     #[test]
@@ -2604,6 +2833,8 @@ mod tests {
                 context,
                 switches: crate::provider_switches::ProviderSwitches::at(None),
                 inventory: RwLock::new(inventory),
+                codex_homes: RwLock::new(BTreeMap::new()),
+                codex_registry: None,
             };
             let state = dir.path().join("state");
             let policy = RequestPolicy::at(Some(state.clone()));
@@ -2789,16 +3020,11 @@ mod tests {
             r#"{"tokens":{"access_token":"fixture","account_id":"fixture"}}"#,
         );
         let store = DetectionStore::for_test_home(dir.path(), 1_800_000_000_000);
-        let account = store.account_ids(DetectedProviderId::Codex).pop().unwrap();
         store
             .switches
             .set(DetectedProviderId::Codex, false)
             .unwrap();
         assert!(store.account_ids(DetectedProviderId::Codex).is_empty());
-        assert!(matches!(
-            store.read_credential(DetectedProviderId::Codex, &account),
-            Err(DetectedCredentialError::NotFound)
-        ));
         for _ in 0..3 {
             let report = store.rescan();
             assert!(!report
@@ -2807,8 +3033,12 @@ mod tests {
                 .any(|entry| entry.provider_id == DetectedProviderId::Codex));
         }
         store.switches.set(DetectedProviderId::Codex, true).unwrap();
-        store.rescan();
-        assert!(!store.account_ids(DetectedProviderId::Codex).is_empty());
+        let report = store.rescan();
+        assert_eq!(
+            provider(&report, DetectedProviderId::Codex).state,
+            ProviderPresence::InstalledLoggedOut
+        );
+        assert!(store.account_ids(DetectedProviderId::Codex).is_empty());
     }
 
     #[test]
@@ -2982,7 +3212,7 @@ mod tests {
     }
 
     #[test]
-    fn two_codex_profiles_are_two_accounts() {
+    fn codex_profiles_are_detected_without_parsing_their_auth_files() {
         let dir = TempDir::new();
         let first = jwt(r#"{"sub":"user-one","exp":1900000000}"#);
         let second = jwt(r#"{"sub":"user-two","exp":1900000000}"#);
@@ -2999,44 +3229,28 @@ mod tests {
             1_800_000_000_000,
         );
         let codex = provider(&inventory.report, DetectedProviderId::Codex);
-        assert_eq!(codex.state, ProviderPresence::Present);
-        assert_eq!(codex.accounts.len(), 2);
-        assert_ne!(codex.accounts[0].account_id, codex.accounts[1].account_id);
-        assert!(codex
-            .accounts
-            .iter()
-            .all(|entry| entry.identity_quality == IdentityQuality::JwtSubject));
-    }
-
-    #[test]
-    fn the_same_codex_account_in_two_profile_paths_is_one_account() {
-        let dir = TempDir::new();
-        write(
-            &dir.path().join(".codex").join("auth.json"),
-            r#"{"tokens":{"access_token":"first-codex-token","account_id":"same-provider-account"}}"#,
-        );
-        write(
-            &dir.path().join(".codex-work").join("auth.json"),
-            r#"{"tokens":{"access_token":"rotated-codex-token","account_id":"same-provider-account"}}"#,
-        );
-        let inventory = scan_inventory(
-            &context(DiscoveryPlatform::Linux, dir.path()),
-            1_800_000_000_000,
-        );
-        let codex = provider(&inventory.report, DetectedProviderId::Codex);
-
-        assert_eq!(codex.accounts.len(), 1);
-        assert_eq!(
-            codex.accounts[0].identity_quality,
-            IdentityQuality::ProviderAccount
-        );
+        assert_eq!(codex.state, ProviderPresence::InstalledLoggedOut);
+        assert!(codex.accounts.is_empty());
         assert_eq!(
             inventory
                 .credentials
                 .keys()
                 .filter(|(provider, _)| *provider == DetectedProviderId::Codex)
                 .count(),
-            1
+            0
+        );
+        let store = DetectionStore::for_test_home(dir.path(), 1_800_000_000_000);
+        let homes: BTreeSet<PathBuf> = store
+            .codex_targets()
+            .into_iter()
+            .map(|(home, _)| home)
+            .collect();
+        assert_eq!(
+            homes,
+            BTreeSet::from([
+                dir.path().join(".codex"),
+                dir.path().join(".codex-work"),
+            ])
         );
     }
 
@@ -3199,7 +3413,7 @@ mod tests {
     }
 
     #[test]
-    fn a_managed_codex_device_login_is_discovered_from_its_owned_home() {
+    fn a_managed_codex_home_is_not_opened_for_bearer_discovery() {
         let dir = TempDir::new();
         let root = dir.path().join("managed-codex");
         let session = root.join("abc123");
@@ -3212,16 +3426,14 @@ mod tests {
         discovery.managed_codex_root = Some(root);
         let inventory = scan_inventory(&discovery, 1_800_000_000_000);
         let codex = provider(&inventory.report, DetectedProviderId::Codex);
-        assert_eq!(codex.state, ProviderPresence::Present);
-        assert_eq!(codex.accounts.len(), 1);
-        assert!(inventory.credentials.contains_key(&(
-            DetectedProviderId::Codex,
-            codex.accounts[0].account_id.clone()
-        )));
+        assert_eq!(codex.state, ProviderPresence::InstalledLoggedOut);
+        assert!(codex.accounts.is_empty());
+        assert!(inventory.credentials.keys().all(|(provider, _)|
+            *provider != DetectedProviderId::Codex));
     }
 
     #[test]
-    fn registering_a_managed_home_validates_then_rescans_it() {
+    fn registering_a_managed_home_validates_without_reading_auth_json() {
         let dir = TempDir::new();
         let detection = DetectionStore::for_test_home(dir.path(), 1_800_000_000_000);
         let session = dir.path().join("accounts").join("codex").join("abc123");
@@ -3230,12 +3442,28 @@ mod tests {
             &session.join("auth.json"),
             &format!(r#"{{"tokens":{{"access_token":"{token}"}}}}"#),
         );
-        let account_id = detection
+        let registered_home = detection
             .register_managed_account(&session)
             .expect("managed account");
-        assert!(detection
-            .account_ids(DetectedProviderId::Codex)
-            .contains(&account_id));
+        let canonical_session = canonical_existing_path(&session).expect("canonical home");
+        assert_eq!(registered_home, canonical_session);
+        let verbatim_session = fs::canonicalize(&session).expect("verbatim canonical home");
+        assert_eq!(
+            detection.register_managed_account(&verbatim_session),
+            Some(canonical_session.clone())
+        );
+        let account_id = detection
+            .remember_codex_identity(&registered_home, "managed-account")
+            .expect("verified account");
+        assert_eq!(
+            detection.managed_codex_home(&account_id),
+            Some(canonical_session.clone())
+        );
+        let restored = DetectionStore::for_test_home(dir.path(), 1_800_000_000_000);
+        assert_eq!(
+            restored.managed_codex_home(&account_id),
+            Some(canonical_session.clone())
+        );
         #[cfg(unix)]
         {
             use std::os::unix::fs::symlink;
@@ -3246,12 +3474,58 @@ mod tests {
             let aliased_detection = DetectionStore::for_test_home(&alias, 1_800_000_000_000);
             assert_eq!(
                 aliased_detection.register_managed_account(&alias.join("accounts/codex/abc123")),
-                Some(account_id)
+                Some(canonical_session)
             );
             let escape = alias.join("accounts/codex/escape");
             symlink(alias_dir.path(), &escape).expect("escaping account");
             assert_eq!(aliased_detection.register_managed_account(&escape), None);
         }
+    }
+
+    #[test]
+    fn codex_login_metadata_changes_the_gate_revision_without_reading_the_bearer() {
+        let dir = TempDir::new();
+        let store = DetectionStore::for_test_home(dir.path(), 1_800_000_000_000);
+        let home = dir.path().join(".codex");
+        let before = store.codex_login_revision(&home);
+        write(&home.join("auth.json"), r#"{"synthetic":"login"}"#);
+        let after = store.codex_login_revision(&home);
+        assert_ne!(before, after);
+    }
+
+    #[test]
+    fn codex_login_metadata_allows_check_again_after_auth_failure() {
+        let dir = TempDir::new();
+        let store = DetectionStore::for_test_home(dir.path(), 1_800_000_000_000);
+        let home = dir.path().join(".codex");
+        let before = store.codex_login_revision(&home);
+        let policy = crate::request_policy::RequestPolicy::at(Some(dir.path().to_path_buf()));
+        let lease = policy
+            .begin_with_revision(
+                DetectedProviderId::Codex,
+                "codex-824c7eddd1cf39d1d49b3ee8",
+                1_800_000_000_000,
+                Some(&before),
+            )
+            .expect("first check");
+        policy.refuse_account(
+            DetectedProviderId::Codex,
+            "codex-824c7eddd1cf39d1d49b3ee8",
+            1_800_000_000_000,
+            false,
+        );
+        drop(lease);
+        write(&home.join("auth.json"), r#"{"synthetic":"new-login"}"#);
+        let after = store.codex_login_revision(&home);
+        assert_ne!(before, after);
+        assert!(policy
+            .begin_with_revision(
+                DetectedProviderId::Codex,
+                "codex-824c7eddd1cf39d1d49b3ee8",
+                1_800_000_001_000,
+                Some(&after),
+            )
+            .is_ok());
     }
 
     #[cfg(unix)]
@@ -3362,6 +3636,18 @@ mod tests {
         package manifest lives below the prefix's node_modules directory. */
         let npm_bin = dir.path().join("bin");
         write(&npm_bin.join("codex.cmd"), "@echo off");
+        let native_codex = npm_bin
+            .join("node_modules")
+            .join("@openai")
+            .join("codex")
+            .join("node_modules")
+            .join("@openai")
+            .join("codex-win32-x64")
+            .join("vendor")
+            .join("x86_64-pc-windows-msvc")
+            .join("bin")
+            .join("codex.exe");
+        write(&native_codex, "native binary marker");
         write(
             &npm_bin
                 .join("node_modules")
@@ -3375,6 +3661,26 @@ mod tests {
         assert_eq!(
             installed_client_version(DetectedProviderId::Codex, &windows),
             Some("0.153.3".to_string())
+        );
+        assert_eq!(
+            installed_executable(DetectedProviderId::Codex, &windows),
+            Some(canonical_existing_path(&native_codex).expect("canonical native Codex"))
+        );
+        fs::remove_file(&native_codex).expect("remove platform package binary");
+        let official_native_codex = windows.path_entries[0]
+            .join("node_modules")
+            .join("@openai")
+            .join("codex")
+            .join("vendor")
+            .join("x86_64-pc-windows-msvc")
+            .join("bin")
+            .join("codex.exe");
+        write(&official_native_codex, "official launcher binary marker");
+        assert_eq!(
+            installed_executable(DetectedProviderId::Codex, &windows),
+            Some(
+                canonical_existing_path(&official_native_codex).expect("canonical official Codex")
+            )
         );
 
         /* The npm layout: a shim in bin/, the manifest one level up. */
@@ -3445,7 +3751,7 @@ mod tests {
     }
 
     #[test]
-    fn a_detected_secret_is_read_again_from_its_own_file() {
+    fn codex_auth_json_is_not_read_for_detection_or_credentials() {
         let dir = TempDir::new();
         let token = "codex-access-token-for-one-profile";
         write(
@@ -3456,23 +3762,11 @@ mod tests {
         );
         let context = context(DiscoveryPlatform::Windows, dir.path());
         let inventory = scan_inventory(&context, 1_800_000_000_000);
-        let account_id = provider(&inventory.report, DetectedProviderId::Codex).accounts[0]
-            .account_id
-            .clone();
-        let store = DetectionStore {
-            switches: crate::provider_switches::ProviderSwitches::at(None),
-            context,
-            inventory: RwLock::new(inventory),
-            scan_gate: Mutex::new(None),
-        };
-        let secret = store
-            .read_credential(DetectedProviderId::Codex, &account_id)
-            .expect("credential");
-        assert_eq!(secret.access_token.as_str(), token);
-        assert_eq!(
-            secret.provider_account_id.as_deref(),
-            Some("provider-account")
-        );
+        let codex = provider(&inventory.report, DetectedProviderId::Codex);
+        assert_eq!(codex.state, ProviderPresence::InstalledLoggedOut);
+        assert!(codex.accounts.is_empty());
+        assert!(inventory.credentials.keys().all(|(provider, _)|
+            *provider != DetectedProviderId::Codex));
     }
 
     #[test]

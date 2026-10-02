@@ -14,12 +14,12 @@ import {
   claudeUsageRequest,
   codeAssistLoadRequest,
   codeAssistQuotaRequest,
-  codexUsageRequest,
   cursorUsageRequest,
   grokBillingRequest,
   kimiUsageRequest,
   openrouterKeyRequest
 } from "./transport.js";
+import { codexAppServerRequest } from "./codex-app-server.js";
 
 export type PayloadParser = (
   payload: unknown,
@@ -38,7 +38,7 @@ export const ACQUISITION_DISCLOSURE = {
   claude:
     "polls Anthropic with the token Claude Code stored on this machine, off " +
     "unless you turn it on",
-  codex: "reads the login the Codex CLI stored, may break when OpenAI changes it",
+  codex: "reads limits through the documented Codex app server on this machine",
   gemini:
     "reads the login the Gemini CLI stored, may break when Google changes it",
   antigravity:
@@ -185,11 +185,15 @@ export function codexSpec(parse: PayloadParser): AcquisitionSpec {
   return {
     provider: "CODEX",
     credentialProvider: "CODEX",
-    steps: [
-      ({ credential }) => credential.accountId === null
+    steps: [({ credential }) =>
+      credential.executable === undefined
         ? null
-        : codexUsageRequest(credential.secret, credential.accountId)
-    ],
+        : codexAppServerRequest(credential.executable, {
+            ...(credential.appServerEnvironment === undefined
+              ? {}
+              : { environment: credential.appServerEnvironment })
+          })],
+    accountIdFor: credential => credential.verifiedAccountId ?? null,
     parse,
     disclosure: ACQUISITION_DISCLOSURE.codex
   };

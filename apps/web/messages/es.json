@@ -543,8 +543,8 @@
         "detail": "Analiza la forma de créditos que OpenRouter documenta. La clave pertenece al almacén de credenciales de tu sistema operativo, nunca a un archivo."
       },
       "codex": {
-        "tag": "lee una carga de uso interna",
-        "detail": "Analiza la forma de uso que produce la herramienta de Codex. Esa forma es interna, así que puede cambiar sin aviso, y falla de forma segura cuando eso pasa."
+        "tag": "lee límites documentados de Codex",
+        "detail": "Lee account/rateLimits/read mediante el app server local de Codex. La autenticación de ChatGPT permanece dentro del proceso de Codex."
       },
       "antigravity": {
         "tag": "lee una carga de quota interna",
@@ -1432,7 +1432,7 @@
               }
             },
             "riskTitle": "Algunas interfaces no son compatibles",
-            "riskBody": "Claude OAuth, Codex, Antigravity y OpenCode dependen de interfaces privadas de los proveedores que pueden cambiar o desaparecer. Un cambio de contrato produce desconocido visible para ese proveedor y mantiene los demás funcionando. OpenRouter usa una API documentada."
+            "riskBody": "Claude OAuth, Antigravity y OpenCode dependen de interfaces privadas de los proveedores que pueden cambiar o desaparecer. Un cambio de contrato produce desconocido visible para ese proveedor y mantiene los demás funcionando. Codex y OpenRouter usan interfaces documentadas."
           },
           "privacy": {
             "title": "Límite de privacidad",

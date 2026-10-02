@@ -292,9 +292,6 @@ pub enum AuthApplication {
     BearerAuthorization,
     /// A bearer token plus the fixed OAuth usage contract headers Claude Code uses.
     ClaudeOauthBearer,
-    /// A bearer token plus the fixed account header the ChatGPT backend
-    /// requires, while identifying the request as OpenLimiter.
-    CodexSessionBearer,
     /// A bearer token plus a non empty user agent. Not optional: the Google
     /// metadata plane answers 403 to a valid token when the header is absent,
     /// which was measured on 2026-08-07 and cost an hour of blaming the login.
@@ -323,8 +320,9 @@ pub enum AuthApplication {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 pub struct ReaderRoute {
     pub reader_id: ReaderId,
-    pub endpoint: ProviderEndpoint,
-    pub auth: AuthApplication,
+    /// None for documented local command protocols such as Codex app-server.
+    pub endpoint: Option<ProviderEndpoint>,
+    pub auth: Option<AuthApplication>,
 }
 
 /// The one way routing can fail: a credential that does not belong to the
@@ -357,13 +355,13 @@ pub const fn reader_route(
         ProviderId::Openrouter => match credential {
             CredentialKind::OpenrouterInferenceKey => Ok(ReaderRoute {
                 reader_id: ReaderId::OpenrouterKey,
-                endpoint: ProviderEndpoint::OpenrouterKey,
-                auth: AuthApplication::BearerAuthorization,
+                endpoint: Some(ProviderEndpoint::OpenrouterKey),
+                auth: Some(AuthApplication::BearerAuthorization),
             }),
             CredentialKind::OpenrouterManagementKey => Ok(ReaderRoute {
                 reader_id: ReaderId::OpenrouterCredits,
-                endpoint: ProviderEndpoint::OpenrouterCredits,
-                auth: AuthApplication::BearerAuthorization,
+                endpoint: Some(ProviderEndpoint::OpenrouterCredits),
+                auth: Some(AuthApplication::BearerAuthorization),
             }),
             CredentialKind::CodexSession
             | CredentialKind::AntigravitySession
@@ -375,8 +373,8 @@ pub const fn reader_route(
         ProviderId::Codex => match credential {
             CredentialKind::CodexSession => Ok(ReaderRoute {
                 reader_id: ReaderId::CodexUsage,
-                endpoint: ProviderEndpoint::CodexUsage,
-                auth: AuthApplication::CodexSessionBearer,
+                endpoint: None,
+                auth: None,
             }),
             CredentialKind::OpenrouterInferenceKey
             | CredentialKind::OpenrouterManagementKey
@@ -389,8 +387,8 @@ pub const fn reader_route(
         ProviderId::Antigravity => match credential {
             CredentialKind::AntigravitySession => Ok(ReaderRoute {
                 reader_id: ReaderId::AntigravityQuota,
-                endpoint: ProviderEndpoint::AntigravityQuota,
-                auth: AuthApplication::AntigravitySessionBearer,
+                endpoint: Some(ProviderEndpoint::AntigravityQuota),
+                auth: Some(AuthApplication::AntigravitySessionBearer),
             }),
             CredentialKind::OpenrouterInferenceKey
             | CredentialKind::OpenrouterManagementKey
@@ -403,8 +401,8 @@ pub const fn reader_route(
         ProviderId::Opencode => match credential {
             CredentialKind::OpencodeBrowserSession => Ok(ReaderRoute {
                 reader_id: ReaderId::OpencodeUsage,
-                endpoint: ProviderEndpoint::OpencodeUsage,
-                auth: AuthApplication::BrowserSessionCookie,
+                endpoint: Some(ProviderEndpoint::OpencodeUsage),
+                auth: Some(AuthApplication::BrowserSessionCookie),
             }),
             CredentialKind::OpenrouterInferenceKey
             | CredentialKind::OpenrouterManagementKey
@@ -417,8 +415,8 @@ pub const fn reader_route(
         ProviderId::Grok => match credential {
             CredentialKind::GrokSession => Ok(ReaderRoute {
                 reader_id: ReaderId::GrokUsage,
-                endpoint: ProviderEndpoint::GrokUsage,
-                auth: AuthApplication::GrokSessionBearer,
+                endpoint: Some(ProviderEndpoint::GrokUsage),
+                auth: Some(AuthApplication::GrokSessionBearer),
             }),
             CredentialKind::OpenrouterInferenceKey
             | CredentialKind::OpenrouterManagementKey
@@ -431,8 +429,8 @@ pub const fn reader_route(
         ProviderId::Kimi => match credential {
             CredentialKind::KimiSession => Ok(ReaderRoute {
                 reader_id: ReaderId::KimiUsage,
-                endpoint: ProviderEndpoint::KimiUsage,
-                auth: AuthApplication::KimiSessionBearer,
+                endpoint: Some(ProviderEndpoint::KimiUsage),
+                auth: Some(AuthApplication::KimiSessionBearer),
             }),
             CredentialKind::OpenrouterInferenceKey
             | CredentialKind::OpenrouterManagementKey
@@ -445,8 +443,8 @@ pub const fn reader_route(
         ProviderId::Cursor => match credential {
             CredentialKind::CursorSession => Ok(ReaderRoute {
                 reader_id: ReaderId::CursorUsage,
-                endpoint: ProviderEndpoint::CursorUsage,
-                auth: AuthApplication::CursorSessionCookie,
+                endpoint: Some(ProviderEndpoint::CursorUsage),
+                auth: Some(AuthApplication::CursorSessionCookie),
             }),
             CredentialKind::OpenrouterInferenceKey
             | CredentialKind::OpenrouterManagementKey
@@ -529,15 +527,14 @@ mod tests {
         for provider in ProviderId::ALL {
             for credential in CredentialKind::ALL {
                 if let Ok(route) = reader_route(provider, credential) {
-                    assert!(
-                        !seen.contains(&route.endpoint),
-                        "two credentials reached one endpoint"
-                    );
-                    seen.push(route.endpoint);
+                    if let Some(endpoint) = route.endpoint {
+                        assert!(!seen.contains(&endpoint), "two credentials reached one endpoint");
+                        seen.push(endpoint);
+                    }
                 }
             }
         }
-        assert_eq!(seen.len(), ReaderId::ALL.len());
+        assert_eq!(seen.len() + 1, ReaderId::ALL.len());
     }
 
     #[test]
@@ -609,13 +606,12 @@ mod tests {
     }
 
     #[test]
-    fn codex_refresh_is_a_read_surface_and_never_inference() {
+    fn codex_refresh_uses_the_local_documented_app_server() {
         let route = reader_route(ProviderId::Codex, CredentialKind::CodexSession)
             .expect("Codex session route");
         assert_eq!(route.reader_id, ReaderId::CodexUsage);
-        assert_eq!(route.endpoint, ProviderEndpoint::CodexUsage);
-        assert_eq!(route.endpoint.method(), crate::net::HttpMethod::Get);
-        assert_eq!(route.endpoint.body(), None);
+        assert_eq!(route.endpoint, None);
+        assert_eq!(route.auth, None);
     }
 
     #[test]

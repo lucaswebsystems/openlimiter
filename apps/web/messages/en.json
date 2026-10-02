@@ -543,8 +543,8 @@
         "detail": "Parses the credits shape OpenRouter documents. The key belongs in your operating system credential store, never in a file."
       },
       "codex": {
-        "tag": "reads an internal usage payload",
-        "detail": "Parses the usage shape the Codex tooling produces. The shape is internal, so it can change without notice, and it fails closed when it does."
+        "tag": "reads documented Codex limits",
+        "detail": "Reads account/rateLimits/read through the local Codex app server. ChatGPT authentication stays inside the Codex process."
       },
       "antigravity": {
         "tag": "reads an internal quota payload",
@@ -1432,7 +1432,7 @@
               }
             },
             "riskTitle": "Some interfaces are unsupported",
-            "riskBody": "Claude OAuth, Codex, Antigravity and OpenCode depend on private provider interfaces that can change or disappear. A contract change produces visible unknown for that provider and leaves every other provider working. OpenRouter uses a documented API."
+            "riskBody": "Claude OAuth, Antigravity and OpenCode depend on private provider interfaces that can change or disappear. A contract change produces visible unknown for that provider and leaves every other provider working. Codex and OpenRouter use documented interfaces."
           },
           "privacy": {
             "title": "Privacy boundary",

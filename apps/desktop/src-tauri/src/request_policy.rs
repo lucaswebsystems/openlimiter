@@ -171,6 +171,9 @@ impl RequestPolicy {
                 state.accounts.remove(account_id);
                 state.refusal_revisions.remove(account_id);
                 state.attempts.remove(account_id);
+                // A verified login change is the bounded explicit Check again
+                // signal. Do not let the ordinary provider spacing hide it.
+                state.next_request_at = None;
             }
         }
         if let Some(state) = document.providers.get(&provider) {

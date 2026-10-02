@@ -11,6 +11,7 @@ import {
   REFRESH_LOCK_NAME,
   acquireRefreshLock,
   readSnapshotCache,
+  rememberVerifiedCodexAccount,
   writeSnapshotCache,
   type AcquisitionRequest,
   type AcquisitionTransport,
@@ -103,7 +104,15 @@ function dependencies(
     environment: { OPENLIMITER_OPENROUTER_KEY: SYNTHETIC_TOKEN },
     now: () => now,
     colorOutput: false,
-    acquisitionTransport: transport
+    acquisitionTransport: transport,
+    detectCodexInstallation: async () => {
+      try {
+        await realpath(path.join(home, ".codex", "auth.json"));
+        return { version: "test", executable: "synthetic-codex", fileSize: 1, mtimeMilliseconds: 1 };
+      } catch {
+        return null;
+      }
+    }
   };
 }
 
@@ -134,7 +143,11 @@ describe("openlimiter refresh", () => {
       expect(recorder.sent).toHaveLength(1);
       expect(recorder.sent[0]).toMatchObject({ endpoint: "cursor_usage", headers: { cookie: "WorkosCursorSessionToken=synthetic-auth::synthetic-token" } });
       const cache = await readSnapshotCache(state);
-      expect(cache.ok && cache.snapshots.map(row => row.provider)).toEqual(["CURSOR", "CURSOR"]);
+      expect(cache.ok && cache.snapshots.map(row => row.provider)).toEqual(["CODEX", "CURSOR", "CURSOR"]);
+      expect(cache.ok && cache.snapshots.find(row => row.provider === "CODEX")).toMatchObject({
+        meter: "ACQUISITION",
+        availability: "network_failure"
+      });
       expect(JSON.stringify(cache)).not.toContain("synthetic-auth");
       expect(JSON.stringify(cache)).not.toContain("synthetic-token");
       await runCli(["refresh"], { ...dependencies(state, home, recorder.transport, fixture.now), environment: {} });
@@ -179,11 +192,15 @@ describe("openlimiter refresh", () => {
     await runCli(["refresh"], dependencies(state, home, recorder.transport));
     expect(recorder.sent.length).toBeGreaterThan(0);
     for (const request of recorder.sent) {
+      if (request.endpoint === "codex_app_server") {
+        expect(request.headers).toEqual({});
+        continue;
+      }
       expect(request.headers["user-agent"]).toBe(OPENLIMITER_USER_AGENT);
       expect(request.headers["authorization"]).toBe("Bearer " + SYNTHETIC_TOKEN);
     }
-    const codex = recorder.sent.find((request) => request.endpoint === "codex_usage");
-    expect(codex?.headers["chatgpt-account-id"]).toBe(SYNTHETIC_CODEX_ACCOUNT);
+    const codex = recorder.sent.find((request) => request.endpoint === "codex_app_server");
+    expect(codex?.headers).toEqual({});
     const grok = recorder.sent.find((request) => request.endpoint === "grok_billing");
     expect(grok?.headers["x-userid"]).toBe(SYNTHETIC_GROK_USER);
     /* No vendor client marker anywhere. xAI's own tool sends
@@ -225,7 +242,7 @@ describe("openlimiter refresh", () => {
       expect(row.writer).toBe("cli");
       expect(row.provenance).toEqual({
         sourceKind: "remote_api",
-        observedVia: "remote_http"
+        observedVia: row.provider === "CODEX" ? "local_command" : "remote_http"
       });
     }
   });
@@ -301,7 +318,7 @@ describe("openlimiter refresh", () => {
       ["refresh"],
       dependencies(state, home, recorder.transport)
     );
-    expect(recorder.sent.some((request) => request.endpoint === "codex_usage")).toBe(false);
+    expect(recorder.sent.some((request) => request.endpoint === "codex_app_server")).toBe(false);
     expect(recorder.sent.length).toBeGreaterThan(0);
     expect(result.exitCode).toBe(0);
   });
@@ -385,11 +402,11 @@ describe("openlimiter refresh", () => {
       .rejects.toThrow();
   });
 
-  it("reads a Codex window that states a countdown instead of an instant", async () => {
+  it("reads the documented Codex five hour and weekly windows", async () => {
     const state = await temporaryDirectory("openlimiter-state-");
     const home = await machineWithLogins();
     const recorder = recordingTransport(NOW, {
-      codex_usage: codexCountdownResponse()
+      codex_app_server: codexCountdownResponse(NOW)
     });
     await runCli(["refresh"], dependencies(state, home, recorder.transport));
     const cached = await readSnapshotCache(state);
@@ -402,6 +419,48 @@ describe("openlimiter refresh", () => {
     ]);
     expect(codex.find((snapshot) => snapshot.meter === "FIVE_HOUR")?.resetAt)
       .toBe("2026-01-01T01:00:00.000Z");
+  });
+
+  it("clears the prior Codex account when the same home verifies a new login", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    const oldAccount = opaqueAccountId("CODEX", "previous-chatgpt-account");
+    const newAccount = opaqueAccountId("CODEX", SYNTHETIC_CODEX_ACCOUNT);
+    await rememberVerifiedCodexAccount(state, path.join(home, ".codex"), oldAccount);
+    await writeSnapshotCache([{
+      provider: "CODEX",
+      accountId: oldAccount,
+      meter: "FIVE_HOUR",
+      value: 88,
+      unit: "PERCENT",
+      window: { kind: "rolling", durationSeconds: 18_000 },
+      resetAt: "2026-01-01T04:00:00.000Z",
+      source: "documented_api",
+      precision: "exact",
+      observedAt: "2025-12-31T23:59:00.000Z",
+      expiresAt: "2026-01-01T00:10:00.000Z",
+      labels: {
+        credentialOrigin: "official-local-tool",
+        dataInterfaceStatus: "documented-api",
+        automationRisk: "low",
+        verification: "VERIFIED_FIXTURES"
+      },
+      writer: "cli"
+    }], state);
+    const recorder = recordingTransport(NOW, {
+      codex_app_server: codexCountdownResponse(NOW)
+    });
+    await runCli(["refresh"], dependencies(state, home, recorder.transport));
+    const cached = await readSnapshotCache(state);
+    expect(cached.ok).toBe(true);
+    if (!cached.ok) return;
+    expect(cached.snapshots.find(row => row.accountId === oldAccount)).toMatchObject({
+      value: 0,
+      window: { kind: "unknown" },
+      resetAt: null,
+      availability: "missing_credentials"
+    });
+    expect(cached.snapshots.some(row => row.accountId === newAccount && row.availability === undefined)).toBe(true);
   });
 });
 
@@ -573,7 +632,7 @@ describe("doctor", () => {
      */
     expect(result.stdout).toContain("CONNECTOR PAYLOAD FRESHNESS DRIFT");
     expect(result.stdout).toContain("PROVIDER DETECTED STATUS NEXT NOTE");
-    expect(result.stdout).toContain("codex no unknown UNVERIFIED");
+    expect(result.stdout).toContain("codex no unknown VERIFIED_FIXTURES");
     expect(result.stdout).toContain("codex yes stale");
   });
 

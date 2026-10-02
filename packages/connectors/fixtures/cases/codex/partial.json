@@ -6,15 +6,9 @@
   "status": 200,
   "headers": {},
   "body": {
-    "rate_limit": {
-      "primary_window": {
-        "used_percent": 25,
-        "reset_at": 1786118400,
-        "limit_window_seconds": 18000
-      },
-      "secondary_window": {
-        "used_percent": "not-a-number"
-      }
+    "rateLimits": {
+      "limitId": "codex",
+      "primary": { "usedPercent": 19, "windowDurationMins": 90, "resetsAt": 1786107600 }
     }
   }
 }

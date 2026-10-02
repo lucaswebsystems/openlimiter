@@ -11,7 +11,7 @@ call and no network.
 |------|----------|-----------|----------|
 | `claude.statusline.json` | Claude | Claude Code statusline payload | documented |
 | `openrouter.credits.json` | OpenRouter | Documented credits API | documented |
-| `codex.usage.json` | Codex | Internal usage endpoint | observed against a real account |
+| `codex.usage.json` | Codex | Documented app server rate limits | documented |
 | `antigravity.quota.json` | Antigravity | Internal quota summary | observed against a real account |
 | `opencode.workspace.html` | OpenCode | Logged in workspace page (HTML) | scrape of a rendered page |
 | `grok.billing.json` | Grok | Internal billing endpoint | response type in the official Grok CLI source |

@@ -1,6 +1,3 @@
 {
-  "expected": {
-    "outcome": "rejected",
-    "readings": []
-  }
+  "expected": { "outcome": "rejected", "readings": [] }
 }

@@ -52,7 +52,7 @@
  * prints the reduced object, and with `--write` freezes it into the fixture
  * slot in packages/connectors/src/fixtures.ts with today's date.
  *
- *   Codex        the JSON body of GET chatgpt.com/backend-api/wham/usage
+ *   Codex        the result of account/rateLimits/read from codex app-server
  *   Antigravity  the JSON body of the retrieveUserQuotaSummary POST
  *   OpenCode     the HTML of the logged in workspace page, saved as .html
  *
@@ -188,22 +188,23 @@ function windowLength(value, what) {
 /**
  * Codex, reduced.
  *
- * `reset_at` is epoch seconds in the observed payload, so the difference
+ * `resetsAt` is epoch seconds in the documented payload, so the difference
  * against the capture instant is the countdown, which is what is kept.
  */
 function reduceCodex(raw, capturedAtSeconds) {
   const root = isRecord(raw) ? raw : fail("the capture is not a JSON object");
-  const limit = isRecord(root["rate_limit"])
-    ? root["rate_limit"]
-    : fail("no rate_limit block: is this the wham/usage response?");
-  const primary = isRecord(limit["primary_window"])
-    ? limit["primary_window"]
-    : fail("no rate_limit.primary_window block");
-  const usedPercent = percentage(primary["used_percent"], "used_percent");
-  const length = windowLength(
-    primary["limit_window_seconds"] ?? null,
-    "limit_window_seconds"
+  const limit = isRecord(root["rateLimits"])
+    ? root["rateLimits"]
+    : fail("no rateLimits block: is this an account/rateLimits/read result?");
+  const primary = isRecord(limit["primary"])
+    ? limit["primary"]
+    : fail("no rateLimits.primary block");
+  const usedPercent = percentage(primary["usedPercent"], "usedPercent");
+  const minutes = windowLength(
+    primary["windowDurationMins"] ?? null,
+    "windowDurationMins"
   );
+  const length = minutes === null ? null : minutes * 60;
   /*
    * The reset horizon is the WINDOW'S, exactly as the parser computes it.
    *
@@ -215,8 +216,8 @@ function reduceCodex(raw, capturedAtSeconds) {
    */
   const horizon = length === null ? MAX_WINDOW_SECONDS : plausibleResetHorizon(length);
   const resetAt = boundedNumber(
-    primary["reset_at"],
-    "reset_at",
+    primary["resetsAt"],
+    "resetsAt",
     /* Epoch seconds, and refused if read as milliseconds: the same guard the
        parser applies, so a millisecond stamp cannot become a countdown thirty
        thousand years long. */

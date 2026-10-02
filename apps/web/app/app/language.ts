@@ -439,8 +439,8 @@ export const CONNECTION_FACTS: readonly ConnectionFact[] = [
   },
   {
     provider: "CODEX",
-    state: "IMPORT_ONLY",
-    line: "The usage payload the Codex tooling produces parses. Internal shape, no reader, so the document comes from you.",
+    state: "LOCAL_CLI",
+    line: "The desktop reads documented limits through the local Codex app server. ChatGPT authentication remains inside Codex.",
     browserState: "IMPORT_ONLY",
     documentPath: null,
   },
