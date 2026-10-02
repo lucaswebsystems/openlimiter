@@ -1,6 +1,6 @@
 {
   "provider": "codex",
-  "case": "malformed",
+  "case": "missing-reset",
   "reader": "usage",
   "now": "2026-08-07T12:00:00.000Z",
   "status": 200,
@@ -8,8 +8,7 @@
   "body": {
     "rate_limit": {
       "primary_window": {
-        "used_percent": "not-a-number",
-        "reset_at": 1786118400,
+        "used_percent": 25,
         "limit_window_seconds": 18000
       }
     }

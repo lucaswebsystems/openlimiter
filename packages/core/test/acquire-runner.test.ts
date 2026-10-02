@@ -28,7 +28,6 @@ import {
 
 const NOW = "2026-01-01T00:00:00.000Z";
 const SYNTHETIC_TOKEN = "synthetic-access-token-0000";
-
 function credential(
   accountId: string | null = null,
   origin: "vendor_file" | "vendor_store" | "shared_code_assist" | "user_key" =
@@ -158,6 +157,56 @@ describe("one acquisition round", () => {
     });
     expect(blocked.rows[0]?.nextAttemptAt).toBe("2026-01-02T00:00:00.000Z");
     expect(blocked.schedule["GROK"]?.outcome).toBe("blocked");
+  });
+
+  it.each(["signed-out", "signed-out-codex"])(
+    "maps the %s Codex sign out to availability, daily backoff and a revision sensitive refusal",
+    async (scenario) => {
+    const first = await runAcquisition([codexSpec(() => [meter("CODEX")])], {
+      transport: async (request) => {
+        if (request.kind !== "codex_app_server") throw new Error("expected Codex app server request");
+        expect(request).toMatchObject({ kind: "codex_app_server", endpoint: "codex_usage" });
+        expect(JSON.stringify(request)).not.toContain("Bearer ");
+        return { status: 401, body: "", retryAfterSeconds: null };
+      },
+      now: NOW,
+      schedule: {},
+      readCredential: async () => credential("acct-1")
+    });
+    expect(first.rows[0]).toMatchObject({
+      availability: "expired_credentials",
+      nextAttemptAt: "2026-01-02T00:00:00.000Z"
+    });
+    expect(first.schedule["CODEX"]?.outcome).toBe("unauthorized");
+    expect(first.schedule["CODEX"]?.refusalRevision).toMatch(/^[a-f0-9]{64}$/u);
+
+    let reads = 0;
+    const second = await runAcquisition([codexSpec(() => [meter("CODEX")])], {
+      transport: async () => {
+        reads += 1;
+        return reply(200, { rateLimits: {} });
+      },
+      now: "2026-01-01T00:01:00.000Z",
+      schedule: first.schedule,
+      readCredential: async () => ({
+        ...credential("acct-1"),
+        credential: { ...(credential("acct-1") as Extract<CredentialResult, { ok: true }>).credential, secret: "rotated-synthetic-token" }
+      })
+    });
+    expect(reads).toBe(1);
+    expect(second.rows[0]?.status).toBe("read");
+    }
+  );
+
+  it("treats a vanished Codex executable as a missing local credential", async () => {
+    const result = await runAcquisition([codexSpec(() => [meter("CODEX")])], {
+      transport: async () => ({ status: 0, body: "", retryAfterSeconds: null, missingCredential: true }),
+      now: NOW,
+      schedule: {},
+      readCredential: async () => credential("acct-1")
+    });
+    expect(result.rows[0]).toMatchObject({ detected: false, status: "not_detected", nextAttemptAt: null });
+    expect(result.schedule["CODEX"]).toBeUndefined();
   });
 
   it("obeys a Retry-After longer than its own backoff", async () => {

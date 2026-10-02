@@ -62,20 +62,23 @@ export function codeAssistLoadResponse(): Record<string, unknown> {
 }
 
 /**
- * A Codex app server response with documented absolute reset instants.
+ * A Codex window that states its reset as a countdown rather than an instant.
+ *
+ * Kept beside the ordinary fixture rather than replacing it, so both encodings
+ * the endpoint uses are proved and neither expectation moves.
  */
-export function codexResetResponse(): Record<string, unknown> {
+export function codexCountdownResponse(): Record<string, unknown> {
   return {
-    rateLimits: {
-      primary: {
-        usedPercent: 61,
-        windowDurationMins: FIVE_HOURS / 60,
-        resetsAt: Math.floor((Date.parse("2026-09-07T12:00:00.000Z") + 3_600_000) / 1_000)
+    rate_limit: {
+      primary_window: {
+        used_percent: 61,
+        limit_window_seconds: FIVE_HOURS,
+        reset_after_seconds: 3_600
       },
-      secondary: {
-        usedPercent: 22,
-        windowDurationMins: SEVEN_DAYS / 60,
-        resetsAt: Math.floor((Date.parse("2026-09-07T12:00:00.000Z") + 172_800_000) / 1_000)
+      secondary_window: {
+        used_percent: 22,
+        limit_window_seconds: SEVEN_DAYS,
+        reset_after_seconds: 172_800
       }
     }
   };

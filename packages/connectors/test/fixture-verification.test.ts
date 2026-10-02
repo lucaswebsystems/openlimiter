@@ -93,11 +93,12 @@ function loadFixture(entry: ManifestProvider): unknown {
 }
 
 describe("fixture verification markers", () => {
-  it("keeps legacy markers separate and recognizes Codex and Cursor verification", () => {
+  it("keeps legacy markers separate and recognizes documented fixture verification", () => {
     expect(verification.note.toLowerCase()).toContain("unverified");
-    // Codex's documented fixture and Cursor's differential corpus establish verification.
+    // The shared differential corpus establishes both verified fixture readers.
+    const fixtureVerified = new Set(["codex", "cursor"]);
     expect(connectors.every((connector) => connector.labels.verification ===
-      (["codex", "cursor"].includes(connector.id) ? "VERIFIED_FIXTURES" : "UNVERIFIED")))
+      (fixtureVerified.has(connector.id) ? "VERIFIED_FIXTURES" : "UNVERIFIED")))
       .toBe(true);
   });
 

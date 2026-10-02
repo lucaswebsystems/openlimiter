@@ -1,9 +1,13 @@
 {
   "provider": "codex",
-  "case": "existing",
+  "case": "unlimited-string",
   "reader": "usage",
   "now": "2026-08-07T12:00:00.000Z",
   "status": 200,
   "headers": {},
-  "fixture": "codex.usage.json"
+  "body": {
+    "credits": {
+      "unlimited": "true"
+    }
+  }
 }

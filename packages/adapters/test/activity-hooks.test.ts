@@ -69,6 +69,58 @@ describe("lifecycle hook installers", () => {
     expect(await detectAgentInstallation("codex", detection)).toBeNull();
   });
 
+  it("accepts a plain native Codex binary", async () => {
+    const options = setup();
+    const executable = path.join(options.homeDirectory, "codex");
+    writeFileSync(executable, "native codex fixture\n");
+    const detected = await detectAgentInstallation("codex", {
+      environment: { PATH: options.homeDirectory },
+      platform: "linux",
+      runCommand: async (command) => ({
+        ok: true as const,
+        stdout: command === executable ? "codex 1.2.3" : "",
+        stderr: ""
+      })
+    });
+    expect(detected).toMatchObject({ executable, version: "1.2.3" });
+  });
+
+  it.runIf(process.platform !== "win32")("resolves the official npm Codex launcher link to its native vendor binary", async () => {
+    const options = setup();
+    const packageRoot = path.join(options.homeDirectory, "node_modules", "@openai", "codex");
+    const launcher = path.join(packageRoot, "bin", "codex.js");
+    const arch = process.arch === "arm64" ? "arm64" : "x64";
+    const triple = arch === "arm64" ? "aarch64-unknown-linux-musl" : "x86_64-unknown-linux-musl";
+    const native = path.join(packageRoot, "node_modules", "@openai", `codex-linux-${arch}`, "vendor", triple, "codex", "codex");
+    mkdirSync(path.dirname(launcher), { recursive: true });
+    mkdirSync(path.dirname(native), { recursive: true });
+    writeFileSync(launcher, "official launcher fixture\n");
+    writeFileSync(native, "native codex fixture\n");
+    const executable = path.join(options.homeDirectory, "codex");
+    symlinkSync(launcher, executable);
+    const detected = await detectAgentInstallation("codex", {
+      environment: { PATH: options.homeDirectory },
+      platform: "linux",
+      runCommand: async (command) => ({
+        ok: true as const,
+        stdout: command === native ? "codex 2.3.4" : "",
+        stderr: ""
+      })
+    });
+    expect(detected).toMatchObject({ executable: native, version: "2.3.4" });
+  });
+
+  it.runIf(process.platform !== "win32")("refuses a Codex executable link to anything other than the official npm launcher", async () => {
+    const options = setup();
+    const target = path.join(options.homeDirectory, "unrelated-codex");
+    writeFileSync(target, "unrelated executable fixture\n");
+    symlinkSync(target, path.join(options.homeDirectory, "codex"));
+    const runCommand = async () => ({ ok: true as const, stdout: "codex 9.9.9", stderr: "" });
+    expect(await detectAgentInstallation("codex", {
+      environment: { PATH: options.homeDirectory }, platform: "linux", runCommand
+    })).toBeNull();
+  });
+
   it.each(["claude", "codex", "muse", "gemini", "cursor"] as const)("installs, reinstalls, and removes exactly owned %s lifecycle handlers while preserving edits", async (agent) => {
     const options = setup();
     const install = await changeAgentHookFixture(agent, "install", options);

@@ -22,6 +22,7 @@ export type CodexRateLimitsReadResult =
       readonly reason:
         | "needs_sign_in"
         | "identity_mismatch"
+        | "missing_executable"
         | "timeout"
         | "unavailable"
         | "protocol";
@@ -82,6 +83,9 @@ export async function codexAppServerAcquisitionReply(
       outcome: "identity_refused"
     };
   }
+  if (result.reason === "missing_executable") {
+    return { status: 0, body: "", retryAfterSeconds: null, missingCredential: true };
+  }
   throw new Error("Codex app server transport failed");
 }
 
@@ -93,8 +97,10 @@ function object(value: unknown): Record<string, unknown> | null {
 
 function authenticationRequired(error: unknown): boolean {
   const value = object(error);
-  return value?.["code"] === -32600 &&
-    value["message"] === "chatgpt authentication required to read rate limits";
+  return value?.["code"] === -32600 && (
+    value["message"] === "chatgpt authentication required to read rate limits" ||
+    value["message"] === "codex account authentication required to read rate limits"
+  );
 }
 
 function validAccountId(value: unknown): value is string {
@@ -216,7 +222,10 @@ export async function readCodexRateLimits(
       timeoutMilliseconds
     );
 
-    child.once("error", () => finish({ ok: false, reason: "unavailable" }));
+    child.once("error", (error: NodeJS.ErrnoException) => finish({
+      ok: false,
+      reason: error.code === "ENOENT" ? "missing_executable" : "unavailable"
+    }));
     child.stdin.once("error", () => finish({ ok: false, reason: "unavailable" }));
     child.once("close", () => {
       if (!settled) finish({ ok: false, reason: "unavailable" });

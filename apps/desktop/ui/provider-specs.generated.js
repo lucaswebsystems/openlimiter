@@ -936,7 +936,7 @@ export const PROVIDER_SPECS = {
       "collection": {
         "readers": [
           {
-            "readerId": "codex_usage",
+            "readerId": "codex_app_server",
             "endpointId": "codex_app_server",
             "credentialKind": "codex_session",
             "evidenceFixture": "codex.sanitized_live.usage",

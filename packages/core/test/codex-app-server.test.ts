@@ -13,7 +13,24 @@ const home = path.resolve("packages", "core", "test", "fixtures", "synthetic-cod
 const expectedAccountId = opaqueAccountId("CODEX", "synthetic-chatgpt-account");
 
 function environment(scenario: string): NodeJS.ProcessEnv {
-  return { ...process.env, OPENLIMITER_FAKE_CODEX_SCENARIO: scenario };
+  const sandbox = process.env["OPENLIMITER_TEST_SANDBOX"];
+  if (sandbox === undefined) throw new Error("missing test sandbox");
+  return {
+    ...process.env,
+    HOME: sandbox,
+    USERPROFILE: sandbox,
+    LOCALAPPDATA: sandbox,
+    APPDATA: sandbox,
+    TMP: sandbox,
+    TEMP: sandbox,
+    TMPDIR: sandbox,
+    XDG_STATE_HOME: sandbox,
+    XDG_CONFIG_HOME: sandbox,
+    XDG_CACHE_HOME: sandbox,
+    XDG_DATA_HOME: sandbox,
+    XDG_RUNTIME_DIR: sandbox,
+    OPENLIMITER_FAKE_CODEX_SCENARIO: scenario
+  };
 }
 
 describe("Codex documented app server acquisition", () => {
@@ -37,17 +54,20 @@ describe("Codex documented app server acquisition", () => {
     });
   });
 
-  it("accepts an absent response account id for the already resolved home", async () => {
-    const result = await readCodexRateLimits({
+  it.each(["missing-identity", "null-identity"])(
+    "accepts %s for the already resolved home",
+    async (scenario) => {
+      const result = await readCodexRateLimits({
       executable: process.execPath,
       argumentsPrefix: [fixture],
-      environment: environment("missing-identity"),
+        environment: environment(scenario),
       codexHome: home,
       expectedAccountId,
       timeoutMilliseconds: 2_000
-    });
-    expect(result).toMatchObject({ ok: true });
-  });
+      });
+      expect(result).toMatchObject({ ok: true });
+    }
+  );
 
   it("refuses a response belonging to another account", async () => {
     const result = await readCodexRateLimits({
@@ -61,11 +81,11 @@ describe("Codex documented app server acquisition", () => {
     expect(result).toEqual({ ok: false, reason: "identity_mismatch" });
   });
 
-  it("maps the documented signed out error", async () => {
+  it.each(["signed-out", "signed-out-codex"])("maps the %s error", async (scenario) => {
     const result = await readCodexRateLimits({
       executable: process.execPath,
       argumentsPrefix: [fixture],
-      environment: environment("signed-out"),
+      environment: environment(scenario),
       codexHome: home,
       expectedAccountId,
       timeoutMilliseconds: 2_000
@@ -85,14 +105,15 @@ describe("Codex documented app server acquisition", () => {
     expect(result).toEqual({ ok: false, reason: "unavailable" });
   });
 
-  it("reports a missing binary as unavailable", async () => {
+  it("reports a missing binary distinctly", async () => {
     const result = await readCodexRateLimits({
       executable: path.join(path.dirname(fixture), "missing-codex-binary"),
+      environment: environment("missing-executable"),
       codexHome: home,
       expectedAccountId,
       timeoutMilliseconds: 200
     });
-    expect(result).toEqual({ ok: false, reason: "unavailable" });
+    expect(result).toEqual({ ok: false, reason: "missing_executable" });
   });
 
   it("kills and reports an app server that exceeds the deadline", async () => {

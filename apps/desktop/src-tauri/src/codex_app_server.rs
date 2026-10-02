@@ -17,6 +17,7 @@ pub enum AppServerFailure {
     IdentityMismatch,
     Timeout,
     Unavailable,
+    MissingExecutable,
     Protocol,
 }
 
@@ -44,8 +45,11 @@ fn send(stdin: &mut impl Write, message: &Value) -> Result<(), AppServerFailure>
 
 fn authentication_required(error: &Value) -> bool {
     error.get("code").and_then(Value::as_i64) == Some(-32600)
-        && error.get("message").and_then(Value::as_str)
-            == Some("chatgpt authentication required to read rate limits")
+        && matches!(
+            error.get("message").and_then(Value::as_str),
+            Some("chatgpt authentication required to read rate limits")
+                | Some("codex account authentication required to read rate limits")
+        )
 }
 
 fn valid_account_id(value: &str) -> bool {
@@ -99,7 +103,13 @@ fn read_rate_limits_with(
         .envs(environment.iter().copied())
         .env("CODEX_HOME", codex_home);
     suppress_window(&mut command);
-    let mut child = OwnedChild(command.spawn().map_err(|_| AppServerFailure::Unavailable)?);
+    let mut child = OwnedChild(command.spawn().map_err(|error| {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            AppServerFailure::MissingExecutable
+        } else {
+            AppServerFailure::Unavailable
+        }
+    })?);
     let mut stdin = child.0.stdin.take().ok_or(AppServerFailure::Unavailable)?;
     let stdout = child.0.stdout.take().ok_or(AppServerFailure::Unavailable)?;
     let (sender, receiver) = mpsc::channel();
@@ -197,7 +207,7 @@ fn read_rate_limits_with(
             .get("result")
             .filter(|value| value.get("rateLimits").is_some_and(Value::is_object))
             .ok_or(AppServerFailure::Protocol)?;
-        if let Some(account_id) = result.get("accountId") {
+        if let Some(account_id) = result.get("accountId").filter(|value| !value.is_null()) {
             let account_id = account_id.as_str().ok_or(AppServerFailure::Protocol)?;
             if !valid_account_id(account_id) {
                 return Err(AppServerFailure::Protocol);
@@ -254,8 +264,10 @@ mod tests {
     }
 
     #[test]
-    fn missing_response_identity_uses_the_resolved_home_identity() {
-        assert!(fixture_read("missing-identity", Duration::from_secs(2)).is_ok());
+    fn missing_or_null_response_identity_uses_the_resolved_home_identity() {
+        for scenario in ["missing-identity", "null-identity"] {
+            assert!(fixture_read(scenario, Duration::from_secs(2)).is_ok(), "{scenario}");
+        }
     }
 
     #[test]
@@ -267,11 +279,14 @@ mod tests {
     }
 
     #[test]
-    fn documented_signed_out_error_is_needs_sign_in() {
-        assert_eq!(
-            fixture_read("signed-out", Duration::from_secs(2)).unwrap_err(),
-            AppServerFailure::NeedsSignIn
-        );
+    fn documented_signed_out_errors_are_needs_sign_in() {
+        for scenario in ["signed-out", "signed-out-codex"] {
+            assert_eq!(
+                fixture_read(scenario, Duration::from_secs(2)).unwrap_err(),
+                AppServerFailure::NeedsSignIn,
+                "{scenario}"
+            );
+        }
     }
 
     #[test]
@@ -283,7 +298,7 @@ mod tests {
     }
 
     #[test]
-    fn missing_binary_is_unavailable() {
+    fn missing_binary_is_distinct_from_transport_unavailability() {
         assert_eq!(
             read_rate_limits_for_home(
                 Path::new("definitely-missing-codex-binary"),
@@ -291,7 +306,7 @@ mod tests {
                 &opaque_account_id(DetectedProviderId::Codex, "synthetic-chatgpt-account")
             )
             .unwrap_err(),
-            AppServerFailure::Unavailable
+            AppServerFailure::MissingExecutable
         );
     }
 

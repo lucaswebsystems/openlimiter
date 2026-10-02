@@ -304,6 +304,8 @@ export interface AcquisitionReply {
   readonly retryAfterSeconds: number | null;
   /** A local protocol decision that has no meaningful HTTP status. */
   readonly outcome?: AcquisitionOutcome;
+  /** The resolved local executable disappeared before the process could start. */
+  readonly missingCredential?: true;
 }
 
 export type AcquisitionTransport = (

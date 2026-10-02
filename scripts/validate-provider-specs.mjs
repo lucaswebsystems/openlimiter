@@ -423,7 +423,7 @@ const READER_IDS = new Set([
   "cursor_usage",
   "openrouter_key",
   "openrouter_credits",
-  "codex_usage",
+  "codex_app_server",
   "antigravity_quota",
   "gemini_cli_quota",
   "opencode_usage",

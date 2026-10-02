@@ -1211,19 +1211,33 @@ fn installed_executable(
         for name in &names {
             let candidate = directory.join(name);
             if let Some(resolved) = validated_launcher(provider, context, &candidate) {
-                if provider == DetectedProviderId::Codex
-                    && context.platform == DiscoveryPlatform::Windows
-                    && resolved.extension().is_some_and(|extension| {
-                        matches!(
-                            extension.to_string_lossy().to_ascii_lowercase().as_str(),
-                            "cmd" | "bat"
+                if provider == DetectedProviderId::Codex {
+                    let executable_is_link = fs::symlink_metadata(&candidate)
+                        .is_ok_and(|metadata| metadata.file_type().is_symlink());
+                    if executable_is_link
+                        && !resolved.ends_with(
+                            Path::new("node_modules")
+                                .join("@openai")
+                                .join("codex")
+                                .join("bin")
+                                .join("codex.js"),
                         )
-                    })
-                {
-                    if let Some(native) = codex_native_windows_executable(directory, context) {
+                    {
+                        continue;
+                    }
+                    if let Some(native) = codex_native_executable(directory, &resolved, context) {
                         return Some(native);
                     }
-                    continue;
+                    if executable_is_link
+                        || resolved.extension().is_some_and(|extension| {
+                            matches!(
+                                extension.to_string_lossy().to_ascii_lowercase().as_str(),
+                                "cmd" | "bat" | "js"
+                            )
+                        })
+                    {
+                        continue;
+                    }
                 }
                 return Some(resolved);
             }
@@ -1232,28 +1246,44 @@ fn installed_executable(
     None
 }
 
-fn codex_native_windows_executable(
+fn codex_native_executable(
     path_directory: &Path,
+    launcher: &Path,
     context: &DiscoveryContext,
 ) -> Option<PathBuf> {
-    for (package, triple) in [
-        ("codex-win32-x64", "x86_64-pc-windows-msvc"),
-        ("codex-win32-arm64", "aarch64-pc-windows-msvc"),
+    let arm = std::env::consts::ARCH == "aarch64";
+    let (platform, triple, executable_name) = match context.platform {
+        DiscoveryPlatform::Windows => (
+            "win32",
+            if arm { "aarch64-pc-windows-msvc" } else { "x86_64-pc-windows-msvc" },
+            "codex.exe",
+        ),
+        DiscoveryPlatform::Macos => (
+            "darwin",
+            if arm { "aarch64-apple-darwin" } else { "x86_64-apple-darwin" },
+            "codex",
+        ),
+        DiscoveryPlatform::Linux => (
+            "linux",
+            if arm { "aarch64-unknown-linux-musl" } else { "x86_64-unknown-linux-musl" },
+            "codex",
+        ),
+    };
+    let arch = if arm { "arm64" } else { "x64" };
+    let package = format!("codex-{platform}-{arch}");
+    let package_root = if launcher.extension().is_some_and(|extension| extension == "js") {
+        launcher.parent()?.parent()?.to_path_buf()
+    } else {
+        path_directory.join("node_modules").join("@openai").join("codex")
+    };
+    let package_parent = package_root.parent()?.to_path_buf();
+    for vendor in [
+        package_root.join("vendor").join(triple),
+        package_root.join("node_modules").join("@openai").join(&package).join("vendor").join(triple),
+        package_parent.join(&package).join("vendor").join(triple),
     ] {
-        for package_parts in [
-            vec!["@openai", "codex"],
-            vec!["@openai", "codex", "node_modules", "@openai", package],
-            vec!["@openai", package],
-        ] {
-            for binary_directory in ["bin", "codex"] {
-                let mut candidate = path_directory.join("node_modules");
-                for part in &package_parts {
-                    candidate.push(part);
-                }
-                candidate.push("vendor");
-                candidate.push(triple);
-                candidate.push(binary_directory);
-                candidate.push("codex.exe");
+        for binary_directory in ["codex", "bin"] {
+                let candidate = vendor.join(binary_directory).join(executable_name);
                 if let Some(native) = validated_executable_in_roots(
                     &candidate,
                     &provider_install_roots(DetectedProviderId::Codex, context),
@@ -1262,7 +1292,6 @@ fn codex_native_windows_executable(
                 }
             }
         }
-    }
     None
 }
 
@@ -2394,6 +2423,31 @@ impl DetectionStore {
     }
 }
 
+pub(crate) fn current_codex_runtime(provider_account_id: &str) -> Option<(PathBuf, PathBuf)> {
+    let context = DiscoveryContext::current();
+    let executable = installed_executable(DetectedProviderId::Codex, &context)?;
+    let mut candidates = candidate_paths(DetectedProviderId::Codex, &context);
+    candidates.extend(profile_candidates(
+        DetectedProviderId::Codex,
+        context.home.as_deref(),
+    ));
+    for candidate in candidates {
+        if candidate.kind != CandidateKind::Credential {
+            continue;
+        }
+        let matches = parse_credential_file(DetectedProviderId::Codex, &candidate.path)
+            .into_iter()
+            .any(|credential| credential.provider_account_id.as_deref() == Some(provider_account_id));
+        if matches {
+            return candidate
+                .path
+                .parent()
+                .map(|home| (executable.clone(), home.to_path_buf()));
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3375,6 +3429,82 @@ mod tests {
             )
             .state,
             ProviderPresence::InstalledLoggedOut
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_posix_codex_npm_launcher_resolves_to_the_native_vendor_binary() {
+        use std::os::unix::fs::symlink;
+
+        let dir = TempDir::new();
+        let home = fs::canonicalize(dir.path()).expect("canonical home");
+        let bin = home.join("bin");
+        let package_root = home
+            .join(".nvm")
+            .join("node_modules")
+            .join("@openai")
+            .join("codex");
+        let launcher = package_root.join("bin").join("codex.js");
+        let arm = std::env::consts::ARCH == "aarch64";
+        let triple = if arm {
+            "aarch64-unknown-linux-musl"
+        } else {
+            "x86_64-unknown-linux-musl"
+        };
+        let package = if arm { "codex-linux-arm64" } else { "codex-linux-x64" };
+        let native = package_root
+            .join("node_modules")
+            .join("@openai")
+            .join(package)
+            .join("vendor")
+            .join(triple)
+            .join("codex")
+            .join("codex");
+        write(&launcher, "javascript launcher");
+        write(&native, "native codex");
+        fs::create_dir_all(&bin).expect("bin directory");
+        symlink(&launcher, bin.join("codex")).expect("launcher symlink");
+        let mut discovery = context(DiscoveryPlatform::Linux, &home);
+        discovery.path_entries = vec![bin];
+        assert_eq!(
+            installed_executable(DetectedProviderId::Codex, &discovery),
+            Some(fs::canonicalize(native).expect("canonical native binary"))
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_plain_native_codex_binary_is_accepted() {
+        let dir = TempDir::new();
+        let home = fs::canonicalize(dir.path()).expect("canonical home");
+        let native = home.join("bin").join("codex");
+        write(&native, "native codex");
+        let mut discovery = context(DiscoveryPlatform::Linux, &home);
+        discovery.path_entries = vec![home.join("bin")];
+        assert_eq!(
+            installed_executable(DetectedProviderId::Codex, &discovery),
+            Some(fs::canonicalize(native).expect("canonical native binary"))
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_codex_link_to_anything_other_than_the_official_npm_launcher_is_refused() {
+        use std::os::unix::fs::symlink;
+
+        let dir = TempDir::new();
+        let home = fs::canonicalize(dir.path()).expect("canonical home");
+        let bin = home.join("bin");
+        let unrelated = home.join(".nvm").join("unrelated-codex");
+        write(&unrelated, "unrelated executable");
+        fs::create_dir_all(&bin).expect("bin directory");
+        symlink(&unrelated, bin.join("codex")).expect("launcher symlink");
+        let mut discovery = context(DiscoveryPlatform::Linux, &home);
+        discovery.path_entries = vec![bin];
+        assert_eq!(
+            installed_executable(DetectedProviderId::Codex, &discovery),
+            None
         );
     }
 

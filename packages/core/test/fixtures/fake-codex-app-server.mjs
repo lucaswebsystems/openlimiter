@@ -43,12 +43,14 @@ input.on("line", (line) => {
     return;
   }
   if (scenario === "timeout") return;
-  if (scenario === "signed-out") {
+  if (scenario === "signed-out" || scenario === "signed-out-codex") {
     send({
       id: message.id,
       error: {
         code: -32600,
-        message: "chatgpt authentication required to read rate limits"
+        message: scenario === "signed-out-codex"
+          ? "codex account authentication required to read rate limits"
+          : "chatgpt authentication required to read rate limits"
       }
     });
     return;
@@ -63,7 +65,7 @@ input.on("line", (line) => {
       ...(scenario === "missing-identity" ? {} : {
         accountId: scenario === "identity-mismatch"
           ? "synthetic-other-account"
-          : "synthetic-chatgpt-account"
+          : scenario === "null-identity" ? null : "synthetic-chatgpt-account"
       }),
       rateLimits: {
         limitId: "codex",

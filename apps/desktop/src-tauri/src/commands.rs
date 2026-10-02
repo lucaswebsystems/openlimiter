@@ -6,6 +6,7 @@ use tauri::State;
 use zeroize::Zeroizing;
 
 use crate::cache_write::{CacheWriteBegin, CacheWriteError, CacheWriter, MAX_JSON_FILE_BYTES};
+use crate::codex_app_server::{read_rate_limits_for_home, AppServerFailure};
 use crate::claude_connect::{self, ClaudeConnectInput, ClaudePreflightVerdict};
 use crate::claude_detect::{self, LocalToolDetection};
 use crate::connections::{
@@ -20,6 +21,11 @@ use crate::native_readers::parse_body;
 use crate::net::{fetch_endpoint, NetError, ReqwestTransport, Transport};
 use crate::provider_detection::{DetectionReport, DetectionStore};
 use crate::reader_registry::{reader_route, CredentialKind, ProviderId, ReaderId, RouteError};
+
+#[cfg(test)]
+static CODEX_APP_SERVER_TEST_RESPONSES: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::BTreeMap<String, Result<String, AppServerFailure>>>,
+> = std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::BTreeMap::new()));
 
 /// The connection command surface: one Tauri command per verb, serde structs
 /// in and out, and one closed failure enum whose `Display` is a fixed
@@ -569,9 +575,6 @@ pub(crate) async fn replace_connection_secret_core<T: Transport>(
     capped_connection_id(&input.connection_id)?;
     let candidate = Zeroizing::new(input.secret);
     let before = connections.get(&input.connection_id)?;
-    if before.provider_id == ProviderId::Codex {
-        return Err(CommandFailure::CodexLoginRequired);
-    }
     if !before.is_active() {
         return Err(CommandFailure::Paused);
     }
@@ -897,13 +900,103 @@ pub(crate) async fn probe_core<T: Transport>(
     and dropped. It is never part of the return value. */
     let secret = secrets.read_secret(&record.id)?;
     let migrated = migrate_codex_credential_if_needed(connections, secrets, &mut record, &secret)?;
-    if record.provider_id == ProviderId::Codex {
-        return Err(CommandFailure::CodexLoginRequired);
-    }
-    let endpoint = route.endpoint.ok_or(CommandFailure::Protocol)?;
     let request_secret = migrated.as_deref().unwrap_or(&secret);
     let opened = open_attempt(connections, &record.id)?;
     let attempt_generation = opened.attempt_generation;
+    if record.provider_id == ProviderId::Codex {
+        let provider_account_id = record
+            .codex_account_id
+            .as_deref()
+            .ok_or(CommandFailure::Protocol)?;
+        #[cfg(test)]
+        let injected = CODEX_APP_SERVER_TEST_RESPONSES
+            .lock()
+            .ok()
+            .and_then(|mut responses| responses.remove(&record.id));
+        #[cfg(not(test))]
+        let injected: Option<Result<String, AppServerFailure>> = None;
+        let response = if let Some(injected) = injected {
+            injected.map(|body| crate::codex_app_server::RateLimitsPayload { body })
+        } else {
+            let Some((executable, codex_home)) =
+                crate::provider_detection::current_codex_runtime(provider_account_id)
+            else {
+                settle_request(connections, &record.id, None, false, attempt_generation)?;
+                return Err(CommandFailure::CodexLoginRequired);
+            };
+            let expected_account_id = crate::provider_detection::opaque_account_id(
+                crate::provider_detection::DetectedProviderId::Codex,
+                provider_account_id,
+            );
+            tauri::async_runtime::spawn_blocking(move || {
+                read_rate_limits_for_home(&executable, &codex_home, &expected_account_id)
+            })
+            .await
+            .map_err(|_| CommandFailure::Storage)?
+        };
+        return match response {
+            Ok(payload) => {
+                settle_request(
+                    connections,
+                    &record.id,
+                    Some(200),
+                    !payload.body.is_empty(),
+                    attempt_generation,
+                )?;
+                Ok(ProbeOutcome::Response {
+                    connection_id: record.id,
+                    reader_id: route.reader_id,
+                    attempt_generation,
+                    status: 200,
+                    body: Some(payload.body),
+                    retry_after_seconds: None,
+                })
+            }
+            Err(AppServerFailure::NeedsSignIn) => {
+                settle_request(connections, &record.id, Some(401), false, attempt_generation)?;
+                Ok(ProbeOutcome::Response {
+                    connection_id: record.id,
+                    reader_id: route.reader_id,
+                    attempt_generation,
+                    status: 401,
+                    body: None,
+                    retry_after_seconds: None,
+                })
+            }
+            Err(AppServerFailure::IdentityMismatch) => {
+                settle_request(connections, &record.id, Some(403), false, attempt_generation)?;
+                Ok(ProbeOutcome::Response {
+                    connection_id: record.id,
+                    reader_id: route.reader_id,
+                    attempt_generation,
+                    status: 403,
+                    body: None,
+                    retry_after_seconds: None,
+                })
+            }
+            Err(AppServerFailure::MissingExecutable) => {
+                settle_request(connections, &record.id, None, false, attempt_generation)?;
+                Err(CommandFailure::CodexLoginRequired)
+            }
+            Err(failure) => {
+                settle_request(connections, &record.id, None, false, attempt_generation)?;
+                Ok(ProbeOutcome::TransportFailure {
+                    connection_id: record.id,
+                    reader_id: route.reader_id,
+                    attempt_generation,
+                    failure: match failure {
+                        AppServerFailure::Timeout => ProbeFailure::Timeout,
+                        AppServerFailure::Unavailable => ProbeFailure::Connect,
+                        AppServerFailure::Protocol => ProbeFailure::InvalidUtf8,
+                        AppServerFailure::NeedsSignIn
+                        | AppServerFailure::IdentityMismatch
+                        | AppServerFailure::MissingExecutable => unreachable!(),
+                    },
+                })
+            }
+        };
+    }
+    let endpoint = route.endpoint.ok_or(CommandFailure::Protocol)?;
     let fetched = fetch_endpoint(
         transport,
         endpoint,
@@ -1705,6 +1798,13 @@ mod tests {
             .to_string()
     }
 
+    fn codex_app_server_reply(connection_id: &str, response: Result<&str, AppServerFailure>) {
+        CODEX_APP_SERVER_TEST_RESPONSES
+            .lock()
+            .expect("test response registry")
+            .insert(connection_id.to_string(), response.map(str::to_string));
+    }
+
     fn probe(connection_id: &str) -> ProbeInput {
         ProbeInput {
             connection_id: connection_id.to_string(),
@@ -2159,10 +2259,10 @@ mod tests {
             .expect("legacy credential shape");
 
         let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
-        assert_eq!(
-            test_core(&connections, &secrets, &transport, probe(&record.id)).await,
-            Err(CommandFailure::CodexLoginRequired)
-        );
+        codex_app_server_reply(&record.id, Ok("{}"));
+        let outcome = test_core(&connections, &secrets, &transport, probe(&record.id))
+            .await
+            .expect("migrated probe");
         assert_eq!(
             secrets.read_secret(&record.id).expect("rewritten").as_str(),
             TOKEN
@@ -2172,6 +2272,7 @@ mod tests {
         assert!(transport.recorded_secrets().is_empty());
         assert!(transport.recorded_codex_account_ids().is_empty());
         for rendered in [
+            format!("{outcome:?}"),
             format!("{migrated:?}"),
             CommandFailure::Protocol.to_string(),
         ] {
@@ -2206,7 +2307,7 @@ mod tests {
 
     #[tokio::test]
     async fn every_provider_reaches_only_its_own_address() {
-        /* The HTTP endpoint confusion matrix, end to end: each real
+        /* The endpoint confusion matrix, end to end: each of the five real
         pairings is connected and probed, and each one must touch exactly one
         address, its own. */
         let expected = [
@@ -2325,7 +2426,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_stored_codex_connection_redirects_to_the_cli_login_path() {
+    async fn codex_auth_failure_becomes_needs_auth_for_codex_login() {
         let dir = TempDir::new();
         let (connections, secrets) = stores(&dir);
         let input = ConnectProviderInput {
@@ -2335,12 +2436,15 @@ mod tests {
             secret: codex_test_secret(),
         };
         let record = connect_core(&connections, &secrets, input).expect("connect");
-        let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
+        let transport = RecordingTransport::replying(401, Vec::new(), None);
+        codex_app_server_reply(&record.id, Err(AppServerFailure::NeedsSignIn));
+        test_core(&connections, &secrets, &transport, probe(&record.id))
+            .await
+            .expect("probe");
         assert_eq!(
-            test_core(&connections, &secrets, &transport, probe(&record.id)).await,
-            Err(CommandFailure::CodexLoginRequired)
+            connections.get(&record.id).expect("record").status,
+            STATUS_NEEDS_AUTH
         );
-        assert!(transport.recorded_secrets().is_empty());
         assert_eq!(
             CommandFailure::CodexLoginRequired.to_string(),
             "Codex needs a current login. Run codex login."

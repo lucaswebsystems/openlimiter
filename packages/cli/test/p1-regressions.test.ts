@@ -4,7 +4,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  acquireRefreshLock, buildAdvice, kimiUsageRequest, createFetchTransport,
+  acquireRefreshLock, buildAdvice, createFetchTransport, kimiUsageRequest,
   getAgyInstallRoots, isTrustedAgyExecutable, enumerateAgyListeningPorts,
   normalizeMeters, parseAgyQuotaSummary, readAcquisitionCredential,
   readSnapshotCache, registerManagedCodexAccount, shouldStartRefresh,
@@ -60,7 +60,15 @@ async function deps(): Promise<CliDependencies> {
     colorOutput: false, readStandardInput: async () => null,
     nodeExecutable: process.execPath, openLimiterScript: "test-cli.js",
     spawnDetached: () => undefined, emit: () => undefined, sleep: async () => undefined,
-    openBrowser: () => undefined, detectedAgentInstallations: {},
+    openBrowser: () => undefined,
+    detectedAgentInstallations: {
+      codex: {
+        version: "0.153.3",
+        executable: "synthetic-codex",
+        fileSize: 1,
+        mtimeMilliseconds: 1
+      }
+    },
     credentialStore: { get: async () => null, set: async () => undefined },
     acquisitionTransport: async (request) => {
       const body = recordedResponses(NOW)[request.endpoint];
@@ -133,9 +141,6 @@ describe("P1 audit regressions", () => {
 
   it("08 renders each setup section once and acquires before host prompts", async () => {
     const d = await deps();
-    d.detectedAgentInstallations = {
-      codex: { version: "test", executable: process.execPath, fileSize: 1, mtimeMilliseconds: 1 }
-    };
     await mkdir(path.join(d.homeDirectory, ".codex"), { recursive: true });
     await writeFile(path.join(d.homeDirectory, ".codex", "auth.json"), JSON.stringify(credentialDocuments.codex));
     const emitted: string[] = [];

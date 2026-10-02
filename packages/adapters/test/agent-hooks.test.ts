@@ -469,6 +469,37 @@ describe("hook configuration mutation", () => {
     expect(seen).toEqual([native]);
   });
 
+  it.skipIf(process.platform === "win32")("resolves a POSIX npm launcher symlink to the native Codex binary", async () => {
+    const directory = await mkdtemp(path.join(await scratchRoot(), "openlimiter-codex-posix-"));
+    created.push(directory);
+    const bin = path.join(directory, "bin");
+    const packageRoot = path.join(directory, "lib", "node_modules", "@openai", "codex");
+    const launcher = path.join(packageRoot, "bin", "codex.js");
+    const platformName = process.platform === "darwin" ? "darwin" : "linux";
+    const archName = process.arch === "arm64" ? "arm64" : "x64";
+    const triple = process.platform === "darwin"
+      ? process.arch === "arm64" ? "aarch64-apple-darwin" : "x86_64-apple-darwin"
+      : process.arch === "arm64" ? "aarch64-unknown-linux-musl" : "x86_64-unknown-linux-musl";
+    const native = path.join(packageRoot, "node_modules", "@openai", `codex-${platformName}-${archName}`, "vendor", triple, "codex", "codex");
+    await mkdir(path.dirname(launcher), { recursive: true });
+    await mkdir(path.dirname(native), { recursive: true });
+    await mkdir(bin, { recursive: true });
+    await writeFile(launcher, "synthetic launcher", "utf8");
+    await writeFile(native, "synthetic native Codex", "utf8");
+    await symlink(launcher, path.join(bin, "codex"));
+    const seen: string[] = [];
+    const installation = await detectAgentInstallation("codex", {
+      platform: process.platform,
+      environment: { PATH: bin },
+      runCommand: async (command) => {
+        seen.push(command);
+        return { ok: true, stdout: "codex 0.153.3", stderr: "" };
+      }
+    });
+    expect(installation?.executable).toBe(await realpath(native));
+    expect(seen).toEqual([await realpath(native)]);
+  });
+
   it("ignores relative PATH entries during executable discovery", async () => {
     const directory = await mkdtemp(path.join(await scratchRoot(), "openlimiter-relative-path-"));
     created.push(directory);

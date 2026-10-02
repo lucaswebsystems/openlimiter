@@ -26,6 +26,16 @@ fn labels(origin: &str, interface: &str, risk: &str) -> ConnectorLabels {
     }
 }
 
+fn documented_codex_labels() -> ConnectorLabels {
+    ConnectorLabels {
+        credential_origin: "official-local-tool".to_string(),
+        data_interface_status: "documented-api".to_string(),
+        automation_risk: "low".to_string(),
+        verification: "VERIFIED_FIXTURES".to_string(),
+        verification_evidence: None,
+    }
+}
+
 fn provenance() -> Option<Value> {
     Some(serde_json::json!({
         "observedVia": "remote_http",
@@ -245,12 +255,155 @@ fn parse_openrouter(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Sna
     Some(vec![snapshot])
 }
 
-fn codex_duration_meter(minutes: u64) -> String {
+fn window_seconds(value: Option<&Value>) -> Option<u64> {
+    let value = value?.as_u64()?;
+    (value > 0 && value <= MAX_WINDOW_SECONDS).then_some(value)
+}
+
+fn codex_meter_id(length: Option<u64>, key: &str) -> Option<String> {
+    let meter = match length {
+        Some(18_000) => "FIVE_HOUR".to_string(),
+        Some(604_800) => "SEVEN_DAY".to_string(),
+        _ => key
+            .strip_suffix("_window")
+            .unwrap_or(key)
+            .to_ascii_uppercase(),
+    };
+    safe_meter(&meter).then_some(meter)
+}
+
+fn parse_codex_legacy(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
+    let root: Value = serde_json::from_str(body).ok()?;
+    let limits = root.get("rate_limit").and_then(Value::as_object);
+    let observed_at = iso_from_epoch_ms(now_ms)?;
+    let expires_at = iso_from_epoch_ms(now_ms.saturating_add(60_000))?;
+    let mut snapshots = Vec::new();
+    for (key, value) in limits.into_iter().flatten() {
+        if !key.ends_with("_window") {
+            continue;
+        }
+        if value.is_null() {
+            continue;
+        }
+        let Some(window) = value.as_object() else {
+            continue;
+        };
+        let Some(percent) = number(window.get("used_percent"), 100.0) else {
+            continue;
+        };
+        let length = window_seconds(window.get("limit_window_seconds"));
+        let max_ahead =
+            length.map(|seconds| seconds.saturating_mul(2).saturating_add(CLOCK_SKEW_SECONDS));
+        let instant = window.get("reset_at").filter(|value| !value.is_null());
+        let countdown = window
+            .get("reset_after_seconds")
+            .filter(|value| !value.is_null());
+        let reset_at = if let Some(value) = instant {
+            value
+                .as_f64()
+                .and_then(|seconds| future_epoch_seconds(seconds, now_ms, max_ahead))
+        } else if let Some(value) = countdown {
+            value
+                .as_f64()
+                .filter(|seconds| {
+                    seconds.is_finite()
+                        && *seconds > 0.0
+                        && max_ahead.is_none_or(|maximum| *seconds <= maximum as f64)
+                })
+                .and_then(|seconds| {
+                    let milliseconds = now_ms as f64 + seconds * 1_000.0;
+                    (milliseconds <= 8_640_000_000_000_000.0)
+                        .then(|| iso_from_epoch_ms(milliseconds as u64))
+                        .flatten()
+                })
+        } else {
+            None
+        };
+        if (instant.is_some() || countdown.is_some()) && reset_at.is_none() {
+            continue;
+        }
+        let Some(meter) = codex_meter_id(length, key) else {
+            continue;
+        };
+        snapshots.push(base_snapshot(
+            "CODEX",
+            &meter,
+            percent,
+            SnapshotWindow {
+                kind: if length.is_some() {
+                    "rolling"
+                } else {
+                    "unknown"
+                }
+                .to_string(),
+                duration_seconds: length,
+            },
+            reset_at,
+            "internal_payload",
+            "estimated",
+            &observed_at,
+            &expires_at,
+            labels("official-local-tool", "internal-endpoint", "high"),
+            account_id,
+        ));
+    }
+    if root
+        .get("credits")
+        .and_then(|credits| credits.get("unlimited"))
+        .and_then(Value::as_bool)
+        == Some(true)
+    {
+        let mut snapshot = base_snapshot(
+            "CODEX",
+            "CREDITS",
+            0.0,
+            SnapshotWindow {
+                kind: "unknown".to_string(),
+                duration_seconds: None,
+            },
+            None,
+            "internal_payload",
+            "exact",
+            &observed_at,
+            &expires_at,
+            labels("official-local-tool", "internal-endpoint", "high"),
+            account_id,
+        );
+        snapshot.kind = Some("availability".to_string());
+        snapshot.availability = Some("unlimited".to_string());
+        snapshots.push(snapshot);
+    }
+    (!snapshots.is_empty()).then_some(snapshots)
+}
+
+fn codex_duration_meter(minutes: u64, slot: &str) -> String {
     match minutes {
         300 => "FIVE_HOUR".to_string(),
         10_080 => "SEVEN_DAY".to_string(),
-        _ => format!("WINDOW_{minutes}_MINUTE"),
+        _ => slot.to_ascii_uppercase(),
     }
+}
+
+fn codex_suffixed_meter(meter: &str, slot: &str) -> String {
+    let suffix = format!("_{}", slot.to_ascii_uppercase());
+    let keep = 32usize.saturating_sub(suffix.len());
+    let prefix = meter.chars().take(keep).collect::<String>();
+    format!("{}{}", prefix.trim_end_matches('_'), suffix)
+}
+
+fn codex_decimal(value: &str) -> Option<f64> {
+    let mut parts = value.split('.');
+    let whole = parts.next()?;
+    let fraction = parts.next();
+    if parts.next().is_some()
+        || whole.is_empty()
+        || !whole.bytes().all(|byte| byte.is_ascii_digit())
+        || (whole.len() > 1 && whole.starts_with('0'))
+        || fraction.is_some_and(|part| part.is_empty() || !part.bytes().all(|byte| byte.is_ascii_digit()))
+    {
+        return None;
+    }
+    value.parse::<f64>().ok().filter(|number| number.is_finite())
 }
 
 fn codex_limit_id(value: &str) -> Option<String> {
@@ -329,7 +482,7 @@ fn codex_windows(
             continue;
         }
         let duration = minutes
-            .map(codex_duration_meter)
+            .map(|minutes| codex_duration_meter(minutes, slot))
             .unwrap_or_else(|| slot.to_ascii_uppercase());
         let meter = codex_meter(limit_id, &duration);
         if !safe_meter(&meter) {
@@ -356,7 +509,7 @@ fn codex_windows(
                 "exact",
                 observed_at,
                 expires_at,
-                labels("official-local-tool", "documented-api", "low"),
+                documented_codex_labels(),
                 account_id,
             ),
         ));
@@ -367,7 +520,7 @@ fn codex_windows(
     }
     for (slot, row) in &mut rows {
         if counts.get(&row.meter).copied().unwrap_or_default() > 1 {
-            row.meter = format!("{}_{}", row.meter, slot.to_ascii_uppercase());
+            row.meter = codex_suffixed_meter(&row.meter, slot);
         }
     }
     rows.into_iter().map(|(_, row)| row).collect()
@@ -376,7 +529,9 @@ fn codex_windows(
 /// Parses the documented account/rateLimits/read response.
 fn parse_codex(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
     let root: Value = serde_json::from_str(body).ok()?;
-    let limits = root.get("rateLimits")?.as_object()?;
+    let Some(limits) = root.get("rateLimits").and_then(Value::as_object) else {
+        return parse_codex_legacy(body, now_ms, account_id);
+    };
     let observed_at = iso_from_epoch_ms(now_ms)?;
     let expires_at = iso_from_epoch_ms(now_ms.saturating_add(60_000))?;
     let mut snapshots = Vec::new();
@@ -443,7 +598,7 @@ fn parse_codex(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot
             "exact",
             &observed_at,
             &expires_at,
-            labels("official-local-tool", "documented-api", "low"),
+            documented_codex_labels(),
             account_id,
         );
         snapshot.kind = Some("availability".to_string());
@@ -453,8 +608,8 @@ fn parse_codex(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot
         let balance = credits
             .get("balance")
             .and_then(Value::as_str)
-            .and_then(|value| value.parse::<f64>().ok())
-            .filter(|value| value.is_finite() && *value >= 0.0);
+            .and_then(codex_decimal)
+            .filter(|value| *value >= 0.0);
         if credits.get("hasCredits").and_then(Value::as_bool) == Some(true) {
             if let Some(balance) = balance {
                 let mut snapshot = base_snapshot(
@@ -470,7 +625,7 @@ fn parse_codex(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot
                     "exact",
                     &observed_at,
                     &expires_at,
-                    labels("official-local-tool", "documented-api", "low"),
+                    documented_codex_labels(),
                     account_id,
                 );
                 snapshot.unit = "CREDITS".to_string();

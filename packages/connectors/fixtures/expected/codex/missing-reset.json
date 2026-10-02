@@ -11,7 +11,7 @@
           "kind": "rolling",
           "durationSeconds": 18000
         },
-        "resetAt": "2026-08-07T16:00:00.000Z",
+        "resetAt": null,
         "precision": "estimated",
         "source": "internal_payload",
         "kind": null,
