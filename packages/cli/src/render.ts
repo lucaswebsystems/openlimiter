@@ -351,7 +351,7 @@ function providerIdentity(snapshot: Snapshot): string {
 
 /** Display familiar windows and preserve provider supplied names. */
 function windowName(meter: string, provider: string): string {
-  const shared = providerMeterLabel(provider, meter);
+  const shared = provider === "ANTIGRAVITY" ? null : providerMeterLabel(provider, meter);
   if (shared !== null) return shared;
   const names: Readonly<Record<string, string>> = {
     FIVE_HOUR: "5h",

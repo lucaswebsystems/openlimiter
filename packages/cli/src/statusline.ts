@@ -602,7 +602,8 @@ function scopedProviderTag(providerTag: string, shortTag: string, snapshot: Snap
   const base = providerTag || shortTag;
   if (isOpenRouterAccountBalance(snapshot)) return base;
   const scope = providerMeterCompactLabel(snapshot.provider, snapshot.meter);
-  return scope === null || scope === "" ? base : base + " " + scope;
+  const separator = snapshot.provider === "ANTIGRAVITY" ? "" : " ";
+  return scope === null || scope === "" ? base : base + separator + scope;
 }
 
 function visibilityKey(snapshot: Snapshot): string {
@@ -717,7 +718,8 @@ export function barStyleCells(
       if (isAvailabilitySnapshot(snapshot)) {
         const baseTag = providerTag || shortTag;
         const scope = providerMeterCompactLabel(snapshot.provider, snapshot.meter);
-        const tag = scope === null || scope === "" ? baseTag : baseTag + " " + scope;
+        const separator = snapshot.provider === "ANTIGRAVITY" ? "" : " ";
+        const tag = scope === null || scope === "" ? baseTag : baseTag + separator + scope;
         const plain = tag + " " + availabilityText(snapshot, now);
         const chosen = visibility[provider.toLowerCase()] === true ||
           allowedProviders?.has(provider.toLowerCase()) || allowedProviders?.has(shortTag);
@@ -762,8 +764,9 @@ export function barStyleCells(
 
       const winTag = windowCode(snapshot);
       const hasProviderCaption = providerMeterCompactLabel(snapshot.provider, snapshot.meter) !== null;
+      const captionSeparator = snapshot.provider === "ANTIGRAVITY" ? "" : " ";
       const combinedTag = providerTag !== "" && winTag !== ""
-        ? providerTag + (hasProviderCaption ? " " : "") + winTag
+        ? providerTag + (hasProviderCaption ? captionSeparator : "") + winTag
         : providerTag + winTag;
       const tag = combinedTag === "" ? shortTag : combinedTag;
 
