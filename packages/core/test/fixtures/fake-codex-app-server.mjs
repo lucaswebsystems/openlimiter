@@ -1,4 +1,8 @@
+import { readFileSync } from "node:fs";
 import readline from "node:readline";
+
+// The client version is the shipping version, so it moves with every release.
+const packageVersion = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version;
 
 const scenario = process.env["OPENLIMITER_FAKE_CODEX_SCENARIO"] ?? "success";
 if (scenario === "exit-before-read") process.exit(0);
@@ -21,7 +25,7 @@ input.on("line", (line) => {
     const expected = {
       name: "openlimiter",
       title: "OpenLimiter",
-      version: "2.0.3"
+      version: packageVersion
     };
     if (message.jsonrpc !== undefined ||
         JSON.stringify(message.params?.clientInfo) !== JSON.stringify(expected) ||

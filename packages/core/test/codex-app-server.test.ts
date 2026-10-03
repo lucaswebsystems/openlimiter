@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -46,7 +47,7 @@ describe("Codex documented app server acquisition", () => {
     expect(CODEX_APP_SERVER_CLIENT_INFO).toEqual({
       name: "openlimiter",
       title: "OpenLimiter",
-      version: "2.0.3"
+      version: (JSON.parse(readFileSync(path.join(process.cwd(), "packages/core/package.json"), "utf8")) as { version: string }).version
     });
     expect(result).toMatchObject({
       ok: true,

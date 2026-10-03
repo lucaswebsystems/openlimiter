@@ -11,7 +11,10 @@ const whatsNewForVersion = (version) => selectRelease(version, WHATS_NEW_EN);
 /* What each recent release says, word for word; the current version is one of them. */
 const NOTES = {
   "2.0.4": [
-    { key: "fable", text: "New desktop installs explain the Fable usage request before recording it on. Existing installs without a choice are asked first, and either switch can still be turned off." },
+    { key: "codex", text: "Codex limits now use OpenAI's documented source. Your Codex sign in stays on your device." },
+    { key: "claude", text: "Claude now shows Current session, Weekly, all models, Weekly, Fable and extra usage. Fable and extra usage are on after one notice, with switches in Settings and the terminal." },
+    { key: "providers", text: "Antigravity can refresh from its CLI. OpenRouter, Grok, Moonshot, Kimi, OpenCode and Gemini now label their limits more clearly." },
+    { key: "sync", text: "Unreadable readings never sync, and stale bars are flat grey." },
   ],
   "2.0.3": [
     { key: "screen", text: "Every tool and API key now fits on one screen." },
@@ -39,7 +42,7 @@ test("the current desktop version has a complete What's New entry", () => {
   assert.deepEqual(entry.items, NOTES[manifest.version]);
 });
 
-test("the 2.0.3 notes stay short and earlier releases remain available", () => {
+test("the current notes stay short and earlier releases remain available", () => {
   for (const [version, items] of Object.entries(NOTES)) {
     const entry = whatsNewForVersion(version);
     assert.deepEqual(entry.items, items, version);
@@ -48,8 +51,8 @@ test("the 2.0.3 notes stay short and earlier releases remain available", () => {
       assert.doesNotMatch(text, /[-\u2010-\u2015]/u);
     }
   }
-  assert.equal(WHATS_NEW_EN.releases["2.0.3"].heading, "One screen, every tool");
-  assert.ok(NOTES["2.0.3"].length <= 5);
+  assert.equal(WHATS_NEW_EN.releases["2.0.4"].heading, "More accurate limits");
+  assert.ok(NOTES["2.0.4"].length <= 4);
 });
 
 test("the 2.0.0 release notes remain available", () => {
