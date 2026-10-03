@@ -1,12 +1,7 @@
 import {
-  antigravityMeterPresentation,
-  antigravityMeterRank,
-  claudeMeterLabel,
-  claudeMeterRank,
   floorFixed,
   type Advice,
-  type ClaudeMeterLabelKey,
-  type AntigravityMeterLabelKey,
+  type ProviderMeterLabelKey,
   type ConnectionState,
   type MeterView,
   type ProviderCode,
@@ -14,9 +9,12 @@ import {
   type SnapshotState,
   PROVIDER_CODES,
   providerMeterLabel,
+  sharedProviderMeterLabel,
+  sharedProviderMeterRank,
 } from "./engine";
 
-export type ClaudeMeterCopy = Partial<Record<ClaudeMeterLabelKey | AntigravityMeterLabelKey, string>>;
+export type ProviderMeterCopy = Partial<Record<ProviderMeterLabelKey, string>>;
+export type ClaudeMeterCopy = ProviderMeterCopy;
 
 /** The engine's four overall reason codes. */
 type AdviceReason = Advice["reason"];
@@ -191,15 +189,11 @@ function modelWeeklyName(code: string): string | null {
 export function meterName(
   code: string,
   provider?: string,
-  claudeCopy: ClaudeMeterCopy = {},
+  providerCopy: ProviderMeterCopy = {},
 ): string {
-  if (provider === "CLAUDE") {
-    const claude = claudeMeterLabel(code, claudeCopy);
-    if (claude !== null) return claude;
-  }
-  if (provider === "ANTIGRAVITY") {
-    const antigravity = antigravityMeterPresentation(code);
-    if (antigravity !== null) return claudeCopy[antigravity.labelKey] ?? antigravity.defaultLabel;
+  if (provider !== undefined) {
+    const shared = sharedProviderMeterLabel(provider, code, providerCopy);
+    if (shared !== null) return shared;
   }
   if (provider !== undefined && PROVIDER_CODES.includes(provider as ProviderCode)) {
     return providerMeterLabel(code, provider as ProviderCode);
@@ -218,15 +212,16 @@ export function meterName(
 }
 
 /** Providers with shared presentation contracts replace the engine's English copy. */
-export function claudeMeterOverride(
+export function providerMeterOverride(
   code: string,
   provider: ProviderCode,
-  claudeCopy: ClaudeMeterCopy = {},
+  providerCopy: ProviderMeterCopy = {},
 ): string | undefined {
-  return provider === "CLAUDE" || provider === "ANTIGRAVITY"
-    ? meterName(code, provider, claudeCopy)
-    : undefined;
+  return sharedProviderMeterLabel(provider, code, providerCopy) ?? undefined;
 }
+
+/** Compatibility name for surfaces that still pass Claude copy only. */
+export const claudeMeterOverride = providerMeterOverride;
 
 /**
  * Where a meter sits in the reading order.
@@ -268,8 +263,10 @@ const MODEL_WEEKLY_RANK = 45;
 
 /** Unmapped codes sort after every known one, then alphabetically. */
 export function meterRank(code: string, provider?: string): number {
-  if (provider === "CLAUDE") return claudeMeterRank(code) ?? 90;
-  if (provider === "ANTIGRAVITY") return antigravityMeterRank(code) ?? 90;
+  if (provider !== undefined) {
+    const shared = sharedProviderMeterRank(provider, code);
+    if (shared !== null) return shared;
+  }
   const known = METER_RANK[code];
   if (known !== undefined) return known;
   return code.startsWith(MODEL_WEEKLY_PREFIX) ? MODEL_WEEKLY_RANK : 90;

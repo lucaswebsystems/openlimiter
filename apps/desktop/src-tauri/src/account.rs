@@ -444,6 +444,10 @@ pub(crate) struct UsageSample {
     pub reset_at: Option<String>,
     pub observed_at: String,
     pub stale: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub amount: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub currency: Option<String>,
 }
 
 /// The forecast the spend meter derived, or nothing at all. Every field is
@@ -858,7 +862,19 @@ fn usage_samples_from_cache(
     };
     let mut selected: HashMap<(String, String, String), UsageSample> = HashMap::new();
     for snapshot in snapshots {
-        if snapshot.get("unit").and_then(serde_json::Value::as_str) != Some("PERCENT") {
+        let Some(provider) = snapshot.get("provider").and_then(serde_json::Value::as_str) else {
+            continue;
+        };
+        let Some(window) = snapshot.get("meter").and_then(serde_json::Value::as_str) else {
+            continue;
+        };
+        if provider == "OPENROUTER" && window == "CREDITS" {
+            continue;
+        }
+        let account_balance = provider == "OPENROUTER" && window == "ACCOUNT_BALANCE";
+        if !account_balance
+            && snapshot.get("unit").and_then(serde_json::Value::as_str) != Some("PERCENT")
+        {
             continue;
         }
         if snapshot.get("kind").and_then(serde_json::Value::as_str) == Some("runtime_info") {
@@ -868,32 +884,46 @@ fn usage_samples_from_cache(
         if snapshot.get("availability").is_some_and(|value| !value.is_null()) {
             continue;
         }
-        let Some(provider) = snapshot.get("provider").and_then(serde_json::Value::as_str) else {
-            continue;
-        };
         if !configured_providers.contains(provider) {
             continue;
         }
-        let Some(window) = snapshot.get("meter").and_then(serde_json::Value::as_str) else {
-            continue;
-        };
         /* Absent is "default", the ordinary single account case; the web app
         hides it once the same provider has an identified account. */
         let account_id = snapshot
             .get("accountId")
             .and_then(serde_json::Value::as_str)
             .unwrap_or("default");
-        let Some(usage_percent) = snapshot.get("value").and_then(serde_json::Value::as_f64) else {
-            continue;
-        };
+        let usage_percent = (!account_balance)
+            .then(|| snapshot.get("value").and_then(serde_json::Value::as_f64))
+            .flatten();
         if !valid_code(provider, 32)
             || !valid_code(window, 48)
             || matches!(window, "ACQUISITION" | "API_BUDGET_PERCENT")
             || provider == "MOONSHOT"
             || !valid_account(account_id)
-            || !usage_percent.is_finite()
-            || !(0.0..=100.0).contains(&usage_percent)
+            || (!account_balance
+                && !usage_percent.is_some_and(|value| value.is_finite() && (0.0..=100.0).contains(&value)))
         {
+            continue;
+        }
+        let balance_money = if account_balance {
+            let used = snapshot.get("usedAmount").and_then(serde_json::Value::as_f64);
+            let limit = snapshot.get("limitAmount").and_then(serde_json::Value::as_f64);
+            let currency = snapshot.get("currency").and_then(serde_json::Value::as_str);
+            match (used, limit, currency) {
+                (Some(used), Some(limit), Some(currency @ ("USD" | "CNY")))
+                    if used.is_finite() && limit.is_finite() && used >= 0.0 && limit >= 0.0
+                        && used <= 1_000_000.0 && limit <= 1_000_000.0 => {
+                    let amount = ((limit - used).max(0.0) * 1_000_000_000_000.0).round()
+                        / 1_000_000_000_000.0;
+                    Some((amount, currency.to_string()))
+                }
+                _ => None,
+            }
+        } else {
+            None
+        };
+        if account_balance && balance_money.is_none() {
             continue;
         }
         let reset_at = match snapshot.get("resetAt") {
@@ -923,10 +953,12 @@ fn usage_samples_from_cache(
             provider: provider.to_string(),
             meter: window.to_string(),
             window_id: window.to_string(),
-            usage_percent: Some(usage_percent),
+            usage_percent,
             reset_at,
             observed_at,
             stale,
+            amount: balance_money.as_ref().map(|(amount, _)| *amount),
+            currency: balance_money.as_ref().map(|(_, currency)| currency.clone()),
         };
         let key = (
             provider.to_string(),
@@ -2130,6 +2162,8 @@ mod tests {
                     reset_at: Some("2026-09-07T14:00:00.000Z".to_string()),
                     observed_at: "2026-09-07T11:59:30.000Z".to_string(),
                     stale: false,
+                    amount: None,
+                    currency: None,
                 },
                 UsageSample {
                     account_id: "claude-personal".to_string(),
@@ -2140,6 +2174,8 @@ mod tests {
                     reset_at: Some("2026-09-11T09:00:00.000Z".to_string()),
                     observed_at: "2026-09-07T11:59:30.000Z".to_string(),
                     stale: false,
+                    amount: None,
+                    currency: None,
                 },
                 UsageSample {
                     account_id: "codex-personal".to_string(),
@@ -2150,6 +2186,8 @@ mod tests {
                     reset_at: Some("2026-09-12T03:00:00.000Z".to_string()),
                     observed_at: "2026-09-07T11:58:00.000Z".to_string(),
                     stale: true,
+                    amount: None,
+                    currency: None,
                 },
             ],
             vec![ApiSpendSample {
@@ -2664,6 +2702,38 @@ mod tests {
     }
 
     #[test]
+    fn openrouter_sync_retires_ambiguous_credits_and_preserves_account_balance_money() {
+        let now = time::OffsetDateTime::parse(
+            "2026-09-07T12:00:00Z",
+            &time::format_description::well_known::Rfc3339,
+        )
+        .expect("a clock");
+        let document = serde_json::json!({ "version": 2, "snapshots": [{
+            "provider": "OPENROUTER", "meter": "CREDITS", "unit": "PERCENT", "value": 38.3,
+            "accountId": "openrouter-personal", "resetAt": null,
+            "observedAt": "2026-09-07T11:59:30.000Z", "expiresAt": "2026-09-07T12:14:30.000Z"
+        }, {
+            "provider": "OPENROUTER", "meter": "ACCOUNT_BALANCE", "unit": "PERCENT", "value": 38.3,
+            "usedAmount": 7.66, "limitAmount": 20.0, "currency": "USD", "kind": "money_balance",
+            "accountId": "openrouter-personal", "resetAt": null,
+            "observedAt": "2026-09-07T11:59:30.000Z", "expiresAt": "2026-09-07T12:14:30.000Z"
+        }]});
+        let configured = ["OPENROUTER".to_string()].into_iter().collect::<HashSet<String>>();
+        let rows = usage_samples_from_cache(
+            &document,
+            &configured,
+            "2026-09-07T12:00:00.000Z",
+            now,
+        )
+        .expect("rows");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].meter, "ACCOUNT_BALANCE");
+        assert_eq!(rows[0].usage_percent, None);
+        assert_eq!(rows[0].amount, Some(12.34));
+        assert_eq!(rows[0].currency.as_deref(), Some("USD"));
+    }
+
+    #[test]
     fn the_cache_becomes_contract_rows_and_a_model_scoped_window_keeps_its_own() {
         let now = time::OffsetDateTime::parse(
             "2026-09-07T12:00:00Z",
@@ -2697,7 +2767,7 @@ mod tests {
                 "observedAt": "2026-09-07T11:59:00.000Z", "expiresAt": "2026-09-07T12:14:00.000Z"
             },
             {
-                "provider": "OPENROUTER", "meter": "CREDITS", "unit": "USD", "value": 40.9,
+                "provider": "OPENROUTER", "meter": "ACCOUNT_BALANCE", "unit": "USD", "value": 40.9,
                 "accountId": "openrouter-personal", "resetAt": null,
                 "observedAt": "2026-09-07T11:59:00.000Z", "expiresAt": "2026-09-07T12:14:00.000Z"
             }

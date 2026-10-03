@@ -280,6 +280,30 @@ describe("the read path", () => {
     expect(grouped[0].windows[0].percentage).toBe(0);
   });
 
+  it("keeps a synced OpenRouter balance as money and rejects ambiguous percentage rows", () => {
+    const base = usageRows()[0];
+    const grouped = groupLatestSyncedUsage([
+      { ...base, provider: "OPENROUTER", window_id: "CREDITS", used_percent: 38.3 },
+      { ...base, provider: "OPENROUTER", window_id: "ACCOUNT_BALANCE", used_percent: 38.3 },
+      {
+        ...base,
+        provider: "OPENROUTER",
+        window_id: "ACCOUNT_BALANCE",
+        used_percent: null,
+        amount: 12.34,
+        currency: "USD",
+      },
+    ]);
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0].windows).toEqual([expect.objectContaining({
+      windowName: "ACCOUNT_BALANCE",
+      percentage: null,
+      amount: 12.34,
+      currency: "USD",
+      kind: "money_balance",
+    })]);
+  });
+
   it("keeps the newest reading of a window when a device sent two", () => {
     const [first] = usageRows();
     const older = { ...first, used_percent: 9, observed_at: "2026-09-07T10:00:00.000Z" };

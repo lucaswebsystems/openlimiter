@@ -832,7 +832,11 @@ fn popup_text(provider: &str, threshold: &str) -> (String, String) {
     } else {
         (
             format!("{name} usage"),
-            format!("Usage reached {threshold} percent."),
+            if provider == "KIMI" {
+                format!("{threshold} percent used.")
+            } else {
+                format!("Usage reached {threshold} percent.")
+            },
         )
     }
 }
@@ -847,6 +851,7 @@ mod tests {
         assert_eq!(popup_text("CODEX", "80").0, "Codex usage");
         assert_eq!(popup_text("CLAUDE", "reset").0, "Claude Code reset");
         assert_eq!(popup_text("GROK", "90").0, "Grok (xAI) usage");
+        assert_eq!(popup_text("KIMI", "80").1, "80 percent used.");
         assert_eq!(popup_text("SOMETHING_NEW", "90").0, "A provider usage");
         for (title, body) in [popup_text("CODEX", "80"), popup_text("KIMI", "reset")] {
             assert!(!title.contains("CODEX") && !title.contains("KIMI"));

@@ -6,6 +6,7 @@
  * the script again.
  */
 import type { Snapshot } from "./types";
+import { providerMeterPresentation } from "./provider-presentation";
 
 export const RETENTION_MILLISECONDS = 7 * 86_400_000;
 
@@ -79,12 +80,22 @@ export function projectSnapshots(rows: readonly Snapshot[], now: string, active?
   const snapshots: Snapshot[] = [];
   const flags = new Map<string, ConnectionFlag>();
   for (const row of rows) {
+    const presentation = providerMeterPresentation(row.provider, row.meter);
+    if (presentation?.visible === false) continue;
     const accounts = active?.get(row.provider);
     /* An anonymous status line row cannot be attributed, so it is never shown;
        its fix is a fresh Claude sign in that writes the account down. */
-    const reason = row.availability ?? (accounts !== undefined && (!row.accountId || !accounts.has(row.accountId))
+    const reason = row.availability !== undefined && presentation?.displayAvailability !== true
+      ? row.availability
+      : (accounts !== undefined && (!row.accountId || !accounts.has(row.accountId))
       ? (!row.accountId && claudeStatusline(row) ? "account_unresolved" : "account_not_connected")
-      : heldReason(row, displayReason(row, now), now));
+      : heldReason(
+        row,
+        row.availability !== undefined && presentation?.displayAvailability === true
+          ? null
+          : displayReason(row, now),
+        now,
+      ));
     if (reason === null) snapshots.push({ ...row, expiresAt: freshnessPolicy({ ...row, sourceClass: row.source, now }).expiresAt });
     else flags.set([row.provider, row.accountId, reason].join(":"), {
       provider: row.provider, ...(row.accountId ? { accountId: row.accountId } : {}), reason, fixKind: fixKind(reason)

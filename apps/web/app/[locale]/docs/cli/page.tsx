@@ -120,7 +120,7 @@ Configuration saved. Detected: manual`} />
 PROVIDER METER BAR USAGE AMOUNT STATE RESET IN
 CLAUDE FIVE_HOUR ####...... 42.00PERCENT NONE fresh 2026-08-10T04:00:32.969Z 5h0m
 CLAUDE SEVEN_DAY ######.... 64.00PERCENT NONE fresh 2026-08-16T23:00:32.969Z 7d0h
-OPENROUTER CREDITS ######.... 62.35PERCENT $12.47/$20.00 fresh NONE NONE`}
+OPENROUTER Account balance NONE NONE $7.53 fresh NONE NONE`}
               />
               <P>{t("commands.snapshot.failures")}</P>
 

@@ -109,6 +109,21 @@ describe("Snapshot to wire v3", () => {
     expect(wire.usage_percent).toBeUndefined();
   });
 
+  it("preserves a finite Codex credit balance without inventing currency or percentage", () => {
+    const wire = toWireSampleV3({
+      ...snapshot,
+      provider: "CODEX",
+      meter: "CREDITS",
+      unit: "CREDITS",
+      value: 0.25,
+      window: { kind: "lifetime" },
+    });
+    expect(wire.amount).toBe(0.25);
+    expect(wire).not.toHaveProperty("usage_percent");
+    expect(wire).not.toHaveProperty("currency");
+    expect(readWireSample(wire)).toMatchObject({ amount: 0.25 });
+  });
+
   it("rejects nonpercent snapshots without an explicit representable amount", () => {
     expect(() => toWireSampleV3({ ...snapshot, unit: "TOKENS", kind: "token_count" })).toThrow("unit has no v2 usage representation");
   });

@@ -1,11 +1,13 @@
 import {
   PROVIDER_CODES,
-  antigravityMeterCompactLabel,
   claudeMeterCompactLabel,
   claudeMeterPresentation,
-  claudeMeterRank,
   floorFixed,
   freshness,
+  providerMeterCompactLabel,
+  providerMeterPresentation,
+  providerMeterRank,
+  providerMeterVisible,
   type Advice,
   type ProviderCode,
   type Snapshot,
@@ -121,8 +123,24 @@ function isAvailabilitySnapshot(snapshot: Snapshot): boolean {
   return snapshot.availability !== undefined || snapshot.meter.toUpperCase() === "ACQUISITION";
 }
 
+function isOpenRouterAccountBalance(snapshot: Snapshot): boolean {
+  return snapshot.provider === "OPENROUTER" &&
+    (snapshot.meter === "ACCOUNT_BALANCE" || snapshot.meter === "CREDITS");
+}
+
+function isBalanceSnapshot(snapshot: Snapshot): boolean {
+  return isOpenRouterAccountBalance(snapshot) ||
+    providerMeterPresentation(snapshot.provider, snapshot.meter)?.valueSemantics === "balance";
+}
+
 function availabilityText(snapshot: Snapshot, now: string): string {
   if (snapshot.availability === undefined) return "not measured";
+  if (snapshot.provider === "OPENROUTER" && snapshot.meter === "KEY_LIMIT" &&
+      snapshot.availability === "unlimited") return "No key cap";
+  if (snapshot.provider === "OPENROUTER" && snapshot.meter === "ACCOUNT_BALANCE" &&
+      snapshot.availability === "missing_credentials") return "unavailable";
+  if (snapshot.provider === "CODEX" && snapshot.meter === "CREDITS" &&
+      snapshot.availability === "unlimited") return "unlimited credits";
   if (snapshot.availability === "rate_limited" && snapshot.retryAt !== undefined) {
     const retryAt = Date.parse(snapshot.retryAt);
     const nowAt = Date.parse(now);
@@ -203,15 +221,40 @@ function buildCell(
   snapshot: Snapshot,
   state: "fresh" | "stale",
   color: boolean,
-  wide?: boolean
+  wide?: boolean,
+  bars = true
 ): StatuslineCell {
   const percent = floorFixed(snapshot.value, 1) + "%";
+  if (!bars) {
+    const text = label + " " + percent;
+    return { plain: text, painted: text, percent: snapshot.value };
+  }
   const bar = meterBar(snapshot.value, state, false, STATUSLINE_BAR_SEGMENTS, wide);
   return {
     plain: label + " " + bar + " " + percent,
     painted: label + " " + (color ? paintBand(bar, snapshot.value, state) + " " + paintBand(percent, snapshot.value, state) : bar + " " + percent),
     percent: snapshot.value
   };
+}
+
+function balanceCell(label: string, snapshot: Snapshot, stale: boolean): StatuslineCell {
+  let value: string;
+  if (
+    snapshot.currency === "USD" &&
+    snapshot.usedAmount !== undefined &&
+    snapshot.limitAmount !== undefined
+  ) {
+    value = "$" + Math.max(0, snapshot.limitAmount - snapshot.usedAmount).toFixed(2);
+  } else if (isOpenRouterAccountBalance(snapshot) && snapshot.unit === "CREDITS") {
+    // The current balance identity can carry a direct credit amount, as the
+    // capture fixture does. Version 3 also retires the ambiguous legacy name,
+    // but an already loaded balance keeps the same terminal meaning.
+    value = "$" + snapshot.value.toFixed(2);
+  } else {
+    value = floorFixed(snapshot.value, 2) + " credits";
+  }
+  const text = label + " " + (stale ? "~" : "") + value;
+  return { plain: text, painted: text, percent: Number.NEGATIVE_INFINITY };
 }
 
 interface Reading {
@@ -224,7 +267,8 @@ function readingsFor(
   provider: ProviderCode,
   now: string
 ): Reading[] {
-  const providerRows = snapshots.filter((snapshot) => snapshot.provider === provider);
+  const providerRows = snapshots.filter((snapshot) =>
+    snapshot.provider === provider && providerMeterVisible(snapshot.provider, snapshot.meter));
   const latestAccount = new Map<string | undefined, number>();
   for (const snapshot of providerRows) {
     const observed = Date.parse(snapshot.observedAt);
@@ -234,7 +278,9 @@ function readingsFor(
   }
   // Dormant accounts remain in the cache, but cannot displace an active account.
   const readings = providerRows
-    .filter((snapshot) => (snapshot.unit === "PERCENT" || snapshot.provider === "OPENROUTER" && snapshot.unit === "CREDITS" || isAvailabilitySnapshot(snapshot)) &&
+    .filter((snapshot) => (snapshot.unit === "PERCENT" ||
+      isBalanceSnapshot(snapshot) ||
+      isAvailabilitySnapshot(snapshot)) &&
       Date.parse(now) - (latestAccount.get(snapshot.accountId) ?? 0) <= ONE_DAY * 1000)
     .map((snapshot) => ({
       snapshot,
@@ -242,28 +288,61 @@ function readingsFor(
     }))
     .filter((reading): reading is Reading => reading.state !== "unknown")
     .sort((left, right) => {
-      if (provider === "CLAUDE") {
-        const rank = (claudeMeterRank(left.snapshot.meter) ?? 90) -
-          (claudeMeterRank(right.snapshot.meter) ?? 90);
-        if (rank !== 0) return rank;
-      }
+      const presentationRank = (providerMeterRank(provider, left.snapshot.meter) ?? 90) -
+        (providerMeterRank(provider, right.snapshot.meter) ?? 90);
+      if (presentationRank !== 0) return presentationRank;
       const rank = METER_CLASS_RANK[meterClass(left.snapshot)] -
         METER_CLASS_RANK[meterClass(right.snapshot)];
       if (rank !== 0) return rank;
       return left.snapshot.meter < right.snapshot.meter ? -1 : 1;
     });
+  const balanceRows = provider === "OPENROUTER"
+    ? readings.filter(({ snapshot }) => isOpenRouterAccountBalance(snapshot))
+    : [];
+  const measuredBalances = balanceRows.filter(({ snapshot }) => !isAvailabilitySnapshot(snapshot));
+  const newestBalance = provider === "OPENROUTER"
+    ? (measuredBalances.length > 0 ? measuredBalances : balanceRows).reduce<Reading | undefined>(
+      (newest, reading) => newest === undefined ||
+        Date.parse(reading.snapshot.observedAt) > Date.parse(newest.snapshot.observedAt) ? reading : newest,
+      undefined,
+    )
+    : undefined;
+  const selectedReadings = newestBalance === undefined
+    ? readings
+    : readings.filter(({ snapshot }) => !isOpenRouterAccountBalance(snapshot) || snapshot === newestBalance.snapshot);
   const measuredAccounts = new Set(
-    readings
+    selectedReadings
       .filter((reading) => !isAvailabilitySnapshot(reading.snapshot))
       .map((reading) => reading.snapshot.accountId)
   );
   // Only measured readings are drawn: a provider that cannot be measured right
   // now is left out of the line entirely, exactly as it is left off Home.
   // Unlimited is an answer, not a failure, so it stays.
-  return readings.filter((reading) =>
+  return selectedReadings.filter((reading) =>
     !isAvailabilitySnapshot(reading.snapshot) ||
+    providerMeterPresentation(reading.snapshot.provider, reading.snapshot.meter)?.displayAvailability === true ||
     reading.snapshot.availability === "unlimited" && !measuredAccounts.has(reading.snapshot.accountId)
   );
+}
+
+function tightest(readings: readonly Reading[]): Reading | undefined {
+  let worst = readings[0];
+  for (const reading of readings.slice(1)) {
+    if (worst === undefined || reading.snapshot.value > worst.snapshot.value) worst = reading;
+  }
+  return worst;
+}
+
+function worstReadings(provider: ProviderCode, readings: readonly Reading[]): Reading[] {
+  if (provider === "OPENROUTER") {
+    const keyRows = readings.filter(({ snapshot }) => snapshot.meter === "KEY_LIMIT");
+    const balanceRows = readings.filter(({ snapshot }) => snapshot.meter === "ACCOUNT_BALANCE");
+    return [tightest(keyRows), tightest(balanceRows)].filter((row): row is Reading => row !== undefined);
+  }
+  const percentages = readings.filter(({ snapshot }) =>
+    !isAvailabilitySnapshot(snapshot) && !isBalanceSnapshot(snapshot));
+  return [tightest(percentages.length > 0 ? percentages : readings)]
+    .filter((row): row is Reading => row !== undefined);
 }
 
 /**
@@ -286,42 +365,74 @@ export function statuslineCells(
   order: readonly ProviderCode[],
   meters: StatuslineConfig["meters"],
   color: boolean,
-  wide?: boolean
+  wide?: boolean,
+  bars = true
 ): readonly StatuslineCell[] {
   const cells: StatuslineCell[] = [];
   for (const provider of order) {
-    const readings = readingsFor(snapshots.filter((snapshot) => snapshot.unit === "PERCENT" || isAvailabilitySnapshot(snapshot)), provider, now);
+    const readings = readingsFor(snapshots, provider, now);
     if (readings.length === 0) continue;
     if (meters === "all") {
       for (const reading of readings) {
         if (isAvailabilitySnapshot(reading.snapshot)) {
-          cells.push(availabilityCell(provider, reading.snapshot, now));
+          const scope = providerMeterCompactLabel(provider, reading.snapshot.meter);
+          cells.push(availabilityCell(provider + (scope === null ? "" : ":" + scope), reading.snapshot, now));
           continue;
         }
-        const meterTag = provider === "CLAUDE"
-          ? claudeMeterCompactLabel(reading.snapshot.meter) ?? reading.snapshot.meter
-          : reading.snapshot.meter;
+        const meterTag = providerMeterCompactLabel(provider, reading.snapshot.meter) ?? reading.snapshot.meter;
+        if (providerMeterPresentation(provider, reading.snapshot.meter)?.valueSemantics === "balance") {
+          cells.push(balanceCell(provider + ":" + meterTag, reading.snapshot, reading.state === "stale"));
+          continue;
+        }
         cells.push(buildCell(
           provider + ":" + meterTag,
           reading.snapshot,
           reading.state,
           color,
-          wide
+          wide,
+          bars
         ));
       }
       continue;
     }
-    let worst = readings[0]!;
-    for (const reading of readings.slice(1)) {
-      if (reading.snapshot.value > worst.snapshot.value) worst = reading;
+    for (const worst of worstReadings(provider, readings)) {
+      const scope = providerMeterCompactLabel(provider, worst.snapshot.meter);
+      const directional = (provider === "KIMI" || provider === "OPENCODE" ||
+        provider === "OPENROUTER" && !bars) && scope !== null;
+      const label = directional ? provider + ":" + scope : provider;
+      if (isAvailabilitySnapshot(worst.snapshot)) {
+        cells.push(availabilityCell(provider + (scope === null ? "" : ":" + scope), worst.snapshot, now));
+        continue;
+      }
+      if (providerMeterPresentation(provider, worst.snapshot.meter)?.valueSemantics === "balance") {
+        cells.push(balanceCell(label, worst.snapshot, worst.state === "stale"));
+        continue;
+      }
+      cells.push(buildCell(label, worst.snapshot, worst.state, color, wide, bars));
     }
-    if (isAvailabilitySnapshot(worst.snapshot)) {
-      cells.push(availabilityCell(provider, worst.snapshot, now));
-      continue;
-    }
-    cells.push(buildCell(provider, worst.snapshot, worst.state, color, wide));
   }
   return cells;
+}
+
+/** The compact one line style, with the same meter meanings as the bar style. */
+export function renderPlainStatusline(
+  advice: Advice,
+  snapshots: readonly Snapshot[],
+  now: string,
+  order: readonly ProviderCode[],
+  meters: StatuslineConfig["meters"],
+): string {
+  if (!advice.inject || advice.reason === "UNKNOWN") return "OpenLimiter UNKNOWN";
+  const cells = statuslineCells(snapshots, now, order, meters, false, undefined, false);
+  if (cells.length === 0) return "OpenLimiter UNKNOWN";
+  const recommendation = advice.recommendation.code === "PREFER"
+    ? " PREFER " + advice.recommendation.provider
+    : " NONE";
+  const unknown = advice.unknownProviders.length === 0
+    ? ""
+    : " UNKNOWN " + advice.unknownProviders.join(",");
+  return "OpenLimiter " + advice.reason + " " + cells.map((cell) => cell.plain).join(" ") +
+    recommendation + unknown;
 }
 
 /* ------------------------------------------------------------------ layout */
@@ -466,14 +577,8 @@ export const TEN_BLOCK_FULL = "█";
 export const TEN_BLOCK_EMPTY = "░";
 
 export function windowCode(snapshot: Snapshot): string {
-  if (snapshot.provider === "CLAUDE") {
-    const claude = claudeMeterCompactLabel(snapshot.meter);
-    if (claude !== null) return claude;
-  }
-  if (snapshot.provider === "ANTIGRAVITY") {
-    const antigravity = antigravityMeterCompactLabel(snapshot.meter);
-    if (antigravity !== null) return antigravity;
-  }
+  const providerLabel = providerMeterCompactLabel(snapshot.provider, snapshot.meter);
+  if (providerLabel !== null) return providerLabel;
   if (snapshot.unit === "CREDITS" || snapshot.window.kind === "lifetime") {
     return "";
   }
@@ -491,6 +596,13 @@ export function windowCode(snapshot: Snapshot): string {
   if (meterName === "WEEKLY" || meterName === "SEVEN_DAY") return "7d";
   if (meterName === "MONTHLY" || meterName === "MONTH") return "mo";
   return "";
+}
+
+function scopedProviderTag(providerTag: string, shortTag: string, snapshot: Snapshot): string {
+  const base = providerTag || shortTag;
+  if (isOpenRouterAccountBalance(snapshot)) return base;
+  const scope = providerMeterCompactLabel(snapshot.provider, snapshot.meter);
+  return scope === null || scope === "" ? base : base + " " + scope;
 }
 
 function visibilityKey(snapshot: Snapshot): string {
@@ -588,25 +700,12 @@ export function barStyleCells(
     if (readings.length === 0) continue;
 
     let selectedReadings: Reading[] = [];
-    if (provider === "OPENROUTER") {
-      // Account caches may overlap. The newest observed balance owns the one
-      // OpenRouter cell, and api spend remains the fallback when none exists.
-      const balances = readings.filter(({ snapshot }) => snapshot.unit === "CREDITS" ||
-        snapshot.currency === "USD" && snapshot.limitAmount !== undefined && snapshot.usedAmount !== undefined);
-      if (balances.length > 0) {
-        selectedReadings = [balances.reduce((newest, reading) =>
-          Date.parse(reading.snapshot.observedAt) > Date.parse(newest.snapshot.observedAt) ? reading : newest)];
-      }
-    } else if (provider === hostProvider) {
+    if (provider === hostProvider) {
       selectedReadings = readings;
     } else if (metersSetting === "all") {
       selectedReadings = readings;
     } else {
-      let worst = readings[0]!;
-      for (const r of readings.slice(1)) {
-        if (r.snapshot.value > worst.snapshot.value) worst = r;
-      }
-      selectedReadings = [worst];
+      selectedReadings = worstReadings(provider, readings);
     }
 
     for (const reading of selectedReadings) {
@@ -616,7 +715,9 @@ export function barStyleCells(
       const stale = state === "stale" || ageSeconds >= 180 || snapshot.precision === "estimated";
 
       if (isAvailabilitySnapshot(snapshot)) {
-        const tag = providerTag || shortTag;
+        const baseTag = providerTag || shortTag;
+        const scope = providerMeterCompactLabel(snapshot.provider, snapshot.meter);
+        const tag = scope === null || scope === "" ? baseTag : baseTag + " " + scope;
         const plain = tag + " " + availabilityText(snapshot, now);
         const chosen = visibility[provider.toLowerCase()] === true ||
           allowedProviders?.has(provider.toLowerCase()) || allowedProviders?.has(shortTag);
@@ -626,12 +727,18 @@ export function barStyleCells(
         continue;
       }
 
-      if (provider === "OPENROUTER" && (snapshot.unit === "CREDITS" ||
-          snapshot.currency === "USD" && snapshot.limitAmount !== undefined && snapshot.usedAmount !== undefined)) {
-        const balance = snapshot.unit === "CREDITS" ? snapshot.value : snapshot.limitAmount! - snapshot.usedAmount!;
-        const amount = (stale ? "~" : "") + "$" + balance.toFixed(2);
-        const band = balance < 1 ? 95 : balance < 5 ? 65 : 0;
-        cells.push({ plain: "or " + amount, painted: "or " + (color ? paintBand(amount, band, "fresh") : amount), percent: band });
+      if (isBalanceSnapshot(snapshot)) {
+        cells.push(balanceCell(scopedProviderTag(providerTag, shortTag, snapshot), snapshot, stale));
+        continue;
+      }
+
+      if (provider === "OPENROUTER" && snapshot.meter === "KEY_LIMIT" &&
+          snapshot.usedAmount !== undefined && snapshot.limitAmount !== undefined &&
+          snapshot.currency === "USD") {
+        const amount = (stale ? "~" : "") + "$" + snapshot.usedAmount.toFixed(2) +
+          "/$" + snapshot.limitAmount.toFixed(2);
+        const plain = scopedProviderTag(providerTag, shortTag, snapshot) + " " + amount;
+        cells.push({ plain, painted: plain, percent: snapshot.value });
         continue;
       }
 
@@ -654,7 +761,10 @@ export function barStyleCells(
       }
 
       const winTag = windowCode(snapshot);
-      const combinedTag = providerTag + winTag;
+      const hasProviderCaption = providerMeterCompactLabel(snapshot.provider, snapshot.meter) !== null;
+      const combinedTag = providerTag !== "" && winTag !== ""
+        ? providerTag + (hasProviderCaption ? " " : "") + winTag
+        : providerTag + winTag;
       const tag = combinedTag === "" ? shortTag : combinedTag;
 
       const bar = tenBlockBar(snapshot.value, unicode);
@@ -705,7 +815,6 @@ function renderBarStatusline(input: StatuslineLayoutInput): string {
   const listed = new Set(config.show.map((entry) => entry.toLowerCase()));
   const apiMoney = moneyCells(input.apiSpend, {
     now: input.now,
-    hasOpenRouter: cells.some((cell) => cell.plain.startsWith("or ")),
     allowed: (name) => {
       const tag = name === "openrouter" ? "or" : MONEY_TAGS[name];
       return config.visibility?.[name] ??

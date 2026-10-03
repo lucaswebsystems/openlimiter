@@ -60,7 +60,7 @@ function fullDocument() {
 
 describe("api money cells in the bar status line", () => {
   it("draws one plain cell per source, in source order", () => {
-    expect(render(fullDocument())).toBe("oa $12.34 | an $85.00 | ms $3.00 | ds $0.80 | ds CNY | or $7.50 spent");
+    expect(render(fullDocument())).toBe("oa $12.34 | an $85.00 | ms $3.00 | ds $0.80 | ds CNY");
   });
 
   it("uses Moonshot available balance even when a spend field is present", () => {
@@ -103,14 +103,14 @@ describe("api money cells in the bar status line", () => {
     expect(line).not.toContain("spent");
   });
 
-  it("draws one or cell for several OpenRouter sources, the newest current period one", () => {
+  it("never relabels OpenRouter monthly spend as the account balance", () => {
     const doc = document([
       [source("openrouter"), { spendUsd: "9", month: "2026-08-01" }],
       [source("openrouter"), { spendUsd: "2", observedAt: "2026-09-07T12:24:00Z" }],
       [source("openai"), { spendUsd: "3" }],
       [source("openrouter"), { spendUsd: "1", observedAt: "2026-09-07T12:20:00Z" }]
     ]);
-    expect(render(doc)).toBe("or $2.00 spent | oa $3.00");
+    expect(render(doc)).toBe("oa $3.00");
   });
 
   it("lets the cache or cell win over several OpenRouter sources", () => {
@@ -177,7 +177,7 @@ describe("api money cells in the bar status line", () => {
     expect(render(await fixture("api-spend-v1-2.0.2.json"))).toContain("xa ");
     const replaced = render(await fixture("api-spend-v1-replaced-key.json"));
     expect(replaced).not.toContain("xa ");
-    expect(replaced).toContain("or ");
+    expect(replaced).not.toContain("or ");
   });
 
   it("renders nothing, with no error, for a non USD amount", () => {

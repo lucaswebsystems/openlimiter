@@ -95,6 +95,19 @@ fn claude_statusline(row: &Snapshot) -> bool {
         && provenance("observedVia") == Some("claude_code_statusline")
 }
 
+fn hidden_legacy_meter(row: &Snapshot) -> bool {
+    row.provider == "CURSOR" && ["AUTO", "API", "INCLUDED"].contains(&row.meter.as_str())
+}
+
+fn display_availability(row: &Snapshot) -> bool {
+    matches!(
+        (row.provider.as_str(), row.meter.as_str()),
+        ("OPENROUTER", "KEY_LIMIT")
+            | ("OPENROUTER", "ACCOUNT_BALANCE")
+            | ("CODEX", "CREDITS")
+    )
+}
+
 /// Freshness is not visibility, for Claude status line rows only.
 ///
 /// Claude Code writes them only while it runs, so an idle session would lose
@@ -177,9 +190,12 @@ pub fn project(
     let mut snapshots = Vec::new();
     let mut flags = BTreeMap::new();
     for mut row in rows {
+        if hidden_legacy_meter(&row) {
+            continue;
+        }
         let rejected = if disabled.contains(&row.provider) {
             Some("disabled")
-        } else if row.availability.is_some() {
+        } else if row.availability.is_some() && !display_availability(&row) {
             row.availability.as_deref()
         } else if active.get(&row.provider).is_some_and(|accounts| {
             row.account_id
@@ -193,6 +209,8 @@ pub fn project(
             } else {
                 Some("account_not_connected")
             }
+        } else if row.availability.is_some() && display_availability(&row) {
+            None
         } else {
             held_reason(&row, reason(&row, now), now)
         };
@@ -538,6 +556,28 @@ mod tests {
         assert_eq!(projection.snapshots.len(), 2);
         assert_eq!(projection.flags.len(), 1);
         assert_eq!(projection.flags[0].reason, "account_unresolved");
+    }
+
+    #[test]
+    fn legacy_cursor_bars_are_hidden_and_openrouter_scope_states_are_visible() {
+        let now =
+            crate::native_time::epoch_ms_from_rfc3339("2026-09-29T12:00:00.000Z").unwrap() as i64;
+        let cursor = ["AUTO", "API", "INCLUDED"].map(|meter| {
+            let mut row = statusline(None);
+            row.provider = "CURSOR".into();
+            row.meter = meter.into();
+            row
+        });
+        let hidden = project(cursor.into(), now, &BTreeMap::new(), &BTreeSet::new());
+        assert!(hidden.snapshots.is_empty() && hidden.flags.is_empty());
+
+        let mut balance = statusline(None);
+        balance.provider = "OPENROUTER".into();
+        balance.meter = "ACCOUNT_BALANCE".into();
+        balance.availability = Some("missing_credentials".into());
+        let visible = project(vec![balance], now, &BTreeMap::new(), &BTreeSet::new());
+        assert_eq!(visible.snapshots.len(), 1);
+        assert_eq!(visible.snapshots[0].availability.as_deref(), Some("missing_credentials"));
     }
 
     #[test]

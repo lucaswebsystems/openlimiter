@@ -21,7 +21,7 @@ import {
 } from "./engine/core/index.js";
 import { parseManualPayload } from "./engine/connectors/manual.js";
 import { bandForPercent, bandIconSvg, closestToLimit, providerMarkMarkup, windowRank } from "./engine/ui/provider-row.js";
-import { duration, meterLabel, meterRank, providerCode, providerName, say, updatedLabel } from "./names.js";
+import { duration, meterLabel, meterPresentation, meterRank, providerCode, providerName, say, updatedLabel } from "./names.js";
 
 export { updatedLabel };
 
@@ -126,20 +126,48 @@ export function timeLeft(resetAt, now) {
 }
 
 function windowView(row, now) {
+  const presentation = meterPresentation(row.meter, row.provider);
+  if (row.availability && presentation?.displayAvailability) {
+    const noCap = row.availability === "unlimited" && row.meter === "KEY_LIMIT";
+    const unlimitedCredits = row.provider === "CODEX" && row.meter === "CREDITS" && row.availability === "unlimited";
+    return {
+      key: row.meter,
+      label: meterLabel(row.meter, row.provider),
+      usedPercent: null,
+      observedAt: row.observedAt,
+      band: "none",
+      value: say(noCap ? "noKeyCap" : unlimitedCredits ? "unlimitedCredits" : "unavailableScope"),
+      limit: say(noCap ? "keyNoSpendingCap" : unlimitedCredits
+        ? "creditBalanceLimitNotReported"
+        : "managementKeyRequired"),
+      unbounded: true,
+      neutral: true,
+      reset: null,
+    };
+  }
   const hasMoney = Number.isFinite(row.usedAmount) && Number.isFinite(row.limitAmount) && typeof row.currency === "string";
-  const unbounded = row.unit === "CREDITS" && !hasMoney;
+  const balance = presentation?.valueSemantics === "balance";
+  const unbounded = row.unit === "CREDITS" && !hasMoney && !balance;
   const usedPercent = unbounded ? null : Math.min(100, Math.max(0, row.value));
   const stale = freshness(row.observedAt, row.expiresAt, now) !== "fresh";
   return {
     key: row.meter,
     label: meterLabel(row.meter, row.provider),
-    usedPercent,
+    usedPercent: balance ? null : usedPercent,
     observedAt: row.observedAt,
-    band: stale ? "stale" : usedPercent === null ? "none" : bandForPercent(usedPercent),
-    value: hasMoney ? money(row.usedAmount, row.currency)
-      : unbounded ? String(Math.floor(row.value * 100) / 100) : `${Math.floor(usedPercent)}%`,
-    limit: hasMoney ? money(row.limitAmount, row.currency) : null,
+    band: stale ? "stale" : balance || usedPercent === null ? "none" : bandForPercent(usedPercent),
+    value: balance && hasMoney ? money(Math.max(0, row.limitAmount - row.usedAmount), row.currency)
+      : balance ? say("creditsBalance", { value: String(Math.floor(row.value * 100) / 100) })
+      : hasMoney ? money(row.usedAmount, row.currency)
+      : unbounded ? String(Math.floor(row.value * 100) / 100)
+      : `${Math.floor(usedPercent)}%`,
+    limit: balance && hasMoney ? say("accountBalanceDetail", {
+      purchased: money(row.limitAmount, row.currency),
+      used: money(row.usedAmount, row.currency),
+    })
+      : hasMoney ? money(row.limitAmount, row.currency) : null,
     unbounded,
+    neutral: balance,
     reset: timeLeft(row.resetAt, now),
   };
 }
@@ -157,7 +185,7 @@ function tightestFirst(windows) {
 }
 
 function orderedWindows(provider, windows) {
-  if (provider !== "CLAUDE") return tightestFirst(windows);
+  if (provider !== "CLAUDE" && provider !== "KIMI") return tightestFirst(windows);
   return [...windows].sort((left, right) =>
     (meterRank(left.key, provider) ?? 90) - (meterRank(right.key, provider) ?? 90) ||
     left.key.localeCompare(right.key));
@@ -247,19 +275,24 @@ function limitRow(doc, window, compact) {
   const row = node(doc, "div", "q-row");
   row.dataset.band = window.band;
   const bar = node(doc, "span", "q-bar");
-  bar.setAttribute("role", "progressbar");
+  bar.setAttribute("role", window.neutral ? "status" : "progressbar");
   bar.setAttribute("aria-label", window.label);
-  bar.setAttribute("aria-valuemin", "0");
-  bar.setAttribute("aria-valuemax", "100");
+  if (!window.neutral) bar.setAttribute("aria-valuemin", "0");
+  if (!window.neutral) bar.setAttribute("aria-valuemax", "100");
   if (window.usedPercent !== null) bar.setAttribute("aria-valuenow", String(Math.floor(window.usedPercent)));
-  bar.setAttribute("aria-valuetext", window.unbounded ? `${window.value} ${say("creditsSpent")}` : say("usedValue", { value: window.value }));
+  bar.setAttribute("aria-valuetext", window.neutral
+    ? [window.value, window.limit].filter(Boolean).join(", ")
+    : window.unbounded ? `${window.value} ${say("creditsSpent")}` : say("usedValue", { value: window.value }));
   const fill = node(doc, "i");
   fill.style?.setProperty("width", `${window.usedPercent ?? 0}%`);
   bar.append(fill);
   const value = node(doc, "span", "q-val");
   if (["yellow", "orange", "red"].includes(window.band)) value.append(art(doc, "q-shape", bandIconSvg(window.band)));
-  value.append(node(doc, "span", "", compact || window.unbounded ? window.value : say("usedValue", { value: window.value })));
-  const reset = window.limit !== null ? say("moneyOf", { amount: window.limit })
+  value.append(node(doc, "span", "", compact || window.unbounded || window.neutral
+    ? window.value
+    : say("usedValue", { value: window.value })));
+  const reset = window.neutral ? window.limit ?? ""
+    : window.limit !== null ? say("moneyOf", { amount: window.limit })
     : window.unbounded ? say("creditsSpent")
     : window.reset === null ? ""
     : window.reset === "" ? say(compact ? "now" : "resettingNow")

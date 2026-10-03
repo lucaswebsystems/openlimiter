@@ -1,12 +1,11 @@
 import {
-  antigravityMeterLabel,
-  antigravityMeterRank,
-  claudeMeterLabel,
-  claudeMeterRank,
   dedupeFailures,
   failureSentence,
   floorFixed,
   freshness,
+  providerMeterLabel as sharedProviderMeterLabel,
+  providerMeterPresentation,
+  providerMeterRank,
   type ProviderCode,
   type ProviderFailure,
   type Snapshot,
@@ -27,7 +26,7 @@ export interface ProviderWindowView {
   state: SnapshotState;
   stateLabel: string;
   tone: HeadroomTone;
-  metricKind: "percent" | "bounded_spend" | "unbounded_spend";
+  metricKind: "percent" | "bounded_spend" | "unbounded_spend" | "balance" | "availability";
   usedPercent: number | null;
   readout: string;
   detail: string;
@@ -60,6 +59,13 @@ export interface ProviderRowOptions {
   accountLabel?: (accountId: string | null, count: number) => string;
   updatedLabel?: (observedAt: string) => string | null;
   meterLabel?: (code: string, provider: ProviderCode) => string | undefined;
+  presentationText?: (
+    key: "noKeyCap" | "keyNoSpendingCap" | "unavailableScope" |
+      "managementKeyRequired" | "creditsBalance" | "accountBalanceDetail" |
+      "balance" | "percentUsed" | "unlimitedCredits" |
+      "creditBalanceLimitNotReported",
+    values?: Record<string, string>,
+  ) => string;
 }
 
 const PROVIDER_NAMES: Record<ProviderCode, string> = {
@@ -291,17 +297,8 @@ function modelWeeklyName(code: string): string | null {
 }
 
 export function providerMeterLabel(code: string, provider: ProviderCode): string {
-  if (provider === "CLAUDE") {
-    const claude = claudeMeterLabel(code);
-    if (claude !== null) return claude;
-  }
-  if (provider === "ANTIGRAVITY") {
-    const antigravity = antigravityMeterLabel(code);
-    if (antigravity !== null) return antigravity;
-  }
-  if (provider === "OPENROUTER" && (code === "CREDITS" || code === "BALANCE")) {
-    return "Credit spend";
-  }
+  const providerLabel = sharedProviderMeterLabel(provider, code);
+  if (providerLabel !== null) return providerLabel;
   const known = WINDOW_NAMES[code];
   if (known !== undefined) return known;
   const modelWeekly = modelWeeklyName(code);
@@ -330,8 +327,10 @@ export function providerMeterLabel(code: string, provider: ProviderCode): string
 }
 
 export function windowRank(code: string, provider?: ProviderCode): number {
-  if (provider === "CLAUDE") return claudeMeterRank(code) ?? 90;
-  if (provider === "ANTIGRAVITY") return antigravityMeterRank(code) ?? 90;
+  if (provider !== undefined) {
+    const providerRank = providerMeterRank(provider, code);
+    if (providerRank !== null) return providerRank;
+  }
   const known = WINDOW_RANK[code];
   if (known !== undefined) return known;
   return code.startsWith(MODEL_WEEKLY_PREFIX) ? MODEL_WEEKLY_RANK : 90;
@@ -396,10 +395,40 @@ function toWindowView(
   now: string,
   updatedLabel: ProviderRowOptions["updatedLabel"],
   meterLabel: ProviderRowOptions["meterLabel"],
+  presentationText: ProviderRowOptions["presentationText"],
 ): ProviderWindowView {
   const state = freshness(snapshot.observedAt, snapshot.expiresAt, now);
+  const presentation = providerMeterPresentation(snapshot.provider, snapshot.meter);
   const label = meterLabel?.(snapshot.meter, snapshot.provider) ??
-    providerMeterLabel(snapshot.meter, snapshot.provider);
+    providerMeterLabel(snapshot.meter, snapshot.provider) ?? snapshot.meter;
+  if (snapshot.availability !== undefined && presentation?.displayAvailability === true) {
+    const noCap = snapshot.availability === "unlimited" && snapshot.meter === "KEY_LIMIT";
+    const unlimitedCredits = snapshot.provider === "CODEX" && snapshot.meter === "CREDITS" &&
+      snapshot.availability === "unlimited";
+    const readoutKey = noCap ? "noKeyCap" : unlimitedCredits ? "unlimitedCredits" : "unavailableScope";
+    const detailKey = noCap ? "keyNoSpendingCap" : unlimitedCredits
+      ? "creditBalanceLimitNotReported"
+      : "managementKeyRequired";
+    const readout = presentationText?.(readoutKey) ??
+      (noCap ? "No key cap" : unlimitedCredits ? "Unlimited credits" : "Unavailable");
+    return {
+      key: snapshot.meter,
+      label,
+      state,
+      stateLabel: STATE_LABELS[state],
+      tone: "none",
+      metricKind: "availability",
+      usedPercent: null,
+      readout,
+      detail: presentationText?.(detailKey) ??
+        (noCap ? "This key has no spending cap" : unlimitedCredits
+          ? "No credit balance limit was reported"
+          : "A management key is required"),
+      resetLabel: null,
+      accessibleLabel: label + ", " + readout.toLowerCase(),
+      updatedLabel: updatedLabel?.(snapshot.observedAt) ?? null,
+    };
+  }
   const usedPercent = state === "unknown" ? null : clampPercent(snapshot.value);
   const tone = usedPercent === null ? "none" : headroomTone(usedPercent);
   const resetLabel =
@@ -428,18 +457,42 @@ function toWindowView(
     snapshot.usedAmount !== undefined &&
     snapshot.limitAmount !== undefined &&
     snapshot.currency !== undefined;
-  const unboundedSpend = snapshot.unit === "CREDITS" && !hasMoney;
-  const metricKind = hasMoney
+  const balance = presentation?.valueSemantics === "balance";
+  const unboundedSpend = snapshot.unit === "CREDITS" && !hasMoney && !balance;
+  const metricKind = balance
+    ? "balance"
+    : hasMoney
     ? "bounded_spend"
     : unboundedSpend
     ? "unbounded_spend"
     : "percent";
-  const readout = hasMoney
+  const balanceValue = hasMoney
+    ? Math.max(0, (snapshot.limitAmount ?? 0) - (snapshot.usedAmount ?? 0))
+    : snapshot.value;
+  const moneyBalance = balance && snapshot.currency !== undefined
+    ? (snapshot.currency === "USD" ? "$" : "CN¥") + floorFixed(balanceValue, 2)
+    : null;
+  const readout = moneyBalance !== null
+    ? moneyBalance
+    : balance
+    ? presentationText?.("creditsBalance", { value: floorFixed(balanceValue, 2) }) ??
+      floorFixed(balanceValue, 2) + " credits"
+    : hasMoney
     ? "$" + floorFixed(snapshot.usedAmount ?? 0, 2)
     : unboundedSpend
     ? floorFixed(snapshot.value, 2) + " credits spent"
+    : snapshot.provider === "KIMI"
+    ? presentationText?.("percentUsed", { value: used }) ?? used + "% used"
     : used + "%";
-  const detail = hasMoney
+  const detail = balance && hasMoney
+    ? presentationText?.("accountBalanceDetail", {
+      purchased: "$" + floorFixed(snapshot.limitAmount ?? 0, 2),
+      used: "$" + floorFixed(snapshot.usedAmount ?? 0, 2),
+    }) ?? "$" + floorFixed(snapshot.limitAmount ?? 0, 2) + " purchased, $" +
+      floorFixed(snapshot.usedAmount ?? 0, 2) + " used"
+    : balance
+    ? presentationText?.("balance") ?? "Balance"
+    : hasMoney
     ? "$" +
       floorFixed(snapshot.limitAmount ?? 0, 2) +
       " limit, " +
@@ -455,9 +508,9 @@ function toWindowView(
     label,
     state,
     stateLabel: STATE_LABELS[state],
-    tone: unboundedSpend ? "none" : tone,
+    tone: unboundedSpend || balance ? "none" : tone,
     metricKind,
-    usedPercent: unboundedSpend ? null : usedPercent,
+    usedPercent: unboundedSpend || balance ? null : usedPercent,
     readout,
     detail,
     resetLabel,
@@ -562,7 +615,13 @@ export function buildProviderAccountRows(
         showAccountLabel: groups.size > 1,
         sourceLabel: lead === undefined ? null : sourceLine(lead),
         windows: accountSnapshots.map((snapshot) =>
-          toWindowView(snapshot, now, options.updatedLabel, options.meterLabel)
+          toWindowView(
+            snapshot,
+            now,
+            options.updatedLabel,
+            options.meterLabel,
+            options.presentationText,
+          )
         ),
         fallback: null,
         failure: failureByProvider.get(provider) ?? null,
@@ -635,12 +694,16 @@ export function windowForMetric(
 }
 
 function meterMarkup(window: ProviderWindowView, className: string): string {
-  if (window.metricKind === "unbounded_spend") {
+  if (
+    window.metricKind === "unbounded_spend" ||
+    window.metricKind === "balance" ||
+    window.metricKind === "availability"
+  ) {
     return (
       '<span class="' +
       className +
       ' neutral" aria-label="' +
-      escapeText(window.label + ", no budget ceiling") +
+      escapeText(window.accessibleLabel) +
       '"></span>'
     );
   }

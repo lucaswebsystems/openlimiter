@@ -103,7 +103,7 @@
       "expectedMeters": 1,
       "expect": [
         {
-          "meter": "CREDITS",
+          "meter": "ACCOUNT_BALANCE",
           "value": 62.35,
           "usedAmount": 12.47,
           "limitAmount": 20

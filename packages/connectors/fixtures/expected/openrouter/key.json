@@ -4,7 +4,26 @@
     "readings": [
       {
         "provider": "OPENROUTER",
-        "meter": "CREDITS",
+        "meter": "ACCOUNT_BALANCE",
+        "value": 0,
+        "unit": "PERCENT",
+        "window": {
+          "kind": "lifetime",
+          "durationSeconds": null
+        },
+        "resetAt": null,
+        "precision": "exact",
+        "source": "documented_api",
+        "kind": null,
+        "availability": "missing_credentials",
+        "currency": null,
+        "usedAmount": null,
+        "limitAmount": null,
+        "observedAt": "2026-08-07T12:00:00.000Z"
+      },
+      {
+        "provider": "OPENROUTER",
+        "meter": "KEY_LIMIT",
         "value": 62.35,
         "unit": "PERCENT",
         "window": {

@@ -189,12 +189,20 @@ pub(super) fn accounts(rows: Vec<Snapshot>, now: i64) -> Vec<RailAccountViewMode
                 (Some(_), Some(_)) => "stale",
                 _ => "unknown",
             };
+            let balance = selected.is_some_and(|row| {
+                matches!(
+                    (row.provider.as_str(), row.meter.as_str()),
+                    ("OPENROUTER", "ACCOUNT_BALANCE") | ("CODEX", "CREDITS")
+                )
+            });
             // Legacy measured rows may lack a kind. Eligibility has already rejected
             // availability placeholders before interpreting their numeric unit.
             let kind = selected
                 .and_then(|row| row.kind.as_deref())
                 .unwrap_or_else(|| {
-                    if meter.is_some_and(|meter| meter["unit"] == "percent_used")
+                    if balance {
+                        "money_balance"
+                    } else if meter.is_some_and(|meter| meter["unit"] == "percent_used")
                         || selected.is_some_and(|row| row.unit == "PERCENT")
                     {
                         "quota_percent"
@@ -206,7 +214,16 @@ pub(super) fn accounts(rows: Vec<Snapshot>, now: i64) -> Vec<RailAccountViewMode
                 });
             let value = selected
                 .filter(|_| availability == "available" && observed.is_some() && kind != "unknown")
-                .map(|row| row.value)
+                .map(|row| {
+                    if balance {
+                        row.limit_amount
+                            .zip(row.used_amount)
+                            .map(|(limit, used)| (limit - used).max(0.0))
+                            .unwrap_or(row.value)
+                    } else {
+                        row.value
+                    }
+                })
                 .filter(|value| {
                     value.is_finite()
                         && *value >= 0.0
@@ -474,7 +491,7 @@ mod tests {
             let value = project(vec![row], NOW);
             assert_eq!(value, serde_json::json!([]));
         }
-        let mut row = quota("OPENROUTER", "CREDITS", None);
+        let mut row = quota("OPENROUTER", "ACCOUNT_BALANCE", None);
         row["kind"] = "money_balance".into();
         row["unit"] = "CREDITS".into();
         let value = project(vec![row], NOW);

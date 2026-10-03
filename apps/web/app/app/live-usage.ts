@@ -1,6 +1,8 @@
 import {
   freshness,
   freshnessPolicy,
+  providerMeterPresentation,
+  providerMeterVisible,
   type ProviderCode,
   type Snapshot,
 } from "./engine";
@@ -20,9 +22,14 @@ const CONNECTOR_PROVIDERS: Readonly<Record<string, ProviderCode | undefined>> = 
 
 /** A numeric quota row, identified by its contract rather than its meter name. */
 export function isKnownQuotaMeter(snapshot: Snapshot): boolean {
+  if (!providerMeterVisible(snapshot.provider, snapshot.meter)) return false;
+  const presentation = providerMeterPresentation(snapshot.provider, snapshot.meter);
+  if (snapshot.availability !== undefined) return presentation?.displayAvailability === true;
+  if (presentation?.valueSemantics === "balance") {
+    return snapshot.unit === "CREDITS" || snapshot.usedAmount !== undefined;
+  }
   return snapshot.unit === "PERCENT" &&
     (snapshot.kind === undefined || snapshot.kind === "quota_percent") &&
-    snapshot.availability === undefined &&
     snapshot.meter !== "ACQUISITION" &&
     snapshot.meter !== "API_BUDGET_PERCENT";
 }
@@ -119,12 +126,17 @@ export function snapshotsFromSyncedUsage(
   const supported = new Set<string>(Object.keys(CONNECTOR_PROVIDERS).map((key) => CONNECTOR_PROVIDERS[key]).filter(Boolean) as string[]);
   const snapshots = providers.flatMap((provider) => {
     if (!supported.has(provider.provider)) return [];
-    return provider.windows.map((window): Snapshot => ({
+    return provider.windows.flatMap((window): Snapshot[] => {
+      const balance = provider.provider === "OPENROUTER" && window.windowName === "ACCOUNT_BALANCE" &&
+        window.percentage === null && window.amount !== undefined && window.currency !== undefined &&
+        window.kind === "money_balance";
+      if (!balance && window.percentage === null) return [];
+      return [{
       provider: provider.provider as ProviderCode,
       meter: window.windowName,
-      value: window.percentage,
-      unit: "PERCENT",
-      window: { kind: "rolling" },
+      value: balance ? window.amount ?? 0 : window.percentage ?? 0,
+      unit: balance ? "CREDITS" : "PERCENT",
+      window: { kind: balance ? "lifetime" : "rolling" },
       resetAt: window.resetAt,
       source: "documented_api",
       precision: "exact",
@@ -138,6 +150,7 @@ export function snapshotsFromSyncedUsage(
       }).expiresAt,
       accountId: provider.accountId,
       ...(provider.accountLabel === null ? {} : { accountLabel: provider.accountLabel }),
+      ...(balance ? { kind: "money_balance" as const, currency: window.currency } : {}),
       labels: {
         credentialOrigin: "official-local-tool",
         dataInterfaceStatus: "documented-api",
@@ -145,7 +158,8 @@ export function snapshotsFromSyncedUsage(
         verification: "UNVERIFIED",
       },
       provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
-    }));
+    }];
+    });
   });
   return visibleQuotaSnapshots(snapshots, now, fallbackLabel);
 }

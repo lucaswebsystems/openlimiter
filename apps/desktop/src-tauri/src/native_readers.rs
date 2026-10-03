@@ -173,10 +173,18 @@ fn openrouter_window(
     ))
 }
 
-fn parse_openrouter(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
+fn parse_openrouter(
+    reader: ReaderId,
+    body: &str,
+    now_ms: u64,
+    account_id: &str,
+) -> Option<Vec<Snapshot>> {
     let root: Value = serde_json::from_str(body).ok()?;
     let data = root.get("data")?.as_object()?;
     let key_response = !data.contains_key("total_credits") && !data.contains_key("total_usage");
+    if key_response != matches!(reader, ReaderId::OpenrouterKey) {
+        return None;
+    }
     let credits = number(
         data.get(if key_response {
             "limit"
@@ -233,7 +241,7 @@ fn parse_openrouter(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Sna
     let expires_at = iso_from_epoch_ms(now_ms.saturating_add(60_000))?;
     let mut snapshot = base_snapshot(
         "OPENROUTER",
-        "CREDITS",
+        if key_response { "KEY_LIMIT" } else { "ACCOUNT_BALANCE" },
         percent,
         window,
         reset_at,
@@ -245,14 +253,34 @@ fn parse_openrouter(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Sna
         account_id,
     );
     if unlimited {
-        snapshot.kind = Some("availability".to_string());
         snapshot.availability = Some("unlimited".to_string());
     } else {
         snapshot.used_amount = used;
         snapshot.limit_amount = limit;
         snapshot.currency = Some("USD".to_string());
     }
-    Some(vec![snapshot])
+    let mut snapshots = vec![snapshot];
+    if key_response {
+        let mut unavailable = base_snapshot(
+            "OPENROUTER",
+            "ACCOUNT_BALANCE",
+            0.0,
+            SnapshotWindow {
+                kind: "lifetime".to_string(),
+                duration_seconds: None,
+            },
+            None,
+            "documented_api",
+            "exact",
+            &observed_at,
+            &expires_at,
+            labels("user-key", "documented-api", "low"),
+            account_id,
+        );
+        unavailable.availability = Some("missing_credentials".to_string());
+        snapshots.push(unavailable);
+    }
+    Some(snapshots)
 }
 
 fn window_seconds(value: Option<&Value>) -> Option<u64> {
@@ -369,7 +397,6 @@ fn parse_codex_legacy(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<S
             labels("official-local-tool", "internal-endpoint", "high"),
             account_id,
         );
-        snapshot.kind = Some("availability".to_string());
         snapshot.availability = Some("unlimited".to_string());
         snapshots.push(snapshot);
     }
@@ -404,6 +431,13 @@ fn codex_decimal(value: &str) -> Option<f64> {
         return None;
     }
     value.parse::<f64>().ok().filter(|number| number.is_finite())
+}
+
+fn codex_number(value: Option<&Value>, maximum: f64) -> Option<f64> {
+    match value? {
+        Value::String(value) => codex_decimal(value).filter(|number| *number <= maximum),
+        value => number(Some(value), maximum),
+    }
 }
 
 fn codex_limit_id(value: &str) -> Option<String> {
@@ -526,6 +560,42 @@ fn codex_windows(
     rows.into_iter().map(|(_, row)| row).collect()
 }
 
+fn codex_monthly(
+    value: Option<&Value>,
+    now_ms: u64,
+    observed_at: &str,
+    expires_at: &str,
+    account_id: &str,
+) -> Option<Snapshot> {
+    let individual = value?.as_object()?;
+    let ceiling = codex_number(individual.get("limit"), 1_000_000_000_000.0)?;
+    let used = codex_number(individual.get("used"), 1_000_000_000_000.0)?;
+    let remaining = number(individual.get("remainingPercent"), 100.0)?;
+    let reset_at = individual
+        .get("resetsAt")
+        .and_then(Value::as_f64)
+        .and_then(|seconds| future_epoch_seconds(seconds, now_ms, None))?;
+    if ceiling <= 0.0 || used > ceiling {
+        return None;
+    }
+    Some(base_snapshot(
+        "CODEX",
+        "MONTHLY_CREDIT_LIMIT",
+        ((100.0 - remaining) * 1_000_000_000_000.0).round() / 1_000_000_000_000.0,
+        SnapshotWindow {
+            kind: "fixed".to_string(),
+            duration_seconds: None,
+        },
+        Some(reset_at),
+        "documented_api",
+        "exact",
+        observed_at,
+        expires_at,
+        documented_codex_labels(),
+        account_id,
+    ))
+}
+
 /// Parses the documented account/rateLimits/read response.
 fn parse_codex(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
     let root: Value = serde_json::from_str(body).ok()?;
@@ -565,6 +635,15 @@ fn parse_codex(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot
                 default_covered = true;
             }
             snapshots.extend(entry);
+            if let Some(monthly) = codex_monthly(
+                bucket.get("individualLimit"),
+                now_ms,
+                &observed_at,
+                &expires_at,
+                account_id,
+            ) {
+                snapshots.push(monthly);
+            }
         }
     }
     if !default_covered {
@@ -576,6 +655,15 @@ fn parse_codex(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot
             &expires_at,
             account_id,
         );
+        if let Some(monthly) = codex_monthly(
+            limits.get("individualLimit"),
+            now_ms,
+            &observed_at,
+            &expires_at,
+            account_id,
+        ) {
+            default_snapshots.push(monthly);
+        }
         default_snapshots.append(&mut snapshots);
         snapshots = default_snapshots;
     }
@@ -601,7 +689,6 @@ fn parse_codex(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot
             documented_codex_labels(),
             account_id,
         );
-        snapshot.kind = Some("availability".to_string());
         snapshot.availability = Some("unlimited".to_string());
         snapshots.push(snapshot);
     } else if let Some(credits) = limits.get("credits").and_then(Value::as_object) {
@@ -1021,7 +1108,7 @@ pub fn parse_body(
 ) -> Option<Vec<Snapshot>> {
     let mut rows = match reader {
         ReaderId::OpenrouterKey | ReaderId::OpenrouterCredits => {
-            parse_openrouter(body, now_ms, account_id)
+            parse_openrouter(reader, body, now_ms, account_id)
         }
         ReaderId::CodexUsage => parse_codex(body, now_ms, account_id),
         ReaderId::AntigravityQuota => parse_antigravity(body, now_ms, account_id),
@@ -1161,6 +1248,10 @@ mod tests {
             ACCOUNT,
         )
         .expect("monthly key");
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].meter, "KEY_LIMIT");
+        assert_eq!(rows[1].meter, "ACCOUNT_BALANCE");
+        assert_eq!(rows[1].availability.as_deref(), Some("missing_credentials"));
         assert_eq!(rows[0].value, 10.0);
         assert_eq!(rows[0].used_amount, Some(10.0));
         assert_eq!(rows[0].limit_amount, Some(100.0));
@@ -1207,6 +1298,54 @@ mod tests {
         assert_eq!(rows[0].availability.as_deref(), Some("unlimited"));
         assert_eq!(rows[0].limit_amount, None);
         assert_eq!(rows[0].used_amount, None);
+    }
+
+    #[test]
+    fn codex_keeps_monthly_credit_control_and_balance_beside_quota() {
+        let reset_seconds = (now() + 3_600_000) / 1_000;
+        let body = serde_json::json!({
+            "rateLimits": {
+                "limitId": "codex",
+                "primary": {
+                    "usedPercent": 60,
+                    "windowDurationMins": 300,
+                    "resetsAt": reset_seconds
+                },
+                "credits": { "hasCredits": true, "unlimited": false, "balance": "0.25" },
+                "individualLimit": {
+                    "limit": "1000",
+                    "used": "125.5",
+                    "remainingPercent": 87.45,
+                    "resetsAt": reset_seconds
+                }
+            }
+        });
+        let rows = parse_body(ReaderId::CodexUsage, &body.to_string(), now(), ACCOUNT)
+            .expect("codex controls");
+        assert_eq!(
+            rows.iter().map(|row| (row.meter.as_str(), row.unit.as_str())).collect::<Vec<_>>(),
+            vec![
+                ("FIVE_HOUR", "PERCENT"),
+                ("MONTHLY_CREDIT_LIMIT", "PERCENT"),
+                ("CREDITS", "CREDITS"),
+            ]
+        );
+        assert_eq!(rows[1].value, 12.55);
+    }
+
+    #[test]
+    fn openrouter_availability_rows_survive_native_normalization() {
+        let body = serde_json::json!({
+            "data": { "limit": null, "limit_remaining": null, "usage": 500 }
+        });
+        let rows = parse_body(ReaderId::OpenrouterKey, &body.to_string(), now(), ACCOUNT)
+            .expect("unlimited key")
+            .into_iter()
+            .filter_map(normalize_snapshot)
+            .collect::<Vec<_>>();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].availability.as_deref(), Some("unlimited"));
+        assert_eq!(rows[1].availability.as_deref(), Some("missing_credentials"));
     }
 
     #[test]

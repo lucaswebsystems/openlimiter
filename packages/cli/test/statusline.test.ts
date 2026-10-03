@@ -93,8 +93,9 @@ const everyProvider: readonly Snapshot[] = [
   }),
   reading({
     provider: "OPENROUTER",
-    meter: "CREDITS",
+    meter: "ACCOUNT_BALANCE",
     value: 62.35,
+    unit: "CREDITS",
     window: { kind: "lifetime" }
   })
 ];
@@ -164,7 +165,7 @@ describe("provider ordering", () => {
       "GEMINI_CLI",
       "OPENCODE",
       "GROK",
-      "KIMI",
+      "KIMI:5h",
       "MANUAL",
       "OPENROUTER"
     ]);
@@ -241,6 +242,52 @@ describe("meter ordering", () => {
 });
 
 describe("worst against all", () => {
+  it("formats Codex credits as balances and never lets one outrank a quota", () => {
+    const quota = reading({ provider: "CODEX", meter: "FIVE_HOUR", value: 60 });
+    for (const value of [0, 0.25, 123456.75]) {
+      const balance = reading({
+        provider: "CODEX",
+        meter: "CREDITS",
+        unit: "CREDITS",
+        value,
+        window: { kind: "lifetime" },
+      });
+      expect(cellsOf([quota, balance], ["CODEX"])[0]).toBe("CODEX ###.. 60.0%");
+      expect(cellsOf([quota, balance], ["CODEX"], "all")[1]).toContain(`${value.toFixed(2)} credits`);
+      expect(cellsOf([quota, balance], ["CODEX"], "all")[1]).not.toContain("%");
+    }
+  });
+
+  it("keeps unavailable and unlimited Codex credits nonnumeric beside quotas", () => {
+    const quota = reading({ provider: "CODEX", meter: "FIVE_HOUR", value: 60 });
+    for (const availability of ["quota_unavailable", "unlimited"] as const) {
+      const balance = reading({
+        provider: "CODEX",
+        meter: "CREDITS",
+        availability,
+        value: 0,
+        window: { kind: "unknown" },
+      });
+      expect(cellsOf([quota, balance], ["CODEX"])[0]).toBe("CODEX ###.. 60.0%");
+      expect(cellsOf([quota, balance], ["CODEX"], "all")[1]).not.toContain("0.0%");
+    }
+  });
+
+  it("marks Kimi percentages as used in terminal captions", () => {
+    const cells = cellsOf([
+      reading({ provider: "KIMI", meter: "WEEKLY", value: 10 }),
+      reading({ provider: "KIMI", meter: "FIVE_HOUR", value: 80 }),
+    ], ["KIMI"], "all");
+    expect(cells[0]).toContain("Weekly used");
+    expect(cells[1]).toContain("5h used");
+    expect(cellsOf([
+      reading({ provider: "KIMI", meter: "FIVE_HOUR", value: 80 }),
+    ], ["KIMI"], "worst")[0]).toContain("5h used");
+    expect(cellsOf([
+      reading({ provider: "OPENCODE", meter: "FIVE_HOUR", value: 80 }),
+    ], ["OPENCODE"], "worst")[0]).toContain("Page 5h");
+  });
+
   it("shows only the meter closest to its cap by default", () => {
     const cells = cellsOf(everyProvider);
     expect(cells).toHaveLength(9);
@@ -287,7 +334,7 @@ describe("the cell", () => {
 describe("the head", () => {
   it("leads with the reason code and carries the recommendation", () => {
     expect(statuslineHead(buildAdvice(everyProvider, NOW)))
-      .toBe("OpenLimiter NEAR_CAP PREFER ANTIGRAVITY UNKNOWN CURSOR");
+      .toBe("OpenLimiter NEAR_CAP PREFER ANTIGRAVITY UNKNOWN OPENROUTER,CURSOR");
   });
 
   it("names the providers it has nothing for", () => {
@@ -323,7 +370,7 @@ describe("stacking", () => {
         for (const cell of row) {
           /* Every cell is either the head or a whole three field cell. */
           if (cell.startsWith("OpenLimiter ")) continue;
-          expect(cell).toMatch(/^[A-Z:_]+ [#.]{5} \d+\.\d%$|^\+\d+ more$/u);
+          expect(cell).toMatch(/^[A-Za-z:_0-9]+(?: [A-Za-z0-9]+)* [#.]{5} \d+\.\d%$|^[A-Z:_]+ \$\d+\.\d{2}$|^\+\d+ more$/u);
         }
       }
     }
@@ -342,7 +389,7 @@ describe("stacking", () => {
   it("stops at one row when told to, and says what it dropped", () => {
     const rendered = layout(everyProvider, { rows: 1 });
     expect(rendered.split("\n")).toHaveLength(1);
-    expect(rendered).toContain("+6 more");
+    expect(rendered).toContain("+7 more");
   });
 
   it("keeps the worst providers when it has to drop some", () => {

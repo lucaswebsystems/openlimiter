@@ -16,6 +16,8 @@ import { GOLDEN_NOW, GOLDEN_SNAPSHOTS } from "./fixtures/statusline-snapshots.js
 const GOLDEN_DIR = path.join(process.cwd(), "packages/cli/test/golden");
 const WIDTHS = [80, 120, 160] as const;
 const ADVICE = buildAdvice(GOLDEN_SNAPSHOTS, GOLDEN_NOW);
+const LEGACY_CELLS_SNAPSHOTS = GOLDEN_SNAPSHOTS;
+const LEGACY_CELLS_ADVICE = buildAdvice(LEGACY_CELLS_SNAPSHOTS, GOLDEN_NOW);
 
 describe("account and freshness status line goldens", () => {
   const row = (overrides: Partial<Snapshot> = {}): Snapshot => ({ ...GOLDEN_SNAPSHOTS[0]!, resetAt: null, ...overrides });
@@ -155,8 +157,8 @@ describe("statusline golden files", () => {
         const goldenText = golden("cells-" + String(width));
         for (const host of STATUSLINE_HOSTS) {
           const rendered = renderStatuslineLayout({
-            advice: ADVICE,
-            snapshots: GOLDEN_SNAPSHOTS,
+            advice: LEGACY_CELLS_ADVICE,
+            snapshots: LEGACY_CELLS_SNAPSHOTS,
             now: GOLDEN_NOW,
             config: { ...DEFAULT_STATUSLINE, style: "cells", meters: "worst", width, rows: 2 },
             color: false,

@@ -126,4 +126,17 @@ describe("policy", () => {
       unknownProviders: ["CLAUDE"]
     });
   });
+
+  it("never treats credit or account balances as quota pressure", () => {
+    const balances = [
+      snapshot({ provider: "CODEX", meter: "CREDITS", value: 99 }),
+      snapshot({ provider: "OPENROUTER", meter: "ACCOUNT_BALANCE", value: 99 }),
+    ];
+    expect(buildAdvice(balances, now, ["CODEX", "OPENROUTER"])).toMatchObject({
+      inject: false,
+      reason: "UNKNOWN",
+      providers: [],
+      unknownProviders: ["CODEX", "OPENROUTER"],
+    });
+  });
 });

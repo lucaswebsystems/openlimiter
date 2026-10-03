@@ -91,7 +91,7 @@ describe("collection identity", () => {
 
 describe("applying a collection report", () => {
   it("replaces the rows of one identity and leaves every other provider alone", () => {
-    const other = snapshot({ provider: "OPENROUTER", meter: "CREDITS" });
+    const other = snapshot({ provider: "OPENROUTER", meter: "ACCOUNT_BALANCE" });
     const before: CacheState = {
       snapshots: [codexRow({ value: 10 }), other],
       suppressions: []
@@ -252,7 +252,7 @@ describe("what a read may see", () => {
     const state: CacheState = {
       snapshots: [
         codexRow({ observedAt: EARLIER }),
-        snapshot({ provider: "OPENROUTER", meter: "CREDITS", observedAt: EARLIER })
+        snapshot({ provider: "OPENROUTER", meter: "ACCOUNT_BALANCE", observedAt: EARLIER })
       ],
       suppressions: [{ provider: "CODEX", reason: "drift", suppressedAt: NOW }]
     };

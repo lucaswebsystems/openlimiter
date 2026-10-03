@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claudeMeterOverride, meterName, providerName } from "../app/app/language";
+import { meterName, providerMeterOverride, providerName } from "../app/app/language";
 import { claudeFableHint } from "../app/app/pieces";
 import { buildProviderAccountRows, type Snapshot } from "../app/app/engine";
 
@@ -38,18 +38,18 @@ describe("provider labels", () => {
     };
     const snapshots: Snapshot[] = [
       base,
-      { ...base, provider: "OPENROUTER", meter: "CREDITS", unit: "CREDITS", window: { kind: "lifetime" } },
+      { ...base, provider: "OPENROUTER", meter: "ACCOUNT_BALANCE", window: { kind: "lifetime" } },
       { ...base, provider: "GEMINI_CLI", meter: "GEMINI_3_1_PRO_PREVIEW" },
       { ...base, provider: "CLAUDE" },
     ];
     const rows = buildProviderAccountRows(snapshots, "2026-10-02T12:01:00.000Z", [], {
-      meterLabel: claudeMeterOverride,
+      meterLabel: providerMeterOverride,
     });
     const labels = Object.fromEntries(rows.map((row) => [row.provider, row.windows[0]?.label]));
 
     expect(labels).toEqual({
       CLAUDE: "Current session",
-      OPENROUTER: "Credit spend",
+      OPENROUTER: "Account balance",
       CODEX: "5 hour session",
       GEMINI_CLI: "Gemini 3.1 Pro Preview",
     });

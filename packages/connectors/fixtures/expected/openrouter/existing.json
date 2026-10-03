@@ -4,7 +4,7 @@
     "readings": [
       {
         "provider": "OPENROUTER",
-        "meter": "CREDITS",
+        "meter": "ACCOUNT_BALANCE",
         "value": 62.35000000000001,
         "unit": "PERCENT",
         "window": {

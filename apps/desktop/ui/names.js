@@ -10,10 +10,9 @@
 import { PROVIDER_SPECS } from "./provider-specs.generated.js";
 import catalog from "./readings.en.json" with { type: "json" };
 import {
-  antigravityMeterPresentation,
-  antigravityMeterRank,
-  claudeMeterLabel,
-  claudeMeterRank,
+  providerMeterLabel,
+  providerMeterPresentation,
+  providerMeterRank,
 } from "../../../packages/core/dist/provider-presentation.js";
 
 /** The words Home, the edge panel and Needs attention say, in English. */
@@ -108,14 +107,8 @@ const identityShaped = (part) => part.length > 16 || (/^[0-9A-F]{8,}$/u.test(par
 export function meterLabel(code, provider) {
   const meter = providerCode(code);
   if (meter.split("_").some((part) => RESERVED.has(part) || identityShaped(part))) return say("meterFallback");
-  if (providerCode(provider) === "CLAUDE") {
-    const claude = claudeMeterLabel(meter, READINGS_COPY);
-    if (claude !== null) return claude;
-  }
-  if (providerCode(provider) === "ANTIGRAVITY") {
-    const antigravity = antigravityMeterPresentation(meter);
-    if (antigravity !== null) return say(antigravity.labelKey);
-  }
+  const shared = providerMeterLabel(providerCode(provider), meter, READINGS_COPY);
+  if (shared !== null) return shared;
   if (meter === "FIVE_HOUR" || meter === "SEVEN_DAY") return METERS[meter];
   const numbered = meter.match(/^(FIVE_HOUR|SEVEN_DAY)_([2-9]\d*)$/u);
   if (numbered) return `${METERS[numbered[1]]} ${numbered[2]}`;
@@ -126,10 +119,12 @@ export function meterLabel(code, provider) {
 
 /** Claude's provider order, or null when another provider owns the meter. */
 export function meterRank(code, provider) {
-  const owner = providerCode(provider);
-  if (owner === "CLAUDE") return claudeMeterRank(providerCode(code)) ?? 90;
-  if (owner === "ANTIGRAVITY") return antigravityMeterRank(providerCode(code)) ?? 90;
-  return null;
+  return providerMeterRank(providerCode(provider), providerCode(code));
+}
+
+/** Meaning and availability policy used by every desktop reading surface. */
+export function meterPresentation(code, provider) {
+  return providerMeterPresentation(providerCode(provider), providerCode(code));
 }
 
 /* Agents report the tool they run in; Claude's agent is Claude Code. */

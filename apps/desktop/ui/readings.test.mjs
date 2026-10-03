@@ -33,11 +33,14 @@ test("one case insensitive name for every provider code, from the registry", () 
 
 test("meter codes read as words, and an unfamiliar code is read out of its parts", () => {
   const cases = [
-    ["FIVE_HOUR", "CLAUDE", "Current session"], ["five_hour", "KIMI", "5 hour"], ["SEVEN_DAY", "CODEX", "Weekly"],
+    ["FIVE_HOUR", "CLAUDE", "Current session"], ["five_hour", "KIMI", "5 hour limit"], ["SEVEN_DAY", "CODEX", "Weekly"],
     ["SEVEN_DAY", "CLAUDE", "Weekly, all models"], ["SEVEN_DAY_FABLE", "CLAUDE", "Weekly, Fable"],
     ["SEVEN_DAY_FABLE_5_1", "CLAUDE", "Weekly, Fable"], ["SEVEN_DAY_OPUS", "CLAUDE", "Weekly, Opus"],
     ["SEVEN_DAY_HAIKU_4_5", "CLAUDE", "Weekly, Haiku 4.5"], ["SEVEN_DAY_OAUTH_APPS", "CLAUDE", "Weekly, OAuth Apps"],
     ["FIVE_HOUR_2", "CLAUDE", "5 hour 2"], ["PRIMARY", "CODEX", "Primary window"], ["CREDITS", "OPENROUTER", "Credits"],
+    ["MONTHLY_CREDIT_LIMIT", "CODEX", "Monthly credit limit"], ["ACCOUNT_BALANCE", "OPENROUTER", "Account balance"],
+    ["KEY_LIMIT", "OPENROUTER", "Key allowance"], ["WEEKLY", "KIMI", "Weekly limit"],
+    ["FIVE_HOUR", "OPENCODE", "5 hour limit, from the OpenCode page"],
     ["GEMINI_3_1_PRO_PREVIEW", "GEMINI_CLI", "Gemini 3.1 Pro Preview"], ["BRAND_NEW_WINDOW", "CLAUDE", "Brand new window"],
     ["MONTHLY", "SOMEONE", "Monthly"],
   ];
@@ -45,6 +48,24 @@ test("meter codes read as words, and an unfamiliar code is read out of its parts
   assert.deepEqual(leaks(cases.map(([code, provider]) => meterLabel(code, provider))), []);
   assert.equal(agentName("claude_code"), "Claude Code");
   assert.equal(agentName("unknown"), null);
+});
+
+test("affected meters keep shared meanings and ordering in the desktop model", () => {
+  const base = fixtures.projected.snapshots[0];
+  const rows = [
+    { ...base, provider: "KIMI", meter: "FIVE_HOUR", value: 80 },
+    { ...base, provider: "KIMI", meter: "WEEKLY", value: 20 },
+    { ...base, provider: "OPENROUTER", meter: "ACCOUNT_BALANCE", value: 25, usedAmount: 12.5, limitAmount: 50, currency: "USD", window: { kind: "lifetime" }, resetAt: null },
+    { ...base, provider: "CURSOR", meter: "AUTO", value: 90 },
+  ];
+  const model = limitsModel(projectSnapshots(rows, now).snapshots, now);
+  const kimi = model.find((provider) => provider.code === "KIMI");
+  const balance = model.find((provider) => provider.code === "OPENROUTER")?.windows[0];
+  assert.deepEqual(kimi?.windows.map((window) => [window.label, window.value]), [
+    ["Weekly limit", "20%"], ["5 hour limit", "80%"],
+  ]);
+  assert.deepEqual([balance?.label, balance?.value, balance?.band], ["Account balance", "$37.50", "none"]);
+  assert.equal(model.some((provider) => provider.code === "CURSOR"), false);
 });
 
 test("a reserved or id shaped meter code reads as the neutral Limit, never as itself", () => {
@@ -191,7 +212,7 @@ test("Home's model: tightest provider first, with Claude in its own meter order"
     "Extra usage",
   ]);
   assert.deepEqual([model[0].windows[0].label, model[0].windows[0].band, model[0].windows[0].reset], ["Weekly", "yellow", "4d 0h"]);
-  assert.deepEqual([model[2].windows[0].value, model[2].windows[0].limit], ["$12.50", "$50.00"]);
+  assert.deepEqual([model[2].windows[0].value, model[2].windows[0].limit], ["$37.50", "$50.00 purchased, $12.50 used"]);
   // The raw cache still gives one card per provider; a second account says so by position.
   const raw = limitsModel(projectReadings(JSON.stringify(fixtures.raw), null, now).snapshots, now);
   assert.deepEqual(raw.map((provider) => provider.code), ["CODEX", "CLAUDE", "OPENROUTER"]);
@@ -199,6 +220,40 @@ test("Home's model: tightest provider first, with Claude in its own meter order"
   // Rows that went stale since the projection are not drawn.
   const later = new Date(NOW + 3_600_000).toISOString();
   assert.equal(limitsModel(fixtures.projected.snapshots, later).length, 0);
+});
+
+test("desktop values state their meaning once for balances and Kimi percentages", () => {
+  const base = fixtures.projected.snapshots[0];
+  const snapshots = [{
+    ...base,
+    provider: "OPENROUTER",
+    meter: "ACCOUNT_BALANCE",
+    value: 38.3,
+    usedAmount: 7.66,
+    limitAmount: 20,
+    currency: "USD",
+    window: { kind: "lifetime" },
+    resetAt: null,
+  }, {
+    ...base,
+    provider: "KIMI",
+    meter: "FIVE_HOUR",
+    value: 20,
+  }];
+  const model = limitsModel(snapshots, now);
+  assert.equal(model.find((entry) => entry.code === "OPENROUTER").windows[0].value, "$12.34");
+  assert.equal(model.find((entry) => entry.code === "KIMI").windows[0].value, "20%");
+  const doc = fakeDocument();
+  const mount = doc.createElement("div");
+  renderLimits(doc, mount, model, { compact: false });
+  assert.doesNotMatch(mount.textContent, /\$12\.34 used|used used/u);
+  assert.match(spoken(mount).join(" "), /20% used/u);
+});
+
+test("repeated Kimi windows preserve their duration and ordinal", () => {
+  assert.equal(meterLabel("FIVE_HOUR_2", "KIMI"), "5 hour limit 2");
+  assert.equal(meterLabel("FIVE_MINUTE", "KIMI"), "5 minute limit");
+  assert.equal(meterLabel("DAILY", "KIMI"), "Daily limit");
 });
 
 /* A Claude status line row as the native projection hands it over while
@@ -275,8 +330,9 @@ test("drawn limits show names and words only, with a shape past green", () => {
     const rows = mount.all((node) => node.className === "q-row");
     for (const row of rows) {
       const shape = row.all((node) => node.className === "q-shape").length;
-      assert.equal(shape, row.dataset.band === "green" ? 0 : 1, row.dataset.band);
-      assert.ok(row.all((node) => node.getAttribute("role") === "progressbar").length === 1);
+      assert.equal(shape, ["green", "none"].includes(row.dataset.band) ? 0 : 1, row.dataset.band);
+      const role = row.dataset.band === "none" ? "status" : "progressbar";
+      assert.ok(row.all((node) => node.getAttribute("role") === role).length === 1);
     }
     assert.equal(mount.all((node) => node.className === "q-colhead").length, compact ? 1 : 0);
     assert.doesNotMatch(JSON.stringify(spoken(mount)), new RegExp(Object.values(ACCOUNTS).join("|")));
@@ -332,6 +388,14 @@ test("the catalog has no dashes and ships translated in every locale", () => {
     "accountFallback", "updatedMinutes", "updatedHours", "updatedDays",
     "claudeCurrentSession", "claudeWeeklyAllModels", "claudeWeeklyFable",
     "claudeWeeklyModel", "claudeExtraUsage", "claudeFableDesktopHint",
+    "codexMonthlyCreditLimit", "codexCredits", "openrouterKeyAllowance",
+    "openrouterAccountBalance", "kimiWeeklyUsed", "kimiFiveHourUsed",
+    "kimiFiveMinuteUsed", "kimiDailyUsed", "kimiSevenDayUsed", "kimiUsageUsed",
+    "opencodeFiveHourPage", "opencodeWeeklyPage",
+    "opencodeMonthlyPage", "noKeyCap", "keyNoSpendingCap",
+    "unavailableScope", "managementKeyRequired", "unlimitedCredits",
+    "creditBalanceLimitNotReported", "accountBalanceDetail",
+    "creditsBalance", "balance", "percentUsed",
   ];
   const readings = (catalog) => ({
     ...catalog.desktopReadings,

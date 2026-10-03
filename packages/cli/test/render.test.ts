@@ -297,6 +297,18 @@ describe("fields", () => {
 });
 
 describe("table", () => {
+  it("prints unlimited Codex credits without an invented zero amount or OpenRouter instruction", () => {
+    const table = renderTable([reading({
+      provider: "CODEX",
+      meter: "CREDITS",
+      value: 0,
+      availability: "unlimited",
+    })], NOW, false);
+    expect(table).toContain("UNLIMITED");
+    expect(table).not.toContain("0.00 credits");
+    expect(table).not.toContain("management key");
+  });
+
   it.each([
     ["FIVE_HOUR", "5h"],
     ["SEVEN_DAY", "Weekly"],

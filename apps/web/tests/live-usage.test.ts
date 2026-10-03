@@ -97,7 +97,7 @@ describe("live synced usage", () => {
     const meters = new Set(visible.map((row) => `${row.provider}:${row.meter}`));
 
     expect(meters).toEqual(new Set([
-      "OPENROUTER:CREDITS",
+      "OPENROUTER:ACCOUNT_BALANCE",
       "GEMINI_CLI:GEMINI_3_1_PRO_PREVIEW",
       "GEMINI_CLI:GEMINI_3_FLASH_PREVIEW",
       "CLAUDE:FIVE_HOUR",
@@ -131,6 +131,61 @@ describe("live synced usage", () => {
       { ...base, meter: "UNLIMITED", availability: "unlimited" },
       { ...base, meter: "TOKEN_BALANCE", unit: "TOKENS" },
     ], NOW)).toEqual([]);
+  });
+
+  it("applies presentation visibility and value semantics at the web boundary", () => {
+    const labels = {
+      credentialOrigin: "user-key" as const,
+      dataInterfaceStatus: "documented-api" as const,
+      automationRisk: "low" as const,
+      verification: "UNVERIFIED" as const,
+    };
+    const base = {
+      value: 0,
+      unit: "PERCENT" as const,
+      window: { kind: "lifetime" as const },
+      resetAt: null,
+      source: "documented_api" as const,
+      precision: "exact" as const,
+      observedAt: NOW,
+      expiresAt: "2026-10-01T12:07:00.000Z",
+      labels,
+    };
+    const visible = visibleQuotaSnapshots([
+      { ...base, provider: "CURSOR", meter: "AUTO", value: 55 },
+      { ...base, provider: "CODEX", meter: "CREDITS", unit: "CREDITS", value: 0.25 },
+      { ...base, provider: "OPENROUTER", meter: "KEY_LIMIT", availability: "unlimited" },
+      { ...base, provider: "OPENROUTER", meter: "ACCOUNT_BALANCE", availability: "missing_credentials" },
+    ], NOW);
+    expect(visible.map((row) => `${row.provider}:${row.meter}`)).toEqual([
+      "CODEX:CREDITS",
+      "OPENROUTER:ACCOUNT_BALANCE",
+      "OPENROUTER:KEY_LIMIT",
+    ]);
+  });
+
+  it("projects a synced OpenRouter balance without turning it back into a percentage", () => {
+    const snapshots = snapshotsFromSyncedUsage([provider("OPENROUTER", "openrouter-account", [{
+      windowName: "ACCOUNT_BALANCE",
+      percentage: null,
+      amount: 12.34,
+      currency: "USD",
+      kind: "money_balance",
+      resetAt: null,
+      observedAt: NOW,
+      stale: false,
+    }])], NOW);
+    expect(snapshots[0]).toMatchObject({
+      meter: "ACCOUNT_BALANCE",
+      unit: "CREDITS",
+      value: 12.34,
+      kind: "money_balance",
+      currency: "USD",
+    });
+    expect(buildProviderAccountRows(snapshots, NOW)[0]?.windows[0]).toMatchObject({
+      readout: "$12.34",
+      metricKind: "balance",
+    });
   });
 
   it("reproduces the owner screen and keeps only current real quota meters", () => {
