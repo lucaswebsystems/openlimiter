@@ -4,8 +4,11 @@
   "dismiss": "Got it",
   "releases": {
     "2.0.4": {
-      "heading": "Clearer limits, explicit choices",
-      "fable": "New desktop installs explain the Fable usage request before recording it on. Existing installs without a choice are asked first, and either switch can still be turned off."
+      "heading": "More accurate limits",
+      "codex": "Codex limits now use OpenAI's documented source. Your Codex sign in stays on your device.",
+      "claude": "Claude now shows Current session, Weekly, all models, Weekly, Fable and extra usage. Fable and extra usage are on after one notice, with switches in Settings and the terminal.",
+      "providers": "Antigravity can refresh from its CLI. OpenRouter, Grok, Moonshot, Kimi, OpenCode and Gemini now label their limits more clearly.",
+      "sync": "Unreadable readings never sync, and stale bars are flat grey."
     },
     "2.0.3": {
       "heading": "One screen, every tool",

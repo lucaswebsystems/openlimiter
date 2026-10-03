@@ -2,6 +2,20 @@
 
 All notable project changes appear in this file.
 
+## [2.0.4]
+
+### Providers
+
+* Codex limits now come from OpenAI's documented `codex app-server`, and your Codex sign in is never sent anywhere.
+* Claude's bars now match Claude: Current session; Weekly, all models; Weekly, Fable; and extra usage. The Fable and extra usage bars are on by default after a one time notice, with switches in Settings and in the terminal.
+* Antigravity reads quota from the documented Antigravity CLI status line. Run `openlimiter terminal install antigravity`, and `/usage` in Antigravity CLI refreshes it.
+* OpenRouter shows the key limit separately from the account balance. Codex shows credits and its monthly limit. Kimi is labelled used. OpenCode bars say they are read from its page.
+* OpenRouter limits use the remaining allowance. Grok shows its weekly pool across Grok products. Moonshot shows its balance. Gemini consumer plans retired by Google show a note.
+
+### Sync
+
+* Sync never uploads unreadable or placeholder readings. Stale bars are flat grey instead of striped.
+
 ## [2.0.3]
 
 ### Desktop
