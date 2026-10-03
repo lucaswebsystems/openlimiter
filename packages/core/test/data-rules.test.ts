@@ -20,6 +20,16 @@ const now = "2026-09-29T12:00:00.000Z";
 const at = Date.parse(now);
 const measured = (accountId?: string) => snapshot({ observedAt: now, expiresAt: "2026-09-29T12:20:00.000Z", kind: "quota_percent", ...(accountId ? { accountId } : {}) });
 
+it("hides the unverified legacy Cursor bars from every projected surface", () => {
+  const rows = ["AUTO", "API", "INCLUDED"].map((meter) => snapshot({
+    provider: "CURSOR",
+    meter,
+    observedAt: now,
+    expiresAt: "2026-09-29T12:20:00.000Z",
+  }));
+  expect(projectSnapshots(rows, now)).toEqual({ snapshots: [], flags: [] });
+});
+
 it("desktop freshness mirrors every provider cadence and CLI keeps its longer cadence", () => {
   for (const provider of ["CLAUDE", "CODEX", "GEMINI_CLI", "ANTIGRAVITY", "GROK", "KIMI", "CURSOR", "OPENROUTER", "OPENCODE"]) {
     const ttlSeconds = ["CLAUDE", "GEMINI_CLI"].includes(provider) ? 1140 : provider === "ANTIGRAVITY" ? 780 : 420;

@@ -17,5 +17,18 @@ export function useClaudeMeterCopy(): ClaudeMeterCopy {
     antigravityWeeklyQuota: t("antigravityWeeklyQuota"),
     antigravityThirdPartySession: t("antigravityThirdPartySession"),
     antigravityThirdPartyWeekly: t("antigravityThirdPartyWeekly"),
+    codexMonthlyCreditLimit: t("codexMonthlyCreditLimit"),
+    codexCredits: t("codexCredits"),
+    openrouterKeyAllowance: t("openrouterKeyAllowance"),
+    openrouterAccountBalance: t("openrouterAccountBalance"),
+    kimiWeeklyUsed: t("kimiWeeklyUsed"),
+    kimiFiveHourUsed: t("kimiFiveHourUsed"),
+    kimiFiveMinuteUsed: t("kimiFiveMinuteUsed"),
+    kimiDailyUsed: t("kimiDailyUsed"),
+    kimiSevenDayUsed: t("kimiSevenDayUsed"),
+    kimiUsageUsed: t("kimiUsageUsed"),
+    opencodeFiveHourPage: t("opencodeFiveHourPage"),
+    opencodeWeeklyPage: t("opencodeWeeklyPage"),
+    opencodeMonthlyPage: t("opencodeMonthlyPage"),
   }), [t]);
 }

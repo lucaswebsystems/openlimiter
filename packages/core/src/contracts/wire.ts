@@ -166,7 +166,11 @@ function validateSample(value: unknown): WireSampleV3 {
   }
   if (row["amount"] !== undefined && row["amount"] !== null) numeric(row["amount"], "amount", 1e14, true);
   if (row["currency"] !== undefined && row["currency"] !== null) member(row["currency"], CURRENCIES, "currency");
-  if ((row["amount"] != null) !== (row["currency"] != null)) fail("amount/currency", "must be supplied together");
+  const codexCredits = row["provider"] === "CODEX" && row["window_id"] === "CREDITS";
+  if (row["currency"] != null && row["amount"] == null ||
+      row["amount"] != null && row["currency"] == null && !codexCredits) {
+    fail("amount/currency", "must be supplied together except for Codex credits");
+  }
   if (row["source_period"] !== undefined) {
     const period = row["source_period"];
     if (!Array.isArray(period) || period.length !== 2) fail("source_period", "must contain two ISO instants");
@@ -232,7 +236,10 @@ export function toWireSampleV3(snapshot: Snapshot | LocalWireSample, now = new D
   if ("value" in snapshot) {
     instant(snapshot.expiresAt, "expiresAt");
     instant(now, "now");
-    if (snapshot.unit !== "PERCENT" && snapshot.availability === undefined && snapshot.usedAmount === undefined) {
+    const codexCredits = snapshot.provider === "CODEX" && snapshot.meter === "CREDITS" &&
+      snapshot.unit === "CREDITS";
+    if (snapshot.unit !== "PERCENT" && snapshot.availability === undefined &&
+        snapshot.usedAmount === undefined && !codexCredits) {
       fail("unit", "has no v2 usage representation; use an explicit amount projection");
     }
     wire = {
@@ -244,6 +251,7 @@ export function toWireSampleV3(snapshot: Snapshot | LocalWireSample, now = new D
       verification: snapshot.labels.verification
     };
     if (snapshot.availability === undefined && snapshot.unit === "PERCENT") wire["usage_percent"] = snapshot.value;
+    if (codexCredits && snapshot.availability === undefined) wire["amount"] = snapshot.value;
     if (snapshot.usedAmount !== undefined) wire["amount"] = snapshot.usedAmount;
     if (snapshot.currency !== undefined) wire["currency"] = snapshot.currency;
     if (snapshot.kind !== undefined) wire["kind"] = snapshot.kind;

@@ -56,6 +56,23 @@
       },
       "meterIds": ["FIVE_HOUR"],
       "values": [33]
+    },
+    {
+      "name": "monthly individual limit uses the documented snapshot nesting",
+      "payload": {
+        "rateLimits": {
+          "limitId": "codex",
+          "primary": { "usedPercent": 40, "windowDurationMins": 300, "resetsAt": 1798783200 },
+          "individualLimit": {
+            "limit": "1000",
+            "used": "125.5",
+            "remainingPercent": 87.45,
+            "resetsAt": 1799388000
+          }
+        }
+      },
+      "meterIds": ["FIVE_HOUR", "MONTHLY_CREDIT_LIMIT"],
+      "values": [40, 12.55]
     }
   ]
 }

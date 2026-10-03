@@ -191,7 +191,7 @@ describe("usageSamplesFromSnapshots", () => {
 
   it("never uploads a reading that carries availability, whatever its value", () => {
     const rows = usageSamplesFromSnapshots([
-      usageSnapshot({ provider: "OPENROUTER", meter: "CREDITS", value: 62.35, availability: "expired_credentials" }),
+      usageSnapshot({ provider: "OPENROUTER", meter: "ACCOUNT_BALANCE", value: 62.35, availability: "expired_credentials" }),
       usageSnapshot(),
     ], NOW);
     expect(rows.map((row) => row.meter)).toEqual(["FIVE_HOUR"]);
@@ -203,6 +203,32 @@ describe("usageSamplesFromSnapshots", () => {
       usageSnapshot(),
     ], NOW);
     expect(rows.map((row) => row.meter)).toEqual(["FIVE_HOUR"]);
+  });
+
+  it("syncs an OpenRouter account balance as money and retires ambiguous credits", () => {
+    const balance = usageSnapshot({
+      provider: "OPENROUTER",
+      meter: "ACCOUNT_BALANCE",
+      value: 38.3,
+      usedAmount: 7.66,
+      limitAmount: 20,
+      currency: "USD",
+      window: { kind: "lifetime" },
+      resetAt: null,
+    });
+    const legacy = usageSnapshot({ provider: "OPENROUTER", meter: "CREDITS" });
+    expect(usageSamplesFromSnapshots([legacy, balance], NOW)).toEqual([{
+      account_id: "claude-personal",
+      provider: "OPENROUTER",
+      meter: "ACCOUNT_BALANCE",
+      window_id: "ACCOUNT_BALANCE",
+      usage_percent: null,
+      reset_at: null,
+      observed_at: "2026-09-07T11:59:30.000Z",
+      stale: false,
+      amount: 12.34,
+      currency: "USD",
+    }]);
   });
 });
 

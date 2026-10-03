@@ -369,28 +369,41 @@ test("errors are one short line that says what to do", async () => {
   }
 });
 
-test("OpenRouter's row reads its quota connection: checking, then the balance with its age", () => {
-  const checking = keyRows({ openrouter: { records: [{ id: "c1", provider: "OPENROUTER", state: "READY_TO_ENABLE" }], readings: [] } }, NOW)[0];
+test("OpenRouter's row reads its credits connection: checking, then the account balance with its age", () => {
+  const checking = keyRows({ openrouter: { records: [{ id: "c1", provider: "OPENROUTER", state: "READY_TO_ENABLE", readerId: "openrouter_credits" }], readings: [] } }, NOW)[0];
   assert.deepEqual([checking.kind, checking.state], ["quota", "checking"]);
   const reading = {
-    provider: "OPENROUTER", meter: "CREDITS", value: 25, usedAmount: 12.5, limitAmount: 50, currency: "USD",
+    provider: "OPENROUTER", meter: "ACCOUNT_BALANCE", value: 25, usedAmount: 12.5, limitAmount: 50, currency: "USD",
     observedAt: "2026-09-29T11:58:00.000Z", accountId: "c1",
   };
-  const read = keyRows({ openrouter: { records: [{ id: "c1", provider: "OPENROUTER", state: "CONNECTED" }], readings: [reading] } }, NOW);
-  assert.deepEqual([read[0].state, read[0].amount, read[0].period], ["reading", "$37.50", "balance"]);
+  const read = keyRows({ openrouter: { records: [{ id: "c1", provider: "OPENROUTER", state: "CONNECTED", readerId: "openrouter_credits" }], readings: [reading] } }, NOW);
+  assert.deepEqual([read[0].state, read[0].amount, read[0].period], ["reading", "$37.50", "Account balance"]);
   const text = draw(read).row("openrouter").textContent;
   for (const part of ["$37.50", "balance", "USD", "Updated 2 min ago"]) assert.ok(text.includes(part), part);
-  const refused = keyRows({ openrouter: { records: [{ id: "c1", provider: "OPENROUTER", state: "NEEDS_AUTH" }], readings: [] } }, NOW)[0];
+  const refused = keyRows({ openrouter: { records: [{ id: "c1", provider: "OPENROUTER", state: "NEEDS_AUTH", readerId: "openrouter_credits" }], readings: [] } }, NOW)[0];
   assert.deepEqual([refused.state, refused.error, refused.replace], ["error", "Key not accepted, paste a new one", true]);
   // Its field is right there, so the tool row's Connect has somewhere to go.
   const drawn = draw([refused]);
   assert.equal(drawn.field("openrouter").getAttribute("placeholder"), "API key");
 });
 
+test("OpenRouter key allowance never borrows the account balance identity", () => {
+  const record = { id: "c1", provider: "OPENROUTER", state: "CONNECTED", readerId: "openrouter_key" };
+  const rows = keyRows({ openrouter: { records: [record], readings: [{
+    provider: "OPENROUTER", meter: "KEY_LIMIT", value: 10, usedAmount: 10, limitAmount: 100,
+    currency: "USD", observedAt: "2026-09-29T11:57:00.000Z", accountId: "c1",
+  }, {
+    provider: "OPENROUTER", meter: "ACCOUNT_BALANCE", value: 38.3, usedAmount: 7.66, limitAmount: 20,
+    currency: "USD", observedAt: "2026-09-29T11:59:00.000Z", accountId: "c1",
+  }] } }, NOW);
+  assert.deepEqual([rows[0].amount, rows[0].period], ["$90.00", "Key allowance"]);
+  assert.equal(draw(rows).row("openrouter").textContent.includes("$12.34"), false);
+});
+
 test("two OpenRouter accounts each show, refresh and remove their own, and a paused one shows none", async () => {
-  const record = (id, active = true) => ({ id, provider: "OPENROUTER", state: "CONNECTED", active, maskedLabel: "sk-or-v1-..." + id });
+  const record = (id, active = true) => ({ id, provider: "OPENROUTER", state: "CONNECTED", active, maskedLabel: "sk-or-v1-..." + id, readerId: "openrouter_credits" });
   const reading = (accountId, usedAmount, observedAt) => ({
-    provider: "OPENROUTER", meter: "CREDITS", value: 0, usedAmount, limitAmount: 50, currency: "USD", observedAt, accountId,
+    provider: "OPENROUTER", meter: "ACCOUNT_BALANCE", value: 0, usedAmount, limitAmount: 50, currency: "USD", observedAt, accountId,
   });
   const records = [record("acct-a"), record("acct-b"), record("acct-paused", false)];
   // The paused account's reading is the newest, so a pick across accounts would show it everywhere.

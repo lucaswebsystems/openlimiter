@@ -104,6 +104,36 @@ describe("snapshot cache", () => {
     expect(second).toEqual(first);
   });
 
+  it("preserves supported availability rows through cache persistence", async () => {
+    const directory = await temporaryDirectory();
+    const rows = [
+      snapshot({
+        provider: "OPENROUTER",
+        meter: "KEY_LIMIT",
+        value: 0,
+        availability: "unlimited",
+      }),
+      snapshot({
+        provider: "OPENROUTER",
+        meter: "ACCOUNT_BALANCE",
+        value: 0,
+        availability: "missing_credentials",
+      }),
+      snapshot({
+        provider: "CODEX",
+        meter: "CREDITS",
+        value: 0,
+        availability: "unlimited",
+      }),
+    ];
+    await writeSnapshotCache(rows, directory);
+    expect(await readSnapshotCache(directory)).toMatchObject({
+      ok: true,
+      snapshots: rows,
+      dropped: 0,
+    });
+  });
+
   it("rejects corrupt cache data and out of bounds writes", async () => {
     const directory = await temporaryDirectory();
     await writeFile(path.join(directory, CACHE_FILE_NAME), "{broken", "utf8");
@@ -157,6 +187,26 @@ describe("snapshot cache", () => {
       suppressions: [],
       snapshots: [snapshot({ meter: "SEVEN_DAY", value: 64 })],
       dropped: 3
+    });
+  });
+
+  it("retires ambiguous OpenRouter credits rows from old cache documents", async () => {
+    const directory = await temporaryDirectory();
+    await writeFile(
+      path.join(directory, CACHE_FILE_NAME),
+      JSON.stringify({
+        version: 2,
+        snapshots: [
+          snapshot({ provider: "OPENROUTER", meter: "CREDITS", value: 50 }),
+          snapshot({ provider: "OPENROUTER", meter: "KEY_LIMIT", value: 25 }),
+        ],
+      }),
+      "utf8",
+    );
+    expect(await readSnapshotCache(directory)).toMatchObject({
+      ok: true,
+      snapshots: [snapshot({ provider: "OPENROUTER", meter: "KEY_LIMIT", value: 25 })],
+      dropped: 1,
     });
   });
 

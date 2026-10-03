@@ -318,10 +318,8 @@ export async function readSnapshotCache(
   if (version !== undefined && version !== 1 && version !== 2 && version !== CACHE_DOCUMENT_VERSION) {
     return { ok: false, reason: "corrupt" };
   }
-  const migrated = version === 2
-    ? rawSnapshots.filter((row) => !(isRecord(row) && row["provider"] === "ANTIGRAVITY")) as RawMeter[]
-    : rawSnapshots as RawMeter[];
-  const validated = normalizeMeters(migrated);
+  const migrated = migrateLegacyMeterIdentities(rawSnapshots, version);
+  const validated = normalizeMeters(migrated as RawMeter[]);
   const dropped = rawSnapshots.length - validated.length;
   const read = readSuppressions(document.value["suppressions"]);
   if (!read.ok) {
@@ -374,9 +372,7 @@ export async function readCacheState(
   return {
     ok: true,
     state: {
-      snapshots: normalizeMeters(version === 2
-        ? rawSnapshots.filter((row) => !(isRecord(row) && row["provider"] === "ANTIGRAVITY")) as RawMeter[]
-        : rawSnapshots as RawMeter[]),
+      snapshots: normalizeMeters(migrateLegacyMeterIdentities(rawSnapshots, version) as RawMeter[]),
       suppressions: read.suppressions
     }
   };
@@ -626,8 +622,25 @@ async function withCacheLock<Result>(
  *
  * A version 1 document is still read, and read correctly: it has no
  * suppressions, which is true of it.
+ *
+ * Version 3 removes the ambiguous OpenRouter CREDITS identity. Old readers
+ * wrote either a key allowance or an account balance under that one code, so
+ * migration drops the row instead of guessing which scope it represented.
  */
 export const CACHE_DOCUMENT_VERSION = 3;
+
+function migrateLegacyMeterIdentities(
+  snapshots: readonly unknown[],
+  version: unknown,
+): unknown[] {
+  if (version === CACHE_DOCUMENT_VERSION) return [...snapshots];
+  return snapshots.filter((value) => {
+    if (!isRecord(value)) return true;
+    const retiredAntigravity = version === 2 && value["provider"] === "ANTIGRAVITY";
+    const ambiguousOpenRouter = value["provider"] === "OPENROUTER" && value["meter"] === "CREDITS";
+    return !retiredAntigravity && !ambiguousOpenRouter;
+  });
+}
 
 async function replaceCache(
   directory: string,

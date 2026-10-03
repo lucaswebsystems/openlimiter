@@ -68,7 +68,7 @@ export const demoCapture: CliCapture = {
   output: `PROVIDER METER BAR USAGE AMOUNT STATE RESET IN
 CLAUDE FIVE_HOUR ####...... 42.00PERCENT NONE fresh 2026-08-10T09:12:01.000Z 4h59m
 CLAUDE SEVEN_DAY ######.... 64.00PERCENT NONE fresh 2026-08-17T04:12:01.000Z 6d23h
-OPENROUTER CREDITS ######.... 62.35PERCENT $12.47/$20.00 fresh NONE NONE
+OPENROUTER Account balance NONE NONE $7.53 fresh NONE NONE
 CODEX PRIMARY ########.. 84.00PERCENT NONE fresh 2026-08-10T09:12:01.658Z 5h0m
 ANTIGRAVITY PRIMARY ##........ 28.00PERCENT NONE fresh 2026-08-11T04:12:01.658Z 1d0h
 OPENCODE PRIMARY #########. 92.00PERCENT NONE fresh 2026-08-11T04:12:01.658Z 1d0h
@@ -134,7 +134,7 @@ export const statuslineAllMetersCapture: CliCapture = {
   command:
     "openlimiter config set statusline.meters all && NO_COLOR=1 node packages/cli/dist/bin.js statusline",
   output: `OpenLimiter NEAR_CAP PREFER ANTIGRAVITY  CLAUDE:FIVE_HOUR ##... 42.0%  CLAUDE:SEVEN_DAY ###.. 64.0%  CODEX:PRIMARY ####. 84.0%
-ANTIGRAVITY:PRIMARY #.... 28.0%  OPENCODE:PRIMARY ####. 92.0%  MANUAL:MONTHLY #.... 35.0%  OPENROUTER:CREDITS ###.. 62.3%`,
+ANTIGRAVITY:PRIMARY #.... 28.0%  OPENCODE:PRIMARY ####. 92.0%  MANUAL:MONTHLY #.... 35.0%  OPENROUTER:Balance $7.53`,
 };
 
 /** `openlimiter config get statusline` on a machine with no changes made. */

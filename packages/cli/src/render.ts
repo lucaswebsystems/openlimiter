@@ -1,10 +1,12 @@
 import {
-  claudeMeterLabel,
-  claudeMeterRank,
   collectionIdentity,
   failureSentence,
   floorFixed,
   freshness,
+  providerMeterLabel,
+  providerMeterPresentation,
+  providerMeterRank,
+  providerMeterVisible,
   type FailureCategory,
   type ProviderFailure,
   type Snapshot,
@@ -349,10 +351,8 @@ function providerIdentity(snapshot: Snapshot): string {
 
 /** Display familiar windows and preserve provider supplied names. */
 function windowName(meter: string, provider: string): string {
-  if (provider === "CLAUDE") {
-    const claude = claudeMeterLabel(meter);
-    if (claude !== null) return claude;
-  }
+  const shared = provider === "ANTIGRAVITY" ? null : providerMeterLabel(provider, meter);
+  if (shared !== null) return shared;
   const names: Readonly<Record<string, string>> = {
     FIVE_HOUR: "5h",
     SEVEN_DAY: "Weekly",
@@ -408,12 +408,26 @@ function buildRow(
   now: string,
   color: boolean
 ): Row {
+  const presentation = providerMeterPresentation(snapshot.provider, snapshot.meter);
+  const balance = presentation?.valueSemantics === "balance";
+  const availability = snapshot.availability;
+  const balanceAmount = snapshot.currency === "USD" &&
+    snapshot.usedAmount !== undefined && snapshot.limitAmount !== undefined
+    ? "$" + floorFixed(Math.max(0, snapshot.limitAmount - snapshot.usedAmount), 2)
+    : floorFixed(snapshot.value, 2) + " credits";
   return {
     provider: truncateIdentity(providerIdentity(snapshot), MAX_PROVIDER_WIDTH),
     meter: windowName(snapshot.meter, snapshot.provider),
-    bar: meterBar(snapshot.value, state, color),
-    usage: floorFixed(snapshot.value, 2) + snapshot.unit,
-    amount: amountField(snapshot),
+    bar: balance || availability !== undefined ? "NONE" : meterBar(snapshot.value, state, color),
+    usage: availability !== undefined
+      ? availability === "unlimited" && snapshot.meter === "KEY_LIMIT"
+        ? "NO KEY CAP"
+        : availability === "unlimited" && snapshot.provider === "CODEX" && snapshot.meter === "CREDITS"
+        ? "UNLIMITED"
+        : "UNAVAILABLE"
+      : balance ? "NONE"
+      : floorFixed(snapshot.value, 2) + snapshot.unit + (snapshot.provider === "KIMI" ? " USED" : ""),
+    amount: availability !== undefined ? "NONE" : balance ? balanceAmount : amountField(snapshot),
     state,
     reset: snapshot.resetAt ?? "NONE",
     remaining: timeToReset(snapshot.resetAt, now),
@@ -464,10 +478,12 @@ function providerRank(group: readonly FreshSnapshot[]): {
   const known = group.filter((entry) => entry.state !== "unknown");
   if (known.length === 0) return { tier: 2, pressure: 0 };
   const fresh = known.filter((entry) => entry.state === "fresh");
-  const ranked = fresh.length > 0 ? fresh : known;
+  const ranked = (fresh.length > 0 ? fresh : known).filter(({ snapshot }) =>
+    snapshot.availability === undefined &&
+    providerMeterPresentation(snapshot.provider, snapshot.meter)?.valueSemantics !== "balance");
   return {
     tier: fresh.length > 0 ? 0 : 1,
-    pressure: Math.max(...ranked.map((entry) => entry.snapshot.value))
+    pressure: ranked.length === 0 ? 0 : Math.max(...ranked.map((entry) => entry.snapshot.value))
   };
 }
 
@@ -477,6 +493,7 @@ function orderSnapshots(
 ): FreshSnapshot[] {
   const grouped = new Map<string, FreshSnapshot[]>();
   for (const snapshot of snapshots) {
+    if (!providerMeterVisible(snapshot.provider, snapshot.meter)) continue;
     const group = grouped.get(snapshot.provider) ?? [];
     group.push({
       snapshot,
@@ -496,12 +513,13 @@ function orderSnapshots(
   const result: FreshSnapshot[] = [];
   for (const [provider, group] of ordered) {
     result.push(...[...group].sort((left, right) => {
-      if (provider === "CLAUDE") {
-        const account = providerIdentity(left.snapshot).localeCompare(providerIdentity(right.snapshot));
-        if (account !== 0) return account;
-        const rank = (claudeMeterRank(left.snapshot.meter) ?? 90) -
-          (claudeMeterRank(right.snapshot.meter) ?? 90);
-        if (rank !== 0) return rank;
+      const account = providerIdentity(left.snapshot).localeCompare(providerIdentity(right.snapshot));
+      if (account !== 0) return account;
+      const presentationRank = (providerMeterRank(provider, left.snapshot.meter) ?? 90) -
+        (providerMeterRank(provider, right.snapshot.meter) ?? 90);
+      if (presentationRank !== 0) return presentationRank;
+      if (provider === "CLAUDE" || provider === "KIMI" || provider === "CODEX" ||
+          provider === "OPENROUTER" || provider === "OPENCODE") {
         return left.snapshot.meter.localeCompare(right.snapshot.meter);
       }
       const stateRank = { fresh: 0, stale: 1, unknown: 2 } as const;
@@ -522,8 +540,8 @@ export function renderTable(
   now: string,
   color: boolean
 ): string {
-  if (snapshots.length === 0) return "No bounded quota data is available.";
   const rows = orderSnapshots(snapshots, now).map(({ snapshot, state }) =>
     buildRow(snapshot, state, now, color));
+  if (rows.length === 0) return "No bounded quota data is available.";
   return renderRows(rows);
 }

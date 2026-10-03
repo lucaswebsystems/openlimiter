@@ -55,6 +55,60 @@ function window(length: number): Record<string, unknown> {
 
 
 describe("codex: the shape a real account produced", () => {
+  it("keeps the app server monthly credit control beside ordinary quotas", () => {
+    const meters = parseCodexPayload({
+      rateLimits: {
+        limitId: "codex",
+        primary: { usedPercent: 40, windowDurationMins: 300, resetsAt: epoch(FIVE_HOURS) },
+        individualLimit: {
+          limit: "1000",
+          used: "125.5",
+          remainingPercent: 87.45,
+          resetsAt: epoch(SEVEN_DAYS),
+        },
+      },
+    }, NOW);
+    expect(meters?.map((meter) => meter.meter)).toEqual(["FIVE_HOUR", "MONTHLY_CREDIT_LIMIT"]);
+    expect(meters?.[1]).toMatchObject({ value: 12.55, unit: "PERCENT" });
+  });
+
+  it.each([
+    ["zero", "0", 0],
+    ["fractional", "0.25", 0.25],
+    ["large", "123456.75", 123456.75],
+  ])("keeps a %s credit balance without turning it into a percentage", (_case, balance, expected) => {
+    const meters = parseCodexPayload({
+      rateLimits: {
+        limitId: "codex",
+        primary: { usedPercent: 60, windowDurationMins: 300, resetsAt: epoch(FIVE_HOURS) },
+        credits: { hasCredits: true, unlimited: false, balance },
+      },
+    }, NOW);
+    expect(meters?.map((meter) => [meter.meter, meter.unit, meter.value])).toEqual([
+      ["FIVE_HOUR", "PERCENT", 60],
+      ["CREDITS", "CREDITS", expected],
+    ]);
+  });
+
+  it("keeps unavailable credits absent and unlimited credits nonnumeric", () => {
+    const unavailable = parseCodexPayload({
+      rateLimits: {
+        limitId: "codex",
+        primary: { usedPercent: 60, windowDurationMins: 300, resetsAt: epoch(FIVE_HOURS) },
+        credits: { hasCredits: false, unlimited: false, balance: null },
+      },
+    }, NOW);
+    expect(unavailable?.map((meter) => meter.meter)).toEqual(["FIVE_HOUR"]);
+    const unlimited = parseCodexPayload({
+      rateLimits: {
+        limitId: "codex",
+        primary: { usedPercent: 60, windowDurationMins: 300, resetsAt: epoch(FIVE_HOURS) },
+        credits: { hasCredits: true, unlimited: true, balance: null },
+      },
+    }, NOW);
+    expect(unlimited?.[1]).toMatchObject({ meter: "CREDITS", availability: "unlimited" });
+  });
+
   it("parses the observed shape into exactly one meter", () => {
     const meters = parseCodexPayload(codexFixture(NOW), NOW);
     expect(meters).not.toBeNull();

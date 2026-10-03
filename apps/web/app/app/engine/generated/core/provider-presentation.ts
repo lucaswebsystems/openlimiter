@@ -185,3 +185,196 @@ export function antigravityMeterRank(code: string): number | null {
 export function antigravityMeterCompactLabel(code: string): string | null {
   return antigravityMeterPresentation(code)?.compactLabel ?? null;
 }
+
+export type ProviderMeterValueSemantics = "used" | "balance";
+
+export type ProviderMeterLabelKey =
+  | ClaudeMeterLabelKey
+  | AntigravityMeterLabelKey
+  | "codexMonthlyCreditLimit"
+  | "codexCredits"
+  | "openrouterKeyAllowance"
+  | "openrouterAccountBalance"
+  | "kimiWeeklyUsed"
+  | "kimiFiveHourUsed"
+  | "kimiFiveMinuteUsed"
+  | "kimiDailyUsed"
+  | "kimiSevenDayUsed"
+  | "kimiUsageUsed"
+  | "opencodeFiveHourPage"
+  | "opencodeWeeklyPage"
+  | "opencodeMonthlyPage"
+  | "cursorLegacyHidden";
+
+export interface ProviderMeterPresentation {
+  readonly labelKey: ProviderMeterLabelKey;
+  readonly defaultLabel: string;
+  readonly compactLabel: string;
+  readonly order: number;
+  readonly valueSemantics: ProviderMeterValueSemantics;
+  readonly visible: boolean;
+  readonly displayAvailability: boolean;
+}
+
+const presentation = (
+  labelKey: ProviderMeterLabelKey,
+  defaultLabel: string,
+  compactLabel: string,
+  order: number,
+  valueSemantics: ProviderMeterValueSemantics = "used",
+  visible = true,
+  displayAvailability = false,
+): ProviderMeterPresentation => ({
+  labelKey,
+  defaultLabel,
+  compactLabel,
+  order,
+  valueSemantics,
+  visible,
+  displayAvailability,
+});
+
+const FIXED_PRESENTATION: Readonly<Record<string, ProviderMeterPresentation>> = Object.freeze({
+  "CODEX:MONTHLY_CREDIT_LIMIT": presentation(
+    "codexMonthlyCreditLimit", "Monthly credit limit", "Monthly", 40,
+  ),
+  "CODEX:CREDITS": presentation("codexCredits", "Credits", "Credits", 100, "balance", true, true),
+  "OPENROUTER:KEY_LIMIT": presentation(
+    "openrouterKeyAllowance", "Key allowance", "key", 10, "used", true, true,
+  ),
+  "OPENROUTER:ACCOUNT_BALANCE": presentation(
+    "openrouterAccountBalance", "Account balance", "Balance", 100, "balance", true, true,
+  ),
+  "KIMI:WEEKLY": presentation("kimiWeeklyUsed", "Weekly limit", "Weekly used", 10),
+  "KIMI:FIVE_HOUR": presentation("kimiFiveHourUsed", "5 hour limit", "5h used", 20),
+  "KIMI:FIVE_MINUTE": presentation("kimiFiveMinuteUsed", "5 minute limit", "5m used", 24),
+  "KIMI:DAILY": presentation("kimiDailyUsed", "Daily limit", "1d used", 25),
+  "KIMI:SEVEN_DAY": presentation("kimiSevenDayUsed", "7 day limit", "7d used", 30),
+  "OPENCODE:FIVE_HOUR": presentation(
+    "opencodeFiveHourPage", "5 hour limit, from the OpenCode page", "Page 5h", 10,
+  ),
+  "OPENCODE:SEVEN_DAY": presentation(
+    "opencodeWeeklyPage", "Weekly limit, from the OpenCode page", "Page 7d", 20,
+  ),
+  "OPENCODE:MONTHLY": presentation(
+    "opencodeMonthlyPage", "Monthly limit, from the OpenCode page", "Page month", 30,
+  ),
+  "CURSOR:AUTO": presentation("cursorLegacyHidden", "", "", 90, "used", false),
+  "CURSOR:API": presentation("cursorLegacyHidden", "", "", 90, "used", false),
+  "CURSOR:INCLUDED": presentation("cursorLegacyHidden", "", "", 90, "used", false),
+});
+
+function claudeProviderPresentation(code: string): ProviderMeterPresentation | null {
+  const found = claudeMeterPresentation(code);
+  if (found === null) return null;
+  return presentation(
+    found.labelKey,
+    found.defaultLabel,
+    found.compactLabel,
+    found.order,
+  );
+}
+
+function antigravityProviderPresentation(code: string): ProviderMeterPresentation | null {
+  const found = antigravityMeterPresentation(code);
+  if (found === null) return null;
+  return presentation(
+    found.labelKey,
+    found.defaultLabel,
+    found.compactLabel,
+    found.order,
+  );
+}
+
+/** Presentation metadata for the meter identities whose provider wording matters. */
+export function providerMeterPresentation(
+  provider: string,
+  code: string,
+): ProviderMeterPresentation | null {
+  const normalizedProvider = provider.toUpperCase();
+  const meter = code.toUpperCase();
+  if (normalizedProvider === "CLAUDE") return claudeProviderPresentation(meter);
+  if (normalizedProvider === "ANTIGRAVITY") return antigravityProviderPresentation(meter);
+  const fixed = FIXED_PRESENTATION[normalizedProvider + ":" + meter];
+  if (fixed !== undefined) return fixed;
+  if (normalizedProvider === "KIMI") {
+    const repeated = meter.match(/^(WEEKLY|FIVE_HOUR|FIVE_MINUTE|DAILY|SEVEN_DAY)_([1-9]\d*)$/u);
+    if (repeated !== null) {
+      const base = FIXED_PRESENTATION["KIMI:" + repeated[1]];
+      const ordinal = Number(repeated[2]);
+      if (base !== undefined && Number.isSafeInteger(ordinal) && ordinal >= 2) {
+        return {
+          ...base,
+          defaultLabel: base.defaultLabel + " " + String(ordinal),
+          compactLabel: base.compactLabel + " " + String(ordinal),
+          order: base.order + ordinal - 1,
+        };
+      }
+    }
+    const dynamic = meter.match(/^WINDOW_([1-9]\d*)(?:_([1-9]\d*))?$/u);
+    if (dynamic !== null) {
+      const seconds = Number(dynamic[1]);
+      const ordinal = dynamic[2] === undefined ? 1 : Number(dynamic[2]);
+      if (Number.isSafeInteger(seconds) && Number.isSafeInteger(ordinal) && ordinal >= 1) {
+        const unit = seconds % 86_400 === 0
+          ? { count: seconds / 86_400, name: "day", compact: "d" }
+          : seconds % 3_600 === 0
+          ? { count: seconds / 3_600, name: "hour", compact: "h" }
+          : seconds % 60 === 0
+          ? { count: seconds / 60, name: "minute", compact: "m" }
+          : { count: seconds, name: "second", compact: "s" };
+        const suffix = ordinal === 1 ? "" : " " + String(ordinal);
+        return presentation(
+          "kimiUsageUsed",
+          String(unit.count) + " " + unit.name + " limit" + suffix,
+          String(unit.count) + unit.compact + " used" + suffix,
+          40 + ordinal - 1,
+        );
+      }
+    }
+    return presentation("kimiUsageUsed", "Usage limit", "Used", 40);
+  }
+  return null;
+}
+
+export function providerMeterLabel(
+  provider: string,
+  code: string,
+  copy: Partial<Record<ProviderMeterLabelKey, string>> = {},
+): string | null {
+  if (provider.toUpperCase() === "CLAUDE") {
+    return claudeMeterLabel(
+      code,
+      copy as Partial<Record<ClaudeMeterLabelKey, string>>,
+    );
+  }
+  const found = providerMeterPresentation(provider, code);
+  if (found === null) return null;
+  const localized = copy[found.labelKey];
+  const repeated = provider.toUpperCase() === "KIMI"
+    ? code.toUpperCase().match(/^(?:WEEKLY|FIVE_HOUR|FIVE_MINUTE|DAILY|SEVEN_DAY)_([1-9]\d*)$/u)
+    : null;
+  const dynamic = provider.toUpperCase() === "KIMI"
+    ? code.toUpperCase().match(/^WINDOW_[1-9]\d*(?:_([1-9]\d*))?$/u)
+    : null;
+  if (localized === undefined) return found.defaultLabel;
+  if (repeated !== null) return localized + " " + repeated[1];
+  if (dynamic !== null) {
+    const duration = found.compactLabel.split(" used", 1)[0];
+    const ordinal = dynamic[1] === undefined ? "" : " " + dynamic[1];
+    return localized + " (" + duration + ")" + ordinal;
+  }
+  return localized;
+}
+
+export function providerMeterRank(provider: string, code: string): number | null {
+  return providerMeterPresentation(provider, code)?.order ?? null;
+}
+
+export function providerMeterCompactLabel(provider: string, code: string): string | null {
+  return providerMeterPresentation(provider, code)?.compactLabel ?? null;
+}
+
+export function providerMeterVisible(provider: string, code: string): boolean {
+  return providerMeterPresentation(provider, code)?.visible ?? true;
+}

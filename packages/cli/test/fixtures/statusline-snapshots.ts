@@ -113,7 +113,17 @@ export const GOLDEN_SNAPSHOTS: readonly Snapshot[] = [
   }),
   reading({
     provider: "OPENROUTER",
-    meter: "CREDITS",
+    meter: "KEY_LIMIT",
+    value: 25,
+    usedAmount: 5,
+    limitAmount: 20,
+    currency: "USD",
+    window: { kind: "lifetime" },
+    resetAt: null
+  }),
+  reading({
+    provider: "OPENROUTER",
+    meter: "ACCOUNT_BALANCE",
     value: 62.35,
     usedAmount: 12.47,
     limitAmount: 20,

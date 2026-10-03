@@ -57,7 +57,7 @@ export function messyFixtures(now = Date.now()) {
     row(at, "CLAUDE", "SEVEN_DAY_FABLE", 31, { account: ACCOUNTS.claude, reset: 4 * DAY + 14 * HOUR, writer: "cli" }),
     row(at, "CODEX", "SEVEN_DAY", 70, { account: ACCOUNTS.codex, reset: 4 * DAY, writer: "desktop" }),
     {
-      ...row(at, "OPENROUTER", "CREDITS", 25, { account: ACCOUNTS.openrouter, window: { kind: "lifetime" } }),
+      ...row(at, "OPENROUTER", "ACCOUNT_BALANCE", 25, { account: ACCOUNTS.openrouter, window: { kind: "lifetime" } }),
       source: "documented_api", kind: "money_balance", usedAmount: 12.5, limitAmount: 50, currency: "USD",
       labels: { credentialOrigin: "user-key", dataInterfaceStatus: "documented-api", automationRisk: "low", verification: "UNVERIFIED" },
     },

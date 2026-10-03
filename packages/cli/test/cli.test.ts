@@ -135,9 +135,9 @@ describe("CLI", () => {
       payloads
     });
     expect(result.exitCode).toBe(0);
-    /* The padded table carries every bounded meter with its percent and bar. */
+    /* Quotas carry percentages and bars; balances carry their remaining amount. */
     expect(result.stdout).toMatch(/CLAUDE\s+Current session\s+[^\s]{10}\s+42\.00PERCENT/);
-    expect(result.stdout).toMatch(/OPENROUTER\s+Credits\s+[^\s]{10}\s+62\.35PERCENT/);
+    expect(result.stdout).toMatch(/OPENROUTER\s+Account balance\s+NONE\s+NONE\s+\$7\.53/);
     expect(result.stdout.includes("demo@example.test")).toBe(false);
   });
 
@@ -173,36 +173,21 @@ describe("CLI", () => {
         payloads
       });
       expect(result.stdout).toBe([
-        "PROVIDER    METER              BAR        USAGE        AMOUNT        " +
-          "STATE RESET                    IN    SOURCE       ",
-        "OPENCODE    5h                 #########. 92.00PERCENT NONE          " +
-          "fresh 2026-01-01T20:00:00.000Z 20h0m [import only]",
-        "OPENCODE    Weekly             ####...... 40.00PERCENT NONE          " +
-          "fresh 2026-01-06T20:00:00.000Z 5d20h [import only]",
-        "OPENCODE    Monthly            #......... 15.00PERCENT NONE          " +
-          "fresh 2026-01-22T00:00:00.000Z 21d0h [import only]",
-        "CODEX       5h                 ########.. 84.00PERCENT NONE          " +
-          "fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
-        "KIMI        5h                 ######.... 69.50PERCENT NONE          " +
-          "fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
-        "KIMI        Weekly             #......... 10.44PERCENT NONE          " +
-          "fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
-        "CLAUDE      Current session    ####...... 42.00PERCENT NONE          " +
-          "fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
-        "CLAUDE      Weekly, all models ######.... 64.00PERCENT NONE          " +
-          "fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
-        "OPENROUTER  Credits            ######.... 62.35PERCENT $12.47/$20.00 " +
-          "fresh NONE                     NONE  [import only]",
-        "GROK        Weekly             ####...... 42.50PERCENT NONE          " +
-          "fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
-        "GROK        On demand monthly  .......... 6.00PERCENT  NONE          " +
-          "fresh NONE                     NONE  [import only]",
-        "MANUAL      Monthly            ###....... 35.00PERCENT NONE          " +
-          "fresh 2026-02-01T00:00:00.000Z 31d0h [import only]",
-        "ANTIGRAVITY 5h                 ##........ 28.00PERCENT NONE          " +
-          "fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
-        "ANTIGRAVITY Weekly             #......... 10.00PERCENT NONE          " +
-          "fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]"
+        "PROVIDER    METER                                 BAR        USAGE             AMOUNT STATE RESET                    IN    SOURCE       ",
+        "OPENCODE    5 hour limit, from the OpenCode page  #########. 92.00PERCENT      NONE   fresh 2026-01-01T20:00:00.000Z 20h0m [import only]",
+        "OPENCODE    Weekly limit, from the OpenCode page  ####...... 40.00PERCENT      NONE   fresh 2026-01-06T20:00:00.000Z 5d20h [import only]",
+        "OPENCODE    Monthly limit, from the OpenCode page #......... 15.00PERCENT      NONE   fresh 2026-01-22T00:00:00.000Z 21d0h [import only]",
+        "CODEX       5h                                    ########.. 84.00PERCENT      NONE   fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
+        "KIMI        Weekly limit                          #......... 10.44PERCENT USED NONE   fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
+        "KIMI        5 hour limit                          ######.... 69.50PERCENT USED NONE   fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
+        "CLAUDE      Current session                       ####...... 42.00PERCENT      NONE   fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
+        "CLAUDE      Weekly, all models                    ######.... 64.00PERCENT      NONE   fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
+        "GROK        Weekly                                ####...... 42.50PERCENT      NONE   fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
+        "GROK        On demand monthly                     .......... 6.00PERCENT       NONE   fresh NONE                     NONE  [import only]",
+        "MANUAL      Monthly                               ###....... 35.00PERCENT      NONE   fresh 2026-02-01T00:00:00.000Z 31d0h [import only]",
+        "ANTIGRAVITY 5h                                    ##........ 28.00PERCENT      NONE   fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
+        "ANTIGRAVITY Weekly                                #......... 10.00PERCENT      NONE   fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
+        "OPENROUTER  Account balance                       NONE       NONE              $7.53  fresh NONE                     NONE  [import only]"
       ].join("\n"));
     });
 
@@ -218,7 +203,6 @@ describe("CLI", () => {
         "recommendation_reason=LOWEST_USAGE",
         "provider=CLAUDE state=fresh usage_percent=64.00 " +
           "reset_at=2026-01-08T00:00:00.000Z",
-        "provider=OPENROUTER state=fresh usage_percent=62.35 reset_at=NONE",
         "provider=CODEX state=fresh usage_percent=84.00 " +
           "reset_at=2026-01-01T05:00:00.000Z",
         "provider=ANTIGRAVITY state=fresh usage_percent=28.00 " +
@@ -231,7 +215,7 @@ describe("CLI", () => {
           "reset_at=2026-01-01T05:00:00.000Z",
         "provider=MANUAL state=fresh usage_percent=35.00 " +
           "reset_at=2026-02-01T00:00:00.000Z",
-        "unknown=GEMINI_CLI,CURSOR",
+        "unknown=OPENROUTER,GEMINI_CLI,CURSOR",
         "</openlimiter_untrusted_data>"
       ].join("\n");
       const hook = await runCli(["hook"], {
@@ -313,10 +297,10 @@ describe("CLI", () => {
       expect(statusline.stdout).toBe([
         "5h [████░░░░░░] 42% ·5h | 7d [██████░░░░] 64% ·7d | " +
           "cx5h [████████░░] 84% ·5h | ag5h [██░░░░░░░░] ~28% ·5h | " +
-          "ag7d [█░░░░░░░░░] ~10% ·7d | oc5h [█████████░] ~92% ·20h | " +
-          "oc7d [████░░░░░░] ~40% ·5d20h | ocmo [█░░░░░░░░░] ~15% ·21d | " +
+          "ag7d [█░░░░░░░░░] ~10% ·7d | oc Page 5h [█████████░] ~92% ·20h | " +
+          "oc Page 7d [████░░░░░░] ~40% ·5d20h | oc Page month [█░░░░░░░░░] ~15% ·21d | " +
           "gk7d [████░░░░░░] ~43% ·7d | gkmo [█░░░░░░░░░] ~6% | " +
-          "km5h [██████░░░░] ~70% ·5h | km7d [█░░░░░░░░░] ~10% ·7d | " +
+          "km Weekly used [█░░░░░░░░░] ~10% ·7d | km 5h used [██████░░░░] ~70% ·5h | " +
           "mnmo [███░░░░░░░] 35% ·31d | or $7.53"
       ].join(""));
     });
@@ -337,7 +321,7 @@ describe("CLI", () => {
        NEAR_CAP. The bar grammar (decision D6, the default since this lane)
        states pressure as a reading rather than as that reason word, so the
        assertion looks for the reading itself. */
-    expect(statusline.stdout).toContain("oc5h");
+    expect(statusline.stdout).toContain("oc Page 5h");
     expect(statusline.stdout).toContain("92%");
     const hook = await runCli(["hook"], {
       stateDirectory: directory,
@@ -777,12 +761,16 @@ describe("CLI", () => {
     expect(Array.isArray(JSON.parse(populatedExport.stdout))).toBe(true);
   });
 
-  it("draws a bar, a percent and a time to reset on every demo row", async () => {
+  it("draws a bar and percent on every quota row while balances stay neutral", async () => {
     const demo = await runCli(["demo"], { now: () => FIXTURE_NOW, colorOutput: false });
     const [header, ...lines] = demo.stdout.split("\n");
     const barColumn = header!.indexOf("BAR");
     expect(lines.length).toBeGreaterThan(0);
     for (const line of lines) {
+      if (line.startsWith("OPENROUTER ")) {
+        expect(line.slice(barColumn).split(/\s+/).slice(0, 3)).toEqual(["NONE", "NONE", "$7.53"]);
+        continue;
+      }
       // Window names can contain spaces, so start at the aligned bar column.
       const tokens = line.slice(barColumn).split(/\s+/);
       expect(tokens.length).toBeGreaterThanOrEqual(7);
@@ -847,13 +835,14 @@ describe("CLI", () => {
     expect(demo.stdout).not.toContain(ESCAPE);
   });
 
-  it("shows the OpenRouter dollar figures beside its percent", async () => {
+  it("shows the OpenRouter remaining balance without quota pressure", async () => {
     const demo = await runCli(["demo"], { now: () => FIXTURE_NOW, colorOutput: false });
     const row = demo.stdout
       .split("\n")
       .find((line) => line.startsWith("OPENROUTER "));
-    expect(row).toContain("$12.47/$20.00");
-    expect(row).toContain("62.35PERCENT");
+    expect(row).toContain("Account balance");
+    expect(row).toContain("$7.53");
+    expect(row).not.toContain("PERCENT");
     /* Every provider that states no money says NONE rather than inventing one. */
     const claude = demo.stdout.split("\n").find((line) => line.startsWith("CLAUDE "));
     expect(claude).toContain(" NONE ");
@@ -947,7 +936,7 @@ describe("CLI", () => {
       environment: { NO_COLOR: "" }
     });
     expect(statusline.stdout).toMatch(/^OpenLimiter [A-Z_]+ /u);
-    expect(statusline.stdout).toContain("OPENCODE:FIVE_HOUR ####. 92.0%");
+    expect(statusline.stdout).toContain("OPENCODE:Page 5h ####. 92.0%");
     /* A statusline states pressure. Money and failure text belong elsewhere. */
     expect(statusline.stdout).not.toContain("$");
     expect(statusline.stdout).not.toContain("PAYLOAD_UNREADABLE");
@@ -971,7 +960,7 @@ describe("CLI", () => {
    * explicit unknown suffix until it has a reading, which is part of the same
    * honest format rather than a fabricated value.
    */
-  it("returns the 0.1.0 line byte for byte when bars are turned off", async () => {
+  it("keeps OpenRouter, Kimi and OpenCode semantics when bars are turned off", async () => {
     const directory = await temporaryDirectory();
     await runCli(["snapshot", "--refresh"], {
       stateDirectory: directory,
@@ -987,15 +976,13 @@ describe("CLI", () => {
       now: () => FIXTURE_NOW,
       colorOutput: true
     });
-    expect(statusline.stdout).toBe(
-      "OpenLimiter NEAR_CAP CLAUDE 64.0% OPENROUTER 62.3% CODEX 84.0% " +
-      "ANTIGRAVITY 28.0% OPENCODE 92.0% GROK 42.5% KIMI 69.5% MANUAL 35.0% " +
-      "PREFER ANTIGRAVITY UNKNOWN GEMINI_CLI,CURSOR"
-    );
-    /* One line, no bar, no dollar figure, no escape code, no failure line. */
+    expect(statusline.stdout).toContain("OPENCODE:Page 5h 92.0%");
+    expect(statusline.stdout).toContain("KIMI:Weekly used 10.4%");
+    expect(statusline.stdout).toContain("KIMI:5h used 69.5%");
+    expect(statusline.stdout).toContain("OPENROUTER:Balance $7.53");
+    /* One line, no bar, no escape code, no failure line. */
     expect(statusline.stdout.split("\n")).toHaveLength(1);
     expect(statusline.stdout).not.toContain(ESCAPE);
-    expect(statusline.stdout).not.toContain("$");
     expect(statusline.stdout).not.toContain("#");
   });
 
@@ -1013,7 +1000,7 @@ describe("CLI", () => {
     });
     const rows = stacked.stdout.split("\n");
     expect(rows).toHaveLength(1);
-    expect(stacked.stdout).toContain("oc7d");
+    expect(stacked.stdout).toContain("oc Page 7d");
     await runCli(["config", "set", "statusline.width", "260"], {
       stateDirectory: directory,
       now: () => FIXTURE_NOW
@@ -1057,7 +1044,7 @@ describe("CLI", () => {
     expect(statusline.stdout).toContain(ESCAPE + "[31m");
     expect(statusline.stdout).toContain("CLAUDE:5h");
     expect(statusline.stdout).toContain("CLAUDE:7d");
-    expect(statusline.stdout.indexOf("OPENROUTER:CREDITS"))
+    expect(statusline.stdout.indexOf("OPENROUTER:Balance"))
       .toBeLessThan(statusline.stdout.indexOf("CLAUDE:5h"));
   });
 
@@ -1084,7 +1071,7 @@ describe("CLI", () => {
     });
     /* Every unusable key falls back to the complete reference line. */
     expect(statusline.stdout.split("\n")).toHaveLength(1);
-    expect(statusline.stdout).toContain("oc5h");
+    expect(statusline.stdout).toContain("oc Page 5h");
     expect(statusline.stdout).toContain("92%");
   });
 

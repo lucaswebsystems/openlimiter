@@ -135,6 +135,40 @@ function windowsFrom(
     : meter);
 }
 
+function monthlyCreditLimit(
+  value: unknown,
+  now: string,
+  expiresAt: string,
+): RawMeter | null {
+  const limit = record(value);
+  if (limit === null) return null;
+  const ceiling = typeof limit["limit"] === "string"
+    ? decimal(limit["limit"])
+    : boundedNumber(limit["limit"], 1_000_000_000_000);
+  const used = typeof limit["used"] === "string"
+    ? decimal(limit["used"])
+    : boundedNumber(limit["used"], 1_000_000_000_000);
+  const remaining = boundedNumber(limit["remainingPercent"]);
+  const resetAt = futureInstantFromEpochSeconds(limit["resetsAt"], now);
+  if (
+    ceiling === null || ceiling <= 0 ||
+    used === null || used > ceiling ||
+    remaining === null || resetAt === null
+  ) return null;
+  return rawMeter({
+    provider: "CODEX",
+    meter: "MONTHLY_CREDIT_LIMIT",
+    value: Math.round((100 - remaining) * 1_000_000_000_000) / 1_000_000_000_000,
+    window: { kind: "fixed" },
+    resetAt,
+    source: "documented_api",
+    precision: "exact",
+    observedAt: now,
+    expiresAt,
+    labels: codexLabels,
+  });
+}
+
 function resetFromCountdown(
   value: unknown,
   now: string,
@@ -225,7 +259,6 @@ function parseLegacyCodexPayload(payload: unknown, now: string): RawMeter[] | nu
     meters.push({
       provider: "CODEX",
       meter: "CREDITS",
-      kind: "availability",
       availability: "unlimited",
       // Required legacy transport fields; availability carries no percentage.
       value: 0,
@@ -265,19 +298,23 @@ export function parseCodexPayload(payload: unknown, now: string): RawMeter[] | n
       const limitId = readableLimitId(statedId);
       if (limitId === null) continue;
       const entryMeters = windowsFrom(snapshot, limitId, now, expiresAt);
+      const monthly = monthlyCreditLimit(snapshot["individualLimit"], now, expiresAt);
       if (entryMeters.length > 0 && limitId === defaultLimitId) defaultCovered = true;
       meters.push(...entryMeters);
+      if (monthly !== null) meters.push(monthly);
     }
   }
   if (!defaultCovered && defaultLimitId !== null) {
-    meters.unshift(...windowsFrom(defaultLimits, defaultLimitId, now, expiresAt));
+    const defaultMeters = windowsFrom(defaultLimits, defaultLimitId, now, expiresAt);
+    const monthly = monthlyCreditLimit(defaultLimits["individualLimit"], now, expiresAt);
+    if (monthly !== null) defaultMeters.push(monthly);
+    meters.unshift(...defaultMeters);
   }
   const credits = record(defaultLimits["credits"]);
   if (credits?.["unlimited"] === true) {
     meters.push({
       provider: "CODEX",
       meter: "CREDITS",
-      kind: "availability",
       availability: "unlimited",
       // Required legacy transport fields; availability carries no percentage.
       value: 0,

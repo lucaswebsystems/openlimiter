@@ -30,7 +30,7 @@ const row = (meter, value, extra = {}) => ({
 const markup = buildProviderAccountRows([
   row("FIVE_HOUR", 95, { accountId: "first" }),
   row("SEVEN_DAY", 20, { accountId: "second" }),
-  row("SEVEN_DAY", 12, { provider: "OPENROUTER", meter: "CREDITS", unit: "CREDITS", accountId: "second" }),
+  row("SEVEN_DAY", 12, { provider: "OPENROUTER", meter: "ACCOUNT_BALANCE", unit: "PERCENT", accountId: "second" }),
   row("SEVEN_DAY", 40, { expiresAt: "2026-09-29T11:59:00.000Z", accountId: "second" }),
 ], now, [], {
   providers: ["CLAUDE", "OPENROUTER"],

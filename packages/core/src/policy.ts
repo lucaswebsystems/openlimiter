@@ -1,4 +1,5 @@
 import { freshness } from "./freshness.js";
+import { providerMeterPresentation } from "./provider-presentation.js";
 import {
   PROVIDER_CODES,
   type Advice,
@@ -46,6 +47,7 @@ function recommendationFor(known: readonly AdviceProvider[]): AdviceRecommendati
 
 function isAdviceQuota(snapshot: Snapshot): boolean {
   return snapshot.unit === "PERCENT" &&
+    providerMeterPresentation(snapshot.provider, snapshot.meter)?.valueSemantics !== "balance" &&
     snapshot.availability === undefined &&
     (snapshot.kind === undefined || snapshot.kind === "quota_percent") &&
     snapshot.meter !== "ACQUISITION" &&

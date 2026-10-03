@@ -92,7 +92,6 @@ import {
   type HostedContextTrust,
   type HostedTrustLoadOptions,
   loadHostedContextTrust,
-  renderClaudeStatusline
 } from "@openlimiter/adapters";
 import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -152,7 +151,9 @@ import {
 } from "./render.js";
 import {
   isStatuslineHost,
+  renderPlainStatusline,
   renderStatuslineLayout,
+  resolveProviderOrder,
   statuslineColor,
   statuslineUnicode,
   type StatuslineHost
@@ -1498,7 +1499,15 @@ async function statuslineCommand(
   }
   const advice = buildAdvice(snapshots, now, PROVIDER_CODES);
   const config = await readStatuslineConfig(dependencies.stateDirectory);
-  if (!config.bars) return succeed(renderClaudeStatusline(advice));
+  if (!config.bars) {
+    return succeed(renderPlainStatusline(
+      advice,
+      snapshots,
+      now,
+      resolveProviderOrder(config.order),
+      config.meters,
+    ));
+  }
   return succeed(renderStatuslineLayout({
     advice,
     snapshots,

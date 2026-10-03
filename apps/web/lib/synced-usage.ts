@@ -18,7 +18,10 @@ const CURRENCY_PATTERN = /^[A-Z]{3}$/u;
 
 export interface SyncedUsageWindow {
   windowName: string;
-  percentage: number;
+  percentage: number | null;
+  amount?: number;
+  currency?: "USD" | "CNY";
+  kind?: "money_balance";
   resetAt: string | null;
   observedAt: string;
   /** The device said this reading was already past its own freshness window. */
@@ -55,7 +58,10 @@ interface UsageRow {
   provider: string;
   account_id: string;
   window_id: string;
-  used_percent: number;
+  used_percent: number | null;
+  amount?: number;
+  currency?: "USD" | "CNY";
+  kind?: "money_balance";
   resets_at: string | null;
   observed_at: string;
   stale: boolean;
@@ -123,21 +129,31 @@ export function syncedPeriodOf(periodStart: string, periodEnd: string): {
 function rowOf(value: unknown): UsageRow | null {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
-  if (row.used_percent === null || row.used_percent === undefined) return null;
   const provider = typeof row.provider === "string" ? row.provider : "";
   const accountId = typeof row.account_id === "string" ? row.account_id : "";
   const windowId = typeof row.window_id === "string" ? row.window_id : "";
-  const percentage = Number(row.used_percent);
+  if (provider === "OPENROUTER" && windowId === "CREDITS") return null;
+  const balance = provider === "OPENROUTER" && windowId === "ACCOUNT_BALANCE";
+  const percentage = row.used_percent === null || row.used_percent === undefined
+    ? null
+    : Number(row.used_percent);
+  const amount = typeof row.amount === "number" ? row.amount : Number.NaN;
+  const currency = row.currency === "USD" || row.currency === "CNY" ? row.currency : null;
   const resetsAt = row.resets_at === null || row.resets_at === undefined
     ? null
     : instantOf(row.resets_at);
   const observedAt = instantOf(row.observed_at);
   if (
     !PROVIDER_PATTERN.test(provider) || !ACCOUNT_PATTERN.test(accountId) ||
-    !WINDOW_PATTERN.test(windowId) || !Number.isFinite(percentage) || percentage < 0 ||
-    percentage > 100 || observedAt === null ||
+    !WINDOW_PATTERN.test(windowId) || observedAt === null ||
     (row.resets_at !== null && row.resets_at !== undefined && resetsAt === null)
   ) {
+    return null;
+  }
+  if (balance) {
+    if (percentage !== null || !Number.isFinite(amount) || amount < 0 || amount > 1_000_000 ||
+        currency === null) return null;
+  } else if (percentage === null || !Number.isFinite(percentage) || percentage < 0 || percentage > 100) {
     return null;
   }
   return {
@@ -145,6 +161,7 @@ function rowOf(value: unknown): UsageRow | null {
     account_id: accountId,
     window_id: windowId,
     used_percent: percentage,
+    ...(balance ? { amount, currency: currency as "USD" | "CNY", kind: "money_balance" as const } : {}),
     resets_at: resetsAt,
     observed_at: observedAt,
     stale: row.stale === true,
@@ -176,6 +193,9 @@ export function groupLatestSyncedUsage(values: unknown[]): SyncedProviderUsage[]
     provider.windows.push({
       windowName: row.window_id,
       percentage: row.used_percent,
+      ...(row.amount === undefined ? {} : { amount: row.amount }),
+      ...(row.currency === undefined ? {} : { currency: row.currency }),
+      ...(row.kind === undefined ? {} : { kind: row.kind }),
       resetAt: row.resets_at,
       observedAt: row.observed_at,
       stale: row.stale,

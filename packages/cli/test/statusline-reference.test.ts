@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildAdvice, normalizeMeters, type Snapshot } from "@openlimiter/core";
-import { parseClaudePayload } from "@openlimiter/connectors";
+import { parseClaudePayload, parseOpenrouterPayload } from "@openlimiter/connectors";
 import { DEFAULT_STATUSLINE, normalizeStatusline, readConfig } from "../src/config.js";
 import { parseStatuslineSession } from "../src/statusline-ingest.js";
 import { formatResetTime, paintBand, renderStatuslineLayout, statuslineColor, statuslineUnicode, tenBlockBar } from "../src/statusline.js";
@@ -26,7 +26,7 @@ const snapshots = [
   row({ provider: "CODEX", meter: "SEVEN_DAY", value: 32, window: { kind: "rolling", durationSeconds: 604800 }, resetAt: "2026-01-05T02:00:00Z" }),
   row({ provider: "ANTIGRAVITY", value: 9, resetAt: "2026-01-01T00:18:00Z" }),
   row({ provider: "OPENCODE", value: 42, resetAt: null }),
-  row({ provider: "OPENROUTER", meter: "CREDITS", value: 38.3, window: { kind: "lifetime" }, usedAmount: 7.66, limitAmount: 20, currency: "USD", resetAt: null })
+  row({ provider: "OPENROUTER", meter: "ACCOUNT_BALANCE", value: 38.3, window: { kind: "lifetime" }, usedAmount: 7.66, limitAmount: 20, currency: "USD", resetAt: null })
 ];
 const green = (text: string) => "\x1b[32m" + text + "\x1b[0m";
 const render = (rows: readonly Snapshot[], options: Partial<Parameters<typeof renderStatuslineLayout>[0]> = {}) => renderStatuslineLayout({
@@ -41,8 +41,8 @@ describe("Lucas reference layout", () => {
     ["Linux", "/workspace/Olá projeto"]
   ])("renders the exact plain and ANSI payload line for %s paths", (_os, directory) => {
     const session = parseStatuslineSession(payload(directory));
-    const plain = "opus-5-5 high | ctx 42% | 5h [█░░░░░░░░░] 17% ·3h20m | 7d [██░░░░░░░░] 26% ·4d2h | cx7d [███░░░░░░░] 32% ·4d2h | ag5h [█░░░░░░░░░] 9% ·18m | oc5h [████░░░░░░] 42% | or $12.34 | concise";
-    const painted = "opus-5-5 high | ctx 42% | 5h " + green("[█░░░░░░░░░]") + " " + green("17%") + " ·3h20m | 7d " + green("[██░░░░░░░░]") + " " + green("26%") + " ·4d2h | cx7d " + green("[███░░░░░░░]") + " " + green("32%") + " ·4d2h | ag5h " + green("[█░░░░░░░░░]") + " " + green("9%") + " ·18m | oc5h " + green("[████░░░░░░]") + " " + green("42%") + " | or " + green("$12.34") + " | concise";
+    const plain = "opus-5-5 high | ctx 42% | 5h [█░░░░░░░░░] 17% ·3h20m | 7d [██░░░░░░░░] 26% ·4d2h | cx7d [███░░░░░░░] 32% ·4d2h | ag5h [█░░░░░░░░░] 9% ·18m | oc Page 5h [████░░░░░░] 42% | or $12.34 | concise";
+    const painted = "opus-5-5 high | ctx 42% | 5h " + green("[█░░░░░░░░░]") + " " + green("17%") + " ·3h20m | 7d " + green("[██░░░░░░░░]") + " " + green("26%") + " ·4d2h | cx7d " + green("[███░░░░░░░]") + " " + green("32%") + " ·4d2h | ag5h " + green("[█░░░░░░░░░]") + " " + green("9%") + " ·18m | oc Page 5h " + green("[████░░░░░░]") + " " + green("42%") + " | or $12.34 | concise";
     expect(render(snapshots, { session })).toBe(plain);
     expect(render(snapshots, { session, color: true })).toBe(painted);
     expect(render(snapshots, { session, color: statuslineColor("always", { NO_COLOR: "" }, true, "claude") })).toBe(plain);
@@ -68,9 +68,73 @@ describe("Lucas reference layout", () => {
     expect(render([row({ value: 1, precision: "estimated" })])).toContain("~1%");
   });
 
-  it.each([[12.34, "32"], [5, "32"], [4.99, "33"], [1, "33"], [0.99, "31"], [0, "31"]])("colours remaining credits %s", (balance, code) => {
-    const credit = row({ provider: "OPENROUTER", meter: "CREDITS", window: { kind: "lifetime" }, usedAmount: 20 - Number(balance), limitAmount: 20, currency: "USD" });
-    expect(render([credit], { color: true })).toBe(`or \x1b[${code}m$${Number(balance).toFixed(2)}\x1b[0m`);
+  it.each([[12.34, "32"], [5, "32"], [4.99, "33"], [1, "33"], [0.99, "31"], [0, "31"]])("keeps remaining credits neutral %s", (balance, _code) => {
+    const credit = row({ provider: "OPENROUTER", meter: "ACCOUNT_BALANCE", window: { kind: "lifetime" }, usedAmount: 20 - Number(balance), limitAmount: 20, currency: "USD" });
+    expect(render([credit], { color: true })).toBe(`or $${Number(balance).toFixed(2)}`);
+  });
+
+  it("renders a direct account balance in credits as money", () => {
+    const credit = row({
+      provider: "OPENROUTER",
+      meter: "ACCOUNT_BALANCE",
+      unit: "CREDITS",
+      value: 12.34,
+      window: { kind: "lifetime" },
+    });
+    expect(render([credit])).toBe("or $12.34");
+  });
+
+  it("keeps the key allowance distinct from the account balance", () => {
+    const key = normalizeMeters(parseOpenrouterPayload({
+      data: { limit: 100, limit_remaining: 90, limit_reset: "monthly", usage: 500 },
+    }, NOW) ?? []);
+    const balance = normalizeMeters(parseOpenrouterPayload({
+      data: { total_credits: 20, total_usage: 7.66 },
+    }, NOW) ?? []);
+
+    expect(render([...key, ...balance])).toBe("or key $10.00/$100.00 | or $12.34");
+  });
+
+  it("shows an uncapped key and a balance unavailable without a management key", () => {
+    const rows = normalizeMeters(parseOpenrouterPayload({
+      data: { limit: null, limit_remaining: null, usage: 500 },
+    }, NOW) ?? []);
+
+    expect(render(rows)).toBe("or key No key cap | or Balance unavailable");
+  });
+
+  it("keeps the account balance beside key pressure in worst mode", () => {
+    const key = normalizeMeters(parseOpenrouterPayload({
+      data: { limit: 100, limit_remaining: 90, limit_reset: "monthly", usage: 500 },
+    }, NOW) ?? []);
+    const balance = normalizeMeters(parseOpenrouterPayload({
+      data: { total_credits: 20, total_usage: 7.66 },
+    }, NOW) ?? []);
+    expect(render([...key, ...balance], { config: { ...DEFAULT_STATUSLINE, meters: "worst" } }))
+      .toBe("or key $10.00/$100.00 | or $12.34");
+  });
+
+  it("keeps a measured balance when a newer unavailable placeholder exists", () => {
+    const measured = row({
+      provider: "OPENROUTER", meter: "ACCOUNT_BALANCE", value: 38.3,
+      usedAmount: 7.66, limitAmount: 20, currency: "USD", window: { kind: "lifetime" },
+    });
+    const unavailable = row({
+      provider: "OPENROUTER", meter: "ACCOUNT_BALANCE", value: 0,
+      availability: "missing_credentials", observedAt: "2026-01-01T00:00:30.000Z",
+      expiresAt: "2026-01-01T00:01:30.000Z", window: { kind: "lifetime" },
+    });
+    expect(render([measured, unavailable], { config: { ...DEFAULT_STATUSLINE, meters: "worst" } }))
+      .toBe("or $12.34");
+  });
+
+  it("keeps Kimi direction and OpenCode provenance in the default line", () => {
+    const rendered = render([
+      row({ provider: "KIMI", meter: "FIVE_HOUR", value: 20 }),
+      row({ provider: "OPENCODE", meter: "FIVE_HOUR", value: 38.3 }),
+    ], { config: { ...DEFAULT_STATUSLINE, meters: "worst" } });
+    expect(rendered).toContain("km 5h used");
+    expect(rendered).toContain("oc Page 5h");
   });
 
   it("never draws unknown markers, even for a selected provider, and leaves dormant accounts out", () => {
@@ -99,7 +163,7 @@ describe("Lucas reference layout", () => {
 
   it("labels each provider window by its actual duration", () => {
     expect(render([row({ provider: "OPENCODE", window: { kind: "rolling", durationSeconds: 14400 }, resetAt: null })]))
-      .toBe("oc4h [█░░░░░░░░░] 17%");
+      .toBe("oc Page 5h [█░░░░░░░░░] 17%");
   });
   it("keeps weekly visibility stable while allowing a model override", () => {
     const weekly = row({ meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604_800 } });
@@ -137,7 +201,7 @@ describe("terminal visibility persistence", () => {
     expect(saved.config.statusline.show).toEqual([]);
     expect(saved.config.statusline.visibility).toEqual({ model: false, effort: false, dir: false, ctx: false, style: false, "7d": false, antigravity: false, codex: true, "5h": true });
     expect(render(snapshots, { config: saved.config.statusline, session: parseStatuslineSession(payload("/work/project")) }))
-      .toBe("5h [█░░░░░░░░░] 17% ·3h20m | oc5h [████░░░░░░] 42% | or $12.34");
+      .toBe("5h [█░░░░░░░░░] 17% ·3h20m | oc Page 5h [████░░░░░░] 42% | or $12.34");
     const status = await terminalStatusTable(context);
     expect(status).toContain("Hidden: model, effort, dir, ctx, style, 7d, antigravity");
     const before = saved.config;

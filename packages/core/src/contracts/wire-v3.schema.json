@@ -376,17 +376,36 @@
             }
           },
           "then": {
-            "required": [
-              "currency"
-            ],
-            "properties": {
-              "currency": {
-                "enum": [
-                  "USD",
-                  "CNY"
-                ]
+            "anyOf": [
+              {
+                "required": [
+                  "currency"
+                ],
+                "properties": {
+                  "currency": {
+                    "enum": [
+                      "USD",
+                      "CNY"
+                    ]
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "provider": {
+                    "const": "CODEX"
+                  },
+                  "window_id": {
+                    "const": "CREDITS"
+                  }
+                },
+                "not": {
+                  "required": [
+                    "currency"
+                  ]
+                }
               }
-            }
+            ]
           }
         },
         {

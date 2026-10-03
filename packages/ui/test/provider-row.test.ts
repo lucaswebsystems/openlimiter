@@ -40,6 +40,19 @@ function snapshot(
 }
 
 describe("provider account rows", () => {
+  it("renders a direct OpenRouter dollar balance as dollars", () => {
+    const balance = snapshot("OPENROUTER", "ACCOUNT_BALANCE", 12.34, "openrouter");
+    balance.unit = "CREDITS";
+    balance.window = { kind: "lifetime" };
+    balance.kind = "money_balance";
+    balance.currency = "USD";
+    expect(buildProviderAccountRows([balance], NOW)[0]?.windows[0]).toMatchObject({
+      metricKind: "balance",
+      readout: "$12.34",
+      usedPercent: null,
+    });
+  });
+
   it("keeps two accounts as two rows and keeps every returned window", () => {
     const rows = buildProviderAccountRows(
       [
@@ -252,10 +265,9 @@ describe("provider account rows", () => {
     );
   });
 
-  it("labels credit and monthly windows and colors them by remaining headroom", () => {
+  it("separates OpenRouter account balance from bounded quota pressure", () => {
     const credits: Snapshot = {
-      ...snapshot("OPENROUTER", "CREDITS", 62),
-      unit: "CREDITS",
+      ...snapshot("OPENROUTER", "ACCOUNT_BALANCE", 62),
       usedAmount: 12.47,
       limitAmount: 20,
       currency: "USD",
@@ -271,10 +283,10 @@ describe("provider account rows", () => {
     )[0];
 
     expect(creditRow?.windows[0]).toMatchObject({
-      label: "Credit spend",
-      readout: "$12.47",
-      metricKind: "bounded_spend",
-      tone: "watch",
+      label: "Account balance",
+      readout: "$7.53",
+      metricKind: "balance",
+      tone: "none",
     });
     expect(monthlyRow?.windows[0]).toMatchObject({
       label: "Monthly",
@@ -284,24 +296,48 @@ describe("provider account rows", () => {
     expect(headroomTone(20)).toBe("ok");
   });
 
-  it("keeps spend without a ceiling neutral", () => {
+  it("shows an uncapped key and a missing management key without numeric bars", () => {
     const spend: Snapshot = {
-      ...snapshot("OPENROUTER", "CREDITS", 12.47),
-      unit: "CREDITS",
+      ...snapshot("OPENROUTER", "KEY_LIMIT", 0),
+      availability: "unlimited",
     };
-    const row = buildProviderAccountRows([spend], NOW, [], {
+    const missing: Snapshot = {
+      ...snapshot("OPENROUTER", "ACCOUNT_BALANCE", 0),
+      availability: "missing_credentials",
+    };
+    const row = buildProviderAccountRows([spend, missing], NOW, [], {
       providers: ["OPENROUTER"],
     })[0];
     expect(row?.windows[0]).toMatchObject({
-      label: "Credit spend",
-      readout: "12.47 credits spent",
-      metricKind: "unbounded_spend",
+      label: "Key allowance",
+      readout: "No key cap",
+      metricKind: "availability",
       tone: "none",
       usedPercent: null,
+    });
+    expect(row?.windows[1]).toMatchObject({
+      label: "Account balance",
+      readout: "Unavailable",
+      detail: "A management key is required",
     });
     const markup = providerRowMarkup(row!);
     expect(markup).toContain('class="window-meter neutral"');
     expect(markup).not.toContain('role="progressbar"');
+  });
+
+  it("uses Codex copy for unlimited credits and never invents a numeric amount", () => {
+    const unlimited: Snapshot = {
+      ...snapshot("CODEX", "CREDITS", 0),
+      availability: "unlimited",
+    };
+    const row = buildProviderAccountRows([unlimited], NOW, [], { providers: ["CODEX"] })[0];
+    expect(row?.windows[0]).toMatchObject({
+      label: "Credits",
+      readout: "Unlimited credits",
+      detail: "No credit balance limit was reported",
+      usedPercent: null,
+    });
+    expect(providerRowMarkup(row!)).not.toContain("0.00 credits");
   });
 
   it("labels every Grok, Kimi, and Gemini window after their connectors land", () => {
@@ -329,7 +365,11 @@ describe("provider account rows", () => {
     );
     expect(
       byProvider.get("KIMI")?.windows.map((window) => window.label)
-    ).toEqual(["5 hour session", "Weekly", "5 hour session 2"]);
+    ).toEqual(["Weekly limit", "5 hour limit", "5 hour limit 2"]);
+    expect(byProvider.get("KIMI")?.windows.map((window) => window.readout))
+      .toEqual(["18.0% used", "41.0% used", "55.0% used"]);
+    expect(byProvider.get("KIMI")?.windows.every((window) =>
+      window.accessibleLabel.includes("% used"))).toBe(true);
     expect(
       byProvider.get("GEMINI_CLI")?.windows.map((window) => window.label)
     ).toEqual(["Gemini 3.1 Pro Preview", "Gemini 3 Flash Preview"]);

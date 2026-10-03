@@ -55,7 +55,7 @@ import { createAccountSessionRuntime } from "@/lib/session-runtime";
 import { getDevPreviewSnapshots } from "./dev-preview";
 import { useTranslations } from "next-intl";
 import { snapshotsFromSyncedUsage, visibleQuotaSnapshots } from "./live-usage";
-import { claudeMeterOverride } from "./language";
+import { providerMeterOverride } from "./language";
 import { useClaudeMeterCopy } from "./use-claude-meter-copy";
 
 const IS_DEV = process.env.NODE_ENV !== "production";
@@ -532,7 +532,8 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
         : buildProviderAccountRows(shown, now, shownFailures, {
           demo: demo || isDevPreview,
           accountLabel: (_accountId, count) => readingsT("accountFallback", { count }),
-          meterLabel: (code, provider) => claudeMeterOverride(code, provider, claudeMeterCopy),
+          meterLabel: (code, provider) => providerMeterOverride(code, provider, claudeMeterCopy),
+          presentationText: (key, values) => readingsT(key, values),
           updatedLabel: (observedAt) => {
             const age = observationAgeMinutes(observedAt, now);
             if (age === null || age < 5) return null;

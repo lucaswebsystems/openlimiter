@@ -47,7 +47,7 @@ describe("normalizer", () => {
  */
 describe("normalizer amounts", () => {
   const withAmounts = (overrides: Record<string, unknown> = {}): RawMeter => ({
-    ...snapshot({ provider: "OPENROUTER", meter: "CREDITS" }),
+    ...snapshot({ provider: "OPENROUTER", meter: "ACCOUNT_BALANCE" }),
     usedAmount: 12.47,
     limitAmount: 20,
     currency: "USD",
@@ -66,7 +66,7 @@ describe("normalizer amounts", () => {
     expect(result?.usedAmount).toBe(30);
     expect(result?.limitAmount).toBe(20);
     expect(result?.currency).toBe("USD");
-    expect(result?.value).toBe(snapshot({ provider: "OPENROUTER", meter: "CREDITS" }).value);
+    expect(result?.value).toBe(snapshot({ provider: "OPENROUTER", meter: "ACCOUNT_BALANCE" }).value);
   });
 
   it("keeps a reading that carries no amounts at all", () => {

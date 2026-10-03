@@ -402,11 +402,17 @@ fn read_document_for_surface(
         return Err(CacheWriteError::NotJson);
     }
     let version = root.get("version").and_then(Value::as_u64);
+    let document_version = version.unwrap_or(1);
     let rows = root
         .get("snapshots")
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
+        .filter(|value| {
+            document_version >= 3
+                || value.get("provider").and_then(Value::as_str) != Some("OPENROUTER")
+                || value.get("meter").and_then(Value::as_str) != Some("CREDITS")
+        })
         .filter_map(|value| serde_json::from_value::<Snapshot>(value.clone()).ok())
         .filter(|row| version != Some(2) || row.provider != "ANTIGRAVITY")
         .filter_map(normalize_snapshot)
@@ -764,7 +770,7 @@ pub fn prune_cache(writer: &CacheWriter, now: u64) -> Result<usize, CacheWriteEr
         }
         let count = before - rows.len();
         let text =
-            serde_json::json!({ "version": 2, "snapshots": rows, "suppressions": suppressions })
+            serde_json::json!({ "version": 3, "snapshots": rows, "suppressions": suppressions })
                 .to_string();
         writer.commit(&text, begun.generation)?;
         Ok(count)
@@ -780,6 +786,19 @@ mod tests {
     use super::*;
     use crate::native_readers::parse_body;
     use crate::reader_registry::ReaderId;
+
+    #[test]
+    fn old_openrouter_credits_identity_is_retired_without_guessing_its_scope() {
+        let mut ambiguous: Value = serde_json::from_str(LEGACY_ROW).unwrap();
+        ambiguous["provider"] = Value::from("OPENROUTER");
+        ambiguous["meter"] = Value::from("CREDITS");
+        let mut key = ambiguous.clone();
+        key["meter"] = Value::from("KEY_LIMIT");
+        let old = serde_json::json!({"version": 2, "snapshots": [ambiguous, key]});
+        let rows = display_snapshots(Some(&old.to_string()));
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].meter, "KEY_LIMIT");
+    }
 
     #[test]
     fn retention_and_delayed_accounts_never_alias_anonymous_rows() {

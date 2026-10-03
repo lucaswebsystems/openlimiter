@@ -41,9 +41,7 @@ export interface MoneyCell {
 
 export interface MoneyOptions {
   readonly now: string;
-  /** The quota cache already drew an `or` cell, so the file adds none. */
-  readonly hasOpenRouter: boolean;
-  /** Whether a provider name (`openai`, `openrouter`...) may be drawn. */
+  /** Whether a provider name may be drawn. */
   readonly allowed: (provider: string) => boolean;
 }
 
@@ -83,15 +81,16 @@ export function moneyCells(document: unknown, options: MoneyOptions): readonly M
     }
   }
   const cells: MoneyCell[] = [];
-  let openRouter: { cell: MoneyCell; observedAt: number } | undefined;
   for (const source of (document["sources"] as unknown[]).slice(0, MAX_SOURCES)) {
     if (!isRecord(source) || source["enabled"] !== true || typeof source["id"] !== "string") continue;
     const provider = source["provider"];
     if (typeof provider !== "string" || !options.allowed(provider)) continue;
     const sample = newest.get(source["id"]);
     if (sample === undefined) continue;
-    const tag = provider === "openrouter" ? "or" : MONEY_TAGS[provider];
-    if (tag === undefined || provider === "openrouter" && options.hasOpenRouter) continue;
+    // OpenRouter monthly spend is not the account's remaining credit balance.
+    if (provider === "openrouter") continue;
+    const tag = MONEY_TAGS[provider];
+    if (tag === undefined) continue;
     const stale = freshnessPolicy({
       sourceClass: "internal_payload", observedAt: String(sample["observedAt"]), now: options.now, writer: "desktop"
     }).availability === "stale";
@@ -118,15 +117,7 @@ export function moneyCells(document: unknown, options: MoneyOptions): readonly M
     // A spend from an earlier month is not this month's spend, so it is not shown.
     if (!usd || spend === null || sample["month"] !== month) continue;
     const amount = mark + money(spend);
-    const suffix = provider === "openrouter" ? " spent" : "";
-    const cell = { plain: prefix + amount + suffix, prefix, amount: amount + suffix, band: budgetBand(spend, source["budgetUsd"]) };
-    if (provider === "openrouter") {
-      // One `or` cell at most: the most recently observed source wins, the first on a tie.
-      const observedAt = Date.parse(String(sample["observedAt"]));
-      if (openRouter !== undefined && observedAt <= openRouter.observedAt) continue;
-      openRouter = { cell, observedAt };
-    }
-    cells.push(cell);
+    cells.push({ plain: prefix + amount, prefix, amount, band: budgetBand(spend, source["budgetUsd"]) });
   }
-  return cells.filter(cell => cell.prefix !== "or " || cell === openRouter?.cell);
+  return cells;
 }

@@ -72,10 +72,12 @@ export interface UsageSample {
   readonly provider: string;
   readonly meter: string;
   readonly window_id: string;
-  readonly usage_percent: number;
+  readonly usage_percent: number | null;
   readonly reset_at: string | null;
   readonly observed_at: string;
   readonly stale: boolean;
+  readonly amount?: number;
+  readonly currency?: "USD" | "CNY";
 }
 
 export interface ForecastInput {
@@ -157,6 +159,30 @@ export function usageSamplesFromSnapshots(
 ): UsageSample[] {
   const rows: UsageSample[] = [];
   for (const snapshot of snapshots) {
+    if (snapshot.provider === "OPENROUTER" && snapshot.meter === "CREDITS") continue;
+    if (snapshot.provider === "OPENROUTER" && snapshot.meter === "ACCOUNT_BALANCE") {
+      if (snapshot.availability !== undefined || snapshot.usedAmount === undefined ||
+          snapshot.limitAmount === undefined || snapshot.currency === undefined) continue;
+      const amount = Math.round(Math.max(0, snapshot.limitAmount - snapshot.usedAmount) * 1_000_000_000_000) /
+        1_000_000_000_000;
+      if (!Number.isFinite(amount) || amount > 1_000_000 ||
+          (snapshot.currency !== "USD" && snapshot.currency !== "CNY")) continue;
+      const accountId = accountIdOf(snapshot);
+      if (accountId === null) continue;
+      rows.push({
+        account_id: accountId,
+        provider: snapshot.provider,
+        meter: snapshot.meter,
+        window_id: snapshot.meter,
+        usage_percent: null,
+        reset_at: snapshot.resetAt,
+        observed_at: snapshot.observedAt,
+        stale: freshness(snapshot.observedAt, snapshot.expiresAt, now) !== "fresh",
+        amount,
+        currency: snapshot.currency,
+      });
+      continue;
+    }
     if (snapshot.unit !== "PERCENT") continue;
     if (EXCLUDED_USAGE_METERS.has(snapshot.meter)) continue;
     if (snapshot.kind === "runtime_info") continue;

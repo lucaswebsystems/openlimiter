@@ -36,13 +36,13 @@ function frozenFixture(): unknown {
 }
 
 describe("openrouter: the documented shape", () => {
-  it("parses the documented builder into exactly one credits meter", () => {
+  it("parses the documented builder into one account balance meter", () => {
     const meters = parseOpenrouterPayload(openrouterFixture(), NOW);
     expect(meters).not.toBeNull();
     expect(meters).toHaveLength(1);
     expect(meters?.[0]?.provider).toBe("OPENROUTER");
     expect(meters?.[0]?.unit).toBe("PERCENT");
-    expect(meters?.[0]?.meter).toBe("CREDITS");
+    expect(meters?.[0]?.meter).toBe("ACCOUNT_BALANCE");
   });
 
   it("reads the percentage the two money figures imply", () => {
@@ -154,11 +154,13 @@ describe("openrouter: finite key limits", () => {
     const parsed = parseOpenrouterPayload({
       data: { limit: 100, limit_remaining: 90, limit_reset: "monthly", usage: 500 }
     }, now);
+    expect(parsed?.map((meter) => meter.meter)).toEqual(["KEY_LIMIT", "ACCOUNT_BALANCE"]);
     expect(parsed?.[0]?.value).toBe(10);
     expect(parsed?.[0]?.usedAmount).toBe(10);
     expect(parsed?.[0]?.limitAmount).toBe(100);
     expect(parsed?.[0]?.window).toEqual({ kind: "fixed", durationSeconds: 2_116_800 });
     expect(parsed?.[0]?.resetAt).toBe("2026-09-01T00:00:00.000Z");
+    expect(parsed?.[1]).toMatchObject({ availability: "missing_credentials" });
   });
 
   it("keeps a finite key without a reset as a lifetime window", () => {
@@ -174,9 +176,14 @@ describe("openrouter: finite key limits", () => {
     const parsed = parseOpenrouterPayload({
       data: { limit: null, limit_remaining: null, usage: 500 }
     }, NOW);
-    expect(parsed?.[0]).toMatchObject({ kind: "availability", availability: "unlimited", value: 0 });
+    expect(parsed?.[0]).toMatchObject({ meter: "KEY_LIMIT", availability: "unlimited", value: 0 });
+    expect(parsed?.[1]).toMatchObject({ meter: "ACCOUNT_BALANCE", availability: "missing_credentials" });
     expect(parsed?.[0]?.limitAmount).toBeUndefined();
     expect(parsed?.[0]?.usedAmount).toBeUndefined();
+    expect(normalizeMeters(parsed ?? []).map((meter) => [meter.meter, meter.availability])).toEqual([
+      ["KEY_LIMIT", "unlimited"],
+      ["ACCOUNT_BALANCE", "missing_credentials"],
+    ]);
   });
 
   it("rounds the finite threshold consistently", () => {

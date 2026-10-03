@@ -65,6 +65,23 @@ function roundedAmount(value: number): number {
   return Math.round(value * 1_000_000_000_000) / 1_000_000_000_000;
 }
 
+function unavailableAccountBalance(now: string, expiresAt: string): RawMeter {
+  return {
+    provider: "OPENROUTER",
+    meter: "ACCOUNT_BALANCE",
+    availability: "missing_credentials",
+    value: 0,
+    unit: "PERCENT",
+    window: { kind: "lifetime" },
+    resetAt: null,
+    source: "documented_api",
+    precision: "exact",
+    observedAt: now,
+    expiresAt,
+    labels: openrouterLabels,
+  };
+}
+
 export function parseOpenrouterPayload(payload: unknown, now: string): RawMeter[] | null {
   const root = record(payload);
   const data = record(root?.["data"]);
@@ -77,8 +94,7 @@ export function parseOpenrouterPayload(payload: unknown, now: string): RawMeter[
     if (usage === null || expiresAt === null) return null;
     return [{
       provider: "OPENROUTER",
-      meter: "CREDITS",
-      kind: "availability",
+      meter: "KEY_LIMIT",
       availability: "unlimited",
       // Required legacy transport fields; availability carries no percentage.
       value: 0,
@@ -90,7 +106,7 @@ export function parseOpenrouterPayload(payload: unknown, now: string): RawMeter[
       observedAt: now,
       expiresAt,
       labels: openrouterLabels
-    }];
+    }, unavailableAccountBalance(now, expiresAt)];
   }
   if (keyResponse) {
     const remaining = boundedNumber(data["limit_remaining"], 1_000_000_000_000);
@@ -101,7 +117,7 @@ export function parseOpenrouterPayload(payload: unknown, now: string): RawMeter[
     if (!Number.isFinite(percent) || percent < 0 || percent > 100) return null;
     return [rawMeter({
       provider: "OPENROUTER",
-      meter: "CREDITS",
+      meter: "KEY_LIMIT",
       value: percent,
       window: reset.window,
       resetAt: reset.resetAt,
@@ -111,7 +127,7 @@ export function parseOpenrouterPayload(payload: unknown, now: string): RawMeter[
       expiresAt,
       labels: openrouterLabels,
       amounts: { usedAmount: used, limitAmount: credits, currency: "USD" }
-    })];
+    }), unavailableAccountBalance(now, expiresAt)];
   }
   if (
     credits === null ||
@@ -129,7 +145,7 @@ export function parseOpenrouterPayload(payload: unknown, now: string): RawMeter[
    */
   return [rawMeter({
     provider: "OPENROUTER",
-    meter: "CREDITS",
+    meter: "ACCOUNT_BALANCE",
     value: percent,
     window: { kind: "lifetime" },
     resetAt: null,

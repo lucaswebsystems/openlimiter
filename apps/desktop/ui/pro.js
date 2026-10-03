@@ -23,7 +23,7 @@
  * reports a too soon answer rather than retrying behind it.
  */
 import { proCheckoutUrl, proPortalUrl, proRefresh, proService, proStatus, BACKEND_ABSENT } from "./backend.js";
-import { updatedLabel } from "./names.js";
+import { say, updatedLabel } from "./names.js";
 
 /* Keyed by the feature codes a signed token carries (pro.rs). Current usage
    sync between devices is free, so it is not listed. */
@@ -405,13 +405,15 @@ function quotaRow(base, record, readings, now) {
   /* A refused key is replaced right there after its replacement is accepted. */
   if (KEY_REFUSED.has(record.state)) return { ...row, state: "error", error: keyError("openrouter", "ineligible_or_revoked"), replace: true };
   if (record.state === "ERROR") return { ...row, state: "error", error: keyError("openrouter", "network"), replace: true };
+  const meter = record.readerId === "openrouter_credits" ? "ACCOUNT_BALANCE" : "KEY_LIMIT";
   const reading = readings
-    .filter((entry) => entry.accountId === record.id)
+    .filter((entry) => entry.accountId === record.id && entry.meter === meter)
     .reduce((held, entry) => (held === null || Date.parse(entry.observedAt) > Date.parse(held.observedAt) ? entry : held), null);
   if (reading !== null && Number.isFinite(reading.usedAmount) && Number.isFinite(reading.limitAmount)) {
     return {
       ...row, state: "reading", amount: money(Math.max(0, reading.limitAmount - reading.usedAmount)),
-      period: KEYS_EN.balance, currency: reading.currency ?? "USD", age: updatedLabel(reading.observedAt, now),
+      period: say(meter === "ACCOUNT_BALANCE" ? "openrouterAccountBalance" : "openrouterKeyAllowance"),
+      currency: reading.currency ?? "USD", age: updatedLabel(reading.observedAt, now),
     };
   }
   return { ...row, state: record.state === "CONNECTED" ? "saved" : "checking" };

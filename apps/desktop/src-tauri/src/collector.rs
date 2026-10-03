@@ -437,7 +437,7 @@ mod tests {
         assert_eq!(urls, vec![crate::net::OPENROUTER_CREDITS_URL]);
         assert_eq!(secrets, vec![FIXTURE_SECRET]);
         assert!(cache.contains("OPENROUTER"));
-        assert!(cache.contains("CREDITS"));
+        assert!(cache.contains("ACCOUNT_BALANCE"));
         assert!(cache.contains("12.47"));
     }
 
