@@ -69,7 +69,8 @@
     "showClaudeFableNote": "このコンピューターの Claude サインインを使って使用量を直接リクエストし、Claude に表示されるものと同じ使用量を読み取ります。このようなツールに関する Anthropic の方針は未解決です。設定でオフにできます。",
     "claudePollConsentTitle": "Fable の上限を表示しますか？",
     "claudePollNotNow": "今はしない",
-    "claudePollSaveFailed": "選択を保存できなかったため、Claude の使用量はオフのままです。"
+    "claudePollSaveFailed": "選択を保存できなかったため、Claude の使用量はオフのままです。",
+    "claudePollContinueOff": "Claude の使用量をオフにして続行"
   },
   "meta": {
     "title": "OpenLimiter、AIコーディングの制限とエージェントの活動",

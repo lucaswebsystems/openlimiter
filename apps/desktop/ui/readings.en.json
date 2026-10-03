@@ -72,5 +72,6 @@
   "claudePollConsentTitle": "Show your Fable limit?",
   "claudePollNotNow": "Not now",
   "claudePollSaveFailed": "The choice could not be saved, so Claude usage stays off.",
+  "claudePollContinueOff": "Continue with Claude off",
   "claudeFableDesktopHint": "Fable shows here when Claude usage is on in OpenLimiter on your computer."
 }

@@ -69,7 +69,8 @@
     "showClaudeFableNote": "Liest dieselbe Nutzung, die Claude anzeigt, indem eine direkte Nutzungsanfrage mit deiner Claude Anmeldung auf diesem Computer gesendet wird. Anthropics Richtlinie für solche Werkzeuge ist ungeklärt. Du kannst dies in den Einstellungen ausschalten.",
     "claudePollConsentTitle": "Dein Fable Limit anzeigen?",
     "claudePollNotNow": "Jetzt nicht",
-    "claudePollSaveFailed": "Die Auswahl konnte nicht gespeichert werden, deshalb bleibt die Claude Nutzung ausgeschaltet."
+    "claudePollSaveFailed": "Die Auswahl konnte nicht gespeichert werden, deshalb bleibt die Claude Nutzung ausgeschaltet.",
+    "claudePollContinueOff": "Mit ausgeschalteter Claude Nutzung fortfahren"
   },
   "meta": {
     "title": "OpenLimiter, KI Programmierlimits und Agentenaktivität",

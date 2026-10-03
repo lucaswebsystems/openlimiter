@@ -216,6 +216,11 @@ html[data-first-run="complete"] .first-run {
   margin-top: 0;
 }
 
+.first-run-recovery {
+  width: 100%;
+  margin-top: var(--ol-space-3);
+}
+
 .first-run[data-empty="true"] .first-run-panel {
   width: min(28rem, 100%);
   text-align: center;

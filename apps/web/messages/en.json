@@ -69,7 +69,8 @@
     "showClaudeFableNote": "Reads the same usage Claude shows by sending a direct usage request with your Claude sign in on this computer. Anthropic's policy for tools like this is unresolved. Turn it off in Settings.",
     "claudePollConsentTitle": "Show your Fable limit?",
     "claudePollNotNow": "Not now",
-    "claudePollSaveFailed": "The choice could not be saved, so Claude usage stays off."
+    "claudePollSaveFailed": "The choice could not be saved, so Claude usage stays off.",
+    "claudePollContinueOff": "Continue with Claude off"
   },
   "meta": {
     "title": "OpenLimiter, AI coding limits and agent activity",

@@ -127,6 +127,8 @@ const GEMINI_DISCLOSURE =
 
 const CLAUDE_POLL_LABEL = say("showClaudeFable");
 const CLAUDE_POLL_NOTE = say("showClaudeFableNote");
+const CLAUDE_POLL_SAVE_FAILED = say("claudePollSaveFailed");
+const CLAUDE_POLL_CONTINUE_OFF = say("claudePollContinueOff");
 
 /** Turn the backend's durable state into the one view this launch may show. */
 export function claudePollView(result, existingInstall) {
@@ -163,6 +165,7 @@ export function createClaudePollConsentGate({ load, save }) {
   let begun = false;
   let disclosureShown = false;
   let acknowledgementStarted = false;
+  let persistenceFailed = false;
   let desired = false;
   let loadedStatus = { state: "invalid", enabled: false };
   let current = {
@@ -196,9 +199,14 @@ export function createClaudePollConsentGate({ load, save }) {
 
   async function queue(requested) {
     desired = requested === true;
+    persistenceFailed = false;
     const operation = writes.then(async () => {
       const result = await Promise.resolve(save(requested === true)).catch(() => ({ ok: false }));
-      if (!accepted(result, requested === true)) return { ok: false };
+      if (!accepted(result, requested === true)) {
+        persistenceFailed = true;
+        return { ok: false };
+      }
+      persistenceFailed = false;
       current = {
         enabled: requested === true,
         needsAcknowledgement: false,
@@ -240,6 +248,18 @@ export function createClaudePollConsentGate({ load, save }) {
       const result = await queue(requested === true);
       if (result.ok !== true) acknowledgementStarted = false;
       return result;
+    },
+    continueWithoutClaude: () => {
+      if (!begun || !persistenceFailed) return false;
+      desired = false;
+      persistenceFailed = false;
+      acknowledgementStarted = false;
+      current = {
+        enabled: false,
+        needsAcknowledgement: false,
+        needsRecording: false,
+      };
+      return true;
     },
     beforeFinish: async () => {
       await writes;
@@ -764,6 +784,8 @@ export function firstRunCopyStrings() {
     "Open this page and enter the code.",
     CLAUDE_POLL_LABEL,
     CLAUDE_POLL_NOTE,
+    CLAUDE_POLL_SAVE_FAILED,
+    CLAUDE_POLL_CONTINUE_OFF,
     "Run this in your terminal.",
     "Open this in your browser.",
     "Add your OpenRouter key under API keys when you want this bar.",
@@ -1236,7 +1258,10 @@ export function initFirstRun(input) {
   }
 
   async function finish() {
-    if (!(await recordClaudePollChoice())) return;
+    if (!(await recordClaudePollChoice())) {
+      showClaudePollSaveFailure("#first-run-status", "#first-run-continue-without-claude");
+      return;
+    }
     /* The body goes back to the sheet before this screen is put away, so the
        account menu can raise it again later exactly as it was. */
     if (microsoft !== null) microsoft.remove();
@@ -1255,6 +1280,21 @@ export function initFirstRun(input) {
     screen.setAttribute("aria-labelledby", "claude-poll-consent-title");
     const note = consent.querySelector("#claude-poll-consent-note");
     if (note !== null) note.textContent = CLAUDE_POLL_NOTE;
+  }
+
+  function showClaudePollSaveFailure(statusSelector, continueSelector) {
+    const status = screen.querySelector(statusSelector);
+    const continueOff = screen.querySelector(continueSelector);
+    if (status !== null) status.textContent = CLAUDE_POLL_SAVE_FAILED;
+    if (continueOff !== null) {
+      continueOff.textContent = CLAUDE_POLL_CONTINUE_OFF;
+      continueOff.hidden = false;
+    }
+  }
+
+  async function continueWithoutClaude() {
+    if (!claudePollGate.continueWithoutClaude()) return;
+    await finish();
   }
 
   const notice = launchNotice(options.platform ?? browserPlatform());
@@ -1282,8 +1322,10 @@ export function initFirstRun(input) {
     void (async () => {
       const result = await claudePollGate.acknowledge(true);
       if (!(result === true || (result?.ok === true && result.value === true))) {
-        const status = screen.querySelector("#claude-poll-consent-status");
-        if (status !== null) status.textContent = say("claudePollSaveFailed");
+        showClaudePollSaveFailure(
+          "#claude-poll-consent-status",
+          "#claude-poll-consent-continue-off",
+        );
         return;
       }
       await finish();
@@ -1293,12 +1335,20 @@ export function initFirstRun(input) {
     void (async () => {
       const result = await claudePollGate.acknowledge(false);
       if (!(result === true || (result?.ok === true && result.value === false))) {
-        const status = screen.querySelector("#claude-poll-consent-status");
-        if (status !== null) status.textContent = say("claudePollSaveFailed");
+        showClaudePollSaveFailure(
+          "#claude-poll-consent-status",
+          "#claude-poll-consent-continue-off",
+        );
         return;
       }
       await finish();
     })();
+  });
+  screen.querySelector("#first-run-continue-without-claude")?.addEventListener("click", () => {
+    void continueWithoutClaude();
+  });
+  screen.querySelector("#claude-poll-consent-continue-off")?.addEventListener("click", () => {
+    void continueWithoutClaude();
   });
 
   /* The window owns the sign in body, so it tells this screen when a session
