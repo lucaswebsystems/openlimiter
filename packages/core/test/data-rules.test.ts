@@ -42,7 +42,6 @@ it("credential parsing stamps the Rust identity for every file based acquisition
     CLAUDE: { claudeAiOauth: { accessToken: "fixture", accountUuid: account_id } },
     CODEX: { tokens: { access_token: "fixture", account_id } },
     GEMINI_CLI: { access_token: "fixture", account_id },
-    ANTIGRAVITY: { token: { access_token: "fixture", account_id } },
     GROK: { auth: { key: "fixture", user_id: account_id } },
     KIMI: { oauth: { access_token: "fixture", account_id } },
     OPENROUTER: { credentials: { api_key: "fixture", account_id } }

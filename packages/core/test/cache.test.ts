@@ -81,11 +81,27 @@ describe("snapshot cache", () => {
       suppressions: []
     });
     const raw = await readFile(path.join(directory, CACHE_FILE_NAME), "utf8");
-    expect(raw).toContain('"version":2');
+    expect(raw).toContain('"version":3');
     /* A document with nothing to withdraw carries no suppressions key at all,
        so a machine that has never drifted keeps writing what it always did. */
     expect(raw).not.toContain('"suppressions"');
     expect(raw.indexOf('"snapshots"')).toBeLessThan(raw.indexOf('"version"'));
+  });
+
+  it("migrates version 2 by removing retired Antigravity readings", async () => {
+    const directory = await temporaryDirectory();
+    await writeFile(path.join(directory, CACHE_FILE_NAME), JSON.stringify({
+      version: 2,
+      snapshots: [
+        snapshot({ provider: "ANTIGRAVITY", source: "internal_payload" }),
+        snapshot({ provider: "CLAUDE" })
+      ]
+    }));
+
+    const first = await readSnapshotCache(directory);
+    const second = await readSnapshotCache(directory);
+    expect(first.ok && first.snapshots.map((row) => row.provider)).toEqual(["CLAUDE"]);
+    expect(second).toEqual(first);
   });
 
   it("rejects corrupt cache data and out of bounds writes", async () => {

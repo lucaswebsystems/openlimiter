@@ -1513,18 +1513,8 @@ pub fn detect_local_tools() -> LocalToolDetection {
 
 #[tauri::command]
 pub async fn list_detected_providers(app: tauri::AppHandle) -> DetectionReport {
-    use tauri::Manager;
-    let mut report = app.state::<DetectionStore>().report();
-    if app
-        .state::<DetectionStore>()
-        .switches
-        .enabled(crate::provider_detection::DetectedProviderId::Antigravity)
-    {
-        report.antigravity_running =
-            crate::antigravity_local::running_state(&crate::antigravity_local::SystemAgyPorts)
-                .await;
-    }
-    report
+  use tauri::Manager;
+    app.state::<DetectionStore>().report()
 }
 
 #[tauri::command]
@@ -2402,11 +2392,6 @@ mod tests {
                 ProviderId::Openrouter,
                 CredentialKind::OpenrouterManagementKey,
                 ProviderEndpoint::OpenrouterCredits,
-            ),
-            (
-                ProviderId::Antigravity,
-                CredentialKind::AntigravitySession,
-                ProviderEndpoint::AntigravityQuota,
             ),
             (
                 ProviderId::Opencode,

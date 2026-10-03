@@ -1,9 +1,11 @@
 import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { windowsSystemTool } from "@openlimiter/core";
+import { CACHE_FILE_NAME, resolveStateDirectory, windowsSystemTool } from "@openlimiter/core";
 import { tomlValue } from "../src/terminal-toml.js";
+import { fallbackLauncherCommand } from "../src/terminal-fallback.js";
 
 vi.mock("../src/terminal-launcher.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/terminal-launcher.js")>();
@@ -79,6 +81,27 @@ async function context(homeDirectory: string): Promise<TerminalHostContext> {
     environment: { SHELL: "powershell.exe" },
     shellRunner: async () => ({ ok: true, stdout: path.join(homeDirectory, "profile.ps1") })
   };
+}
+
+async function invokeInstalledCommand(
+  entry: string,
+  input: string,
+  environment: NodeJS.ProcessEnv
+): Promise<{ code: number | null; stdout: string; stderr: string }> {
+  return await new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [entry, "statusline", "--host", "antigravity"], {
+      env: environment,
+      windowsHide: true,
+      stdio: ["pipe", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8").on("data", (chunk) => { stdout += chunk; });
+    child.stderr.setEncoding("utf8").on("data", (chunk) => { stderr += chunk; });
+    child.once("error", reject);
+    child.once("close", (code) => resolve({ code, stdout, stderr }));
+    child.stdin.end(input);
+  });
 }
 
 describe("terminal host installers", () => {
@@ -169,16 +192,131 @@ describe("terminal host installers", () => {
     expect(await hostStatus("antigravity", ctx)).toBe(STATUS_OWN_LINE_FOUND);
 
     await installHost("antigravity", ctx);
-    const wrapped = JSON.parse(await readFile(settingsFile, "utf8")) as { statusLine: string };
-    expect(wrapped.statusLine).toContain('openlimiter.ps1" statusline --host antigravity --wrap ');
+    const wrapped = JSON.parse(await readFile(settingsFile, "utf8")) as {
+      statusLine: { type: string; command: string };
+    };
+    expect(wrapped.statusLine.type).toBe("command");
+    expect(wrapped.statusLine.command).toContain('openlimiter.ps1" statusline --host antigravity --wrap ');
 
     await installHost("antigravity", ctx);
-    const wrappedAgain = JSON.parse(await readFile(settingsFile, "utf8")) as { statusLine: string };
-    expect(wrappedAgain.statusLine).toBe(wrapped.statusLine);
+    const wrappedAgain = JSON.parse(await readFile(settingsFile, "utf8")) as {
+      statusLine: { type: string; command: string };
+    };
+    expect(wrappedAgain.statusLine).toEqual(wrapped.statusLine);
 
     await uninstallHost("antigravity", ctx);
     const restored = JSON.parse(await readFile(settingsFile, "utf8")) as { statusLine: string };
     expect(restored.statusLine).toBe("their-own-line");
+  });
+
+  it("executes the complete installed Antigravity command and persists status line rows", async (testContext) => {
+    const home = await temporaryDirectory("openlimiter-terminal-");
+    const stateDirectory = path.join(home, "state");
+    const ctx = { ...await context(home), platform: process.platform, stateDirectory };
+    expect((await installHost("antigravity", ctx)).ok).toBe(true);
+    const settingsFile = path.join(home, ".gemini", "antigravity-cli", "settings.json");
+    const settings = JSON.parse(await readFile(settingsFile, "utf8")) as {
+      statusLine: { command: string };
+    };
+    const runtime = {
+      node: path.join(stateDirectory, "terminal-runtime", process.platform === "win32" ? "node.exe" : "node"),
+      entry: path.join(stateDirectory, "terminal-runtime", "openlimiter.cjs"),
+      version: "test"
+    };
+    const shell = process.platform === "win32" ? "cmd" : "posix";
+    const base = await fallbackLauncherCommand(runtime, shell, null);
+    expect(settings.statusLine.command).toBe(`${base} statusline --host antigravity`);
+    const local = path.join(home, "local");
+    const roaming = path.join(home, "roaming");
+    const temp = path.join(home, "temp");
+    const xdgState = path.join(home, "xdg-state");
+    const xdgConfig = path.join(home, "xdg-config");
+    const xdgCache = path.join(home, "xdg-cache");
+    const xdgData = path.join(home, "xdg-data");
+    const xdgRuntime = path.join(home, "xdg-runtime");
+    await Promise.all([local, roaming, temp, xdgState, xdgConfig, xdgCache, xdgData, xdgRuntime]
+      .map((directory) => mkdir(directory, { recursive: true })));
+    const environment = {
+      ...process.env,
+      HOME: home,
+      USERPROFILE: home,
+      LOCALAPPDATA: local,
+      APPDATA: roaming,
+      TMP: temp,
+      TEMP: temp,
+      TMPDIR: temp,
+      XDG_STATE_HOME: xdgState,
+      XDG_CONFIG_HOME: xdgConfig,
+      XDG_CACHE_HOME: xdgCache,
+      XDG_DATA_HOME: xdgData,
+      XDG_RUNTIME_DIR: xdgRuntime
+    };
+    let invoked: Awaited<ReturnType<typeof invokeInstalledCommand>>;
+    try {
+      invoked = await invokeInstalledCommand(
+        runtime.entry,
+        await readFile(path.resolve("packages/connectors/fixtures/antigravity.quota.json"), "utf8"),
+        environment
+      );
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "EPERM") {
+        return testContext.skip("The sandbox refused the installed command subprocess");
+      }
+      throw error;
+    }
+    expect(invoked.code, invoked.stderr).toBe(0);
+    expect(invoked.stdout).toContain("5h");
+    const cacheDirectory = resolveStateDirectory({ platform: process.platform, environment, homeDirectory: home });
+    const cache = JSON.parse(await readFile(path.join(cacheDirectory, CACHE_FILE_NAME), "utf8")) as {
+      snapshots: { provider: string; provenance?: { observedVia?: string } }[];
+    };
+    expect(cache.snapshots.map((row) => row.provider)).toEqual(["ANTIGRAVITY", "ANTIGRAVITY"]);
+    expect(cache.snapshots.every((row) => row.provenance?.observedVia === "antigravity_cli_statusline")).toBe(true);
+  });
+
+  it("migrates Antigravity's legacy string to the documented command object", async () => {
+    const home = await temporaryDirectory("openlimiter-terminal-");
+    const ctx = await context(home);
+    const settingsFile = path.join(home, ".gemini", "antigravity-cli", "settings.json");
+    await mkdir(path.dirname(settingsFile), { recursive: true });
+    await writeFile(settingsFile, JSON.stringify({
+      statusLine: "openlimiter statusline --host antigravity"
+    }), "utf8");
+
+    expect((await installHost("antigravity", ctx)).ok).toBe(true);
+    const installed = JSON.parse(await readFile(settingsFile, "utf8")) as {
+      statusLine: Record<string, unknown>;
+    };
+    expect(installed.statusLine["type"]).toBe("command");
+    expect(typeof installed.statusLine["command"]).toBe("string");
+  });
+
+  it("preserves Antigravity's documented status line options", async () => {
+    const home = await temporaryDirectory("openlimiter-terminal-");
+    const ctx = await context(home);
+    const settingsFile = path.join(home, ".gemini", "antigravity-cli", "settings.json");
+    await mkdir(path.dirname(settingsFile), { recursive: true });
+    await writeFile(settingsFile, JSON.stringify({
+      statusLine: {
+        type: "command",
+        command: "openlimiter statusline --host antigravity",
+        padding: 3,
+        enabled: false,
+        stack_with_default: true
+      }
+    }), "utf8");
+
+    expect((await installHost("antigravity", ctx)).ok).toBe(true);
+    const installed = JSON.parse(await readFile(settingsFile, "utf8")) as {
+      statusLine: Record<string, unknown>;
+    };
+    expect(installed.statusLine).toMatchObject({
+      type: "command",
+      padding: 3,
+      enabled: false,
+      stack_with_default: true
+    });
+    expect(typeof installed.statusLine["command"]).toBe("string");
   });
 
   it("round trips Grok's [ui.status_line] table, including wrap and restore", async () => {

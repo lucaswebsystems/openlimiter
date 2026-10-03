@@ -1,9 +1,12 @@
 import {
+  antigravityMeterPresentation,
+  antigravityMeterRank,
   claudeMeterLabel,
   claudeMeterRank,
   floorFixed,
   type Advice,
   type ClaudeMeterLabelKey,
+  type AntigravityMeterLabelKey,
   type ConnectionState,
   type MeterView,
   type ProviderCode,
@@ -13,7 +16,7 @@ import {
   providerMeterLabel,
 } from "./engine";
 
-export type ClaudeMeterCopy = Partial<Record<ClaudeMeterLabelKey, string>>;
+export type ClaudeMeterCopy = Partial<Record<ClaudeMeterLabelKey | AntigravityMeterLabelKey, string>>;
 
 /** The engine's four overall reason codes. */
 type AdviceReason = Advice["reason"];
@@ -194,6 +197,10 @@ export function meterName(
     const claude = claudeMeterLabel(code, claudeCopy);
     if (claude !== null) return claude;
   }
+  if (provider === "ANTIGRAVITY") {
+    const antigravity = antigravityMeterPresentation(code);
+    if (antigravity !== null) return claudeCopy[antigravity.labelKey] ?? antigravity.defaultLabel;
+  }
   if (provider !== undefined && PROVIDER_CODES.includes(provider as ProviderCode)) {
     return providerMeterLabel(code, provider as ProviderCode);
   }
@@ -210,13 +217,15 @@ export function meterName(
     .join(" ");
 }
 
-/** Only Claude replaces the shared provider row vocabulary with localized copy. */
+/** Providers with shared presentation contracts replace the engine's English copy. */
 export function claudeMeterOverride(
   code: string,
   provider: ProviderCode,
   claudeCopy: ClaudeMeterCopy = {},
 ): string | undefined {
-  return provider === "CLAUDE" ? meterName(code, provider, claudeCopy) : undefined;
+  return provider === "CLAUDE" || provider === "ANTIGRAVITY"
+    ? meterName(code, provider, claudeCopy)
+    : undefined;
 }
 
 /**
@@ -260,6 +269,7 @@ const MODEL_WEEKLY_RANK = 45;
 /** Unmapped codes sort after every known one, then alphabetically. */
 export function meterRank(code: string, provider?: string): number {
   if (provider === "CLAUDE") return claudeMeterRank(code) ?? 90;
+  if (provider === "ANTIGRAVITY") return antigravityMeterRank(code) ?? 90;
   const known = METER_RANK[code];
   if (known !== undefined) return known;
   return code.startsWith(MODEL_WEEKLY_PREFIX) ? MODEL_WEEKLY_RANK : 90;

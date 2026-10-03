@@ -1,16 +1,9 @@
 import { acquisitionAccountId } from "../src/acquire/identity.js";
 import { describe, expect, it } from "vitest";
 import {
-  ACQUISITION_BLOCKED_BACKOFF_SECONDS,
   ACQUISITION_DISCLOSURE,
-  ACQUISITION_INTERVAL_SECONDS,
-  CODE_ASSIST_TIERS_FIELD,
-  SHARED_CODE_ASSIST_LABEL,
-  CODE_ASSIST_IDENTITY_SENTENCE,
   CODE_ASSIST_PROJECT_FIELD,
   CREDENTIAL_FAILURE_SENTENCE,
-  SHARED_CODE_ASSIST_ACCOUNT,
-  antigravitySpec,
   claudeSpec,
   codexSpec,
   collectionReasonFor,
@@ -30,7 +23,7 @@ const NOW = "2026-01-01T00:00:00.000Z";
 const SYNTHETIC_TOKEN = "synthetic-access-token-0000";
 function credential(
   accountId: string | null = null,
-  origin: "vendor_file" | "vendor_store" | "shared_code_assist" | "user_key" =
+  origin: "vendor_file" | "vendor_store" | "user_key" =
     "vendor_file"
 ): CredentialResult {
   return {
@@ -391,153 +384,6 @@ describe("one acquisition round", () => {
     expect(replaced.rows[0]?.status).toBe("read");
   });
 
-  it("names a provider that answers only its own tools, and waits a day", async () => {
-    /*
-     * Measured live on 2026-09-07: loadCodeAssist answered 200 to a request
-     * identifying as OpenLimiter and returned allowedTiers and ineligibleTiers
-     * and no companion project. That is not drift, nothing changed shape, and
-     * retrying it every fifteen minutes would be ninety six requests a day
-     * against an answer that cannot differ until we change identity, which
-     * Rule 1 forbids.
-     */
-    const sent: AcquisitionRequest[] = [];
-    const result = await runAcquisition([antigravitySpec(() => [meter("ANTIGRAVITY")])], {
-      transport: async (request) => {
-        sent.push(request);
-        return reply(200, {
-          allowedTiers: [{ id: "free-tier", isDefault: true }],
-          ineligibleTiers: [{ reasonCode: "RESTRICTED", tierId: "standard-tier" }]
-        });
-      },
-      now: NOW,
-      schedule: {},
-      readCredential: async () => credential()
-    });
-    expect(sent).toHaveLength(1);
-    expect(result.schedule["ANTIGRAVITY"]?.outcome).toBe("identity_refused");
-    expect(result.rows[0]?.reason).toBe(CODE_ASSIST_IDENTITY_SENTENCE);
-    expect(result.rows[0]?.nextAttemptAt).toBe("2026-01-02T00:00:00.000Z");
-    expect(ACQUISITION_BLOCKED_BACKOFF_SECONDS).toBe(86_400);
-  });
-
-  it("keeps every other Code Assist failure transient", async () => {
-    /*
-     * A day of silence is bought on ONE measured signature and nothing else.
-     * Everything below is a provider having a bad hour, and a bad hour must
-     * never cost a day.
-     */
-    const cases: {
-      readonly name: string;
-      readonly reply: () => Promise<AcquisitionReply>;
-      readonly outcome: string;
-      readonly next: string;
-    }[] = [
-      {
-        name: "a bootstrap with neither field",
-        reply: async () => reply(200, { unexpected: true }),
-        outcome: "drift",
-        next: "2026-01-01T00:15:00.000Z"
-      },
-      {
-        name: "a body that is not an object",
-        reply: async () => reply(200, ["not an object at all"]),
-        outcome: "drift",
-        next: "2026-01-01T00:15:00.000Z"
-      },
-      {
-        name: "a server error follows the agreed exponential plan rule",
-        reply: async () => ({ status: 500, body: "", retryAfterSeconds: null }),
-        outcome: "remote_error",
-        next: "2026-01-01T00:01:00.000Z"
-      },
-      {
-        name: "a rate limit follows the agreed exponential plan rule",
-        reply: async () => ({ status: 429, body: "", retryAfterSeconds: null }),
-        outcome: "rate_limited",
-        next: "2026-01-01T00:01:00.000Z"
-      },
-      {
-        name: "a body that is not JSON",
-        reply: async () => ({ status: 200, body: "<html>", retryAfterSeconds: null }),
-        outcome: "drift",
-        next: "2026-01-01T00:15:00.000Z"
-      }
-    ];
-    for (const scenario of cases) {
-      const result = await runAcquisition(
-        [antigravitySpec(() => [meter("ANTIGRAVITY")])],
-        {
-          transport: scenario.reply,
-          now: NOW,
-          schedule: {},
-          readCredential: async () => credential()
-        }
-      );
-      expect(
-        result.schedule["ANTIGRAVITY"]?.outcome,
-        scenario.name
-      ).toBe(scenario.outcome);
-      expect(result.rows[0]?.nextAttemptAt, scenario.name).toBe(scenario.next);
-    }
-    expect(ACQUISITION_INTERVAL_SECONDS).toBe(900);
-  });
-
-  it("reads the refusal only from the tier list beside a missing project", async () => {
-    const refused = await runAcquisition(
-      [antigravitySpec(() => [meter("ANTIGRAVITY")])],
-      {
-        transport: async () => reply(200, { [CODE_ASSIST_TIERS_FIELD]: [] }),
-        now: NOW,
-        schedule: {},
-        readCredential: async () => credential()
-      }
-    );
-    expect(refused.schedule["ANTIGRAVITY"]?.outcome).toBe("identity_refused");
-  });
-
-  it("files a borrowed Gemini login under its own account, never Antigravity's", async () => {
-    const result = await runAcquisition([antigravitySpec(() => [meter("ANTIGRAVITY")])], {
-      transport: async (request) => request.endpoint === "code_assist_load"
-        ? reply(200, { [CODE_ASSIST_PROJECT_FIELD]: "managed-project-123" })
-        : reply(200, { buckets: [] }),
-      now: NOW,
-      schedule: {},
-      readCredential: async () => credential(null, "shared_code_assist")
-    });
-    expect(result.rows[0]).toMatchObject({
-      status: "read",
-      accountId: SHARED_CODE_ASSIST_ACCOUNT,
-      disclosure: ACQUISITION_DISCLOSURE.antigravityShared
-    });
-    /* The identifier keys the cache; the label is what a person should read
-       where a surface would otherwise print "gemini-cli-shared". */
-    const first = result.reports[0];
-    expect(first?.ok === true ? first.snapshots[0]?.accountLabel : null).toBe(
-      SHARED_CODE_ASSIST_LABEL
-    );
-    expect(SHARED_CODE_ASSIST_LABEL).toBe("Shared Google Code Assist quota");
-    const report = result.reports[0];
-    expect(report?.ok === true ? report.accountId : null).toBe(
-      SHARED_CODE_ASSIST_ACCOUNT
-    );
-    expect(report?.ok === true ? report.snapshots[0]?.accountId : null).toBe(
-      SHARED_CODE_ASSIST_ACCOUNT
-    );
-  });
-
-  it("keeps Antigravity's own login unlabelled", async () => {
-    const result = await runAcquisition([antigravitySpec(() => [meter("ANTIGRAVITY")])], {
-      transport: async (request) => request.endpoint === "code_assist_load"
-        ? reply(200, { [CODE_ASSIST_PROJECT_FIELD]: "managed-project-123" })
-        : reply(200, { buckets: [] }),
-      now: NOW,
-      schedule: {},
-      readCredential: async () => credential(null, "vendor_store")
-    });
-    expect(result.rows[0]?.accountId).toBe(acquisitionAccountId("ANTIGRAVITY", { secret: "fixture", accountId: null, origin: "vendor_store" }));
-    expect(result.rows[0]?.disclosure).toBe(ACQUISITION_DISCLOSURE.antigravity);
-  });
-
   it("lets one provider that throws anywhere cost only itself", async () => {
     /*
      * The request stage, not the parser. A transport that throws for one
@@ -639,11 +485,8 @@ describe("one acquisition round", () => {
     for (const sentence of Object.values(CREDENTIAL_FAILURE_SENTENCE)) {
       expect(sentence).not.toMatch(/[-â€“â€”]/u);
     }
-    /* Every credential here was issued to somebody else's client, and every
-       row says so before a person leans on the number. */
-    expect(ACQUISITION_DISCLOSURE.antigravity).toContain(
-      "reads the credential the Antigravity CLI stored"
-    );
+    /* Every credential here was issued to another client, and every row says
+       so before a person leans on the number. */
     expect(ACQUISITION_DISCLOSURE.claude).toContain("recorded choice");
     expect(ACQUISITION_DISCLOSURE.claude).not.toContain("off unless you turn it on");
   });

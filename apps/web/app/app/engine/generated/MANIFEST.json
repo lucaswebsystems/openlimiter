@@ -1,7 +1,7 @@
 {
   "generatedBy": "app/app/engine/sync.mjs",
   "sources": {
-    "core/types.ts": "03b85c0bfdad747a",
+    "core/types.ts": "048e3636dea83b73",
     "core/connection-state.ts": "a99cf59208d5bbde",
     "core/data-rules.ts": "092d75b89504f746",
     "core/failures.ts": "92c8818a6dcb3557",
@@ -11,16 +11,17 @@
     "core/merge.ts": "f76276beab46e36c",
     "core/normalizer.ts": "651d84c067002a43",
     "core/policy.ts": "bbeb1db71a103c02",
-    "core/provider-presentation.ts": "1f7ea8f7752f2841",
+    "core/provider-presentation.ts": "83269ae41186bafd",
     "core/contracts/claude-presentation.json": "cc68367b1ae23cfe",
     "core/schedule.ts": "8c4afef8c2109573",
+    "core/acquire/antigravity-meters.ts": "e6dc204897fd85ce",
     "connectors/shared.ts": "999163f50865ac4f",
-    "connectors/antigravity.ts": "29fe19aed737cfb9",
+    "connectors/antigravity.ts": "26c316e507acf997",
     "connectors/claude.ts": "553ef79750047420",
     "connectors/codex.ts": "1940cec3be76743e",
     "connectors/cursor.ts": "4f48ea7b33669ff4",
     "connectors/contract-gate.ts": "0be97577d12a40b1",
-    "connectors/fixtures.ts": "a9e6c750b3592708",
+    "connectors/fixtures.ts": "c82f0ef9fa13befb",
     "connectors/gemini-cli.ts": "6bdf5b986d6bc9be",
     "connectors/grok.ts": "2effd4e9325bd882",
     "connectors/kimi.ts": "247cffe264807106",
@@ -30,8 +31,8 @@
     "connectors/index.ts": "cb259accae69925b",
     "adapters/claude-code.ts": "d6d1183bd8093600",
     "ui/provider-connect.ts": "ac27de48b19b41e8",
-    "ui/provider-row.ts": "6fcf5dbabeb03b73",
+    "ui/provider-row.ts": "5638d9b3408f71d4",
     "ui/tokens.css": "11c79e1125538355",
-    "provider_specs/provider-specs.json": "0093e02a80603dec"
+    "provider_specs/provider-specs.json": "40fa3017bad7a42b"
   }
 }

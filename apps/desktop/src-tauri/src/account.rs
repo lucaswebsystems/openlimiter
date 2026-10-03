@@ -210,7 +210,7 @@ fn normalize_configured_providers(values: Vec<String>) -> Vec<String> {
         .into_iter()
         .map(|value| value.to_ascii_uppercase().replace('-', "_"))
         .filter(|value| {
-            let registered = crate::reader_registry::ProviderId::ALL
+            let registered = crate::reader_registry::ProviderId::SYNC_ELIGIBLE
                 .iter()
                 .any(|provider| provider.code() == value);
             (registered || matches!(value.as_str(), "CLAUDE" | "GEMINI_CLI"))
@@ -948,6 +948,23 @@ fn usage_samples_from_cache(
     Ok(rows.into_iter().map(|(_, sample)| sample).collect())
 }
 
+fn usage_samples_from_cache_text(
+    raw: &str,
+    configured_providers: &HashSet<String>,
+    envelope_observed_at: &str,
+    now: time::OffsetDateTime,
+) -> Result<Vec<UsageSample>, AccountFailure> {
+    serde_json::from_str::<serde_json::Value>(raw).map_err(|_| AccountFailure::Storage)?;
+    let snapshots = crate::native_snapshot::surface_snapshots(Some(raw))
+        .map_err(|_| AccountFailure::Storage)?;
+    usage_samples_from_cache(
+        &serde_json::json!({ "snapshots": snapshots }),
+        configured_providers,
+        envelope_observed_at,
+        now,
+    )
+}
+
 fn sync_rows(
     store: &dyn SecretStore,
     envelope_observed_at: &str,
@@ -959,10 +976,8 @@ fn sync_rows(
     let Some(raw) = crate::state::read_cache() else {
         return Ok(Vec::new());
     };
-    let document: serde_json::Value =
-        serde_json::from_str(&raw).map_err(|_| AccountFailure::Storage)?;
-    usage_samples_from_cache(
-        &document,
+    usage_samples_from_cache_text(
+        &raw,
         &configured_providers,
         envelope_observed_at,
         time::OffsetDateTime::now_utc(),
@@ -1763,6 +1778,43 @@ mod tests {
             ]),
             vec!["CODEX".to_string(), "GEMINI_CLI".to_string()]
         );
+        assert_eq!(
+            normalize_configured_providers(vec!["antigravity".to_string()]),
+            vec!["ANTIGRAVITY".to_string()]
+        );
+    }
+
+    #[test]
+    fn desktop_sync_retires_v2_antigravity_and_uploads_statusline_rows() {
+        let now = time::OffsetDateTime::parse(
+            "2026-09-07T12:00:00Z",
+            &time::format_description::well_known::Rfc3339,
+        )
+        .expect("a clock");
+        let configured = ["ANTIGRAVITY".to_string()]
+            .into_iter()
+            .collect::<HashSet<_>>();
+        let snapshot = serde_json::json!({
+            "provider": "ANTIGRAVITY", "meter": "FIVE_HOUR", "unit": "PERCENT",
+            "kind": "quota_percent", "value": 27.0, "accountId": "antigravity-personal",
+            "window": { "kind": "rolling", "durationSeconds": 18000 }, "resetAt": null,
+            "source": "native_payload", "precision": "exact",
+            "observedAt": "2026-09-07T11:59:30.000Z", "expiresAt": "2026-09-07T12:00:30.000Z",
+            "provenance": { "sourceKind": "statusline_payload", "observedVia": "antigravity_cli_statusline" },
+            "labels": { "credentialOrigin": "official-local-tool", "dataInterfaceStatus": "native-statusline-payload", "automationRisk": "low", "verification": "UNVERIFIED" }
+        });
+        let old = serde_json::json!({ "version": 2, "snapshots": [snapshot.clone()] }).to_string();
+        let current = serde_json::json!({ "version": 3, "snapshots": [snapshot] }).to_string();
+        assert!(
+            usage_samples_from_cache_text(&old, &configured, "2026-09-07T12:00:00.000Z", now)
+                .expect("old cache migrates")
+                .is_empty()
+        );
+        let rows =
+            usage_samples_from_cache_text(&current, &configured, "2026-09-07T12:00:00.000Z", now)
+                .expect("current cache migrates");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].provider, "ANTIGRAVITY");
     }
 
     #[test]

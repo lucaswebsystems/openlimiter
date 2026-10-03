@@ -48,9 +48,6 @@ pub const CURSOR_USAGE_URL: &str = "https://cursor.com/api/usage-summary";
 /// accountant: the token stored under `gemini:antigravity` returns the quota
 /// groups from this address when sent an empty JSON object, bearer auth, JSON
 /// content type, and a nonempty user agent. No project bootstrap is involved.
-pub const ANTIGRAVITY_QUOTA_URL: &str =
-    "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary";
-
 /// Gemini CLI's Code Assist account bootstrap.
 ///
 /// Google maintains this constant and request contract in
@@ -110,7 +107,6 @@ pub const OPENCODE_WORKSPACE_URL_SUFFIX: &str = "/go";
 pub enum ProviderEndpoint {
     OpenrouterKey,
     OpenrouterCredits,
-    AntigravityQuota,
     GeminiCliLoad,
     GeminiCliQuota,
     OpencodeUsage,
@@ -124,10 +120,9 @@ impl ProviderEndpoint {
     /// The whole allowlist, for the tests that prove it closed. The product
     /// itself never needs the list, only a variant at a time.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [ProviderEndpoint; 10] = [
+    pub const ALL: [ProviderEndpoint; 9] = [
         ProviderEndpoint::OpenrouterKey,
         ProviderEndpoint::OpenrouterCredits,
-        ProviderEndpoint::AntigravityQuota,
         ProviderEndpoint::GeminiCliLoad,
         ProviderEndpoint::GeminiCliQuota,
         ProviderEndpoint::OpencodeUsage,
@@ -142,7 +137,6 @@ impl ProviderEndpoint {
         match self {
             ProviderEndpoint::OpenrouterKey => OPENROUTER_KEY_URL,
             ProviderEndpoint::OpenrouterCredits => OPENROUTER_CREDITS_URL,
-            ProviderEndpoint::AntigravityQuota => ANTIGRAVITY_QUOTA_URL,
             ProviderEndpoint::GeminiCliLoad => GEMINI_CLI_LOAD_URL,
             ProviderEndpoint::GeminiCliQuota => GEMINI_CLI_QUOTA_URL,
             ProviderEndpoint::OpencodeUsage => OPENCODE_AUTH_URL,
@@ -170,8 +164,7 @@ impl ProviderEndpoint {
             | ProviderEndpoint::GrokUsage
             | ProviderEndpoint::KimiUsage
             | ProviderEndpoint::CursorUsage => HttpMethod::Get,
-            ProviderEndpoint::AntigravityQuota
-            | ProviderEndpoint::GeminiCliLoad
+            ProviderEndpoint::GeminiCliLoad
             | ProviderEndpoint::GeminiCliQuota => HttpMethod::Post,
         }
     }
@@ -179,7 +172,6 @@ impl ProviderEndpoint {
     /// The request body, when the endpoint demands one.
     pub const fn body(self) -> Option<&'static str> {
         match self {
-            ProviderEndpoint::AntigravityQuota => Some(ANTIGRAVITY_QUOTA_BODY),
             ProviderEndpoint::GeminiCliLoad => Some(GEMINI_CLI_LOAD_BODY),
             /* The quota body contains one validated server supplied project
             identifier and is constructed only by `fetch_gemini_cli_quota`. */
@@ -194,9 +186,6 @@ impl ProviderEndpoint {
         }
     }
 }
-
-/// The exact body used by the machine's working Antigravity quota reader.
-pub const ANTIGRAVITY_QUOTA_BODY: &str = "{}";
 
 /// The same metadata Gemini CLI sends when it resolves an already onboarded
 /// Google account. Undefined project fields are omitted, exactly as JSON
@@ -268,10 +257,8 @@ pub const CLAUDE_OAUTH_USER_AGENT: &str = OPENLIMITER_USER_AGENT;
 // outcome, its own sentence and a full day of backoff rather than a retry
 // every ten minutes against an answer that cannot change until we change.
 //
-// What replaced it reads better anyway: `antigravity_local.rs` asks the
-// Antigravity client already running on the machine, over loopback, for the
-// summary it has already fetched and cached. See that file for why that is a
-// different act from this one. */
+// Antigravity quota now arrives only through the documented status line
+// payload, outside the native HTTP transport. */
 
 /// The user agent the OpenCode workspace page is addressed with.
 pub const OPENCODE_USER_AGENT: &str = OPENLIMITER_USER_AGENT;
@@ -553,11 +540,6 @@ async fn fetch_endpoint_inner<T: Transport>(
     }
     if endpoint.needs_workspace() {
         return fetch_through_workspace(transport, endpoint, auth, secret).await;
-    }
-    if endpoint == ProviderEndpoint::AntigravityQuota {
-        if auth != AuthApplication::AntigravitySessionBearer || provider_account_id.is_some() {
-            return Err(NetError::Protocol);
-        }
     }
     if auth == AuthApplication::CodexSessionBearer {
         return Err(NetError::Protocol);
@@ -850,7 +832,6 @@ fn authenticated_builder(
     match request.auth {
         AuthApplication::BearerAuthorization
         | AuthApplication::ClaudeOauthBearer
-        | AuthApplication::AntigravitySessionBearer
         | AuthApplication::GrokSessionBearer
         | AuthApplication::KimiSessionBearer
         | AuthApplication::GeminiCliBearer => {
@@ -905,11 +886,6 @@ fn authenticated_builder(
         }
         AuthApplication::KimiSessionBearer => builder
             .header(reqwest::header::AUTHORIZATION, header_value)
-            .header(reqwest::header::USER_AGENT, OPENLIMITER_USER_AGENT)
-            .header(reqwest::header::ACCEPT, "application/json"),
-        AuthApplication::AntigravitySessionBearer => builder
-            .header(reqwest::header::AUTHORIZATION, header_value)
-            .header(reqwest::header::CONTENT_TYPE, "application/json")
             .header(reqwest::header::USER_AGENT, OPENLIMITER_USER_AGENT)
             .header(reqwest::header::ACCEPT, "application/json"),
         AuthApplication::GeminiCliBearer => builder
@@ -980,10 +956,9 @@ mod tests {
     use crate::reader_registry::{reader_route, CredentialKind, ProviderId};
     use crate::test_support::RecordingTransport;
 
-    const ROUTED_ENDPOINTS: [ProviderEndpoint; 8] = [
+    const ROUTED_ENDPOINTS: [ProviderEndpoint; 7] = [
         ProviderEndpoint::OpenrouterKey,
         ProviderEndpoint::OpenrouterCredits,
-        ProviderEndpoint::AntigravityQuota,
         ProviderEndpoint::OpencodeUsage,
         ProviderEndpoint::ClaudeOauthUsage,
         ProviderEndpoint::GrokUsage,
@@ -1073,7 +1048,6 @@ mod tests {
             vec![
                 OPENROUTER_KEY_URL.to_string(),
                 OPENROUTER_CREDITS_URL.to_string(),
-                ANTIGRAVITY_QUOTA_URL.to_string(),
                 /* Two hops, both built here from constants and one validated
                 handle. */
                 OPENCODE_AUTH_URL.to_string(),
@@ -1107,16 +1081,10 @@ mod tests {
         for endpoint in ProviderEndpoint::ALL {
             let expected_post = matches!(
                 endpoint,
-                ProviderEndpoint::AntigravityQuota
-                    | ProviderEndpoint::GeminiCliLoad
-                    | ProviderEndpoint::GeminiCliQuota
+                ProviderEndpoint::GeminiCliLoad | ProviderEndpoint::GeminiCliQuota
             );
             assert_eq!(endpoint.method() == HttpMethod::Post, expected_post);
         }
-        assert_eq!(
-            ProviderEndpoint::AntigravityQuota.body(),
-            Some(ANTIGRAVITY_QUOTA_BODY)
-        );
         assert_eq!(
             ProviderEndpoint::GeminiCliLoad.body(),
             Some(GEMINI_CLI_LOAD_BODY)
@@ -1153,11 +1121,7 @@ mod tests {
                 assert_eq!(observed, endpoint.method());
             }
             let bodies = transport.recorded_bodies();
-            if endpoint == ProviderEndpoint::AntigravityQuota {
-                assert_eq!(bodies, vec![Some(ANTIGRAVITY_QUOTA_BODY.to_string())]);
-            } else {
-                assert!(bodies.iter().all(Option::is_none));
-            }
+            assert!(bodies.iter().all(Option::is_none));
         }
     }
 
@@ -1430,43 +1394,6 @@ mod tests {
     /// The Antigravity request identifies OpenLimiter, and the cost is known.
     ///
     /// This used to assert the opposite: that the request carried
-    /// `antigravity/cli/1.1.15`, because Google's metadata plane answers the
-    /// companion project only to its own client. Decision D5 forbids buying a
-    /// reading with a false identity, so the header is honest and the endpoint
-    /// is expected to withhold the project. `antigravity_oauth.rs` turns that
-    /// into the `IdentityRefused` outcome rather than into drift, and
-    /// `antigravity_local.rs` reads the running client instead.
-    #[test]
-    fn the_antigravity_request_claims_to_be_no_vendor_client() {
-        let _ = rustls::crypto::ring::default_provider().install_default();
-        let client = reqwest::Client::new();
-        let request = EndpointRequest {
-            url: ANTIGRAVITY_QUOTA_URL,
-            method: HttpMethod::Post,
-            auth: AuthApplication::AntigravitySessionBearer,
-            provider_account_id: None,
-            body: Some(ANTIGRAVITY_QUOTA_BODY),
-        };
-        let built = authenticated_builder(&client, &request, "credential-canary")
-            .expect("headers")
-            .build()
-            .expect("request");
-        assert_eq!(
-            built.headers()[reqwest::header::USER_AGENT],
-            OPENLIMITER_USER_AGENT
-        );
-        let rendered = format!("{:?}", built.headers());
-        assert!(!rendered.contains("antigravity/cli"));
-        assert_eq!(
-            built.headers()[reqwest::header::AUTHORIZATION],
-            "Bearer credential-canary"
-        );
-        assert_eq!(
-            built.body().and_then(reqwest::Body::as_bytes),
-            Some(ANTIGRAVITY_QUOTA_BODY.as_bytes())
-        );
-    }
-
     /* -------------------------------------------------- the workspace hop */
 
     #[test]
@@ -1685,7 +1612,7 @@ mod tests {
             .expect("the module has a body before its tests");
         assert_eq!(
             head.matches("https://").count(),
-            12,
+            11,
             "an address appeared outside the constants"
         );
     }
@@ -1720,7 +1647,6 @@ mod tests {
                 "Bearer SECRET-MARKER-4f9a-do-not-echo-1234",
                 "THE-BODY-MARKER",
                 OPENROUTER_KEY_URL,
-                ANTIGRAVITY_QUOTA_URL,
             ] {
                 assert!(!error.to_string().contains(marker));
             }

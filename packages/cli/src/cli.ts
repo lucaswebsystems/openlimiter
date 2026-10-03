@@ -11,7 +11,6 @@ import {
   mergeAcquiredSnapshots,
   createFetchTransport,
   readRefreshSpawnFailure,
-  antigravitySpec,
   buildAdvice,
   canonicalJson,
   claudeSpec,
@@ -40,10 +39,6 @@ import {
   trustedHelperWorkingDirectory,
   writeAcquisitionSchedule,
   windowsSystemTool,
-  probeAntigravity,
-  resolveAgyExecutablePath,
-  type AntigravityProbeOptions,
-  type AntigravityProbeResult,
   type AcquisitionProvider,
   type AcquisitionRow,
   type AcquisitionSchedule,
@@ -70,7 +65,6 @@ import {
   manualFixture,
   opencodeFixture,
   openrouterFixture,
-  parseAntigravityCodeAssistPayload,
   parseAntigravityPayload,
   parseClaudePayload,
   parseCodexPayload,
@@ -135,6 +129,7 @@ import {
   environmentWithLocalMarkers,
   STDIN_BYTE_LIMIT,
   parseAntigravityStatuslinePayload,
+  antigravityStatuslineAccount,
   parseGrokStatuslinePayload,
   parseJsonText,
   persistSnapshots,
@@ -264,26 +259,10 @@ export interface CliDependencies {
   /**
    * How the Windows Credential Manager is asked for one entry.
    *
-   * Only Antigravity needs it, and only on Windows. Absent means the file
-   * fallback is the only path, which is what every other platform uses.
+   * This remains injectable so terminal shell discovery never touches a real
+   * user profile in tests.
    */
   windowsCredentialRunner?: CredentialCommandRunner;
-  /**
-   * Probe running Antigravity instances on loopback ports.
-   *
-   * Reaches nothing by default in tests. The real executable injects the real
-   * loopback probe.
-   */
-  probeAntigravity?: (options?: AntigravityProbeOptions) => Promise<AntigravityProbeResult>;
-  /**
-   * Turn a pid the Antigravity probe found listening into the executable path
-   * it checks against the trusted install roots.
-   *
-   * Reaches nothing by default in tests, exactly like `probeAntigravity`
-   * above: an unresolved pid is a pid the probe skips, never one it trusts on
-   * a bare process name. The real executable injects `resolveAgyExecutablePath`.
-   */
-  resolveExecutablePath?: (pid: string) => Promise<string | null>;
   /**
    * Interactive prompt choice helper.
    */
@@ -374,7 +353,6 @@ function defaults(): CliDependencies {
       throw new Error("No acquisition transport was injected");
     },
     spawnDetached: () => undefined,
-    probeAntigravity: async () => ({ ok: false, reason: "not_running" }),
     promptChoice: async () => "",
     interactive: false,
     hubTransport: async () => {
@@ -522,8 +500,6 @@ export function runtimeDependencies(): Pick<
   | "acquisitionTransport"
   | "spawnDetached"
   | "windowsCredentialRunner"
-  | "probeAntigravity"
-  | "resolveExecutablePath"
   | "hubTransport"
   | "openBrowser"
   | "emit"
@@ -532,11 +508,6 @@ export function runtimeDependencies(): Pick<
 > {
   return {
     acquisitionTransport: createFetchTransport(),
-    probeAntigravity: (options) => probeAntigravity({
-      ...options,
-      runCommand: options?.runCommand ?? execFileRunner
-    }),
-    resolveExecutablePath: resolveAgyExecutablePath,
     spawnDetached: (executable, argumentsList, options) => {
       const child = spawn(executable, [...argumentsList], {
         cwd: options.cwd,
@@ -724,7 +695,6 @@ export function acquisitionSpecs(providers: ProvidersConfig): AcquisitionSpec[] 
     codexSpec(parseCodexPayload),
     cursorSpec(parseCursorPayload),
     geminiCliSpec(parseGeminiCliPayload),
-    antigravitySpec(parseAntigravityCodeAssistPayload),
     grokSpec(parseGrokPayload),
     kimiSpec(parseKimiPayload),
     openrouterSpec(parseOpenrouterPayload)
@@ -939,33 +909,12 @@ async function acquisitionDoctorRows(
   return [ACQUISITION_HEADER, ...rows].join(NEWLINE);
 }
 
-/**
- * Where a person can still see a reading this row could not take.
- *
- * Antigravity and Gemini CLI meter the same Google Code Assist pool. When
- * Google withholds the reading from this client but another tool on the machine
- * has already written one, the honest thing is to point at it rather than leave
- * a bare refusal, so the person knows the number exists and where.
- */
-function sharedQuotaNote(
-  row: AcquisitionRow,
-  snapshots: readonly Snapshot[]
-): string | null {
-  if (row.provider !== "ANTIGRAVITY") return null;
-  return snapshots.some((snapshot) => snapshot.provider === "GEMINI_CLI")
-    ? "the shared Code Assist quota is shown under gemini_cli"
-    : null;
-}
-
 /** One row of the refresh report, in the space separated grammar doctor uses. */
 function acquisitionLine(
   row: AcquisitionRow,
-  snapshots: readonly Snapshot[] = []
+  _snapshots: readonly Snapshot[] = []
 ): string {
-  const shared = row.status === "read" ? null : sharedQuotaNote(row, snapshots);
-  const note = [row.reason ?? row.disclosure ?? "", shared ?? ""]
-    .filter((part) => part !== "")
-    .join(", ");
+  const note = row.reason ?? row.disclosure ?? "";
   return [
     row.provider.toLowerCase(),
     row.detected ? "yes" : "no",
@@ -1022,13 +971,7 @@ async function refreshCommand(
       now,
       schedule,
       readCredential: credentialReader(dependencies),
-      stamp: acquisitionStamp,
-      ...(dependencies.probeAntigravity === undefined
-        ? {}
-        : { probeAntigravity: dependencies.probeAntigravity }),
-      ...(dependencies.resolveExecutablePath === undefined
-        ? {}
-        : { resolveExecutablePath: dependencies.resolveExecutablePath })
+      stamp: acquisitionStamp
     });
     /*
      * Ownership is checked before every write, not once at the start. A round
@@ -1230,11 +1173,14 @@ async function ingestStandardInput(
 ): Promise<{ snapshots: Snapshot[] | null; payload: unknown } | null> {
   if (host === "codex" || host === "shell") return null;
   try {
-    const accountId = await captureStatuslineAccount(host === "antigravity" ? "ANTIGRAVITY" : host === "grok" ? "GROK" : "CLAUDE", {
+    const accountIdBeforePayload = host === "antigravity" ? null : await captureStatuslineAccount(host === "grok" ? "GROK" : "CLAUDE", {
       environment: dependencies.environment, homeDirectory: dependencies.homeDirectory, platform: dependencies.platform, ...(dependencies.stateDirectory ? { stateDirectory: dependencies.stateDirectory } : {}), now
     });
     const document = parseJsonText(await dependencies.readStandardInput());
     if (!document.ok) return null;
+    const accountId = host === "antigravity"
+      ? antigravityStatuslineAccount(document.value)
+      : accountIdBeforePayload;
     const meters = host === "antigravity"
       ? parseAntigravityStatuslinePayload(document.value, now)
       : host === "grok"

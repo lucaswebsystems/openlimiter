@@ -66,4 +66,16 @@ describe("published audit surfaces", () => {
     expect(read("public/llms.txt")).not.toContain("openlimiter.com/app/pair");
     expect(read("public/llms.txt")).toContain("openlimiter.com/app/cli");
   });
+
+  it.each(["en", ...locales])("Antigravity help describes statusline setup and usage refresh in %s", (locale) => {
+    const catalog = JSON.parse(read(`messages/${locale}.json`));
+    const providers = catalog.docs.pages.providers.sections;
+    const zeroSetup = catalog.docs.pages["zero-setup"].sections.providers;
+    expect(providers["the-nine"].rows.antigravity.connect).toMatch(/status|estado|Status|ステータス/u);
+    expect(providers["the-nine"].rows.antigravity.reads).toContain("/usage");
+    expect(providers["how-data-arrives"].bullets.live).not.toContain("<code>antigravity</code>");
+    expect(providers["how-data-arrives"].bullets.antigravity).toContain("/usage");
+    expect(zeroSetup.rows.antigravity.source).toContain("/usage");
+    expect(zeroSetup.riskBody).not.toContain("Antigravity");
+  });
 });

@@ -1,8 +1,5 @@
 mod account;
 mod activity;
-mod antigravity_credential;
-mod antigravity_local;
-mod antigravity_oauth;
 mod api_spend;
 mod cache_write;
 mod claude_connect;
@@ -205,7 +202,6 @@ pub fn run() {
         .manage(provider_detection::DetectionStore::scan())
         .manage(claude_oauth::ClaudeOauthRuntime::default())
         .manage(codex_oauth::CodexOauthRuntime::default())
-        .manage(antigravity_oauth::AntigravityOauthRuntime::default())
         .manage(grok_oauth::GrokOauthRuntime::default())
         .manage(kimi_oauth::KimiOauthRuntime::default())
         .manage(gemini_cli_oauth::GeminiCliOauthRuntime::default())
@@ -293,6 +289,11 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 let worker = startup.clone();
                 let _ = tauri::async_runtime::spawn_blocking(move || {
+                    let _ = worker
+                        .state::<connections::ConnectionsStore>()
+                        .cleanup_retired_credentials(
+                            worker.state::<credentials::KeyringStore>().inner(),
+                        );
                     worker
                         .state::<provider_detection::DetectionStore>()
                         .rescan_due(false, std::time::Duration::ZERO);

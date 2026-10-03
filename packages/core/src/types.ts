@@ -106,6 +106,7 @@ export type SnapshotSourceKind = (typeof SNAPSHOT_SOURCE_KINDS)[number];
  */
 export const SNAPSHOT_OBSERVED_VIA = [
   "claude_code_statusline",
+  "antigravity_cli_statusline",
   "ingest_command",
   "manual_json",
   "local_event",

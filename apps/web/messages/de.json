@@ -60,6 +60,15 @@
     "cacheUnreadable": "Die gespeicherten Messungen konnten gerade nicht gelesen werden, daher werden nur noch aktuelle Messungen angezeigt.",
     "connect": "Verbinden",
     "openAntigravity": "Antigravity öffnen",
+    "setupAntigravityStatusLine": "Statuszeile einrichten",
+    "antigravityStatusLineIdle": "Statuszeile eingerichtet. Nutze /usage in Antigravity CLI, um das Kontingent zu aktualisieren.",
+    "antigravityStatusLineLegacy": "Diese ältere Statuszeile muss erneut installiert werden.",
+    "antigravityStatusLineDisabled": "Die Statuszeile ist in den Antigravity Einstellungen ausgeschaltet. Schalte sie dort ein und nutze dann /usage, um das Kontingent zu aktualisieren.",
+    "antigravitySetupNote": "Führe diesen Befehl aus und nutze dann /usage in Antigravity CLI, um das Kontingent zu aktualisieren.",
+    "antigravityFiveHourQuota": "Kontingent für 5 Stunden",
+    "antigravityWeeklyQuota": "Wöchentliches Kontingent",
+    "antigravityThirdPartySession": "Drittanbieter Kontingent für 5 Stunden",
+    "antigravityThirdPartyWeekly": "Wöchentliches Drittanbieter Kontingent",
     "toolOff": "Aus",
     "moreFor": "Mehr zu {name}",
     "showTool": "Anzeigen",
@@ -1204,8 +1213,8 @@
                 "reads": "The login the Codex CLI stored. May break when OpenAI changes it."
               },
               "antigravity": {
-                "connect": "Nur lesender Zugriff mit den bereits vorhandenen Zugangsdaten.",
-                "reads": "The credential the Antigravity CLI stored. May break when Google changes it."
+                "connect": "Richte die dokumentierte Statuszeile von Antigravity CLI ein.",
+                "reads": "Kontingent aus der dokumentierten Statuszeile. Nutze /usage in Antigravity CLI, um es zu aktualisieren."
               },
               "opencode": {
                 "connect": "Nur Import: Sie stellen das Dokument selbst bereit.",
@@ -1237,8 +1246,9 @@
             "title": "How data actually arrives",
             "intro": "Most connectors read for themselves now. Two still do not, and this is the part worth stating plainly.",
             "bullets": {
+              "antigravity": "<code>antigravity</code> kommt über die dokumentierte Statuszeile von Antigravity CLI. Nutze <code>/usage</code> in Antigravity CLI, um das Kontingent zu aktualisieren.",
               "claude": "<code>claude</code> erhält Daten aus der Statuszeile von Claude Code, sobald sie erscheint. Bei einer neuen Desktopinstallation beginnt eine zuvor erklärte direkte Nutzungsanfrage eingeschaltet. Bestehende Installationen ohne Auswahl fragen zuerst, und die Terminaleinrichtung speichert ihre eigene Auswahl.",
-              "live": "<code>codex</code>, <code>gemini_cli</code>, <code>antigravity</code>, <code>grok</code>, <code>kimi</code> und <code>openrouter</code> lesen die vom jeweiligen Tool gespeicherte Anmeldung höchstens alle fünfzehn Minuten. Dies übernimmt die Aktualisierung der Desktopanwendung oder <code>openlimiter refresh</code> im Terminal.",
+              "live": "<code>codex</code>, <code>gemini_cli</code>, <code>grok</code>, <code>kimi</code> und <code>openrouter</code> lesen die vom jeweiligen Tool gespeicherte Anmeldung höchstens alle fünfzehn Minuten. Dies übernimmt die Aktualisierung der Desktopanwendung oder <code>openlimiter refresh</code> im Terminal.",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
               "ingestOnly": "<code>opencode</code> is the one connector left with no reader of its own: it only accepts data through <code>openlimiter ingest --provider opencode</code>, because it reads an authenticated page rather than a login file."
             },
@@ -1420,7 +1430,7 @@
               "antigravity": {
                 "name": "Antigravity",
                 "reports": "Den knappsten Quota Bereich, den genutzten Prozentsatz und seinen Reset.",
-                "source": "Die lokale Antigravity Anmeldung und ein nicht unterstützter Google Quota Endpunkt."
+                "source": "Die dokumentierte Statuszeile von Antigravity CLI. Nutze /usage in Antigravity CLI, um das Kontingent zu aktualisieren."
               },
               "opencode": {
                 "name": "OpenCode",
@@ -1434,7 +1444,7 @@
               }
             },
             "riskTitle": "Einige Schnittstellen werden nicht unterstützt",
-            "riskBody": "Claude OAuth, Codex, Antigravity und OpenCode hängen von privaten Anbieter Schnittstellen ab, die sich ändern oder verschwinden können. Eine Vertragsänderung erzeugt für diesen Anbieter sichtbar unbekannt und lässt alle anderen Anbieter weiterarbeiten. OpenRouter nutzt eine dokumentierte API."
+            "riskBody": "Claude OAuth, Codex und OpenCode hängen von privaten Anbieter Schnittstellen ab, die sich ändern oder verschwinden können. Eine Vertragsänderung erzeugt für diesen Anbieter sichtbar unbekannt und lässt alle anderen Anbieter weiterarbeiten. OpenRouter nutzt eine dokumentierte API."
           },
           "privacy": {
             "title": "Datenschutzgrenze",
@@ -2171,6 +2181,10 @@
     "claudeWeeklyFable": "Wöchentlich, Fable",
     "claudeWeeklyModel": "Wöchentlich, {model}",
     "claudeExtraUsage": "Zusätzliche Nutzung",
+    "antigravityFiveHourQuota": "Kontingent für 5 Stunden",
+    "antigravityWeeklyQuota": "Wöchentliches Kontingent",
+    "antigravityThirdPartySession": "Drittanbieter Kontingent für 5 Stunden",
+    "antigravityThirdPartyWeekly": "Wöchentliches Drittanbieter Kontingent",
     "claudeFableDesktopHint": "Fable wird hier angezeigt, wenn die Claude Nutzung in OpenLimiter auf deinem Computer aktiviert ist.",
     "providers": {
       "title": "Anbieter",

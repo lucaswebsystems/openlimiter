@@ -158,12 +158,25 @@ pub fn project(
     active: &ActiveAccounts,
     disabled: &BTreeSet<String>,
 ) -> Projection {
+    let mut active = active.clone();
+    if !disabled.contains("ANTIGRAVITY") {
+        for row in &rows {
+            if row.provider == "ANTIGRAVITY"
+                && row.provenance.as_ref().is_some_and(|value| {
+                    value.get("sourceKind").and_then(|item| item.as_str()) == Some("statusline_payload")
+                        && value.get("observedVia").and_then(|item| item.as_str())
+                            == Some("antigravity_cli_statusline")
+                })
+            {
+                if let Some(account_id) = row.account_id.as_ref() {
+                    active.entry("ANTIGRAVITY".into()).or_default().insert(account_id.clone());
+                }
+            }
+        }
+    }
     let mut snapshots = Vec::new();
     let mut flags = BTreeMap::new();
     for mut row in rows {
-        if borrowed_from_inactive_gemini(&row, active) {
-            continue;
-        }
         let rejected = if disabled.contains(&row.provider) {
             Some("disabled")
         } else if row.availability.is_some() {
@@ -234,43 +247,8 @@ pub(crate) fn detected_policy(
 
 /// Identities a reading may legitimately carry without a detected login.
 ///
-/// The Antigravity local probe needs no credential, and files its rows under
-/// the provider singleton whenever no Antigravity login or connection is known
-/// (`antigravity_oauth::run_pass`), so that identity is accepted exactly then.
-/// The Gemini fallback files the shared Code Assist pool under the Gemini
-/// login each reading was taken for, legitimate exactly while that login is.
-pub(crate) fn register_local_identities(active: &mut ActiveAccounts, disabled: &BTreeSet<String>) {
-    use crate::provider_detection::{provider_singleton_account_id, DetectedProviderId};
-    if disabled.contains("ANTIGRAVITY") {
-        return;
-    }
-    let gemini = if disabled.contains("GEMINI_CLI") {
-        BTreeSet::new()
-    } else {
-        active.get("GEMINI_CLI").cloned().unwrap_or_default()
-    };
-    let accounts = active.entry("ANTIGRAVITY".into()).or_default();
-    if accounts.is_empty() {
-        accounts.insert(provider_singleton_account_id(DetectedProviderId::Antigravity));
-    }
-    accounts.extend(gemini);
-}
-
-/// An Antigravity row borrowed from a Gemini login (`gemini-cli-` is that
-/// provider's account id prefix, and 2.0.2 and the terminal build use
-/// `gemini-cli-shared`, which names no login). One whose login is not active
-/// is dropped without a flag: the Gemini row already offers the fix for its
-/// own login, and Antigravity's reconnect would be the wrong one.
-fn borrowed_from_inactive_gemini(row: &Snapshot, active: &ActiveAccounts) -> bool {
-    row.provider == "ANTIGRAVITY"
-        && row.account_id.as_deref().is_some_and(|id| {
-            id.starts_with("gemini-cli-")
-                && active
-                    .get("ANTIGRAVITY")
-                    .is_some_and(|accounts| !accounts.contains(id))
-        })
-}
-
+/// Antigravity status line rows carry the account identity derived from the
+/// documented payload. They are accepted only with that provenance.
 pub fn for_app<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     rows: Vec<Snapshot>,
@@ -301,7 +279,6 @@ pub fn for_app<R: tauri::Runtime>(
             }
         }
     }
-    register_local_identities(&mut active, &disabled);
     let mut result = project(rows, now, &active, &disabled);
     if let Some(store) = app.try_state::<crate::provider_detection::DetectionStore>() {
         for provider in store.report().providers {
@@ -427,6 +404,50 @@ mod tests {
         assert_eq!(fix_kind("disabled"), "switch_on");
         assert_eq!(fix_kind("missing_credentials"), "sign_in");
         assert_eq!(fix_kind("placeholder"), "unsupported");
+    }
+
+    #[test]
+    fn documented_antigravity_statusline_identity_accepts_account_switching_but_not_disable() {
+        let now =
+            crate::native_time::epoch_ms_from_rfc3339("2026-09-29T12:00:00.000Z").unwrap() as i64;
+        let mut first = measured(Some("antigravity-first"));
+        first.provider = "ANTIGRAVITY".into();
+        first.provenance = Some(serde_json::json!({
+            "sourceKind": "statusline_payload",
+            "observedVia": "antigravity_cli_statusline"
+        }));
+        let mut second = first.clone();
+        second.account_id = Some("antigravity-second".into());
+        second.meter = "SEVEN_DAY".into();
+
+        let projected = project(vec![first.clone(), second], now, &BTreeMap::new(), &BTreeSet::new());
+        assert_eq!(projected.snapshots.len(), 2);
+        assert!(projected.flags.is_empty());
+        let disabled = project(
+            vec![first],
+            now,
+            &BTreeMap::new(),
+            &BTreeSet::from(["ANTIGRAVITY".into()]),
+        );
+        assert!(disabled.snapshots.is_empty());
+        assert_eq!(disabled.flags[0].reason, "disabled");
+    }
+
+    #[test]
+    fn serialized_antigravity_statusline_survives_cache_normalization_and_projection() {
+        let now =
+            crate::native_time::epoch_ms_from_rfc3339("2026-09-29T12:00:00.000Z").unwrap() as i64;
+        let mut row = measured(Some("antigravity-first"));
+        row.provider = "ANTIGRAVITY".into();
+        row.provenance = Some(serde_json::json!({
+            "sourceKind": "statusline_payload",
+            "observedVia": "antigravity_cli_statusline"
+        }));
+        let document = serde_json::json!({ "version": 3, "snapshots": [row] }).to_string();
+        let normalized = crate::native_snapshot::display_snapshots(Some(&document));
+        let projected = project(normalized, now, &BTreeMap::new(), &BTreeSet::new());
+        assert_eq!(projected.snapshots.len(), 1);
+        assert!(projected.flags.is_empty());
     }
     /// The TypeScript twin of these cases is
     /// `packages/core/test/data-rules.test.ts`, "Claude status line rows".

@@ -2,6 +2,7 @@ import path from "node:path";
 import {
   MANUAL_FILE_MARKER,
   MANUAL_FILE_NAME,
+  parseAntigravityPayload,
   parseGrokPayload
 } from "@openlimiter/connectors";
 import { unlink } from "node:fs/promises";
@@ -9,7 +10,7 @@ import {
   canonicalJson,
   errorClassOf,
   mergeSnapshotCache,
-  antigravityMeter,
+  opaqueAccountId,
   readJsonFileSafely,
   resolveStateDirectory,
   writeFileAtomically,
@@ -171,77 +172,26 @@ export const STATUSLINE_PROVENANCE: SnapshotProvenance = {
 /** A live Antigravity CLI session payload, arriving on standard input. */
 export const ANTIGRAVITY_STATUSLINE_PROVENANCE: SnapshotProvenance = {
   sourceKind: "statusline_payload",
-  observedVia: "local_command"
+  observedVia: "antigravity_cli_statusline"
 };
+
+/** Account identity Antigravity documents in the same invocation payload. */
+export function antigravityStatuslineAccount(payload: unknown): string | null {
+  if (typeof payload !== "object" || payload === null) return null;
+  const email = (payload as Record<string, unknown>)["email"];
+  if (typeof email !== "string") return null;
+  const normalized = email.trim().toLowerCase();
+  if (normalized.length === 0 || normalized.length > 320 || /[\u0000-\u001f\u007f]/u.test(normalized)) {
+    return null;
+  }
+  return opaqueAccountId("ANTIGRAVITY", normalized);
+}
 
 export function parseAntigravityStatuslinePayload(
   payload: unknown,
   now: string
 ): RawMeter[] | null {
-  if (typeof payload !== "object" || payload === null) return null;
-  const root = payload as Record<string, unknown>;
-  const quota = root["quota"];
-  if (typeof quota !== "object" || quota === null) return null;
-
-  const meters: RawMeter[] = [];
-  for (const [bucketId, bucketVal] of Object.entries(quota as Record<string, unknown>)) {
-    if (typeof bucketVal !== "object" || bucketVal === null) continue;
-    const b = bucketVal as Record<string, unknown>;
-
-    const remaining = typeof b["remaining_fraction"] === "number"
-      ? b["remaining_fraction"]
-      : typeof b["remainingFraction"] === "number"
-        ? b["remainingFraction"]
-        : null;
-    if (remaining === null || Number.isNaN(remaining)) continue;
-    const fraction = Math.max(0, Math.min(1, remaining));
-    const value = Math.round(Math.max(0, Math.min(100, (1 - fraction) * 100)) * 10) / 10;
-
-    const mapped = antigravityMeter(bucketId.toLowerCase());
-    if (mapped === null) continue;
-    const { meter: meterCode, durationSeconds } = mapped;
-
-    const resetTime = typeof b["reset_time"] === "string"
-      ? b["reset_time"]
-      : typeof b["resetTime"] === "string"
-        ? b["resetTime"]
-        : null;
-    const resetInSeconds = typeof b["reset_in_seconds"] === "number"
-      ? b["reset_in_seconds"]
-      : typeof b["resetInSeconds"] === "number"
-        ? b["resetInSeconds"]
-        : typeof b["resetsInSeconds"] === "number" ? b["resetsInSeconds"] : null;
-
-    let resetAt: string | null = null;
-    if (resetTime && !Number.isNaN(Date.parse(resetTime))) {
-      resetAt = new Date(resetTime).toISOString();
-    } else if (resetInSeconds !== null && !Number.isNaN(resetInSeconds) && resetInSeconds >= 0) {
-      resetAt = new Date(new Date(now).getTime() + resetInSeconds * 1000).toISOString();
-    }
-
-    const expiresAt = new Date(new Date(now).getTime() + 300_000).toISOString();
-
-    meters.push({
-      provider: "ANTIGRAVITY",
-      meter: meterCode,
-      value,
-      unit: "PERCENT",
-      window: { kind: "rolling", durationSeconds },
-      resetAt,
-      source: "internal_payload",
-      precision: "estimated",
-      observedAt: now,
-      expiresAt,
-      labels: {
-        credentialOrigin: "official-local-tool",
-        dataInterfaceStatus: "internal-endpoint",
-        automationRisk: "high",
-        verification: "UNVERIFIED"
-      }
-    });
-  }
-
-  return meters.length > 0 ? meters : null;
+  return parseAntigravityPayload(payload, now);
 }
 
 /** A live Grok Build session payload, arriving on standard input. */

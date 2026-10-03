@@ -315,10 +315,13 @@ export async function readSnapshotCache(
   const version = document.value["version"];
   /* Absent is version 1, which predates the field. A version this build does
      not know is refused rather than read with today's meanings. */
-  if (version !== undefined && version !== 1 && version !== CACHE_DOCUMENT_VERSION) {
+  if (version !== undefined && version !== 1 && version !== 2 && version !== CACHE_DOCUMENT_VERSION) {
     return { ok: false, reason: "corrupt" };
   }
-  const validated = normalizeMeters(rawSnapshots as RawMeter[]);
+  const migrated = version === 2
+    ? rawSnapshots.filter((row) => !(isRecord(row) && row["provider"] === "ANTIGRAVITY")) as RawMeter[]
+    : rawSnapshots as RawMeter[];
+  const validated = normalizeMeters(migrated);
   const dropped = rawSnapshots.length - validated.length;
   const read = readSuppressions(document.value["suppressions"]);
   if (!read.ok) {
@@ -362,12 +365,18 @@ export async function readCacheState(
   const rawSnapshots = document.value["snapshots"];
   if (!Array.isArray(rawSnapshots)) return { ok: false, reason: "corrupt" };
   if (rawSnapshots.length > MAX_CACHE_ENTRIES) return { ok: false, reason: "corrupt" };
+  const version = document.value["version"];
+  if (version !== undefined && version !== 1 && version !== 2 && version !== CACHE_DOCUMENT_VERSION) {
+    return { ok: false, reason: "corrupt" };
+  }
   const read = readSuppressions(document.value["suppressions"]);
   if (!read.ok) return { ok: false, reason: "corrupt" };
   return {
     ok: true,
     state: {
-      snapshots: normalizeMeters(rawSnapshots as RawMeter[]),
+      snapshots: normalizeMeters(version === 2
+        ? rawSnapshots.filter((row) => !(isRecord(row) && row["provider"] === "ANTIGRAVITY")) as RawMeter[]
+        : rawSnapshots as RawMeter[]),
       suppressions: read.suppressions
     }
   };
@@ -618,7 +627,7 @@ async function withCacheLock<Result>(
  * A version 1 document is still read, and read correctly: it has no
  * suppressions, which is true of it.
  */
-export const CACHE_DOCUMENT_VERSION = 2;
+export const CACHE_DOCUMENT_VERSION = 3;
 
 async function replaceCache(
   directory: string,

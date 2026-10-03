@@ -485,20 +485,6 @@ pub async fn run_pass(
                     {
                         failed_providers.push(DetectedProviderId::Codex);
                     }
-                    if allowed(DetectedProviderId::Antigravity)
-                        && !crate::antigravity_oauth::run_pass(
-                            app,
-                            &coverage.covered,
-                            automatic_account_limit(
-                                multi_account,
-                                &coverage.known_providers,
-                                DetectedProviderId::Antigravity,
-                            ),
-                        )
-                        .await
-                    {
-                        failed_providers.push(DetectedProviderId::Antigravity);
-                    }
                     if allowed(DetectedProviderId::Grok)
                         && !crate::grok_oauth::run_pass(
                             app,
@@ -746,10 +732,20 @@ mod tests {
         let dir = TempDir::new();
         let switches = crate::provider_switches::ProviderSwitches::at(Some(dir.path().into()));
         switches
-            .set(DetectedProviderId::Antigravity, false)
+            .set(DetectedProviderId::Openrouter, false)
             .unwrap();
         let connections = ConnectionsStore::at(Some(dir.path().into()));
-        connections.insert(antigravity("fixture", 1, None)).unwrap();
+        connections
+            .insert(record(
+                "fixture",
+                ProviderId::Openrouter,
+                ReaderId::OpenrouterKey,
+                CredentialKind::OpenrouterInferenceKey,
+                None,
+                1,
+                None,
+            ))
+            .unwrap();
         let transport = RecordingTransport::replying(200, Vec::new(), None);
         for mode in [CollectionMode::Test, CollectionMode::Refresh] {
             let result = run_guarded(

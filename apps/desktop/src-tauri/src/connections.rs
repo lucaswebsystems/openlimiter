@@ -5,6 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
+use crate::credentials::{CredentialError, SecretStore};
 use crate::fsx;
 use crate::reader_registry::{reader_route, CredentialKind, ProviderId, ReaderId};
 
@@ -26,11 +27,12 @@ pub const CONNECTIONS_FILE_NAME: &str = "connections.json";
 ///
 /// Version 3 adds the one time Free account cap migration and durable pause
 /// state. The migration ledger is internal and cannot be supplied by IPC.
-pub const CONNECTIONS_DOCUMENT_VERSION: u64 = 3;
+pub const CONNECTIONS_DOCUMENT_VERSION: u64 = 4;
 
 /// The version this build still reads, and migrates, and never writes.
 pub const CONNECTIONS_DOCUMENT_VERSION_LEGACY: u64 = 1;
 pub const CONNECTIONS_DOCUMENT_VERSION_PRE_CAP: u64 = 2;
+pub const CONNECTIONS_DOCUMENT_VERSION_PRE_ANTIGRAVITY_RETIREMENT: u64 = 3;
 const CAP_MIGRATION_VERSION: u8 = 1;
 
 /// More connections than any person holds subscriptions; a bound, not a goal.
@@ -217,11 +219,59 @@ struct ConnectionsDocument {
     version: u64,
     connections: Vec<ConnectionRecord>,
     cap_migration_v1: CapMigrationV1,
+    #[serde(default)]
+    retired_credential_ids: Vec<String>,
 }
 
 #[derive(Deserialize)]
 struct ConnectionsDocumentV2 {
     connections: Vec<ConnectionRecord>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ConnectionsDocumentV3 {
+    version: u64,
+    connections: Vec<ConnectionRecord>,
+    cap_migration_v1: CapMigrationV1,
+}
+
+fn is_retired_antigravity(record: &ConnectionRecord) -> bool {
+    record.provider_id == ProviderId::Antigravity
+        || record.credential_kind == CredentialKind::AntigravitySession
+        || record.reader_id == ReaderId::AntigravityQuota
+}
+
+fn retire_antigravity_connections(
+    connections: Vec<ConnectionRecord>,
+) -> (Vec<ConnectionRecord>, Vec<String>) {
+    let retired = connections
+        .iter()
+        .filter(|record| is_retired_antigravity(record))
+        .map(|record| record.id.clone())
+        .collect::<Vec<_>>();
+    let kept = connections
+        .into_iter()
+        .filter(|record| !is_retired_antigravity(record))
+        .collect();
+    (kept, retired)
+}
+
+fn migrate_antigravity_connections(document: ConnectionsDocumentV3) -> ConnectionsDocument {
+    let (connections, retired) = retire_antigravity_connections(document.connections);
+    let mut cap_migration_v1 = document.cap_migration_v1;
+    cap_migration_v1
+        .grandfathered_ids
+        .retain(|id| !retired.contains(id));
+    cap_migration_v1
+        .consumed
+        .retain(|entry| !retired.contains(&entry.stable_id));
+    ConnectionsDocument {
+        version: CONNECTIONS_DOCUMENT_VERSION,
+        connections,
+        cap_migration_v1,
+        retired_credential_ids: retired,
+    }
 }
 
 /// Just enough of any document to learn which shape the rest of it is.
@@ -334,6 +384,26 @@ fn migrate_legacy_record(legacy: LegacyConnectionRecord) -> Result<ConnectionRec
     Ok(record)
 }
 
+fn retired_legacy_credential_id(
+    legacy: &LegacyConnectionRecord,
+) -> Result<Option<String>, StoreError> {
+    if legacy.provider_id != "ANTIGRAVITY" {
+        return Ok(None);
+    }
+    let valid = legacy.key_kind == "session"
+        && valid_id(&legacy.id)
+        && valid_alias(&legacy.account_alias)
+        && valid_masked_label(&legacy.masked_label)
+        && valid_timestamp(legacy.created_at)
+        && legacy.last_test_at.is_none_or(valid_timestamp)
+        && legacy.last_refresh_at.is_none_or(valid_timestamp)
+        && CONNECTION_STATES.contains(&legacy.status.as_str());
+    if !valid {
+        return Err(StoreError::Corrupt);
+    }
+    Ok(Some(legacy.id.clone()))
+}
+
 /// Storage failure with everything identifying removed. Payload free, fixed
 /// sentences.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -401,15 +471,17 @@ fn empty_document() -> ConnectionsDocument {
             grandfathered_ids: Vec::new(),
             consumed: Vec::new(),
         },
+        retired_credential_ids: Vec::new(),
     }
 }
 
 fn migrate_cap_document(
-    mut connections: Vec<ConnectionRecord>,
+    connections: Vec<ConnectionRecord>,
 ) -> Result<ConnectionsDocument, StoreError> {
     if connections.len() > MAX_CONNECTIONS {
         return Err(StoreError::Corrupt);
     }
+    let (mut connections, retired_credential_ids) = retire_antigravity_connections(connections);
     let mut grandfathered_ids = Vec::with_capacity(connections.len());
     for record in &mut connections {
         record.base_seconds = record.reader_id.base_seconds();
@@ -430,6 +502,7 @@ fn migrate_cap_document(
             grandfathered_ids,
             consumed: Vec::new(),
         },
+        retired_credential_ids,
     };
     validate_document(&document)?;
     Ok(document)
@@ -442,6 +515,7 @@ fn validate_document(document: &ConnectionsDocument) -> Result<(), StoreError> {
         || document.connections.len() > MAX_CONNECTIONS
         || document.cap_migration_v1.grandfathered_ids.len() > MAX_CONNECTIONS
         || document.cap_migration_v1.consumed.len() > MAX_CONNECTIONS
+        || document.retired_credential_ids.len() > MAX_CONNECTIONS
     {
         return Err(StoreError::Corrupt);
     }
@@ -484,6 +558,16 @@ fn validate_document(document: &ConnectionsDocument) -> Result<(), StoreError> {
             return Err(StoreError::Corrupt);
         }
         consumed_ids.push(&consumed.stable_id);
+    }
+    let mut retired_ids: Vec<&str> = Vec::new();
+    for id in &document.retired_credential_ids {
+        if !valid_id(id)
+            || connection_ids.contains(&id.as_str())
+            || retired_ids.contains(&id.as_str())
+        {
+            return Err(StoreError::Corrupt);
+        }
+        retired_ids.push(id);
     }
     Ok(())
 }
@@ -577,6 +661,11 @@ impl ConnectionsStore {
                     serde_json::from_str(&text).map_err(|_| StoreError::Corrupt)?;
                 migrate_cap_document(document.connections)?
             }
+            CONNECTIONS_DOCUMENT_VERSION_PRE_ANTIGRAVITY_RETIREMENT => {
+                let document: ConnectionsDocumentV3 =
+                    serde_json::from_str(&text).map_err(|_| StoreError::Corrupt)?;
+                migrate_antigravity_connections(document)
+            }
             CONNECTIONS_DOCUMENT_VERSION_LEGACY => {
                 /* Migrated in memory only. Nothing is written here: version 2
                 reaches the disk on the next successful mutation, so a person
@@ -588,10 +677,18 @@ impl ConnectionsStore {
                     return Err(StoreError::Corrupt);
                 }
                 let mut migrated = Vec::with_capacity(document.connections.len());
+                let mut retired_credential_ids = Vec::new();
                 for legacy in document.connections {
+                    if let Some(id) = retired_legacy_credential_id(&legacy)? {
+                        retired_credential_ids.push(id);
+                        continue;
+                    }
                     migrated.push(migrate_legacy_record(legacy)?);
                 }
-                migrate_cap_document(migrated)?
+                let mut document = migrate_cap_document(migrated)?;
+                document.retired_credential_ids = retired_credential_ids;
+                validate_document(&document)?;
+                document
             }
             _ => return Err(StoreError::Corrupt),
         };
@@ -630,6 +727,33 @@ impl ConnectionsStore {
     pub fn list(&self) -> Result<Vec<ConnectionRecord>, StoreError> {
         let _held = self.guard.lock().map_err(|_| StoreError::Io)?;
         Ok(self.load()?.connections)
+    }
+
+    /// Delete credentials retired by a document migration, retaining every id
+    /// whose keyring deletion failed so the next startup can retry it.
+    pub fn cleanup_retired_credentials(&self, secrets: &dyn SecretStore) -> Result<(), StoreError> {
+        let _held = self.guard.lock().map_err(|_| StoreError::Io)?;
+        let mut document = self.load()?;
+        if document.retired_credential_ids.is_empty() {
+            return Ok(());
+        }
+        let mut retained = Vec::new();
+        for id in &document.retired_credential_ids {
+            match secrets.delete_secret(id) {
+                Ok(()) | Err(CredentialError::NotFound) => {}
+                Err(CredentialError::Store) => retained.push(id.clone()),
+            }
+        }
+        let failed = !retained.is_empty();
+        if retained != document.retired_credential_ids {
+            document.retired_credential_ids = retained;
+            self.save_document(&document)?;
+        }
+        if failed {
+            Err(StoreError::Io)
+        } else {
+            Ok(())
+        }
     }
 
     pub fn get(&self, id: &str) -> Result<ConnectionRecord, StoreError> {
@@ -1088,7 +1212,24 @@ pub(crate) fn validate_record(record: &ConnectionRecord) -> Result<(), StoreErro
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::TempDir;
+    use crate::credentials::{CredentialError, SecretStore};
+    use crate::test_support::{InMemorySecrets, TempDir};
+
+    struct RefusingDelete;
+
+    impl SecretStore for RefusingDelete {
+        fn store_secret(&self, _: &str, _: &str) -> Result<(), CredentialError> {
+            Err(CredentialError::Store)
+        }
+
+        fn read_secret(&self, _: &str) -> Result<zeroize::Zeroizing<String>, CredentialError> {
+            Err(CredentialError::Store)
+        }
+
+        fn delete_secret(&self, _: &str) -> Result<(), CredentialError> {
+            Err(CredentialError::Store)
+        }
+    }
 
     fn record(id: &str) -> ConnectionRecord {
         ConnectionRecord {
@@ -1470,7 +1611,7 @@ mod tests {
     fn future_document_version_is_corrupt_and_blocks_writes() {
         let dir = TempDir::new();
         let text = format!(
-            r#"{{"version":4,"connections":[{}]}}"#,
+            r#"{{"version":5,"connections":[{}]}}"#,
             record_json("one", "personal", "openrouter_inference_key")
         );
         std::fs::write(dir.path().join(CONNECTIONS_FILE_NAME), text.clone()).expect("write");
@@ -1493,7 +1634,7 @@ mod tests {
         let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
         store.insert(record("one")).expect("insert");
         let text = std::fs::read_to_string(dir.path().join(CONNECTIONS_FILE_NAME)).expect("read");
-        assert!(text.contains("\"version\":3"));
+        assert!(text.contains("\"version\":4"));
         assert!(text.contains("\"cap_migration_v1\""));
         assert!(!text.contains("secret"));
     }
@@ -1579,13 +1720,13 @@ mod tests {
         store.list().expect("list");
         store.get("abc-123").expect("get");
         let after = std::fs::read_to_string(dir.path().join(CONNECTIONS_FILE_NAME)).expect("read");
-        assert!(after.contains("\"version\":3"));
+        assert!(after.contains("\"version\":4"));
         assert!(after.contains("\"legacy_grandfathered\":true"));
         assert!(after.contains("\"grandfathered_ids\":[\"abc-123\"]"));
     }
 
     #[test]
-    fn a_successful_mutation_keeps_version_three() {
+    fn a_successful_mutation_keeps_version_four() {
         let dir = TempDir::new();
         let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
         write_legacy_document(
@@ -1596,12 +1737,127 @@ mod tests {
             .update("abc-123", |it| it.status = "CONNECTED".to_string())
             .expect("update");
         let text = std::fs::read_to_string(dir.path().join(CONNECTIONS_FILE_NAME)).expect("read");
-        assert!(text.contains("\"version\":3"));
+        assert!(text.contains("\"version\":4"));
         assert!(text.contains("\"credential_kind\":\"openrouter_inference_key\""));
         assert!(text.contains("\"reader_id\":\"openrouter_key\""));
         assert!(!text.contains("key_kind"));
         /* And the id, which is the secret's lookup key, is untouched. */
         assert!(text.contains("\"id\":\"abc-123\""));
+    }
+
+    #[test]
+    fn version_three_retires_antigravity_connections_once() {
+        let dir = TempDir::new();
+        let mut antigravity = record("agy-old");
+        antigravity.provider_id = ProviderId::Antigravity;
+        antigravity.reader_id = ReaderId::AntigravityQuota;
+        antigravity.credential_kind = CredentialKind::AntigravitySession;
+        antigravity.base_seconds = ReaderId::AntigravityQuota.base_seconds();
+        let mut openrouter = record("or-kept");
+        openrouter.legacy_grandfathered = true;
+        let text = serde_json::json!({
+            "version": 3,
+            "connections": [antigravity, openrouter],
+            "cap_migration_v1": {
+                "version": 1,
+                "completed_at": 1_800_000_000_000u64,
+                "grandfathered_ids": ["agy-old", "or-kept"],
+                "consumed": []
+            }
+        })
+        .to_string();
+        let _: ConnectionsDocumentV3 = serde_json::from_str(&text).expect("version three fixture");
+        std::fs::write(dir.path().join(CONNECTIONS_FILE_NAME), text).expect("write");
+        let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+
+        assert_eq!(
+            store
+                .list()
+                .expect("first migration")
+                .iter()
+                .map(|row| row.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["or-kept"]
+        );
+        assert_eq!(
+            store
+                .list()
+                .expect("idempotent reread")
+                .iter()
+                .map(|row| row.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["or-kept"]
+        );
+        let after = std::fs::read_to_string(dir.path().join(CONNECTIONS_FILE_NAME)).expect("read");
+        assert!(after.contains("\"version\":4"));
+        assert!(after.contains("\"retired_credential_ids\":[\"agy-old\"]"));
+
+        assert_eq!(
+            store.cleanup_retired_credentials(&RefusingDelete),
+            Err(StoreError::Io)
+        );
+        let retry = std::fs::read_to_string(dir.path().join(CONNECTIONS_FILE_NAME)).expect("read");
+        assert!(retry.contains("agy-old"));
+        let secrets = InMemorySecrets::new();
+        secrets
+            .store_secret("agy-old", "retired-secret")
+            .expect("secret");
+        store
+            .cleanup_retired_credentials(&secrets)
+            .expect("cleanup retries");
+        assert_eq!(secrets.stored_count(), 0);
+        let cleaned = std::fs::read_to_string(dir.path().join(CONNECTIONS_FILE_NAME)).expect("read");
+        assert!(!cleaned.contains("agy-old"));
+    }
+
+    #[test]
+    fn every_supported_legacy_version_retires_antigravity_before_route_validation() {
+        let legacy_antigravity = legacy_record_json("agy-v1", "session", "null", "null")
+            .replace("OPENROUTER", "ANTIGRAVITY");
+        let dir = TempDir::new();
+        write_legacy_document(
+            &dir,
+            &[
+                legacy_antigravity,
+                legacy_record_json("or-v1", "inference", "null", "null"),
+            ],
+        );
+        let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        assert_eq!(
+            store
+                .list()
+                .expect("version one retires first")
+                .iter()
+                .map(|row| row.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["or-v1"]
+        );
+
+        let dir = TempDir::new();
+        let mut antigravity = record("agy-v2");
+        antigravity.provider_id = ProviderId::Antigravity;
+        antigravity.reader_id = ReaderId::AntigravityQuota;
+        antigravity.credential_kind = CredentialKind::AntigravitySession;
+        antigravity.base_seconds = ReaderId::AntigravityQuota.base_seconds();
+        let text = serde_json::json!({
+            "version": 2,
+            "connections": [antigravity, record("or-v2")]
+        })
+        .to_string();
+        std::fs::write(dir.path().join(CONNECTIONS_FILE_NAME), text).expect("write");
+        let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        assert_eq!(
+            store
+                .list()
+                .expect("version two retires first")
+                .iter()
+                .map(|row| row.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["or-v2"]
+        );
+        let migrated = std::fs::read_to_string(dir.path().join(CONNECTIONS_FILE_NAME)).expect("read");
+        assert!(migrated.contains("agy-v2"));
+        assert!(migrated.contains("retired_credential_ids"));
     }
 
     #[test]

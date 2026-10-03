@@ -1,4 +1,6 @@
 import {
+  antigravityMeterLabel,
+  antigravityMeterRank,
   claudeMeterLabel,
   claudeMeterRank,
   dedupeFailures,
@@ -293,6 +295,10 @@ export function providerMeterLabel(code: string, provider: ProviderCode): string
     const claude = claudeMeterLabel(code);
     if (claude !== null) return claude;
   }
+  if (provider === "ANTIGRAVITY") {
+    const antigravity = antigravityMeterLabel(code);
+    if (antigravity !== null) return antigravity;
+  }
   if (provider === "OPENROUTER" && (code === "CREDITS" || code === "BALANCE")) {
     return "Credit spend";
   }
@@ -325,6 +331,7 @@ export function providerMeterLabel(code: string, provider: ProviderCode): string
 
 export function windowRank(code: string, provider?: ProviderCode): number {
   if (provider === "CLAUDE") return claudeMeterRank(code) ?? 90;
+  if (provider === "ANTIGRAVITY") return antigravityMeterRank(code) ?? 90;
   const known = WINDOW_RANK[code];
   if (known !== undefined) return known;
   return code.startsWith(MODEL_WEEKLY_PREFIX) ? MODEL_WEEKLY_RANK : 90;

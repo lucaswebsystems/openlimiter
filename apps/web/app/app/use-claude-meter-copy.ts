@@ -13,5 +13,9 @@ export function useClaudeMeterCopy(): ClaudeMeterCopy {
     claudeWeeklyFable: t("claudeWeeklyFable"),
     claudeWeeklyModel: t("claudeWeeklyModel", { model: "{model}" }),
     claudeExtraUsage: t("claudeExtraUsage"),
+    antigravityFiveHourQuota: t("antigravityFiveHourQuota"),
+    antigravityWeeklyQuota: t("antigravityWeeklyQuota"),
+    antigravityThirdPartySession: t("antigravityThirdPartySession"),
+    antigravityThirdPartyWeekly: t("antigravityThirdPartyWeekly"),
   }), [t]);
 }

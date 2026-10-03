@@ -37,7 +37,7 @@ globalThis.window = {
   setTimeout: (callback) => callback(),
 };
 globalThis.CustomEvent = class { constructor(type) { this.type = type; } };
-globalThis.document = fakeDocument(["claude-card", "claude-body", "claude-note", "antigravity-add", "opencode-add"]);
+globalThis.document = fakeDocument(["claude-card", "claude-body", "claude-note", "antigravity-add", "antigravity-body", "antigravity-note", "opencode-add"]);
 const { catalogueModel, checkTool, chooseTool, connectTool, initConnections, refreshConnection, saveOpenrouterKey } = await import("./dist/connections.js");
 
 const settle = () => new Promise((resolve) => setImmediate(resolve));
@@ -63,6 +63,9 @@ test("Connect for Claude Code, Antigravity and OpenCode opens that tool's setup 
       assert.equal(document.getElementById(other).hidden, other !== id, `${code} ${other}`);
     }
   }
+  await connectTool("ANTIGRAVITY");
+  assert.match(document.getElementById("antigravity-body").textContent, /openlimiter terminal install antigravity/u);
+  assert.equal(calls.some(([command, input]) => command === "connect_provider" && input?.input?.provider_id === "antigravity"), false);
   // Claude Code's setup reads the preflight and shows the block with Copy and Verify.
   await connectTool("CLAUDE");
   const body = document.getElementById("claude-body");

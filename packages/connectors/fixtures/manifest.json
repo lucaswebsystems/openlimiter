@@ -135,7 +135,7 @@
       "file": "antigravity.quota.json",
       "encoding": "json",
       "parser": "parseAntigravityPayload",
-      "evidence": "observed",
+      "evidence": "documented",
       "expectedMeters": 2,
       "expect": [
         {

@@ -221,7 +221,7 @@ describe("F203 install tolerates host-edited settings (drift)", () => {
     const afterSecond = JSON.parse(await readFile(file, "utf8")) as Record<string, unknown>;
     expect(afterSecond["hostAdded"]).toBe(42);
     expect(afterSecond["theme"]).toBe("nord");
-    expect(typeof afterSecond["statusLine"]).toBe("string");
+    expect(afterSecond["statusLine"]).toMatchObject({ type: "command" });
     expect((await readBackup(file))!.original).toBe(originalSaved);
   }, 30_000);
 
@@ -514,7 +514,10 @@ describe("F203 Codex and Antigravity drift reinstall and uninstall", () => {
     expect(second.ok).toBe(true);
     const afterSecond = JSON.parse(await readFile(file, "utf8")) as Record<string, unknown>;
     expect(afterSecond["newKey"]).toBe("value");
-    expect(typeof afterSecond["statusLine"]).toBe("string");
+    expect(afterSecond["statusLine"]).toEqual({
+      type: "command",
+      command: expect.stringContaining("statusline --host antigravity")
+    });
     expect((await readBackup(file))!.original).toBe(originalSaved);
 
     // Host edits again before uninstall

@@ -149,3 +149,39 @@ export function claudeMeterRank(code: string): number | null {
 export function claudeMeterCompactLabel(code: string): string | null {
   return claudeMeterPresentation(code)?.compactLabel ?? null;
 }
+
+export type AntigravityMeterLabelKey =
+  | "antigravityFiveHourQuota"
+  | "antigravityWeeklyQuota"
+  | "antigravityThirdPartySession"
+  | "antigravityThirdPartyWeekly";
+
+export interface AntigravityMeterPresentation {
+  readonly labelKey: AntigravityMeterLabelKey;
+  readonly defaultLabel: string;
+  readonly compactLabel: string;
+  readonly order: number;
+}
+
+const ANTIGRAVITY_PRESENTATION: Readonly<Record<string, AntigravityMeterPresentation>> = Object.freeze({
+  FIVE_HOUR: { labelKey: "antigravityFiveHourQuota", defaultLabel: "5 hour quota", compactLabel: "5h", order: 10 },
+  SEVEN_DAY: { labelKey: "antigravityWeeklyQuota", defaultLabel: "Weekly quota", compactLabel: "7d", order: 20 },
+  THIRD_PARTY_SESSION: { labelKey: "antigravityThirdPartySession", defaultLabel: "Third party 5 hour quota", compactLabel: "3p5h", order: 30 },
+  THIRD_PARTY_WEEKLY: { labelKey: "antigravityThirdPartyWeekly", defaultLabel: "Third party weekly quota", compactLabel: "3p7d", order: 40 }
+});
+
+export function antigravityMeterPresentation(code: string): AntigravityMeterPresentation | null {
+  return ANTIGRAVITY_PRESENTATION[code.toUpperCase()] ?? null;
+}
+
+export function antigravityMeterLabel(code: string): string | null {
+  return antigravityMeterPresentation(code)?.defaultLabel ?? null;
+}
+
+export function antigravityMeterRank(code: string): number | null {
+  return antigravityMeterPresentation(code)?.order ?? null;
+}
+
+export function antigravityMeterCompactLabel(code: string): string | null {
+  return antigravityMeterPresentation(code)?.compactLabel ?? null;
+}

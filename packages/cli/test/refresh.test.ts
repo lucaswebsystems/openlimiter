@@ -150,7 +150,7 @@ describe("openlimiter refresh", () => {
     } finally { db.close(); }
   });
 
-  it("acquires every provider this machine has a login for", async () => {
+  it("acquires every provider with an active polling reader", async () => {
     const state = await temporaryDirectory("openlimiter-state-");
     const home = await machineWithLogins();
     const recorder = recordingTransport();
@@ -162,7 +162,6 @@ describe("openlimiter refresh", () => {
     /* Claude is absent from the cache on purpose: its poll is off until a
        person turns it on, and the status line payload is its source. */
     expect(await cachedProviders(state)).toEqual([
-      "ANTIGRAVITY",
       "CODEX",
       "GEMINI_CLI",
       "GROK",
@@ -171,13 +170,6 @@ describe("openlimiter refresh", () => {
     ]);
     expect(result.stdout).toContain("codex yes read");
     expect(result.stdout).toContain("claude no off");
-    /*
-     * Antigravity here is the Gemini CLI's login borrowed for the shared Code
-     * Assist pool, because this machine profile has no Antigravity credential
-     * store. The row says whose login it actually is.
-     */
-    expect(result.stdout).toContain("antigravity yes read");
-    expect(result.stdout).toContain("not");
   });
 
   it("identifies itself as OpenLimiter and never as a vendor's client", async () => {
@@ -370,7 +362,7 @@ describe("openlimiter refresh", () => {
     expect(await cachedProviders(state)).toContain("KIMI");
   });
 
-  it("labels the borrowed Gemini login for a surface to print", async () => {
+  it("does not synthesize Antigravity rows from a Gemini login", async () => {
     const state = await temporaryDirectory("openlimiter-state-");
     const home = await machineWithLogins();
     await runCli(["refresh"], dependencies(state, home, recordingTransport().transport));
@@ -378,11 +370,7 @@ describe("openlimiter refresh", () => {
     const shared = (cached.ok ? cached.snapshots : []).filter(
       (snapshot) => snapshot.provider === "ANTIGRAVITY"
     );
-    expect(shared.length).toBeGreaterThan(0);
-    for (const snapshot of shared) {
-      expect(snapshot.accountId).toBe("gemini-cli-shared");
-      expect(snapshot.accountLabel).toBe("Shared Google Code Assist quota");
-    }
+    expect(shared).toEqual([]);
   });
 
   it("stands down while another refresh already holds the lock", async () => {

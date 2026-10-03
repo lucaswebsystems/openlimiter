@@ -368,7 +368,8 @@
       "providerId": "google",
       "productId": "antigravity",
       "displayName": "Antigravity",
-      "headlineMeter": "primary",
+      "headlineMeter": "session_5h",
+      "weeklyMeter": "weekly_7d",
       "noQuotaConcept": false,
       "acquisitionSurfaces": [
         "desktop",
@@ -382,8 +383,8 @@
         "web",
         "phone"
       ],
-      "acquisitionMethod": "remote_http_internal",
-      "d5Review": "Internal provider interface; high automation risk and capture pending.",
+      "acquisitionMethod": "statusline_payload",
+      "d5Review": "Documented status line payload with no credential access or network request.",
       "maturity": "headline",
       "directory": {
         "order": 3,
@@ -392,37 +393,26 @@
         "connectorId": "antigravity",
         "access": "automatic"
       },
-      "docsUrl": "packages/connectors/src/antigravity.ts",
-      "reviewedAt": "2026-08-10",
-      "sourceStatus": "provisional",
+      "docsUrl": "https://antigravity.google/docs/cli/statusline/",
+      "reviewedAt": "2026-10-02",
+      "sourceStatus": "official",
       "support": {
         "parser": "implemented",
         "reader": "implemented",
-        "auth": "implemented",
+        "auth": "not_required",
         "verification": "unverified"
       },
-      "collection": {
-        "readers": [
-          {
-            "readerId": "antigravity_quota",
-            "endpointId": "antigravity_quota",
-            "credentialKind": "antigravity_session",
-            "evidenceFixture": "antigravity.sanitized_live.quota",
-            "evidenceStatus": "captured",
-            "lastVerifiedAt": "2026-09-01"
-          }
-        ]
-      },
+      "collection": null,
       "honesty": {
         "connectorId": "antigravity",
         "credentialOrigin": "official-local-tool",
-        "dataInterfaceStatus": "internal-endpoint",
-        "automationRisk": "high",
+        "dataInterfaceStatus": "native-statusline-payload",
+        "automationRisk": "low",
         "verification": "UNVERIFIED"
       },
-      "lastVerifiedAt": null,
+      "lastVerifiedAt": "2026-10-02",
       "readers": [
-        "experimental"
+        "statusline_payload"
       ],
       "authModes": [
         "existing_local_cli"
@@ -434,17 +424,60 @@
       ],
       "meters": [
         {
-          "id": "primary",
-          "label": "Primary quota",
+          "id": "session_5h",
+          "label": "5 hour quota",
           "kind": "subscription_quota",
           "unit": "percent_used",
           "scope": "account",
           "sourceFormat": "json_path",
           "window": {
-            "kind": "provider_defined"
+            "kind": "rolling",
+            "durationSeconds": 18000
           },
-          "optional": false,
-          "meterCode": "PRIMARY"
+          "optional": true,
+          "meterCode": "FIVE_HOUR"
+        },
+        {
+          "id": "weekly_7d",
+          "label": "Weekly quota",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "rolling",
+            "durationSeconds": 604800
+          },
+          "optional": true,
+          "meterCode": "SEVEN_DAY"
+        },
+        {
+          "id": "third_party_session",
+          "label": "Third party 5 hour quota",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "rolling",
+            "durationSeconds": 18000
+          },
+          "optional": true,
+          "meterCode": "THIRD_PARTY_SESSION"
+        },
+        {
+          "id": "third_party_weekly",
+          "label": "Third party weekly quota",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "rolling",
+            "durationSeconds": 604800
+          },
+          "optional": true,
+          "meterCode": "THIRD_PARTY_WEEKLY"
         }
       ]
     },

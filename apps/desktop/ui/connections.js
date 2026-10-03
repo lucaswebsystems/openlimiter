@@ -96,11 +96,12 @@ let options = null;
 /* The setup panels under the list, by the tool each one sets up. */
 const SETUP_TARGETS = { CLAUDE: "claude-card", ANTIGRAVITY: "antigravity-add", OPENCODE: "opencode-add" };
 
-/* The closed wire words for the two pasted credentials. */
+/* The closed wire words for the remaining pasted credential. */
 const PASTED = {
-  ANTIGRAVITY: { providerId: "antigravity", credentialKind: "antigravity_session" },
   OPENCODE: { providerId: "opencode", credentialKind: "opencode_browser_session" },
 };
+
+const ANTIGRAVITY_SETUP_COMMAND = "openlimiter terminal install antigravity";
 
 /* ----------------------------------------------------------------- backend */
 
@@ -314,6 +315,24 @@ function renderClaude() {
   body.append(actions);
 }
 
+function renderAntigravity() {
+  const body = document.getElementById("antigravity-body");
+  const note = document.getElementById("antigravity-note");
+  if (!body) return;
+  body.textContent = "";
+  const block = element("pre", "q-snippet mono", ANTIGRAVITY_SETUP_COMMAND);
+  const actions = element("div", "q-setup-actions");
+  actions.append(button(SETUP_EN.copy, async () => {
+    try {
+      await window.navigator.clipboard.writeText(ANTIGRAVITY_SETUP_COMMAND);
+      setNote(note, SETUP_EN.copied, "ok");
+    } catch {
+      setNote(note, SETUP_EN.copyRefused, "bad");
+    }
+  }));
+  body.append(element("p", "q-setup-line", say("antigravitySetupNote")), block, actions);
+}
+
 /* ------------------------------------------------------------------ render */
 
 function render() {
@@ -323,6 +342,7 @@ function render() {
     if (target) target.hidden = session.activeSetup !== code;
   }
   renderClaude();
+  renderAntigravity();
 }
 
 /** Open one setup panel under the list, close any other, and focus it. */

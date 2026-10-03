@@ -55,22 +55,9 @@ export type CredentialFailureReason =
   | "expired"
   | "keychain_not_read";
 
-/**
- * Whose login this actually is.
- *
- * The one that matters is `shared_code_assist`. Antigravity keeps its token in
- * the Windows credential store, and when that store holds nothing this reader
- * falls back to the Gemini CLI's file, which is what the Antigravity client's
- * own quota shares a backend with. That fallback is legitimate and it is what
- * every other reader does, but the resulting row is NOT Antigravity's own
- * login, and presenting it as one would tell a person they had connected
- * something they never connected. So the origin travels with the credential and
- * the row says which it is.
- */
 export const CREDENTIAL_ORIGINS = [
   "vendor_store",
   "vendor_file",
-  "shared_code_assist",
   "user_key"
 ] as const;
 
@@ -103,12 +90,7 @@ export interface CredentialLookupOptions {
   readonly homeDirectory?: string;
   /** Injected clock, so an expiry test does not depend on the wall clock. */
   readonly now?: string;
-  /**
-   * How a Windows Credential Manager entry is read.
-   *
-   * Injected so the Antigravity path can be proved without a real credential
-   * on the machine, and so no test ever touches the live credential store.
-   */
+  /** An injected Windows credential reader used only by supported providers. */
   readonly readWindowsCredential?: WindowsCredentialReader;
 }
 
@@ -180,7 +162,7 @@ export function credentialCandidatePaths(
       join(xdgConfig(context), "codex", "auth.json"),
       join(xdgData(context), "codex", "auth.json")
     );
-  } else if (provider === "GEMINI_CLI" || provider === "ANTIGRAVITY") {
+  } else if (provider === "GEMINI_CLI") {
     candidates.push(
       join(directoryFrom(context.environment["GEMINI_DIR"]), "oauth_creds.json"),
       path.join(home, ".gemini", "oauth_creds.json")
@@ -215,9 +197,6 @@ export function credentialCandidatePaths(
   }
   return paths;
 }
-
-/** The Windows Credential Manager target the Antigravity client writes to. */
-export const ANTIGRAVITY_CREDENTIAL_TARGET = "gemini:antigravity";
 
 const MANAGED_CODEX_REGISTRY = "openlimiter-codex-account.json";
 const MANAGED_SESSION_ID = /^[a-zA-Z0-9]{1,64}$/u;
@@ -289,7 +268,7 @@ const CONTAINERS: Readonly<Record<AcquisitionProvider, readonly string[]>> = {
   CLAUDE: ["claudeAiOauth", "oauth", "credentials"],
   CODEX: ["tokens", "oauth", "credentials"],
   GEMINI_CLI: ["oauth", "tokens", "credentials"],
-  ANTIGRAVITY: ["token", "oauth", "tokens", "credentials"],
+  ANTIGRAVITY: [],
   GROK: ["credentials", "auth", "tokens"],
   KIMI: ["credentials", "oauth", "tokens"],
   OPENROUTER: ["credentials"]
@@ -300,7 +279,7 @@ const SECRET_FIELDS: Readonly<Record<AcquisitionProvider, readonly string[]>> = 
   CLAUDE: ["accessToken", "access_token", "token"],
   CODEX: ["access_token", "accessToken"],
   GEMINI_CLI: ["access_token", "accessToken"],
-  ANTIGRAVITY: ["access_token", "accessToken", "token"],
+  ANTIGRAVITY: [],
   GROK: ["access_token", "accessToken", "key"],
   KIMI: ["access_token", "accessToken"],
   OPENROUTER: ["key", "api_key", "apiKey"]
@@ -417,25 +396,7 @@ export async function readAcquisitionCredential(
     const file = cursorStatePath({ ...options, homeDirectory: context.home });
     return file === null ? { ok: false, reason: "absent" } : readCursorSession(file, clock);
   }
-  if (provider === "ANTIGRAVITY" && context.platform === "win32") {
-    const reader = options.readWindowsCredential;
-    if (reader !== undefined) {
-      const stored = await reader(ANTIGRAVITY_CREDENTIAL_TARGET);
-      if (stored.ok) {
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(stored.value) as unknown;
-        } catch {
-          return { ok: false, reason: "invalid" };
-        }
-        return readCredentialDocument(provider, parsed, clock, "vendor_store");
-      }
-      /* A credential store that answered "not here" still lets the Gemini file
-         below stand in, which is what the Antigravity client itself falls back
-         to on a machine where the store was never written. */
-      if (stored.reason !== "absent") return stored;
-    }
-  }
+  if (provider === "ANTIGRAVITY") return { ok: false, reason: "absent" };
   let firstFailure: CredentialFailureReason | null = null;
   const candidates = credentialCandidatePaths(provider, options);
   if (provider === "CODEX") {
@@ -451,13 +412,11 @@ export async function readAcquisitionCredential(
       }
       continue;
     }
-    /* Antigravity reading the Gemini CLI's file is the shared Code Assist
-       quota, not Antigravity's own login, and the row has to say so. */
     const result = readCredentialDocument(
       provider,
       document.value,
       clock,
-      provider === "ANTIGRAVITY" ? "shared_code_assist" : "vendor_file",
+      "vendor_file",
       provider === "CLAUDE" ? await claudeIdentityHint(candidate) : null
     );
     if (result.ok) {

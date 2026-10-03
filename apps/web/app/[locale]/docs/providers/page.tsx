@@ -84,6 +84,9 @@ export default async function ProvidersPage({ params }: LocaleParams) {
                   t.rich("how-data-arrives.bullets.live", {
                     code: (chunks) => <Code>{chunks}</Code>,
                   }),
+                  t.rich("how-data-arrives.bullets.antigravity", {
+                    code: (chunks) => <Code>{chunks}</Code>,
+                  }),
                   t.rich("how-data-arrives.bullets.manual", {
                     code: (chunks) => <Code>{chunks}</Code>,
                   }),

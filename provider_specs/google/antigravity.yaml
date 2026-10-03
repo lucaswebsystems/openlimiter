@@ -1,26 +1,11 @@
-# Antigravity, Google's coding tool.
-#
-# Google publishes nothing about this surface, so it is an internal endpoint and
-# stays unverified. Its own connector header states "This interface is
-# UNOFFICIAL and may break."
-#
-# The reader is live. The request, its method, its body, its headers and its
-# permitted statuses are Rust constants in
-# apps/desktop/src-tauri/src/net.rs, documented there with the date they were
-# observed, including the reason the user agent header is not optional. They are
-# deliberately absent from this file.
-#
-# What the parser reads is stated once, in the meters block below.
-#
-# This file covers Antigravity specifically. Google's other surfaces, consumer
-# Gemini, Gemini CLI, and the Gemini API, are and must stay separate credentials
-# and separate spec files; see google/gemini-cli.yaml.
+# Antigravity's documented status line standard input payload.
 
 provider_id: google
 product_id: antigravity
 display_name: Antigravity
 
-headlineMeter: primary
+headlineMeter: session_5h
+weeklyMeter: weekly_7d
 acquisitionSurfaces:
   - desktop
   - cli
@@ -35,8 +20,8 @@ platforms:
   - windows
   - macos
   - linux
-acquisitionMethod: remote_http_internal
-d5Review: Internal provider interface; high automation risk and capture pending.
+acquisitionMethod: statusline_payload
+d5Review: Documented status line payload with no credential access or network request.
 maturity: headline
 directory:
   order: 3
@@ -46,35 +31,22 @@ directory:
   access: automatic
 
 source:
-  docs_url: packages/connectors/src/antigravity.ts
-  reviewed_at: "2026-08-10"
-  source_status: provisional
+  docs_url: https://antigravity.google/docs/cli/statusline/
+  reviewed_at: "2026-10-02"
+  source_status: official
 
 availability:
   requires_plan: any
-  appears_after: quota_json_present
+  appears_after: quota_present
   absence_is_error: false
 
 support:
   parser: implemented
   reader: implemented
-  auth: implemented
-
-# The live collection block. See openai/codex.yaml for why no address, method or
-# header appears in this file.
-collection:
-  reader: implemented
-  auth: implemented
-  readers:
-    - reader_id: antigravity_quota
-      endpoint_id: antigravity_quota
-      credential_kind: antigravity_session
-      evidence_fixture: antigravity.sanitized_live.quota
-      evidence_status: captured
-      last_verified_at: "2026-09-01"
+  auth: not_required
 
 connections:
-  - reader: experimental
+  - reader: statusline_payload
     auth_mode: existing_local_cli
     platforms:
       - windows
@@ -83,44 +55,70 @@ connections:
 
 verification:
   verification_status: unverified
-  last_verified_at: null
+  last_verified_at: "2026-10-02"
   fixture_ids:
-    - antigravity.provisional.quota
-    - antigravity.sanitized_live.quota
+    - antigravity.documented.statusline
 
-# The response states remaining quota as a FRACTION between zero and one, per
-# bucket, over two windows. Usage is one minus that fraction, and the meter
-# below reports whichever window is binding, meaning the one that will stop the
-# work first. The third party pool that rides the same subscription is a real
-# second wallet and is deliberately not modelled here: it needs its own identity
-# before it can have a meter, and folding it into this one would add two pools
-# together and call the result a reading.
-# The four honesty labels, in the exact words every surface must print.
-#
-# These are OpenLimiter's own vocabulary, not the provider's, and they are the
-# whole answer to "how much should I trust this number". They live here because
-# three surfaces have to say the same thing about one provider, and the way that
-# goes wrong is each surface keeping its own copy until one of them softens a
-# word. The desktop registry is generated from this block; a test proves the
-# connector's own labels are identical to it.
 honesty:
   connector_id: antigravity
   credential_origin: official-local-tool
-  data_interface_status: internal-endpoint
-  automation_risk: high
+  data_interface_status: native-statusline-payload
+  automation_risk: low
   verification: UNVERIFIED
 
 meters:
-  - id: primary
-    label: Primary quota
+  - id: session_5h
+    label: 5 hour quota
     kind: subscription_quota
     unit: percent_used
     scope: account
     window:
-      kind: provider_defined
-    source_format: json_path
-    source_path: groups.buckets.remainingFraction
-    reset_path: groups.buckets.resetTime
+      kind: rolling
+      duration_seconds: 18000
+    source_path: quota.buckets.remaining_fraction
+    reset_path: quota.buckets.reset_time
     reset_encoding: rfc3339
-    optional: false
-    meter_code: PRIMARY
+    optional: true
+    meter_code: FIVE_HOUR
+
+  - id: weekly_7d
+    label: Weekly quota
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: rolling
+      duration_seconds: 604800
+    source_path: quota.buckets.remaining_fraction
+    reset_path: quota.buckets.reset_time
+    reset_encoding: rfc3339
+    optional: true
+    meter_code: SEVEN_DAY
+
+  - id: third_party_session
+    label: Third party 5 hour quota
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: rolling
+      duration_seconds: 18000
+    source_path: quota.buckets.remaining_fraction
+    reset_path: quota.buckets.reset_time
+    reset_encoding: rfc3339
+    optional: true
+    meter_code: THIRD_PARTY_SESSION
+
+  - id: third_party_weekly
+    label: Third party weekly quota
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: rolling
+      duration_seconds: 604800
+    source_path: quota.buckets.remaining_fraction
+    reset_path: quota.buckets.reset_time
+    reset_encoding: rfc3339
+    optional: true
+    meter_code: THIRD_PARTY_WEEKLY

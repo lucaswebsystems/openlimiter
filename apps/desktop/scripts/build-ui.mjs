@@ -66,6 +66,7 @@ const COPY = {
       "policy.js",
       "provider-presentation.js",
       "schedule.js",
+      "acquire/antigravity-meters.js",
     ],
   },
   connectors: {
@@ -230,6 +231,7 @@ for (const [name, spec] of Object.entries(COPY)) {
     );
     const browserSource = name === "adapters" ? browserSafeAdapter(rewritten) : rewritten;
     const output = path.join(target, file);
+    mkdirSync(path.dirname(output), { recursive: true });
     writeFileSync(output, browserJsonImports(browserSource, path.join(spec.from, file), output), "utf8");
   }
 }
