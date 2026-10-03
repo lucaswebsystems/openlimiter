@@ -60,6 +60,15 @@
     "cacheUnreadable": "No se pudieron leer las lecturas guardadas en este momento, así que solo se muestran las que siguen vigentes.",
     "connect": "Conectar",
     "openAntigravity": "Abrir Antigravity",
+    "setupAntigravityStatusLine": "Configurar línea de estado",
+    "antigravityStatusLineIdle": "Línea de estado configurada. Usa /usage en Antigravity CLI para actualizar la cuota.",
+    "antigravityStatusLineLegacy": "Esta línea de estado antigua debe instalarse de nuevo.",
+    "antigravityStatusLineDisabled": "La línea de estado está desactivada en la configuración de Antigravity. Actívala allí y usa /usage para actualizar la cuota.",
+    "antigravitySetupNote": "Ejecuta este comando y usa /usage en Antigravity CLI para actualizar la cuota.",
+    "antigravityFiveHourQuota": "Cuota de 5 horas",
+    "antigravityWeeklyQuota": "Cuota semanal",
+    "antigravityThirdPartySession": "Cuota de terceros de 5 horas",
+    "antigravityThirdPartyWeekly": "Cuota semanal de terceros",
     "toolOff": "Desactivado",
     "moreFor": "Más opciones de {name}",
     "showTool": "Mostrar",
@@ -1204,8 +1213,8 @@
                 "reads": "The login the Codex CLI stored. May break when OpenAI changes it."
               },
               "antigravity": {
-                "connect": "Solo lectura, con la credencial que ya existe.",
-                "reads": "The credential the Antigravity CLI stored. May break when Google changes it."
+                "connect": "Configura la línea de estado documentada de Antigravity CLI.",
+                "reads": "Cuota de la línea de estado documentada. Usa /usage en Antigravity CLI para actualizarla."
               },
               "opencode": {
                 "connect": "Solo importación: tú proporcionas el documento.",
@@ -1237,6 +1246,7 @@
             "title": "How data actually arrives",
             "intro": "Most connectors read for themselves now. Two still do not, and this is the part worth stating plainly.",
             "bullets": {
+              "antigravity": "<code>antigravity</code> llega mediante la línea de estado documentada de Antigravity CLI. Usa <code>/usage</code> en Antigravity CLI para actualizar la cuota.",
               "claude": "<code>claude</code> recibe datos de la línea de estado de Claude Code en cuanto aparece. En una instalación nueva de escritorio, una solicitud directa de uso explicada empieza activada. Las instalaciones existentes sin elección preguntan primero, y la configuración del terminal registra su propia elección.",
               "live": "<code>codex</code>, <code>gemini_cli</code>, <code>antigravity</code>, <code>grok</code>, <code>kimi</code> y <code>openrouter</code> leen la sesión guardada por su propia herramienta, como máximo una vez cada quince minutos, mediante la actualización de la aplicación de escritorio o <code>openlimiter refresh</code> en el terminal.",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
@@ -1420,7 +1430,7 @@
               "antigravity": {
                 "name": "Antigravity",
                 "reports": "El grupo de quota más restrictivo, el porcentaje usado y su reinicio.",
-                "source": "El inicio local de Antigravity y un endpoint de quota no compatible de Google."
+                "source": "La línea de estado documentada de Antigravity CLI. Usa /usage en Antigravity CLI para actualizar la cuota."
               },
               "opencode": {
                 "name": "OpenCode",
@@ -1434,7 +1444,7 @@
               }
             },
             "riskTitle": "Algunas interfaces no son compatibles",
-            "riskBody": "Claude OAuth, Codex, Antigravity y OpenCode dependen de interfaces privadas de los proveedores que pueden cambiar o desaparecer. Un cambio de contrato produce desconocido visible para ese proveedor y mantiene los demás funcionando. OpenRouter usa una API documentada."
+            "riskBody": "Claude OAuth, Codex y OpenCode dependen de interfaces privadas de los proveedores que pueden cambiar o desaparecer. Un cambio de contrato produce desconocido visible para ese proveedor y mantiene los demás funcionando. OpenRouter usa una API documentada."
           },
           "privacy": {
             "title": "Límite de privacidad",
@@ -2171,6 +2181,10 @@
     "claudeWeeklyFable": "Semanal, Fable",
     "claudeWeeklyModel": "Semanal, {model}",
     "claudeExtraUsage": "Uso adicional",
+    "antigravityFiveHourQuota": "Cuota de 5 horas",
+    "antigravityWeeklyQuota": "Cuota semanal",
+    "antigravityThirdPartySession": "Cuota de terceros de 5 horas",
+    "antigravityThirdPartyWeekly": "Cuota semanal de terceros",
     "claudeFableDesktopHint": "Fable aparece aquí cuando el uso de Claude está activado en OpenLimiter en tu ordenador.",
     "providers": {
       "title": "Proveedores",

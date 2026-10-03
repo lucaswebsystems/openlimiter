@@ -26,4 +26,5 @@ export * from "./normalizer";
 export * from "./policy";
 export * from "./provider-presentation";
 export * from "./schedule";
+export * from "./acquire/antigravity-meters";
 export { readSnapshotCache, type CacheReadResult } from "../../browser-cache";

@@ -51,7 +51,27 @@ impl ProviderId {
     variant at a time, so they are dead code outside a test build and are
     marked as such rather than deleted: the sweep is the security property. */
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [ProviderId; 7] = [
+    pub const ALL: [ProviderId; 6] = [
+        ProviderId::Openrouter,
+        ProviderId::Codex,
+        ProviderId::Opencode,
+        ProviderId::Grok,
+        ProviderId::Kimi,
+        ProviderId::Cursor,
+    ];
+
+    /// Providers whose current collection path is an HTTP reader.
+    pub const HTTP_READER_PROVIDERS: [ProviderId; 6] = [
+        ProviderId::Openrouter,
+        ProviderId::Codex,
+        ProviderId::Opencode,
+        ProviderId::Grok,
+        ProviderId::Kimi,
+        ProviderId::Cursor,
+    ];
+
+    /// Providers whose bounded cache rows may be uploaded to account sync.
+    pub const SYNC_ELIGIBLE: [ProviderId; 7] = [
         ProviderId::Openrouter,
         ProviderId::Codex,
         ProviderId::Antigravity,
@@ -140,11 +160,10 @@ impl ReaderId {
     variant at a time, so they are dead code outside a test build and are
     marked as such rather than deleted: the sweep is the security property. */
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [ReaderId; 8] = [
+    pub const ALL: [ReaderId; 7] = [
         ReaderId::OpenrouterKey,
         ReaderId::OpenrouterCredits,
         ReaderId::CodexUsage,
-        ReaderId::AntigravityQuota,
         ReaderId::OpencodeUsage,
         ReaderId::GrokUsage,
         ReaderId::KimiUsage,
@@ -223,11 +242,10 @@ impl CredentialKind {
     variant at a time, so they are dead code outside a test build and are
     marked as such rather than deleted: the sweep is the security property. */
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [CredentialKind; 8] = [
+    pub const ALL: [CredentialKind; 7] = [
         CredentialKind::OpenrouterInferenceKey,
         CredentialKind::OpenrouterManagementKey,
         CredentialKind::CodexSession,
-        CredentialKind::AntigravitySession,
         CredentialKind::OpencodeBrowserSession,
         CredentialKind::GrokSession,
         CredentialKind::KimiSession,
@@ -295,10 +313,6 @@ pub enum AuthApplication {
     /// Retired Codex route marker retained for stored record compatibility.
     /// It has no HTTP endpoint, and `net.rs` refuses it before transport.
     CodexSessionBearer,
-    /// A bearer token plus a non empty user agent. Not optional: the Google
-    /// metadata plane answers 403 to a valid token when the header is absent,
-    /// which was measured on 2026-08-07 and cost an hour of blaming the login.
-    AntigravitySessionBearer,
     /// A bearer token plus the Grok user identity and fixed client marker.
     GrokSessionBearer,
     /// A bearer token read from the official Kimi CLI credential file.
@@ -386,20 +400,7 @@ pub const fn reader_route(
             | CredentialKind::KimiSession
             | CredentialKind::CursorSession => mismatch,
         },
-        ProviderId::Antigravity => match credential {
-            CredentialKind::AntigravitySession => Ok(ReaderRoute {
-                reader_id: ReaderId::AntigravityQuota,
-                endpoint: Some(ProviderEndpoint::AntigravityQuota),
-                auth: AuthApplication::AntigravitySessionBearer,
-            }),
-            CredentialKind::OpenrouterInferenceKey
-            | CredentialKind::OpenrouterManagementKey
-            | CredentialKind::CodexSession
-            | CredentialKind::OpencodeBrowserSession
-            | CredentialKind::GrokSession
-            | CredentialKind::KimiSession
-            | CredentialKind::CursorSession => mismatch,
-        },
+        ProviderId::Antigravity => mismatch,
         ProviderId::Opencode => match credential {
             CredentialKind::OpencodeBrowserSession => Ok(ReaderRoute {
                 reader_id: ReaderId::OpencodeUsage,
@@ -470,7 +471,7 @@ mod tests {
         refused would mean a wildcard arm had crept in. */
         let mut routed = 0usize;
         let mut refused = 0usize;
-        for provider in ProviderId::ALL {
+        for provider in ProviderId::HTTP_READER_PROVIDERS {
             for credential in CredentialKind::ALL {
                 match reader_route(provider, credential) {
                     Ok(route) => {
@@ -495,10 +496,13 @@ mod tests {
             }
         }
         assert_eq!(routed, ReaderId::ALL.len());
-        assert_eq!(refused, ProviderId::ALL.len() * CredentialKind::ALL.len() - routed);
+        assert_eq!(
+            refused,
+            ProviderId::HTTP_READER_PROVIDERS.len() * CredentialKind::ALL.len() - routed
+        );
         assert_eq!(
             routed + refused,
-            ProviderId::ALL.len() * CredentialKind::ALL.len()
+            ProviderId::HTTP_READER_PROVIDERS.len() * CredentialKind::ALL.len()
         );
     }
 
@@ -507,7 +511,7 @@ mod tests {
         /* No reader is orphaned and no two pairings land on the same reader:
         that is what makes the reader id a usable parser selector. */
         let mut seen: Vec<ReaderId> = Vec::new();
-        for provider in ProviderId::ALL {
+        for provider in ProviderId::HTTP_READER_PROVIDERS {
             for credential in CredentialKind::ALL {
                 if let Ok(route) = reader_route(provider, credential) {
                     assert!(
@@ -526,7 +530,7 @@ mod tests {
     #[test]
     fn every_route_endpoint_is_distinct() {
         let mut seen: Vec<ProviderEndpoint> = Vec::new();
-        for provider in ProviderId::ALL {
+        for provider in ProviderId::HTTP_READER_PROVIDERS {
             for credential in CredentialKind::ALL {
                 if let Ok(route) = reader_route(provider, credential) {
                     if let Some(endpoint) = route.endpoint {

@@ -148,7 +148,7 @@ describe("D18 borrowed status lines", () => {
     const installed = await readFile(file, "utf8");
     const data = host === "grok" ? null : JSON.parse(installed);
     const command = host === "grok" ? tomlValue(installed, ["ui", "status_line", "command"]) as string
-      : host === "claude" ? data.statusLine.command as string : data.statusLine as string;
+      : data.statusLine.command as string;
     await rm(path.join(home, ".openlimiter", "terminal-runtime"), { recursive: true, force: true });
     const output = await open(path.join(home, "stdout"), "w");
     const error = await open(path.join(home, "stderr"), "w");

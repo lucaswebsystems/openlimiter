@@ -1,5 +1,6 @@
 import {
   PROVIDER_CODES,
+  antigravityMeterCompactLabel,
   claudeMeterCompactLabel,
   claudeMeterPresentation,
   claudeMeterRank,
@@ -468,6 +469,10 @@ export function windowCode(snapshot: Snapshot): string {
   if (snapshot.provider === "CLAUDE") {
     const claude = claudeMeterCompactLabel(snapshot.meter);
     if (claude !== null) return claude;
+  }
+  if (snapshot.provider === "ANTIGRAVITY") {
+    const antigravity = antigravityMeterCompactLabel(snapshot.meter);
+    if (antigravity !== null) return antigravity;
   }
   if (snapshot.unit === "CREDITS" || snapshot.window.kind === "lifetime") {
     return "";

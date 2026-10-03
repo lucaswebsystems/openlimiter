@@ -24,11 +24,8 @@
     },
     "antigravity": {
       "fixtureVerified": true,
-      "evidence": "observed",
-      "liveEvidenceClass": "sanitized_live",
-      "liveEvidenceFile": "live/antigravity.quota.capture.json",
-      "lastVerifiedAt": "2026-09-01",
-      "reason": "The quota summary was read from the local Antigravity account on 2026-09-01 and reduced to closed pool names, window names, remaining fractions, and reset durations. The captured fixture parses both Gemini windows while leaving the third party pool alone. The honesty label stays UNVERIFIED because the endpoint is internal and Google publishes nothing about it."
+      "evidence": "documented",
+      "reason": "The documented Antigravity CLI status line shape parses both Gemini quota windows. The September quota endpoint capture is retained only as historical evidence and is not presented as a status line capture. The honesty label stays UNVERIFIED until a sanitized live status line payload is captured."
     },
     "gemini_cli": {
       "fixtureVerified": true,

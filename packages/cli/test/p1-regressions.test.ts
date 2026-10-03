@@ -4,13 +4,12 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  acquireRefreshLock, buildAdvice, createFetchTransport, kimiUsageRequest,
-  getAgyInstallRoots, isTrustedAgyExecutable, enumerateAgyListeningPorts,
-  normalizeMeters, parseAgyQuotaSummary, readAcquisitionCredential,
+  acquireRefreshLock, buildAdvice, CACHE_FILE_NAME, createFetchTransport, kimiUsageRequest,
+  normalizeMeters, readAcquisitionCredential,
   readSnapshotCache, registerManagedCodexAccount, shouldStartRefresh,
   writeSnapshotCache, type Snapshot
 } from "@openlimiter/core";
-import { claudeFixture, parseOpenrouterPayload } from "@openlimiter/connectors";
+import { antigravityFixture, claudeFixture, parseOpenrouterPayload } from "@openlimiter/connectors";
 import { runCli, runtimeDependencies, type CliDependencies } from "../src/cli.js";
 import { DEFAULT_STATUSLINE, readStatuslineConfig } from "../src/config.js";
 import { parseAntigravityStatuslinePayload, readStandardInputBuffer, readStandardInputText, STDIN_BYTE_LIMIT } from "../src/ingest.js";
@@ -197,16 +196,11 @@ describe("P1 audit regressions", () => {
     }
   });
 
-  it("14 preserves four pool identities from the shared capture in both ingress paths", async () => {
-    const capture = JSON.parse(await readFile(path.join(process.cwd(), "packages/connectors/fixtures/live/antigravity.quota.capture.json"), "utf8")) as { groups: { buckets: { poolPrefix: string; window: string; remainingFraction: number }[] }[] };
-    const probe = parseAgyQuotaSummary(capture, NOW);
-    const quota = Object.fromEntries(capture.groups.flatMap((group) => group.buckets.map((bucket) => [bucket.poolPrefix + "-" + bucket.window, bucket])));
-    const ingest = parseAntigravityStatuslinePayload({ quota }, NOW);
-    const identities = ["FIVE_HOUR", "SEVEN_DAY", "THIRD_PARTY_SESSION", "THIRD_PARTY_WEEKLY"];
-    expect(probe?.map((meter) => meter.meter).sort()).toEqual(identities);
+  it("14 preserves the documented synthetic status line bucket identities", async () => {
+    const ingest = parseAntigravityStatuslinePayload(antigravityFixture(NOW), NOW);
+    const identities = ["FIVE_HOUR", "SEVEN_DAY"];
     expect(ingest?.map((meter) => meter.meter).sort()).toEqual(identities);
-    expect(normalizeMeters(probe ?? [])).toHaveLength(4);
-    expect(normalizeMeters(ingest ?? [])).toHaveLength(4);
+    expect(normalizeMeters(ingest ?? [])).toHaveLength(2);
   });
 
   it("21 establishes an OpenRouter lifetime baseline before monthly spend appears", async () => {
@@ -287,6 +281,40 @@ describe("P1 audit regressions", () => {
     expect(await readSession(d.stateDirectory)).not.toBeNull();
     expect(sequence).toBe(2);
     expect(JSON.parse(await readFile(path.join(d.stateDirectory!, SYNC_CURSOR_FILE_NAME), "utf8")).sequence).toBe(2);
+  });
+
+  it("CLI sync retires v2 Antigravity rows and uploads current status line rows", async () => {
+    const old = await deps();
+    await mkdir(old.stateDirectory!, { recursive: true });
+    await writeSession({ ...session(), expiresAt: "2026-09-07T20:00:00.000Z" }, {
+      directory: old.stateDirectory!, platform: "linux"
+    });
+    await writeFile(path.join(old.stateDirectory!, CACHE_FILE_NAME), JSON.stringify({
+      version: 2,
+      snapshots: [row({ provider: "ANTIGRAVITY", accountId: "antigravity-personal" })]
+    }));
+    let oldUploads = 0;
+    old.hubTransport = async () => {
+      oldUploads++;
+      return { status: 200, body: JSON.stringify({ accepted: true, sequence: 1, tier: "free" }) };
+    };
+    expect((await runCli(["sync"], old)).stdout).toContain("nothing to sync");
+    expect(oldUploads).toBe(0);
+
+    const current = await deps();
+    current.readStandardInput = async () => JSON.stringify(antigravityFixture(NOW));
+    expect((await runCli(["statusline", "--host", "antigravity"], current)).exitCode).toBe(0);
+    await writeSession({ ...session(), expiresAt: "2026-09-07T20:00:00.000Z" }, {
+      directory: current.stateDirectory!, platform: "linux"
+    });
+    const uploadedProviders: string[][] = [];
+    current.hubTransport = async (request) => {
+      const envelope = JSON.parse(request.body) as { usage_samples: { provider: string }[] };
+      uploadedProviders.push(envelope.usage_samples.map((sample) => sample.provider));
+      return { status: 200, body: JSON.stringify({ accepted: true, sequence: 1, tier: "free" }) };
+    };
+    expect((await runCli(["sync"], current)).exitCode).toBe(0);
+    expect(uploadedProviders).toEqual([["ANTIGRAVITY", "ANTIGRAVITY"]]);
   });
 
   it("serializes login and logout mutations behind the session lock", async () => {
@@ -467,18 +495,6 @@ describe("P1 audit regressions", () => {
       expect(rendered.includes("25.0%")).toBe(false);
       expect(renderStatuslineLayout({ ...input, config: { ...DEFAULT_STATUSLINE, style } })).toContain("25");
     }
-  });
-
-  it("30 refuses a downloaded agy executable and a process owned by another user", async () => {
-    const roots = getAgyInstallRoots("win32", { LOCALAPPDATA: "C:\\Users\\test\\AppData\\Local" });
-    expect(isTrustedAgyExecutable("C:\\Users\\test\\AppData\\Local\\Temp\\download\\agy.exe", "win32", roots)).toBe(false);
-    expect(isTrustedAgyExecutable("C:\\Users\\test\\AppData\\Local\\Programs\\Antigravity\\agy.exe", "win32", roots)).toBe(true);
-    const ports = await enumerateAgyListeningPorts({ platform: "darwin", currentUserId: 1000,
-      resolveExecutablePath: async () => "/usr/bin/agy",
-      resolveExecutableOwner: async () => 2000,
-      runCommand: async (exe) => ({ ok: true, stdout: exe === "lsof" ? "p123\nn127.0.0.1:12345\n" : "2000" })
-    });
-    expect(ports).toEqual([]);
   });
 
   it("35 cancels overflowing HTTP producers without buffering their entire response", async () => {

@@ -398,7 +398,17 @@ function nextStep(code, name, { flag, flags, records, detection, claude, claudeP
     return step("connect", "connect");
   }
   if (code === "OPENROUTER") return records.length === 0 || refused ? step("connect", "connect") : step("check", "fixOpenAppAction");
-  if (code === "ANTIGRAVITY" && !refused) return step("check", "openAntigravity", title("fixOpenAppDetail"));
+  if (code === "ANTIGRAVITY") {
+    if (detection?.statusline_state === "legacy") {
+      return { ...step("connect", "setupAntigravityStatusLine"), note: say("antigravityStatusLineLegacy") };
+    }
+    if (detection?.statusline_state === "disabled") {
+      return { ...step("check", "fixOpenAppAction"), note: say("antigravityStatusLineDisabled") };
+    }
+    return detection?.statusline_configured === true
+      ? { note: say("antigravityStatusLineIdle") }
+      : step("connect", "setupAntigravityStatusLine");
+  }
   if (code === "GEMINI_CLI" && flag?.reason === "quota_unavailable") return { note: say("geminiCliConsumerRetired") };
   if (flag?.fixKind === "unsupported") return { note: say("fixUnsupportedIssue") };
   if (CONNECTABLE.has(code) && (refused || flag?.fixKind === "reconnect" || flag?.fixKind === "sign_in")) return step("connect", "connect");
@@ -433,14 +443,22 @@ export function inventoryModel({ snapshots = [], flags = [], detections = null, 
     .filter((code) => code && !shown.has(code) && (ALWAYS_LISTED.includes(code) || !off.has(code)))
     .sort((left, right) => rank(left) - rank(right) || providerName(left).localeCompare(providerName(right)));
   return [
-    ...measured.map((tool) => ({
-      ...tool,
-      action: tool.code === "CLAUDE" && claudePoll === false
-        ? step("poll", "showClaudeFable", say("showClaudeFableNote")).action
-        : null,
-      note: tool.code === "CLAUDE" && claudePoll === false ? say("showClaudeFableNote") : null,
-      extra: flags.filter((flag) => flag.provider === tool.code && ACCOUNT_FIXES.has(flag.fixKind)),
-    })),
+    ...measured.map((tool) => {
+      const detection = detected.find((entry) => providerCode(entry.provider_id) === tool.code);
+      const antigravity = tool.code === "ANTIGRAVITY"
+        ? nextStep(tool.code, tool.name, { flag: best.get(tool.code), flags: [], records: [], detection, claude, claudePoll })
+        : null;
+      return {
+        ...tool,
+        action: tool.code === "CLAUDE" && claudePoll === false
+          ? step("poll", "showClaudeFable", say("showClaudeFableNote")).action
+          : antigravity?.action ?? null,
+        note: tool.code === "CLAUDE" && claudePoll === false
+          ? say("showClaudeFableNote")
+          : antigravity?.note ?? null,
+        extra: flags.filter((flag) => flag.provider === tool.code && ACCOUNT_FIXES.has(flag.fixKind)),
+      };
+    }),
     ...waiting.map((code) => {
       const name = providerName(code);
       const next = off.has(code) ? { note: say("toolOff") } : nextStep(code, name, {

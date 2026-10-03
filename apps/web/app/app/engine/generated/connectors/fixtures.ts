@@ -220,36 +220,11 @@ export function codexNoResetFixture(now: string = FIXTURE_NOW): Record<string, u
  */
 export function antigravityFixture(now: string = FIXTURE_NOW): Record<string, unknown> {
   return {
-    groups: [
-      {
-        displayName: "Gemini models",
-        buckets: [
-          {
-            bucketId: "gemini-pro-5h",
-            window: "5h",
-            remainingFraction: 0.72,
-            resetTime: rfc3339Offset(now, FIVE_HOURS)
-          },
-          {
-            bucketId: "gemini-pro-weekly",
-            window: "weekly",
-            remainingFraction: 0.9,
-            resetTime: rfc3339Offset(now, SEVEN_DAYS)
-          }
-        ]
-      },
-      {
-        displayName: "Third party models",
-        buckets: [
-          {
-            bucketId: "3p-claude-5h",
-            window: "5h",
-            remainingFraction: 0.5,
-            resetTime: rfc3339Offset(now, FIVE_HOURS)
-          }
-        ]
-      }
-    ]
+    email: "fixture@example.com",
+    quota: {
+      "gemini-5h": { remaining_fraction: 0.72, reset_time: rfc3339Offset(now, FIVE_HOURS) },
+      "gemini-weekly": { remaining_fraction: 0.9, reset_time: rfc3339Offset(now, SEVEN_DAYS) }
+    }
   };
 }
 
@@ -716,64 +691,16 @@ export const codexSanitizedLive: SanitizedLiveFixture = {
   build: (now) => rebuildCodexCapture(codexSanitizedLive.capture, now)
 };
 
-/**
- * PENDING CAPTURE: Antigravity quota summary.
- *
- * Same standing as the Codex slot above. The request is recorded, including the
- * detail that the endpoint answers 403 to a valid token when the user agent
- * header is missing, which was measured on 2026-08-07. No sanitized response
- * has been committed, so nothing here claims to know the shape of one.
- */
+/** PENDING CAPTURE: documented Antigravity CLI status line payload. */
 export const antigravitySanitizedLive: SanitizedLiveFixture = {
-  id: "antigravity.sanitized_live.quota",
+  id: "antigravity.statusline.pending",
   connector: "antigravity",
-  status: "captured",
-  capturedAt: "2026-09-01",
-  providerVersion: "antigravity/cli/1.1.15",
-  skipReason: null,
-  expectedMeters: 2,
-  /* Reduced by scripts/sanitize-capture.mjs. Numbers and closed vocabulary
-     words only: every other field of the real response was discarded rather
-     than redacted, so nothing identifying can be present even in principle.
-     Resets are seconds from capture, never instants, so this replays against
-     any clock and dates nobody's working day. */
-  capture: {
-    "groups": [
-      {
-        "buckets": [
-          {
-            "poolPrefix": "gemini",
-            "window": "weekly",
-            "remainingFraction": 0.9867396,
-            "resetsInSeconds": 524780
-          },
-          {
-            "poolPrefix": "gemini",
-            "window": "5h",
-            "remainingFraction": 0.9561311,
-            "resetsInSeconds": 9265
-          }
-        ]
-      },
-      {
-        "buckets": [
-          {
-            "poolPrefix": "3p",
-            "window": "weekly",
-            "remainingFraction": 1,
-            "resetsInSeconds": 604461
-          },
-          {
-            "poolPrefix": "3p",
-            "window": "5h",
-            "remainingFraction": 1,
-            "resetsInSeconds": 17661
-          }
-        ]
-      }
-    ]
-  },
-  build: (now) => rebuildAntigravityCapture(antigravitySanitizedLive.capture, now)
+  status: "pending_capture",
+  capturedAt: null,
+  providerVersion: null,
+  skipReason: "PENDING CAPTURE: no sanitized live Antigravity CLI status line payload exists yet. The historical quota endpoint capture remains separate and is not status line evidence.",
+  expectedMeters: 0,
+  build: () => null
 };
 
 /**
@@ -855,38 +782,6 @@ export function rebuildCodexCapture(capture: unknown, now: string): unknown {
   };
   if (length !== null) primary["windowDurationMins"] = length / 60;
   return { rateLimits: { limitId: "codex", primary } };
-}
-
-export function rebuildAntigravityCapture(capture: unknown, now: string): unknown {
-  const reduced = captureRecord(capture);
-  const groups = reduced?.["groups"];
-  if (!Array.isArray(groups)) return null;
-  const rebuilt: unknown[] = [];
-  for (const entry of groups) {
-    const group = captureRecord(entry);
-    const buckets = group?.["buckets"];
-    if (!Array.isArray(buckets)) return null;
-    const rebuiltBuckets: unknown[] = [];
-    for (const rawBucket of buckets) {
-      const bucket = captureRecord(rawBucket);
-      const prefix = bucket?.["poolPrefix"];
-      const window = bucket?.["window"];
-      const fraction = captureNumber(bucket?.["remainingFraction"]);
-      const resetsIn = captureNumber(bucket?.["resetsInSeconds"]);
-      if (typeof prefix !== "string" || typeof window !== "string") return null;
-      if (fraction === null || resetsIn === null) return null;
-      rebuiltBuckets.push({
-        /* The id's tail named a model and a plan and was discarded, so a
-           neutral one is synthesised from the prefix the parser matches on. */
-        bucketId: prefix + "-captured",
-        window,
-        remainingFraction: fraction,
-        resetTime: rfc3339Offset(now, resetsIn)
-      });
-    }
-    rebuilt.push({ buckets: rebuiltBuckets });
-  }
-  return { groups: rebuilt };
 }
 
 function captureDurationWords(seconds: number): string {

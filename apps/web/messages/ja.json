@@ -60,6 +60,15 @@
     "cacheUnreadable": "保存された読み取り値を今は読み込めなかったため、まだ新しい読み取り値だけを表示しています。",
     "connect": "接続",
     "openAntigravity": "Antigravity を開く",
+    "setupAntigravityStatusLine": "ステータス行を設定",
+    "antigravityStatusLineIdle": "ステータス行を設定しました。Antigravity CLI で /usage を使って割り当てを更新してください。",
+    "antigravityStatusLineLegacy": "この古いステータス行は再インストールが必要です。",
+    "antigravityStatusLineDisabled": "Antigravity の設定でステータス行が無効です。そこで有効にしてから /usage で割り当てを更新してください。",
+    "antigravitySetupNote": "このコマンドを実行し、Antigravity CLI で /usage を使って割り当てを更新してください。",
+    "antigravityFiveHourQuota": "5 時間の割り当て",
+    "antigravityWeeklyQuota": "週間割り当て",
+    "antigravityThirdPartySession": "サードパーティの 5 時間割り当て",
+    "antigravityThirdPartyWeekly": "サードパーティの週間割り当て",
     "toolOff": "オフ",
     "moreFor": "{name} のその他の操作",
     "showTool": "表示",
@@ -1204,8 +1213,8 @@
                 "reads": "The login the Codex CLI stored. May break when OpenAI changes it."
               },
               "antigravity": {
-                "connect": "既存の認証情報を使った読み取り専用の接続です。",
-                "reads": "The credential the Antigravity CLI stored. May break when Google changes it."
+                "connect": "文書化された Antigravity CLI のステータス行を設定します。",
+                "reads": "文書化されたステータス行から割り当てを読みます。Antigravity CLI で /usage を使って更新してください。"
               },
               "opencode": {
                 "connect": "インポート専用です。ドキュメントは自分で用意します。",
@@ -1237,6 +1246,7 @@
             "title": "How data actually arrives",
             "intro": "Most connectors read for themselves now. Two still do not, and this is the part worth stating plainly.",
             "bullets": {
+              "antigravity": "<code>antigravity</code> は文書化された Antigravity CLI のステータス行から届きます。Antigravity CLI で <code>/usage</code> を使って割り当てを更新してください。",
               "claude": "<code>claude</code> は Claude Code のステータス行が表示されるとすぐにデータを受け取ります。デスクトップへの新規インストールでは、説明済みの直接使用量リクエストがオンで開始します。選択がない既存のインストールでは先に確認し、ターミナル設定は独自の選択を記録します。",
               "live": "<code>codex</code>、<code>gemini_cli</code>、<code>antigravity</code>、<code>grok</code>、<code>kimi</code>、<code>openrouter</code> は、それぞれのツールが保存したログインを最大15分に1回読み取ります。デスクトップアプリの更新処理、またはターミナルの <code>openlimiter refresh</code> が実行します。",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
@@ -1420,7 +1430,7 @@
               "antigravity": {
                 "name": "Antigravity",
                 "reports": "最も制約の強いquotaグループ、使用率、リセット時刻。",
-                "source": "ローカルのAntigravityログインと、非公式なGoogle quotaエンドポイント。"
+                "source": "文書化された Antigravity CLI のステータス行です。Antigravity CLI で /usage を使って割り当てを更新してください。"
               },
               "opencode": {
                 "name": "OpenCode",
@@ -1434,7 +1444,7 @@
               }
             },
             "riskTitle": "一部のインターフェースは非公式です",
-            "riskBody": "Claude OAuth、Codex、Antigravity、OpenCodeは、変更または廃止される可能性がある非公開のプロバイダーインターフェースに依存します。契約の形が変わると、そのプロバイダーだけが不明になり、他のプロバイダーは動作を続けます。OpenRouterは文書化されたAPIを使います。"
+            "riskBody": "Claude OAuth、Codex、OpenCodeは、変更または廃止される可能性がある非公開のプロバイダーインターフェースに依存します。契約の形が変わると、そのプロバイダーだけが不明になり、他のプロバイダーは動作を続けます。OpenRouterは文書化されたAPIを使います。"
           },
           "privacy": {
             "title": "プライバシー境界",
@@ -2171,6 +2181,10 @@
     "claudeWeeklyFable": "週間、Fable",
     "claudeWeeklyModel": "週間、{model}",
     "claudeExtraUsage": "追加使用量",
+    "antigravityFiveHourQuota": "5 時間の割り当て",
+    "antigravityWeeklyQuota": "週間割り当て",
+    "antigravityThirdPartySession": "サードパーティの 5 時間割り当て",
+    "antigravityThirdPartyWeekly": "サードパーティの週間割り当て",
     "claudeFableDesktopHint": "お使いのコンピューターの OpenLimiter で Claude の使用量がオンになっていると、ここに Fable が表示されます。",
     "providers": {
       "title": "プロバイダー",

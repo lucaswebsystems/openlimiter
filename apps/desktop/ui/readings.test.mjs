@@ -132,7 +132,7 @@ test("the list holds what is measured, detected, keyed or flagged, never a switc
   // Cursor is switched off; every other tool in play has one row, measured ones first.
   assert.deepEqual(model.map((tool) => [tool.name, tool.windows.length ? "bars" : tool.action?.label ?? tool.note]), [
     ["Codex", "bars"], ["Claude Code", "bars"], ["OpenRouter", "bars"],
-    ["Antigravity", "Connect"],
+    ["Antigravity", "Set up status line"],
     ["Gemini CLI", "Not measurable yet"], ["Grok (xAI)", "Sign in again"], ["Kimi", "Check again"], ["OpenCode", "Connect"],
   ]);
   // A tool a person chose stays in play, even with nothing detected yet.
@@ -358,7 +358,7 @@ test("the list always has Claude Code, Antigravity and OpenRouter, each with one
   const model = inventoryModel({}, now);
   assert.deepEqual(model.map((tool) => tool.code), ["CLAUDE", "ANTIGRAVITY", "OPENROUTER"]);
   assert.deepEqual(model.map((tool) => [tool.action?.kind, tool.action?.label]), [
-    ["connect", "Connect"], ["check", "Open Antigravity"], ["connect", "Connect"],
+    ["connect", "Connect"], ["connect", "Set up status line"], ["connect", "Connect"],
   ]);
   const doc = fakeDocument();
   const mount = doc.createElement("div");
@@ -376,16 +376,40 @@ test("each action button calls its own handler with its tool, and says so when i
   const calls = [];
   const handlers = {
     connect: async (code) => { calls.push(["connect", code]); return true; },
-    check: async (code) => { calls.push(["check", code]); return code !== "ANTIGRAVITY"; },
+    check: async (code) => { calls.push(["check", code]); return true; },
   };
   const doc = fakeDocument();
   const mount = doc.createElement("div");
   renderLimits(doc, mount, inventoryModel({}, now), { handlers });
   for (const row of rowsOf(mount)) await buttonIn(row).fire("click");
-  assert.deepEqual(calls, [["connect", "CLAUDE"], ["check", "ANTIGRAVITY"], ["connect", "OPENROUTER"]]);
-  const antigravity = rowsOf(mount).find((row) => row.dataset.provider === "ANTIGRAVITY");
-  assert.equal(antigravity.all((node) => node.className === "q-fstatus")[0].textContent, say("fixFailed"));
-  assert.equal(buttonIn(antigravity).disabled, false);
+  assert.deepEqual(calls, [["connect", "CLAUDE"], ["connect", "ANTIGRAVITY"], ["connect", "OPENROUTER"]]);
+});
+
+test("configured Antigravity is idle and tells the user how to refresh quota", () => {
+  const tool = inventoryModel({ detections: { providers: [{
+    provider_id: "antigravity",
+    state: "present",
+    accounts: [],
+    statusline_configured: true,
+    statusline_state: "configured",
+  }] } }, now).find((entry) => entry.code === "ANTIGRAVITY");
+  assert.equal(tool.action, null);
+  assert.equal(tool.note, "Status line set up. Use /usage in Antigravity CLI to refresh quota.");
+});
+
+test("Antigravity legacy and disabled status lines offer distinct recovery", () => {
+  const tool = (statusline_state) => inventoryModel({ detections: { providers: [{
+    provider_id: "antigravity", state: "installed_logged_out", accounts: [],
+    statusline_configured: false, statusline_state,
+  }] } }, now).find((entry) => entry.code === "ANTIGRAVITY");
+  assert.deepEqual(
+    [tool("legacy").action?.kind, tool("legacy").note],
+    ["connect", "This older status line needs to be installed again."]
+  );
+  assert.deepEqual(
+    [tool("disabled").action?.kind, tool("disabled").note],
+    ["check", "Status line is off in Antigravity settings. Turn it on there, then use /usage to refresh quota."]
+  );
 });
 
 test("Claude waits for Claude Code with no button, asks to sign in again, and connects when not set up", () => {
@@ -442,7 +466,7 @@ test("Codex with a reading and a waiting Claude: bars first, then the rows that 
     detections: { providers: [{ provider_id: "codex", state: "present" }, { provider_id: "claude", state: "present" }], antigravity_running: false },
   }, now);
   assert.deepEqual(model.map((tool) => [tool.code, tool.windows.length, tool.action?.label ?? tool.note]),
-    [["CODEX", 1, null], ["CLAUDE", 0, "Waiting for Claude Code"], ["ANTIGRAVITY", 0, "Open Antigravity"], ["OPENROUTER", 0, "Connect"]]);
+    [["CODEX", 1, null], ["CLAUDE", 0, "Waiting for Claude Code"], ["ANTIGRAVITY", 0, "Set up status line"], ["OPENROUTER", 0, "Connect"]]);
 });
 
 test("every tool in play gets one row with one fix; a switched off one leaves unless it always has a row", () => {
@@ -450,7 +474,7 @@ test("every tool in play gets one row with one fix; a switched off one leaves un
   const model = inventoryModel({ snapshots: readings.snapshots, flags: readings.flags }, now);
   const view = Object.fromEntries(model.map((tool) => [tool.code, tool.windows.length ? "bars" : tool.action?.label ?? tool.note]));
   assert.deepEqual(view, {
-    CODEX: "bars", CLAUDE: "bars", OPENROUTER: "bars", ANTIGRAVITY: "Open Antigravity",
+    CODEX: "bars", CLAUDE: "bars", OPENROUTER: "bars", ANTIGRAVITY: "Set up status line",
     GEMINI_CLI: "Not measurable yet", GROK: "Sign in again", KIMI: "Check again", OPENCODE: "Connect",
   });
   assert.equal(model.some((tool) => tool.code === "CURSOR"), false, "switched off");

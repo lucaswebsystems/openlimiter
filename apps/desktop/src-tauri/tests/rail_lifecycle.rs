@@ -3,10 +3,6 @@ mod data_rules;
 // Use the production Rail and its dependencies, as in lane_plugins.
 #[path = "../src/activity.rs"]
 mod activity;
-#[path = "../src/antigravity_credential.rs"]
-mod antigravity_credential;
-#[path = "../src/antigravity_local.rs"]
-mod antigravity_local;
 #[path = "../src/cache_write.rs"]
 mod cache_write;
 #[path = "../src/connections.rs"]

@@ -260,7 +260,6 @@ export async function listen(event, handler) {
 export const WIRE_PROVIDER_IDS = Object.freeze([
   "openrouter",
   "codex",
-  "antigravity",
   "opencode",
 ]);
 
@@ -269,7 +268,6 @@ export const WIRE_CREDENTIAL_KINDS = Object.freeze([
   "openrouter_inference_key",
   "openrouter_management_key",
   "codex_session",
-  "antigravity_session",
   "opencode_browser_session",
 ]);
 

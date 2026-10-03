@@ -1,32 +1,13 @@
 {
-  "groups": [
-    {
-      "displayName": "Gemini models",
-      "buckets": [
-        {
-          "bucketId": "gemini-pro-5h",
-          "window": "5h",
-          "remainingFraction": 0.28,
-          "resetTime": "2026-08-07T14:00:00.0000000Z"
-        },
-        {
-          "bucketId": "gemini-pro-weekly",
-          "window": "weekly",
-          "remainingFraction": 0.55,
-          "resetTime": "2026-08-11T12:00:00.0000000Z"
-        }
-      ]
+  "email": "redacted",
+  "quota": {
+    "gemini-5h": {
+      "remaining_fraction": 0.28,
+      "reset_time": "2026-08-07T14:00:00.000Z"
     },
-    {
-      "displayName": "Third party models",
-      "buckets": [
-        {
-          "bucketId": "3p-claude-5h",
-          "window": "5h",
-          "remainingFraction": 0.5,
-          "resetTime": "2026-08-07T14:00:00.0000000Z"
-        }
-      ]
+    "gemini-weekly": {
+      "remaining_fraction": 0.55,
+      "reset_time": "2026-08-11T12:00:00.000Z"
     }
-  ]
+  }
 }

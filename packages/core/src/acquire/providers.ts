@@ -7,8 +7,8 @@
  * cadence, coordination and configuration, and they are separate on purpose.
  */
 import type { RawMeter } from "../types.js";
-import { cursorAccountId } from "./cursor.js";
 import type { AcquiredCredential } from "./credentials.js";
+import { cursorAccountId } from "./cursor.js";
 import type { AcquisitionSpec, AcquisitionStep } from "./runner.js";
 import {
   claudeUsageRequest,
@@ -42,28 +42,16 @@ export const ACQUISITION_DISCLOSURE = {
   codex: "reads the login the Codex CLI stored, may break when OpenAI changes it",
   gemini:
     "reads the login the Gemini CLI stored, may break when Google changes it",
-  antigravity:
-    "reads the credential the Antigravity CLI stored, may break when Google " +
-    "changes it",
   grok:
     "reads the login the Grok CLI stored, without the client marker xAI's own " +
     "tool sends, so this request is verified on the first install that has a " +
     "Grok login",
-  antigravityShared:
-    "shared Google Code Assist quota from the Gemini CLI login, not " +
-    "Antigravity's own login",
   kimi: "reads the login the Kimi CLI stored, may break when Moonshot changes it",
   openrouter: "reads OpenRouter's documented key report with your own key"
 } as const;
 
 /** What the Code Assist bootstrap calls the project the quota read is scoped to. */
 export const CODE_ASSIST_PROJECT_FIELD = "cloudaicompanionProject";
-
-/** The account label a reading taken from the shared Gemini login carries. */
-export const SHARED_CODE_ASSIST_ACCOUNT = "gemini-cli-shared";
-
-/** What a surface should print for that account instead of the identifier. */
-export const SHARED_CODE_ASSIST_LABEL = "Shared Google Code Assist quota";
 
 /** The list a bootstrap carries when it answered and withheld the project. */
 export const CODE_ASSIST_TIERS_FIELD = "allowedTiers";
@@ -217,31 +205,6 @@ export function geminiCliSpec(parse: PayloadParser): AcquisitionSpec {
     parse,
     disclosure: ACQUISITION_DISCLOSURE.gemini,
     outcomeSentence: codeAssistSentences
-  };
-}
-
-/** Whether this credential is the Gemini CLI's, borrowed for the shared quota. */
-export function isSharedCodeAssist(credential: AcquiredCredential): boolean {
-  return credential.origin === "shared_code_assist";
-}
-
-export function antigravitySpec(parse: PayloadParser): AcquisitionSpec {
-  return {
-    provider: "ANTIGRAVITY",
-    credentialProvider: "ANTIGRAVITY",
-    steps: codeAssistSteps(),
-    parse,
-    disclosure: ACQUISITION_DISCLOSURE.antigravity,
-    outcomeSentence: codeAssistSentences,
-    /* A reading taken from the Gemini CLI's file is filed under its own account
-       label, so it can never be mistaken in the cache, on a bar or in a sync
-       for a login the person made to Antigravity. */
-    accountIdFor: (credential) =>
-      isSharedCodeAssist(credential) ? SHARED_CODE_ASSIST_ACCOUNT : null,
-    accountLabelFor: (credential) =>
-      isSharedCodeAssist(credential) ? SHARED_CODE_ASSIST_LABEL : null,
-    disclosureFor: (credential) =>
-      isSharedCodeAssist(credential) ? ACQUISITION_DISCLOSURE.antigravityShared : null
   };
 }
 

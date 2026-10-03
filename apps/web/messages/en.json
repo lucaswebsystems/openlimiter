@@ -60,6 +60,15 @@
     "cacheUnreadable": "The saved readings could not be read just now, so only readings that are still fresh are shown.",
     "connect": "Connect",
     "openAntigravity": "Open Antigravity",
+    "setupAntigravityStatusLine": "Set up status line",
+    "antigravityStatusLineIdle": "Status line set up. Use /usage in Antigravity CLI to refresh quota.",
+    "antigravityStatusLineLegacy": "This older status line needs to be installed again.",
+    "antigravityStatusLineDisabled": "Status line is off in Antigravity settings. Turn it on there, then use /usage to refresh quota.",
+    "antigravitySetupNote": "Run this command, then use /usage in Antigravity CLI to refresh quota.",
+    "antigravityFiveHourQuota": "5 hour quota",
+    "antigravityWeeklyQuota": "Weekly quota",
+    "antigravityThirdPartySession": "Third party 5 hour quota",
+    "antigravityThirdPartyWeekly": "Third party weekly quota",
     "toolOff": "Off",
     "moreFor": "More for {name}",
     "showTool": "Show",
@@ -1204,8 +1213,8 @@
                 "reads": "The login the Codex CLI stored. May break when OpenAI changes it."
               },
               "antigravity": {
-                "connect": "Read only, from the credential already there.",
-                "reads": "The credential the Antigravity CLI stored. May break when Google changes it."
+                "connect": "Set up the documented Antigravity CLI status line.",
+                "reads": "Quota from the documented status line. Use /usage in Antigravity CLI to refresh it."
               },
               "opencode": {
                 "connect": "Import only: you supply the document yourself.",
@@ -1237,6 +1246,7 @@
             "title": "How data actually arrives",
             "intro": "Most connectors read for themselves now. Two still do not, and this is the part worth stating plainly.",
             "bullets": {
+              "antigravity": "<code>antigravity</code> arrives through the documented Antigravity CLI status line. Use <code>/usage</code> in Antigravity CLI to refresh quota.",
               "claude": "<code>claude</code> is fed by the Claude Code status line the moment it renders. On a new desktop install, a disclosed direct usage request starts on. Existing desktop installs without a choice are asked first, and terminal setup records its own choice.",
               "live": "<code>codex</code>, <code>gemini_cli</code>, <code>antigravity</code>, <code>grok</code>, <code>kimi</code> and <code>openrouter</code> read the login their own tool already stored, at most once every fifteen minutes, behind the desktop app's own refresher or the terminal's <code>openlimiter refresh</code>.",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
@@ -1420,7 +1430,7 @@
               "antigravity": {
                 "name": "Antigravity",
                 "reports": "The most binding quota bucket, percent used, and its reset.",
-                "source": "The local Antigravity login and an unsupported Google quota endpoint."
+                "source": "The documented Antigravity CLI status line. Use /usage in Antigravity CLI to refresh quota."
               },
               "opencode": {
                 "name": "OpenCode",
@@ -1434,7 +1444,7 @@
               }
             },
             "riskTitle": "Some interfaces are unsupported",
-            "riskBody": "Claude OAuth, Codex, Antigravity and OpenCode depend on private provider interfaces that can change or disappear. A contract change produces visible unknown for that provider and leaves every other provider working. OpenRouter uses a documented API."
+            "riskBody": "Claude OAuth, Codex and OpenCode depend on private provider interfaces that can change or disappear. A contract change produces visible unknown for that provider and leaves every other provider working. OpenRouter uses a documented API."
           },
           "privacy": {
             "title": "Privacy boundary",
@@ -2171,6 +2181,10 @@
     "claudeWeeklyFable": "Weekly, Fable",
     "claudeWeeklyModel": "Weekly, {model}",
     "claudeExtraUsage": "Extra usage",
+    "antigravityFiveHourQuota": "5 hour quota",
+    "antigravityWeeklyQuota": "Weekly quota",
+    "antigravityThirdPartySession": "Third party 5 hour quota",
+    "antigravityThirdPartyWeekly": "Third party weekly quota",
     "claudeFableDesktopHint": "Fable shows here when Claude usage is on in OpenLimiter on your computer.",
     "providers": {
       "title": "Providers",

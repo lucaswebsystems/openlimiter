@@ -296,7 +296,7 @@ impl CacheWriter {
                     return Err(CacheWriteError::NotJson);
                 }
             },
-            None => serde_json::json!({"version": 2, "snapshots": []}),
+            None => serde_json::json!({"version": 3, "snapshots": []}),
         };
         let result = (|| {
             let rows = document

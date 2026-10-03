@@ -205,7 +205,7 @@ describe("connector contracts", () => {
       OPENLIMITER_OPENROUTER_CREDENTIAL: "available"
     })).toBe(true);
     expect(codexConnector.detect({ CODEX_USAGE_PAYLOAD: "1" })).toBe(true);
-    expect(antigravityConnector.detect({ ANTIGRAVITY_USAGE_PAYLOAD: "1" })).toBe(true);
+    expect(antigravityConnector.detect({ ANTIGRAVITY_STATUSLINE_PAYLOAD: "1" })).toBe(true);
     expect(geminiCliConnector.detect({ GEMINI_CLI_USAGE_PAYLOAD: "1" })).toBe(true);
     expect(opencodeConnector.detect({ OPENCODE_SESSION_PRESENT: "1" })).toBe(true);
     expect(grokConnector.detect({ GROK_USAGE_PAYLOAD: "1" })).toBe(true);
@@ -343,7 +343,7 @@ describe("connector contracts", () => {
     const later = "2027-01-01T00:00:00.000Z";
     expect(parseClaudePayload(claudeFixture(FIXTURE_NOW), later)).toBeNull();
     expect(parseCodexPayload(codexFixture(FIXTURE_NOW), later)).toBeNull();
-    expect(parseAntigravityPayload(antigravityFixture(FIXTURE_NOW), later)).toBeNull();
+    expect(parseAntigravityPayload(antigravityFixture(FIXTURE_NOW), later)).not.toBeNull();
     expect(parseGeminiCliPayload(geminiCliFixture(FIXTURE_NOW), later)).toBeNull();
     expect(parseGrokPayload(grokFixture(FIXTURE_NOW), later)).toBeNull();
     expect(parseKimiPayload(kimiFixture(FIXTURE_NOW), later)).toBeNull();

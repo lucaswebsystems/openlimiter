@@ -8,10 +8,6 @@ mod providers_plugin;
 #[path = "../src/rail.rs"]
 mod rail;
 // The Rail reads the production cache boundary even in the mock IPC runtime.
-#[path = "../src/antigravity_credential.rs"]
-mod antigravity_credential;
-#[path = "../src/antigravity_local.rs"]
-mod antigravity_local;
 #[path = "../src/cache_write.rs"]
 mod cache_write;
 #[path = "../src/connections.rs"]

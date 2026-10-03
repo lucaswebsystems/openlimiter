@@ -62,7 +62,7 @@
       "file": "claude.usage.json",
       "encoding": "json",
       "parser": "parseClaudePayload",
-      "evidence": "observed",
+      "evidence": "documented",
       "expectedMeters": 6,
       "expect": [
         {

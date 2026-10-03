@@ -1,5 +1,7 @@
 import {
   PROVIDER_CODES,
+  antigravityMeterPresentation,
+  antigravityMeterRank,
   buildAdvice,
   claudeMeterLabel,
   claudeMeterPresentation,
@@ -17,6 +19,7 @@ import {
   queryCatalogueRows,
   isClaudeModelScopedMeter,
   type Advice,
+  type AntigravityMeterLabelKey,
   type CatalogueRow,
   type ClaudeMeterLabelKey,
   type ConnectionState,
@@ -100,6 +103,8 @@ export {
   connectionNextAction,
   connectionSentence,
   queryCatalogueRows,
+  antigravityMeterPresentation,
+  antigravityMeterRank,
   claudeMeterLabel,
   claudeMeterPresentation,
   claudeMeterRank,
@@ -124,6 +129,7 @@ export {
 };
 
 export type {
+  AntigravityMeterLabelKey,
   ClaudeMeterLabelKey,
   HeadroomTone,
   ProviderAccountRowView,

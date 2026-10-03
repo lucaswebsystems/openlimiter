@@ -4,7 +4,6 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   ACQUISITION_CLIENT_VERSION,
-  ANTIGRAVITY_CREDENTIAL_TARGET,
   codeAssistLoadRequest,
   codexAppServerRequest,
   createFetchTransport,
@@ -366,7 +365,7 @@ describe("windows credential helper", () => {
     const fixture = path.join(directory, "powershell.exe");
     await writeFile(fixture, "synthetic fixture", "utf8");
     let selected = "";
-    await readWindowsCredentialWith(ANTIGRAVITY_CREDENTIAL_TARGET, {
+    await readWindowsCredentialWith("fixture:target", {
       runCommand: async (executable) => {
         selected = executable;
         return { ok: true, stdout: "" };
@@ -377,15 +376,10 @@ describe("windows credential helper", () => {
     expect(selected.toLowerCase()).not.toBe(fixture.toLowerCase());
   });
 
-  it("names the target the Antigravity client writes to", () => {
-    expect(ANTIGRAVITY_CREDENTIAL_TARGET).toBe("gemini:antigravity");
-    expect(CREDENTIAL_TARGET_PATTERN.test(ANTIGRAVITY_CREDENTIAL_TARGET)).toBe(true);
-  });
-
   it("builds a script with no npm install step behind it", () => {
-    const script = credentialReadScript(ANTIGRAVITY_CREDENTIAL_TARGET);
+    const script = credentialReadScript("fixture:target");
     expect(script).toContain("CredRead");
-    expect(script).toContain(ANTIGRAVITY_CREDENTIAL_TARGET);
+    expect(script).toContain("fixture:target");
     /* Reading only. A write call in this script would be a change to somebody
        else's login, which this product never makes. */
     expect(script).not.toContain("CredWrite");
@@ -414,49 +408,22 @@ describe("windows credential helper", () => {
     });
   });
 
-  it("reads the Antigravity credential through the injected store", async () => {
-    const directory = await temporaryDirectory();
-    const envelope = JSON.stringify({
-      token: { access_token: SYNTHETIC_TOKEN, token_type: "Bearer" }
-    });
-    const result = await readAcquisitionCredential("ANTIGRAVITY", {
-      platform: "win32",
-      homeDirectory: directory,
-      environment: {},
-      now: "2026-01-01T00:00:00.000Z",
-      readWindowsCredential: async (target) => {
-        expect(target).toBe(ANTIGRAVITY_CREDENTIAL_TARGET);
-        return { ok: true, value: envelope };
-      }
-    });
-    expect(result.ok).toBe(true);
-    expect(result.ok ? result.credential.secret : null).toBe(SYNTHETIC_TOKEN);
-    /* Antigravity's own login, out of Antigravity's own store. */
-    expect(result.ok ? result.credential.origin : null).toBe("vendor_store");
-  });
-
-  it("falls back to the Gemini file when the store holds nothing", async () => {
+  it("never reads an Antigravity credential store or OAuth file", async () => {
     const directory = await temporaryDirectory();
     await mkdir(path.join(directory, ".gemini"), { recursive: true });
-    await writeFile(
-      path.join(directory, ".gemini", "oauth_creds.json"),
-      JSON.stringify({ access_token: SYNTHETIC_TOKEN }),
-      "utf8"
-    );
+    await writeFile(path.join(directory, ".gemini", "oauth_creds.json"), JSON.stringify({ access_token: SYNTHETIC_TOKEN }));
+    let credentialReads = 0;
     const result = await readAcquisitionCredential("ANTIGRAVITY", {
       platform: "win32",
       homeDirectory: directory,
       environment: {},
       now: "2026-01-01T00:00:00.000Z",
-      readWindowsCredential: async () => ({ ok: false, reason: "absent" })
+      readWindowsCredential: async () => {
+        credentialReads += 1;
+        return { ok: true, value: JSON.stringify({ token: SYNTHETIC_TOKEN }) };
+      }
     });
-    expect(result.ok).toBe(true);
-    /*
-     * The fallback is kept, because the two share one Google Code Assist pool
-     * and every honest reader does the same. What it must never do is call the
-     * result Antigravity's own login, so the origin says which it was and the
-     * row is filed under its own account label.
-     */
-    expect(result.ok ? result.credential.origin : null).toBe("shared_code_assist");
+    expect(result).toEqual({ ok: false, reason: "absent" });
+    expect(credentialReads).toBe(0);
   });
 });

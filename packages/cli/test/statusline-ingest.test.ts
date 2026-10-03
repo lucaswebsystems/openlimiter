@@ -13,8 +13,7 @@ import { runCli } from "../src/index.js";
  * (Claude, Grok, both already used elsewhere in this repo to exercise the
  * documented API contract) or a scrubbed shape built from the host research
  * this lane recorded (Antigravity's status line payload, `quota` keyed by
- * bucket id, distinct from the loopback probe's `groups[].buckets[]` shape
- * covered in packages/core/test/antigravity-probe.test.ts). Nothing here
+ * bucket id). Nothing here
  * opens a socket: every payload arrives as a stubbed standard input reader.
  */
 
@@ -41,6 +40,10 @@ interface CachedRow {
   provider: string;
   meter: string;
   resetAt?: string;
+  accountId?: string;
+  observedAt: string;
+  expiresAt: string;
+  labels: Record<string, string>;
   provenance?: { sourceKind: string; observedVia: string };
 }
 
@@ -58,6 +61,7 @@ async function cachedRows(directory: string): Promise<CachedRow[]> {
  */
 function antigravityStatuslinePayload(now: string): Record<string, unknown> {
   return {
+    email: "person@example.com",
     model: "gemini-3-pro",
     context_window: 1_000_000,
     plan_tier: "individual",
@@ -224,19 +228,29 @@ describe("statusline ingestion by host", () => {
     expect(rows.map((row) => row.meter).sort()).toEqual(["FIVE_HOUR", "SEVEN_DAY"]);
     const fiveHourRow = rows.find((r) => r.meter === "FIVE_HOUR");
     expect(fiveHourRow).toBeDefined();
-    // resetAt derived from reset_in_seconds when reset_time is absent
-    const expectedReset = new Date(new Date(FIXTURE_NOW).getTime() + 18_000 * 1000).toISOString();
-    expect(fiveHourRow?.resetAt).toBe(expectedReset);
+    // A reset countdown is display data, never evidence of a rolling window boundary.
+    expect(fiveHourRow?.resetAt).toBeNull();
+    expect(fiveHourRow?.accountId).toBe(opaqueAccountId("ANTIGRAVITY", "person@example.com"));
+    expect(fiveHourRow?.observedAt).toBe(FIXTURE_NOW);
+    expect(fiveHourRow?.expiresAt).toBe(new Date(Date.parse(FIXTURE_NOW) + 60_000).toISOString());
 
     for (const row of rows) {
       expect(row.provider).toBe("ANTIGRAVITY");
       expect(row.provenance).toEqual({
         sourceKind: "statusline_payload",
-        observedVia: "local_command"
+        observedVia: "antigravity_cli_statusline"
+      });
+      expect(row.labels).toEqual({
+        credentialOrigin: "official-local-tool",
+        dataInterfaceStatus: "native-statusline-payload",
+        automationRisk: "low",
+        verification: "UNVERIFIED"
       });
     }
     /* Its own window carries no tag when rendered for its own host. */
     expect(result.stdout).toContain("5h");
+    expect(result.stdout).toContain("27%");
+    expect(result.stdout).toContain("24%");
     expect(result.stdout).not.toContain("ag5h");
   });
 

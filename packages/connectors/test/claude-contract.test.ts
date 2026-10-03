@@ -20,6 +20,7 @@ import {
   claudeCapturePayload,
   claudeDocumentedFixture,
   claudeSanitizedLive,
+  antigravitySanitizedLive,
   documentedFixtures,
   malformedFixtures,
   parseAntigravityPayload,
@@ -420,6 +421,14 @@ describe("claude live capture harness", () => {
     expect(claudeSanitizedLive.status).toBe("pending_capture");
     expect(claudeSanitizedLive.build(FIXTURE_NOW)).toBeNull();
     expect(claudeSanitizedLive.skipReason).toContain("PENDING CAPTURE");
+  });
+
+  it("does not present the historical Antigravity endpoint capture as statusline evidence", () => {
+    expect(antigravitySanitizedLive.status).toBe("pending_capture");
+    expect(antigravitySanitizedLive.capturedAt).toBeNull();
+    expect(antigravitySanitizedLive.providerVersion).toBeNull();
+    expect(antigravitySanitizedLive.build(FIXTURE_NOW)).toBeNull();
+    expect(antigravitySanitizedLive.skipReason).toContain("PENDING CAPTURE");
   });
 });
 

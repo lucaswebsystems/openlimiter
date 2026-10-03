@@ -44,12 +44,6 @@ import {
   type AcquisitionRequest,
   type AcquisitionTransport
 } from "./transport.js";
-import {
-  AGY_NOT_RUNNING_SENTENCE,
-  type AntigravityProbeOptions,
-  type AntigravityProbeResult
-} from "./antigravity-probe.js";
-import { isSharedCodeAssist } from "./providers.js";
 import { acquisitionAccountId } from "./identity.js";
 
 export interface AcquisitionStepContext {
@@ -73,7 +67,7 @@ export type AcquisitionStepResult =
 /**
  * One request in a provider's read.
  *
- * Most providers have exactly one. The Code Assist pair has two, because the
+ * Most providers have exactly one. Code Assist has two, because the
  * first answers with the companion project the second has to be scoped to.
  */
 export type AcquisitionStep = (
@@ -83,7 +77,7 @@ export type AcquisitionStep = (
 export interface AcquisitionSpec {
   /** The provider code the resulting rows carry. */
   readonly provider: ProviderCode;
-  /** Whose stored credential this read uses. Antigravity borrows Gemini's file. */
+  /** Whose stored credential this read uses. */
   readonly credentialProvider: AcquisitionProvider;
   readonly steps: readonly AcquisitionStep[];
   /** The connector parser for this provider's response, injected by the caller. */
@@ -100,14 +94,7 @@ export interface AcquisitionSpec {
   readonly enabled?: boolean;
   /** Why it is off, in the words the row prints. */
   readonly disabledReason?: string;
-  /**
-   * The account label these rows carry, when the credential decides it.
-   *
-   * Antigravity is the reason this exists. Reading the Gemini CLI's file is a
-   * legitimate way to reach the shared Code Assist quota, and it is not
-   * Antigravity's own login, so the rows are filed under an account that says
-   * which it was rather than under the provider's unnamed default.
-   */
+  /** The account identity these rows carry when the credential decides it. */
   readonly accountIdFor?: (credential: AcquiredCredential) => string | null;
   /** The disclosure these rows carry, when the credential changes it. */
   readonly disclosureFor?: (credential: AcquiredCredential) => string | null;
@@ -171,16 +158,6 @@ export interface AcquisitionRunOptions {
     meters: readonly RawMeter[],
     credential: AcquiredCredential
   ) => readonly RawMeter[];
-  readonly probeAntigravity?: (
-    options?: AntigravityProbeOptions
-  ) => Promise<AntigravityProbeResult>;
-  /**
-   * How the Antigravity probe turns a pid into the executable path it checks
-   * against the trusted install roots. Threaded through from here rather than
-   * left to the probe's own untrusted fallback, so a caller that wants a
-   * verified reading always gets one: see `resolveAgyExecutablePath`.
-   */
-  readonly resolveExecutablePath?: (pid: string) => Promise<string | null>;
 }
 
 /**
@@ -329,12 +306,7 @@ export async function runAcquisition(
         ...options.lookup,
         now: options.now
       }));
-  const observedCredentials = new Map<AcquisitionProvider, AcquiredCredential>();
-  const readCredential = async (provider: AcquisitionProvider): Promise<CredentialResult> => {
-    const result = await credentialReader(provider);
-    if (result.ok) observedCredentials.set(provider, result.credential);
-    return result;
-  };
+  const readCredential = credentialReader;
   const revisionFor = async (spec: AcquisitionSpec): Promise<string> => {
     const credential = await readCredential(spec.credentialProvider);
     const files = options.readCredential && !options.lookup ? [] : credentialCandidatePaths(spec.credentialProvider, options.lookup);
@@ -390,127 +362,6 @@ export async function runAcquisition(
         disclosure: spec.disclosure
       });
       return;
-    }
-    if (spec.provider === "ANTIGRAVITY" && options.probeAntigravity !== undefined) {
-      phase = "probe";
-      let probeResult: AntigravityProbeResult;
-      try {
-        probeResult = await options.probeAntigravity({
-          now: options.now,
-          ...(options.lookup !== undefined ? { lookup: options.lookup } : {}),
-          ...(options.resolveExecutablePath !== undefined
-            ? { resolveExecutablePath: options.resolveExecutablePath }
-            : {})
-        });
-      } catch {
-        probeResult = { ok: false, reason: "unreachable" };
-      }
-      if (probeResult.ok && probeResult.meters.length > 0) {
-        const nextAttemptAt = nextAttemptInstant("ok", options.now);
-        schedule[spec.provider] = {
-          lastAttemptAt: options.now,
-          nextAttemptAt: nextAttemptAt ?? options.now,
-          outcome: "ok"
-        };
-        const accountId = acquisitionAccountId("ANTIGRAVITY", { secret: "", accountId: null, origin: "vendor_store" });
-        const snapshots = normalizeMeters(
-          stamp(probeResult.meters, {
-            secret: "",
-            accountId: null,
-            expiresAtMilliseconds: null,
-            origin: "vendor_store"
-          }).map(row => ({ ...row, accountId }))
-        );
-        if (snapshots.length > 0) {
-          rows.push({
-            provider: spec.provider,
-            accountId,
-            detected: true,
-            status: "read",
-            reason: null,
-            nextAttemptAt,
-            disclosure: spec.disclosure
-          });
-          reports.push({
-            ok: true,
-            provider: spec.provider,
-            accountId,
-            observedAt: options.now,
-            snapshots
-          });
-          return;
-        }
-      }
-      if (!probeResult.ok && probeResult.reason === "not_running") {
-        const credential = await readCredential(spec.credentialProvider);
-        if (credential.ok && isSharedCodeAssist(credential.credential)) {
-          const fallbackResult = await attempt(spec, credential.credential, options);
-          if (fallbackResult.outcome !== "ok") {
-            const expired = fallbackResult.expiredCredentials === true;
-            const nextAttemptAt = expired ? null : nextAttemptInstant(fallbackResult.outcome, options.now, fallbackResult.retryAfterSeconds, existing?.attempts ?? options.lease?.attempts ?? 0);
-            if (expired) delete schedule[spec.provider];
-            if (nextAttemptAt) schedule[spec.provider] = { lastAttemptAt: options.now, nextAttemptAt, outcome: fallbackResult.outcome, attempts: (existing?.attempts ?? options.lease?.attempts ?? 0) + 1,
-              ...failure(fallbackResult.phase ?? "request", fallbackResult.outcome),
-              ...(refused(fallbackResult.outcome) ? { refusalRevision: await revisionFor(spec) } : {}) };
-            rows.push({ provider: spec.provider, detected: true, status: "stale", reason: expired ? CREDENTIAL_FAILURE_SENTENCE.expired : spec.outcomeSentence?.[fallbackResult.outcome] ?? ACQUISITION_OUTCOME_SENTENCE[fallbackResult.outcome], nextAttemptAt, disclosure: spec.disclosure,
-              ...(expired ? { availability: "expired_credentials" as const } : fallbackResult.outcome === "rate_limited" && nextAttemptAt ? { availability: "rate_limited" as const, retryAt: nextAttemptAt } : outcomeAvailability(fallbackResult.outcome)) });
-            return;
-          }
-          if (fallbackResult.outcome === "ok" && fallbackResult.meters.length > 0) {
-            const accountId = spec.accountIdFor?.(credential.credential) ?? acquisitionAccountId(spec.provider, credential.credential);
-            const accountLabel = spec.accountLabelFor?.(credential.credential) ?? null;
-            const disclosure = spec.disclosureFor?.(credential.credential) ?? spec.disclosure;
-            const nextAttemptAt = nextAttemptInstant("ok", options.now);
-            schedule[spec.provider] = {
-              lastAttemptAt: options.now,
-              nextAttemptAt: nextAttemptAt ?? options.now,
-              outcome: "ok"
-            };
-            const snapshots = normalizeMeters(
-              stamp(fallbackResult.meters, credential.credential).map((entry) => ({
-                ...entry,
-                ...(accountId === null ? {} : { accountId }),
-                ...(accountLabel === null ? {} : { accountLabel })
-              }))
-            );
-            if (snapshots.length > 0) {
-              rows.push({
-                provider: spec.provider,
-                ...(accountId === null ? {} : { accountId }),
-                detected: true,
-                status: "read",
-                reason: null,
-                nextAttemptAt,
-                disclosure
-              });
-              reports.push({
-                ok: true,
-                provider: spec.provider,
-                ...(accountId === null ? {} : { accountId }),
-                observedAt: options.now,
-                snapshots
-              });
-              return;
-            }
-          }
-        }
-        const nextAttemptAt = nextAttemptInstant("not_running", options.now);
-        schedule[spec.provider] = {
-          lastAttemptAt: options.now,
-          nextAttemptAt: nextAttemptAt ?? options.now,
-          outcome: "not_running",
-          ...failure("probe", "not_running")
-        };
-        rows.push({
-          provider: spec.provider,
-          detected: true,
-          status: "stale",
-          reason: AGY_NOT_RUNNING_SENTENCE,
-          nextAttemptAt,
-          disclosure: spec.disclosure
-        });
-        return;
-      }
     }
     phase = "credential";
     const credential = await readCredential(spec.credentialProvider);
@@ -638,25 +489,6 @@ export async function runAcquisition(
         phase = "lease";
         lease = await acquireMachineLease(spec.provider, options.stateDirectory, options.clock?.() ?? Date.parse(options.now), await revisionFor(spec));
         if (lease === null) {
-          // A borrowed Gemini login describes the same quota. Reuse the observation
-          // from this round, retaining its age, instead of polling Code Assist twice.
-          if (spec.provider === "ANTIGRAVITY") {
-            const originalCredential = observedCredentials.get("GEMINI_CLI");
-            const credential = await readCredential(spec.credentialProvider);
-            const source = reports.find((report) => report.ok && report.provider === "GEMINI_CLI");
-            if (credential.ok && originalCredential?.secret === credential.credential.secret && isSharedCodeAssist(credential.credential) && !credentialExpired(credential.credential, Date.parse(options.now)) && source?.ok) {
-              const accountId = spec.accountIdFor?.(credential.credential) ?? acquisitionAccountId(spec.provider, credential.credential);
-              const accountLabel = spec.accountLabelFor?.(credential.credential) ?? null;
-              const snapshots = source.snapshots.map((snapshot) => ({ ...snapshot, provider: spec.provider,
-                ...(accountId ? { accountId } : {}), ...(accountLabel ? { accountLabel } : {}) }));
-              reports.push({ ...source, provider: spec.provider, ...(accountId ? { accountId } : {}), snapshots });
-              const previous = schedule["GEMINI_CLI"];
-              if (previous) schedule[spec.provider] = previous;
-              rows.push({ provider: spec.provider, ...(accountId ? { accountId } : {}), detected: true, status: "read", reason: null,
-                nextAttemptAt: previous?.nextAttemptAt ?? null, disclosure: spec.disclosureFor?.(credential.credential) ?? spec.disclosure });
-              continue;
-            }
-          }
           rows.push({ provider: spec.provider, detected: true, status: "waiting", reason: "another acquisition owns this provider or its retry deadline is pending", nextAttemptAt: null, disclosure: spec.disclosure });
           continue;
         }

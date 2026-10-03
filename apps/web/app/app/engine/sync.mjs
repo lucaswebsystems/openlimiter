@@ -62,6 +62,7 @@ const MIRROR = {
       "provider-presentation.ts",
       "contracts/claude-presentation.json",
       "schedule.ts",
+      "acquire/antigravity-meters.ts",
     ],
   },
   connectors: {

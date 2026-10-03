@@ -363,6 +363,7 @@ pub(crate) fn normalize_snapshot(mut row: Snapshot) -> Option<Snapshot> {
         .contains(&source_kind.unwrap_or_default())
             || ![
                 "claude_code_statusline",
+                "antigravity_cli_statusline",
                 "ingest_command",
                 "manual_json",
                 "local_event",
@@ -396,16 +397,18 @@ fn read_document_for_surface(
     if require_supported_version
         && root
             .get("version")
-            .is_some_and(|version| !matches!(version.as_u64(), Some(1 | 2)))
+            .is_some_and(|version| !matches!(version.as_u64(), Some(1 | 2 | 3)))
     {
         return Err(CacheWriteError::NotJson);
     }
+    let version = root.get("version").and_then(Value::as_u64);
     let rows = root
         .get("snapshots")
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
         .filter_map(|value| serde_json::from_value::<Snapshot>(value.clone()).ok())
+        .filter(|row| version != Some(2) || row.provider != "ANTIGRAVITY")
         .filter_map(normalize_snapshot)
         .collect();
     let suppressions = match root.get("suppressions") {
@@ -440,11 +443,10 @@ fn account_matches(existing: Option<&str>, target: Option<&str>) -> bool {
 
 /// Read only display access to the same validated cache rows used by native writers.
 /// A suppression withdraws a reading until that identity has a newer observation.
-pub(crate) fn display_snapshots(text: Option<&str>) -> Vec<Snapshot> {
-    let Ok((rows, suppressions)) = read_document_for_surface(text, true) else {
-        return Vec::new();
-    };
-    rows.into_iter()
+pub(crate) fn surface_snapshots(text: Option<&str>) -> Result<Vec<Snapshot>, CacheWriteError> {
+    let (rows, suppressions) = read_document_for_surface(text, true)?;
+    Ok(rows
+        .into_iter()
         .filter(|row| {
             !suppressions.iter().any(|suppression| {
                 row.provider == suppression.provider
@@ -452,7 +454,11 @@ pub(crate) fn display_snapshots(text: Option<&str>) -> Vec<Snapshot> {
                     && row.observed_at <= suppression.suppressed_at
             })
         })
-        .collect()
+        .collect())
+}
+
+pub(crate) fn display_snapshots(text: Option<&str>) -> Vec<Snapshot> {
+    surface_snapshots(text).unwrap_or_default()
 }
 
 fn identity(row: &Snapshot) -> String {
@@ -571,7 +577,7 @@ fn fold(
             serde_json::to_value(suppressions).map_err(|_| CacheWriteError::Io)?,
         );
     }
-    document.insert("version".to_string(), Value::from(2));
+    document.insert("version".to_string(), Value::from(3));
     serde_json::to_string(&Value::Object(document)).map_err(|_| CacheWriteError::Io)
 }
 
@@ -711,7 +717,7 @@ pub fn purge_connection_rows(
         };
         if document
             .get("version")
-            .is_some_and(|version| !matches!(version.as_u64(), Some(1 | 2)))
+            .is_some_and(|version| !matches!(version.as_u64(), Some(1 | 2 | 3)))
         {
             writer.abort(begun.generation);
             return Err(CacheWriteError::NotJson);

@@ -144,7 +144,6 @@ impl DetectedProviderId {
             self,
             Self::Claude
                 | Self::Codex
-                | Self::Antigravity
                 | Self::GeminiCli
                 | Self::Grok
                 | Self::Kimi
@@ -226,9 +225,21 @@ pub struct ProviderDetection {
     pub connection_mode: ConnectionMode,
     pub manual_entry_available: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub statusline_configured: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub statusline_state: Option<AntigravityStatuslineState>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub recovery: Option<RecoveryAction>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AntigravityStatuslineState {
+    Configured,
+    Legacy,
+    Disabled,
 }
 
 fn connection_mode(provider: DetectedProviderId) -> ConnectionMode {
@@ -920,24 +931,8 @@ fn install_root_specs(
 }
 
 fn antigravity_roots(context: &DiscoveryContext) -> Vec<PathBuf> {
-    let platform = match context.platform {
-        DiscoveryPlatform::Windows => crate::antigravity_local::TargetPlatform::Windows,
-        DiscoveryPlatform::Macos => crate::antigravity_local::TargetPlatform::Macos,
-        DiscoveryPlatform::Linux => crate::antigravity_local::TargetPlatform::Linux,
-    };
-    let program_files = context
-        .program_files
-        .iter()
-        .map(PathBuf::as_path)
-        .map(Some)
-        .collect::<Vec<_>>();
-    crate::antigravity_local::roots_for_platform(
-        platform,
-        context.home.as_deref(),
-        context.local.as_deref(),
-        context.roaming.as_deref(),
-        &program_files,
-    )
+    let _ = context;
+    Vec::new()
 }
 
 fn provider_install_roots(
@@ -1534,6 +1529,43 @@ struct IdentityHint {
 /// project history in the same file, so it outgrows the state bound on a
 /// working machine. TypeScript twin: `CLAUDE_METADATA_MAX_BYTES`.
 const CLAUDE_METADATA_MAX_BYTES: u64 = 16 * 1_048_576;
+const ANTIGRAVITY_SETTINGS_MAX_BYTES: u64 = 65_536;
+
+fn antigravity_statusline_state(context: &DiscoveryContext) -> Option<AntigravityStatuslineState> {
+    let Some(home) = context.home.as_deref() else {
+        return None;
+    };
+    let path = home.join(".gemini").join("antigravity-cli").join("settings.json");
+    let Some(raw) = fsx::bounded_read_up_to(&path, ANTIGRAVITY_SETTINGS_MAX_BYTES) else {
+        return None;
+    };
+    let Ok(root) = serde_json::from_str::<Value>(&raw) else {
+        return None;
+    };
+    let value = root.get("statusLine")?;
+    let command = value
+        .as_str()
+        .or_else(|| value.as_object()?.get("command")?.as_str())?;
+    let owned = {
+        let normalized = command.to_ascii_lowercase();
+        normalized.contains("openlimiter")
+            && normalized.contains("statusline")
+            && normalized.contains("antigravity")
+    };
+    if !owned {
+        return None;
+    }
+    let Some(object) = value.as_object() else {
+        return Some(AntigravityStatuslineState::Legacy);
+    };
+    if object.get("type").and_then(Value::as_str) != Some("command") {
+        return Some(AntigravityStatuslineState::Legacy);
+    }
+    if object.get("enabled").and_then(Value::as_bool) == Some(false) {
+        return Some(AntigravityStatuslineState::Disabled);
+    }
+    Some(AntigravityStatuslineState::Configured)
+}
 
 /// The account a Claude config directory is signed in to.
 ///
@@ -1700,6 +1732,9 @@ pub(crate) fn provider_singleton_account_id(provider: DetectedProviderId) -> Str
 }
 
 fn parse_credential_file(provider: DetectedProviderId, path: &Path) -> Vec<ParsedCredential> {
+    if provider == DetectedProviderId::Antigravity {
+        return Vec::new();
+    }
     if provider == DetectedProviderId::Cursor {
         let Ok(session) = crate::native_readers::cursor::session(path) else {
             return Vec::new();
@@ -1869,7 +1904,6 @@ fn account_label(provider: DetectedProviderId, email: Option<&str>, account_id: 
 #[derive(Clone)]
 enum CredentialSource {
     File(PathBuf),
-    AntigravityKeyring,
 }
 
 fn parse_credential_source(
@@ -1878,20 +1912,6 @@ fn parse_credential_source(
 ) -> Vec<ParsedCredential> {
     match source {
         CredentialSource::File(path) => parse_credential_file(provider, path),
-        CredentialSource::AntigravityKeyring if provider == DetectedProviderId::Antigravity => {
-            let Ok(credential) = crate::antigravity_credential::read() else {
-                return Vec::new();
-            };
-            vec![ParsedCredential {
-                token: credential.access_token,
-                provider_account_id: None,
-                identity_material: PROVIDER_SINGLETON_MATERIAL.to_string(),
-                email: None,
-                expires_at_ms: credential.expires_at_ms,
-                identity_quality: IdentityQuality::ProviderSingleton,
-            }]
-        }
-        CredentialSource::AntigravityKeyring => Vec::new(),
     }
 }
 
@@ -1932,6 +1952,11 @@ fn scan_enabled_inventory(
         if !switches.enabled(provider) {
             continue;
         }
+        let statusline_state = (provider == DetectedProviderId::Antigravity)
+            .then(|| antigravity_statusline_state(context))
+            .flatten();
+        let statusline_configured = (provider == DetectedProviderId::Antigravity)
+            .then_some(statusline_state == Some(AntigravityStatuslineState::Configured));
         let mut candidates = candidate_paths(provider, context);
         candidates.extend(profile_candidates(provider, context.home.as_deref()));
         let mut seen = BTreeSet::new();
@@ -1946,9 +1971,6 @@ fn scan_enabled_inventory(
             if candidate.kind == CandidateKind::Credential {
                 sources.push(CredentialSource::File(candidate.path));
             }
-        }
-        if provider == DetectedProviderId::Antigravity && context.read_native_credentials {
-            sources.push(CredentialSource::AntigravityKeyring);
         }
         for source in sources {
             let parsed_credentials = parse_credential_source(provider, &source);
@@ -1997,7 +2019,7 @@ fn scan_enabled_inventory(
             }
         }
         let accounts: Vec<DetectedAccount> = accounts.into_values().collect();
-        let state = if !accounts.is_empty() {
+        let state = if !accounts.is_empty() || statusline_configured == Some(true) {
             ProviderPresence::Present
         } else if installed {
             ProviderPresence::InstalledLoggedOut
@@ -2010,6 +2032,8 @@ fn scan_enabled_inventory(
             accounts,
             connection_mode: connection_mode(provider),
             manual_entry_available: true,
+            statusline_configured,
+            statusline_state,
             recovery: provider_recovery(provider, state),
             message: provider_message(provider, state),
         });
@@ -2121,9 +2145,6 @@ impl DetectionStore {
         };
         if !explicit && gate.is_some_and(|at| at.elapsed() < minimum) {
             return self.report();
-        }
-        if explicit {
-            crate::antigravity_credential::retry_after_denial();
         }
         let next = scan_enabled_inventory(
             &self.context,
@@ -2279,7 +2300,6 @@ impl DetectionStore {
             .get(&(DetectedProviderId::Codex, account_id.to_string()))
             .and_then(|reference| match &reference.source {
                 CredentialSource::File(path) => path.parent().map(Path::to_path_buf),
-                CredentialSource::AntigravityKeyring => None,
             })
     }
 
@@ -3009,14 +3029,17 @@ mod tests {
         for provider in [
             DetectedProviderId::Claude,
             DetectedProviderId::Codex,
-            DetectedProviderId::Antigravity,
             DetectedProviderId::Grok,
             DetectedProviderId::Kimi,
             DetectedProviderId::GeminiCli,
         ] {
             assert!(provider.supports_automatic_collection());
         }
-        for provider in [DetectedProviderId::Opencode, DetectedProviderId::Openrouter] {
+        for provider in [
+            DetectedProviderId::Antigravity,
+            DetectedProviderId::Opencode,
+            DetectedProviderId::Openrouter,
+        ] {
             assert!(!provider.supports_automatic_collection());
         }
     }
@@ -3056,6 +3079,60 @@ mod tests {
         assert!(wire.contains(r#""connection_mode":"manual_entry""#));
         assert!(wire.contains(r#""connection_mode":"api_key""#));
         assert!(!wire.contains("fixture-opencode-api-key"));
+    }
+
+    #[test]
+    fn antigravity_statusline_configuration_is_present_without_oauth_credentials() {
+        let dir = TempDir::new();
+        let retired_oauth = dir.path().join("retired-antigravity-oauth.json");
+        write(&retired_oauth, r#"{"access_token":"must-not-be-read"}"#);
+        write(
+            &dir.path().join(".gemini").join("antigravity-cli").join("settings.json"),
+            r#"{"statusLine":{"type":"command","command":"openlimiter statusline --host antigravity","padding":2,"enabled":true,"stack_with_default":false}}"#,
+        );
+        let inventory = scan_inventory(
+            &context(DiscoveryPlatform::Linux, dir.path()),
+            1_800_000_000_000,
+        );
+        let detected = provider(&inventory.report, DetectedProviderId::Antigravity);
+        assert_eq!(detected.statusline_configured, Some(true));
+        assert_eq!(detected.statusline_state, Some(AntigravityStatuslineState::Configured));
+        assert_eq!(detected.state, ProviderPresence::Present);
+        assert!(detected.accounts.is_empty());
+        assert!(!DetectedProviderId::Antigravity.supports_automatic_collection());
+        assert!(parse_credential_file(DetectedProviderId::Antigravity, &retired_oauth).is_empty());
+    }
+
+    #[test]
+    fn antigravity_statusline_distinguishes_legacy_disabled_and_wrong_type() {
+        for (status_line, expected) in [
+            (
+                serde_json::json!("openlimiter statusline --host antigravity"),
+                AntigravityStatuslineState::Legacy,
+            ),
+            (
+                serde_json::json!({"type":"command","command":"openlimiter statusline --host antigravity","enabled":false}),
+                AntigravityStatuslineState::Disabled,
+            ),
+            (
+                serde_json::json!({"type":"not-command","command":"openlimiter statusline --host antigravity","enabled":true}),
+                AntigravityStatuslineState::Legacy,
+            ),
+        ] {
+            let dir = TempDir::new();
+            write(
+                &dir.path().join(".gemini").join("antigravity-cli").join("settings.json"),
+                &serde_json::json!({"statusLine": status_line}).to_string(),
+            );
+            let inventory = scan_inventory(
+                &context(DiscoveryPlatform::Linux, dir.path()),
+                1_800_000_000_000,
+            );
+            let detected = provider(&inventory.report, DetectedProviderId::Antigravity);
+            assert_eq!(detected.statusline_state, Some(expected));
+            assert_eq!(detected.statusline_configured, Some(false));
+            assert_ne!(detected.state, ProviderPresence::Present);
+        }
     }
 
     #[test]
@@ -3680,36 +3757,6 @@ mod tests {
             installed_client_version(DetectedProviderId::Grok, &discovery),
             Some("1.4.2".to_string())
         );
-    }
-
-    #[test]
-    fn credential_only_antigravity_paths_use_one_provider_singleton() {
-        let dir = TempDir::new();
-        let first_path = dir.path().join("first-antigravity.json");
-        let second_path = dir.path().join("second-antigravity.json");
-        write(
-            &first_path,
-            r#"{"token":{"access_token":"first-access-token","refresh_token":"stable-refresh-token"}}"#,
-        );
-        write(
-            &second_path,
-            r#"{"token":{"access_token":"second-access-token","refresh_token":"stable-refresh-token"}}"#,
-        );
-        let first = parse_credential_file(DetectedProviderId::Antigravity, &first_path);
-        let second = parse_credential_file(DetectedProviderId::Antigravity, &second_path);
-
-        assert_eq!(first.len(), 1);
-        assert_eq!(second.len(), 1);
-        assert_eq!(first[0].identity_material, second[0].identity_material);
-        assert_eq!(
-            first[0].identity_quality,
-            IdentityQuality::ProviderSingleton
-        );
-        assert_eq!(
-            second[0].identity_quality,
-            IdentityQuality::ProviderSingleton
-        );
-        assert_ne!(first[0].token.as_str(), second[0].token.as_str());
     }
 
     #[test]

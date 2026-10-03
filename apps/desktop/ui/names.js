@@ -10,6 +10,8 @@
 import { PROVIDER_SPECS } from "./provider-specs.generated.js";
 import catalog from "./readings.en.json" with { type: "json" };
 import {
+  antigravityMeterPresentation,
+  antigravityMeterRank,
   claudeMeterLabel,
   claudeMeterRank,
 } from "../../../packages/core/dist/provider-presentation.js";
@@ -110,6 +112,10 @@ export function meterLabel(code, provider) {
     const claude = claudeMeterLabel(meter, READINGS_COPY);
     if (claude !== null) return claude;
   }
+  if (providerCode(provider) === "ANTIGRAVITY") {
+    const antigravity = antigravityMeterPresentation(meter);
+    if (antigravity !== null) return say(antigravity.labelKey);
+  }
   if (meter === "FIVE_HOUR" || meter === "SEVEN_DAY") return METERS[meter];
   const numbered = meter.match(/^(FIVE_HOUR|SEVEN_DAY)_([2-9]\d*)$/u);
   if (numbered) return `${METERS[numbered[1]]} ${numbered[2]}`;
@@ -120,9 +126,10 @@ export function meterLabel(code, provider) {
 
 /** Claude's provider order, or null when another provider owns the meter. */
 export function meterRank(code, provider) {
-  return providerCode(provider) === "CLAUDE"
-    ? claudeMeterRank(providerCode(code)) ?? 90
-    : null;
+  const owner = providerCode(provider);
+  if (owner === "CLAUDE") return claudeMeterRank(providerCode(code)) ?? 90;
+  if (owner === "ANTIGRAVITY") return antigravityMeterRank(providerCode(code)) ?? 90;
+  return null;
 }
 
 /* Agents report the tool they run in; Claude's agent is Claude Code. */
