@@ -1248,7 +1248,7 @@
             "bullets": {
               "antigravity": "<code>antigravity</code> chega pela linha de status documentada do Antigravity CLI. Use <code>/usage</code> no Antigravity CLI para atualizar a cota.",
               "claude": "<code>claude</code> recebe dados da linha de status do Claude Code assim que ela aparece. Em uma nova instalação no desktop, uma solicitação direta de uso divulgada começa ativada. Instalações existentes sem uma escolha perguntam primeiro, e a configuração no terminal registra sua própria escolha.",
-              "live": "<code>codex</code>, <code>gemini_cli</code>, <code>antigravity</code>, <code>grok</code>, <code>kimi</code> e <code>openrouter</code> leem a sessão salva pela própria ferramenta, no máximo uma vez a cada quinze minutos, pela atualização do aplicativo ou por <code>openlimiter refresh</code> no terminal.",
+              "live": "<code>codex</code>, <code>gemini_cli</code>, <code>grok</code>, <code>kimi</code> e <code>openrouter</code> leem a sessão salva pela própria ferramenta, no máximo uma vez a cada quinze minutos, pela atualização do aplicativo ou por <code>openlimiter refresh</code> no terminal.",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
               "ingestOnly": "<code>opencode</code> is the one connector left with no reader of its own: it only accepts data through <code>openlimiter ingest --provider opencode</code>, because it reads an authenticated page rather than a login file."
             },

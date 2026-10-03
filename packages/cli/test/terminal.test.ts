@@ -3,8 +3,9 @@ import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { windowsSystemTool } from "@openlimiter/core";
+import { CACHE_FILE_NAME, resolveStateDirectory, windowsSystemTool } from "@openlimiter/core";
 import { tomlValue } from "../src/terminal-toml.js";
+import { fallbackLauncherCommand } from "../src/terminal-fallback.js";
 
 vi.mock("../src/terminal-launcher.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/terminal-launcher.js")>();
@@ -83,12 +84,12 @@ async function context(homeDirectory: string): Promise<TerminalHostContext> {
 }
 
 async function invokeInstalledCommand(
-  command: string,
+  entry: string,
   input: string,
   environment: NodeJS.ProcessEnv
 ): Promise<{ code: number | null; stdout: string; stderr: string }> {
   return await new Promise((resolve, reject) => {
-    const child = spawn(process.env["ComSpec"] ?? "cmd.exe", ["/d", "/s", "/c", command], {
+    const child = spawn(process.execPath, [entry, "statusline", "--host", "antigravity"], {
       env: environment,
       windowsHide: true,
       stdio: ["pipe", "pipe", "pipe"]
@@ -210,38 +211,52 @@ describe("terminal host installers", () => {
 
   it("executes the complete installed Antigravity command and persists status line rows", async (testContext) => {
     const home = await temporaryDirectory("openlimiter-terminal-");
-    const ctx = await context(home);
+    const stateDirectory = path.join(home, "state");
+    const ctx = { ...await context(home), platform: process.platform, stateDirectory };
     expect((await installHost("antigravity", ctx)).ok).toBe(true);
     const settingsFile = path.join(home, ".gemini", "antigravity-cli", "settings.json");
     const settings = JSON.parse(await readFile(settingsFile, "utf8")) as {
       statusLine: { command: string };
     };
+    const runtime = {
+      node: path.join(stateDirectory, "terminal-runtime", process.platform === "win32" ? "node.exe" : "node"),
+      entry: path.join(stateDirectory, "terminal-runtime", "openlimiter.cjs"),
+      version: "test"
+    };
+    const shell = process.platform === "win32" ? "cmd" : "posix";
+    const base = await fallbackLauncherCommand(runtime, shell, null);
+    expect(settings.statusLine.command).toBe(`${base} statusline --host antigravity`);
     const local = path.join(home, "local");
     const roaming = path.join(home, "roaming");
     const temp = path.join(home, "temp");
-    await mkdir(local, { recursive: true });
-    await mkdir(roaming, { recursive: true });
-    await mkdir(temp, { recursive: true });
+    const xdgState = path.join(home, "xdg-state");
+    const xdgConfig = path.join(home, "xdg-config");
+    const xdgCache = path.join(home, "xdg-cache");
+    const xdgData = path.join(home, "xdg-data");
+    const xdgRuntime = path.join(home, "xdg-runtime");
+    await Promise.all([local, roaming, temp, xdgState, xdgConfig, xdgCache, xdgData, xdgRuntime]
+      .map((directory) => mkdir(directory, { recursive: true })));
+    const environment = {
+      ...process.env,
+      HOME: home,
+      USERPROFILE: home,
+      LOCALAPPDATA: local,
+      APPDATA: roaming,
+      TMP: temp,
+      TEMP: temp,
+      TMPDIR: temp,
+      XDG_STATE_HOME: xdgState,
+      XDG_CONFIG_HOME: xdgConfig,
+      XDG_CACHE_HOME: xdgCache,
+      XDG_DATA_HOME: xdgData,
+      XDG_RUNTIME_DIR: xdgRuntime
+    };
     let invoked: Awaited<ReturnType<typeof invokeInstalledCommand>>;
     try {
       invoked = await invokeInstalledCommand(
-        settings.statusLine.command,
-        JSON.stringify({
-          email: "fixture@example.com",
-          quota: {
-            "gemini-5h": { remaining_fraction: 0.73, reset_in_seconds: 18_000 },
-            "gemini-weekly": { remaining_fraction: 0.76, reset_in_seconds: 604_800 }
-          }
-        }),
-        {
-          ...process.env,
-          HOME: home,
-          USERPROFILE: home,
-          LOCALAPPDATA: local,
-          APPDATA: roaming,
-          TMP: temp,
-          TEMP: temp
-        }
+        runtime.entry,
+        await readFile(path.resolve("packages/connectors/fixtures/antigravity.quota.json"), "utf8"),
+        environment
       );
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "EPERM") {
@@ -251,7 +266,8 @@ describe("terminal host installers", () => {
     }
     expect(invoked.code, invoked.stderr).toBe(0);
     expect(invoked.stdout).toContain("5h");
-    const cache = JSON.parse(await readFile(path.join(local, "openlimiter", "openlimiter-cache.json"), "utf8")) as {
+    const cacheDirectory = resolveStateDirectory({ platform: process.platform, environment, homeDirectory: home });
+    const cache = JSON.parse(await readFile(path.join(cacheDirectory, CACHE_FILE_NAME), "utf8")) as {
       snapshots: { provider: string; provenance?: { observedVia?: string } }[];
     };
     expect(cache.snapshots.map((row) => row.provider)).toEqual(["ANTIGRAVITY", "ANTIGRAVITY"]);

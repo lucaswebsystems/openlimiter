@@ -62,7 +62,7 @@
       "file": "claude.usage.json",
       "encoding": "json",
       "parser": "parseClaudePayload",
-      "evidence": "documented",
+      "evidence": "observed",
       "expectedMeters": 6,
       "expect": [
         {
@@ -135,7 +135,7 @@
       "file": "antigravity.quota.json",
       "encoding": "json",
       "parser": "parseAntigravityPayload",
-      "evidence": "observed",
+      "evidence": "documented",
       "expectedMeters": 2,
       "expect": [
         {
