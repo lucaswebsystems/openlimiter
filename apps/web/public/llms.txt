@@ -18,7 +18,7 @@ Claude Code, Grok Build and the Antigravity CLI each draw bars through their own
 
 ## Connect
 
-Each provider is read from the login its own tool already stored on disk, at most once every fifteen minutes. Codex can also sign in from inside OpenLimiter, into an account it manages, never touching your own Codex configuration. Claude reads what Claude Code reports through its own status line automatically, with an opt in poll of Anthropic's own usage endpoint, off by default, for when Claude Code is closed. Gemini CLI and Antigravity are read only, each with a plain disclosure sentence in its row, because their vendors' terms bar a third party from proxying that login. OpenRouter signs in with real OAuth, started from the hub; a key you already hold still works. API spend keys, separate from a subscription login, live in this device's operating system keyring by default, or, with opt in cloud metering, encrypted on the server, so the hub and the phone can show spend with no device running.
+Each provider is read from the login its own tool already stored on disk, at most once every fifteen minutes. Codex can also sign in from inside OpenLimiter, into an account it manages, never touching your own Codex configuration. Claude reads what Claude Code reports through its own status line automatically. On a new desktop install, a disclosed direct usage request with the local Claude credentials starts on. Existing desktop installs without a choice are asked first, and terminal setup records its own choice. Gemini CLI and Antigravity are read only, each with a plain disclosure sentence in its row, because their vendors' terms bar a third party from proxying that login. OpenRouter signs in with real OAuth, started from the hub; a key you already hold still works. API spend keys, separate from a subscription login, live in this device's operating system keyring by default, or, with opt in cloud metering, encrypted on the server, so the hub and the phone can show spend with no device running.
 
 OpenLimiter never asks for a vendor password: every sign in happens on that vendor's own page, in your own browser. It never impersonates a vendor tool: every request identifies itself as OpenLimiter, never as Claude Code, Codex, or any other client. It never uploads a token: an account syncs the bounded percentages and reset times these readings produce, never the credential that produced them.
 
@@ -57,7 +57,7 @@ Moonshot is read as a balance rather than as spend: three separate figures, avai
 
 Nine ship in 2.0.3. Every one is marked UNVERIFIED, which means no explicit verifier has confirmed its shape against a live account. `openlimiter refresh` reaches the network for the six connectors that read their own login; the rest are parsers over something already local.
 
-- `claude`: reads the Claude Code status line automatically, plus an opt in poll of Anthropic's usage endpoint. Native payload and documented API. Low automation risk.
+- `claude`: reads the Claude Code status line automatically, plus a direct usage request after a recorded choice. New desktop installs show the disclosure before recording on. Native payload and documented API. Low automation risk.
 - `openrouter`: real OAuth from the hub, then a documented key and usage report. Low automation risk.
 - `codex`: reads the login the Codex CLI stored, or signs in from inside OpenLimiter, through the documented local Codex app server.
 - `antigravity`: read only, from the credential the Antigravity CLI stored. Internal endpoint. May break without notice.

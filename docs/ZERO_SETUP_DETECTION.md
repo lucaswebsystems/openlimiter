@@ -102,9 +102,24 @@ sends telemetry.
 
 ## Claude collection policy
 
-The primary request uses the Claude Code bearer token, an honest OpenLimiter
-user agent, JSON acceptance and the fixed OAuth beta contract header. Redirects
-remain disabled and the transport can reach only compile time addresses.
+The documented Claude Code status line is automatic. The separate direct usage
+request uses the Claude Code bearer token, an honest OpenLimiter user agent,
+JSON acceptance and the fixed OAuth beta contract header. Redirects remain
+disabled and the transport can reach only compile time addresses.
+
+The desktop and command line processes have independent switches. Show Fable
+limit controls the desktop process. `providers.claude.poll` controls the command
+line process. Each can be turned off without changing the other. A new desktop
+install records on only after its disclosure is shown. An existing desktop
+install with no choice asks once. Terminal setup asks once, while unattended
+setup records off. Missing state never triggers a request, and invalid,
+unreadable, unsafe, oversized or unknown version state stays off.
+
+To stop desktop polling, open Settings and turn Show Fable limit off. To stop
+command line polling, run `openlimiter config set providers.claude.poll false`.
+
+This is a direct usage request with the local Claude credentials on the
+computer. Anthropic's policy for tools like this is unresolved.
 
 Successful responses must contain both `five_hour` and `seven_day`. Each must
 carry `utilization` from zero through one hundred and a plausible RFC 3339

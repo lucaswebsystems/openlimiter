@@ -127,6 +127,149 @@ const GEMINI_DISCLOSURE =
 
 const CLAUDE_POLL_LABEL = say("showClaudeFable");
 const CLAUDE_POLL_NOTE = say("showClaudeFableNote");
+const CLAUDE_POLL_SAVE_FAILED = say("claudePollSaveFailed");
+const CLAUDE_POLL_CONTINUE_OFF = say("claudePollContinueOff");
+
+/** Turn the backend's durable state into the one view this launch may show. */
+export function claudePollView(result, existingInstall) {
+  const value = result?.ok === true ? result.value : result;
+  const state = value?.state === "enabled" || value?.state === "disabled" ||
+    value?.state === "missing" || value?.state === "invalid"
+    ? value.state
+    : "invalid";
+  if (state === "missing") {
+    return existingInstall
+      ? { enabled: false, needsAcknowledgement: true, needsRecording: false }
+      : { enabled: true, needsAcknowledgement: false, needsRecording: true };
+  }
+  return {
+    enabled: state === "enabled" && value?.enabled === true,
+    needsAcknowledgement: false,
+    needsRecording: false,
+  };
+}
+
+/**
+ * Own the consent lifecycle shared by first run controls and completion.
+ *
+ * The backend is the only authority that can start the collector, because it
+ * changes its live value only after the setting is durable. This gate adds the
+ * ordering the screen owes that authority: a fresh default cannot be saved
+ * before its disclosure is on screen, pending switch writes finish before
+ * Continue, and an existing install with no answer accepts only one of its two
+ * acknowledgement controls.
+ */
+export function createClaudePollConsentGate({ load, save }) {
+  let loadPromise = null;
+  let loaded = false;
+  let begun = false;
+  let disclosureShown = false;
+  let acknowledgementStarted = false;
+  let persistenceFailed = false;
+  let desired = false;
+  let loadedStatus = { state: "invalid", enabled: false };
+  let current = {
+    enabled: false,
+    needsAcknowledgement: false,
+    needsRecording: false,
+  };
+  let writes = Promise.resolve();
+
+  const snapshot = () => ({ ...current });
+  const accepted = (result, requested) =>
+    result === true || (result?.ok === true && result.value === requested);
+
+  function loadStatus() {
+    if (loadPromise !== null) return loadPromise;
+    loadPromise = Promise.resolve()
+      .then(load)
+      .then((value) => {
+        const raw = value?.ok === true ? value.value : value;
+        loaded = true;
+        loadedStatus = raw?.state ? raw : { state: "invalid", enabled: false };
+        return loadedStatus;
+      })
+      .catch(() => {
+        loaded = true;
+        loadedStatus = { state: "invalid", enabled: false };
+        return loadedStatus;
+      });
+    return loadPromise;
+  }
+
+  async function queue(requested) {
+    desired = requested === true;
+    persistenceFailed = false;
+    const operation = writes.then(async () => {
+      const result = await Promise.resolve(save(requested === true)).catch(() => ({ ok: false }));
+      if (!accepted(result, requested === true)) {
+        persistenceFailed = true;
+        return { ok: false };
+      }
+      persistenceFailed = false;
+      current = {
+        enabled: requested === true,
+        needsAcknowledgement: false,
+        needsRecording: false,
+      };
+      return { ok: true, value: requested === true };
+    });
+    writes = operation.then(() => undefined, () => undefined);
+    return operation;
+  }
+
+  return {
+    load: loadStatus,
+    begin: (existingInstall) => {
+      if (!loaded || begun) return snapshot();
+      begun = true;
+      current = claudePollView(loadedStatus, existingInstall === true);
+      desired = current.enabled;
+      return snapshot();
+    },
+    snapshot,
+    disclose: () => {
+      if (!begun || current.needsAcknowledgement) return false;
+      disclosureShown = true;
+      return true;
+    },
+    set: (requested) => {
+      if (!begun || current.needsAcknowledgement) return Promise.resolve({ ok: false });
+      if (requested === true && current.needsRecording && !disclosureShown) {
+        return Promise.resolve({ ok: false });
+      }
+      return queue(requested === true);
+    },
+    acknowledge: async (requested) => {
+      if (!begun || !current.needsAcknowledgement || acknowledgementStarted) {
+        return { ok: false };
+      }
+      acknowledgementStarted = true;
+      const result = await queue(requested === true);
+      if (result.ok !== true) acknowledgementStarted = false;
+      return result;
+    },
+    continueWithoutClaude: () => {
+      if (!begun || !persistenceFailed) return false;
+      desired = false;
+      persistenceFailed = false;
+      acknowledgementStarted = false;
+      current = {
+        enabled: false,
+        needsAcknowledgement: false,
+        needsRecording: false,
+      };
+      return true;
+    },
+    beforeFinish: async () => {
+      await writes;
+      if (!begun || current.needsAcknowledgement) return false;
+      if (!current.needsRecording) return true;
+      if (!disclosureShown) return false;
+      return (await queue(desired)).ok === true;
+    },
+  };
+}
 
 /**
  * The rows of step two, in the order they are drawn.
@@ -641,6 +784,8 @@ export function firstRunCopyStrings() {
     "Open this page and enter the code.",
     CLAUDE_POLL_LABEL,
     CLAUDE_POLL_NOTE,
+    CLAUDE_POLL_SAVE_FAILED,
+    CLAUDE_POLL_CONTINUE_OFF,
     "Run this in your terminal.",
     "Open this in your browser.",
     "Add your OpenRouter key under API keys when you want this bar.",
@@ -828,7 +973,7 @@ function connectRow(
 
   /* The poll setting belongs to the Claude row and to no other, so it is
      drawn under it rather than in a settings list a person has not met yet. */
-  if (provider.code === "CLAUDE" && (detection?.state ?? "") === "present") {
+  if (provider.code === "CLAUDE") {
     row.append(claudePollRow(options, pollEnabled, onPollChanged));
   }
   return row;
@@ -966,23 +1111,20 @@ export function initFirstRun(input) {
   document.documentElement.dataset.firstRun = "pending";
 
   let microsoft = null;
-  let claudePollEnabled = false;
-  let claudePollPromise = null;
+  let hadCompletedFirstRun = false;
+  const claudePollGate = createClaudePollConsentGate({
+    load: async () => {
+      const value = typeof options.claudePollEnabled === "function"
+        ? await options.claudePollEnabled()
+        : options.claudePollEnabled;
+      return value;
+    },
+    save: (enabled) => options.setClaudePoll(enabled),
+  });
   const detections = createDetectionLoader(options.detectProviders);
 
   function loadClaudePollSetting() {
-    if (claudePollPromise !== null) return claudePollPromise;
-    claudePollPromise = Promise.resolve()
-      .then(async () => {
-        const value = typeof options.claudePollEnabled === "function"
-          ? await options.claudePollEnabled()
-          : options.claudePollEnabled;
-        claudePollEnabled = value?.ok === true ? value.value === true : value === true;
-      })
-      .catch(() => {
-        claudePollEnabled = false;
-      });
-    return claudePollPromise;
+    return claudePollGate.load();
   }
 
   /* Step one. Four ways in, and a plain way past all four.
@@ -1070,12 +1212,11 @@ export function initFirstRun(input) {
       finish();
       return;
     }
-    setup.hidden = false;
     markStep(screen, "connect");
     screen.dataset.step = "connect";
-    const heading = setup.querySelector("#first-run-title");
-    heading?.focus({ preventScroll: true });
     const [loaded] = await Promise.all([detections.load(), loadClaudePollSetting()]);
+    await claudePollGate.begin(hadCompletedFirstRun);
+    const pollOptions = { ...options, setClaudePoll: (enabled) => claudePollGate.set(enabled) };
     let codexQuota = null;
     const redraw = async (quota = codexQuota) => {
       const latest = await detections.load(true);
@@ -1085,12 +1226,10 @@ export function initFirstRun(input) {
         screen,
         latest.result,
         latest.signals,
-        options,
+        pollOptions,
         redraw,
-        claudePollEnabled,
-        (value) => {
-          claudePollEnabled = value === true;
-        },
+        claudePollGate.snapshot().enabled,
+        () => {},
         codexQuota,
       );
     };
@@ -1101,24 +1240,61 @@ export function initFirstRun(input) {
       screen,
       initial.result,
       initial.signals,
-      options,
+      pollOptions,
       redraw,
-      claudePollEnabled,
-      (value) => {
-        claudePollEnabled = value === true;
-      },
+      claudePollGate.snapshot().enabled,
+      () => {},
       codexQuota,
     );
+    setup.hidden = false;
+    claudePollGate.disclose();
+    const heading = setup.querySelector("#first-run-title");
+    heading?.focus({ preventScroll: true });
   }
 
   /* Step three. The bars, which are the window itself. */
-  function finish() {
+  async function recordClaudePollChoice() {
+    return claudePollGate.beforeFinish();
+  }
+
+  async function finish() {
+    if (!(await recordClaudePollChoice())) {
+      showClaudePollSaveFailure("#first-run-status", "#first-run-continue-without-claude");
+      return;
+    }
     /* The body goes back to the sheet before this screen is put away, so the
        account menu can raise it again later exactly as it was. */
     if (microsoft !== null) microsoft.remove();
     options.unmountSignIn();
     completeFirstRun(screen);
     options.onContinue();
+  }
+
+  function showClaudePollConsent() {
+    if (account !== null) account.hidden = true;
+    if (setup !== null) setup.hidden = true;
+    const consent = screen.querySelector("#claude-poll-consent");
+    if (consent === null) return;
+    consent.hidden = false;
+    screen.dataset.step = "claude";
+    screen.setAttribute("aria-labelledby", "claude-poll-consent-title");
+    const note = consent.querySelector("#claude-poll-consent-note");
+    if (note !== null) note.textContent = CLAUDE_POLL_NOTE;
+  }
+
+  function showClaudePollSaveFailure(statusSelector, continueSelector) {
+    const status = screen.querySelector(statusSelector);
+    const continueOff = screen.querySelector(continueSelector);
+    if (status !== null) status.textContent = CLAUDE_POLL_SAVE_FAILED;
+    if (continueOff !== null) {
+      continueOff.textContent = CLAUDE_POLL_CONTINUE_OFF;
+      continueOff.hidden = false;
+    }
+  }
+
+  async function continueWithoutClaude() {
+    if (!claudePollGate.continueWithoutClaude()) return;
+    await finish();
   }
 
   const notice = launchNotice(options.platform ?? browserPlatform());
@@ -1140,8 +1316,40 @@ export function initFirstRun(input) {
   screen.querySelector("#first-run-later")?.addEventListener("click", () => {
     void showConnect();
   });
-  screen.querySelector("#first-run-skip")?.addEventListener("click", finish);
-  screen.querySelector("#first-run-continue")?.addEventListener("click", finish);
+  screen.querySelector("#first-run-skip")?.addEventListener("click", () => { void finish(); });
+  screen.querySelector("#first-run-continue")?.addEventListener("click", () => { void finish(); });
+  screen.querySelector("#claude-poll-consent-enable")?.addEventListener("click", () => {
+    void (async () => {
+      const result = await claudePollGate.acknowledge(true);
+      if (!(result === true || (result?.ok === true && result.value === true))) {
+        showClaudePollSaveFailure(
+          "#claude-poll-consent-status",
+          "#claude-poll-consent-continue-off",
+        );
+        return;
+      }
+      await finish();
+    })();
+  });
+  screen.querySelector("#claude-poll-consent-decline")?.addEventListener("click", () => {
+    void (async () => {
+      const result = await claudePollGate.acknowledge(false);
+      if (!(result === true || (result?.ok === true && result.value === false))) {
+        showClaudePollSaveFailure(
+          "#claude-poll-consent-status",
+          "#claude-poll-consent-continue-off",
+        );
+        return;
+      }
+      await finish();
+    })();
+  });
+  screen.querySelector("#first-run-continue-without-claude")?.addEventListener("click", () => {
+    void continueWithoutClaude();
+  });
+  screen.querySelector("#claude-poll-consent-continue-off")?.addEventListener("click", () => {
+    void continueWithoutClaude();
+  });
 
   /* The window owns the sign in body, so it tells this screen when a session
      arrived rather than this screen owning a second copy of the form. The
@@ -1157,10 +1365,15 @@ export function initFirstRun(input) {
   void (async () => {
     const result = await options.accountStatus();
     if (result.ok) options.onAccountState(result.value);
-    if (
-      window.localStorage.getItem(FIRST_RUN_STORAGE_KEY) === "complete" &&
-      readConfiguredProviders().length > 0
-    ) {
+    hadCompletedFirstRun = window.localStorage.getItem(FIRST_RUN_STORAGE_KEY) === "complete";
+    const completed = hadCompletedFirstRun && readConfiguredProviders().length > 0;
+    await loadClaudePollSetting();
+    const poll = await claudePollGate.begin(hadCompletedFirstRun);
+    if (hadCompletedFirstRun && poll.needsAcknowledgement) {
+      showClaudePollConsent();
+      return;
+    }
+    if (completed) {
       completeFirstRun(screen);
       return;
     }

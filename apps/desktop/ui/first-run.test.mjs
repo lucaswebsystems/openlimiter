@@ -10,10 +10,13 @@ import {
   INSTALL_LINES,
   SIGN_IN_WAYS,
   claudeLine,
+  createClaudePollConsentGate,
+  claudePollView,
   claudeSignals,
   createDetectionLoader,
   codexSentence,
   firstRunCopyStrings,
+  initFirstRun,
   launchNotice,
   markStep,
   normalizeDetections,
@@ -23,6 +26,7 @@ import {
   runCodexSignIn,
   signInWay,
 } from "./first-run.js";
+import { FakeElement, fakeDocument } from "./test-dom.mjs";
 
 const read = (name) => readFileSync(new URL("./" + name, import.meta.url), "utf8");
 const firstRunSection = () => {
@@ -32,6 +36,103 @@ const firstRunSection = () => {
 };
 const providerSpec = (code) =>
   CONNECT_PROVIDERS.find((provider) => provider.code === code);
+
+const nextTurn = () => new Promise((resolve) => setImmediate(resolve));
+
+async function waitFor(check, message) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    if (check()) return;
+    await nextTurn();
+  }
+  assert.fail(message);
+}
+
+function firstRunDom(existingInstall = false) {
+  const doc = fakeDocument();
+  const make = doc.createElement;
+  const decorate = (node) => {
+    node.classList = {
+      add: (...names) => {
+        const classes = new Set(node.className.split(/\s+/u).filter(Boolean));
+        for (const name of names) classes.add(name);
+        node.className = [...classes].join(" ");
+      },
+    };
+    const matches = (candidate, selector) => {
+      if (selector.startsWith("#")) return candidate.id === selector.slice(1);
+      if (selector.startsWith(".")) return candidate.className.split(/\s+/u).includes(selector.slice(1));
+      return candidate.localName === selector.toLowerCase();
+    };
+    node.querySelector = (selector) => node.all((candidate) => matches(candidate, selector))[0] ?? null;
+    node.querySelectorAll = (selector) => node.all((candidate) => matches(candidate, selector));
+    return node;
+  };
+  doc.createElement = (tag) => decorate(make(tag));
+  doc.documentElement = doc.createElement("html");
+
+  const register = (id, tag = "div") => {
+    const node = doc.createElement(tag);
+    node.id = id;
+    node.setAttribute("id", id);
+    doc.byId[id] = node;
+    return node;
+  };
+  const screen = register("first-run", "section");
+  const account = register("first-run-account");
+  const setup = register("first-run-setup");
+  const heading = register("first-run-title", "h1");
+  const providers = register("first-run-providers");
+  const status = register("first-run-status", "p");
+  const showBars = register("first-run-continue", "button");
+  const skip = register("first-run-skip", "button");
+  const continueOff = register("first-run-continue-without-claude", "button");
+  setup.hidden = true;
+  continueOff.hidden = true;
+  setup.append(heading, providers, status, showBars, skip, continueOff);
+
+  const consent = register("claude-poll-consent");
+  const consentTitle = register("claude-poll-consent-title", "h1");
+  const consentNote = register("claude-poll-consent-note", "p");
+  const consentEnable = register("claude-poll-consent-enable", "button");
+  const consentDecline = register("claude-poll-consent-decline", "button");
+  const consentStatus = register("claude-poll-consent-status", "p");
+  const consentContinueOff = register("claude-poll-consent-continue-off", "button");
+  consent.hidden = true;
+  consentContinueOff.hidden = true;
+  consent.append(
+    consentTitle,
+    consentNote,
+    consentEnable,
+    consentDecline,
+    consentStatus,
+    consentContinueOff,
+  );
+  screen.append(account, setup, consent);
+
+  const values = new Map();
+  if (existingInstall) {
+    values.set("openlimiter-first-run-complete-v1", "complete");
+    values.set("openlimiter-configured-providers-v1", JSON.stringify(["CODEX"]));
+  }
+  const listeners = {};
+  const win = {
+    localStorage: {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => values.set(key, String(value)),
+    },
+    addEventListener(name, listener) { (listeners[name] ??= []).push(listener); },
+    dispatchEvent(event) {
+      for (const listener of listeners[event.type] ?? []) listener(event);
+    },
+  };
+  return { doc, screen, setup, status, consent, consentStatus, values, win };
+}
+
+function installFirstRunGlobals(harness) {
+  globalThis.document = harness.doc;
+  globalThis.window = harness.win;
+  globalThis.HTMLElement = FakeElement;
+}
 
 /* Every dash a keyboard and a word processor can produce, because the rule is
    about what a person reads and not about which key made it. */
@@ -348,7 +449,7 @@ test("the Gemini sentence is the promised one, on both rows that share it", () =
   assert.equal(providerSpec("ANTIGRAVITY").line, sentence);
 });
 
-test("Claude is read, never signed into, and its poll is off by default", () => {
+test("Claude is read, never signed into, and a new install discloses its on default", () => {
   assert.equal(providerSpec("CLAUDE").neverSignIn, true);
 
   /* The three shapes the detection already reports, each with its own line. */
@@ -371,6 +472,230 @@ test("Claude is read, never signed into, and its poll is off by default", () => 
 
   assert.equal(persistedToggleValue(true, false, { ok: false }), true);
   assert.equal(persistedToggleValue(true, false, { ok: true, value: false }), false);
+  assert.deepEqual(claudePollView({ state: "missing", enabled: false }, false), {
+    enabled: true,
+    needsAcknowledgement: false,
+    needsRecording: true,
+  });
+  assert.deepEqual(claudePollView({ state: "missing", enabled: false }, true), {
+    enabled: false,
+    needsAcknowledgement: true,
+    needsRecording: false,
+  });
+  assert.deepEqual(claudePollView({ state: "invalid", enabled: false }, true), {
+    enabled: false,
+    needsAcknowledgement: false,
+    needsRecording: false,
+  });
+});
+
+test("fresh setup waits for detection and offers a safe exit when saving from either finish control fails", async (t) => {
+  for (const controlId of ["first-run-continue", "first-run-skip"]) {
+    await t.test(controlId, async () => {
+      const harness = firstRunDom(false);
+      installFirstRunGlobals(harness);
+      let releaseDetection;
+      const detection = new Promise((resolve) => { releaseDetection = resolve; });
+      let releaseSave;
+      const saving = new Promise((resolve) => { releaseSave = resolve; });
+      const writes = [];
+      let detections = 0;
+      let completions = 0;
+
+      initFirstRun({
+        accountStatus: async () => ({ ok: true, value: null }),
+        isSignedIn: () => true,
+        claudePollEnabled: async () => ({ state: "missing", enabled: false }),
+        detectProviders: async () => {
+          detections += 1;
+          return detection;
+        },
+        setClaudePoll: async (enabled) => {
+          writes.push(enabled);
+          return saving;
+        },
+        onContinue: () => { completions += 1; },
+        platform: "Linux",
+      });
+
+      await waitFor(() => detections === 1, "provider detection did not start");
+      assert.equal(harness.setup.hidden, true, "Connect appeared before detection finished");
+      releaseDetection({ ok: true, value: { providers: [] } });
+      await waitFor(() => harness.setup.hidden === false, "Connect did not appear after detection");
+      const poll = harness.screen.querySelector("#first-run-claude-poll");
+      assert.equal(poll?.checked, true, "the disclosed fresh default was not on");
+
+      await harness.doc.byId[controlId].fire("click");
+      await waitFor(() => writes.length === 1, "the disclosed choice was not sent for persistence");
+      assert.equal(completions, 0, "onboarding completed while persistence was pending");
+      releaseSave({ ok: false });
+      await waitFor(
+        () => harness.doc.byId["first-run-continue-without-claude"].hidden === false,
+        "the safe exit did not appear after persistence failed",
+      );
+      assert.equal(harness.status.textContent, "The choice could not be saved, so Claude usage stays off.");
+      assert.equal(completions, 0);
+
+      await harness.doc.byId["first-run-continue-without-claude"].fire("click");
+      await waitFor(() => completions === 1, "the explicit safe exit did not complete onboarding");
+      assert.deepEqual(writes, [true], "the safe exit made another durable consent write");
+      assert.equal(harness.screen.hidden, true);
+    });
+  }
+});
+
+test("existing install acknowledgement offers the same safe exit after either choice fails", async (t) => {
+  for (const [controlId, requested] of [
+    ["claude-poll-consent-enable", true],
+    ["claude-poll-consent-decline", false],
+  ]) {
+    await t.test(controlId, async () => {
+      const harness = firstRunDom(true);
+      installFirstRunGlobals(harness);
+      let releaseSave;
+      const saving = new Promise((resolve) => { releaseSave = resolve; });
+      const writes = [];
+      let detections = 0;
+      let completions = 0;
+
+      initFirstRun({
+        accountStatus: async () => ({ ok: true, value: null }),
+        claudePollEnabled: async () => ({ state: "missing", enabled: false }),
+        detectProviders: async () => {
+          detections += 1;
+          return new Promise(() => {});
+        },
+        setClaudePoll: async (enabled) => {
+          writes.push(enabled);
+          return saving;
+        },
+        onContinue: () => { completions += 1; },
+        platform: "Linux",
+      });
+
+      await waitFor(() => harness.consent.hidden === false, "the acknowledgement did not appear");
+      assert.equal(detections, 0, "acknowledgement waited for provider detection");
+      await harness.doc.byId[controlId].fire("click");
+      await waitFor(() => writes.length === 1, "the acknowledgement choice was not sent");
+      assert.equal(completions, 0, "onboarding completed while persistence was pending");
+      releaseSave({ ok: false });
+      await waitFor(
+        () => harness.doc.byId["claude-poll-consent-continue-off"].hidden === false,
+        "the acknowledgement safe exit did not appear",
+      );
+      assert.deepEqual(writes, [requested]);
+      assert.equal(
+        harness.consentStatus.textContent,
+        "The choice could not be saved, so Claude usage stays off.",
+      );
+
+      await harness.doc.byId["claude-poll-consent-continue-off"].fire("click");
+      await waitFor(() => completions === 1, "the acknowledgement safe exit did not finish");
+      assert.deepEqual(writes, [requested], "the safe exit recorded durable consent");
+      assert.equal(harness.screen.hidden, true);
+    });
+  }
+});
+
+test("a fresh first run cannot poll until its disclosure is shown and recorded", async () => {
+  let releaseSetting;
+  const setting = new Promise((resolve) => { releaseSetting = resolve; });
+  const writes = [];
+  let polls = 0;
+  const gate = createClaudePollConsentGate({
+    load: () => setting,
+    save: async (enabled) => {
+      writes.push(enabled);
+      if (enabled) polls += 1;
+      return { ok: true, value: enabled };
+    },
+  });
+
+  const loading = gate.load();
+  assert.equal(await gate.beforeFinish(), false, "Continue completed while the setting was loading");
+  assert.deepEqual(writes, []);
+  assert.equal(polls, 0);
+
+  releaseSetting({ state: "missing", enabled: false });
+  await loading;
+  assert.deepEqual(gate.begin(false), {
+    enabled: true,
+    needsAcknowledgement: false,
+    needsRecording: true,
+  });
+  assert.equal(await gate.beforeFinish(), false, "Continue completed before disclosure");
+  assert.deepEqual(await gate.set(true), { ok: false });
+  assert.deepEqual(writes, []);
+  assert.equal(polls, 0);
+
+  assert.equal(gate.disclose(), true);
+  assert.equal(await gate.beforeFinish(), true);
+  assert.deepEqual(writes, [true]);
+  assert.equal(polls, 1, "the simulated collector ran before durable consent");
+});
+
+test("Continue waits for an explicit off save and never follows it with on", async () => {
+  let releaseOff;
+  const offSaved = new Promise((resolve) => { releaseOff = resolve; });
+  const writes = [];
+  const gate = createClaudePollConsentGate({
+    load: async () => ({ state: "missing", enabled: false }),
+    save: async (enabled) => {
+      writes.push(enabled);
+      if (!enabled && writes.length === 1) return offSaved;
+      return { ok: true, value: enabled };
+    },
+  });
+  await gate.load();
+  gate.begin(false);
+  gate.disclose();
+
+  const turnOff = gate.set(false);
+  const finish = gate.beforeFinish();
+  await Promise.resolve();
+  assert.deepEqual(writes, [false]);
+  releaseOff({ ok: true, value: false });
+  assert.deepEqual(await Promise.all([turnOff, finish]), [
+    { ok: true, value: false },
+    true,
+  ]);
+  assert.deepEqual(writes, [false]);
+  assert.equal(gate.snapshot().enabled, false);
+});
+
+test("an existing install can record on only through its acknowledgement", async () => {
+  const writes = [];
+  const gate = createClaudePollConsentGate({
+    load: async () => ({ state: "missing", enabled: false }),
+    save: async (enabled) => {
+      writes.push(enabled);
+      return { ok: true, value: enabled };
+    },
+  });
+  await gate.load();
+  assert.equal(gate.begin(true).needsAcknowledgement, true);
+  assert.deepEqual(await gate.set(true), { ok: false });
+  assert.equal(await gate.beforeFinish(), false);
+  assert.deepEqual(writes, []);
+  assert.deepEqual(await gate.acknowledge(false), { ok: true, value: false });
+  assert.equal(await gate.beforeFinish(), true);
+  assert.deepEqual(writes, [false]);
+
+  const restarted = createClaudePollConsentGate({
+    load: async () => ({ state: "disabled", enabled: false }),
+    save: async (enabled) => {
+      writes.push(enabled);
+      return { ok: true, value: enabled };
+    },
+  });
+  await restarted.load();
+  assert.deepEqual(restarted.begin(true), {
+    enabled: false,
+    needsAcknowledgement: false,
+    needsRecording: false,
+  });
+  assert.equal(await restarted.beforeFinish(), true);
+  assert.deepEqual(writes, [false]);
 });
 
 test("entering Connect moves focus and announces the completed scan", () => {

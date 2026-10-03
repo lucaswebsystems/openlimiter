@@ -270,6 +270,55 @@ describe("openlimiter setup, the three step first run", () => {
     expect(bare.stdout).toContain("3. Show bars in");
   });
 
+  it("asks once before enabling Claude in an interactive terminal", async () => {
+    const stateDirectory = await temporaryDirectory("openlimiter-hub-");
+    const homeDirectory = await temporaryDirectory("openlimiter-hub-home-");
+    let questions = 0;
+    await runCli(["setup"], {
+      stateDirectory,
+      homeDirectory,
+      environment: noAgentsInstalled(),
+      platform: "linux",
+      now: () => NOW,
+      interactive: true,
+      promptChoice: async (question) => {
+        if (question.includes("Show Fable limit")) questions += 1;
+        return question.includes("Show Fable limit") ? "" : "s";
+      }
+    });
+    expect(questions).toBe(1);
+    expect((await runCli(["config", "get", "providers.claude.poll"], { stateDirectory })).stdout)
+      .toBe("providers.claude.poll=true");
+    await runCli(["setup"], {
+      stateDirectory,
+      homeDirectory,
+      environment: noAgentsInstalled(),
+      platform: "linux",
+      now: () => NOW,
+      interactive: true,
+      promptChoice: async (question) => {
+        if (question.includes("Show Fable limit")) questions += 1;
+        return "s";
+      }
+    });
+    expect(questions).toBe(1);
+  });
+
+  it("records Claude polling off when setup is unattended", async () => {
+    const stateDirectory = await temporaryDirectory("openlimiter-hub-");
+    await runCli(["setup"], {
+      stateDirectory,
+      homeDirectory: await temporaryDirectory("openlimiter-hub-home-"),
+      environment: noAgentsInstalled(),
+      platform: "linux",
+      now: () => NOW,
+      interactive: false,
+      promptChoice: async () => { throw new Error("unattended setup must not prompt"); }
+    });
+    expect((await runCli(["config", "get", "providers.claude.poll"], { stateDirectory })).stdout)
+      .toBe("providers.claude.poll=false");
+  });
+
   it("skips signing in when the hub is switched off, and still shows the checklist", async () => {
     const stateDirectory = await temporaryDirectory("openlimiter-hub-");
     const homeDirectory = await temporaryDirectory("openlimiter-hub-home-");

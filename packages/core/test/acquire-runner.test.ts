@@ -644,7 +644,8 @@ describe("one acquisition round", () => {
     expect(ACQUISITION_DISCLOSURE.antigravity).toContain(
       "reads the credential the Antigravity CLI stored"
     );
-    expect(ACQUISITION_DISCLOSURE.claude).toContain("off unless you turn it on");
+    expect(ACQUISITION_DISCLOSURE.claude).toContain("recorded choice");
+    expect(ACQUISITION_DISCLOSURE.claude).not.toContain("off unless you turn it on");
   });
 
   it("records five separately thrown credential reads at their own instants, phase and class", async () => {

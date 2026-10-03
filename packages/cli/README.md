@@ -65,7 +65,7 @@ openlimiter status --agent-context
 
 | Provider | Connects by | Reads |
 |---|---|---|
-| Claude | Nothing to do | The Claude Code status line automatically; an opt in poll of Anthropic's usage endpoint (`providers.claude.poll`) covers the gap when Claude Code is closed |
+| Claude | Setup asks once in a terminal | The Claude Code status line automatically; the recorded `providers.claude.poll` choice controls direct usage requests when Claude Code is closed |
 | Codex | Use the login already there, or sign in from inside OpenLimiter | The login the Codex CLI stored |
 | Gemini CLI | Read only, from the login already there | The login the Gemini CLI stored |
 | Antigravity | Read only, from the credential already there | The credential the Antigravity CLI stored |
@@ -76,5 +76,7 @@ openlimiter status --agent-context
 | Manual | You write the numbers | `manual.json` in the OpenLimiter state directory, or `openlimiter ingest --provider manual` |
 
 `openlimiter refresh` is what reaches the network, at most once every fifteen minutes per provider: it reads the logins your provider tools already stored and asks each provider for its own usage. It stands down while the desktop app is running, and `statusline`, `snapshot` and `setup` all start it in the background on their own. OpenLimiter never asks for a vendor password, never impersonates a vendor tool, and never uploads a token.
+
+Claude has two independent switches. Show Fable limit in the desktop app controls the desktop process. To stop it, open Settings, then Show Fable limit, then turn it off. `providers.claude.poll` controls the command line process. To stop it, run `openlimiter config set providers.claude.poll false`. Terminal setup asks once, and unattended setup records off. The request goes directly to the usage endpoint with your local Claude credentials. Anthropic's policy for tools like this is unresolved.
 
 Read the [documentation](https://openlimiter.com/docs) or browse the [repository](https://github.com/lucaswebsystems/openlimiter).

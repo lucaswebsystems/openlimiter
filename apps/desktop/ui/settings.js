@@ -422,7 +422,7 @@ export async function renderSettings(mount) {
     alertsMarkup(settings) +
     '<div class="menu-line"><label for="agent-alerts">' + MENU_EN.agentAlerts + "</label>" +
     switchMarkup("agent-alerts", state.agentAlerts?.local?.enabled === true, state.agentAlerts === null) + "</div>" +
-    claudePollMarkup(pollResult.ok ? pollResult.value === true : null) +
+    claudePollMarkup(pollResult.ok && typeof pollResult.value?.enabled === "boolean" ? pollResult.value.enabled : null) +
     railSettingsMarkup() +
     '<div class="menu-presets"><span>' + MENU_EN.preset + '</span><span class="preset-grid">' + presetMarkup(entitled, chosen) + "</span></div>" +
     '<div class="menu-switches" role="group" aria-labelledby="menu-tools-title"><strong id="menu-tools-title">' + MENU_EN.tools + "</strong></div>";

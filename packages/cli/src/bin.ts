@@ -91,6 +91,7 @@ if (wrapperRequested && wrapped === null) {
     ...runtime,
     promptForSecret,
     promptChoice,
+    interactive: process.stdin.isTTY === true && process.stdout.isTTY === true,
     ...(controller === null ? {} : { interruptSignal: controller.signal }),
     readStandardInput: async (signal) => argumentsList[0] === "event"
       ? (await import("./activity/event.js")).readEventInput(signal)

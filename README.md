@@ -34,7 +34,9 @@ Claude Code, Grok Build and the Antigravity CLI draw bars through their own stat
 
 ## Connect
 
-Every provider is read from the login its own tool already stored on disk. Codex can also sign in from inside OpenLimiter. Claude reads what Claude Code reports, with an opt in poll of Anthropic's own endpoint for when Claude Code is closed. Gemini CLI and Antigravity are read only, with a plain disclosure sentence in the row. OpenRouter signs in with real OAuth from the hub. API spend keys live in this device's keyring, or, with opt in cloud metering, encrypted on the server.
+Every provider is read from the login its own tool already stored on disk. Codex can also sign in from inside OpenLimiter. Claude reads what Claude Code reports. On a new desktop install, Claude usage is on after it is disclosed and recorded before the first request. An existing desktop install is asked once before any request. The terminal asks once when attended, or stays off when unattended. The desktop Show Fable limit switch controls requests from the desktop process. Stop it in Settings by turning Show Fable limit off. The separate `providers.claude.poll` setting controls the command line process. Stop it with `openlimiter config set providers.claude.poll false`. Either can be turned off without changing the other. Gemini CLI and Antigravity are read only, with a plain disclosure sentence in the row. OpenRouter signs in with real OAuth from the hub. API spend keys live in this device's keyring, or, with opt in cloud metering, encrypted on the server.
+
+Claude usage requests go directly to the usage endpoint with the local Claude credentials on this computer. Anthropic's policy for tools like this is unresolved.
 
 OpenLimiter never asks for a vendor password, never impersonates a vendor tool, and never uploads a token. Every request identifies itself as OpenLimiter.
 

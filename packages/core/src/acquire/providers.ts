@@ -37,8 +37,8 @@ export type PayloadParser = (
  */
 export const ACQUISITION_DISCLOSURE = {
   claude:
-    "polls Anthropic with the token Claude Code stored on this machine, off " +
-    "unless you turn it on",
+    "polls Anthropic with the token Claude Code stored on this machine after " +
+    "a recorded choice",
   codex: "reads the login the Codex CLI stored, may break when OpenAI changes it",
   gemini:
     "reads the login the Gemini CLI stored, may break when Google changes it",
@@ -161,10 +161,9 @@ export interface ClaudeSpecOptions {
   /**
    * Whether the poll is on.
    *
-   * Off by default and off in every code path that does not read a
-   * configuration file. The documented status line payload is Claude's primary
-   * source; this poll only exists for the hours Claude Code is closed, and a
-   * person opts into it knowing what it does.
+   * Off in every code path that does not read a recorded choice. The documented
+   * status line payload is Claude's primary source; this poll only exists for
+   * the hours Claude Code is closed.
    */
   readonly enabled: boolean;
 }

@@ -10,11 +10,12 @@
 //! Code stored. Every quota monitor makes it, it identifies as OpenLimiter
 //! rather than copying Claude Code's user agent, and it exists only for the
 //! hours Claude Code is closed. It is also the one read in this product whose
-//! standing is genuinely unsettled, so it does not happen unless somebody
-//! turns it on, having read a sentence that says plainly what it does.
+//! standing is genuinely unsettled, so it does not happen before the product
+//! has shown and durably recorded the person's choice.
 //!
-//! Off is the default and off is what an unreadable or absent setting means.
-//! A switch whose failure mode is "on" is not a switch.
+//! A missing document means no choice has been recorded yet. Every other read
+//! failure means invalid and stays off. A switch whose failure mode is "on" is
+//! not a switch.
 
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -27,17 +28,33 @@ const SETTING_FILE_NAME: &str = "claude-poll.json";
 
 const DOCUMENT_VERSION: u32 = 1;
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 struct PollDocument {
     version: u32,
     enabled: bool,
 }
 
+#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PollStatus {
+    Missing,
+    Enabled,
+    Disabled,
+    Invalid,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PollStatusView {
+    state: PollStatus,
+    enabled: bool,
+}
+
 /// The switch, read once and kept.
 pub struct ClaudePollSetting {
     file: Option<PathBuf>,
-    enabled: Mutex<bool>,
+    status: Mutex<PollStatus>,
 }
 
 impl Default for ClaudePollSetting {
@@ -49,16 +66,24 @@ impl Default for ClaudePollSetting {
 impl ClaudePollSetting {
     pub fn at(directory: Option<PathBuf>) -> Self {
         let file = directory.map(|value| value.join(SETTING_FILE_NAME));
-        let enabled = file
-            .as_ref()
-            .and_then(|path| crate::fsx::bounded_read(path))
-            .and_then(|text| serde_json::from_str::<PollDocument>(&text).ok())
-            .filter(|document| document.version == DOCUMENT_VERSION)
-            .is_some_and(|document| document.enabled);
-        Self {
-            file,
-            enabled: Mutex::new(enabled),
-        }
+        let status = match file.as_ref() {
+            None => PollStatus::Invalid,
+            Some(path) => match crate::fsx::bounded_read_result(
+                path,
+                crate::fsx::MAX_STATE_FILE_BYTES,
+            ) {
+                Err(crate::fsx::ReadFailure::Missing) => PollStatus::Missing,
+                Err(_) => PollStatus::Invalid,
+                Ok(text) => match serde_json::from_str::<PollDocument>(&text) {
+                    Ok(document) if document.version == DOCUMENT_VERSION && document.enabled => {
+                        PollStatus::Enabled
+                    }
+                    Ok(document) if document.version == DOCUMENT_VERSION => PollStatus::Disabled,
+                    _ => PollStatus::Invalid,
+                },
+            },
+        };
+        Self { file, status: Mutex::new(status) }
     }
 
     /// Whether the poll may run at all.
@@ -67,7 +92,22 @@ impl ClaudePollSetting {
     /// unreadable file does: the safe answer to "may I make this request" is
     /// no.
     pub fn enabled(&self) -> bool {
-        self.enabled.lock().map(|value| *value).unwrap_or(false)
+        self.status
+            .lock()
+            .map(|value| *value == PollStatus::Enabled)
+            .unwrap_or(false)
+    }
+
+    pub fn status(&self) -> PollStatus {
+        self.status.lock().map(|value| *value).unwrap_or(PollStatus::Invalid)
+    }
+
+    fn view(&self) -> PollStatusView {
+        let state = self.status();
+        PollStatusView {
+            state,
+            enabled: state == PollStatus::Enabled,
+        }
     }
 
     /// Set it, and remember it past this run.
@@ -80,7 +120,7 @@ impl ClaudePollSetting {
     /// idea it had ever happened. A switch that turns on when its own storage
     /// failed is a switch nobody consented to.
     pub fn set(&self, enabled: bool) -> Result<bool, String> {
-        let mut held = self.enabled.lock().map_err(|_| storage_error())?;
+        let mut held = self.status.lock().map_err(|_| storage_error())?;
         let path = self.file.as_ref().ok_or_else(storage_error)?;
         let parent = path.parent().ok_or_else(storage_error)?;
         crate::fsx::ensure_private_dir(parent).map_err(|_| storage_error())?;
@@ -90,8 +130,8 @@ impl ClaudePollSetting {
         })
         .map_err(|_| storage_error())?;
         crate::fsx::atomic_write(path, &encoded).map_err(|_| storage_error())?;
-        let newly_enabled = enabled && !*held;
-        *held = enabled;
+        let newly_enabled = enabled && *held != PollStatus::Enabled;
+        *held = if enabled { PollStatus::Enabled } else { PollStatus::Disabled };
         Ok(newly_enabled)
     }
 
@@ -109,8 +149,8 @@ fn storage_error() -> String {
 
 /// Read the switch.
 #[tauri::command]
-pub fn claude_poll_enabled(setting: tauri::State<'_, ClaudePollSetting>) -> bool {
-    setting.enabled()
+pub fn claude_poll_enabled(setting: tauri::State<'_, ClaudePollSetting>) -> PollStatusView {
+    setting.view()
 }
 
 /// Set the switch.
@@ -158,10 +198,11 @@ mod tests {
     }
 
     #[test]
-    fn a_fresh_machine_does_not_poll_anthropic() {
+    fn a_fresh_machine_waits_for_disclosure_before_polling_anthropic() {
         let dir = TempDir::new();
         let setting = ClaudePollSetting::at(Some(dir.path().to_path_buf()));
         assert!(!setting.enabled());
+        assert_eq!(setting.status(), PollStatus::Missing);
     }
 
     #[test]
@@ -172,15 +213,17 @@ mod tests {
         assert!(setting.enabled());
         let reopened = ClaudePollSetting::at(Some(dir.path().to_path_buf()));
         assert!(reopened.enabled());
+        assert_eq!(reopened.status(), PollStatus::Enabled);
 
         reopened.set(false).expect("a writable state directory");
         let again = ClaudePollSetting::at(Some(dir.path().to_path_buf()));
         assert!(!again.enabled());
+        assert_eq!(again.status(), PollStatus::Disabled);
     }
 
     /// A switch whose failure mode is "on" is not a switch.
     #[test]
-    fn an_unreadable_or_foreign_document_reads_as_off() {
+    fn every_invalid_document_reads_as_invalid_and_off() {
         let dir = TempDir::new();
         let path = dir.path().join(SETTING_FILE_NAME);
         for written in [
@@ -188,14 +231,43 @@ mod tests {
             "{}",
             "{\"version\":99,\"enabled\":true}",
             "{\"enabled\":true}",
+            "{\"version\":1,\"enabled\":\"true\"}",
         ] {
             std::fs::write(&path, written).expect("fixture");
             let setting = ClaudePollSetting::at(Some(dir.path().to_path_buf()));
             assert!(!setting.enabled(), "{written} switched the poll on");
+            assert_eq!(setting.status(), PollStatus::Invalid);
         }
         /* And the one document that does mean on. */
         std::fs::write(&path, "{\"version\":1,\"enabled\":true}").expect("fixture");
         assert!(ClaudePollSetting::at(Some(dir.path().to_path_buf())).enabled());
+    }
+
+    #[test]
+    fn unsafe_and_oversized_documents_stay_invalid_and_off() {
+        let dir = TempDir::new();
+        let path = dir.path().join(SETTING_FILE_NAME);
+        std::fs::create_dir_all(&path).expect("directory fixture");
+        let unsafe_setting = ClaudePollSetting::at(Some(dir.path().to_path_buf()));
+        assert_eq!(unsafe_setting.status(), PollStatus::Invalid);
+        assert!(!unsafe_setting.enabled());
+        std::fs::remove_dir(&path).expect("remove fixture");
+        std::fs::write(&path, "x".repeat(crate::fsx::MAX_STATE_FILE_BYTES as usize + 1))
+            .expect("oversized fixture");
+        let oversized = ClaudePollSetting::at(Some(dir.path().to_path_buf()));
+        assert_eq!(oversized.status(), PollStatus::Invalid);
+        assert!(!oversized.enabled());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_dangling_setting_symlink_is_invalid_and_off() {
+        let dir = TempDir::new();
+        let path = dir.path().join(SETTING_FILE_NAME);
+        std::os::unix::fs::symlink(dir.path().join("missing.json"), &path).expect("symlink");
+        let setting = ClaudePollSetting::at(Some(dir.path().to_path_buf()));
+        assert_eq!(setting.status(), PollStatus::Invalid);
+        assert!(!setting.enabled());
     }
 
     /// A switch that cannot be saved is a switch that did not move.

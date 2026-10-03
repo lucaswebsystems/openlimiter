@@ -570,10 +570,11 @@ export async function accountOauth(provider) {
 }
 
 /**
- * Whether OpenLimiter may ask Anthropic for a percentage on its own.
+ * Whether OpenLimiter may ask Anthropic for usage on its own, plus whether a
+ * durable choice exists at all.
  *
- * Off on a fresh machine and off whenever the answer cannot be read. Claude's
- * own status line is the primary source and needs none of this.
+ * Missing is distinct from invalid so only a genuinely new choice can open the
+ * consent surface. Both remain off until a valid answer is durably recorded.
  */
 export async function claudePollEnabled() {
   return call("claude_poll_enabled");

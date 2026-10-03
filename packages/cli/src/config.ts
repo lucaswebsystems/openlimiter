@@ -306,16 +306,19 @@ export function setStatuslineValue(
  * below exists only for the hours Claude Code is closed, it reads the token
  * Claude Code stored, and Anthropic has written that third parties may not
  * intermediate its credentials. That is a decision a person makes for
- * themselves, so it is OFF until they turn it on, the row says why the bar is
- * older than the others while it is off, and turning it on is one command.
+ * themselves. A terminal asks once before recording on. An unattended setup
+ * records off, and a missing or invalid choice never permits the request.
  */
 export interface ProvidersConfig {
   readonly claude: {
     readonly poll: boolean;
+    readonly recorded: boolean;
   };
 }
 
-export const DEFAULT_PROVIDERS: ProvidersConfig = { claude: { poll: false } };
+export const DEFAULT_PROVIDERS: ProvidersConfig = {
+  claude: { poll: false, recorded: false }
+};
 
 export const PROVIDER_KEYS = ["claude.poll"] as const;
 
@@ -329,8 +332,15 @@ export function normalizeProviders(value: unknown): ProvidersConfig {
   if (!isRecord(value)) return DEFAULT_PROVIDERS;
   const claude = value["claude"];
   const poll = isRecord(claude) ? claude["poll"] : undefined;
+  const recorded = isRecord(claude) ? claude["recorded"] : undefined;
   return {
-    claude: { poll: typeof poll === "boolean" ? poll : DEFAULT_PROVIDERS.claude.poll }
+    claude: {
+      poll: typeof poll === "boolean" ? poll : false,
+      /* A 2.0.3 boolean predates this marker and remains a stored choice. The
+         explicit false marker is used only for a pending document created by
+         another config command before setup reaches the question. */
+      recorded: typeof poll === "boolean" && (recorded === true || recorded === undefined)
+    }
   };
 }
 
@@ -339,7 +349,9 @@ export function providerValueText(
   key: ProviderKey
 ): string {
   void key;
-  return providers.claude.poll ? "true" : "false";
+  return providers.claude.recorded
+    ? providers.claude.poll ? "true" : "false"
+    : "unset";
 }
 
 export type ProvidersUpdate =
@@ -360,7 +372,10 @@ export function setProviderValue(
   if (value !== "true" && value !== "false") {
     return { ok: false, message: "providers.claude.poll must be true or false." };
   }
-  return { ok: true, providers: { claude: { poll: value === "true" } } };
+  return {
+    ok: true,
+    providers: { claude: { poll: value === "true", recorded: true } }
+  };
 }
 
 /* ------------------------------------------------------------------ file */
@@ -444,6 +459,7 @@ export async function readConfig(
   const document = await readJsonFileSafely(path.join(directory, CONFIG_FILE_NAME));
   if (!document.ok) return document;
   if (!isRecord(document.value)) return { ok: false, reason: "corrupt" };
+  if (document.value["version"] !== 1) return { ok: false, reason: "corrupt" };
   return {
     ok: true,
     config: {

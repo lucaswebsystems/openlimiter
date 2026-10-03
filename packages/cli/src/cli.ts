@@ -288,6 +288,8 @@ export interface CliDependencies {
    * Interactive prompt choice helper.
    */
   promptChoice?: (question: string) => Promise<string>;
+  /** True only when both terminal input and output can answer a question. */
+  interactive?: boolean;
   /**
    * How a hub request leaves this machine.
    *
@@ -374,6 +376,7 @@ function defaults(): CliDependencies {
     spawnDetached: () => undefined,
     probeAntigravity: async () => ({ ok: false, reason: "not_running" }),
     promptChoice: async () => "",
+    interactive: false,
     hubTransport: async () => {
       throw new Error("No hub transport was injected");
     },
@@ -714,7 +717,10 @@ async function refresh(
  */
 export function acquisitionSpecs(providers: ProvidersConfig): AcquisitionSpec[] {
   return [
-    claudeSpec({ parse: parseClaudePayload, enabled: providers.claude.poll }),
+    claudeSpec({
+      parse: parseClaudePayload,
+      enabled: providers.claude.recorded && providers.claude.poll
+    }),
     codexSpec(parseCodexPayload),
     cursorSpec(parseCursorPayload),
     geminiCliSpec(parseGeminiCliPayload),
@@ -1273,6 +1279,9 @@ async function initCommand(dependencies: CliDependencies): Promise<CliResult> {
     dependencies.stateDirectory
   );
   try {
+    if (!(await ensureClaudePollChoice(dependencies))) {
+      return fail(EXIT_FAILURE, "openlimiter init: configuration could not be written, so Claude usage stays off.");
+    }
     const result = await initialize(
       environment,
       dependencies.credentialStore,
@@ -2262,10 +2271,38 @@ async function triggerSyncAfterRefresh(
 /* -------------------------------------------------------------- setup */
 
 const SETUP_SIGN_IN_PROMPT = "Sign in to sync your bars to the hub and your phone (free)";
+const CLAUDE_POLL_DISCLOSURE =
+  "OpenLimiter can read the same usage Claude shows by sending a direct usage request with your Claude sign in on this computer. Anthropic's policy for tools like this is unresolved.";
+const CLAUDE_POLL_QUESTION =
+  "Show Fable limit? Enter to turn it on, N to keep it off: ";
 
 async function promptOrSkip(dependencies: CliDependencies, question: string): Promise<boolean> {
+  if (!dependencies.interactive) return false;
   const answer = await dependencies.promptChoice?.(question) ?? "";
   return !answer.trim().toLowerCase().startsWith("s");
+}
+
+/** Record one real Claude polling choice before any terminal acquisition. */
+async function ensureClaudePollChoice(dependencies: CliDependencies): Promise<boolean> {
+  const stored = await readConfig(dependencies.stateDirectory);
+  if (!stored.ok && stored.reason !== "missing") return false;
+  const config = stored.ok ? stored.config : defaultConfig(dependencies.environment);
+  if (config.providers.claude.recorded) return true;
+  let enabled = false;
+  if (dependencies.interactive) {
+    dependencies.emit(CLAUDE_POLL_DISCLOSURE);
+    const answer = await dependencies.promptChoice?.(CLAUDE_POLL_QUESTION) ?? "n";
+    enabled = !answer.trim().toLowerCase().startsWith("n");
+  }
+  try {
+    await writeConfig({
+      ...config,
+      providers: { claude: { poll: enabled, recorded: true } }
+    }, dependencies.stateDirectory);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Step one: sign in, or say plainly why this machine did not. */
@@ -2493,6 +2530,9 @@ async function setupShowBarsStep(dependencies: CliDependencies): Promise<string[
 async function setupCommand(dependencies: CliDependencies, now: string): Promise<CliResult> {
   await setupSignInStep(dependencies);
   await setupConnectStep(dependencies);
+  if (!(await ensureClaudePollChoice(dependencies))) {
+    dependencies.emit("Claude usage stays off because the choice could not be saved.");
+  }
   const collected = await refreshCommand(dependencies, now);
   if (collected.exitCode !== 0 && collected.stderr !== "") dependencies.emit(collected.stderr);
   await setupShowBarsStep(dependencies);
@@ -2507,9 +2547,11 @@ export async function runCli(
 ): Promise<CliResult> {
   const setupOutput: string[] = [];
   const hasOutputSink = overrides.emit !== undefined;
+  const interactive = overrides.interactive ?? overrides.promptChoice !== undefined;
   const dependencies = {
     ...defaults(),
     ...overrides,
+    interactive,
     ...(hasOutputSink ? {} : { emit: (line: string) => setupOutput.push(line) })
   };
   const command = argumentsList[0] ?? "setup";
