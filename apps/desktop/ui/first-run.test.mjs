@@ -10,6 +10,8 @@ import {
   INSTALL_LINES,
   SIGN_IN_WAYS,
   claudeLine,
+  createClaudePollConsentGate,
+  claudePollView,
   claudeSignals,
   createDetectionLoader,
   codexSentence,
@@ -348,7 +350,7 @@ test("the Gemini sentence is the promised one, on both rows that share it", () =
   assert.equal(providerSpec("ANTIGRAVITY").line, sentence);
 });
 
-test("Claude is read, never signed into, and its poll is off by default", () => {
+test("Claude is read, never signed into, and a new install discloses its on default", () => {
   assert.equal(providerSpec("CLAUDE").neverSignIn, true);
 
   /* The three shapes the detection already reports, each with its own line. */
@@ -371,6 +373,138 @@ test("Claude is read, never signed into, and its poll is off by default", () => 
 
   assert.equal(persistedToggleValue(true, false, { ok: false }), true);
   assert.equal(persistedToggleValue(true, false, { ok: true, value: false }), false);
+  assert.deepEqual(claudePollView({ state: "missing", enabled: false }, false), {
+    enabled: true,
+    needsAcknowledgement: false,
+    needsRecording: true,
+  });
+  assert.deepEqual(claudePollView({ state: "missing", enabled: false }, true), {
+    enabled: false,
+    needsAcknowledgement: true,
+    needsRecording: false,
+  });
+  assert.deepEqual(claudePollView({ state: "invalid", enabled: false }, true), {
+    enabled: false,
+    needsAcknowledgement: false,
+    needsRecording: false,
+  });
+});
+
+test("an existing install with no Claude choice gets two real acknowledgement buttons", () => {
+  const section = firstRunSection();
+  assert.match(section, /id="claude-poll-consent"[^>]*hidden/u);
+  assert.match(section, /id="claude-poll-consent-enable"[^>]*>Show Fable limit</u);
+  assert.match(section, /id="claude-poll-consent-decline"[^>]*>Not now</u);
+  const source = read("first-run.js");
+  assert.match(source, /needsAcknowledgement[\s\S]*?showClaudePollConsent/u);
+  assert.match(source, /await claudePollGate\.acknowledge\(true\)[\s\S]*?finish/u);
+  assert.match(source, /await claudePollGate\.acknowledge\(false\)[\s\S]*?finish/u);
+});
+
+test("the first run records its disclosed Claude default before the first refresh", () => {
+  const source = read("first-run.js");
+  assert.match(source, /async function finish[\s\S]*?await recordClaudePollChoice[\s\S]*?completeFirstRun\(screen\)[\s\S]*?options\.onContinue/u);
+});
+
+test("a fresh first run cannot poll until its disclosure is shown and recorded", async () => {
+  let releaseSetting;
+  const setting = new Promise((resolve) => { releaseSetting = resolve; });
+  const writes = [];
+  let polls = 0;
+  const gate = createClaudePollConsentGate({
+    load: () => setting,
+    save: async (enabled) => {
+      writes.push(enabled);
+      if (enabled) polls += 1;
+      return { ok: true, value: enabled };
+    },
+  });
+
+  const loading = gate.load();
+  assert.equal(await gate.beforeFinish(), false, "Continue completed while the setting was loading");
+  assert.deepEqual(writes, []);
+  assert.equal(polls, 0);
+
+  releaseSetting({ state: "missing", enabled: false });
+  await loading;
+  assert.deepEqual(gate.begin(false), {
+    enabled: true,
+    needsAcknowledgement: false,
+    needsRecording: true,
+  });
+  assert.equal(await gate.beforeFinish(), false, "Continue completed before disclosure");
+  assert.deepEqual(await gate.set(true), { ok: false });
+  assert.deepEqual(writes, []);
+  assert.equal(polls, 0);
+
+  assert.equal(gate.disclose(), true);
+  assert.equal(await gate.beforeFinish(), true);
+  assert.deepEqual(writes, [true]);
+  assert.equal(polls, 1, "the simulated collector ran before durable consent");
+});
+
+test("Continue waits for an explicit off save and never follows it with on", async () => {
+  let releaseOff;
+  const offSaved = new Promise((resolve) => { releaseOff = resolve; });
+  const writes = [];
+  const gate = createClaudePollConsentGate({
+    load: async () => ({ state: "missing", enabled: false }),
+    save: async (enabled) => {
+      writes.push(enabled);
+      if (!enabled && writes.length === 1) return offSaved;
+      return { ok: true, value: enabled };
+    },
+  });
+  await gate.load();
+  gate.begin(false);
+  gate.disclose();
+
+  const turnOff = gate.set(false);
+  const finish = gate.beforeFinish();
+  await Promise.resolve();
+  assert.deepEqual(writes, [false]);
+  releaseOff({ ok: true, value: false });
+  assert.deepEqual(await Promise.all([turnOff, finish]), [
+    { ok: true, value: false },
+    true,
+  ]);
+  assert.deepEqual(writes, [false]);
+  assert.equal(gate.snapshot().enabled, false);
+});
+
+test("an existing install can record on only through its acknowledgement", async () => {
+  const writes = [];
+  const gate = createClaudePollConsentGate({
+    load: async () => ({ state: "missing", enabled: false }),
+    save: async (enabled) => {
+      writes.push(enabled);
+      return { ok: true, value: enabled };
+    },
+  });
+  await gate.load();
+  assert.equal(gate.begin(true).needsAcknowledgement, true);
+  assert.deepEqual(await gate.set(true), { ok: false });
+  assert.equal(await gate.beforeFinish(), false);
+  assert.deepEqual(writes, []);
+  assert.deepEqual(await gate.acknowledge(false), { ok: true, value: false });
+  assert.equal(await gate.beforeFinish(), true);
+  assert.deepEqual(writes, [false]);
+
+  const restarted = createClaudePollConsentGate({
+    load: async () => ({ state: "disabled", enabled: false }),
+    save: async (enabled) => {
+      writes.push(enabled);
+      return { ok: true, value: enabled };
+    },
+  });
+  await restarted.load();
+  assert.deepEqual(restarted.begin(true), {
+    enabled: false,
+    needsAcknowledgement: false,
+    needsRecording: false,
+  });
+  assert.equal(await restarted.beforeFinish(), true);
+  assert.deepEqual(writes, [false]);
 });
 
 test("entering Connect moves focus and announces the completed scan", () => {

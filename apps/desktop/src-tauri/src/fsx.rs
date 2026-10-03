@@ -27,6 +27,20 @@ pub enum FsFailure {
     Io,
 }
 
+/// Why a bounded state document could not be read.
+///
+/// Consent code must distinguish a document that genuinely does not exist
+/// from one that exists but cannot be trusted. Only the first case is eligible
+/// for a first run choice. Every other case stays off until a person repairs
+/// or replaces the setting explicitly.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReadFailure {
+    Missing,
+    Unsafe,
+    TooLarge,
+    Io,
+}
+
 /// Refuse a path that exists as a symbolic link, mirroring `rejectSymlink` in
 /// `packages/core/src/cache.ts:63-70`. A missing path is fine.
 pub fn reject_symlink(path: &Path) -> Result<(), FsFailure> {
@@ -89,19 +103,33 @@ fn open_no_follow(file: &Path) -> std::io::Result<fs::File> {
 /// read (`cache.ts:116-120`). A missing file, a link, a non file, and an
 /// oversized file all come back as `None`. Nothing is repaired or invented.
 pub fn bounded_read(file: &Path) -> Option<String> {
-    bounded_read_up_to(file, MAX_STATE_FILE_BYTES)
+    bounded_read_result(file, MAX_STATE_FILE_BYTES).ok()
 }
 
 /// `bounded_read` with a caller stated bound, for the one vendor document
 /// (Claude Code's `.claude.json`) that is legitimately larger than state.
 pub fn bounded_read_up_to(file: &Path, maximum: u64) -> Option<String> {
-    let handle = open_no_follow(file).ok()?;
-    let opened = handle.metadata().ok()?;
+    bounded_read_result(file, maximum).ok()
+}
+
+/// Read a bounded text document without collapsing absence into refusal.
+pub fn bounded_read_result(file: &Path, maximum: u64) -> Result<String, ReadFailure> {
+    let handle = open_no_follow(file).map_err(|error| {
+        match fs::symlink_metadata(file) {
+            Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+                ReadFailure::Unsafe
+            }
+            Ok(_) => ReadFailure::Io,
+            Err(_) if error.kind() == std::io::ErrorKind::NotFound => ReadFailure::Missing,
+            Err(_) => ReadFailure::Io,
+        }
+    })?;
+    let opened = handle.metadata().map_err(|_| ReadFailure::Io)?;
     if opened.file_type().is_symlink() || !opened.is_file() {
-        return None;
+        return Err(ReadFailure::Unsafe);
     }
     if opened.len() > maximum {
-        return None;
+        return Err(ReadFailure::TooLarge);
     }
     #[cfg(unix)]
     {
@@ -109,17 +137,17 @@ pub fn bounded_read_up_to(file: &Path, maximum: u64) -> Option<String> {
         comparison carries the check: the opened object must be exactly the
         object the path names right now. */
         use std::os::unix::fs::MetadataExt;
-        let on_path = fs::symlink_metadata(file).ok()?;
+        let on_path = fs::symlink_metadata(file).map_err(|_| ReadFailure::Io)?;
         if on_path.dev() != opened.dev() || on_path.ino() != opened.ino() {
-            return None;
+            return Err(ReadFailure::Unsafe);
         }
     }
     let mut text = String::new();
     handle
         .take(maximum)
         .read_to_string(&mut text)
-        .ok()?;
-    Some(text)
+        .map_err(|_| ReadFailure::Io)?;
+    Ok(text)
 }
 
 /// How many times a rename is retried, mirroring `RENAME_ATTEMPT_LIMIT` in
@@ -282,6 +310,10 @@ mod tests {
     fn bounded_read_missing_is_none() {
         let dir = TempDir::new();
         assert_eq!(bounded_read(&dir.path().join("absent.json")), None);
+        assert_eq!(
+            bounded_read_result(&dir.path().join("absent.json"), MAX_STATE_FILE_BYTES),
+            Err(ReadFailure::Missing)
+        );
     }
 
     #[test]
@@ -290,6 +322,10 @@ mod tests {
         let inner = dir.path().join("a-directory");
         fs::create_dir_all(&inner).expect("dir");
         assert_eq!(bounded_read(&inner), None);
+        assert_eq!(
+            bounded_read_result(&inner, MAX_STATE_FILE_BYTES),
+            Err(ReadFailure::Unsafe)
+        );
     }
 
     #[cfg(unix)]
@@ -302,6 +338,18 @@ mod tests {
         std::os::unix::fs::symlink(&target, &link).expect("symlink");
         assert_eq!(bounded_read(&link), None);
         assert_eq!(bounded_read(&target).as_deref(), Some("{}"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bounded_read_classifies_a_dangling_symlink_as_unsafe() {
+        let dir = TempDir::new();
+        let link = dir.path().join("dangling.json");
+        std::os::unix::fs::symlink(dir.path().join("missing.json"), &link).expect("symlink");
+        assert_eq!(
+            bounded_read_result(&link, MAX_STATE_FILE_BYTES),
+            Err(ReadFailure::Unsafe)
+        );
     }
 
     #[cfg(windows)]

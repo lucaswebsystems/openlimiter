@@ -56,7 +56,7 @@ describe("provider labels", () => {
   });
 
   it("shows the desktop path only when a Claude card has no model scoped window", () => {
-    const hint = "Turn on Show Fable limit in the desktop app under Add a tool, Claude Code.";
+    const hint = "Fable shows here when Claude usage is on in OpenLimiter on your computer.";
     expect(claudeFableHint("CLAUDE", ["FIVE_HOUR", "SEVEN_DAY"], hint)).toBe(hint);
     expect(claudeFableHint("CLAUDE", ["FIVE_HOUR", "SEVEN_DAY_FABLE_5_1"], hint)).toBeNull();
     expect(claudeFableHint("CODEX", ["FIVE_HOUR", "SEVEN_DAY"], hint)).toBeNull();

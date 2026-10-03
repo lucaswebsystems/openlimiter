@@ -10,6 +10,9 @@ const whatsNewForVersion = (version) => selectRelease(version, WHATS_NEW_EN);
 
 /* What each recent release says, word for word; the current version is one of them. */
 const NOTES = {
+  "2.0.4": [
+    { key: "fable", text: "New desktop installs explain the Fable usage request before recording it on. Existing installs without a choice are asked first, and either switch can still be turned off." },
+  ],
   "2.0.3": [
     { key: "screen", text: "Every tool and API key now fits on one screen." },
     { key: "tools", text: "Claude Code stays visible while idle. Antigravity shows again with a clear open button." },

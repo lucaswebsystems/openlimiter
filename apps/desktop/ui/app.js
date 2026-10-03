@@ -709,7 +709,9 @@ async function repaintHome() {
     const [collected, detectionResult, connectionResult, spendResult, pollResult] = await Promise.all([
       collect(now), listDetectedProviders(), listConnections(), apiSpendStatus(), claudePollEnabled(),
     ]);
-    claudePoll = pollResult.ok ? pollResult.value === true : null;
+    claudePoll = pollResult.ok && typeof pollResult.value?.enabled === "boolean"
+      ? pollResult.value.enabled
+      : null;
     const detections = detectionResult.ok ? detectionResult.value : null;
     const connections = connectionResult.ok ? normalizeConnectionList(connectionResult.value) : [];
     adoptDetectedProviders(detections);

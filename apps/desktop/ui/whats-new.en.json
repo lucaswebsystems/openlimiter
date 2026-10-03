@@ -3,6 +3,10 @@
   "versionLabel": "Version {version}",
   "dismiss": "Got it",
   "releases": {
+    "2.0.4": {
+      "heading": "Clearer limits, explicit choices",
+      "fable": "New desktop installs explain the Fable usage request before recording it on. Existing installs without a choice are asked first, and either switch can still be turned off."
+    },
     "2.0.3": {
       "heading": "One screen, every tool",
       "screen": "Every tool and API key now fits on one screen.",

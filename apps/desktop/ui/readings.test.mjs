@@ -406,7 +406,7 @@ test("Claude waits for Claude Code with no button, asks to sign in again, and co
 
 test("every Claude card with the direct check off offers the one click Fable action", async () => {
   const waitingFlag = [{ provider: "CLAUDE", reason: "awaiting_statusline", fixKind: "open_app" }];
-  const title = "Uses your Claude sign in on this computer to read the same usage Claude shows.";
+  const title = READINGS_COPY.showClaudeFableNote;
   for (const input of [{ flags: waitingFlag }, { claude: "READY_TO_ENABLE" }, { claude: "CONNECTED" }]) {
     const off = inventoryModel({ ...input, claudePoll: false }, now)[0];
     assert.deepEqual([off.note, off.action], [title, { kind: "poll", label: "Show Fable limit", title }]);

@@ -68,6 +68,9 @@
   "claudeWeeklyModel": "Weekly, {model}",
   "claudeExtraUsage": "Extra usage",
   "showClaudeFable": "Show Fable limit",
-  "showClaudeFableNote": "Uses your Claude sign in on this computer to read the same usage Claude shows.",
-  "claudeFableDesktopHint": "Turn on Show Fable limit in the desktop app under Add a tool, Claude Code."
+  "showClaudeFableNote": "Reads the same usage Claude shows by sending a direct usage request with your Claude sign in on this computer. Anthropic's policy for tools like this is unresolved. Turn it off in Settings.",
+  "claudePollConsentTitle": "Show your Fable limit?",
+  "claudePollNotNow": "Not now",
+  "claudePollSaveFailed": "The choice could not be saved, so Claude usage stays off.",
+  "claudeFableDesktopHint": "Fable shows here when Claude usage is on in OpenLimiter on your computer."
 }

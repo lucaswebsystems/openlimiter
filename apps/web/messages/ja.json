@@ -66,7 +66,10 @@
     "removeTool": "削除",
     "removeConfirm": "もう一度押すと削除します",
     "showClaudeFable": "Fable の上限を表示",
-    "showClaudeFableNote": "このコンピューターの Claude サインインを使い、Claude に表示されるものと同じ使用量を読み取ります。"
+    "showClaudeFableNote": "このコンピューターの Claude サインインを使って使用量を直接リクエストし、Claude に表示されるものと同じ使用量を読み取ります。このようなツールに関する Anthropic の方針は未解決です。設定でオフにできます。",
+    "claudePollConsentTitle": "Fable の上限を表示しますか？",
+    "claudePollNotNow": "今はしない",
+    "claudePollSaveFailed": "選択を保存できなかったため、Claude の使用量はオフのままです。"
   },
   "meta": {
     "title": "OpenLimiter、AIコーディングの制限とエージェントの活動",
@@ -1189,7 +1192,7 @@
             "rows": {
               "claude": {
                 "connect": "設定は不要です。OpenLimiterはClaude Codeがすでに表示している情報を読み取ります。",
-                "reads": "The Claude Code status line, automatically. An opt in poll of Anthropic's own usage endpoint, with your own token, covers the gap when Claude Code is closed. Off unless you turn it on."
+                "reads": "Claude Code のステータス行を自動的に読み取ります。デスクトップへの新規インストールでは、ローカルの Claude 認証情報を使う説明済みの直接使用量リクエストがオンで開始します。選択がない既存のデスクトップインストールでは先に確認します。ターミナル設定は独自の選択を記録します。"
               },
               "openrouter": {
                 "connect": "ハブから開始する正式なOAuthです。すでに持っているキーも引き続き使えます。",
@@ -1233,7 +1236,7 @@
             "title": "How data actually arrives",
             "intro": "Most connectors read for themselves now. Two still do not, and this is the part worth stating plainly.",
             "bullets": {
-              "claude": "<code>claude</code> is fed by the Claude Code status line the moment it renders, and by an opt in poll of Anthropic's own usage endpoint when Claude Code is closed.",
+              "claude": "<code>claude</code> は Claude Code のステータス行が表示されるとすぐにデータを受け取ります。デスクトップへの新規インストールでは、説明済みの直接使用量リクエストがオンで開始します。選択がない既存のインストールでは先に確認し、ターミナル設定は独自の選択を記録します。",
               "live": "<code>codex</code>、<code>gemini_cli</code>、<code>antigravity</code>、<code>grok</code>、<code>kimi</code>、<code>openrouter</code> は、それぞれのツールが保存したログインを最大15分に1回読み取ります。デスクトップアプリの更新処理、またはターミナルの <code>openlimiter refresh</code> が実行します。",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
               "ingestOnly": "<code>opencode</code> is the one connector left with no reader of its own: it only accepts data through <code>openlimiter ingest --provider opencode</code>, because it reads an authenticated page rather than a login file."
@@ -1406,7 +1409,7 @@
               "claude": {
                 "name": "Claude Code",
                 "reports": "五時間セッションと七日間の使用量、およびリセット時刻。",
-                "source": "The Claude Code status line, automatically, whenever Claude Code renders. An opt in poll of Anthropic's usage endpoint, with your own token, covers the gap when Claude Code is closed."
+                "source": "Claude Code が表示するステータス行を自動的に読み取ります。デスクトップへの新規インストールでは、ローカルの Claude 認証情報を使う説明済みの直接使用量リクエストがオンで開始します。選択がない既存のインストールでは先に確認します。"
               },
               "codex": {
                 "name": "Codex",
@@ -1818,6 +1821,7 @@
             "title": "The commands",
             "capturedFixturesLabel": "captured {date}, synthetic fixtures",
             "capturedLabel": "captured {date}",
+            "claudePoll": "デスクトップアプリの Fable の上限を表示スイッチはデスクトッププロセスを制御します。停止するには、設定を開いて Fable の上限を表示をオフにします。<code>providers.claude.poll</code> はコマンドラインプロセスを制御します。停止するには <code>openlimiter config set providers.claude.poll false</code> を実行します。それぞれのスイッチは独立しています。これはローカルの Claude 認証情報を使って使用量を直接要求します。このようなツールに関する Anthropic の方針は未解決です。",
             "init": {
               "body": "Writes local configuration to the state directory, recording every connector and whether it was detected. It reports the detected list, or none."
             },
@@ -2166,7 +2170,7 @@
     "claudeWeeklyFable": "週間、Fable",
     "claudeWeeklyModel": "週間、{model}",
     "claudeExtraUsage": "追加使用量",
-    "claudeFableDesktopHint": "デスクトップアプリの「ツールを追加」、「Claude Code」で「Fable の上限を表示」をオンにしてください。",
+    "claudeFableDesktopHint": "お使いのコンピューターの OpenLimiter で Claude の使用量がオンになっていると、ここに Fable が表示されます。",
     "providers": {
       "title": "プロバイダー",
       "automaticPrompt": "デスクトップアプリを開いてください。ローカル検出はそこから始まります。",

@@ -207,6 +207,15 @@ html[data-first-run="complete"] .first-run {
   font-size: var(--ol-text-caption);
 }
 
+.first-run-consent-actions {
+  display: grid;
+  gap: var(--ol-space-3);
+}
+
+.first-run-consent-actions .first-run-continue {
+  margin-top: 0;
+}
+
 .first-run[data-empty="true"] .first-run-panel {
   width: min(28rem, 100%);
   text-align: center;

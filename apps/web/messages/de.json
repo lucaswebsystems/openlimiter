@@ -66,7 +66,10 @@
     "removeTool": "Entfernen",
     "removeConfirm": "Zum Entfernen erneut drücken",
     "showClaudeFable": "Fable Limit anzeigen",
-    "showClaudeFableNote": "Verwendet deine Claude Anmeldung auf diesem Computer, um dieselbe Nutzung zu lesen, die Claude anzeigt."
+    "showClaudeFableNote": "Liest dieselbe Nutzung, die Claude anzeigt, indem eine direkte Nutzungsanfrage mit deiner Claude Anmeldung auf diesem Computer gesendet wird. Anthropics Richtlinie für solche Werkzeuge ist ungeklärt. Du kannst dies in den Einstellungen ausschalten.",
+    "claudePollConsentTitle": "Dein Fable Limit anzeigen?",
+    "claudePollNotNow": "Jetzt nicht",
+    "claudePollSaveFailed": "Die Auswahl konnte nicht gespeichert werden, deshalb bleibt die Claude Nutzung ausgeschaltet."
   },
   "meta": {
     "title": "OpenLimiter, KI Programmierlimits und Agentenaktivität",
@@ -1189,7 +1192,7 @@
             "rows": {
               "claude": {
                 "connect": "Nichts einzurichten: OpenLimiter liest die bereits von Claude Code angezeigten Daten.",
-                "reads": "The Claude Code status line, automatically. An opt in poll of Anthropic's own usage endpoint, with your own token, covers the gap when Claude Code is closed. Off unless you turn it on."
+                "reads": "Die Statuszeile von Claude Code, automatisch. Bei einer neuen Desktopinstallation beginnt eine zuvor erklärte direkte Nutzungsanfrage mit deinen lokalen Claude Zugangsdaten eingeschaltet. Bestehende Desktopinstallationen ohne Auswahl fragen zuerst. Die Terminaleinrichtung speichert ihre eigene Auswahl."
               },
               "openrouter": {
                 "connect": "Echtes OAuth, gestartet in der Zentrale. Ein bereits vorhandener Schlüssel funktioniert weiterhin.",
@@ -1233,7 +1236,7 @@
             "title": "How data actually arrives",
             "intro": "Most connectors read for themselves now. Two still do not, and this is the part worth stating plainly.",
             "bullets": {
-              "claude": "<code>claude</code> is fed by the Claude Code status line the moment it renders, and by an opt in poll of Anthropic's own usage endpoint when Claude Code is closed.",
+              "claude": "<code>claude</code> erhält Daten aus der Statuszeile von Claude Code, sobald sie erscheint. Bei einer neuen Desktopinstallation beginnt eine zuvor erklärte direkte Nutzungsanfrage eingeschaltet. Bestehende Installationen ohne Auswahl fragen zuerst, und die Terminaleinrichtung speichert ihre eigene Auswahl.",
               "live": "<code>codex</code>, <code>gemini_cli</code>, <code>antigravity</code>, <code>grok</code>, <code>kimi</code> und <code>openrouter</code> lesen die vom jeweiligen Tool gespeicherte Anmeldung höchstens alle fünfzehn Minuten. Dies übernimmt die Aktualisierung der Desktopanwendung oder <code>openlimiter refresh</code> im Terminal.",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
               "ingestOnly": "<code>opencode</code> is the one connector left with no reader of its own: it only accepts data through <code>openlimiter ingest --provider opencode</code>, because it reads an authenticated page rather than a login file."
@@ -1406,7 +1409,7 @@
               "claude": {
                 "name": "Claude Code",
                 "reports": "Nutzung der fünf Stunden Sitzung und Nutzung über sieben Tage, mit Reset Zeiten.",
-                "source": "The Claude Code status line, automatically, whenever Claude Code renders. An opt in poll of Anthropic's usage endpoint, with your own token, covers the gap when Claude Code is closed."
+                "source": "Die Statuszeile von Claude Code, automatisch, sobald Claude Code sie anzeigt. Bei einer neuen Desktopinstallation beginnt eine zuvor erklärte direkte Nutzungsanfrage mit deinen lokalen Claude Zugangsdaten eingeschaltet. Bestehende Installationen ohne Auswahl fragen zuerst."
               },
               "codex": {
                 "name": "Codex",
@@ -1818,6 +1821,7 @@
             "title": "The commands",
             "capturedFixturesLabel": "captured {date}, synthetic fixtures",
             "capturedLabel": "captured {date}",
+            "claudePoll": "Der Schalter Fable Limit anzeigen in der Desktopanwendung steuert den Desktopprozess. Um ihn zu stoppen, öffne Einstellungen und schalte Fable Limit anzeigen aus. <code>providers.claude.poll</code> steuert den Befehlszeilenprozess. Um ihn zu stoppen, führe <code>openlimiter config set providers.claude.poll false</code> aus. Jeder Schalter ist unabhängig. Dabei wird eine direkte Nutzungsanfrage mit deinen lokalen Claude Zugangsdaten gesendet, und Anthropics Richtlinie für solche Werkzeuge ist ungeklärt.",
             "init": {
               "body": "Writes local configuration to the state directory, recording every connector and whether it was detected. It reports the detected list, or none."
             },
@@ -2166,7 +2170,7 @@
     "claudeWeeklyFable": "Wöchentlich, Fable",
     "claudeWeeklyModel": "Wöchentlich, {model}",
     "claudeExtraUsage": "Zusätzliche Nutzung",
-    "claudeFableDesktopHint": "Aktiviere Fable Limit anzeigen in der Desktop App unter Tool hinzufügen, Claude Code.",
+    "claudeFableDesktopHint": "Fable wird hier angezeigt, wenn die Claude Nutzung in OpenLimiter auf deinem Computer aktiviert ist.",
     "providers": {
       "title": "Anbieter",
       "automaticPrompt": "Öffne die Desktopanwendung. Dort beginnt die lokale Erkennung.",

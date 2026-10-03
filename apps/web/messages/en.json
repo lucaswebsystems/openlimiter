@@ -66,7 +66,10 @@
     "removeTool": "Remove",
     "removeConfirm": "Press again to remove",
     "showClaudeFable": "Show Fable limit",
-    "showClaudeFableNote": "Uses your Claude sign in on this computer to read the same usage Claude shows."
+    "showClaudeFableNote": "Reads the same usage Claude shows by sending a direct usage request with your Claude sign in on this computer. Anthropic's policy for tools like this is unresolved. Turn it off in Settings.",
+    "claudePollConsentTitle": "Show your Fable limit?",
+    "claudePollNotNow": "Not now",
+    "claudePollSaveFailed": "The choice could not be saved, so Claude usage stays off."
   },
   "meta": {
     "title": "OpenLimiter, AI coding limits and agent activity",
@@ -1189,7 +1192,7 @@
             "rows": {
               "claude": {
                 "connect": "Nothing to do: OpenLimiter reads what Claude Code already renders.",
-                "reads": "The Claude Code status line, automatically. An opt in poll of Anthropic's own usage endpoint, with your own token, covers the gap when Claude Code is closed. Off unless you turn it on."
+                "reads": "The Claude Code status line, automatically. On a new desktop install, a disclosed direct usage request with your local Claude credentials starts on. Existing desktop installs without a choice are asked first. Terminal setup records its own choice."
               },
               "openrouter": {
                 "connect": "Real OAuth, started from the hub. A key you already hold still works.",
@@ -1233,7 +1236,7 @@
             "title": "How data actually arrives",
             "intro": "Most connectors read for themselves now. Two still do not, and this is the part worth stating plainly.",
             "bullets": {
-              "claude": "<code>claude</code> is fed by the Claude Code status line the moment it renders, and by an opt in poll of Anthropic's own usage endpoint when Claude Code is closed.",
+              "claude": "<code>claude</code> is fed by the Claude Code status line the moment it renders. On a new desktop install, a disclosed direct usage request starts on. Existing desktop installs without a choice are asked first, and terminal setup records its own choice.",
               "live": "<code>codex</code>, <code>gemini_cli</code>, <code>antigravity</code>, <code>grok</code>, <code>kimi</code> and <code>openrouter</code> read the login their own tool already stored, at most once every fifteen minutes, behind the desktop app's own refresher or the terminal's <code>openlimiter refresh</code>.",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
               "ingestOnly": "<code>opencode</code> is the one connector left with no reader of its own: it only accepts data through <code>openlimiter ingest --provider opencode</code>, because it reads an authenticated page rather than a login file."
@@ -1406,7 +1409,7 @@
               "claude": {
                 "name": "Claude Code",
                 "reports": "Five hour session usage and seven day usage, with reset times.",
-                "source": "The Claude Code status line, automatically, whenever Claude Code renders. An opt in poll of Anthropic's usage endpoint, with your own token, covers the gap when Claude Code is closed."
+                "source": "The Claude Code status line, automatically, whenever Claude Code renders. On a new desktop install, a disclosed direct usage request with your local Claude credentials starts on. Existing desktop installs without a choice are asked first."
               },
               "codex": {
                 "name": "Codex",
@@ -1818,6 +1821,7 @@
             "title": "The commands",
             "capturedFixturesLabel": "captured {date}, synthetic fixtures",
             "capturedLabel": "captured {date}",
+            "claudePoll": "The desktop Show Fable limit switch controls the desktop process. To stop it, open Settings and turn Show Fable limit off. <code>providers.claude.poll</code> controls the command line process. To stop it, run <code>openlimiter config set providers.claude.poll false</code>. Each switch is independent. This sends a direct usage request with your local Claude credentials, and Anthropic's policy for tools like this is unresolved.",
             "init": {
               "body": "Writes local configuration to the state directory, recording every connector and whether it was detected. It reports the detected list, or none."
             },
@@ -2166,7 +2170,7 @@
     "claudeWeeklyFable": "Weekly, Fable",
     "claudeWeeklyModel": "Weekly, {model}",
     "claudeExtraUsage": "Extra usage",
-    "claudeFableDesktopHint": "Turn on Show Fable limit in the desktop app under Add a tool, Claude Code.",
+    "claudeFableDesktopHint": "Fable shows here when Claude usage is on in OpenLimiter on your computer.",
     "providers": {
       "title": "Providers",
       "automaticPrompt": "Open the desktop app. Local detection starts there.",

@@ -429,14 +429,14 @@ describe("openlimiter refresh", () => {
 });
 
 describe("the Claude poll switch", () => {
-  it("is off by default and says so on the row", async () => {
+  it("does not poll without a recorded choice", async () => {
     const state = await temporaryDirectory("openlimiter-state-");
     const home = await machineWithLogins();
     const value = await runCli(
       ["config", "get", "providers.claude.poll"],
       dependencies(state, home, recordingTransport().transport)
     );
-    expect(value.stdout).toBe("providers.claude.poll=false");
+    expect(value.stdout).toBe("providers.claude.poll=unset");
     const recorder = recordingTransport();
     const result = await runCli(
       ["refresh"],
@@ -446,6 +446,84 @@ describe("the Claude poll switch", () => {
       recorder.sent.some((request) => request.endpoint === "claude_usage")
     ).toBe(false);
     expect(result.stdout).toContain("the Anthropic poll is off");
+  });
+
+  it("preserves a stored false choice", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    await runCli(["config", "set", "providers.claude.poll", "false"], dependencies(state, home, recordingTransport().transport));
+    const recorder = recordingTransport();
+    await runCli(["refresh"], dependencies(state, home, recorder.transport));
+    expect(recorder.sent.some((request) => request.endpoint === "claude_usage")).toBe(false);
+    expect((await runCli(["config", "get", "providers.claude.poll"], dependencies(state, home, recorder.transport))).stdout)
+      .toBe("providers.claude.poll=false");
+  });
+
+  it("keeps the desktop and CLI choices independent in both directions", async () => {
+    const home = await machineWithLogins();
+    for (const [desktop, cli, expected] of [[false, true, true], [true, false, false]] as const) {
+      const state = await temporaryDirectory("openlimiter-state-");
+      await writeFile(path.join(state, "claude-poll.json"), JSON.stringify({ version: 1, enabled: desktop }), "utf8");
+      await runCli(["config", "set", "providers.claude.poll", String(cli)], dependencies(state, home, recordingTransport().transport));
+      const recorder = recordingTransport();
+      await runCli(["refresh"], dependencies(state, home, recorder.transport));
+      expect(recorder.sent.some((request) => request.endpoint === "claude_usage")).toBe(expected);
+    }
+  });
+
+  it("keeps every broken configuration state off", async () => {
+    const home = await machineWithLogins();
+    const documents = [
+      "not json",
+      JSON.stringify([]),
+      JSON.stringify({ version: 99, providers: { claude: { poll: true } } }),
+      JSON.stringify({ version: 1, providers: { claude: { poll: "true" } } }),
+      JSON.stringify({ version: 1, providers: { claude: { poll: true, recorded: false } } }),
+      JSON.stringify({ version: 1, providers: { claude: { poll: true, recorded: "false" } } }),
+    ];
+    for (const document of documents) {
+      const state = await temporaryDirectory("openlimiter-state-");
+      await writeFile(path.join(state, "openlimiter-config.json"), document, "utf8");
+      const recorder = recordingTransport();
+      await runCli(["refresh"], dependencies(state, home, recorder.transport));
+      expect(recorder.sent.some((request) => request.endpoint === "claude_usage")).toBe(false);
+    }
+    const oversized = await temporaryDirectory("openlimiter-state-");
+    await writeFile(path.join(oversized, "openlimiter-config.json"), "x".repeat(1_048_577), "utf8");
+    const recorder = recordingTransport();
+    await runCli(["refresh"], dependencies(oversized, home, recorder.transport));
+    expect(recorder.sent.some((request) => request.endpoint === "claude_usage")).toBe(false);
+
+    const inaccessible = await temporaryDirectory("openlimiter-state-");
+    await mkdir(path.join(inaccessible, "openlimiter-config.json"));
+    const inaccessibleRecorder = recordingTransport();
+    await runCli(["refresh"], dependencies(inaccessible, home, inaccessibleRecorder.transport));
+    expect(inaccessibleRecorder.sent.some((request) => request.endpoint === "claude_usage"))
+      .toBe(false);
+  });
+
+  it("honours the recorded marker at the acquisition boundary", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    await writeFile(path.join(state, "openlimiter-config.json"), JSON.stringify({
+      version: 1,
+      providers: { claude: { poll: true, recorded: false } },
+    }), "utf8");
+    const recorder = recordingTransport();
+    await runCli(["refresh"], dependencies(state, home, recorder.transport));
+    expect(recorder.sent.some((request) => request.endpoint === "claude_usage")).toBe(false);
+  });
+
+  it("keeps a legacy boolean choice that predates the marker", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    await writeFile(path.join(state, "openlimiter-config.json"), JSON.stringify({
+      version: 1,
+      providers: { claude: { poll: true } },
+    }), "utf8");
+    const recorder = recordingTransport();
+    await runCli(["refresh"], dependencies(state, home, recorder.transport));
+    expect(recorder.sent.some((request) => request.endpoint === "claude_usage")).toBe(true);
   });
 
   it("reads every window the account exposes once it is turned on", async () => {
@@ -473,6 +551,22 @@ describe("the Claude poll switch", () => {
     expect(usage?.kind).not.toBe("codex_app_server");
     if (usage === undefined || usage.kind === "codex_app_server") throw new Error("missing Claude request");
     expect(usage?.headers["anthropic-beta"]).toBe("oauth-2025-04-20");
+  });
+
+  it("polls successfully when the response has no model scoped results", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    await runCli(["config", "set", "providers.claude.poll", "true"], dependencies(state, home, recordingTransport().transport));
+    const recorder = recordingTransport(NOW, {
+      claude_usage: {
+        five_hour: { utilization: 23.5, resets_at: "2026-01-01T05:00:00.000Z" },
+        seven_day: { utilization: 41.2, resets_at: "2026-01-08T00:00:00.000Z" }
+      }
+    });
+    await runCli(["refresh"], dependencies(state, home, recorder.transport));
+    const cached = await readSnapshotCache(state);
+    const meters = cached.ok ? cached.snapshots.filter((row) => row.provider === "CLAUDE").map((row) => row.meter).sort() : [];
+    expect(meters).toEqual(["FIVE_HOUR", "SEVEN_DAY"]);
   });
 
   it("refuses a value that is not a switch", async () => {

@@ -168,6 +168,7 @@ OPENROUTER CREDITS ######.... 62.35PERCENT $12.47/$20.00 fresh NONE NONE`}
                   docs: (chunks) => <DocLink href="/docs/configuration">{chunks}</DocLink>,
                 })}
               </P>
+              <P>{t.rich("commands.claudePoll", { code })}</P>
               <CodeBlock
                 label={t("commands.capturedLabel", { date: CAPTURED_ON })}
                 code={`${configCapture.command}\n${configCapture.output}`}
@@ -180,7 +181,10 @@ openlimiter config set statusline.rows 3
 openlimiter config: statusline.rows must be 1 or 2.
 
 openlimiter config set providers.claude.poll true
-providers.claude.poll=true`}
+providers.claude.poll=true
+
+openlimiter config set providers.claude.poll false
+providers.claude.poll=false`}
               />
 
               <Sub id="hook">hook</Sub>
