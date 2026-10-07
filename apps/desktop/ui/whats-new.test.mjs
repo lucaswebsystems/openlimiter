@@ -10,6 +10,11 @@ const whatsNewForVersion = (version) => selectRelease(version, WHATS_NEW_EN);
 
 /* What each recent release says, word for word; the current version is one of them. */
 const NOTES = {
+  "2.1.1": [
+    { key: "signin", text: "Google, GitHub and email sign in finish in the app again, and a refused sign in names its error code." },
+    { key: "weekly", text: "When an older terminal runtime is installed, the Usage tab shows the one command that updates it, so weekly limits stay visible." },
+    { key: "commands", text: "Every command the app shows is pinned to this version, stuck background refreshes no longer pile up on Windows, and DeepSeek shows its official mark." },
+  ],
   "2.1.0": [
     { key: "claude", text: "Claude now shows one number per bar, with the Claude bucket allowlist, clear status line captions and the Pro captions preset. Setup upgrades the runtime when needed." },
     { key: "desktop", text: "The desktop opens faster and its buttons work. Connect repairs a Codex connection that stopped reading. Usage, Connect Tools and Settings share a responsive window." },
