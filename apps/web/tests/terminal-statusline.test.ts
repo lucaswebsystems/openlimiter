@@ -1,4 +1,5 @@
 import { createElement } from "react";
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import sample from "@/lib/statusline-sample.json";
 import { TerminalStatusline } from "../components/terminal-statusline";
@@ -13,6 +14,8 @@ vi.mock("@/i18n/navigation", async () => {
       element("a", { href, ...rest }, children as never),
   };
 });
+
+const CAPTURE_SOURCE = readFileSync(new URL("../../../scripts/capture-screenshots.mjs", import.meta.url), "utf8");
 
 let mounted: Mounted | undefined;
 afterEach(() => {
@@ -38,6 +41,18 @@ describe("live terminal status line", () => {
     );
     expect(mounted.container.textContent).toContain("Real renderer");
     expect(mounted.container.textContent).toContain("demoData");
+  });
+
+  it("does not leave a dangling separator on the final sample cell", () => {
+    mounted = render(createElement(TerminalStatusline, { caption: "Real renderer" }));
+    const cells = [...mounted.container.querySelectorAll("[data-statusline-cell]")];
+    expect(cells.at(-1)?.textContent).not.toMatch(/\|\s*$/u);
+  });
+
+  it("keeps the light terminal bands visibly distinct", () => {
+    expect(CAPTURE_SOURCE).toContain(".band-yellow{color:#9a6700}");
+    expect(CAPTURE_SOURCE).toContain(".band-orange{color:#bc4c00}");
+    expect(CAPTURE_SOURCE).toContain(".band-red{color:#cf222e}");
   });
 
   it("draws each meter as blocks one character cell per glyph, so no font fallback can misdraw it", () => {

@@ -3324,7 +3324,7 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
   position: relative;
   overflow: hidden;
   border: 1px solid var(--ol-hairline);
-  border-radius: var(--ol-radius-xl);
+  border-radius: var(--ol-radius-md);
   background: var(--ol-surface);
   box-shadow: var(--ol-elev-1);
 }
@@ -3390,6 +3390,10 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
 }
 
 .ol-lock-list li {
+  display: grid;
+  grid-template-columns: 0.375rem minmax(0, 1fr);
+  column-gap: var(--ol-space-3);
+  align-items: start;
   color: var(--ol-soft);
   font-size: var(--ol-text-label);
   line-height: var(--ol-leading-body);
@@ -3401,10 +3405,9 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
   display: inline-block;
   width: 0.375rem;
   height: 0.375rem;
-  margin-inline-end: var(--ol-space-3);
+  margin-top: 0.45em;
   border-radius: var(--ol-radius-pill);
   background: var(--ol-band-stale-fill);
-  vertical-align: middle;
 }
 
 .ol-lock-offer {
@@ -3414,7 +3417,7 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
   gap: var(--ol-space-2);
   padding: var(--ol-space-4);
   border: 1px solid var(--ol-hairline-strong);
-  border-radius: var(--ol-radius-lg);
+  border-radius: var(--ol-radius-md);
   background: var(--ol-raised);
 }
 

@@ -8,7 +8,7 @@ import { ansiHtml, assertCaptureSafe, demoSessions } from "../../../scripts/capt
 import { initialPairState, pairStateAfterClaim, pairStateAfterPoll } from "@/lib/pairing";
 import { meterRowOf } from "@/lib/device-snapshots";
 // @ts-expect-error Capture scripts run directly in Node.
-import { demoSnapshots, edgeLayout, edgePage, edgeScene, pairingCaptureResponse, terminalPage, windowPage } from "../../../scripts/capture-screenshots.mjs";
+import { demoSnapshots, edgeLayout, edgePage, edgeScene, edgeTabLayout, pairingCaptureResponse, terminalPage, windowPage } from "../../../scripts/capture-screenshots.mjs";
 
 const now = "2026-09-28T12:00:00.000Z";
 
@@ -90,7 +90,16 @@ describe("synthetic screenshot pipeline", () => {
       // Limits and money only, so the line keeps one row on a wide screen.
       expect(line).not.toContain("[?]");
       // A cell never breaks across lines: each one wraps as a whole.
-      expect([...dom.window.document.querySelectorAll("pre > .cell")].map((cell) => cell.textContent)).toHaveLength(line.split(" | ").length);
+      const cells = [...dom.window.document.querySelectorAll("pre > .cell")];
+      expect(cells.map((cell) => cell.textContent)).toHaveLength(line.split(" | ").length);
+      expect(cells.at(-1)?.textContent).not.toMatch(/\|\s*$/u);
+      expect(cells.slice(1).every((cell) => cell.textContent?.startsWith(" | "))).toBe(true);
+      if (theme === "light") {
+        const styles = dom.window.document.querySelector("style")?.textContent ?? "";
+        expect(styles).toContain(".band-yellow{color:#9a6700}");
+        expect(styles).toContain(".band-orange{color:#bc4c00}");
+        expect(styles).toContain(".band-red{color:#cf222e}");
+      }
       dom.window.close();
     }
   });
@@ -150,6 +159,7 @@ describe("synthetic screenshot pipeline", () => {
     expect(layout.tab).toEqual({ left: 0, top: 687, width: 24, height: 44 });
     expect(layout.panel).toEqual({ left: 28, top: 422, width: 360, height: 560 });
     expect(layout.view).toEqual({ left: 0, top: 422, width: 560, height: 560 });
+    expect(edgeTabLayout(layout).view).toEqual({ left: -8, top: 679, width: 40, height: 60 });
     // A short panel keeps its top level with the tab's, and never shrinks below 160.
     expect(edgeLayout(100).panel).toEqual({ left: 28, top: 687, width: 360, height: 160 });
     for (const natural of [884, Number.NaN, 0]) expect(() => edgeLayout(natural)).toThrow(/not captured/);

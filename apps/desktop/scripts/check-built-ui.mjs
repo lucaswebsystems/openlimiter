@@ -256,6 +256,17 @@ try {
     await page.waitForLoadState("networkidle");
     const panelFit = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
     assert.equal(panelFit, true, "edge panel clips at 360 by 480");
+    const compactLabelsFit = await page.evaluate(() => {
+      for (const label of document.querySelectorAll(".q-compact .q-lbl")) {
+        const range = document.createRange();
+        const lines = new Set();
+        range.selectNodeContents(label);
+        for (const rect of range.getClientRects()) lines.add(Math.round(rect.top));
+        if (lines.size > 2) return false;
+      }
+      return true;
+    });
+    assert.equal(compactLabelsFit, true, "edge panel compact labels wrap past two lines at 360 by 480");
     assert.deepEqual(errors, [], "edge panel browser errors at 360 by 480");
     await context.close();
   }

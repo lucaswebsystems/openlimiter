@@ -339,11 +339,43 @@ test("drawn limits show names and words only, with a shape past green", () => {
     for (const row of rows) {
       const shape = row.all((node) => node.className === "q-shape").length;
       assert.equal(shape, ["green", "none"].includes(row.dataset.band) ? 0 : 1, row.dataset.band);
-      const role = row.dataset.band === "none" ? "status" : "progressbar";
-      assert.ok(row.all((node) => node.getAttribute("role") === role).length === 1);
+      if (row.dataset.detail === "money") {
+        assert.equal(row.all((node) => node.className === "q-bar").length, 0);
+        assert.equal(row.all((node) => node.className === "q-val").length, 1);
+      } else {
+        const role = row.dataset.band === "none" ? "status" : "progressbar";
+        assert.ok(row.all((node) => node.getAttribute("role") === role).length === 1);
+      }
     }
     assert.equal(mount.all((node) => node.className === "q-colhead").length, compact ? 1 : 0);
     assert.doesNotMatch(JSON.stringify(spoken(mount)), new RegExp(Object.values(ACCOUNTS).join("|")));
+  }
+});
+
+test("money balances keep their amount and omit the empty bar track", () => {
+  const doc = fakeDocument();
+  const mount = doc.createElement("div");
+  const model = limitsModel([{
+    ...fixtures.projected.snapshots[0],
+    provider: "OPENROUTER",
+    accountId: "account",
+    meter: "ACCOUNT_BALANCE",
+    unit: "CREDITS",
+    value: 12.47,
+    usedAmount: 12.47,
+    limitAmount: 20,
+    currency: "USD",
+    observedAt: now,
+    resetAt: null,
+  }], now);
+  for (const compact of [false, true]) {
+    mount.replaceChildren();
+    renderLimits(doc, mount, model, { compact });
+    const row = mount.all((node) => node.className === "q-row")[0];
+    assert.equal(row.dataset.detail, "money");
+    assert.equal(row.all((node) => node.className === "q-bar").length, 0);
+    assert.match(row.all((node) => node.className === "q-val")[0].textContent, /\$7\.53/u);
+    assert.match(row.all((node) => node.className === "q-rst")[0].textContent, /\$20\.00 purchased/u);
   }
 });
 

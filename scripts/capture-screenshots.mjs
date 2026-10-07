@@ -378,6 +378,7 @@ export async function windowPage(theme, snapshots, sessions) {
             /* The Rust AccountStatus of a signed out release build. A null here
                throws in first run before it can check the stored completion. */
             if (name === "account_status") return Promise.resolve({configured:true,signedIn:false,email:null,syncEnabled:true,backendReachable:true});
+            if (name === "notification_settings") return Promise.resolve({enabled:true,threshold60:true,threshold80:true,threshold90:true,reset:true,quietStart:"22:00",quietEnd:"07:00",followSystemTimeZone:true,timeZone:"America/Sao_Paulo",snoozedUntil:null});
             if (name === "plugin:activity|activity_sessions") return Promise.resolve(${JSON.stringify(sessions)});
             if (name === "plugin:activity|activity_notification_preferences") return Promise.resolve({local:{enabled:true,quietHours:null,mutedProviders:[]},sound:"silent"});
             if (name === "read_manual") return Promise.resolve("");
@@ -437,6 +438,18 @@ export function edgeLayout(natural) {
   const top = Math.min(tab.top, panel.top);
   const bottom = Math.max(tab.top + tab.height, panel.top + panel.height);
   return { tab, panel, view: { left: 0, top, width: slice, height: bottom - top } };
+}
+
+export function edgeTabLayout(layout, margin = 8) {
+  return {
+    ...layout,
+    view: {
+      left: layout.tab.left - margin,
+      top: layout.tab.top - margin,
+      width: layout.tab.width + margin * 2,
+      height: layout.tab.height + margin * 2,
+    },
+  };
 }
 
 /** The slice: the wallpaper as the whole work area, the tab, and the panel when `open`. */
@@ -538,9 +551,12 @@ async function writeStatuslineSample(snapshots, now) {
 
 export async function terminalPage(theme, snapshots, now, { wrap = true } = {}) {
   const output = await statuslineOutput(snapshots, now);
-  /* A cell keeps together with its separator, so a wrapped line breaks between cells. */
+  /* A cell stays whole, and its separator belongs to the following cell. */
   const cells = output.split(" | ");
-  const body = cells.map((cell, index) => `<span class="cell">${ansiHtml(cell)}${index < cells.length - 1 ? " |" : ""}</span>`).join(" ");
+  const body = cells.map((cell, index) => `<span class="cell">${index === 0 ? "" : " | "}${ansiHtml(cell)}</span>`).join("");
+  const lightBandColors = theme === "light"
+    ? ".band-yellow{color:#9a6700}.band-orange{color:#bc4c00}.band-red{color:#cf222e}"
+    : "";
   for (const band of ["green", "yellow", "orange", "red"]) {
     if (!body.includes(`band-${band}`)) throw new Error(`CLI capture did not render ${band}.`);
   }
@@ -548,7 +564,7 @@ export async function terminalPage(theme, snapshots, now, { wrap = true } = {}) 
     <link rel="stylesheet" href="engine/ui/tokens.css"><style>
       *{box-sizing:border-box}body{margin:0;padding:44px;background:var(--ol-canvas);color:var(--ol-body);font-family:var(--ol-font-sans)}
       p{font-size:16px;color:var(--ol-muted)}pre{margin-top:34px;font:19px/2 ui-monospace,monospace;white-space:${wrap ? "pre-wrap" : "pre"};${wrap ? "" : "display:table;width:max-content;max-width:none;"}}.cell{white-space:nowrap}
-      ${["green", "yellow", "orange", "red"].map(b => `.band-${b}{color:var(--ol-band-${b}-label)}`).join("")}
+      ${["green", "yellow", "orange", "red"].map(b => `.band-${b}{color:var(--ol-band-${b}-label)}`).join("")}${lightBandColors}
     </style></head><body><p>openlimiter statusline</p><pre>${body}</pre></body></html>`;
 }
 
@@ -576,12 +592,15 @@ async function captureProductDetails(browser, theme, port) {
     const homeHeight = await page.evaluate(() => document.scrollingElement.scrollHeight);
     await page.setViewportSize({ width: 1000, height: homeHeight });
     await shoot("desktop-home");
-    await page.setViewportSize({ width: 1000, height: 760 });
     await page.getByRole('tab', { name: 'Connect Tools', exact: true }).click();
     await page.locator('#key-rows [data-key-row]').first().waitFor({ state: "attached" });
+    const connectHeight = await page.evaluate(() => document.scrollingElement.scrollHeight);
+    await page.setViewportSize({ width: 1000, height: connectHeight });
     await shoot("desktop-connect");
     await page.getByRole('tab', { name: 'Settings', exact: true }).click();
     await page.locator('#tab-panel-settings #settings-appearance').waitFor({ state: "attached" });
+    const settingsHeight = await page.evaluate(() => document.scrollingElement.scrollHeight);
+    await page.setViewportSize({ width: 1000, height: settingsHeight });
     await shoot("desktop-settings");
     /* The panel reports the height its content needs at its own width, and
        native code sizes the window to it; the pictures place both windows the
@@ -590,9 +609,10 @@ async function captureProductDetails(browser, theme, port) {
     await page.goto(`${origin}/edge-panel-${theme}`, { waitUntil: "networkidle" });
     await page.locator("[data-provider-card]").first().waitFor();
     const layout = edgeLayout(await page.evaluate(() => window.__heights.at(-1)));
-    await page.setViewportSize({ width: layout.view.width, height: layout.view.height });
     for (const open of [false, true]) {
-      await page.setContent(edgeScene(origin, theme, layout, open));
+      const captureLayout = open ? layout : edgeTabLayout(layout);
+      await page.setViewportSize({ width: captureLayout.view.width, height: captureLayout.view.height });
+      await page.setContent(edgeScene(origin, theme, captureLayout, open));
       await page.frameLocator('iframe[title="tab"]').locator(open ? ".edge-tab.open" : ".edge-tab").waitFor();
       if (open) {
         const panel = page.frameLocator('iframe[title="panel"]');
