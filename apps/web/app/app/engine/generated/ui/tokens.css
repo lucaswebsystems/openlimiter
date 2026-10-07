@@ -153,6 +153,7 @@
   --ol-provider-opencode: var(--ol-heading);
   --ol-provider-grok: var(--ol-heading);
   --ol-provider-kimi: #007cff;
+  --ol-provider-deepseek: #4d6bfe;
   --ol-provider-manual: var(--ol-accent);
   --ol-provider-google-blue: #4285f4;
   --ol-provider-google-red: #ea4335;

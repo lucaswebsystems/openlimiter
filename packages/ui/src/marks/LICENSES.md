@@ -34,6 +34,7 @@ nominatively, never as a claim of partnership.
 | `openrouter.svg` | OpenRouter | https://openrouter.ai | 16px | Dark and light surfaces | Yes | `#FAFAFA` |
 | `grok.svg` | xAI Grok | https://x.ai | 16px | Pure black or pure white | Yes | `#FAFAFA` |
 | `kimi.svg` | Moonshot Kimi | https://www.moonshot.cn | 16px | Dark and light surfaces | No | `#007CFF` |
+| `deepseek.svg` | DeepSeek | https://github.com/deepseek-ai/DeepSeek-V2/blob/main/figures/logo.svg | 16px | Dark and light surfaces | Yes | `#4D6BFE` |
 | `manual.svg` | OpenLimiter manual entry | This repository | 16px | Any product surface | Yes | product accent |
 
 `manual.svg` is OpenLimiter's own, for a reading a person typed in by hand. It
@@ -67,3 +68,5 @@ These are the marks the product already shipped, promoted here from inline
 strings to files so the artwork, its sources and its usage rules live in one
 reviewable place. No third party asset was fetched, hotlinked or embedded from
 a brand site to produce them.
+
+DeepSeek's mark is the whale from the official logo file in DeepSeek's own GitHub organisation, its coordinates scaled into the 24 box with the shape unchanged.

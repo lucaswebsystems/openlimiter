@@ -283,6 +283,9 @@ body {
 .ol-provider-glyph[data-provider="KIMI"] {
   color: var(--ol-provider-kimi);
 }
+.ol-provider-glyph[data-provider="DEEPSEEK"] {
+  color: var(--ol-provider-deepseek);
+}
 
 /* Live Pulse Dot and Ring Animation */
 .ol-live-pulse-dot {

@@ -287,14 +287,14 @@ export async function saveOpenrouterConnection(secret, recordId, credentialKind,
 }
 
 /* One row each, in this order. `mark` is the provider code whose official
-   mark the row wears; DeepSeek has none here, so it wears its initial. */
+   mark the row wears. */
 export const KEY_PROVIDERS = Object.freeze([
   { id: "openrouter", name: "OpenRouter", mark: "OPENROUTER", placeholder: "API key", url: "https://openrouter.ai/settings/keys" },
   { id: "openai", name: "OpenAI", mark: "CODEX", placeholder: "Admin key", url: "https://platform.openai.com/settings/organization/admin-keys" },
   { id: "anthropic", name: "Anthropic", mark: "CLAUDE", placeholder: "Admin key", url: "https://console.anthropic.com/settings/admin-keys" },
   { id: "xai", name: "xAI", mark: "GROK", placeholder: "Management key", team: true, url: "https://console.x.ai" },
   { id: "moonshot", name: "Moonshot", mark: "KIMI", placeholder: "API key", url: "https://platform.moonshot.ai/console/api-keys" },
-  { id: "deepseek", name: "DeepSeek", mark: null, initial: "D", placeholder: "API key", url: "https://platform.deepseek.com/api_keys" },
+  { id: "deepseek", name: "DeepSeek", mark: "DEEPSEEK", placeholder: "API key", url: "https://platform.deepseek.com/api_keys" },
 ]);
 
 // English catalog for the key rows. L7 owns translations.

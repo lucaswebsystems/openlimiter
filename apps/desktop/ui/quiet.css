@@ -223,6 +223,7 @@ button.q-show {
 
 .q-mark[data-provider="CLAUDE"] { color: var(--ol-provider-claude); }
 .q-mark[data-provider="KIMI"] { color: var(--ol-provider-kimi); }
+.q-mark[data-provider="DEEPSEEK"] { color: var(--ol-provider-deepseek); }
 .q-mark[data-provider="MANUAL"] { color: var(--ol-provider-manual); }
 
 /* -------------------------------------------------------------- limits */
