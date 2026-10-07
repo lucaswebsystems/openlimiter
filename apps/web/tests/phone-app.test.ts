@@ -80,7 +80,7 @@ describe("the paired phone display cache", () => {
     const late = requestPhoneRead();
     await endPhoneSession();
     release?.(new Response(JSON.stringify({ body }), { status: 200 }));
-    await expect(late).resolves.toEqual({ kind: "superseded" });
+    await expect(late).resolves.toEqual({ kind: "unpaired" });
     expect(localStorage.getItem(PHONE_LAST_BARS_KEY)).toBeNull();
   });
 
@@ -90,6 +90,17 @@ describe("the paired phone display cache", () => {
     await expect(requestPhoneRead()).resolves.toEqual({ kind: "revoked" });
     expect(readPhonePairMeta()).toBeNull();
     expect(localStorage.getItem(PHONE_LAST_BARS_KEY)).toBeNull();
+  });
+
+  it("reads normally after a reload abandoned a replacement in this tab", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => String(input).endsWith("session")
+      ? new Promise<Response>(() => undefined) : new Response(JSON.stringify({ body }), { status: 200 })));
+    vi.resetModules();
+    void (await import("@/lib/phone-session")).establishPhoneSession({ token: "new", expiresAt: Date.now() / 1000 + 86_400,
+      refreshCredential: "new-refresh", refreshExpiresAt: Date.now() / 1000 + 30 * 86_400 }, "New");
+    vi.resetModules();
+    const reloaded = await import("@/lib/phone-session");
+    await expect(reloaded.readCurrentPhoneBars("Reloaded")).resolves.toEqual({ kind: "fresh", body });
   });
 });
 

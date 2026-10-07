@@ -538,8 +538,11 @@ function phoneRequestGuard(): () => boolean {
   const revision = storedRevision();
   return () => generation === phoneGeneration && revision === storedRevision();
 }
+/* Every request starts under a stored generation, minted here when none exists,
+   so the marker a cookie recovery writes joins it rather than looking like a
+   newer pairing. An ended pairing mints nothing. */
 function currentPairingGeneration(): string | null {
-  if (readPhonePairMeta() !== null && storedPairingGeneration() === null) {
+  if (!phoneDisabled() && storedPairingGeneration() === null) {
     try { window.localStorage.setItem(PHONE_PAIRING_GENERATION_KEY, crypto.randomUUID()); }
     catch { /* A current request can still be fenced by its in-tab revision. */ }
   }
@@ -715,6 +718,7 @@ export async function requestPhoneRead(recoveredLabel = "This phone"): Promise<P
 
 /** Renew before reading, and recover a missing access cookie without deleting the refresh cookie. */
 export async function readCurrentPhoneBars(recoveredLabel = "This phone"): Promise<PhoneReadOutcome> {
+  if (pairingReplacementPending()) return { kind: "superseded" };
   const pairingGeneration = currentPairingGeneration();
   const current = phoneRequestGuard();
   if (phoneDisabled()) return { kind: "unpaired" };

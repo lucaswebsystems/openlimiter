@@ -1023,7 +1023,7 @@ describe("the pair page", () => {
     await mounted.run(async () => { document.dispatchEvent(new Event("visibilitychange")); });
     expect(reads).toBe(4);
     await mounted.run(async () => { await vi.advanceTimersByTimeAsync(5 * 60_000); });
-    expect(mounted.container.textContent).toContain("Observed 6 min ago");
+    expect(mounted.container.textContent).toContain(hub.cloud.observationAge.replace("{minutes}", "7"));
     expect(mounted.container.querySelector('[data-state="stale"]')).toBeNull();
     await mounted.run(async () => { await vi.advanceTimersByTimeAsync(14 * 60_000 + 1_000); });
     expect(mounted.container.querySelector("[data-state=stale]")).not.toBeNull();
