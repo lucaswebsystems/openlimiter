@@ -52,6 +52,10 @@ function DownloadGlyph() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5v11m-4.2-4.1 4.2 4.1 4.2-4.1M4.5 19.5h15" /></svg>;
 }
 
+function CheckGlyph() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.2 4.2L19 7" /></svg>;
+}
+
 function InstallSheet({ path, open, onClose, returnFocus }: {
   path: InstallPath;
   open: boolean;
@@ -61,6 +65,7 @@ function InstallSheet({ path, open, onClose, returnFocus }: {
   const t = useTranslations("hub.install");
   return (
     <Sheet open={open} title={t("title")} closeLabel={t("close")} onClose={onClose} returnFocus={returnFocus}>
+      <div className="ol-sheet-body">
       {path === "inAppBrowser" ? (
         <p className="mt-4 rounded-lg border border-hairline bg-raised px-3 py-3 text-sm leading-relaxed text-body">
           {t("openSafari")}
@@ -75,7 +80,7 @@ function InstallSheet({ path, open, onClose, returnFocus }: {
           <ol className="ol-install-steps">
             <li><span><ShareGlyph /></span><p><strong>1.</strong> {t("stepShare")}</p></li>
             <li><span><AddGlyph /></span><p><strong>2.</strong> {t("stepChoose")}</p></li>
-            <li><span aria-hidden="true">✓</span><p><strong>3.</strong> {t("stepAdd")}</p></li>
+            <li><span><CheckGlyph /></span><p><strong>3.</strong> {t("stepAdd")}</p></li>
           </ol>
           {path === "manual" && (
             <p className="mt-4 rounded-lg border border-hairline bg-raised px-3 py-3 text-sm leading-relaxed text-body">
@@ -84,8 +89,9 @@ function InstallSheet({ path, open, onClose, returnFocus }: {
           )}
         </>
       )}
+      </div>
       <div className="mt-5 flex justify-end">
-        <Button tone="primary" onClick={onClose}>{t("done")}</Button>
+        <Button tone="primary" className="ol-install-done" onClick={onClose}>{t("done")}</Button>
       </div>
     </Sheet>
   );

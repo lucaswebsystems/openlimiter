@@ -68,8 +68,10 @@ const execFileAsync = promisify(execFile);
 /** Where the built site is already being served. Nothing is started here. */
 const SITE = process.env.OPENLIMITER_SITE ?? "http://127.0.0.1:3111";
 
-/** The desk, in CSS pixels, captured at two device pixels to the CSS pixel. */
-const SCENE = { width: 1280, height: 800, scale: 2 };
+/** The desk, in CSS pixels: a 1440 by 900 screen holds the whole Usage tab, and
+    16/9 device pixels to the CSS pixel keeps the capture at the wallpaper's own
+    2560 by 1600. */
+const SCENE = { width: 1440, height: 900, scale: 16 / 9 };
 
 /**
  * The phone, at the logical screen of the device the frames on the home page
@@ -77,9 +79,9 @@ const SCENE = { width: 1280, height: 800, scale: 2 };
  */
 const PHONE = { width: 390, height: 844, scale: 3 };
 
-/** Geometry lifted from the capture this replaces, so the scene is unchanged. */
+/** Geometry lifted from the capture this replaces, the window centred on the wider desk. */
 const MENUBAR_HEIGHT = 26;
-const WINDOW = { left: 141, top: 93, width: 998, height: 642, titlebar: 37 };
+const WINDOW = { left: 221, top: 93, width: 998, height: 642, titlebar: 37 };
 
 /**
  * The edge tab and its panel, placed by the product's own rule
@@ -198,20 +200,37 @@ export async function demoSnapshots(now) {
     ...(connectors.parseClaudePayload({
       five_hour: { utilization: 42, resets_at: new Date(Date.parse(now) + 18_000 * 1000).toISOString() },
       seven_day: { utilization: 64, resets_at: new Date(Date.parse(now) + 604_800 * 1000).toISOString() },
+      seven_day_fable: { utilization: 69, resets_at: new Date(Date.parse(now) + 604_800 * 1000).toISOString() },
     }, now) ?? []),
     ...(connectors.parseOpenrouterPayload(connectors.openrouterFixture(), now) ?? []),
-    ...(connectors.parseCodexPayload(connectors.codexFixture(now), now) ?? []),
+    ...(connectors.parseCodexPayload({
+      ...connectors.codexFixture(now),
+      rateLimits: {
+        ...connectors.codexFixture(now).rateLimits,
+        secondary: { usedPercent: 84, resetsAt: Math.floor(Date.parse(now) / 1000) + 604_800, windowDurationMins: 10_080 },
+      },
+    }, now) ?? []),
     ...(connectors.parseAntigravityPayload(connectors.antigravityFixture(now), now) ?? []),
     ...(connectors.parseOpencodePayload(connectors.opencodeFixture(now), now) ?? []),
     ...(connectors.parseManualPayload(connectors.manualFixture(now), now) ?? []),
   ]);
   const futureExpiry = new Date(Date.parse(now) + 24 * 60 * 60 * 1000).toISOString();
   return core.mergeSnapshots([], rawSnapshots).map((snapshot) => {
+    const capture = captureDemoOverride(snapshot, now);
     const stamped = {
       ...snapshot,
+      ...capture,
       observedAt: now,
       expiresAt: futureExpiry,
     };
+    if (snapshot.provider === "CODEX" && snapshot.meter === "SEVEN_DAY") stamped.value = DEMO_SHARED_METERS.CODEX_SEVEN_DAY;
+    if (snapshot.provider === "ANTIGRAVITY" && snapshot.meter === "FIVE_HOUR") stamped.value = DEMO_SHARED_METERS.ANTIGRAVITY_FIVE_HOUR;
+    if (snapshot.provider === "OPENROUTER" && snapshot.meter === "ACCOUNT_BALANCE") {
+      stamped.unit = "CREDITS";
+      stamped.value = DEMO_SHARED_METERS.OPENROUTER_ACCOUNT_BALANCE;
+      stamped.usedAmount = undefined;
+      stamped.limitAmount = undefined;
+    }
     if (snapshot.provider === "CLAUDE" && snapshot.source === "native_payload") {
       stamped.provenance = {
         sourceKind: "statusline_payload",
@@ -300,6 +319,15 @@ const MENU_GLYPHS = `
 
 async function scenePage(theme, windowUrl) {
   const skin = AURORA[theme];
+  const snap = (value) => Math.round(value * SCENE.scale) / SCENE.scale;
+  const frame = {
+    left: snap(WINDOW.left),
+    top: snap(WINDOW.top),
+    width: snap(WINDOW.width),
+    height: snap(WINDOW.height),
+    titlebar: snap(WINDOW.titlebar),
+    border: 1 / SCENE.scale,
+  };
   /* The desk is a photograph now, Lucas's call (2026-08-10): a nature
      landscape in the spirit of a current macOS default, generated on this
      machine so there is no third party licence, frozen in the media ledger.
@@ -321,12 +349,12 @@ async function scenePage(theme, windowUrl) {
   .menu-right{display:flex;align-items:center;gap:13px;color:${skin.menubarDim}}
   .menu-right svg{display:block}
   .clock{font-size:13px;letter-spacing:0.01em}
-  .window{position:absolute;left:${String(WINDOW.left)}px;top:${String(WINDOW.top)}px;width:${String(WINDOW.width)}px;height:${String(WINDOW.height)}px;border-radius:12px;overflow:hidden;border:1px solid ${skin.windowBorder};box-shadow:${skin.windowShadow}}
-  .titlebar{position:relative;height:${String(WINDOW.titlebar)}px;display:flex;align-items:center;padding:0 16px;background:${skin.titlebar};border-bottom:1px solid ${skin.hairline}}
+  .window{position:absolute;left:${String(frame.left)}px;top:${String(frame.top)}px;width:${String(frame.width)}px;height:${String(frame.height)}px;border-radius:12px;overflow:hidden;border:${String(frame.border)}px solid ${skin.windowBorder};box-shadow:${skin.windowShadow}}
+  .titlebar{position:relative;height:${String(frame.titlebar)}px;display:flex;align-items:center;padding:0 16px;background:${skin.titlebar};border-bottom:${String(frame.border)}px solid ${skin.hairline}}
   .dots{display:flex;gap:8px}
   .dot{width:12px;height:12px;border-radius:50%}
   .title{position:absolute;left:0;right:0;text-align:center;font-size:13px;font-weight:500;color:${skin.titlebarText};pointer-events:none}
-  iframe{display:block;width:100%;height:${String(WINDOW.height - WINDOW.titlebar)}px;border:0;background:transparent}
+  iframe{display:block;width:100%;height:${String(snap(WINDOW.height - WINDOW.titlebar - 2 * frame.border))}px;border:0;background:transparent}
 </style></head>
 <body><div class="desk">
   <div class="menubar">
@@ -371,6 +399,8 @@ export async function windowPage(theme, snapshots, sessions) {
             /* The Rust AccountStatus of a signed out release build. A null here
                throws in first run before it can check the stored completion. */
             if (name === "account_status") return Promise.resolve({configured:true,signedIn:false,email:null,syncEnabled:true,backendReachable:true});
+            if (name === "notification_settings") return Promise.resolve({enabled:true,threshold60:true,threshold80:true,threshold90:true,reset:true,quietStart:"22:00",quietEnd:"07:00",followSystemTimeZone:true,timeZone:"America/Sao_Paulo",snoozedUntil:null});
+            if (name === "plugin:rail|rail_snapshot") return Promise.resolve({ accounts: [], flags: [], sessions: [], window: { available: true, visible: true, unfolded: false, keepOpen: false, offset: 0, cardOpen: false, cardAnchor: null } });
             if (name === "plugin:activity|activity_sessions") return Promise.resolve(${JSON.stringify(sessions)});
             if (name === "plugin:activity|activity_notification_preferences") return Promise.resolve({local:{enabled:true,quietHours:null,mutedProviders:[]},sound:"silent"});
             if (name === "read_manual") return Promise.resolve("");
@@ -432,6 +462,13 @@ export function edgeLayout(natural) {
   return { tab, panel, view: { left: 0, top, width: slice, height: bottom - top } };
 }
 
+/** The folded tab in context: a slice from the screen edge, the tab at its own
+    place and centred top to bottom, the wallpaper around it. */
+export function edgeTabLayout(layout, width = 200, height = 140) {
+  const top = layout.tab.top + Math.round((layout.tab.height - height) / 2);
+  return { ...layout, view: { left: 0, top, width, height } };
+}
+
 /** The slice: the wallpaper as the whole work area, the tab, and the panel when `open`. */
 export function edgeScene(origin, theme, layout, open) {
   const { view } = layout;
@@ -455,14 +492,41 @@ async function wallpaperPage() {
     <body style="margin:0;height:100vh;background:url(${wallpaper}) center / cover no-repeat"></body></html>`;
 }
 
-const SAMPLE_VALUES = [
-  { provider: "CLAUDE", meter: "FIVE_HOUR", value: 42 },
-  { provider: "CLAUDE", meter: "SEVEN_DAY", value: 64 },
-  { provider: "CODEX", value: 84 },
-  { provider: "ANTIGRAVITY", value: 94 },
+const CAPTURE_DEMO_READINGS = Object.freeze({
+  "CLAUDE:FIVE_HOUR": { value: 37, resetInSeconds: 4_320 },
+  "CLAUDE:SEVEN_DAY": { value: 58, resetInSeconds: 190_800 },
+  "CLAUDE:SEVEN_DAY_FABLE": { value: 63, resetInSeconds: 414_000 },
+  "CODEX:FIVE_HOUR": { value: 71, resetInSeconds: 13_200 },
+  "CODEX:SEVEN_DAY": { value: 82, resetInSeconds: 460_800 },
+  "ANTIGRAVITY:FIVE_HOUR": { value: 91, resetInSeconds: 8_760 },
+  "ANTIGRAVITY:SEVEN_DAY": { value: 67, resetInSeconds: 300_600 },
+});
+
+export const DEMO_SHARED_METERS = Object.freeze({
+  CODEX_SEVEN_DAY: CAPTURE_DEMO_READINGS["CODEX:SEVEN_DAY"].value,
+  ANTIGRAVITY_FIVE_HOUR: CAPTURE_DEMO_READINGS["ANTIGRAVITY:FIVE_HOUR"].value,
+  OPENROUTER_ACCOUNT_BALANCE: 12.54,
+});
+
+function captureDemoOverride(snapshot, now) {
+  const reading = CAPTURE_DEMO_READINGS[`${snapshot.provider}:${snapshot.meter}`];
+  if (reading === undefined) return {};
+  return {
+    value: reading.value,
+    resetAt: new Date(Date.parse(now) + reading.resetInSeconds * 1_000).toISOString(),
+  };
+}
+
+export const SAMPLE_VALUES = [
+  { provider: "CLAUDE", meter: "FIVE_HOUR", value: CAPTURE_DEMO_READINGS["CLAUDE:FIVE_HOUR"].value },
+  { provider: "CLAUDE", meter: "SEVEN_DAY", value: CAPTURE_DEMO_READINGS["CLAUDE:SEVEN_DAY"].value },
+  { provider: "CLAUDE", meter: "SEVEN_DAY_FABLE", value: CAPTURE_DEMO_READINGS["CLAUDE:SEVEN_DAY_FABLE"].value },
+  /* The line's one orange reading: the terminal shot must show all four bands. */
+  { provider: "CODEX", meter: "SEVEN_DAY", value: DEMO_SHARED_METERS.CODEX_SEVEN_DAY },
+  { provider: "ANTIGRAVITY", meter: "FIVE_HOUR", value: DEMO_SHARED_METERS.ANTIGRAVITY_FIVE_HOUR },
 ];
 
-function statuslineSnapshots(snapshots) {
+export function statuslineSnapshots(snapshots) {
   const rows = SAMPLE_VALUES.map((wanted) => {
     const row = snapshots.find((candidate) => candidate.provider === wanted.provider &&
       (wanted.meter === undefined || candidate.meter === wanted.meter) && candidate.unit === "PERCENT");
@@ -471,7 +535,13 @@ function statuslineSnapshots(snapshots) {
   });
   const openrouter = snapshots.find((row) => row.provider === "OPENROUTER");
   if (openrouter === undefined) throw new Error("The OpenRouter fixture has no balance row.");
-  return [...rows, { ...openrouter, unit: "CREDITS", value: 12.34, usedAmount: undefined, limitAmount: undefined }];
+  return [...rows, {
+    ...openrouter,
+    unit: "CREDITS",
+    value: DEMO_SHARED_METERS.OPENROUTER_ACCOUNT_BALANCE,
+    usedAmount: undefined,
+    limitAmount: undefined,
+  }];
 }
 
 function statuslineApiSpend(now) {
@@ -483,7 +553,7 @@ function statuslineApiSpend(now) {
       { id: "capture-anthropic", provider: "anthropic", enabled: true },
     ],
     samples: [
-      { sourceId: "capture-openrouter", sequence: 1, month, spendUsd: null, balanceUsd: "12.34", observedAt: now, currencySource: "provider_usd" },
+      { sourceId: "capture-openrouter", sequence: 1, month, spendUsd: null, balanceUsd: "12.54", observedAt: now, currencySource: "provider_usd" },
       { sourceId: "capture-openai", sequence: 1, month, spendUsd: "8.20", balanceUsd: null, observedAt: now, currencySource: "provider_usd" },
       { sourceId: "capture-anthropic", sequence: 1, month, spendUsd: "3.10", balanceUsd: null, observedAt: now, currencySource: "provider_usd" },
     ],
@@ -530,18 +600,72 @@ async function writeStatuslineSample(snapshots, now) {
 
 export async function terminalPage(theme, snapshots, now, { wrap = true } = {}) {
   const output = await statuslineOutput(snapshots, now);
-  /* A cell keeps together with its separator, so a wrapped line breaks between cells. */
+  /* The wrapped capture groups these cells after measuring their line tops. */
   const cells = output.split(" | ");
-  const body = cells.map((cell, index) => `<span class="cell">${ansiHtml(cell)}${index < cells.length - 1 ? " |" : ""}</span>`).join(" ");
+  const body = cells.map((cell, index) => `<span class="cell">${ansiHtml(cell)}</span>${index < cells.length - 1 ? '<span class="separator" aria-hidden="true"> | </span>' : ""}`).join("");
+  const lightBandColors = theme === "light"
+    ? ".band-yellow{color:#9a6700}.band-orange{color:#bc4c00}.band-red{color:#cf222e}"
+    : "";
   for (const band of ["green", "yellow", "orange", "red"]) {
     if (!body.includes(`band-${band}`)) throw new Error(`CLI capture did not render ${band}.`);
   }
   return `<!doctype html><html lang="en" data-theme="${theme}"><head><meta charset="utf-8">
     <link rel="stylesheet" href="engine/ui/tokens.css"><style>
       *{box-sizing:border-box}body{margin:0;padding:44px;background:var(--ol-canvas);color:var(--ol-body);font-family:var(--ol-font-sans)}
-      p{font-size:16px;color:var(--ol-muted)}pre{margin-top:34px;font:19px/2 ui-monospace,monospace;white-space:${wrap ? "pre-wrap" : "pre"};${wrap ? "" : "display:table;width:max-content;max-width:none;"}}.cell{white-space:nowrap}
-      ${["green", "yellow", "orange", "red"].map(b => `.band-${b}{color:var(--ol-band-${b}-label)}`).join("")}
-    </style></head><body><p>openlimiter statusline</p><pre>${body}</pre></body></html>`;
+      p{font-size:16px;color:var(--ol-muted)}pre{margin-top:34px;font:19px/2 ui-monospace,monospace;white-space:${wrap ? "pre-wrap" : "pre"};${wrap ? "" : "display:table;width:max-content;max-width:none;"}}.cell{display:${wrap ? "inline-block" : "inline"};white-space:pre}.separator{white-space:pre}
+      ${["green", "yellow", "orange", "red"].map(b => `.band-${b}{color:var(--ol-band-${b}-label)}`).join("")}${lightBandColors}
+</style></head><body><p>openlimiter statusline</p><pre>${body}</pre></body></html>`;
+}
+
+async function fitTerminalCapture(page) {
+  await page.setViewportSize({ width: 1200, height: 1 });
+  const measurement = await page.locator("pre").evaluate((pre) => {
+    const frame = pre.getBoundingClientRect();
+    const cells = [...pre.querySelectorAll(".cell")];
+    const lines = [];
+    let lineTop = null;
+    for (const [index, cell] of cells.entries()) {
+      const rect = cell.getBoundingClientRect();
+      if (lineTop === null || Math.abs(rect.top - lineTop) > 0.5) {
+        lineTop = rect.top;
+        lines.push([]);
+      }
+      lines.at(-1).push(index);
+    }
+    const longestLine = Math.max(0, ...lines.map((line) => {
+      const last = cells[line.at(-1)];
+      return last === undefined ? 0 : last.getBoundingClientRect().right - frame.left;
+    }));
+    return { frameWidth: pre.clientWidth, longestLine, lines };
+  });
+  if (measurement.longestLine > measurement.frameWidth + 0.5) {
+    throw new Error(`The terminal status line exceeds its frame: ${measurement.longestLine} > ${measurement.frameWidth}.`);
+  }
+  await page.locator("pre").evaluate((pre, lines) => {
+    const cells = [...pre.querySelectorAll(".cell")];
+    const fragment = document.createDocumentFragment();
+    for (const [lineIndex, indexes] of lines.entries()) {
+      const line = document.createElement("span");
+      line.className = "terminal-line";
+      for (const [cellIndex, index] of indexes.entries()) {
+        const cell = cells[index];
+        if (cell === undefined) continue;
+        if (cellIndex > 0) {
+          const separator = document.createElement("span");
+          separator.className = "separator";
+          separator.setAttribute("aria-hidden", "true");
+          separator.textContent = " | ";
+          line.append(separator);
+        }
+        line.append(cell);
+      }
+      fragment.append(line);
+      if (lineIndex < lines.length - 1) fragment.append("\n");
+    }
+    pre.replaceChildren(fragment);
+  }, measurement.lines);
+  const height = await page.evaluate(() => Math.ceil(document.scrollingElement?.scrollHeight ?? document.body.scrollHeight));
+  await page.setViewportSize({ width: 1200, height });
 }
 
 async function captureProductDetails(browser, theme, port) {
@@ -557,26 +681,42 @@ async function captureProductDetails(browser, theme, port) {
   };
   try {
     await page.goto(`${origin}/window-${theme}`, { waitUntil: "networkidle" });
-    await closeWhatsNew(page);
     await page.locator('#usage-rows [data-provider-card]').nth(2).waitFor({ state: "attached" });
+    await closeWhatsNew(page);
     await page.getByRole('tab', { name: 'Connect Tools', exact: true }).click();
     await page.locator('#key-rows [data-key-row]').first().waitFor({ state: "attached" });
     await page.getByRole('tab', { name: 'Usage', exact: true }).click();
     await page.locator('#agents-section:not([hidden])').waitFor();
-    /* The 2.0.3 one screen Home (tools, API keys, agents) is taller than the
-       old tabbed window, so the window grows to the content instead of cutting it. */
-    const homeHeight = await page.evaluate(() => document.scrollingElement.scrollHeight);
+    /* Reset the viewport before each tab measurement. scrollHeight cannot shrink
+       below the current viewport, so a taller tab would otherwise leave blank space. */
+    const tabHeight = async () => {
+      await page.setViewportSize({ width: 1000, height: 1 });
+      return page.evaluate(() => document.scrollingElement.scrollHeight);
+    };
+    const homeHeight = await tabHeight();
     await page.setViewportSize({ width: 1000, height: homeHeight });
     await shoot("desktop-home");
-    await page.setViewportSize({ width: 1000, height: 760 });
-    /* The panel reports the height its content needs, and native code sizes
-       the window to it; the pictures place both windows the same way. */
+    await page.getByRole('tab', { name: 'Connect Tools', exact: true }).click();
+    await page.locator('#key-rows [data-key-row]').first().waitFor({ state: "attached" });
+    const connectHeight = await tabHeight();
+    await page.setViewportSize({ width: 1000, height: connectHeight });
+    await shoot("desktop-connect");
+    await page.getByRole('tab', { name: 'Settings', exact: true }).click();
+    await page.locator('#tab-panel-settings #settings-appearance').waitFor({ state: "attached" });
+    const settingsHeight = await tabHeight();
+    await page.setViewportSize({ width: 1000, height: settingsHeight });
+    await shoot("desktop-settings");
+    /* The panel reports the height its content needs at its own width, and
+       native code sizes the window to it; the pictures place both windows the
+       same way. Measured any wider, wrapped labels would not count. */
+    await page.setViewportSize({ width: EDGE.panelWidth, height: 760 });
     await page.goto(`${origin}/edge-panel-${theme}`, { waitUntil: "networkidle" });
     await page.locator("[data-provider-card]").first().waitFor();
     const layout = edgeLayout(await page.evaluate(() => window.__heights.at(-1)));
-    await page.setViewportSize({ width: layout.view.width, height: layout.view.height });
     for (const open of [false, true]) {
-      await page.setContent(edgeScene(origin, theme, layout, open));
+      const captureLayout = open ? layout : edgeTabLayout(layout);
+      await page.setViewportSize({ width: captureLayout.view.width, height: captureLayout.view.height });
+      await page.setContent(edgeScene(origin, theme, captureLayout, open));
       await page.frameLocator('iframe[title="tab"]').locator(open ? ".edge-tab.open" : ".edge-tab").waitFor();
       if (open) {
         const panel = page.frameLocator('iframe[title="panel"]');
@@ -588,32 +728,33 @@ async function captureProductDetails(browser, theme, port) {
       await page.waitForTimeout(500);
       await shoot(open ? "edge-panel" : "edge-tab");
     }
-    await page.setViewportSize({ width: 1200, height: 300 });
     await page.goto(`${origin}/terminal-${theme}`, { waitUntil: "networkidle" });
+    await fitTerminalCapture(page);
     await shoot("terminal-statusline");
   } finally { await context.close(); }
   return names;
 }
 
-/* The desk window ends below the API key rows, keeping the 2.0.3 one screen
-   Tools and API keys UI together while leaving Agents below the crop. */
+/* The desk window follows the complete active Usage tab, including Agents and
+   a bottom gutter, so the one screen capture does not cut the list. */
 async function fitWindowToLimits(page) {
   const home = page.frameLocator("iframe");
-  /* The 2.0.3 one screen Home runs past the desk with its API keys, so the
-     window ends under the whole Tools card (Add a tool included), as a window sized to the meters would. */
-  const content = await home.locator(".q-usage").evaluate(card => Math.ceil(card.getBoundingClientRect().bottom) + 16);
-  await page.evaluate(({ content, titlebar, menubar, desk }) => {
+  const content = await home.locator("#tab-panel-usage").evaluate(panel => Math.ceil(panel.getBoundingClientRect().bottom) + 16);
+  await page.evaluate(({ content, titlebar, menubar, desk, scale, border }) => {
+    const snap = (value) => Math.round(value * scale) / scale;
     const frame = document.querySelector(".window");
-    frame.style.height = `${content + titlebar}px`;
-    frame.style.top = `${menubar + Math.round((desk - menubar - content - titlebar) / 2)}px`;
-    frame.querySelector("iframe").style.height = `${content}px`;
-  }, { content, titlebar: WINDOW.titlebar, menubar: MENUBAR_HEIGHT, desk: SCENE.height });
-  const subsequent = home.locator("#spend-section:not([hidden]), #agents-section:not([hidden])").first();
-  if (await subsequent.count()) {
-    const next = await subsequent.evaluate(section => section.getBoundingClientRect().top);
-    if (next < content) throw new Error("The desk window would cut a visible section heading.");
+    frame.style.height = `${snap(content + titlebar + 2 * border)}px`;
+    frame.style.top = `${snap(menubar + Math.round((desk - menubar - content - titlebar - 2 * border) / 2))}px`;
+    frame.querySelector("iframe").style.height = `${snap(content)}px`;
+  }, { content, titlebar: WINDOW.titlebar, menubar: MENUBAR_HEIGHT, desk: SCENE.height, scale: SCENE.scale, border: 1 / SCENE.scale });
+  /* Spend and Agents sit inside the measured tab, so after the resize the last
+     visible one must still end inside the window. */
+  const last = home.locator("#spend-section:not([hidden]), #agents-section:not([hidden])").last();
+  if (await last.count()) {
+    const end = await last.evaluate(section => section.getBoundingClientRect().bottom);
+    if (end > content) throw new Error("The desk window would cut a visible section.");
   }
-  if (content + WINDOW.titlebar > SCENE.height - MENUBAR_HEIGHT) throw new Error("The desk window would run past the desk.");
+  if (content + WINDOW.titlebar + 2 / SCENE.scale > SCENE.height - MENUBAR_HEIGHT) throw new Error("The desk window would run past the desk.");
 }
 
 /* What's New opens once per version over Home; video frames need the same
@@ -785,20 +926,14 @@ const STANDALONE = [
   ".ol-appmark-small { display: none !important; }",
   ".ol-appmark-full { display: flex !important; }",
   "nextjs-portal { display: none !important; }",
-  /* The safe area, which a headless browser reports as zero and a phone with an
-     island reports as about 59 pixels. The route already spends
-     `env(safe-area-inset-top)` here, so this only supplies the number the device
-     would have supplied, and it is what keeps the frame's island from landing on
-     the first line of the page. */
-  ".ol-shell { padding-top: 40px !important; }",
 ].join("\n");
 
 /* Each view names both the real screen it opens and where that screen starts. */
 const PHONE_VIEWS = [
-  { file: "phone-1", screen: "dashboard", from: "top" },
-  { file: "phone-2", screen: "onboarding", from: "top" },
-  { file: "phone-3", screen: "pair", from: "top" },
-  { file: "phone-4", screen: "dashboard", from: "end" },
+  { file: "phone-1", screen: "paired", tab: "usage", from: "top" },
+  { file: "phone-2", screen: "paired", tab: "pro", from: "top" },
+  { file: "phone-3", screen: "install", tab: "usage", from: "top" },
+  { file: "phone-4", screen: "pair", from: "top" },
 ];
 
 const CAPTURE_PAIR_CODE = "ABCD2345";
@@ -859,6 +994,18 @@ async function capturePhone(browser, theme, snapshots, now) {
   // Build the local site with NEXT_PUBLIC_SUPABASE_URL=https://capture.openlimiter.invalid
   // and NEXT_PUBLIC_SUPABASE_ANON_KEY=capture-only. No real service is contacted.
   const api = "https://capture.openlimiter.invalid";
+  const siteOrigin = new URL(SITE).origin;
+  const phoneRows = snapshots.map((row) => ({
+    account_id: "demo",
+    provider: row.provider,
+    code: row.meter,
+    percent: row.unit === "PERCENT" ? Math.round(row.value) : null,
+    amount: row.unit === "CREDITS" ? row.value : null,
+    currency: row.unit === "CREDITS" ? row.currency ?? null : null,
+    resets_at: row.resetAt ?? null,
+    observed_at: row.observedAt ?? now,
+    stale: false,
+  }));
   const written = [];
   for (const view of PHONE_VIEWS) {
     const context = await browser.newContext({
@@ -868,8 +1015,11 @@ async function capturePhone(browser, theme, snapshots, now) {
       isMobile: true,
       hasTouch: true,
       serviceWorkers: "block",
+      userAgent: view.screen === "install"
+        ? "Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/19.0 Mobile/15E148 Safari/604.1"
+        : undefined,
     });
-    const onboarded = view.screen !== "onboarding";
+    const onboarded = true;
     const user = { id: "00000000-0000-4000-8000-000000000001", aud: "authenticated", role: "authenticated",
       user_metadata: { full_name: "Demo", openlimiter_onboarded: onboarded }, app_metadata: { provider: "github" }, created_at: now };
     const session = { access_token: "capture-only", refresh_token: "capture-only", token_type: "bearer", expires_in: 86400,
@@ -878,9 +1028,25 @@ async function capturePhone(browser, theme, snapshots, now) {
     let pairClaims = 0;
     let pairPolls = 0;
     let pairRejected = 0;
+    let phoneReads = 0;
+    let phoneRenewals = 0;
     const pairExpiresAt = new Date(Date.now() + 120_000).toISOString();
+    const phoneExpiresAt = Math.floor(Date.now() / 1_000) + 86_400;
     await context.route("**/*", async (route) => {
       const url = new URL(route.request().url());
+      if (url.origin === siteOrigin && view.screen !== "pair") {
+        if (url.pathname === "/app/pair/api/read") {
+          phoneReads++;
+          await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ body: { rows: phoneRows } }) });
+          return;
+        }
+        if (url.pathname === "/app/pair/api/renew") {
+          phoneRenewals++;
+          await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ expires_at: phoneExpiresAt }) });
+          return;
+        }
+        return route.continue();
+      }
       if (url.origin === api) {
         const action = route.request().postDataJSON()?.action;
         if (view.screen === "pair" && url.pathname === "/functions/v1/pair-device") {
@@ -909,47 +1075,54 @@ async function capturePhone(browser, theme, snapshots, now) {
         else body = { rows: [], keys: [] };
         return route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
       }
-      if (url.origin === new URL(SITE).origin) return route.continue();
+      if (url.origin === siteOrigin) return route.continue();
       return route.abort();
     });
     await context.addInitScript(
-      ([kind, auth, includeSession, freshOnboarding]) => {
+      ([kind, auth, includeSession, seedPairMeta]) => {
         window.localStorage.setItem("openlimiter-theme", kind);
-        window.localStorage.setItem("openlimiter-app-mode", "live");
-        window.localStorage.setItem("openlimiter-app-view", "grid");
-        if (freshOnboarding) window.localStorage.removeItem("openlimiter-onboarded-00000000-0000-4000-8000-000000000001");
+        if (seedPairMeta) window.localStorage.setItem("openlimiter-phone-pair-meta", JSON.stringify({ label: "Demo phone", expiresAt: Math.floor(Date.now() / 1_000) + 1 }));
         if (includeSession) window.localStorage.setItem("sb-capture-auth-token", auth);
       },
-      [theme, JSON.stringify(session), view.screen !== "pair", view.screen === "onboarding"],
+      [theme, JSON.stringify(session), view.screen !== "pair", view.screen !== "pair"],
     );
     const page = await context.newPage();
     try {
-      const route = view.screen === "pair" ? `/app/pair#code=${CAPTURE_PAIR_CODE}` : "/app";
+      /* A paired phone's Usage and Pro tabs and its install button live on the
+         pair page, never on /app; only the pair view brings a code. */
+      const route = `/app/pair${view.screen === "pair" ? `#code=${CAPTURE_PAIR_CODE}` : ""}`;
+      if (view.screen !== "install") {
+        await page.addInitScript(() => {
+          const nativeMatchMedia = window.matchMedia.bind(window);
+          window.matchMedia = (query) => {
+            const result = nativeMatchMedia(query);
+            if (query.includes("display-mode: standalone")) {
+              Object.defineProperty(result, "matches", { configurable: true, value: true });
+            }
+            return result;
+          };
+          Object.defineProperty(navigator, "standalone", { configurable: true, value: true });
+        });
+      }
       await page.goto(SITE + route, { waitUntil: "domcontentloaded" });
-      await page.addStyleTag({ content: STANDALONE });
+      if (view.screen !== "install") await page.addStyleTag({ content: STANDALONE });
 
-      if (view.screen === "dashboard") {
-        /* The launch splash clears at 760ms, the busy floor is 240ms, and then
-           the panel must actually contain its proof text before the shutter. */
-        await page.waitForTimeout(1600);
-        /* Provider rows render inside shadow roots, which document text never
-           reaches; Playwright locators pierce them. */
-        for (const name of ["Claude", "Codex"]) {
-          await page.getByText(name, { exact: true }).first().waitFor({ timeout: 20000 });
-        }
+      if (view.screen === "paired" || view.screen === "install") {
+        await page.locator("#ol-phone-panel-usage openlimiter-provider-row").first().waitFor({ timeout: 20000 });
         const firstCard = page.locator("openlimiter-provider-row article.row").first();
         await firstCard.waitFor();
         for (const selector of [".window-name", ".window-percent", ".window-reset"]) {
           await firstCard.locator(selector).first().waitFor({ state: "attached" });
         }
-        if (!syncedReads) throw new Error("Phone capture requires a signed in fixture API read. Rebuild with the documented synthetic API configuration.");
-      } else if (view.screen === "onboarding") {
-        const profile = page.locator('.ol-onboarding-card[data-step="profile"]');
-        await profile.waitFor({ timeout: 20000 });
-        await profile.locator(".ol-onboarding-actions button").first().click();
-        const connect = page.locator('.ol-onboarding-card[data-step="connect"]');
-        await connect.waitFor();
-        await connect.locator(".ol-connect-row").first().waitFor();
+        if (!phoneReads || !phoneRenewals) throw new Error("Phone capture requires the paired read and renewal routes to answer.");
+        if (view.tab === "pro") {
+          await page.getByRole("tab", { name: "Pro", exact: true }).click();
+          await page.locator("#ol-phone-panel-pro:not([hidden])").waitFor();
+        } else if (view.screen === "install") {
+          await page.getByRole("button", { name: "Install app", exact: true }).click();
+          await page.locator('[role="dialog"]').waitFor();
+          await page.getByText("Add OpenLimiter to your Home Screen", { exact: true }).waitFor();
+        }
       } else {
         /* The readout's paragraph also holds a screen reader prefix, so the
            code is a substring of its text, never the whole of it. */
@@ -1013,10 +1186,12 @@ async function captureDesk(browser, theme, port) {
     waitUntil: "networkidle",
   });
   const home = page.frameLocator("iframe");
+  await home.locator('#usage-rows [data-provider-card]').nth(2).waitFor({ state: "attached" });
   await closeWhatsNew(home);
   await home.getByRole('tab', { name: 'Connect Tools', exact: true }).click();
   await home.locator('#key-rows [data-key-row]').first().waitFor({ state: "attached" });
   await home.getByRole('tab', { name: 'Usage', exact: true }).click();
+  await home.locator('#agents-section:not([hidden])').waitFor();
   /* The desk shows the window as a person uses it, after What's New is closed. */
   await fitWindowToLimits(page);
   await page.waitForTimeout(1200);

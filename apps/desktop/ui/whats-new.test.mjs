@@ -10,6 +10,12 @@ const whatsNewForVersion = (version) => selectRelease(version, WHATS_NEW_EN);
 
 /* What each recent release says, word for word; the current version is one of them. */
 const NOTES = {
+  "2.1.0": [
+    { key: "claude", text: "Claude now shows one number per bar, with the Claude bucket allowlist, clear status line captions and the Pro captions preset. Setup upgrades the runtime when needed." },
+    { key: "desktop", text: "The desktop opens faster and its buttons work. Connect repairs a Codex connection that stopped reading. Usage, Connect Tools and Settings share a responsive window." },
+    { key: "phone", text: "The phone app can install to the Home Screen, follow its light or dark theme, keep the last bars when offline and show the Pro tab." },
+    { key: "status", text: "The terminal line uses short captions such as 5h, 7d, fable7d, cx7d and ag5h. Money cells such as or $ keep their amounts, and an OpenRouter management key adds your balance." },
+  ],
   "2.0.4": [
     { key: "codex", text: "Codex limits now use OpenAI's documented source. Your Codex sign in stays on your device." },
     { key: "claude", text: "Claude now shows Current session, Weekly, all models, Weekly, Fable and extra usage. Fable and extra usage are on after one notice, with switches in Settings and the terminal." },
@@ -51,8 +57,8 @@ test("the current notes stay short and earlier releases remain available", () =>
       assert.doesNotMatch(text, /[-\u2010-\u2015]/u);
     }
   }
-  assert.equal(WHATS_NEW_EN.releases["2.0.4"].heading, "More accurate limits");
-  assert.ok(NOTES["2.0.4"].length <= 4);
+  assert.equal(WHATS_NEW_EN.releases["2.1.0"].heading, "One number per bar");
+  assert.equal(NOTES["2.1.0"].length, 4);
 });
 
 test("the 2.0.0 release notes remain available", () => {

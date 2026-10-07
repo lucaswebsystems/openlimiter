@@ -515,10 +515,16 @@
         "unfoldedAlt": "El panel real de OpenLimiter abierto junto a la pestaña, con datos sintéticos: Claude Code te necesita y ofrece Mostrar app, Codex está ocupado y Gemini CLI ha terminado; debajo, los límites de Codex, Claude Code y OpenRouter con barras y el tiempo hasta cada reinicio, y un enlace Abrir app."
       },
       "agents": {
-        "title": "Ocupado, en espera o terminado. Sabrás cuándo volver.",
-        "lead": "La lista de agentes de Home muestra la actividad de las integraciones de agentes compatibles. Un agente en espera necesita intervención. Un agente terminado ha informado que completó su trabajo. Las notificaciones locales gratuitas te traen de vuelta cuando hay algo que hacer.",
-        "note": "Mostrar app te lleva a la aplicación responsable cuando el sistema operativo lo permite. No promete una pestaña concreta del terminal. La actividad unknown nunca se muestra como éxito.",
-        "alt": "Home de escritorio de OpenLimiter con datos sintéticos: límites de Codex, Claude Code y OpenRouter, y debajo la lista de agentes con Claude Code en espera, Codex ocupado y Gemini CLI terminado."
+        "title": "Tres pestañas de escritorio. Un panel al pasar el cursor.",
+        "lead": "Usage, Connect Tools y Settings mantienen despejado el escritorio. El panel muestra los límites y la actividad de los agentes cuando la ventana principal no está a mano.",
+        "note": "Usage contiene las barras, Connect Tools la configuración de proveedores y Settings las opciones del escritorio. Pasa el cursor por la pestaña lateral para ver primero al agente que necesita tu atención.",
+        "alt": "Escritorio de OpenLimiter con tres pestañas llamadas Usage, Connect Tools y Settings, límites sintéticos de Codex, Claude Code y OpenRouter y un panel con actividad de agentes.",
+        "desktopHomeAlt": "La pestaña Usage del escritorio de OpenLimiter con barras sintéticas para Codex, Claude Code y OpenRouter.",
+        "desktopHomeNote": "Usage muestra las barras de Codex, Claude Code y OpenRouter.",
+        "desktopConnectAlt": "La pestaña Connect Tools del escritorio de OpenLimiter con conexiones sintéticas de proveedores.",
+        "desktopConnectNote": "Connect Tools muestra la configuración de proveedores y el estado de conexión.",
+        "desktopSettingsAlt": "La pestaña Settings del escritorio de OpenLimiter con las opciones de la aplicación.",
+        "desktopSettingsNote": "Settings muestra las opciones que configuran el escritorio."
       },
       "terminal": {
         "title": "Tus límites junto a tu prompt.",
@@ -527,49 +533,45 @@
         "alt": "Salida real de la CLI de OpenLimiter para la línea de estado de Claude Code: el modelo, el esfuerzo y la ventana de contexto, y luego celdas de uso con franjas verdes, amarillas, naranjas y rojas, porcentajes y horas de reinicio."
       },
       "phone": {
-        "title": "Inicia sesión en tu teléfono. Consulta las lecturas de tu computadora.",
-        "lead": "Inicia sesión con la misma cuenta de OpenLimiter en tu computadora y en tu teléfono. El web app muestra las lecturas sincronizadas más recientes, incluido el momento en que se observaron. El acceso a la cuenta gratuita sigue funcionando cuando termina el periodo de prueba de Pro.",
-        "note": "Tu computadora debe recopilar y sincronizar nuevas lecturas. Un teléfono no actualiza una computadora sin conexión, y las credenciales de los proveedores permanecen en el dispositivo que las lee.",
-        "cta": "Inicia sesión en el web app",
-        "alt": "El web app de OpenLimiter con sesión iniciada en tamaño de teléfono, mostrando lecturas sintéticas sincronizadas desde una computadora."
+        "title": "Empareja desde el escritorio. Tus barras en la pantalla de inicio.",
+        "lead": "Empareja tu teléfono desde el escritorio y después abre la aplicación web desde la pantalla de inicio. Muestra las lecturas más recientes de tu computadora, incluido el momento en que se observaron.",
+        "note": "El teléfono sigue su tema claro u oscuro y conserva las últimas lecturas sin conexión. Tu computadora sigue recopilando lecturas nuevas y las credenciales permanecen allí.",
+        "cta": "Abrir la aplicación del teléfono",
+        "alt": "La aplicación de teléfono de OpenLimiter con lecturas sintéticas emparejadas desde un escritorio, en las vistas Usage y Pro."
       },
       "captureNote": "Pantallas reales de la aplicación con datos sintéticos. Ninguna cuenta personal ni dato de uso."
     },
     "docsLine": "Ambas cosas están documentadas en detalle: <agentContext>lo que se le dice a un agente</agentContext> y <cli>cada comando con el que se distribuye</cli>.",
     "bridge": {
       "line": "Sigue trabajando. Mira cuándo un agente te necesita.",
-      "note": "La pestaña lateral y el terminal muestran lecturas locales. Inicia sesión para ver lecturas sincronizadas en tu teléfono."
+      "note": "La pestaña lateral y el terminal muestran lecturas locales. Empareja tu teléfono desde el escritorio para ver sus barras en la pantalla de inicio."
     }
   },
   "deviceFrame": {
-    "title": "Tu día de programación en un solo lugar",
-    "lead": "Los meters de uso locales y la lista de agentes comparten la Home de escritorio. Consulta qué tan reciente es una lectura, cuándo se reinicia su ventana y qué agente compatible necesita tu atención.",
+    "title": "Usage, herramientas y ajustes en una ventana",
+    "lead": "El escritorio tiene tres pestañas: Usage para las barras, Connect Tools para configurar proveedores y Settings para las opciones de la aplicación. El panel mantiene cerca los límites y los agentes cuando la ventana está lejos.",
     "screenshot": {
-      "alt": "La ventana de OpenLimiter en un escritorio, con lecturas de uso sintéticas de Codex, Claude Code y OpenRouter, y Antigravity listo para abrir."
+      "alt": "La ventana de la pestaña Usage del escritorio de OpenLimiter con barras sintéticas de Codex, Claude Code y OpenRouter."
     },
-    "caption": "La interfaz real de escritorio renderizada sin interfaz gráfica, con fixtures sintéticos. No aparece ninguna cuenta personal, credencial ni cifra de uso real."
+    "caption": "La ventana real de la pestaña Usage se renderiza sin interfaz gráfica con fixtures sintéticos. No aparece ninguna cuenta personal, credencial ni cifra de uso real."
   },
   "phonePanels": {
     "shots": {
-      "meters": {
-        "label": "Meters",
-        "alt": "La aplicación web en un teléfono, con una tarjeta uniforme y reordenable por proveedor que muestra barras, uso y tiempos de reinicio."
-      },
-      "agentContext": {
-        "label": "Agent context",
-        "alt": "La aplicación web en un teléfono, mostrando el bloque acotado de estado de presupuesto que recibe un agente de programación, delimitado dentro de un límite de datos no confiables."
-      },
-      "connect": {
-        "label": "Conectar herramientas",
-        "alt": "La aplicación web en un teléfono en el paso de conexión de la configuración inicial, mostrando el comando que se debe ejecutar y la lista de herramientas disponibles para conectar."
-      },
-      "pair": {
-        "label": "Vincular teléfono",
-        "alt": "La aplicación web en un teléfono esperando que la computadora apruebe la vinculación, con un código sintético de ocho caracteres y una cuenta regresiva hasta que caduque."
+      "usage": {
+        "label": "Usage",
+        "alt": "La aplicación de teléfono emparejada de OpenLimiter mostrando las barras de todos los proveedores conectados."
       },
       "pro": {
-        "label": "Pro, 30 días gratis",
-        "alt": "La web app en un teléfono en la tarjeta Pro: historial, alertas, cuentas adicionales y medición en la nube, y un botón que inicia la prueba gratuita de Pro de 30 días sin tarjeta."
+        "label": "Pro",
+        "alt": "La aplicación de teléfono emparejada de OpenLimiter mostrando la pestaña Pro con sus funciones de prueba y de pago."
+      },
+      "install": {
+        "label": "Instalar",
+        "alt": "La aplicación de teléfono de OpenLimiter mostrando la hoja de instalación de iOS en Safari."
+      },
+      "pair": {
+        "label": "Emparejar",
+        "alt": "La aplicación de teléfono de OpenLimiter esperando que el escritorio apruebe el emparejamiento con un código sintético."
       }
     }
   },
@@ -971,7 +973,7 @@
     },
     "preview": {
       "title": "Aplicación de escritorio OpenLimiter",
-      "alt": "Home de OpenLimiter en el escritorio con los límites de los proveedores y la actividad de los agentes"
+      "alt": "La pestaña Usage de OpenLimiter en el escritorio con barras de uso y la fila de pestañas Usage, Connect Tools y Settings"
     },
     "versionLine": "Versión {version}",
     "releaseNotes": "Notas de la versión",
@@ -991,13 +993,13 @@
       "linux": "Elige deb para Debian o Ubuntu, rpm para Fedora u openSUSE, o AppImage para una instalación portátil."
     },
     "phone": {
-      "iphoneGuide": "Abre la aplicación web en Safari, toca Compartir y elige Añadir a la pantalla de inicio. Inicia sesión para conservar tus lecturas sincronizadas.",
-      "androidGuide": "Abre la aplicación web en Chrome, abre el menú y elige Instalar aplicación o Añadir a la pantalla de inicio. Inicia sesión para continuar.",
+      "iphoneGuide": "Abre la aplicación web emparejada en Safari, toca Compartir y elige Añadir a la pantalla de inicio.",
+      "androidGuide": "Abre la aplicación web emparejada en Chrome, abre el menú y elige Instalar aplicación o Añadir a la pantalla de inicio.",
       "openApp": "Abrir la aplicación web",
       "title": "En tu teléfono",
-      "lead": "Esto instala la aplicación web en tu pantalla de inicio. No hay ninguna aplicación nativa para iOS o Android construida.",
+      "lead": "Empareja tu teléfono desde el escritorio y después instala la aplicación web en la pantalla de inicio. No hay ninguna aplicación nativa para iOS o Android construida.",
       "qrAlt": "Código QR que enlaza a {url}",
-      "scan": "Escanea esto con la cámara de tu teléfono. La aplicación web se abre, y desde ahí la instalas en la pantalla de inicio."
+      "scan": "Escanea con tu teléfono el código que muestra el escritorio. La aplicación web se abre, y desde ahí la instalas en la pantalla de inicio."
     },
     "building": {
       "title": "Próximamente",
@@ -2522,7 +2524,7 @@
         },
         "noCode": {
           "title": "Este enlace no tiene código de emparejamiento",
-          "body": "La aplicación de escritorio genera un código de emparejamiento que dura dos minutos. Abre OpenLimiter en tu computadora, ve a Dispositivos, elige Emparejar un teléfono y escanea el código que aparece."
+          "body": "La aplicación de escritorio genera un código de emparejamiento que dura dos minutos. Abre OpenLimiter en tu computadora, elige Pair your phone y escanea el código que aparece."
         },
         "waiting": {
           "title": "Esperando aprobación",

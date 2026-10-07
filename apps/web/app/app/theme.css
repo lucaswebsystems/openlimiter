@@ -94,10 +94,6 @@
     display: none;
   }
 
-  .ol-shell {
-    padding-top: max(var(--ol-space-2), env(safe-area-inset-top));
-  }
-
   .ol-account-gate form,
   .ol-account-gate button[aria-controls],
   .ol-account-gate [class~="mt-6"] > button:nth-child(3),
@@ -558,8 +554,10 @@
 
 .ol-pair-lockup {
   display: flex;
+  min-height: 4rem;
+  align-items: center;
   margin-bottom: var(--ol-space-6);
-  padding-top: var(--ol-space-2);
+  padding: max(var(--ol-space-3), env(safe-area-inset-top)) 0 var(--ol-space-3);
 }
 
 .ol-phone-shell:has(.ol-phone-app) > .ol-pair-lockup {
@@ -580,7 +578,7 @@
   justify-content: space-between;
   padding: max(var(--ol-space-3), env(safe-area-inset-top)) var(--ol-space-4) var(--ol-space-3);
   border-bottom: 1px solid var(--ol-hairline);
-  background: color-mix(in srgb, var(--ol-canvas) 92%, transparent);
+  background: var(--ol-canvas);
   backdrop-filter: blur(18px);
 }
 
@@ -637,8 +635,8 @@
   margin: 0 auto;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   border-top: 1px solid var(--ol-hairline);
-  background: color-mix(in srgb, var(--ol-canvas) 96%, transparent);
-  padding: 0 var(--ol-space-4) env(safe-area-inset-bottom);
+  background: var(--ol-canvas);
+  padding: 0 var(--ol-space-4) max(0.5rem, env(safe-area-inset-bottom));
   backdrop-filter: blur(20px);
 }
 
@@ -983,7 +981,15 @@
 
 .ol-sheet {
   animation: ol-sheet-up 260ms cubic-bezier(0, 0, 0.58, 1) both;
-  padding-bottom: env(safe-area-inset-bottom);
+  display: flex;
+  max-height: calc(100dvh - 1rem);
+  flex-direction: column;
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+.ol-sheet-body {
+  min-height: 0;
+  overflow-y: auto;
 }
 
 @keyframes ol-fade-in {
@@ -1274,10 +1280,6 @@ body:has(.ol-product-shell) .page-overlap {
   min-height: 100svh;
 }
 
-body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
-  padding-top: max(var(--ol-space-5), env(safe-area-inset-top));
-}
-
 .ol-product-shell {
   min-height: 100svh;
   padding-bottom: max(var(--ol-space-6), env(safe-area-inset-bottom));
@@ -1303,11 +1305,18 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
   padding-right: max(var(--ol-space-5), env(safe-area-inset-right));
 }
 
-@media (min-width: 768px) {
-  body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
-    padding-top: max(var(--ol-space-6), env(safe-area-inset-top));
-  }
+/* Product pages hide the site header, so the shell must not keep the site
+   header clearance from .page-overlap (a 112px blank band on a phone). The
+   phone header carries the top inset itself. */
+body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
+  padding-top: max(var(--ol-space-6), env(safe-area-inset-top));
+}
 
+body:has(.ol-product-shell) .page-overlap > .ol-product-shell.ol-phone-shell {
+  padding-top: 0;
+}
+
+@media (min-width: 768px) {
   .ol-dashboard {
     padding-left: max(var(--ol-space-7), env(safe-area-inset-left));
     padding-right: max(var(--ol-space-7), env(safe-area-inset-right));
@@ -1904,6 +1913,20 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
 .ol-control-primary:hover {
   border-color: var(--ol-accent-solid-hover);
   background: var(--ol-accent-solid-hover);
+}
+
+body:has(.ol-phone-shell) .ol-sheet .ol-install-done.ol-control-primary,
+body:has(.ol-phone-shell) .ol-phone-pro .ol-control-primary {
+  border-color: var(--ol-primary-fill);
+  background: var(--ol-primary-fill);
+  color: var(--ol-on-primary-fill);
+}
+
+body:has(.ol-phone-shell) .ol-sheet .ol-install-done.ol-control-primary:hover,
+body:has(.ol-phone-shell) .ol-phone-pro .ol-control-primary:hover {
+  border-color: color-mix(in srgb, var(--ol-primary-fill) 88%, black);
+  background: color-mix(in srgb, var(--ol-primary-fill) 88%, black);
+  color: var(--ol-on-primary-fill);
 }
 
 .ol-control-ghost {
@@ -3316,7 +3339,7 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
   position: relative;
   overflow: hidden;
   border: 1px solid var(--ol-hairline);
-  border-radius: var(--ol-radius-xl);
+  border-radius: var(--ol-radius-md);
   background: var(--ol-surface);
   box-shadow: var(--ol-elev-1);
 }
@@ -3382,6 +3405,10 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
 }
 
 .ol-lock-list li {
+  display: grid;
+  grid-template-columns: 0.375rem minmax(0, 1fr);
+  column-gap: var(--ol-space-3);
+  align-items: start;
   color: var(--ol-soft);
   font-size: var(--ol-text-label);
   line-height: var(--ol-leading-body);
@@ -3393,10 +3420,9 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
   display: inline-block;
   width: 0.375rem;
   height: 0.375rem;
-  margin-inline-end: var(--ol-space-3);
+  margin-top: 0.45em;
   border-radius: var(--ol-radius-pill);
   background: var(--ol-band-stale-fill);
-  vertical-align: middle;
 }
 
 .ol-lock-offer {
@@ -3406,7 +3432,7 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
   gap: var(--ol-space-2);
   padding: var(--ol-space-4);
   border: 1px solid var(--ol-hairline-strong);
-  border-radius: var(--ol-radius-lg);
+  border-radius: var(--ol-radius-md);
   background: var(--ol-raised);
 }
 

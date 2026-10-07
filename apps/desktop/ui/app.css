@@ -2917,6 +2917,10 @@ button.first-run-quiet-button {
   transform: none;
 }
 
+#settings-appearance #theme {
+  padding-right: 0;
+}
+
 .menu-presets {
   display: grid;
   gap: var(--ol-space-1);
@@ -2962,7 +2966,7 @@ button.first-run-quiet-button {
   text-decoration: underline;
 }
 
-.app-menu #trademark-note {
+.settings .q-card #trademark-note {
   margin: 0;
   padding-top: 0;
   border-top: 0;

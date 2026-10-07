@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, createElement, type ReactNode, useState } from "react";
+import { readFileSync } from "node:fs";
 import { createRoot, type Root } from "react-dom/client";
 import { NextIntlClientProvider } from "next-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -32,6 +33,18 @@ const body = {
     stale: false,
   }],
 };
+
+const PHONE_THEME = readFileSync("app/app/theme.css", "utf8");
+const PAIR_FLOW = readFileSync("app/app/pair/pair-flow.tsx", "utf8");
+
+describe("phone card geometry", () => {
+  it("uses the bar card radius for pairing and Pro cards and hangs bullet text", () => {
+    expect(PAIR_FLOW).toContain('const CARD = "rounded-lg border border-hairline bg-surface p-5";');
+    expect(PHONE_THEME).toMatch(/\.ol-lock\s*\{[\s\S]*?border-radius:\s*var\(--ol-radius-md\)/u);
+    expect(PHONE_THEME).toMatch(/\.ol-lock-offer\s*\{[\s\S]*?border-radius:\s*var\(--ol-radius-md\)/u);
+    expect(PHONE_THEME).toMatch(/\.ol-lock-list li\s*\{[\s\S]*?display:\s*grid;[\s\S]*?grid-template-columns:\s*0\.375rem\s+minmax\(0,\s*1fr\)/u);
+  });
+});
 
 describe("the paired phone display cache", () => {
   beforeEach(() => {

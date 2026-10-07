@@ -143,6 +143,7 @@ function windowView(row, now) {
       unbounded: true,
       neutral: true,
       reset: null,
+      moneyDetail: false,
     };
   }
   const hasMoney = Number.isFinite(row.usedAmount) && Number.isFinite(row.limitAmount) && typeof row.currency === "string";
@@ -169,6 +170,7 @@ function windowView(row, now) {
     unbounded,
     neutral: balance,
     reset: timeLeft(row.resetAt, now),
+    moneyDetail: Boolean(balance && hasMoney),
   };
 }
 
@@ -283,25 +285,32 @@ function resetText(window, compact) {
 function limitRow(doc, window, compact) {
   const row = node(doc, "div", "q-row");
   row.dataset.band = window.band;
-  const bar = node(doc, "span", "q-bar");
-  bar.setAttribute("role", window.neutral ? "status" : "progressbar");
-  bar.setAttribute("aria-label", window.label);
-  if (!window.neutral) bar.setAttribute("aria-valuemin", "0");
-  if (!window.neutral) bar.setAttribute("aria-valuemax", "100");
-  if (window.usedPercent !== null) bar.setAttribute("aria-valuenow", String(Math.floor(window.usedPercent)));
-  bar.setAttribute("aria-valuetext", window.neutral
-    ? [window.value, window.limit].filter(Boolean).join(", ")
-    : window.unbounded ? `${window.value} ${say("creditsSpent")}` : say("usedValue", { value: window.value }));
-  const fill = node(doc, "i");
-  fill.style?.setProperty("width", `${window.usedPercent ?? 0}%`);
-  bar.append(fill);
+  row.dataset.detail = window.moneyDetail ? "money" : "plain";
+  if (window.usedPercent === null) row.dataset.bar = "none";
   const value = node(doc, "span", "q-val");
   if (["yellow", "orange", "red"].includes(window.band)) value.append(art(doc, "q-shape", bandIconSvg(window.band)));
   value.append(node(doc, "span", "", compact || window.unbounded || window.neutral
     ? window.value
     : say("usedValue", { value: window.value })));
   const reset = resetText(window, compact);
-  row.append(node(doc, "span", "q-lbl", window.label), bar, value, node(doc, "span", "q-rst", reset));
+  const children = [node(doc, "span", "q-lbl", window.label)];
+  if (window.usedPercent !== null) {
+    const bar = node(doc, "span", "q-bar");
+    bar.setAttribute("role", window.neutral ? "status" : "progressbar");
+    bar.setAttribute("aria-label", window.label);
+    if (!window.neutral) bar.setAttribute("aria-valuemin", "0");
+    if (!window.neutral) bar.setAttribute("aria-valuemax", "100");
+    bar.setAttribute("aria-valuenow", String(Math.floor(window.usedPercent)));
+    bar.setAttribute("aria-valuetext", window.neutral
+      ? [window.value, window.limit].filter(Boolean).join(", ")
+      : window.unbounded ? `${window.value} ${say("creditsSpent")}` : say("usedValue", { value: window.value }));
+    const fill = node(doc, "i");
+    fill.style?.setProperty("width", `${window.usedPercent}%`);
+    bar.append(fill);
+    children.push(bar);
+  }
+  children.push(value, node(doc, "span", "q-rst", reset));
+  row.append(...children);
   return row;
 }
 

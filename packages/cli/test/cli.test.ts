@@ -186,7 +186,7 @@ describe("CLI", () => {
       });
       expect(result.stdout).toBe([
         "PROVIDER    METER                                 BAR        USAGE             AMOUNT STATE RESET                    IN    SOURCE       ",
-        "OPENCODE    5 hour limit, from the OpenCode page  #########. 92.00PERCENT      NONE   fresh 2026-01-01T20:00:00.000Z 20h0m [import only]",
+        "OPENCODE    5 hour limit, from the OpenCode page  #########. 92.00PERCENT      NONE   fresh 2026-01-01T04:00:00.000Z 4h0m  [import only]",
         "OPENCODE    Weekly limit, from the OpenCode page  ####...... 40.00PERCENT      NONE   fresh 2026-01-06T20:00:00.000Z 5d20h [import only]",
         "OPENCODE    Monthly limit, from the OpenCode page #......... 15.00PERCENT      NONE   fresh 2026-01-22T00:00:00.000Z 21d0h [import only]",
         "CODEX       5h                                    ########.. 84.00PERCENT      NONE   fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
@@ -220,7 +220,7 @@ describe("CLI", () => {
         "provider=ANTIGRAVITY meter=FIVE_HOUR state=fresh usage_percent=28 " +
           "reset_at=2026-01-01T05:00:00.000Z",
         "provider=OPENCODE meter=FIVE_HOUR state=fresh usage_percent=92 " +
-          "reset_at=2026-01-01T20:00:00.000Z",
+          "reset_at=2026-01-01T04:00:00.000Z",
         "provider=GROK meter=WEEKLY state=fresh usage_percent=43 " +
           "reset_at=2026-01-08T00:00:00.000Z",
         "provider=KIMI meter=FIVE_HOUR state=fresh usage_percent=70 " +
@@ -314,7 +314,7 @@ describe("CLI", () => {
       expect(statusline.stdout).toBe([
         "5h [████░░░░░░] 42% ·5h | 7d [██████░░░░] 64% ·7d | " +
           "cx5h [████████░░] 84% ·5h | ag5h [██░░░░░░░░] ~28% ·5h | " +
-          "ag7d [█░░░░░░░░░] ~10% ·7d | oc5h [█████████░] ~92% ·20h | " +
+          "ag7d [█░░░░░░░░░] ~10% ·7d | oc5h [█████████░] ~92% ·4h | " +
           "oc7d [████░░░░░░] ~40% ·5d20h | ocmo [█░░░░░░░░░] ~15% ·21d | " +
           "gk7d [████░░░░░░] ~43% ·7d | gkmo [█░░░░░░░░░] ~6% | " +
           "km Weekly used [█░░░░░░░░░] ~10% ·7d | km 5h used [██████░░░░] ~70% ·5h | " +

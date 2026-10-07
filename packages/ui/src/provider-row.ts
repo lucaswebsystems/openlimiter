@@ -1125,10 +1125,17 @@ slot[name="footer"] {
   .window-reset { font-size: var(--ol-text-micro); }
 }
 :host([data-layout="stacked"]) .column-label { display: none; }
+:host([data-layout="stacked"]) .row {
+  height: auto;
+}
 :host([data-layout="stacked"]) .identity {
   grid-template-columns: minmax(0, 1fr) 2rem;
 }
-:host([data-layout="stacked"]) .identity-name { grid-column: 1; }
+:host([data-layout="stacked"]) .identity-name {
+  grid-column: 1;
+  align-items: center;
+}
+:host([data-layout="stacked"]) .mark { grid-row: 1; }
 :host([data-layout="stacked"]) ::slotted([slot="actions"]) { grid-column: 2; }
 :host([data-layout="stacked"]) .window-line {
   grid-template-columns: minmax(0, 1fr) minmax(max-content, 3.75rem);

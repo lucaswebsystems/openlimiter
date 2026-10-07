@@ -515,10 +515,16 @@
         "unfoldedAlt": "The real OpenLimiter panel open beside the edge tab, with synthetic data: Claude Code needs you and offers Show app, Codex is busy and Gemini CLI is done, then limits for Codex, Claude Code and OpenRouter with bars and reset times, and an Open app link."
       },
       "agents": {
-        "title": "Busy, waiting or done. Know when to return.",
-        "lead": "The Home Agents list shows activity from supported agent integrations. A waiting agent needs input. A done agent has reported completion. Free local notifications bring you back when there is something to do.",
-        "note": "Show app brings you to the owning application where the operating system allows it. It does not promise a particular terminal tab. Unknown activity is never shown as success.",
-        "alt": "OpenLimiter desktop Home with synthetic data: limits for Codex, Claude Code and OpenRouter, then the Agents list with Claude Code waiting, Codex busy and Gemini CLI done."
+        "title": "Three desktop tabs. One hover panel when you step away.",
+        "lead": "Usage, Connect Tools and Settings keep the desktop clear. The hover panel puts limits and agent activity beside you when the main window is out of reach.",
+        "note": "Usage holds the bars, Connect Tools holds provider setup and Settings holds the choices that shape the desktop. Hover the edge tab to see the panel, with the agent that needs you first.",
+        "alt": "OpenLimiter desktop with three tabs named Usage, Connect Tools and Settings, synthetic limits for Codex, Claude Code and OpenRouter, and a hover panel with agent activity.",
+        "desktopHomeAlt": "OpenLimiter desktop Usage tab with synthetic bars for Codex, Claude Code and OpenRouter.",
+        "desktopHomeNote": "Usage shows the bars for Codex, Claude Code and OpenRouter.",
+        "desktopConnectAlt": "OpenLimiter desktop Connect Tools tab showing synthetic provider connections.",
+        "desktopConnectNote": "Connect Tools shows provider setup and connection status.",
+        "desktopSettingsAlt": "OpenLimiter desktop Settings tab showing choices for the application.",
+        "desktopSettingsNote": "Settings shows the choices that shape the desktop."
       },
       "terminal": {
         "title": "Your limits beside your prompt.",
@@ -527,49 +533,45 @@
         "alt": "Real OpenLimiter CLI output for the Claude Code status line: the model, the effort and the context window, then usage cells in green, yellow, orange and red bands with percentages and reset times."
       },
       "phone": {
-        "title": "Sign in on your phone. See your computer's readings.",
-        "lead": "Sign in to the same OpenLimiter account on your computer and phone. The web app shows the latest synchronized readings, including when they were observed. Free account access keeps working after a Pro trial ends.",
-        "note": "Your computer must collect and sync new readings. A phone does not make an offline computer current, and provider credentials stay on the device that reads them.",
-        "cta": "Sign in to the web app",
-        "alt": "The signed in OpenLimiter web app at phone size, showing synthetic readings synchronized from a computer."
+        "title": "Pair from the desktop. Your bars on your home screen.",
+        "lead": "Pair your phone from the desktop, then open the web app from its home screen. It shows the latest readings from your computer, including when they were observed.",
+        "note": "The phone follows its light or dark theme and keeps the last readings when it is offline. Your computer still collects new readings, and provider credentials stay on that computer.",
+        "cta": "Open the phone app",
+        "alt": "The OpenLimiter phone app with synthetic readings paired from a desktop, shown in Usage and Pro views."
       },
       "captureNote": "Real application screens with synthetic data. No personal account or usage data."
     },
     "docsLine": "Both of those are written up in full: <agentContext>what an agent is told</agentContext> and <cli>every command it ships with</cli>.",
     "bridge": {
       "line": "Keep working. See when an agent needs you.",
-      "note": "The edge tab and terminal show local readings. Sign in to see synchronized readings on your phone."
+      "note": "The edge tab and terminal show local readings. Pair your phone from the desktop to see its bars on the home screen."
     }
   },
   "deviceFrame": {
-    "title": "Your coding day, in one place",
-    "lead": "Local usage meters and the Agents list share the desktop Home. See how fresh a reading is, when its window resets, and which supported agent needs your attention.",
+    "title": "Usage, tools and settings in one window",
+    "lead": "The desktop has three tabs: Usage for the bars, Connect Tools for provider setup and Settings for the choices around the app. The hover panel keeps limits and agents close when the window is away.",
     "screenshot": {
-      "alt": "The OpenLimiter desktop window on a desk, with synthetic usage readings for Codex, Claude Code and OpenRouter, and Antigravity ready to open."
+      "alt": "The OpenLimiter desktop Usage tab window with synthetic bars for Codex, Claude Code and OpenRouter."
     },
-    "caption": "The real desktop UI rendered headlessly with synthetic fixtures. No personal account, credential or real usage figure appears in it."
+    "caption": "The real Usage tab window rendered headlessly with synthetic fixtures. No personal account, credential or real usage figure appears in it."
   },
   "phonePanels": {
     "shots": {
-      "meters": {
-        "label": "Meters",
-        "alt": "The web app on a phone, showing one matching rearrangeable card per provider with its bars, used share and reset times."
-      },
-      "agentContext": {
-        "label": "Agent context",
-        "alt": "The web app on a phone, showing the bounded block of budget state a coding agent receives, fenced in an untrusted data boundary."
-      },
-      "connect": {
-        "label": "Connect tools",
-        "alt": "The web app on a phone at the onboarding connect step, showing the command to run and the list of tools available to connect."
-      },
-      "pair": {
-        "label": "Pair phone",
-        "alt": "The web app on a phone waiting for the computer to approve pairing, with a synthetic eight character code and a countdown until it expires."
+      "usage": {
+        "label": "Usage",
+        "alt": "The paired OpenLimiter phone app showing every connected provider and its usage bars."
       },
       "pro": {
-        "label": "Pro, 30 days free",
-        "alt": "The web app on a phone at the Pro card: history, alerts, extra accounts and cloud metering, and a button that starts the free 30 day Pro trial with no card needed."
+        "label": "Pro",
+        "alt": "The paired OpenLimiter phone app showing the Pro tab with its trial and paid features."
+      },
+      "install": {
+        "label": "Install",
+        "alt": "The OpenLimiter phone app showing the iOS installation sheet in Safari."
+      },
+      "pair": {
+        "label": "Pair",
+        "alt": "The OpenLimiter phone app waiting for the desktop to approve pairing with a synthetic code."
       }
     }
   },
@@ -971,7 +973,7 @@
     },
     "preview": {
       "title": "OpenLimiter desktop application",
-      "alt": "OpenLimiter desktop Home showing provider limits and agent activity"
+      "alt": "OpenLimiter desktop Usage tab showing usage bars and the Usage, Connect Tools and Settings tab row"
     },
     "versionLine": "Version {version}",
     "releaseNotes": "Release notes",
@@ -986,11 +988,11 @@
     },
     "phone": {
       "title": "On your phone",
-      "lead": "This installs the web app to your home screen. No native iOS or Android application is built.",
+      "lead": "Pair your phone from the desktop, then install the web app to your home screen. No native iOS or Android application is built.",
       "qrAlt": "QR code linking to {url}",
-      "scan": "Scan this with your phone's camera. The web app opens, and you install it to the home screen from there.",
-      "iphoneGuide": "Open the web app in Safari, tap Share, then choose Add to Home Screen. Sign in there to keep your synced readings close.",
-      "androidGuide": "Open the web app in Chrome, open the menu, then choose Install app or Add to Home screen. Sign in to continue.",
+      "scan": "Scan the code shown by the desktop with your phone's camera. The web app opens, and you install it to the home screen from there.",
+      "iphoneGuide": "Open the paired web app in Safari, tap Share, then choose Add to Home Screen.",
+      "androidGuide": "Open the paired web app in Chrome, open the menu, then choose Install app or Add to Home screen.",
       "openApp": "Open the web app"
     },
     "packages": {
@@ -2522,7 +2524,7 @@
         },
         "noCode": {
           "title": "This link has no pairing code",
-          "body": "A pairing code is generated by the desktop application and lives for two minutes. Open OpenLimiter on your computer, go to Devices, choose Pair a phone, and scan the code it shows."
+          "body": "The desktop application generates a pairing code that lives for two minutes. Open OpenLimiter on your computer, choose Pair your phone, and scan the code it shows."
         },
         "waiting": {
           "title": "Waiting for approval",

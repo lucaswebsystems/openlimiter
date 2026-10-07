@@ -54,7 +54,7 @@ export const GOLDEN_SNAPSHOTS: readonly Snapshot[] = [
     provider: "CODEX",
     meter: "FIVE_HOUR",
     value: 51,
-    resetAt: "2026-01-01T05:00:00.000Z"
+    resetAt: "2026-01-01T04:59:00.000Z"
   }),
   reading({
     provider: "ANTIGRAVITY",

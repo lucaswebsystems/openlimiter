@@ -3,6 +3,13 @@
   "versionLabel": "Version {version}",
   "dismiss": "Got it",
   "releases": {
+    "2.1.0": {
+      "heading": "One number per bar",
+      "claude": "Claude now shows one number per bar, with the Claude bucket allowlist, clear status line captions and the Pro captions preset. Setup upgrades the runtime when needed.",
+      "desktop": "The desktop opens faster and its buttons work. Connect repairs a Codex connection that stopped reading. Usage, Connect Tools and Settings share a responsive window.",
+      "phone": "The phone app can install to the Home Screen, follow its light or dark theme, keep the last bars when offline and show the Pro tab.",
+      "status": "The terminal line uses short captions such as 5h, 7d, fable7d, cx7d and ag5h. Money cells such as or $ keep their amounts, and an OpenRouter management key adds your balance."
+    },
     "2.0.4": {
       "heading": "More accurate limits",
       "codex": "Codex limits now use OpenAI's documented source. Your Codex sign in stays on your device.",

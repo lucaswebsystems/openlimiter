@@ -5,23 +5,42 @@
         "text": "5h "
       },
       {
-        "text": "[████░░░░░░]",
+        "text": "[███░░░░░░░]",
         "band": "green"
       },
       {
         "text": " "
       },
       {
-        "text": "42%",
+        "text": "37%",
         "band": "green"
       },
       {
-        "text": " ·4h59m"
+        "text": " ·1h12m"
       }
     ],
     [
       {
         "text": "7d "
+      },
+      {
+        "text": "[█████░░░░░]",
+        "band": "green"
+      },
+      {
+        "text": " "
+      },
+      {
+        "text": "58%",
+        "band": "green"
+      },
+      {
+        "text": " ·2d5h"
+      }
+    ],
+    [
+      {
+        "text": "fable7d "
       },
       {
         "text": "[██████░░░░]",
@@ -31,16 +50,16 @@
         "text": " "
       },
       {
-        "text": "64%",
+        "text": "63%",
         "band": "yellow"
       },
       {
-        "text": " ·6d23h"
+        "text": " ·4d19h"
       }
     ],
     [
       {
-        "text": "cx5h "
+        "text": "cx7d "
       },
       {
         "text": "[████████░░]",
@@ -50,11 +69,11 @@
         "text": " "
       },
       {
-        "text": "84%",
+        "text": "82%",
         "band": "orange"
       },
       {
-        "text": " ·4h59m"
+        "text": " ·5d8h"
       }
     ],
     [
@@ -69,20 +88,16 @@
         "text": " "
       },
       {
-        "text": "~94%",
+        "text": "~91%",
         "band": "red"
       },
       {
-        "text": " ·5h"
+        "text": " ·2h26m"
       }
     ],
     [
       {
-        "text": "or "
-      },
-      {
-        "text": "$12.34",
-        "band": "green"
+        "text": "or $12.54"
       }
     ],
     [

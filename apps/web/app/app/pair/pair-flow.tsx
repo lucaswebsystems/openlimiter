@@ -87,11 +87,11 @@ function browserMeta(): BrowserMeta {
   };
 }
 
-const CARD = "rounded-2xl border border-hairline bg-surface p-5";
+const CARD = "rounded-lg border border-hairline bg-surface p-5";
 const BUTTON =
   "lift-sm focus-ring inline-flex w-full items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium";
 const BUTTON_GHOST = `${BUTTON} border-hairline-strong bg-transparent text-heading hover:border-heading`;
-const BUTTON_SOLID = `${BUTTON} border-transparent bg-solid text-on-solid hover:bg-solid-hover disabled:opacity-50`;
+const BUTTON_SOLID = `${BUTTON} border-transparent bg-primary text-on-primary hover:bg-primary-hover disabled:opacity-50`;
 
 function Card({
   title,

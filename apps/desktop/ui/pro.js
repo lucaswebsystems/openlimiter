@@ -100,7 +100,7 @@ export function trialSentence(days) {
 
 const TICK =
   '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3.4 8.4 3 3 6.2-7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const LOCK =
+export const LOCK =
   '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.4" y="7" width="9.2" height="6.6" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5.6 7V5.2a2.4 2.4 0 0 1 4.8 0V7" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>';
 
 function escapeText(value) {

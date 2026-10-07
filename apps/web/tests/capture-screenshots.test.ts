@@ -6,18 +6,45 @@ import { JSDOM } from "jsdom";
 // @ts-expect-error Capture scripts run directly in Node.
 import { ansiHtml, assertCaptureSafe, demoSessions } from "../../../scripts/capture-screenshots-sanitize.mjs";
 import { initialPairState, pairStateAfterClaim, pairStateAfterPoll } from "@/lib/pairing";
+import { meterRowOf } from "@/lib/device-snapshots";
 // @ts-expect-error Capture scripts run directly in Node.
-import { demoSnapshots, edgeLayout, edgePage, edgeScene, pairingCaptureResponse, terminalPage, windowPage } from "../../../scripts/capture-screenshots.mjs";
+import { DEMO_SHARED_METERS, demoSnapshots, edgeLayout, edgePage, edgeScene, edgeTabLayout, pairingCaptureResponse, statuslineSnapshots, terminalPage, windowPage } from "../../../scripts/capture-screenshots.mjs";
 
 const now = "2026-09-28T12:00:00.000Z";
 
+type CaptureSnapshot = {
+  provider: string;
+  meter: string;
+  unit: string;
+  value: number;
+  currency?: string;
+  window?: { durationSeconds?: number };
+  resetAt?: string | null;
+  observedAt?: string;
+};
+
+type CapturePhoneRow = {
+  provider: string;
+  amount: number | null;
+  currency: string | null;
+  [key: string]: unknown;
+};
+
 describe("synthetic screenshot pipeline", () => {
   it("waits for rendered provider card contents without the removed hero", () => {
-    const source = readFileSync(new URL("../../../scripts/capture-screenshots.mjs", import.meta.url), "utf8");
+    const source = readFileSync("../../scripts/capture-screenshots.mjs", "utf8");
     // The wait loops over the card's rendered parts inside the shadow card.
     expect(source).toContain('[".window-name", ".window-percent", ".window-reset"]');
     expect(source).toContain("firstCard.locator(selector)");
     expect(source).not.toContain(".ol-live-meter-card");
+  });
+
+  it("measures each tab from a short viewport and sizes the desk to all Usage content", () => {
+    const source = readFileSync("../../scripts/capture-screenshots.mjs", "utf8");
+    expect(source).toContain("const tabHeight = async () => {");
+    expect(source).toContain("await page.setViewportSize({ width: 1000, height: 1 });");
+    expect(source).toContain('home.locator("#tab-panel-usage")');
+    expect(source).not.toContain('home.locator(".q-usage")');
   });
 
   it("rejects emails and profile paths, including escaped JSON paths", () => {
@@ -57,20 +84,88 @@ describe("synthetic screenshot pipeline", () => {
 
   it("renders the real Claude Code line in all four bands for each theme, without the folder or unknown cells", async () => {
     const snapshots = await demoSnapshots(now);
+    expect(snapshots.find((row: CaptureSnapshot) => row.provider === "CODEX" && row.meter === "SEVEN_DAY")?.value).toBe(82);
+    expect(snapshots.filter((row: CaptureSnapshot) => row.provider === "CLAUDE").map((row: CaptureSnapshot) => row.value)).toEqual([37, 58, 63]);
+    expect(snapshots.find((row: CaptureSnapshot) => row.provider === "CODEX" && row.meter === "FIVE_HOUR")?.value).toBe(71);
+    expect(snapshots.find((row: CaptureSnapshot) => row.provider === "ANTIGRAVITY" && row.meter === "FIVE_HOUR")?.value).toBe(91);
+    for (const row of snapshots) {
+      if (row.resetAt === null || row.window?.durationSeconds === undefined) continue;
+      const resetSeconds = (Date.parse(row.resetAt) - Date.parse(now)) / 1000;
+      expect(resetSeconds, `${row.provider}:${row.meter}`).toBeGreaterThan(0);
+      expect(resetSeconds, `${row.provider}:${row.meter}`).toBeLessThanOrEqual(row.window.durationSeconds + 1);
+    }
     assertCaptureSafe(snapshots);
     for (const theme of ["dark", "light"]) {
       const dom = new JSDOM(await terminalPage(theme, snapshots, now));
       for (const band of ["green", "yellow", "orange", "red"]) expect(dom.window.document.querySelector(`.band-${band}`)?.textContent).toBeTruthy();
       const line = dom.window.document.querySelector("pre")?.textContent ?? "";
-      for (const percentage of [42, 64, 84, 94]) expect(line).toContain(`${percentage}%`);
-      for (const money of ["or $12.34", "oa $8.20", "an $3.10"]) expect(line).toContain(money);
-      // Limits and money only, so the line keeps one row on a wide screen.
+      /* The terminal shows Codex weekly only (cx7d), never its five hour cell. */
+      for (const percentage of [37, 58, 63, 82, 91]) expect(line).toContain(`${percentage}%`);
       expect(line).toMatch(/^5h \[/u);
+      expect(line).toContain("7d ");
+      expect(line).toContain("fable7d ");
+      expect(line).toContain("cx7d ");
+      expect(line).toContain("ag5h ");
+      for (const money of ["or $12.54", "oa $8.20", "an $3.10"]) expect(line).toContain(money);
+      // Limits and money only, so the line keeps one row on a wide screen.
       expect(line).not.toContain("[?]");
-      // A cell never breaks across lines: each one wraps as a whole.
-      expect([...dom.window.document.querySelectorAll("pre > .cell")].map((cell) => cell.textContent)).toHaveLength(line.split(" | ").length);
+      // Cells are measured first, then regrouped into complete lines.
+      const cells = [...dom.window.document.querySelectorAll("pre > .cell")];
+      expect(cells).toHaveLength(line.split(" | ").length);
+      expect(cells.every((cell) => !cell.textContent?.startsWith(" | "))).toBe(true);
+      expect(dom.window.document.querySelectorAll("pre .separator")).toHaveLength(line.split(" | ").length - 1);
+      if (theme === "light") {
+        const styles = dom.window.document.querySelector("style")?.textContent ?? "";
+        expect(styles).toContain(".band-yellow{color:#9a6700}");
+        expect(styles).toContain(".band-orange{color:#bc4c00}");
+        expect(styles).toContain(".band-red{color:#cf222e}");
+      }
+      const styles = dom.window.document.querySelector("style")?.textContent ?? "";
+      expect(styles).toContain(".cell{display:inline-block;white-space:pre}");
+      expect(styles).toContain(".separator{white-space:pre}");
       dom.window.close();
     }
+  });
+
+  it("keeps shared demo meters identical across terminal, desktop and phone sources", async () => {
+    const snapshots = await demoSnapshots(now);
+    const phoneRows: CapturePhoneRow[] = snapshots.map((row: CaptureSnapshot) => ({
+      provider: row.provider,
+      code: row.meter,
+      amount: row.unit === "CREDITS" ? row.value : null,
+      currency: row.unit === "CREDITS" ? row.currency ?? null : null,
+      percent: row.unit === "PERCENT" ? Math.round(row.value) : null,
+    }));
+    const terminalRows = new Map(statuslineSnapshots(snapshots).map((row: CaptureSnapshot) => [`${row.provider}:${row.meter}`, row.value]));
+    for (const [key, value] of [
+      ["CODEX:SEVEN_DAY", DEMO_SHARED_METERS.CODEX_SEVEN_DAY],
+      ["ANTIGRAVITY:FIVE_HOUR", DEMO_SHARED_METERS.ANTIGRAVITY_FIVE_HOUR],
+      ["OPENROUTER:ACCOUNT_BALANCE", DEMO_SHARED_METERS.OPENROUTER_ACCOUNT_BALANCE],
+    ] as const) {
+      const [provider, meter] = key.split(":");
+      const desktop = snapshots.find((row: CaptureSnapshot) => row.provider === provider && row.meter === meter);
+      const phone = phoneRows.find((row) => row.provider === provider && row.code === meter);
+      expect(terminalRows.get(key)).toBe(value);
+      expect(desktop?.value).toBe(value);
+      expect(phone?.percent ?? phone?.amount).toBe(value);
+    }
+  });
+
+  it("keeps every phone fixture row inside the phone wire contract", async () => {
+    const snapshots = await demoSnapshots(now);
+    const rows: CapturePhoneRow[] = snapshots.map((row: CaptureSnapshot) => ({
+      account_id: "demo",
+      provider: row.provider,
+      code: row.meter,
+      percent: row.unit === "PERCENT" ? Math.round(row.value) : null,
+      amount: row.unit === "CREDITS" ? row.value : null,
+      currency: row.unit === "CREDITS" ? row.currency ?? null : null,
+      resets_at: row.resetAt ?? null,
+      observed_at: row.observedAt ?? now,
+      stale: false,
+    }));
+    expect(rows.every((row) => meterRowOf(row) !== null)).toBe(true);
+    expect(rows.some((row) => row.provider === "OPENROUTER")).toBe(true);
   });
 
   it("feeds the real desktop, edge tab and edge panel entry points only synthetic data", async () => {
@@ -80,7 +175,7 @@ describe("synthetic screenshot pipeline", () => {
     const desktop = new JSDOM(await windowPage("dark", snapshots, sessions), { url: "http://localhost", runScripts: "dangerously" });
     const bridge = (desktop.window as unknown as Bridge).__TAURI__.core;
     expect(await bridge.invoke("plugin:activity|activity_sessions")).toEqual(sessions);
-    expect(JSON.parse(await bridge.invoke("read_cache") as string).snapshots).toHaveLength(10);
+    expect(JSON.parse(await bridge.invoke("read_cache") as string).snapshots).toHaveLength(12);
     desktop.window.close();
     for (const entry of ["edge-tab", "edge-panel"]) {
       const edge = new JSDOM(await edgePage(entry, "light", snapshots, sessions), { url: `http://localhost/${entry}-light?open`, runScripts: "dangerously" });
@@ -88,7 +183,7 @@ describe("synthetic screenshot pipeline", () => {
       const state = await edgeBridge.invoke("plugin:rail|rail_snapshot") as { sessions: unknown; window: { cardOpen: boolean } };
       expect(state.sessions).toEqual(sessions);
       expect(state.window.cardOpen).toBe(true);
-      expect(JSON.parse(await edgeBridge.invoke("read_cache") as string).snapshots).toHaveLength(10);
+      expect(JSON.parse(await edgeBridge.invoke("read_cache") as string).snapshots).toHaveLength(12);
       await edgeBridge.invoke("plugin:rail|rail_card_height", { height: 480 });
       expect((edge.window as unknown as { __heights: number[] }).__heights).toEqual([480]);
       expect(edge.window.document.querySelector('script[type="module"]')?.getAttribute("src")).toBe(`${entry}.js`);
@@ -111,6 +206,7 @@ describe("synthetic screenshot pipeline", () => {
     expect(layout.tab).toEqual({ left: 0, top: 687, width: 24, height: 44 });
     expect(layout.panel).toEqual({ left: 28, top: 422, width: 360, height: 560 });
     expect(layout.view).toEqual({ left: 0, top: 422, width: 560, height: 560 });
+    expect(edgeTabLayout(layout).view).toEqual({ left: 0, top: 639, width: 200, height: 140 });
     // A short panel keeps its top level with the tab's, and never shrinks below 160.
     expect(edgeLayout(100).panel).toEqual({ left: 28, top: 687, width: 360, height: 160 });
     for (const natural of [884, Number.NaN, 0]) expect(() => edgeLayout(natural)).toThrow(/not captured/);

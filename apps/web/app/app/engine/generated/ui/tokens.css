@@ -52,6 +52,8 @@
   --ol-primary: #0866ff;
   --ol-primary-hover: #0757d9;
   --ol-on-primary: #ffffff;
+  --ol-primary-fill: #0866FF;
+  --ol-on-primary-fill: #ffffff;
   /* A text link on the surface: 7.4:1 dark, 7.6:1 light. */
   --ol-link: var(--ol-accent-solid-hover);
 
@@ -296,6 +298,8 @@
   --ol-solid: #0d1623;
   --ol-solid-hover: #263446;
   --ol-on-solid: #fafafa;
+  --ol-primary-fill: #0866FF;
+  --ol-on-primary-fill: #ffffff;
   /* The same five bands, re measured against the light surface stack.
      Fills 3.84 / 3.52 / 3.81 / 4.05 / 3.13 to 1 against the light track,
      labels 7.39 / 8.30 / 8.84 / 10.51 / 7.49 to 1 against the surface. */

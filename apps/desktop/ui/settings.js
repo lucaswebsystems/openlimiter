@@ -30,6 +30,7 @@ import {
 } from "./backend.js";
 import { activityClient } from "./agents.js";
 import { say } from "./names.js";
+import { LOCK } from "./pro.js";
 
 // English catalog for the menu's settings. L7 owns translations.
 export const ALERTS_EN = Object.freeze({
@@ -336,12 +337,15 @@ function wireRailSettings(mount) {
 
 export function presetMarkup(entitled, chosen) {
   return PRESETS.map(
-    (preset) =>
-      '<button type="button" class="preset" data-preset="' + preset.id + '" aria-pressed="' + String(preset.id === chosen) + '"' +
-      (entitled || preset.id === "default" ? "" : " disabled") +
-      '><span class="preset-swatches" aria-hidden="true">' +
-      preset.swatches.map((swatch) => '<span class="preset-swatch" style="background:' + swatch + '"></span>').join("") +
-      '</span><span class="preset-name">' + escapeText(preset.name) + "</span></button>"
+    (preset) => {
+      const locked = !entitled && preset.id !== "default";
+      return '<button type="button" class="preset" data-preset="' + preset.id + '" aria-pressed="' + String(preset.id === chosen) + '"' +
+        (locked ? " disabled" : "") +
+        '><span class="preset-swatches" aria-hidden="true">' +
+        preset.swatches.map((swatch) => '<span class="preset-swatch" style="background:' + swatch + '"></span>').join("") +
+        '</span>' + (locked ? '<span class="menu-lock" aria-hidden="true">' + LOCK + "</span>" : "") +
+        '<span class="preset-name">' + escapeText(preset.name) + "</span></button>";
+    }
   ).join("");
 }
 
@@ -396,7 +400,7 @@ export function captionsMarkup(captions, entitled) {
   return '<div class="menu-presets terminal-captions"><span>' + CAPTIONS_EN.title + '</span><span class="preset-grid">' +
     '<button type="button" class="preset" data-caption="short" aria-pressed="' + String(captions === "short") + '">' + CAPTIONS_EN.short + '</button>' +
     '<button type="button" class="preset" data-caption="tagged" aria-pressed="' + String(captions === "tagged") + '"' + (entitled ? "" : " disabled") + '>' +
-    (entitled ? "" : '<span aria-hidden="true">' + say("locked") + ': </span>') + CAPTIONS_EN.tagged + '</button></span></div>' +
+    (entitled ? "" : '<span class="menu-lock" aria-hidden="true">' + LOCK + "</span>") + CAPTIONS_EN.tagged + '</button></span></div>' +
     '<p class="menu-note">' + CAPTIONS_EN.note + '</p>';
 }
 
