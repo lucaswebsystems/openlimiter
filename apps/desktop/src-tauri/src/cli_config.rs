@@ -6,9 +6,10 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde_json::{Map, Value};
 use tauri::Manager;
+use uuid::Uuid;
 
 const CONFIG_FILE_NAME: &str = "openlimiter-config.json";
-const LOCK_DIR_NAME: &str = "openlimiter-config.lock";
+const LOCK_DIR_NAME: &str = "openlimiter.lock";
 const MAX_LOCK_AGE: Duration = Duration::from_secs(60);
 
 fn config_path(directory: &Path) -> PathBuf { directory.join(CONFIG_FILE_NAME) }
@@ -54,17 +55,35 @@ fn read_document(directory: &Path) -> Result<Value, String> {
     }
 }
 
-fn owner_stamp() -> Value {
+fn owner_stamp(token: &str) -> Value {
     let started_at = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
-    serde_json::json!({ "pid": std::process::id(), "started_at": started_at })
+    serde_json::json!({ "pid": std::process::id(), "startedAt": started_at, "token": token })
 }
 
 fn stale_lock(path: &Path) -> bool {
-    let Ok(text) = fs::read_to_string(path.join("owner.json")) else { return true; };
-    let Ok(owner) = serde_json::from_str::<Value>(&text) else { return true; };
-    let started = owner.get("started_at").and_then(Value::as_u64).unwrap_or(0);
-    let age = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
-    u128::from(age.saturating_sub(started)) > MAX_LOCK_AGE.as_millis() || !pid_alive(owner.get("pid").and_then(Value::as_u64).unwrap_or(0))
+    let owner = fs::read_to_string(path.join("owner.json"))
+        .ok()
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+        .and_then(|value| {
+            let pid = value.get("pid").and_then(Value::as_u64)?;
+            let started = value.get("startedAt").and_then(Value::as_u64)?;
+            value.get("token").and_then(Value::as_str)?;
+            Some((pid, started))
+        });
+    let now = SystemTime::now();
+    let stale_by_age = owner
+        .map(|(_, started)| {
+            let current = now.duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+            current.saturating_sub(started) > MAX_LOCK_AGE.as_millis() as u64
+        })
+        .unwrap_or_else(|| {
+            fs::metadata(path)
+                .and_then(|metadata| metadata.modified())
+                .ok()
+                .and_then(|modified| now.duration_since(modified).ok())
+                .is_none_or(|age| age > MAX_LOCK_AGE)
+        });
+    stale_by_age || owner.map(|(pid, _)| !pid_alive(pid)).unwrap_or(false)
 }
 
 fn pid_alive(pid: u64) -> bool {
@@ -81,29 +100,46 @@ fn pid_alive(pid: u64) -> bool {
     true
 }
 
-struct ConfigLock { path: PathBuf }
+struct ConfigLock { path: PathBuf, token: String }
 
 impl Drop for ConfigLock {
-    fn drop(&mut self) { let _ = fs::remove_dir_all(&self.path); }
+    fn drop(&mut self) {
+        let owned = fs::read_to_string(self.path.join("owner.json"))
+            .ok()
+            .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+            .and_then(|value| value.get("token").and_then(Value::as_str).map(str::to_owned))
+            .is_some_and(|token| token == self.token);
+        if owned { let _ = fs::remove_dir_all(&self.path); }
+    }
 }
 
 fn lock(directory: &Path) -> Result<ConfigLock, String> {
     private_directory(directory)?;
     let path = lock_path(directory);
-    for _ in 0..120 {
+    crate::fsx::reject_symlink(&path).map_err(|_| "config_refused".to_string())?;
+    let token = Uuid::new_v4().to_string();
+    loop {
         match fs::create_dir(&path) {
             Ok(()) => {
-                crate::fsx::atomic_write(&path.join("owner.json"), &canonical_json(&owner_stamp())?).map_err(|_| "config_write_failed".to_string())?;
-                return Ok(ConfigLock { path });
+                let stamp = canonical_json(&owner_stamp(&token))?;
+                if crate::fsx::atomic_write(&path.join("owner.json"), &stamp).is_err() {
+                    let _ = fs::remove_dir_all(&path);
+                    return Err("config_write_failed".to_string());
+                }
+                return Ok(ConfigLock { path, token });
             }
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                if stale_lock(&path) { let _ = fs::remove_dir_all(&path); }
+                if stale_lock(&path) {
+                    let displaced = path.with_file_name(format!("{LOCK_DIR_NAME}.reclaim.{}", Uuid::new_v4()));
+                    if fs::rename(&path, &displaced).is_ok() {
+                        let _ = fs::remove_dir_all(displaced);
+                    }
+                }
                 thread::sleep(Duration::from_millis(50));
             }
             Err(_) => return Err("config_write_failed".to_string()),
         }
     }
-    Err("config_busy".to_string())
 }
 
 fn write_document(directory: &Path, value: &Value) -> Result<(), String> {
@@ -142,6 +178,21 @@ pub fn set_terminal_captions(captions: String, app: tauri::AppHandle) -> Result<
     Ok(serde_json::json!({ "captions": captions }))
 }
 
+#[tauri::command]
+pub fn terminal_runtime_status() -> Result<Value, String> {
+    let directory = crate::state::state_directory().ok_or_else(|| "config_refused".to_string())?;
+    let stamp = directory.join("terminal-runtime").join(".openlimiter-runtime.json");
+    let version = match crate::fsx::bounded_read_result(&stamp, crate::fsx::MAX_STATE_FILE_BYTES) {
+        Err(crate::fsx::ReadFailure::Missing) => None,
+        Err(_) => return Err("config_refused".to_string()),
+        Ok(text) => {
+            let value: Value = serde_json::from_str(&text).map_err(|_| "config_refused".to_string())?;
+            value.get("version").and_then(Value::as_str).map(str::to_owned)
+        }
+    };
+    Ok(serde_json::json!({ "version": version, "app_version": env!("CARGO_PKG_VERSION") }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -172,9 +223,20 @@ mod tests {
         private_directory(dir.path()).unwrap();
         let path = lock_path(dir.path());
         fs::create_dir(&path).unwrap();
-        fs::write(path.join("owner.json"), r#"{"pid":0,"started_at":0}"#).unwrap();
+        fs::write(path.join("owner.json"), r#"{"pid":0,"startedAt":0,"token":"stale"}"#).unwrap();
         write_captions(dir.path(), "short").unwrap();
         assert!(!path.exists());
+    }
+
+    #[test]
+    fn lock_owner_stamp_uses_the_shared_protocol_fields() {
+        let dir = TempDir::new();
+        let held = lock(dir.path()).unwrap();
+        let stamp: Value = serde_json::from_str(&fs::read_to_string(held.path.join("owner.json")).unwrap()).unwrap();
+        assert!(stamp["pid"].as_u64().unwrap() > 0);
+        assert!(stamp["startedAt"].as_u64().unwrap() > 0);
+        assert!(stamp["token"].as_str().unwrap().len() > 0);
+        assert!(stamp.get("started_at").is_none());
     }
 
     #[test]

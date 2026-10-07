@@ -22,7 +22,8 @@ test("Home keeps no second freshness policy and draws only through the shared pr
   assert.match(app, /projectReadings\(cacheRead\.ok \? cacheRead\.value : null, manualRead\.ok \? manualRead\.value : null, now\)/u);
   // One list, from the inventory, drawn by the same renderer the panel uses.
   assert.match(app, /const model = inventoryModel\(\{\s*snapshots,\s*flags: inventory\.flags,/u);
-  assert.match(app, /renderLimits\(document, elements\.toolRows, model, \{ handlers: toolHandlers, more: fillMore, opened: openMenus \}\)/u);
+  assert.match(app, /renderLimits\(document, elements\.usageRows, usage\)/u);
+  assert.match(app, /renderLimits\(document, elements\.toolRows, tools, \{ handlers: toolHandlers, more: fillMore, opened: openMenus \}\)/u);
   assert.doesNotMatch(app, /showConnections|connectedProviders|attentionFlags\(/u);
   // A failed read ages out what is on screen by the same policy and says why.
   assert.match(app, /heldSnapshots = holdReadings\(heldSnapshots, now\);/u);
@@ -36,9 +37,11 @@ test("Home keeps no second freshness policy and draws only through the shared pr
 
 test("the one screen reads Tools, then API keys, then Agents, and no stale strip or table header", () => {
   const html = read("./index.html");
-  const home = html.slice(html.indexOf('<main id="home">'), html.indexOf("</main>"));
-  const order = ['id="tool-rows"', 'id="add-tool"', 'id="tool-catalogue"', 'id="key-rows"', 'id="agents-mount"'].map((id) => home.indexOf(id));
+  const usage = html.slice(html.indexOf('id="tab-panel-usage"'), html.indexOf('id="tab-panel-tools"'));
+  const tools = html.slice(html.indexOf('id="tab-panel-tools"'), html.indexOf('id="tab-panel-settings"'));
+  assert.ok(usage.indexOf('id="usage-rows"') < usage.indexOf('id="agents-mount"'));
+  const order = ['id="tool-rows"', 'id="add-tool"', 'id="tool-catalogue"', 'id="key-rows"'].map((id) => tools.indexOf(id));
   assert.ok(order.every((at, index) => at > 0 && (index === 0 || at > order[index - 1])), order.join());
-  assert.doesNotMatch(home, /stale-strip|home-provider-card|column-label|needs-attention|connected-rows/u);
+  assert.doesNotMatch(html, /stale-strip|home-provider-card|column-label|needs-attention|connected-rows/u);
   assert.match(html, /<link rel="stylesheet" href="\.\/quiet\.css" \/>/u);
 });

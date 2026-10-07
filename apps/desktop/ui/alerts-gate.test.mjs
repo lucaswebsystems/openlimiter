@@ -11,8 +11,9 @@ const read = (name) => readFileSync(new URL("./" + name, import.meta.url), "utf8
 test("the header is refresh, the phone and the menu, with no bell and no tab bar", () => {
   const html = read("index.html");
   const header = html.slice(html.indexOf('<header class="strip">'), html.indexOf("</header>"));
-  assert.deepEqual([...header.matchAll(/<button[^>]*\bid="([^"]+)"/gu)].map((match) => match[1]), ["home-refresh", "phone-button", "menu-button"]);
-  assert.doesNotMatch(html, /notification-bell|notification-popover|class="tabs"/u);
+  assert.deepEqual([...header.matchAll(/<button[^>]*\bid="([^"]+)"/gu)].map((match) => match[1]), ["home-refresh", "phone-button"]);
+  assert.doesNotMatch(html, /notification-bell|notification-popover/u);
+  assert.match(html, /<nav class="tabs" role="tablist"/u);
 });
 
 test("desktop alerts are free: the native gate never consults a subscription", () => {
@@ -26,7 +27,7 @@ test("desktop alerts are free: the native gate never consults a subscription", (
 test("the operating system is asked for alerts once, when the menu with the Alerts switch opens", () => {
   const app = read("app.js");
   assert.match(app, /if \(!entitled \|\| permissionAsked\) return;\s*permissionAsked = true;\s*await requestAlertPermission\(\)/u);
-  assert.match(app, /panel: elements\.menu, button: elements\.menuButton, onOpen\(\) \{[\s\S]*?void askAlertPermission\(\);/u);
+  assert.match(app, /onSelect: \(id\) => \{\s*if \(id === "tab-settings"\) void askAlertPermission\(\);/u);
   /* And it is not asked during first run. */
   assert.equal(read("first-run.js").includes("showPermission"), false);
   assert.equal(read("index.html").includes("first-run-permission"), false);
@@ -46,7 +47,7 @@ test("the menu names its controls in short labels, and keeps the Claude poll's o
   }
   assert.equal(
     CLAUDE_POLL_EN.note,
-    "Reads the same usage Claude shows by sending a direct usage request with your Claude sign in on this computer. Anthropic's policy for tools like this is unresolved. Turn it off in Settings."
+    "Reads the same usage Claude shows by sending a direct usage request with your Claude sign in on this computer. Anthropic's policy for tools like this is unresolved. Turn it off in Connect Tools."
   );
   /* Contract 5.2: equal times are no quiet period, so the switch is the truth. */
   assert.equal(quietOn({ quietStart: "22:00", quietEnd: "07:00" }), true);

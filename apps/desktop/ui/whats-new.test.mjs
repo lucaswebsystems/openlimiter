@@ -156,7 +156,7 @@ test("a dialog that fails to open is never marked seen", async () => {
 });
 
 test("the desktop entry point and assembler ship the release dialog and its catalog", () => {
-  assert.match(read("./app.js"), /import \{ initWhatsNew \} from "\.\/whats-new\.js"/);
+  assert.match(read("./app.js"), /import \{ initWhatsNew(?:, openWhatsNew)? \} from "\.\/whats-new\.js"/);
   assert.match(read("./app.js"), /initWhatsNew\(\)/);
   assert.match(read("./index.html"), /href="\.\/whats-new\.css"/);
   const build = read("../scripts/build-ui.mjs");

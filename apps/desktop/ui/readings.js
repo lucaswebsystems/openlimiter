@@ -431,7 +431,7 @@ export function splitInventory(model = []) {
   for (const tool of model) {
     if (tool.windows.length > 0) {
       usage.push({ ...tool, action: null, note: null, extra: [] });
-      tools.push({ ...tool, note: tool.note ?? say("connected") });
+      tools.push({ ...tool, windows: [], note: tool.note ?? say("connected") });
     } else {
       tools.push(tool);
     }

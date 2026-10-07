@@ -8,9 +8,13 @@ function safeStored(storage) {
   }
 }
 
-export function tabSwitcher({ tabs, panels, storage = globalThis.localStorage, onSelect = () => {} }) {
+export function tabSwitcher({ tabs, panels, storage, onSelect = () => {} }) {
   const tabList = Array.from(tabs ?? []);
   const panelList = Array.from(panels ?? []);
+  let safeStorage = storage;
+  if (safeStorage === undefined) {
+    try { safeStorage = globalThis.localStorage; } catch { safeStorage = null; }
+  }
   const indexOf = (tab) => Math.max(0, tabList.indexOf(tab));
   const select = (tab, persist = true) => {
     const chosen = tabList.includes(tab) ? tab : tabList[0];
@@ -23,7 +27,7 @@ export function tabSwitcher({ tabs, panels, storage = globalThis.localStorage, o
       panel.hidden = panel.getAttribute("aria-labelledby") !== chosen.id;
     }
     if (persist) {
-      try { storage?.setItem(TAB_KEY, chosen.id.replace(/^tab-/u, "")); } catch { /* Usage remains available. */ }
+      try { safeStorage?.setItem(TAB_KEY, chosen.id.replace(/^tab-/u, "")); } catch { /* Usage remains available. */ }
     }
     onSelect(chosen.id, chosen);
   };
@@ -45,7 +49,7 @@ export function tabSwitcher({ tabs, panels, storage = globalThis.localStorage, o
       next.focus();
     });
   }
-  const stored = safeStored(storage);
+  const stored = safeStored(safeStorage);
   const initial = tabList.find((tab) => tab.id === `tab-${stored}`) ?? tabList[0];
   select(initial, false);
   return { select: (tab) => select(tab), current: () => tabList.find((tab) => tab.getAttribute("aria-selected") === "true") ?? tabList[0] };

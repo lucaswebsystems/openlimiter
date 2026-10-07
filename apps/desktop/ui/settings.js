@@ -53,10 +53,10 @@ export const CLAUDE_POLL_EN = Object.freeze({
 
 export const MENU_EN = Object.freeze({ tools: "Tools", preset: "Theme preset", agentAlerts: "Agent alerts" });
 export const CAPTIONS_EN = Object.freeze({
-  title: "Terminal captions",
-  short: "Short",
-  tagged: "Tagged everywhere",
-  note: "Short leaves the host tool's own bars untagged. Tagged everywhere adds the tool tag to every bar.",
+  title: say("terminalCaptions"),
+  short: say("terminalCaptionsShort"),
+  tagged: say("terminalCaptionsTagged"),
+  note: say("terminalCaptionsNote"),
 });
 
 // English catalog for the trial control. L7 owns translations.
@@ -403,7 +403,10 @@ function appearanceMarkup(chosen, entitled, captions) {
 
 /** Settings are divided into appearance and alerts mounts, while account and Pro stay in the page. */
 export async function renderSettings(mount) {
-  const target = mount?.appearance ? mount : { appearance: mount, alerts: document.getElementById("settings-alerts") };
+  const ownerDocument = mount?.ownerDocument ?? globalThis.document ?? null;
+  const target = mount?.appearance
+    ? mount
+    : { appearance: mount, alerts: ownerDocument?.getElementById("settings-alerts") ?? mount };
   if (!target.alerts) target.alerts = target.appearance;
   state.mount = target.appearance;
   if (target.appearance === null) return;
@@ -418,7 +421,9 @@ export async function renderSettings(mount) {
 
   if (!settingsResult.ok && settingsResult.reason === BACKEND_ABSENT) {
     target.appearance.innerHTML = appearanceMarkup("default", false, "short");
-    target.alerts.innerHTML = '<p class="menu-note">' + ALERTS_EN.unavailable + "</p>";
+    const unavailable = '<p class="menu-note">' + ALERTS_EN.unavailable + "</p>";
+    if (target.alerts === target.appearance) target.appearance.innerHTML += unavailable;
+    else target.alerts.innerHTML = unavailable;
     await wireRailSettings(target.appearance);
     return;
   }
@@ -436,7 +441,7 @@ export async function renderSettings(mount) {
   }
   /* Graceful downgrade: the preset stays chosen, the window simply stops
      applying it until the entitlement returns. */
-  document.documentElement.setAttribute("data-preset", entitled ? chosen : "default");
+  ownerDocument?.documentElement?.setAttribute("data-preset", entitled ? chosen : "default");
 
   state.agentAlerts = agentResult.ok ? agentResult.value : null;
   target.appearance.innerHTML = appearanceMarkup(chosen, entitled, captions);

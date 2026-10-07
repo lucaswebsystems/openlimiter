@@ -287,8 +287,8 @@
             </div>
             <div id="usage-rows" class="q-limits" aria-label="Usage"></div>
             <div id="usage-empty" class="q-empty" hidden>
-              <p>No bars yet. Connect a tool to see its usage.</p>
-              <button type="button" id="usage-connect" class="q-btn q-btn-ghost">Connect a tool</button>
+              <p data-copy="usageEmpty">No bars yet. Connect a tool to see its usage.</p>
+              <button type="button" id="usage-connect" class="q-btn q-btn-ghost" data-copy="connectTool">Connect a tool</button>
             </div>
           </div>
         </section>
@@ -380,7 +380,7 @@
           <div class="q-card">
             <button type="button" id="menu-update">Check for updates</button>
             <button type="button" id="menu-whats-new">What's new</button>
-            <p class="menu-note" data-app-version>OpenLimiter</p>
+            <p class="menu-note" data-app-version>OpenLimiter __OPENLIMITER_VERSION__</p>
             <nav class="menu-links" aria-label="About">
               <a href="https://openlimiter.com/en/privacy" target="_blank" rel="noopener noreferrer">Privacy</a>
               <a href="https://openlimiter.com/en/terms" target="_blank" rel="noopener noreferrer">Terms</a>

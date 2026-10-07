@@ -38,3 +38,20 @@ test("tabSwitcher wraps arrows, Home and End, including a throwing store", () =>
   view.fire(view.tabs[0], "End");
   assert.equal(view.tabs[2].attributes["aria-selected"], "true");
 });
+
+test("tabSwitcher treats a throwing localStorage getter like unavailable storage", () => {
+  const view = surface();
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    get() { throw new Error("storage getter refused"); },
+  });
+  try {
+    const state = tabSwitcher({ tabs: view.tabs, panels: view.panels });
+    assert.equal(state.current(), view.tabs[0]);
+    assert.equal(view.panels[0].hidden, false);
+  } finally {
+    if (descriptor) Object.defineProperty(globalThis, "localStorage", descriptor);
+    else delete globalThis.localStorage;
+  }
+});

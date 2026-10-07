@@ -65,6 +65,10 @@ export const SETUP_EN = Object.freeze({
   unknownShape: "Settings file not understood. Merge this by hand, then Verify.",
   cliMissing: "Install the OpenLimiter command first.",
   cliNotWorking: "The OpenLimiter command did not answer.",
+  runtimeInstalled: say("runtimeInstalled"),
+  runtimeMissing: say("runtimeMissing"),
+  runtimeOutdated: say("runtimeOutdated"),
+  runtimeInstall: say("runtimeInstall"),
   copy: "Copy",
   copied: "Copied",
   copyRefused: "Copy refused, select it by hand",
@@ -86,6 +90,7 @@ const session = {
   claudeProbed: false,
   /** The preflight verdict for Claude Code's settings. */
   claudeVerdict: null,
+  runtime: null,
   /** The one setup panel open under the list, or null. */
   activeSetup: null,
 };
@@ -282,9 +287,18 @@ function renderClaude() {
   if (!body) return;
   body.textContent = "";
   const verdict = session.claudeVerdict;
+  const runtime = session.runtime;
   const recheck = button(SETUP_EN.checkAgain, () => void verifyClaude());
   const verify = button(SETUP_EN.verify, () => void verifyClaude(), "q-btn q-btn-primary");
   const actions = element("div", "q-setup-actions");
+  if (runtime?.version) {
+    body.append(element("p", "q-setup-line", SETUP_EN.runtimeInstalled.replace("{version}", runtime.version)));
+  }
+  const runtimeNeedsInstall = runtime !== null && (runtime.version === null || runtime.version === undefined || runtime.appVersion !== runtime.version);
+  if (runtimeNeedsInstall) {
+    const host = element("pre", "q-snippet mono", SETUP_EN.runtimeInstall.replace("{host}", "claude"));
+    body.append(element("p", "q-setup-line", runtime?.version ? SETUP_EN.runtimeOutdated : SETUP_EN.runtimeMissing), host);
+  }
   if (verdict?.kind === "cli_missing" || verdict?.kind === "cli_not_working") {
     const missing = verdict.kind === "cli_missing";
     const line = element("pre", "q-snippet mono", missing ? verdict.installCommand : (verdict.cliPath ?? ""));
@@ -540,6 +554,10 @@ export function noteMetersRefreshed() {
 
 async function bootstrap() {
   await syncConnections();
+  const runtime = await backend.terminalRuntimeStatus();
+  session.runtime = runtime.ok && runtime.value && typeof runtime.value === "object"
+    ? { version: typeof runtime.value.version === "string" ? runtime.value.version : null, appVersion: typeof runtime.value.app_version === "string" ? runtime.value.app_version : null }
+    : null;
   if (session.backendPresent !== false) {
     await detectClaude();
     await runClaudePreflight();

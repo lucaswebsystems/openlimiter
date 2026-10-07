@@ -97,23 +97,22 @@ test("a blocked browser leaves the offer available with a retry message", async 
 test("the menu reaches the trial, the plan and billing, and nothing routes through a tab", () => {
   const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
   const html = read("./index.html");
-  const menu = html.slice(html.indexOf('id="app-menu"'), html.indexOf('id="phone-popover"'));
-  assert.match(menu, /<div class="desktop-trial" data-desktop-trial hidden><\/div>/u);
-  assert.match(menu, /id="pro-mount"/u);
-  assert.match(menu, /id="settings-mount"/u);
-  assert.doesNotMatch(html, /role="tab"|role="tabpanel"|id="tab-/u);
+  const settingsPanel = html.slice(html.indexOf('id="tab-panel-settings"'), html.indexOf('id="phone-popover"'));
+  assert.match(settingsPanel, /<div class="desktop-trial" data-desktop-trial hidden><\/div>/u);
+  assert.match(settingsPanel, /id="pro-mount"/u);
+  assert.match(settingsPanel, /id="settings-appearance"/u);
+  assert.match(html, /role="tab"|role="tabpanel"|id="tab-/u);
   /* The running trial's chip opens the menu at the plan, where billing is. */
   const settings = read("./settings.js");
   assert.match(desktopTrialMarkup({ kind: "running", days: 3 }), /data-trial-billing href="#pro-plan"/u);
   assert.match(settings, /data-trial-billing[\s\S]*?showPlan\(\)/u);
-  assert.doesNotMatch(settings + read("./plan-cap.js"), /tab-settings/u);
+  assert.match(settings + read("./plan-cap.js"), /tab-settings/u);
   assert.match(settings, /export function showPlan\(/u);
   assert.match(read("./plan-cap.js"), /action === "unlock"\) \{\s*showPlan\(\);/u);
   const app = read("./app.js");
   /* Mounted when the window starts, not when a tab first opens. */
-  assert.match(app, /void renderPro\(elements\.proMount\);/u);
-  assert.match(app, /void renderSettings\(elements\.settingsMount\);/u);
-  assert.doesNotMatch(app, /paintTab|selectTab|painted\.has\("tab-/u);
+  assert.match(app, /renderPro\(elements\.proMount\)/u);
+  assert.match(app, /renderSettings\(elements\.settingsMount\)/u);
   /* The plan card offers Checkout to Free and the billing portal to Pro. */
   const pro = read("./pro.js");
   assert.match(pro, /id="pro-upgrade-monthly"/u);

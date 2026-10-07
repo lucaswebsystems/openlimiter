@@ -315,9 +315,9 @@ export const KEYS_EN = Object.freeze({
   lastMonth: "last month",
   inMonth: "spent in {month}",
   balance: "balance",
-  inferenceKey: "Inference key",
-  managementKey: "Management key",
-  managementKeyRequired: "Add a management key in Connect Tools",
+  inferenceKey: say("openrouterKeyAllowance"),
+  managementKey: say("openrouterAccountBalance"),
+  managementKeyRequired: say("managementKeyRequired"),
 });
 
 const fill = (text, values) => text.replace(/\{(\w+)\}/gu, (_, name) => String(values[name] ?? ""));
@@ -449,8 +449,8 @@ export function keyRows({ status = null, openrouter = null } = {}, now) {
         ? [{ ...base, kind: "quota", state: "empty", credentialKind, placeholder, url, label }]
         : owned.map((record) => quotaRow({ ...base, kind: "quota", credentialKind, placeholder, url, label: owned.length > 1 ? record.maskedLabel ?? label : label }, record, openrouter?.readings ?? [], now));
       const quota = [
-        ...quotaRows(inference, "openrouter_inference_key", KEYS_EN.inferenceKey, "https://openrouter.ai/settings/keys", KEYS_EN.inferenceKey),
-        ...quotaRows(management, "openrouter_management_key", KEYS_EN.managementKey, "https://openrouter.ai/settings/provisioning-keys", KEYS_EN.managementKey),
+        ...quotaRows(inference, "openrouter_inference_key", say("apiKey"), "https://openrouter.ai/settings/keys", KEYS_EN.inferenceKey),
+        ...quotaRows(management, "openrouter_management_key", say("managementKey"), "https://openrouter.ai/settings/provisioning-keys", KEYS_EN.managementKey),
       ];
       /* A 2.0.2 OpenRouter spend source keeps its own row under the key. */
       return [...quota, ...own.map((source) => spendRow(base, source, newest(source.id), true, now))];

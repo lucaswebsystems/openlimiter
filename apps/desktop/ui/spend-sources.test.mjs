@@ -64,9 +64,10 @@ test("two sources of one provider render their own amounts, each from its newest
       sample(FIRST, "3.33", "2026-09-07T12:00:00Z"),
     ],
   });
-  // OpenRouter's key row first (its quota connection, empty here), then its two 2.0.2 sources.
-  const [key, first, second] = cards("openrouter");
-  assert.match(key, /Save/u);
+  // OpenRouter's two key rows precede its two source rows.
+  const [inference, management, first, second] = cards("openrouter");
+  assert.match(inference, /Save/u);
+  assert.match(management, /Save/u);
   assert.ok(first.includes("Personal") && second.includes("Work"), first + second);
   assert.match(first, /\$3\.33/u);
   assert.equal(first.includes("22.20") || first.includes("1.11"), false, first);
@@ -79,7 +80,7 @@ test("a source with no sample of its own is checking its key, never showing a si
     sources: [source(FIRST, "Personal"), source(SECOND, "Work", { lastObservedAt: null, status: "pending_validation" })],
     samples: [sample(FIRST, "3.33", "2026-09-07T12:00:00Z")],
   });
-  const [, first, second] = cards("openrouter");
+  const [, , first, second] = cards("openrouter");
   assert.match(first, /\$3\.33/u);
   assert.match(second, /Checking key/u);
   assert.equal(second.includes("3.33"), false, second);

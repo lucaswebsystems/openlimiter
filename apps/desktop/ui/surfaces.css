@@ -838,27 +838,6 @@ select.field:focus-visible {
  * it. Below 24rem a two column line becomes two lines rather than two columns
  * that are each too narrow to read.
  */
-@media (max-width: 26rem) {
-  .block {
-    padding: var(--ol-space-3);
-  }
-  .line {
-    grid-template-columns: minmax(0, 1fr);
-    align-items: start;
-    gap: var(--ol-space-2);
-  }
-  .account-row {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-  .account-actions {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
-  }
-  .spend-source {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .q-skel {
     animation: none;
@@ -1563,8 +1542,8 @@ button.sign-in-ghost {
  * the same decision the references make, and it is why they stay dense at any
  * size instead of thinning out.
  */
-main,
-body > .strip > .strip-top {
+#home,
+.chrome .strip-top {
   width: 100%;
   max-width: var(--window-column, 46rem);
   margin-inline: auto;

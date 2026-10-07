@@ -556,7 +556,7 @@ button.q-show {
  * row has the same height.
  */
 .q-tools {
-  overflow: hidden;
+  overflow: clip;
 }
 
 .q-tools .q-group {
@@ -773,7 +773,7 @@ button.q-setup-close {
   display: grid;
   grid-template-columns: auto fit-content(7.5rem) minmax(0, 1fr) auto;
   column-gap: 0.625rem;
-  overflow: hidden;
+  overflow: clip;
 }
 
 .q-consent {
@@ -1020,13 +1020,13 @@ html {
   margin-inline: auto;
 }
 
-main {
+#home {
   width: min(100%, 46rem);
   box-sizing: border-box;
   margin-inline: auto;
 }
 
-.q-prov:not(.q-compact) {
+.q-limits:not(.q-compact) .q-prov {
   flex-wrap: wrap;
 }
 

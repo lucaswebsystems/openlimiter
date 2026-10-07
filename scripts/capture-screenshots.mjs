@@ -557,12 +557,12 @@ async function captureProductDetails(browser, theme, port) {
   };
   try {
     await page.goto(`${origin}/window-${theme}`, { waitUntil: "networkidle" });
-    await page.locator('#usage-rows [data-provider-card]').nth(2).waitFor();
+    await closeWhatsNew(page);
+    await page.locator('#usage-rows [data-provider-card]').nth(2).waitFor({ state: "attached" });
     await page.getByRole('tab', { name: 'Connect Tools', exact: true }).click();
-    await page.locator('#key-rows [data-key-row]').first().waitFor();
+    await page.locator('#key-rows [data-key-row]').first().waitFor({ state: "attached" });
     await page.getByRole('tab', { name: 'Usage', exact: true }).click();
     await page.locator('#agents-section:not([hidden])').waitFor();
-    await closeWhatsNew(page);
     /* The 2.0.3 one screen Home (tools, API keys, agents) is taller than the
        old tabbed window, so the window grows to the content instead of cutting it. */
     const homeHeight = await page.evaluate(() => document.scrollingElement.scrollHeight);
@@ -608,8 +608,11 @@ async function fitWindowToLimits(page) {
     frame.style.top = `${menubar + Math.round((desk - menubar - content - titlebar) / 2)}px`;
     frame.querySelector("iframe").style.height = `${content}px`;
   }, { content, titlebar: WINDOW.titlebar, menubar: MENUBAR_HEIGHT, desk: SCENE.height });
-  const next = await home.locator("#spend-title").evaluate(title => title.getBoundingClientRect().top);
-  if (next < content) throw new Error("The desk window would cut the API keys heading.");
+  const subsequent = home.locator("#spend-section:not([hidden]), #agents-section:not([hidden])").first();
+  if (await subsequent.count()) {
+    const next = await subsequent.evaluate(section => section.getBoundingClientRect().top);
+    if (next < content) throw new Error("The desk window would cut a visible section heading.");
+  }
   if (content + WINDOW.titlebar > SCENE.height - MENUBAR_HEIGHT) throw new Error("The desk window would run past the desk.");
 }
 
@@ -1010,11 +1013,11 @@ async function captureDesk(browser, theme, port) {
     waitUntil: "networkidle",
   });
   const home = page.frameLocator("iframe");
+  await closeWhatsNew(home);
   await home.getByRole('tab', { name: 'Connect Tools', exact: true }).click();
-  await home.locator('#key-rows [data-key-row]').first().waitFor();
+  await home.locator('#key-rows [data-key-row]').first().waitFor({ state: "attached" });
   await home.getByRole('tab', { name: 'Usage', exact: true }).click();
   /* The desk shows the window as a person uses it, after What's New is closed. */
-  await closeWhatsNew(page.frameLocator("iframe"));
   await fitWindowToLimits(page);
   await page.waitForTimeout(1200);
   assertCaptureSafe(await page.frameLocator("iframe").locator("body").innerText());

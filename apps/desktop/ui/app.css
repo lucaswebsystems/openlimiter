@@ -88,8 +88,7 @@ body {
 /* The first run surface owns the first pixel. The inline storage probe in the
    document head marks a completed setup before body paint, so neither state
    flashes through the other. */
-html[data-first-run="pending"] body > .strip,
-html[data-first-run="pending"] body > .tabs,
+html[data-first-run="pending"] .chrome,
 html[data-first-run="pending"] body > main {
   display: none;
 }
@@ -2459,82 +2458,11 @@ pre {
   animation: panel-in var(--ol-motion-base) var(--ol-ease-out) both;
 }
 
-@media (max-width: 699px) {
-  .first-run {
-    padding: var(--ol-space-4);
-  }
-
-  .first-run-detail {
-    display: none;
-  }
-
-  .strip {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: var(--ol-space-2);
-    padding: var(--ol-space-2) 0;
-  }
-
-  .lockup {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .actions {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-  .rec-detail {
-    display: none;
-  }
-
-
-  .conn-head {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .conn-state {
-    grid-column: 1;
-    width: max-content;
-    margin-left: calc(var(--ol-space-6) + var(--ol-space-3));
-  }
-
-  .conn-toggle-btn {
-    grid-column: 2;
-    grid-row: 1 / span 2;
-  }
-
-  .catalogue-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: var(--ol-space-2) var(--ol-space-3);
-  }
-
-  .catalogue-access {
-    grid-column: 1;
-    grid-row: 2;
-    margin-left: calc(var(--ol-space-6) + var(--ol-space-3));
-  }
-
-  .catalogue-state {
-    grid-column: 1;
-    grid-row: 3;
-    margin-left: calc(var(--ol-space-6) + var(--ol-space-3));
-  }
-
-  .catalogue-row > .provider-switch {
-    grid-column: 2;
-    grid-row: 1;
-    justify-self: end;
-  }
-
-  .catalogue-action {
-    grid-column: 2;
-    grid-row: 2 / span 2;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
+  [role="tabpanel"],
+  .card {
+    animation: none;
+  }
 }
 
 /* Generated from the one frozen lockup. The product theme chooses only the

@@ -109,7 +109,10 @@ test("desktop shell mounts the Agents component in a section shown only while se
   const html = read("./index.html");
   assert.match(html, /href="\.\/agents.css"/);
   assert.match(html, /<section id="agents-section" class="q-section" aria-labelledby="agents-title" hidden>\s*<div class="q-head"><h2 id="agents-title">Agents<\/h2><\/div>\s*<div id="agents-mount"><\/div>/u);
-  assert.ok(html.indexOf('id="key-rows"') < html.indexOf('id="agents-section"'), "after the tools and the keys");
+  const usage = html.slice(html.indexOf('id="tab-panel-usage"'), html.indexOf('id="tab-panel-tools"'));
+  const tools = html.slice(html.indexOf('id="tab-panel-tools"'), html.indexOf('id="tab-panel-settings"'));
+  assert.ok(usage.indexOf('id="usage-rows"') < usage.indexOf('id="agents-section"'), "below usage bars");
+  assert.ok(tools.indexOf('id="tool-rows"') < tools.indexOf('id="key-rows"'), "below tools");
   const app = read("./app.js");
   assert.match(app, /import \{ mountAgents \} from "\.\/agents.js"/);
   const wiring = app.match(/const disposeAgents = mountAgents\(elements\.agentsMount, \{[\s\S]*?\}\);\s*window\.addEventListener\("beforeunload", disposeAgents, \{ once: true \}\);/);

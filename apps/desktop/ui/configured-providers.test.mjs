@@ -106,7 +106,7 @@ test("provider switch supports both keyboard keys, persists removal and excludes
   assert.deepEqual(homeProviders(readConfiguredProviders(), detection, [], [], []), ["CODEX"]);
   /* The same switch, persisted natively, in the menu and in each row's small menu. */
   const menu = readFileSync(new URL("./settings.js", import.meta.url), "utf8");
-  assert.match(menu, /homeSelectionControl\(code, \(\) => \{\}, document, setProviderEnabled, providerName\(code\)\)/u);
+  assert.doesNotMatch(menu, /homeSelectionControl\(/u);
   const row = readFileSync(new URL("./app.js", import.meta.url), "utf8");
   assert.match(row, /homeSelectionControl\(tool\.code, \(\) => \{\}, document, setProviderEnabled, tool\.name\)/u);
 });

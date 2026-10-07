@@ -7,7 +7,7 @@ const settings = readFileSync(new URL("./settings.js", import.meta.url), "utf8")
 
 test("Settings keeps the account hooks and the Pro caption preset", () => {
   for (const id of ["menu-account-email", "menu-signed-in", "devices-mount", "pro-mount", "plan-cap-mount", "menu-logout"]) assert.match(html, new RegExp(`id=\"${id}\"`, "u"));
-  assert.match(settings, /Terminal captions/u);
+  assert.match(settings, /terminalCaptions/u);
   assert.match(settings, /data-caption/u);
   assert.match(settings, /theme_preset/u);
 });

@@ -58,9 +58,9 @@ function draw(rows, overrides = {}) {
   return { doc, mount, calls, handlers, row, field, save };
 }
 
-test("six rows, each empty with a short placeholder, Save and a Get key link, under one consent line", () => {
+test("seven rows, including both OpenRouter credentials, each empty with a short placeholder, Save and a Get key link, under one consent line", () => {
   const rows = keyRows({}, NOW);
-  assert.deepEqual(rows.map((row) => row.provider), ["openrouter", "openai", "anthropic", "xai", "moonshot", "deepseek"]);
+  assert.deepEqual(rows.map((row) => row.provider), ["openrouter", "openrouter", "openai", "anthropic", "xai", "moonshot", "deepseek"]);
   assert.ok(rows.every((row) => row.state === "empty"));
   const { mount, row, field, save } = draw(rows);
   const consent = mount.all((node) => node.id === "key-consent");
@@ -71,6 +71,7 @@ test("six rows, each empty with a short placeholder, Save and a Get key link, un
   assert.deepEqual(placeholders, {
     openrouter: "API key", openai: "Admin key", anthropic: "Admin key", xai: "Management key", moonshot: "API key", deepseek: "API key",
   });
+  assert.equal(row("openrouter", 1).all((node) => node.localName === "input" && node.dataset.field === "secret")[0].getAttribute("placeholder"), "Management key");
   for (const provider of KEY_PROVIDERS) {
     assert.equal(field(provider.id).type, "password");
     assert.ok(field(provider.id).getAttribute("placeholder").split(" ").length <= 3);
@@ -279,13 +280,13 @@ test("the period is the sample's real month: this month, last month, an older mo
 
 test("after Save a row checks the key, then shows the amount, its period, the currency and the age", async () => {
   const pending = keyRows({ status: status([source(FIRST, "openai", { status: "pending_validation", lastObservedAt: null })]) }, NOW);
-  assert.equal(pending[1].state, "checking");
+  assert.equal(pending.find((row) => row.provider === "openai").state, "checking");
   const first = draw(pending);
   assert.equal(first.row("openai").textContent.includes("Checking key"), true);
   assert.equal(first.field("openai"), undefined, "no field while a key is being checked");
 
   const read = keyRows({ status: status([source(FIRST, "openai")], [sample(FIRST, "openai", "12.34")]) }, NOW);
-  assert.equal(read[1].state, "reading");
+  assert.equal(read.find((row) => row.provider === "openai").state, "reading");
   const { row, calls } = draw(read);
   const text = row("openai").textContent;
   for (const part of ["$12.34", "spent this month", "USD", "Updated 2 min ago"]) assert.ok(text.includes(part), part);
@@ -301,7 +302,8 @@ test("a replaced key checks the new key and never shows the amount from before t
     [source(FIRST, "openai", { status: "pending_validation", lastObservedAt: null })],
     [sample(FIRST, "openai", "12.34")],
   ) }, NOW);
-  assert.deepEqual([rows[1].state, rows[1].amount], ["checking", undefined]);
+  const replaced = rows.find((row) => row.provider === "openai");
+  assert.deepEqual([replaced.state, replaced.amount], ["checking", undefined]);
   const text = draw(rows).row("openai").textContent;
   assert.ok(text.includes("Checking key"));
   assert.equal(text.includes("12.34"), false);
@@ -370,21 +372,22 @@ test("errors are one short line that says what to do", async () => {
 });
 
 test("OpenRouter's row reads its credits connection: checking, then the account balance with its age", () => {
-  const checking = keyRows({ openrouter: { records: [{ id: "c1", provider: "OPENROUTER", state: "READY_TO_ENABLE", readerId: "openrouter_credits" }], readings: [] } }, NOW)[0];
+  const checking = keyRows({ openrouter: { records: [{ id: "c1", provider: "OPENROUTER", state: "READY_TO_ENABLE", readerId: "openrouter_credits" }], readings: [] } }, NOW).find((row) => row.credentialKind === "openrouter_management_key");
   assert.deepEqual([checking.kind, checking.state], ["quota", "checking"]);
   const reading = {
     provider: "OPENROUTER", meter: "ACCOUNT_BALANCE", value: 25, usedAmount: 12.5, limitAmount: 50, currency: "USD",
     observedAt: "2026-09-29T11:58:00.000Z", accountId: "c1",
   };
   const read = keyRows({ openrouter: { records: [{ id: "c1", provider: "OPENROUTER", state: "CONNECTED", readerId: "openrouter_credits" }], readings: [reading] } }, NOW);
-  assert.deepEqual([read[0].state, read[0].amount, read[0].period], ["reading", "$37.50", "Account balance"]);
-  const text = draw(read).row("openrouter").textContent;
+  const management = read.find((row) => row.credentialKind === "openrouter_management_key");
+  assert.deepEqual([management.state, management.amount, management.period], ["reading", "$37.50", "Account balance"]);
+  const text = draw([management]).row("openrouter").textContent;
   for (const part of ["$37.50", "balance", "USD", "Updated 2 min ago"]) assert.ok(text.includes(part), part);
-  const refused = keyRows({ openrouter: { records: [{ id: "c1", provider: "OPENROUTER", state: "NEEDS_AUTH", readerId: "openrouter_credits" }], readings: [] } }, NOW)[0];
+  const refused = keyRows({ openrouter: { records: [{ id: "c1", provider: "OPENROUTER", state: "NEEDS_AUTH", readerId: "openrouter_credits" }], readings: [] } }, NOW).find((row) => row.credentialKind === "openrouter_management_key");
   assert.deepEqual([refused.state, refused.error, refused.replace], ["error", "Key not accepted, paste a new one", true]);
   // Its field is right there, so the tool row's Connect has somewhere to go.
   const drawn = draw([refused]);
-  assert.equal(drawn.field("openrouter").getAttribute("placeholder"), "API key");
+  assert.equal(drawn.field("openrouter").getAttribute("placeholder"), "Management key");
 });
 
 test("OpenRouter key allowance never borrows the account balance identity", () => {
@@ -396,8 +399,9 @@ test("OpenRouter key allowance never borrows the account balance identity", () =
     provider: "OPENROUTER", meter: "ACCOUNT_BALANCE", value: 38.3, usedAmount: 7.66, limitAmount: 20,
     currency: "USD", observedAt: "2026-09-29T11:59:00.000Z", accountId: "c1",
   }] } }, NOW);
-  assert.deepEqual([rows[0].amount, rows[0].period], ["$90.00", "Key allowance"]);
-  assert.equal(draw(rows).row("openrouter").textContent.includes("$12.34"), false);
+  const inference = rows.find((row) => row.credentialKind === "openrouter_inference_key");
+  assert.deepEqual([inference.amount, inference.period], ["$90.00", "Key allowance"]);
+  assert.equal(draw([inference]).row("openrouter").textContent.includes("$12.34"), false);
 });
 
 test("two OpenRouter accounts each show, refresh and remove their own, and a paused one shows none", async () => {
@@ -412,7 +416,7 @@ test("two OpenRouter accounts each show, refresh and remove their own, and a pau
     reading("acct-b", 30, "2026-09-29T11:55:00.000Z"),
     reading("acct-paused", 1, "2026-09-29T11:59:00.000Z"),
   ];
-  const rows = keyRows({ openrouter: { records, readings } }, NOW).filter((row) => row.kind === "quota");
+  const rows = keyRows({ openrouter: { records, readings } }, NOW).filter((row) => row.kind === "quota" && row.recordId !== undefined);
   assert.deepEqual(rows.map((row) => [row.recordId, row.amount]), [["acct-a", "$10.00"], ["acct-b", "$20.00"]]);
 
   const calls = [];
@@ -429,7 +433,7 @@ test("two OpenRouter accounts each show, refresh and remove their own, and a pau
   assert.equal(drawn.row("openrouter", 0).textContent.includes("$20.00"), false);
 
   // An account with no reading of its own shows none of another's.
-  const unread = keyRows({ openrouter: { records: [record("acct-c")], readings } }, NOW)[0];
+  const unread = keyRows({ openrouter: { records: [record("acct-c")], readings } }, NOW).find((row) => row.recordId === "acct-c");
   assert.deepEqual([unread.recordId, unread.state, unread.amount], ["acct-c", "saved", undefined]);
   // A paused connection alone has no row to read, refresh or remove.
   const paused = keyRows({ openrouter: { records: [record("acct-paused", false)], readings } }, NOW)[0];

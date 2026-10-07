@@ -124,7 +124,7 @@ export const FAILURE_SENTENCES = {
   service: "The Pro service returned an unusable response.",
   stale_grant: "Pro needs to reconnect.",
   entitlement_required: "This hosted service needs an active Pro entitlement.",
-  plan_cap: "Pro unlocks more accounts. Free reads one account per provider.",
+  plan_cap: "Pro unlocks more accounts. Free reads one account per provider reader pair.",
   paused: "This connection is paused and cannot perform work.",
   device_cap_reached: "Device limit reached, remove one under Devices or in the hub.",
   updater_unconfigured: "Updates are not configured in this build.",
@@ -426,6 +426,10 @@ export async function terminalCaptions() {
 export async function setTerminalCaptions(captions) {
   if (captions !== "short" && captions !== "tagged") return refusedInput("set_terminal_captions");
   return call("set_terminal_captions", { captions });
+}
+
+export async function terminalRuntimeStatus() {
+  return call("terminal_runtime_status");
 }
 
 /** The provider and account presence report owned by the native detector. */

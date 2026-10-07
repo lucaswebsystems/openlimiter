@@ -203,6 +203,8 @@ async function readPlan() {
   const pro = result.ok ? result.value : null;
   const entitled = proEntitled(pro);
   trialOffered = !entitled;
+  if (result.ok && !entitled) await setTerminalCaptions("short");
+  return result;
 }
 
 /* ------------------------------------------------ account, menu and alerts */
@@ -581,7 +583,10 @@ const tabs = tabSwitcher({
   },
 });
 elements.usageConnect?.addEventListener("click", () => tabs.select(document.getElementById("tab-tools")));
-document.getElementById("pair-phone")?.addEventListener("click", () => elements.phoneButton?.click());
+document.getElementById("pair-phone")?.addEventListener("click", (event) => {
+  event.stopPropagation();
+  elements.phoneButton?.click();
+});
 
 elements.menuSync?.addEventListener("change", () => {
   const requested = elements.menuSync.checked;
@@ -627,23 +632,25 @@ window.addEventListener("focus", () => {
   void refreshEntitlement();
 });
 
-/* The menu's three blocks, mounted when the window starts. */
+/* The three Settings blocks, mounted only after entitlement normalization so a
+   downgraded Tagged caption choice never paints for one frame. */
 const mountPlanCap = () => renderPlanCap(elements.planCapMount, { onChange: () => void refresh() });
-void readPlan();
-void renderPro(elements.proMount);
-void renderSettings(elements.settingsMount);
-void mountPlanCap();
+void (async () => {
+  await readPlan();
+  await renderPro(elements.proMount);
+  await renderSettings(elements.settingsMount);
+  await mountPlanCap();
+})();
 
 /* One refresh repaints every control gated on the entitlement: the tray
    offer, the account cap, the plan card and the preset. */
 window.addEventListener("openlimiter:pro-changed", () => {
-  void proStatus().then((result) => {
-    if (result.ok && result.value?.theme_preset !== true) void setTerminalCaptions("short");
-    return readPlan();
-  });
-  void mountPlanCap();
-  void renderPro(elements.proMount);
-  void renderSettings(elements.settingsMount);
+  void (async () => {
+    await readPlan();
+    await mountPlanCap();
+    await renderPro(elements.proMount);
+    await renderSettings(elements.settingsMount);
+  })();
 });
 
 window.setInterval(tickDesktopTrial, 60_000);
@@ -940,10 +947,13 @@ function fillMore(tool, panel) {
   if (tool.code === "CLAUDE") {
     const label = document.createElement("label");
     label.className = "q-morelabel";
+    label.htmlFor = "claude-poll";
     label.textContent = say("showClaudeFable");
     const input = document.createElement("input");
+    input.id = "claude-poll";
     input.type = "checkbox";
     input.role = "switch";
+    input.setAttribute("aria-describedby", "claude-poll-note");
     input.checked = claudePoll === true;
     input.disabled = claudePoll === null;
     input.addEventListener("change", async () => {
@@ -955,7 +965,9 @@ function fillMore(tool, panel) {
       drawnTools = "";
       void refresh();
     });
-    panel.append(moreLine(label, input), moreLine(text("q-morelabel", say("showClaudeFableNote"))));
+    const note = text("q-morelabel", say("showClaudeFableNote"));
+    note.id = "claude-poll-note";
+    panel.append(moreLine(label, input), moreLine(note));
   }
   for (const flag of tool.extra) {
     const route = ["CODEX", "ANTIGRAVITY", "OPENCODE", "CLAUDE"].includes(flag.provider) && flag.fixKind !== "open_app" ? "connect" : "rescan";
@@ -1130,8 +1142,10 @@ initFirstRun({
   codexSignIn: codexDeviceLoginStart,
   codexSignInPoll: codexDeviceLoginStatus,
   codexSignInCancel: codexDeviceLoginCancel,
-  onAccountState: (status) => {
+  onAccountState: async (status) => {
     applyAccountState(status);
+    await readPlan();
+    await renderSettings(elements.settingsMount);
     if (status.syncEnabled !== false) {
       void accountSyncConfiguredSnapshot(readConfiguredProviders());
     }

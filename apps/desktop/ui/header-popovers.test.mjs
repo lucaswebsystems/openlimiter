@@ -16,7 +16,7 @@ class Element {
 test("every header popover is a fixed body portal on the same layer above the cards", () => {
   const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
   assert.doesNotMatch(html, /id="notification-popover"/u);
-  for (const id of ["app-menu", "phone-popover"]) {
+  for (const id of ["phone-popover"]) {
     assert.ok(html.indexOf(`id="${id}"`) > html.indexOf("</main>"));
   }
   const css = readFileSync(new URL("./app.css", import.meta.url), "utf8");

@@ -59,7 +59,7 @@ function installCaptureStub() {
   const account = { provider: "claude", account: null, headlineMeterId: "quota", kind: "quota_percent", value: 42, meaning: "used", windowLabel: "Session", resetAt: null, freshness: "fresh", availability: "available", band: "green", precision: "exact", fidelityMarker: null, sessions: { busy: 1, waiting: 0, done: 0, idle: 0, unknown: 0 } };
   window.__TAURI__ = {
     core: { invoke: async name => {
-      if (name === "read_cache") return JSON.stringify({ version: 2, snapshots: [], suppressions: [] });
+      if (name === "read_cache") return JSON.stringify({ version: 2, snapshots: [{ provider: "CLAUDE", meter: "FIVE_HOUR", unit: "PERCENT", value: 42, observed_at: now, expires_at: null, reset_at: null, source: "native_payload" }], suppressions: [] });
       if (name === "read_manual") return "";
       if (name === "state_directory") return "the demo fixtures";
       if (name === "account_status") return { signedIn: false, syncEnabled: false, backendReachable: false };
@@ -70,7 +70,7 @@ function installCaptureStub() {
       if (name === "plugin:activity|activity_notification_preferences") return { sound: "silent", local: { enabled: false, quietHours: null, mutedProviders: [] } };
       if (name === "plugin:rail|rail_snapshot") return { accounts: [account], sessions: [session], window: { available: true, visible: true, unfolded: true, keepOpen: false, offset: 120, cardOpen: true, cardAnchor: null } };
       if (name === "api_spend_status") return { version: 1, localDisplayIsFree: true, sources: [], samples: [] };
-      if (name === "detect_local_tools") return { claude_settings_present: true, statusline_wired: true };
+      if (name === "detect_local_tools") return { providers: [{ provider_id: "claude", state: "present" }, { provider_id: "antigravity", state: "present" }] };
       if (name === "claude_connect_preflight") return { kind: "ready", cli_path: "openlimiter" };
       if (name === "claude_poll_enabled") return false;
       if (name === "list_detected_providers") return { providers: [] };
@@ -85,9 +85,14 @@ function inspectFit(page) {
   return page.evaluate(() => {
     const findings = [];
     if (document.documentElement.scrollWidth > document.documentElement.clientWidth + 1) findings.push("the page scrolls sideways");
-    for (const button of document.querySelectorAll("main button, main a")) {
+    for (const button of document.querySelectorAll("main button:not(.preset):not(.q-more), main a")) {
       if (!button.checkVisibility()) continue;
       if (button.getBoundingClientRect().height > 40) findings.push(`control wraps: ${button.textContent.trim()}`);
+    }
+    for (const element of document.querySelectorAll("main .q-card, main .q-group, main .q-row")) {
+      if (!element.checkVisibility()) continue;
+      const box = element.getBoundingClientRect();
+      if (box.left < -1 || box.right > innerWidth + 1) findings.push(`content clips: ${element.className}`);
     }
     return findings;
   });
@@ -133,6 +138,7 @@ async function inspectTab(page, id, width, height, shots) {
       ...(panel && !panel.hidden ? [] : [`${panelId} is hidden`]),
       ...(tabs.filter(tab => tab.getAttribute("aria-selected") === "true").map(tab => tab.id).join() === `tab-${tabId}` ? [] : [`tab-${tabId} is not selected`]),
       ...(document.querySelectorAll(`${panelId} [role=tabpanel]`).length ? [`${panelId} contains a nested panel`] : []),
+      ...(panelId === "#tab-panel-tools" && !document.querySelector("#antigravity-add") ? ["Antigravity setup is missing"] : []),
     ];
   }, { panelId: panel, tabId: id });
   findings.push(...await inspectView(page, id));
@@ -156,10 +162,27 @@ try {
     const context = await browser.newContext({ viewport: { width: 720, height: 800 }, serviceWorkers: "block" });
     await context.addInitScript(installCaptureStub);
     const page = await context.newPage();
+    const errors = [];
+    page.on("pageerror", error => errors.push(error.message));
+    page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
     const response = await page.goto(`${origin}/${entry}`);
     assert.equal(response.headers()["content-security-policy"], csp);
     await page.waitForLoadState("networkidle");
-    process.stdout.write(`PASS ${entry}: rendered without browser errors\n`);
+    assert.deepEqual(errors, [], `${entry} browser errors`);
+    process.stdout.write(`PASS ${entry}: rendered with no browser errors\n`);
+    await context.close();
+  }
+  {
+    const context = await browser.newContext({ viewport: { width: 360, height: 480 }, serviceWorkers: "block" });
+    const errors = [];
+    await context.addInitScript(installCaptureStub);
+    const page = await context.newPage();
+    page.on("pageerror", error => errors.push(error.message));
+    await page.goto(`${origin}/edge-panel.html`);
+    await page.waitForLoadState("networkidle");
+    const panelFit = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
+    assert.equal(panelFit, true, "edge panel clips at 360 by 480");
+    assert.deepEqual(errors, [], "edge panel browser errors at 360 by 480");
     await context.close();
   }
 
