@@ -6,6 +6,9 @@
     "saveFailed": "画面端のタブの設定を保存できませんでした。もう一度お試しください。"
   },
   "desktopReadings": {
+    "pasteOpenRouterKey": "下の API キー一覧に OpenRouter のキーを貼り付けてください。",
+    "checkingSignIn": "サインインを確認しています...",
+    "cliNotFound": "{name} CLI が見つかりません。PATH に追加してから、もう一度確認してください。",
     "limits": "上限",
     "agents": "エージェント",
     "used": "使用量",

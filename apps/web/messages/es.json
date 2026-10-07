@@ -6,6 +6,9 @@
     "saveFailed": "No se pudo guardar la configuración de la pestaña lateral. Inténtalo de nuevo."
   },
   "desktopReadings": {
+    "pasteOpenRouterKey": "Pega tu clave de OpenRouter en la lista de claves API de abajo.",
+    "checkingSignIn": "Comprobando tu inicio de sesión...",
+    "cliNotFound": "No se encontró la CLI de {name}. Añádela al PATH y vuelve a comprobar.",
     "limits": "Límites",
     "agents": "Agentes",
     "used": "Usado",
