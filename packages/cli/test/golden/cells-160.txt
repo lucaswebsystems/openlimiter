@@ -1,2 +1,2 @@
-OpenLimiter NEAR_CAP PREFER OPENROUTER UNKNOWN CURSOR  CLAUDE ###.. 64.0%  CODEX ##... 51.0%  ANTIGRAVITY #.... 28.0%  GEMINI_CLI ##... 45.0%
-OPENCODE:Page 5h ####. 92.0%  GROK ##... 42.5%  KIMI:5h used ###.. 69.5%  MANUAL #.... 35.0%  OPENROUTER #.... 25.0%  OPENROUTER $7.53
+OpenLimiter NEAR_CAP PREFER OPENROUTER UNKNOWN CURSOR  7d ###.. 64%  cx5h ##... 51%  ag5h #.... 28%  gm ##... 45%  oc5h ####. 92%  gk7d ##... 43%
+km5h ###.. 70%  mnmo #.... 35%  or key #.... 25%  or $7.53

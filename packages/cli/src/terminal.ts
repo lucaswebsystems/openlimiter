@@ -13,6 +13,7 @@ import {
   TERMINAL_METER_SEGMENTS,
   TERMINAL_SEGMENTS,
   readConfig,
+  updateConfig,
   writeConfig,
   type OpenLimiterConfig
 } from "./config.js";
@@ -883,11 +884,16 @@ async function terminalVisibility(
   if (resolved.length === 0 || resolved.some((id) => !known.has(id))) {
     return { ok: false, message: TERMINAL_VISIBILITY_TEXT.invalid + [...known].join(", ") + "." };
   }
-  const config = await loadTerminalConfig(context);
-  const visibility = { ...config.statusline.visibility };
-  for (const id of resolved) visibility[id] = enabled;
   try {
-    await writeConfig({ ...config, statusline: { ...config.statusline, visibility } }, context.stateDirectory);
+    await updateConfig(
+      (latest) => {
+        const visibility = { ...latest.statusline.visibility };
+        for (const id of resolved) visibility[id] = enabled;
+        return { ...latest, statusline: { ...latest.statusline, visibility } };
+      },
+      context.environment ?? process.env,
+      context.stateDirectory
+    );
     return { ok: true, message: (enabled ? TERMINAL_VISIBILITY_TEXT.showing : TERMINAL_VISIBILITY_TEXT.hiding) + [...new Set(resolved)].join(", ") + "." };
   } catch {
     return { ok: false, message: "Could not write configuration." };

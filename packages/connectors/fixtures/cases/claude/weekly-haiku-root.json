@@ -1,6 +1,6 @@
 {
   "provider": "claude",
-  "case": "unknown-weekly",
+  "case": "weekly-haiku-root",
   "reader": "usage",
   "now": "2026-08-07T12:00:00.000Z",
   "status": 200,

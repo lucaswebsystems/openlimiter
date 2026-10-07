@@ -74,12 +74,14 @@
     "showTool": "Anzeigen",
     "removeTool": "Entfernen",
     "removeConfirm": "Zum Entfernen erneut drücken",
+    "claudeWeeklyOAuthApps": "Wöchentlich, OAuth Apps",
     "showClaudeFable": "Fable Limit anzeigen",
     "showClaudeFableNote": "Liest dieselbe Nutzung, die Claude anzeigt, indem eine direkte Nutzungsanfrage mit deiner Claude Anmeldung auf diesem Computer gesendet wird. Anthropics Richtlinie für solche Werkzeuge ist ungeklärt. Du kannst dies in den Einstellungen ausschalten.",
     "claudePollConsentTitle": "Dein Fable Limit anzeigen?",
     "claudePollNotNow": "Jetzt nicht",
     "claudePollSaveFailed": "Die Auswahl konnte nicht gespeichert werden, deshalb bleibt die Claude Nutzung ausgeschaltet.",
-    "claudePollContinueOff": "Mit ausgeschalteter Claude Nutzung fortfahren"
+    "claudePollContinueOff": "Mit ausgeschalteter Claude Nutzung fortfahren",
+    "claudeWeeklyPollHint": "Aktiviere die Nutzungsabfrage in den Verbindungstools, um deine Wochenlimits zu sehen."
   },
   "meta": {
     "title": "OpenLimiter, KI Programmierlimits und Agentenaktivität",
@@ -2178,6 +2180,7 @@
     "updatedDays": "Aktualisiert vor {count} Tg.",
     "claudeCurrentSession": "Aktuelle Sitzung",
     "claudeWeeklyAllModels": "Wöchentlich, alle Modelle",
+    "claudeWeeklyOAuthApps": "Wöchentlich, OAuth Apps",
     "claudeWeeklyFable": "Wöchentlich, Fable",
     "claudeWeeklyModel": "Wöchentlich, {model}",
     "claudeExtraUsage": "Zusätzliche Nutzung",
@@ -2209,6 +2212,7 @@
     "balance": "Kontostand",
     "percentUsed": "{value}% verwendet",
     "claudeFableDesktopHint": "Fable wird hier angezeigt, wenn die Claude Nutzung in OpenLimiter auf deinem Computer aktiviert ist.",
+    "claudeWeeklyPollHint": "Aktiviere die Nutzungsabfrage in den Verbindungstools, um deine Wochenlimits zu sehen.",
     "providers": {
       "title": "Anbieter",
       "automaticPrompt": "Öffne die Desktopanwendung. Dort beginnt die lokale Erkennung.",

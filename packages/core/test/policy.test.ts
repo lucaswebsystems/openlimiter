@@ -30,6 +30,7 @@ describe("policy", () => {
       },
       providers: [{
         provider: "CLAUDE",
+        meter: "FIVE_HOUR",
         state: "fresh",
         usagePercent: 82,
         resetAt: "2026-01-01T05:00:00.000Z"
@@ -40,7 +41,11 @@ describe("policy", () => {
 
   it("uses the worst meter for a provider", () => {
     const advice = buildAdvice(
-      [snapshot({ value: 10 }), snapshot({ value: 100, meter: "SEVEN_DAY" })],
+      [snapshot({ value: 10 }), snapshot({
+        value: 100,
+        meter: "SEVEN_DAY",
+        window: { kind: "rolling", durationSeconds: 604_800 }
+      })],
       now,
       ["CLAUDE"]
     );

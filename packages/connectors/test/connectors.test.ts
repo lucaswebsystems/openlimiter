@@ -375,7 +375,7 @@ describe("connector contracts", () => {
 
   it("keeps every fixture valid against the real clock", () => {
     const now = new Date().toISOString();
-    expect(parseClaudePayload(claudeFixture(now), now)).toHaveLength(2);
+    expect(parseClaudePayload(claudeFixture(now), now)).toHaveLength(1);
     expect(parseCodexPayload(codexFixture(now), now)).toHaveLength(1);
     expect(parseAntigravityPayload(antigravityFixture(now), now)).toHaveLength(2);
     expect(parseOpencodePayload(opencodeFixture(now), now)).toHaveLength(3);
@@ -385,15 +385,14 @@ describe("connector contracts", () => {
     expect(parseOpenrouterPayload(openrouterFixture(), now)).toHaveLength(1);
   });
 
-  it("keeps the readable window when the other window is unusable", () => {
+  it("does not treat a statusline weekly window as a native reading", () => {
     const payload = claudeFixture(FIXTURE_NOW) as {
       rate_limits: { five_hour: { resets_at: number } };
     };
     /* An epoch in 2020, long past the fixture clock. */
     payload.rate_limits.five_hour.resets_at = 1_577_836_800;
     const parsed = parseClaudePayload(payload, FIXTURE_NOW);
-    expect(parsed).toHaveLength(1);
-    expect(parsed?.[0]?.meter).toBe("SEVEN_DAY");
+    expect(parsed).toBeNull();
   });
 
   it("drops one unusable manual row and keeps the rest", () => {

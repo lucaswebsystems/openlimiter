@@ -101,7 +101,6 @@ describe("live synced usage", () => {
       "GEMINI_CLI:GEMINI_3_1_PRO_PREVIEW",
       "GEMINI_CLI:GEMINI_3_FLASH_PREVIEW",
       "CLAUDE:FIVE_HOUR",
-      "CLAUDE:FIVE_HOUR_2",
       "CLAUDE:SEVEN_DAY",
       "CLAUDE:SEVEN_DAY_OAUTH_APPS",
       "CLAUDE:EXTRA_USAGE",

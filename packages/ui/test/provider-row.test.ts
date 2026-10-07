@@ -157,7 +157,7 @@ describe("provider account rows", () => {
     expect(markup).not.toContain("primary");
     expect(markup).toContain("Current session");
     expect(markup).toContain("Weekly, all models");
-    expect(markup).toContain("63.0%");
+    expect(markup).toContain("63%");
     expect(markup).toContain('<slot name="actions"></slot>');
     expect(markup).toContain("<svg");
     expect(markup).toContain('d="m4.7144 15.9555');
@@ -168,7 +168,7 @@ describe("provider account rows", () => {
     expect(markup).not.toContain("metric-session");
     expect(markup).not.toContain("No data");
     expect(markup).toContain('<span class="window-reset">1h 30m</span>');
-    expect(markup).toContain('<strong class="window-percent">63.0%</strong>');
+    expect(markup).toContain('<strong class="window-percent">63%</strong>');
     expect(markup).not.toContain('<span class="account-value"');
   });
 
@@ -210,17 +210,13 @@ describe("provider account rows", () => {
     expect(windowForMetric(row!.windows, "week")).toMatchObject({
       usedPercent: 62,
     });
-    expect(windowForMetric(row!.windows, "month")).toMatchObject({
-      usedPercent: 41,
-    });
+    expect(windowForMetric(row!.windows, "month")).toBeNull();
     const markup = providerRowMarkup(row!);
     expect(markup).toContain(">Current session</span>");
     expect(markup).toContain(">Weekly, all models</span>");
-    expect(markup).toContain(">Monthly</span>");
-    expect(markup).toContain(">38.0%</strong>");
-    expect(markup).toContain(">62.0%</strong>");
-    expect(markup).toContain(">41.0%</strong>");
-    expect(markup.match(/role=\"progressbar\"/g)).toHaveLength(3);
+    expect(markup).toContain(">38%</strong>");
+    expect(markup).toContain(">62%</strong>");
+    expect(markup.match(/role=\"progressbar\"/g)).toHaveLength(2);
   });
 
   it("keeps every Claude model family window as its own line", () => {
@@ -367,7 +363,7 @@ describe("provider account rows", () => {
       byProvider.get("KIMI")?.windows.map((window) => window.label)
     ).toEqual(["Weekly limit", "5 hour limit", "5 hour limit 2"]);
     expect(byProvider.get("KIMI")?.windows.map((window) => window.readout))
-      .toEqual(["18.0% used", "41.0% used", "55.0% used"]);
+      .toEqual(["18% used", "41% used", "55% used"]);
     expect(byProvider.get("KIMI")?.windows.every((window) =>
       window.accessibleLabel.includes("% used"))).toBe(true);
     expect(
@@ -394,12 +390,11 @@ describe("provider account rows", () => {
     expect(rows[0]?.windows.map((window) => window.label)).toEqual([
       "Current session",
       "Weekly, all models",
+      "Weekly, OAuth Apps",
       "Weekly, Fable",
       "Weekly, Opus",
       "Weekly, Sonnet",
-      "Weekly, OAuth Apps",
       "Extra usage",
-      "Monthly",
     ]);
   });
 

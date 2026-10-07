@@ -40,7 +40,7 @@ const cases: readonly Case[] = [
   {
     provider: "CLAUDE",
     good: claudeFixture(NOW),
-    goodMeters: 2,
+    goodMeters: 1,
     /* Camel case field names no Claude document has ever used. `utilization`
        is no longer a wrong shape: it is what the api/oauth/usage document
        states, and refusing it was finding F-201. */

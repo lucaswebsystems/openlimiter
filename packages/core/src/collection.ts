@@ -1,4 +1,4 @@
-import { retainSnapshots } from "./data-rules.js";
+import { isSnapshotDisplayEligible, retainSnapshots } from "./data-rules.js";
 import { mergeSnapshots, snapshotIdentity, MAX_CACHE_ENTRIES } from "./merge.js";
 import type { ProviderCode, Snapshot } from "./types.js";
 import { PROVIDER_CODES, ACCOUNT_ID_PATTERN } from "./types.js";
@@ -222,16 +222,30 @@ export function applyCollectionReport(
     collectionIdentity(report.provider, suppression.accountId) ===
       collectionIdentity(report.provider, report.accountId);
 
-  if (state.snapshots.some(row => belongs(row) && Date.parse(row.observedAt) > Date.parse(report.observedAt))) return state;
   if (state.suppressions.some(entry => suppressionMatches(entry) && Date.parse(entry.suppressedAt) > Date.parse(report.observedAt))) return state;
 
+  if (!report.ok && report.reason === "drift" && state.snapshots.some((snapshot) =>
+    belongs(snapshot) && Date.parse(snapshot.observedAt) > Date.parse(report.observedAt)
+  )) return state;
+
   if (report.ok) {
-    /* Rows for this identity are dropped before the merge rather than left for
-       it, because a successful run that returns FEWER meters than last time
-       must not leave the missing ones behind as fresh looking survivors. */
-    const kept = state.snapshots.filter((snapshot) => !belongs(snapshot));
+    const partial = report.snapshots.length > 0 && report.snapshots.every((snapshot) =>
+      snapshot.provenance?.sourceKind === "statusline_payload"
+    );
+    const incoming = report.snapshots.filter((snapshot) =>
+      !(snapshot.provider === "CLAUDE" && snapshot.meter.startsWith("SEVEN_DAY") &&
+        snapshot.provenance?.sourceKind === "statusline_payload")
+    );
+    const newer = incoming.filter((snapshot) => {
+      const current = state.snapshots.find((row) => snapshotIdentity(row) === snapshotIdentity(snapshot));
+      return current === undefined || Date.parse(snapshot.observedAt) > Date.parse(current.observedAt);
+    });
+    const retained = partial
+      ? state.snapshots
+      : state.snapshots.filter((snapshot) => !belongs(snapshot) ||
+        report.snapshots.some((incomingSnapshot) => snapshotIdentity(incomingSnapshot) === snapshotIdentity(snapshot)));
     return {
-      snapshots: mergeSnapshots(kept, report.snapshots),
+      snapshots: mergeSnapshots(retained, newer),
       suppressions: state.suppressions.filter(
         (suppression) => !suppressionMatches(suppression)
       )
@@ -282,8 +296,9 @@ function boundSuppressions(
  * context, the dashboard and the tray in the same tick.
  */
 export function visibleSnapshots(state: CacheState): Snapshot[] {
-  if (state.suppressions.length === 0) return [...state.snapshots];
+  if (state.suppressions.length === 0) return state.snapshots.filter(isSnapshotDisplayEligible);
   return state.snapshots.filter((snapshot) => {
+    if (!isSnapshotDisplayEligible(snapshot)) return false;
     const observed = parseInstant(snapshot.observedAt);
     for (const suppression of state.suppressions) {
       if (!snapshotBelongsTo(snapshot, suppression.provider, suppression.accountId)) {

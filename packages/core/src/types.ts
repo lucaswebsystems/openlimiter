@@ -341,6 +341,7 @@ export type AdviceRecommendation =
 
 export interface AdviceProvider {
   provider: ProviderCode;
+  meter: string;
   state: "fresh" | "stale";
   usagePercent: number;
   resetAt: string | null;

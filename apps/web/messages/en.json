@@ -74,12 +74,14 @@
     "showTool": "Show",
     "removeTool": "Remove",
     "removeConfirm": "Press again to remove",
+    "claudeWeeklyOAuthApps": "Weekly, OAuth Apps",
     "showClaudeFable": "Show Fable limit",
     "showClaudeFableNote": "Reads the same usage Claude shows by sending a direct usage request with your Claude sign in on this computer. Anthropic's policy for tools like this is unresolved. Turn it off in Settings.",
     "claudePollConsentTitle": "Show your Fable limit?",
     "claudePollNotNow": "Not now",
     "claudePollSaveFailed": "The choice could not be saved, so Claude usage stays off.",
-    "claudePollContinueOff": "Continue with Claude off"
+    "claudePollContinueOff": "Continue with Claude off",
+    "claudeWeeklyPollHint": "Turn on the usage poll in Connect Tools to see your weekly limits."
   },
   "meta": {
     "title": "OpenLimiter, AI coding limits and agent activity",
@@ -2178,6 +2180,7 @@
     "updatedDays": "Updated {count} d ago",
     "claudeCurrentSession": "Current session",
     "claudeWeeklyAllModels": "Weekly, all models",
+    "claudeWeeklyOAuthApps": "Weekly, OAuth Apps",
     "claudeWeeklyFable": "Weekly, Fable",
     "claudeWeeklyModel": "Weekly, {model}",
     "claudeExtraUsage": "Extra usage",
@@ -2209,6 +2212,7 @@
     "balance": "Balance",
     "percentUsed": "{value}% used",
     "claudeFableDesktopHint": "Fable shows here when Claude usage is on in OpenLimiter on your computer.",
+    "claudeWeeklyPollHint": "Turn on the usage poll in Connect Tools to see your weekly limits.",
     "providers": {
       "title": "Providers",
       "automaticPrompt": "Open the desktop app. Local detection starts there.",

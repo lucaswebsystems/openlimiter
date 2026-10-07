@@ -120,6 +120,52 @@ describe("applying a collection report", () => {
     expect(after.snapshots.map((row) => row.meter)).toEqual(["PRIMARY"]);
   });
 
+  it("keeps omitted rows when a statusline payload is partial", () => {
+    const before: CacheState = {
+      snapshots: [codexRow({ meter: "PRIMARY" }), codexRow({ meter: "SECONDARY" })],
+      suppressions: []
+    };
+    const after = applyCollectionReport(
+      before,
+      successReport([codexRow({
+        meter: "PRIMARY",
+        observedAt: NOW,
+        provenance: {
+          sourceKind: "statusline_payload",
+          observedVia: "claude_code_statusline"
+        }
+      })])
+    );
+    expect(after.snapshots.map((row) => row.meter)).toEqual(["PRIMARY", "SECONDARY"]);
+  });
+
+  it("treats a mixed payload and complete report as complete", () => {
+    const before: CacheState = {
+      snapshots: [codexRow({ meter: "PRIMARY" }), codexRow({ meter: "SECONDARY" })],
+      suppressions: []
+    };
+    const after = applyCollectionReport(before, successReport([
+      codexRow({
+        meter: "PRIMARY",
+        observedAt: NOW,
+        provenance: {
+          sourceKind: "statusline_payload",
+          observedVia: "claude_code_statusline"
+        }
+      }),
+      codexRow({ meter: "TERTIARY", observedAt: NOW, provenance: {
+        sourceKind: "remote_api",
+        observedVia: "remote_http"
+      } })
+    ]));
+    expect(after.snapshots.map((row) => row.meter)).toEqual(["PRIMARY", "TERTIARY"]);
+  });
+
+  it("does not let delayed drift withdraw a newer successful reading", () => {
+    const before: CacheState = { snapshots: [codexRow({ observedAt: LATER })], suppressions: [] };
+    expect(applyCollectionReport(before, failureReport("drift", NOW))).toEqual(before);
+  });
+
   it("removes the rows and records a suppression on drift", () => {
     const before: CacheState = { snapshots: [codexRow()], suppressions: [] };
     const after = applyCollectionReport(before, failureReport("drift"));

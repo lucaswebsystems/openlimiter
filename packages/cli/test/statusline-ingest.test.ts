@@ -138,7 +138,7 @@ describe("statusline ingestion by host", () => {
       oauthAccount: { accountUuid: "fixture-a" }
     }));
     expect(await claudeRows(home, await temporaryDirectory(), {})).toEqual([
-      opaqueAccountId("CLAUDE", "fixture-a"), opaqueAccountId("CLAUDE", "fixture-a")
+      opaqueAccountId("CLAUDE", "fixture-a")
     ]);
   });
 
@@ -148,7 +148,7 @@ describe("statusline ingestion by host", () => {
     await claudeConfig(path.join(home, "work-a"), "fixture-a", { padding: 200_000 });
     await claudeConfig(path.join(home, "work-b"), "fixture-b");
     expect(await claudeRows(home, directory, { CLAUDE_CONFIG_DIR: path.join(home, "work-a") }))
-      .toEqual([opaqueAccountId("CLAUDE", "fixture-a"), opaqueAccountId("CLAUDE", "fixture-a")]);
+      .toEqual([opaqueAccountId("CLAUDE", "fixture-a")]);
     expect(new Set(await claudeRows(home, directory, { CLAUDE_CONFIG_DIR: path.join(home, "work-b") })))
       .toEqual(new Set([opaqueAccountId("CLAUDE", "fixture-a"), opaqueAccountId("CLAUDE", "fixture-b")]));
   });
@@ -160,7 +160,7 @@ describe("statusline ingestion by host", () => {
     /* Session B keeps its token in a keychain, so only its account file is on disk. */
     await claudeConfig(path.join(home, "work-b"), "fixture-b", { credential: false });
     expect(await claudeRows(home, await temporaryDirectory(), { CLAUDE_CONFIG_DIR: path.join(home, "work-b") }))
-      .toEqual([opaqueAccountId("CLAUDE", "fixture-b"), opaqueAccountId("CLAUDE", "fixture-b")]);
+      .toEqual([opaqueAccountId("CLAUDE", "fixture-b")]);
   });
 
   it("Claude: missing account metadata leaves the row anonymous rather than borrowing another login", async () => {
@@ -169,7 +169,7 @@ describe("statusline ingestion by host", () => {
     await writeFile(path.join(home, ".claude.json"), JSON.stringify({ oauthAccount: { accountUuid: "fixture-a" } }));
     await claudeConfig(path.join(home, "work-b"), null);
     expect(await claudeRows(home, await temporaryDirectory(), { CLAUDE_CONFIG_DIR: path.join(home, "work-b") }))
-      .toEqual([undefined, undefined]);
+      .toEqual([undefined]);
   });
 
   it("a failed status line write is kept for doctor by stage and code, and cleared by the next success", async () => {
@@ -196,7 +196,7 @@ describe("statusline ingestion by host", () => {
     expect(await doctor()).not.toMatch(/STATUSLINE WRITE FAILED/u);
   });
 
-  it("Claude: rate_limits five_hour and seven_day become cache rows", async () => {
+  it("Claude: the status line imports only the session window", async () => {
     const directory = await temporaryDirectory();
     const result = await runCli(["statusline", "--host", "claude"], {
       stateDirectory: directory,
@@ -205,7 +205,7 @@ describe("statusline ingestion by host", () => {
     });
     expect(result.exitCode).toBe(0);
     const rows = await cachedRows(directory);
-    expect(rows.map((row) => row.meter).sort()).toEqual(["FIVE_HOUR", "SEVEN_DAY"]);
+    expect(rows.map((row) => row.meter).sort()).toEqual(["FIVE_HOUR"]);
     for (const row of rows) {
       expect(row.provider).toBe("CLAUDE");
       expect(row.provenance).toEqual({
@@ -224,7 +224,7 @@ describe("statusline ingestion by host", () => {
     });
     expect(result.exitCode).toBe(0);
     const rows = await cachedRows(directory);
-    // Unknown bucket was dropped; only recognized FIVE_HOUR and SEVEN_DAY kept
+    // Unknown bucket was dropped; Antigravity keeps both recognized buckets.
     expect(rows.map((row) => row.meter).sort()).toEqual(["FIVE_HOUR", "SEVEN_DAY"]);
     const fiveHourRow = rows.find((r) => r.meter === "FIVE_HOUR");
     expect(fiveHourRow).toBeDefined();
@@ -297,7 +297,7 @@ describe("statusline ingestion by host", () => {
     });
     expect(result.exitCode).toBe(0);
     const rows = await cachedRows(directory);
-    expect(rows.map((row) => row.meter).sort()).toEqual(["FIVE_HOUR", "SEVEN_DAY"]);
+    expect(rows.map((row) => row.meter).sort()).toEqual(["FIVE_HOUR"]);
   });
 
   it("omitting --host behaves exactly like --host claude, for backward compatibility", async () => {

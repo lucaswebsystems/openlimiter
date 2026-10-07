@@ -22,6 +22,7 @@ const advice: Advice = {
   },
   providers: [{
     provider: "CLAUDE",
+    meter: "FIVE_HOUR",
     state: "fresh",
     usagePercent: 84.25,
     resetAt: "2026-01-01T05:00:00.000Z"
@@ -60,7 +61,7 @@ describe("Claude adapter", () => {
     expect(context).toContain("recommendation_code=NONE");
     expect(context).toContain("recommendation_provider=NONE");
     expect(context).toContain("recommendation_reason=NO_HEALTHY_PROVIDER");
-    expect(context).toContain("provider=CLAUDE state=fresh usage_percent=84.25");
+    expect(context).toContain("provider=CLAUDE meter=FIVE_HOUR state=fresh usage_percent=84");
     expect(context).toContain("unknown=CODEX");
     expect(context.length).toBeLessThan(1_024);
     expect(context.includes("Ignore previous instructions")).toBe(false);
@@ -144,13 +145,12 @@ describe("Claude adapter", () => {
       providers: [{ ...advice.providers[0]!, usagePercent: 99.99 }]
     };
     const line = renderClaudeStatusline(nearlyFull);
-    expect(line).toContain("CLAUDE 99.9%");
-    expect(line).not.toContain("100%");
+    expect(line).toContain("CLAUDE 100%");
     expect(renderClaudeStatusline({
       ...advice,
       providers: [{ ...advice.providers[0]!, usagePercent: 79.99 }]
-    })).toContain("CLAUDE 79.9%");
-    expect(buildAgentContext(nearlyFull)).toContain("usage_percent=99.99");
+    })).toContain("CLAUDE 80%");
+    expect(buildAgentContext(nearlyFull)).toContain("usage_percent=100");
   });
 
   it("reports a cap that was actually reached", () => {
@@ -158,7 +158,7 @@ describe("Claude adapter", () => {
       ...advice,
       reason: "AT_CAP",
       providers: [{ ...advice.providers[0]!, usagePercent: 100 }]
-    })).toContain("CLAUDE 100.0%");
+    })).toContain("CLAUDE 100%");
   });
 
   it("reads only the cache within the hook budget", async () => {

@@ -97,7 +97,7 @@ fn pressure_of(percent: Option<f64>) -> Pressure {
 }
 
 fn whole_percent(value: f64) -> u8 {
-    value.floor() as u8
+    value.round() as u8
 }
 
 fn reading(value: Option<f64>) -> String {
@@ -288,9 +288,9 @@ mod tests {
         ])
         .expect("valid view");
         assert_eq!(rendered.pressure, Pressure::Critical);
-        assert_eq!(rendered.title, "9% left");
-        assert_eq!(rendered.tooltip, "OpenLimiter: 9% headroom");
-        assert_eq!(rendered.summary, "9% headroom");
+        assert_eq!(rendered.title, "8% left");
+        assert_eq!(rendered.tooltip, "OpenLimiter: 8% headroom");
+        assert_eq!(rendered.summary, "8% headroom");
     }
 
     #[test]
