@@ -384,7 +384,7 @@ test("rows without a percent keep their wide value and detail columns", () => {
   assert.match(css, /\.q-row\s*>\s*\.q-val\s*\{[^}]*grid-column:\s*3/su);
   assert.match(css, /\.q-row\s*>\s*\.q-rst\s*\{[^}]*grid-column:\s*4/su);
   assert.match(css, /@media\s*\(max-width:\s*34rem\)[\s\S]*?\.q-limits:not\(\.q-compact\) \.q-row \.q-val\s*\{[^}]*grid-column:\s*2/su);
-  assert.match(css, /\.q-compact \.q-row\[data-detail="money"\] \.q-val\s*\{[^}]*grid-column:\s*2/su);
+  assert.match(css, /\.q-compact \.q-row\[data-detail="money"\] \.q-val,\s*\.q-compact \.q-row\[data-bar="none"\] \.q-val\s*\{[^}]*grid-column:\s*2/su);
   const doc = fakeDocument();
   const mount = doc.createElement("div");
   const model = limitsModel([{
