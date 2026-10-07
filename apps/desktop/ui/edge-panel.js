@@ -8,7 +8,7 @@
  * of the screen, so the panel scrolls only past the clamp. It is told when it
  * is shown or hidden, and polls only while it is seen.
  */
-import { holdReadings, limitsModel, officialMark, projectReadings, renderLimits, updatedLabel } from "./readings.js";
+import { holdReadings, limitsKey, limitsModel, officialMark, patchLimits, projectReadings, renderLimits, updatedLabel } from "./readings.js";
 import { agentsModel, locateSentence, renderAgents, runningLabel } from "./agents.js";
 import { freshestObservation } from "./home-refresh.js";
 import { say } from "./names.js";
@@ -26,6 +26,7 @@ export async function openMainWindow(tauri) {
 
 /** Sent by native code whenever the panel is shown (true) or hidden (false). */
 export const PANEL_SHOWN_EVENT = "edge-panel-shown";
+export const COLLECTOR_UPDATED_EVENT = "collector-updated";
 
 /**
  * The height the panel's content needs, in CSS pixels: the card's own head and
@@ -105,10 +106,12 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
         ? holdReadings(held, at)
         : projectReadings(cache.value, manual.status === "fulfilled" ? manual.value : null, at).snapshots;
       const model = limitsModel(held, at);
-      const limitsKey = JSON.stringify(model);
-      if (limitsKey !== drawnLimits) {
-        drawnLimits = limitsKey;
+      const key = limitsKey(model);
+      if (key !== drawnLimits) {
+        drawnLimits = key;
         renderLimits(doc, view.limits, model, { compact: true });
+      } else {
+        patchLimits(view.limits, model, { compact: true });
       }
       view.limits.hidden = model.length === 0;
       view.updated.textContent = model.length ? updatedLabel(freshestObservation(held), at) : "";
@@ -117,9 +120,9 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
       else state(say("emptyTitle"), say("emptyPanel"));
       const sessions = rail.status === "fulfilled" && Array.isArray(rail.value?.sessions) ? rail.value.sessions : null;
       const agents = agentsModel(sessions, Date.parse(at));
-      const key = JSON.stringify(agents);
-      if (key !== drawnAgents) {
-        drawnAgents = key;
+      const agentKey = JSON.stringify(agents);
+      if (agentKey !== drawnAgents) {
+        drawnAgents = agentKey;
         renderAgents(doc, view.agentRows, agents ?? [], { locate, markFor: officialMark });
       }
       view.agents.hidden = !agents?.length;
@@ -148,6 +151,15 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
   };
   view.open.addEventListener("click", openApp);
   doc.addEventListener("keydown", escape);
+  const onUpdated = () => void refresh();
+  let unlistenUpdated = null;
+  if (typeof listen === "function") {
+    Promise.resolve(listen(COLLECTOR_UPDATED_EVENT, onUpdated)).then((stop) => {
+      if (stopped) return stop?.();
+      unlistenUpdated = stop;
+    }).catch(() => {});
+  }
+
   if (!shown) {
     Promise.resolve(listen(PANEL_SHOWN_EVENT, onShown)).then(async (stop) => {
       if (stopped) return stop?.();
@@ -164,6 +176,7 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
     stopped = true;
     cancel(timer);
     unlisten?.();
+    unlistenUpdated?.();
     view.open.removeEventListener("click", openApp);
     doc.removeEventListener("keydown", escape);
   };

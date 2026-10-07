@@ -105,5 +105,7 @@
   "claudePollNotNow": "Not now",
   "claudePollSaveFailed": "The choice could not be saved, so Claude usage stays off.",
   "claudePollContinueOff": "Continue with Claude off",
-  "claudeFableDesktopHint": "Fable shows here when Claude usage is on in OpenLimiter on your computer."
+  "claudeFableDesktopHint": "Fable shows here when Claude usage is on in OpenLimiter on your computer.",
+  "pasteOpenRouterKey": "Paste your OpenRouter key in the API keys list below.",
+  "checkingSignIn": "Checking your sign in..."
 }

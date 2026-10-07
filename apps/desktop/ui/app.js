@@ -31,7 +31,9 @@ import {
   fixWords,
   holdReadings,
   inventoryModel,
+  limitsKey,
   officialMark,
+  patchLimits,
   projectReadings,
   renderLimits,
 } from "./readings.js";
@@ -597,9 +599,7 @@ elements.menuLogout?.addEventListener("click", () => {
   })();
 });
 
-void accountStatus().then((result) => {
-  if (result.ok) applyAccountState(result.value);
-});
+
 
 /* A purchase happens in a browser, so the window learns about it by coming
    back into focus. Refreshing then is the difference between "it worked" and
@@ -824,17 +824,21 @@ function paintTools(snapshots, now) {
   }, now);
   /* Redrawn only when something on it changed, so a step in flight keeps
      its button and its line. */
-  const key = JSON.stringify(model);
+  const key = limitsKey(model);
   if (key !== drawnTools) {
     drawnTools = key;
     renderLimits(document, elements.toolRows, model, { handlers: toolHandlers, more: fillMore, opened: openMenus });
+  } else {
+    patchLimits(elements.toolRows, model);
   }
   if (elements.loading !== null) elements.loading.hidden = true;
   const catalogue = catalogueModel(model.map((tool) => tool.code));
-  const catalogueKey = JSON.stringify(catalogue);
+  const catalogueKey = limitsKey(catalogue);
   if (catalogueKey !== drawnCatalogue) {
     drawnCatalogue = catalogueKey;
     renderLimits(document, elements.catalogue, catalogue, { handlers: catalogueHandlers });
+  } else {
+    patchLimits(elements.catalogue, catalogue);
   }
   elements.addTool.hidden = catalogue.length === 0;
   paintCatalogue();
@@ -933,7 +937,7 @@ function focusKey(provider) {
   const field = elements.keyRows.querySelector(`[data-key-row="${provider}"] input`);
   field?.scrollIntoView({ behavior: "smooth", block: "center" });
   field?.focus({ preventScroll: true });
-  return field !== null;
+  return say("pasteOpenRouterKey");
 }
 
 const keyHandlers = {

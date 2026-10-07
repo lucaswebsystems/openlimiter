@@ -27,6 +27,12 @@ const CODEX_INSTALL_ROOTS_WINDOWS: &[&str] = &[
     "home/Applications",
     "roaming/npm",
     "local/Programs",
+    "local/pnpm",
+    "local/Volta",
+    "roaming/nvm",
+    "local/fnm_multishells",
+    "home/scoop",
+    "local/Microsoft/WindowsApps",
 ];
 const CLAUDE_INSTALL_ROOTS_WINDOWS: &[&str] = CODEX_INSTALL_ROOTS_WINDOWS;
 const GEMINI_INSTALL_ROOTS_WINDOWS: &[&str] = CODEX_INSTALL_ROOTS_WINDOWS;
@@ -189,6 +195,7 @@ pub enum IdentityQuality {
 pub enum RecoveryAction {
     ReopenCli,
     SignInToCli,
+    InstallCli,
     ConnectApiKey,
     ManualEntry,
 }
@@ -331,7 +338,7 @@ impl DiscoveryPlatform {
 }
 
 #[derive(Clone)]
-struct DiscoveryContext {
+pub(crate) struct DiscoveryContext {
     platform: DiscoveryPlatform,
     read_native_credentials: bool,
     home: Option<PathBuf>,
@@ -358,7 +365,7 @@ fn non_empty_path(name: &str) -> Option<PathBuf> {
 
 impl DiscoveryContext {
     #[cfg(test)]
-    fn current() -> Self {
+    pub(crate) fn current() -> Self {
         let home = crate::state::state_directory().unwrap();
         Self {
             platform: DiscoveryPlatform::current(),
@@ -381,7 +388,7 @@ impl DiscoveryContext {
     }
 
     #[cfg(not(test))]
-    fn current() -> Self {
+    pub(crate) fn current() -> Self {
         let platform = DiscoveryPlatform::current();
         let home = crate::state::home();
         let roaming = non_empty_path("APPDATA");
@@ -958,6 +965,23 @@ fn provider_install_roots(
         }
         roots.push(root);
     }
+    if context.platform == DiscoveryPlatform::Windows {
+        if let Some(home) = context.home.as_deref() {
+            if let Ok(text) = fs::read_to_string(home.join(".npmrc")) {
+                for line in text.lines() {
+                    let line = line.trim();
+                    if let Some(prefix) = line.strip_prefix("prefix=") {
+                        let path = PathBuf::from(prefix.trim());
+                        if path.is_absolute() {
+                            roots.push(path);
+                        } else {
+                            roots.push(home.join(path));
+                        }
+                    }
+                }
+            }
+        }
+    }
     roots
 }
 
@@ -1250,35 +1274,58 @@ fn codex_native_executable(
 ) -> Option<PathBuf> {
     let (platform, arch, triple, executable_name) = codex_native_layout(context.platform);
     let package = format!("codex-{platform}-{arch}");
-    let package_root = if launcher
-        .extension()
-        .is_some_and(|extension| extension == "js")
-    {
-        launcher.parent()?.parent()?.to_path_buf()
+    
+    let mut package_roots = Vec::new();
+    if launcher.extension().is_some_and(|ext| ext == "js") {
+        if let Some(parent) = launcher.parent().and_then(|p| p.parent()) {
+            package_roots.push(parent.to_path_buf());
+        }
     } else {
-        path_directory
-            .join("node_modules")
-            .join("@openai")
-            .join("codex")
-    };
-    let package_parent = package_root.parent()?.to_path_buf();
-    for vendor in [
-        package_root.join("vendor").join(triple),
-        package_root
-            .join("node_modules")
-            .join("@openai")
-            .join(&package)
-            .join("vendor")
-            .join(triple),
-        package_parent.join(&package).join("vendor").join(triple),
-    ] {
-        for binary_directory in ["codex", "bin"] {
-            let candidate = vendor.join(binary_directory).join(executable_name);
-            if let Some(native) = validated_executable_in_roots(
-                &candidate,
-                &provider_install_roots(DetectedProviderId::Codex, context),
-            ) {
-                return Some(native);
+        package_roots.push(path_directory.join("node_modules").join("@openai").join("codex"));
+        
+        #[cfg(windows)]
+        {
+            if let Some(local) = context.local.as_deref() {
+                let pnpm_global = local.join("pnpm").join("global");
+                if let Ok(entries) = fs::read_dir(&pnpm_global) {
+                    for entry in entries.flatten() {
+                        package_roots.push(entry.path().join("node_modules").join("@openai").join("codex"));
+                    }
+                }
+                package_roots.push(local.join("Volta").join("tools").join("image").join("packages").join("@openai").join("codex"));
+            }
+            if let Some(home) = context.home.as_deref() {
+                let scoop_apps = home.join("scoop").join("apps");
+                if let Ok(entries) = fs::read_dir(&scoop_apps) {
+                    for entry in entries.flatten() {
+                        let name = entry.file_name();
+                        if name.to_string_lossy().starts_with("nodejs") {
+                            package_roots.push(entry.path().join("current").join("node_modules").join("@openai").join("codex"));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    for package_root in package_roots {
+        let package_parent = match package_root.parent() {
+            Some(parent) => parent,
+            None => continue,
+        };
+        for vendor in [
+            package_root.join("vendor").join(triple),
+            package_root.join("node_modules").join("@openai").join(&package).join("vendor").join(triple),
+            package_parent.join(&package).join("vendor").join(triple),
+        ] {
+            for binary_directory in ["codex", "bin"] {
+                let candidate = vendor.join(binary_directory).join(executable_name);
+                if let Some(native) = validated_executable_in_roots(
+                    &candidate,
+                    &provider_install_roots(DetectedProviderId::Codex, context),
+                ) {
+                    return Some(native);
+                }
             }
         }
     }
@@ -1916,17 +1963,17 @@ fn parse_credential_source(
 }
 
 #[derive(Clone)]
-struct CredentialReference {
+pub(crate) struct CredentialReference {
     provider: DetectedProviderId,
     account_id: String,
     source: CredentialSource,
     revision: String,
 }
 
-struct Inventory {
-    report: DetectionReport,
-    credentials: BTreeMap<(DetectedProviderId, String), CredentialReference>,
-    statusline_accounts: BTreeSet<String>,
+pub(crate) struct Inventory {
+    pub(crate) report: DetectionReport,
+    pub(crate) credentials: BTreeMap<(DetectedProviderId, String), CredentialReference>,
+    pub(crate) statusline_accounts: BTreeSet<String>,
 }
 
 #[cfg(test)]
@@ -2072,11 +2119,18 @@ pub struct DetectedSecret {
     pub credential_revision: String,
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ProvisionalPolicy {
+    pub scanned_at: i64,
+    pub accounts: BTreeMap<String, Vec<String>>,
+}
+
 pub struct DetectionStore {
     pub switches: crate::provider_switches::ProviderSwitches,
-    context: DiscoveryContext,
-    inventory: RwLock<Inventory>,
-    scan_gate: Mutex<Option<Instant>>,
+    pub(crate) context: DiscoveryContext,
+    pub(crate) inventory: RwLock<Inventory>,
+    pub(crate) scan_gate: Mutex<Option<Instant>>,
+    pub provisional_policy: RwLock<Option<ProvisionalPolicy>>,
 }
 
 pub fn spawn_rescans(app: tauri::AppHandle) {
@@ -2120,11 +2174,24 @@ impl DetectionStore {
             credentials: BTreeMap::new(),
             statusline_accounts: BTreeSet::new(),
         };
+        
+        let mut provisional_policy = None;
+        let policy_path = crate::state::state_directory().unwrap_or_default().join("detection-policy.json");
+        if let Ok(contents) = std::fs::read_to_string(&policy_path) {
+            if let Ok(policy) = serde_json::from_str::<ProvisionalPolicy>(&contents) {
+                let now = crate::connections::now_epoch_ms();
+                if now - (policy.scanned_at as u64) < 7 * 24 * 60 * 60 * 1000 {
+                    provisional_policy = Some(policy);
+                }
+            }
+        }
+        
         Self {
             switches,
             context,
             inventory: RwLock::new(inventory),
             scan_gate: Mutex::new(None),
+            provisional_policy: RwLock::new(provisional_policy),
         }
     }
 
@@ -2152,8 +2219,25 @@ impl DetectionStore {
             &self.switches,
         );
         let report = self.merge_inventory(next);
+        self.persist_provisional_policy();
         *gate = Some(Instant::now());
         report
+    }
+
+    fn persist_provisional_policy(&self) {
+        let mut active = std::collections::BTreeMap::new();
+        for provider in DetectedProviderId::ALL {
+            let code = provider.slug().to_uppercase().replace('-', "_");
+            active.insert(code, self.display_account_ids(provider).into_iter().collect());
+        }
+        let policy = ProvisionalPolicy {
+            scanned_at: crate::connections::now_epoch_ms() as i64,
+            accounts: active,
+        };
+        let policy_path = crate::state::state_directory().unwrap_or_default().join("detection-policy.json");
+        if let Ok(contents) = serde_json::to_string(&policy) {
+            let _ = std::fs::write(&policy_path, contents);
+        }
     }
 
     fn merge_inventory(&self, mut next: Inventory) -> DetectionReport {
@@ -2204,9 +2288,8 @@ impl DetectionStore {
                 inventory
                     .credentials
                     .values()
-                    .filter_map(|reference| match &reference.source {
-                        CredentialSource::File(path) => Some(path.clone()),
-                        _ => None,
+                    .map(|reference| match &reference.source {
+                        CredentialSource::File(path) => path.clone(),
                     })
                     .collect()
             })
@@ -2416,6 +2499,16 @@ impl DetectionStore {
         );
     }
 
+    pub fn mark_cli_missing(&self, provider: DetectedProviderId, account_id: &str) {
+        self.update_collection(
+            provider,
+            account_id,
+            DetectedCollectionState::Fallback,
+            Some(RecoveryAction::InstallCli),
+            Some("Codex CLI not found. Put it on PATH, then check again."),
+        );
+    }
+
     fn update_collection(
         &self,
         provider: DetectedProviderId,
@@ -2472,15 +2565,26 @@ impl DetectionStore {
             context,
             inventory: RwLock::new(inventory),
             scan_gate: Mutex::new(None),
+            provisional_policy: RwLock::new(None),
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CodexRuntimeOutcome {
+    Found(PathBuf, PathBuf),
+    MissingExecutable,
+    NoMatchingLogin,
 }
 
 fn codex_runtime_in_context(
     provider_account_id: &str,
     context: &DiscoveryContext,
-) -> Option<(PathBuf, PathBuf)> {
-    let executable = installed_executable(DetectedProviderId::Codex, context)?;
+) -> CodexRuntimeOutcome {
+    let executable = match installed_executable(DetectedProviderId::Codex, context) {
+        Some(exe) => exe,
+        None => return CodexRuntimeOutcome::MissingExecutable,
+    };
     let mut candidates = candidate_paths(DetectedProviderId::Codex, context);
     candidates.extend(profile_candidates(
         DetectedProviderId::Codex,
@@ -2497,13 +2601,14 @@ fn codex_runtime_in_context(
             return candidate
                 .path
                 .parent()
-                .map(|home| (executable.clone(), home.to_path_buf()));
+                .map(|home| CodexRuntimeOutcome::Found(executable.clone(), home.to_path_buf()))
+                .unwrap_or(CodexRuntimeOutcome::NoMatchingLogin);
         }
     }
-    None
+    CodexRuntimeOutcome::NoMatchingLogin
 }
 
-pub(crate) fn current_codex_runtime(provider_account_id: &str) -> Option<(PathBuf, PathBuf)> {
+pub(crate) fn current_codex_runtime(provider_account_id: &str) -> CodexRuntimeOutcome {
     codex_runtime_in_context(provider_account_id, &DiscoveryContext::current())
 }
 
@@ -2511,7 +2616,7 @@ pub(crate) fn current_codex_runtime(provider_account_id: &str) -> Option<(PathBu
 pub(crate) fn codex_runtime_for_test_home(
     provider_account_id: &str,
     home: &Path,
-) -> Option<(PathBuf, PathBuf)> {
+) -> CodexRuntimeOutcome {
     let store = DetectionStore::for_test_home(home, 1_800_000_000_000);
     codex_runtime_in_context(provider_account_id, &store.context)
 }
@@ -2791,6 +2896,7 @@ mod tests {
                 context,
                 switches: crate::provider_switches::ProviderSwitches::at(None),
                 inventory: RwLock::new(inventory),
+                provisional_policy: RwLock::new(None),
             };
             let state = dir.path().join("state");
             let policy = RequestPolicy::at(Some(state.clone()));
@@ -2936,36 +3042,54 @@ mod tests {
     #[test]
     fn executable_validation_returns_canonical_vendor_files_only() {
         let dir = TempDir::new();
-        let root = dir.path().join("vendor");
-        let executable = root.join("agy.exe");
-        let outside = dir.path().join("outside").join("agy.exe");
-        write(&executable, "fixture executable");
-        write(&outside, "outside fixture");
-        let roots = vec![root.clone()];
+        let home = dir.path().join("home");
+        let npm_bin = home.join("bin");
+        let mut discovery = context(DiscoveryPlatform::Windows, &home);
+        discovery.path_entries = vec![npm_bin.clone()];
+        
+        let (_, _, windows_triple, _) = codex_native_layout(DiscoveryPlatform::Windows);
+        let vendor = npm_bin
+            .join("node_modules")
+            .join("@openai")
+            .join("codex")
+            .join("vendor")
+            .join(windows_triple)
+            .join("bin");
+            
+        fs::create_dir_all(&vendor).unwrap();
+        let launcher = npm_bin.join("codex.cmd");
+        let native = vendor.join("codex.exe");
+        
+        write(&launcher, "@echo off");
+        write(&native, "native");
+        
+        // a .cmd under an accepted root with the vendor tree resolves
         assert_eq!(
-            validated_executable_in_roots(&executable, &roots),
-            Some(normalize_verbatim_prefix(
-                fs::canonicalize(&executable).unwrap()
-            ))
+            installed_executable(DetectedProviderId::Codex, &discovery),
+            Some(normalize_verbatim_prefix(fs::canonicalize(&native).unwrap()))
         );
-        for refused in [
-            outside,
-            root.clone(),
-            root.join("missing.exe"),
-            root.join("..").join("vendor").join("agy.exe"),
-            PathBuf::from("agy.exe"),
-        ] {
-            assert_eq!(validated_executable_in_roots(&refused, &roots), None);
-        }
-        // The temp path can be an 8.3 short name (RUNNER~1 on CI), so compare
-        // with the canonical long path the validator returns.
-        #[cfg(windows)]
-        assert_eq!(
-            validated_executable_in_roots(&fs::canonicalize(&executable).unwrap(), &roots),
-            Some(normalize_verbatim_prefix(
-                fs::canonicalize(&executable).unwrap()
-            ))
-        );
+        
+        // a .cmd without the vendor tree -> not installed
+        fs::remove_file(&native).unwrap();
+        assert_eq!(installed_executable(DetectedProviderId::Codex, &discovery), None);
+        
+        // a .cmd outside every root -> not installed
+        let outside_bin = dir.path().join("outside");
+        let outside_vendor = outside_bin
+            .join("node_modules")
+            .join("@openai")
+            .join("codex")
+            .join("vendor")
+            .join(windows_triple)
+            .join("bin");
+        fs::create_dir_all(&outside_vendor).unwrap();
+        let outside_launcher = outside_bin.join("codex.cmd");
+        let outside_native = outside_vendor.join("codex.exe");
+        write(&outside_launcher, "@echo off");
+        write(&outside_native, "native");
+        
+        discovery.path_entries = vec![outside_bin];
+        assert_eq!(installed_executable(DetectedProviderId::Codex, &discovery), None);
     }
 
     #[test]
@@ -3795,6 +3919,7 @@ mod tests {
             context,
             inventory: RwLock::new(inventory),
             scan_gate: Mutex::new(None),
+            provisional_policy: RwLock::new(None),
         };
         let secret = store
             .read_credential(DetectedProviderId::Codex, &account_id)

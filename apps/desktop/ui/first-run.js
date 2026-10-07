@@ -1108,7 +1108,9 @@ export function initFirstRun(input) {
   const setup = screen.querySelector("#first-run-setup");
   const account = screen.querySelector("#first-run-account");
 
-  document.documentElement.dataset.firstRun = "pending";
+  if (document.documentElement.dataset.firstRun !== "complete") {
+    document.documentElement.dataset.firstRun = "pending";
+  }
 
   let microsoft = null;
   let hadCompletedFirstRun = false;
@@ -1363,13 +1365,35 @@ export function initFirstRun(input) {
   });
 
   void (async () => {
-    const result = await options.accountStatus();
-    if (result.ok) options.onAccountState(result.value);
     hadCompletedFirstRun = window.localStorage.getItem(FIRST_RUN_STORAGE_KEY) === "complete";
     const completed = hadCompletedFirstRun && readConfiguredProviders().length > 0;
-    await loadClaudePollSetting();
+    
+    // Start account and poll loading without awaiting
+    const accountPromise = options.accountStatus().then((result) => {
+      if (result.ok) options.onAccountState(result.value);
+      if (!completed && options.isSignedIn() && screen.dataset.step === "account") {
+        void showConnect();
+      } else if (!completed && screen.dataset.step === "account") {
+        const statusEl = screen.querySelector("#first-run-way-status");
+        if (statusEl !== null) statusEl.textContent = "";
+      }
+    });
+
+    const pollSettingPromise = loadClaudePollSetting();
+
+    if (!completed) {
+      if (!hadCompletedFirstRun) {
+        const statusEl = screen.querySelector("#first-run-way-status");
+        if (statusEl !== null) say(statusEl, "checkingSignIn");
+        showAccount();
+      }
+    }
+
+    await pollSettingPromise;
     const poll = await claudePollGate.begin(hadCompletedFirstRun);
     if (hadCompletedFirstRun && poll.needsAcknowledgement) {
+      document.documentElement.dataset.firstRun = "pending";
+      screen.hidden = false;
       showClaudePollConsent();
       return;
     }
@@ -1378,11 +1402,13 @@ export function initFirstRun(input) {
       return;
     }
     void detections.load();
+    await accountPromise;
+    if (document.documentElement.dataset.firstRun !== "pending" || screen.dataset.step !== "account") {
+      return;
+    }
     /* Somebody already signed in has nothing left to be asked. */
     if (options.isSignedIn()) {
       await showConnect();
-      return;
     }
-    showAccount();
   })();
 }

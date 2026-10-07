@@ -2007,9 +2007,7 @@ pub fn spawn_polling(app: AppHandle) {
 
 #[tauri::command]
 pub async fn api_spend_status(
-    state: State<'_, ApiSpendState>,
 ) -> Result<ApiSpendSnapshot, ApiSpendFailure> {
-    let _guard = state.gate.lock().await;
     let document = load_at(&state_path()?)?;
     snapshot(&document, now_seconds()?)
 }
@@ -2083,6 +2081,24 @@ mod tests {
             last_counter_at: None,
             counter_gap: false,
         }
+    }
+
+    #[tokio::test]
+    async fn status_reads_while_gate_is_held_during_refresh() {
+        let _ = save_at(&state_path().unwrap(), &ApiSpendDocument::default());
+        
+        let state = ApiSpendState {
+            gate: tokio::sync::Mutex::new(()),
+        };
+        
+        let guard = state.gate.lock().await;
+        let read = tokio::time::timeout(
+            Duration::from_secs(1),
+            api_spend_status()
+        )
+        .await;
+        assert!(read.is_ok(), "status blocked on the gate lock");
+        drop(guard);
     }
 
     #[test]

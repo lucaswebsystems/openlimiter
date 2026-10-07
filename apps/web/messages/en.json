@@ -79,7 +79,9 @@
     "claudePollConsentTitle": "Show your Fable limit?",
     "claudePollNotNow": "Not now",
     "claudePollSaveFailed": "The choice could not be saved, so Claude usage stays off.",
-    "claudePollContinueOff": "Continue with Claude off"
+    "claudePollContinueOff": "Continue with Claude off",
+    "pasteOpenRouterKey": "Paste your OpenRouter key in the API keys list below.",
+    "checkingSignIn": "Checking your sign in..."
   },
   "meta": {
     "title": "OpenLimiter, AI coding limits and agent activity",

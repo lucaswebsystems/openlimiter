@@ -88,29 +88,35 @@ use tauri::{AppHandle, Manager, WindowEvent};
 /// The snapshot cache, projected, as text. A cache that is not there yet reads
 /// as an empty one; a cache that is there but cannot be read or parsed right
 /// now rejects, so the window keeps what it holds instead of drawing nothing.
-#[tauri::command]
-fn read_cache(app: AppHandle) -> Result<String, String> {
-    let text = state::read_cache_document()?;
-    let rows = native_snapshot::display_snapshots(text.as_deref());
-    let projection = data_rules::for_app(&app, rows, chrono::Utc::now().timestamp_millis());
-    serde_json::to_string(&serde_json::json!({ "version": 2, "snapshots": projection.snapshots, "flags": projection.flags }))
-        .map_err(|error| error.to_string())
+#[tauri::command(async)]
+async fn read_cache(app: AppHandle) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let text = state::read_cache_document()?;
+        let rows = native_snapshot::display_snapshots(text.as_deref());
+        let projection = data_rules::for_app(&app, rows, chrono::Utc::now().timestamp_millis());
+        serde_json::to_string(&serde_json::json!({ "version": 2, "snapshots": projection.snapshots, "flags": projection.flags }))
+            .map_err(|error| error.to_string())
+    }).await.map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
-fn connection_flags(app: AppHandle) -> Vec<data_rules::ConnectionFlag> {
-    data_rules::for_app(
-        &app,
-        native_snapshot::display_snapshots(state::read_cache().as_deref()),
-        chrono::Utc::now().timestamp_millis(),
-    )
-    .flags
+#[tauri::command(async)]
+async fn connection_flags(app: AppHandle) -> Result<Vec<data_rules::ConnectionFlag>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        data_rules::for_app(
+            &app,
+            native_snapshot::display_snapshots(state::read_cache().as_deref()),
+            chrono::Utc::now().timestamp_millis(),
+        )
+        .flags
+    }).await.map_err(|e| e.to_string())
 }
 
 /// The manual quota document as text, for the one connector that reads a file.
-#[tauri::command]
-fn read_manual() -> Option<String> {
-    state::read_manual()
+#[tauri::command(async)]
+async fn read_manual() -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        state::read_manual()
+    }).await.map_err(|e| e.to_string())
 }
 
 /// Where the cache is looked for, so the window can say so plainly.
@@ -129,40 +135,42 @@ fn state_directory() -> Option<String> {
 /// the account and the window is the surface that already holds it. It
 /// defaults to offering the trial only where nothing has been read yet, which
 /// is the first paint, and an entitled account clears it on the first update.
-#[tauri::command]
-fn set_tray_status(
+#[tauri::command(async)]
+async fn set_tray_status(
     app: AppHandle,
     providers: Vec<tray::ProviderStatus>,
     trial_offered: Option<bool>,
 ) -> Result<(), String> {
     let _ = providers;
-    let projection = data_rules::for_app(
-        &app,
-        native_snapshot::display_snapshots(state::read_cache().as_deref()),
-        chrono::Utc::now().timestamp_millis(),
-    );
-    let mut values = std::collections::BTreeMap::<String, f64>::new();
-    for row in projection
-        .snapshots
-        .into_iter()
-        .filter(|row| row.unit == "PERCENT")
-    {
-        values
-            .entry(row.provider)
-            .and_modify(|value| *value = value.max(row.value))
-            .or_insert(row.value);
-    }
-    tray::update(
-        &app,
-        values
+    tauri::async_runtime::spawn_blocking(move || {
+        let projection = data_rules::for_app(
+            &app,
+            native_snapshot::display_snapshots(state::read_cache().as_deref()),
+            chrono::Utc::now().timestamp_millis(),
+        );
+        let mut values = std::collections::BTreeMap::<String, f64>::new();
+        for row in projection
+            .snapshots
             .into_iter()
-            .map(|(provider, value)| tray::ProviderStatus {
-                provider,
-                usage_percent: Some(value),
-            })
-            .collect(),
-        trial_offered.unwrap_or(true),
-    )
+            .filter(|row| row.unit == "PERCENT")
+        {
+            values
+                .entry(row.provider)
+                .and_modify(|value| *value = value.max(row.value))
+                .or_insert(row.value);
+        }
+        tray::update(
+            &app,
+            values
+                .into_iter()
+                .map(|(provider, value)| tray::ProviderStatus {
+                    provider,
+                    usage_percent: Some(value),
+                })
+                .collect(),
+            trial_offered.unwrap_or(true),
+        )
+    }).await.map_err(|e| e.to_string())?
 }
 
 /// Open one of the two hub destinations the tray menu names.
@@ -297,6 +305,7 @@ pub fn run() {
                     worker
                         .state::<provider_detection::DetectionStore>()
                         .rescan_due(false, std::time::Duration::ZERO);
+                    use tauri::Emitter; let _ = worker.emit(collector_runtime::COLLECTOR_UPDATED_EVENT, ());
                     startup_cleanup::run(&worker);
                 })
                 .await;

@@ -625,7 +625,7 @@ fn quota_state(outcome: &crate::codex_oauth::CodexOutcome) -> DeviceLoginQuotaSt
         CodexOutcome::Cached { .. } => DeviceLoginQuotaState::Pending {
             reason: "Quota collection is pending. OpenLimiter will try again soon.".to_string(),
         },
-        CodexOutcome::ReopenCli { .. } | CodexOutcome::MissingCredential { .. } => DeviceLoginQuotaState::Failed {
+        CodexOutcome::MissingExecutable { .. } | CodexOutcome::ReopenCli { .. } | CodexOutcome::MissingCredential { .. } => DeviceLoginQuotaState::Failed {
             reason: "Reopen Codex before quota can be collected.".to_string(),
         },
         CodexOutcome::Fallback { reason, .. } | CodexOutcome::Failed { reason, .. } => {

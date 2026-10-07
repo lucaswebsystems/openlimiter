@@ -35,25 +35,28 @@ function environment(scenario: string): NodeJS.ProcessEnv {
 }
 
 describe("Codex documented app server acquisition", () => {
-  it("initializes and reads rate limits over JSONL stdio", async () => {
-    const result = await readCodexRateLimits({
-      executable: process.execPath,
-      argumentsPrefix: [fixture],
-      environment: environment("success"),
-      codexHome: home,
-      expectedAccountId,
-      timeoutMilliseconds: 2_000
-    });
-    expect(CODEX_APP_SERVER_CLIENT_INFO).toEqual({
-      name: "openlimiter",
-      title: "OpenLimiter",
-      version: (JSON.parse(readFileSync(path.join(process.cwd(), "packages/core/package.json"), "utf8")) as { version: string }).version
-    });
-    expect(result).toMatchObject({
-      ok: true,
-      payload: { accountId: "synthetic-chatgpt-account", rateLimits: { limitId: "codex" } }
-    });
-  });
+  it.each(["success", "empty-line"])(
+    "initializes and reads rate limits over JSONL stdio (scenario: %s)",
+    async (scenario) => {
+      const result = await readCodexRateLimits({
+        executable: process.execPath,
+        argumentsPrefix: [fixture],
+        environment: environment(scenario),
+        codexHome: home,
+        expectedAccountId,
+        timeoutMilliseconds: 2_000
+      });
+      expect(CODEX_APP_SERVER_CLIENT_INFO).toEqual({
+        name: "openlimiter",
+        title: "OpenLimiter",
+        version: (JSON.parse(readFileSync(path.join(process.cwd(), "packages/core/package.json"), "utf8")) as { version: string }).version
+      });
+      expect(result).toMatchObject({
+        ok: true,
+        payload: { accountId: "synthetic-chatgpt-account", rateLimits: { limitId: "codex" } }
+      });
+    }
+  );
 
   it.each(["missing-identity", "null-identity"])(
     "accepts %s for the already resolved home",

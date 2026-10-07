@@ -22,6 +22,7 @@ import {
 import { parseManualPayload } from "./engine/connectors/manual.js";
 import { bandForPercent, bandIconSvg, closestToLimit, providerMarkMarkup, windowRank } from "./engine/ui/provider-row.js";
 import { duration, meterLabel, meterPresentation, meterRank, providerCode, providerName, say, updatedLabel } from "./names.js";
+import { FAILURE_SENTENCES } from "./backend.js";
 
 export { updatedLabel };
 
@@ -271,6 +272,15 @@ export function markNode(doc, provider) {
   return mark;
 }
 
+function resetText(window, compact) {
+  return window.neutral ? window.limit ?? ""
+    : window.limit !== null ? say("moneyOf", { amount: window.limit })
+    : window.unbounded ? say("creditsSpent")
+    : window.reset === null ? ""
+    : window.reset === "" ? say(compact ? "now" : "resettingNow")
+    : compact ? window.reset : say("resetsInValue", { time: window.reset });
+}
+
 function limitRow(doc, window, compact) {
   const row = node(doc, "div", "q-row");
   row.dataset.band = window.band;
@@ -291,14 +301,37 @@ function limitRow(doc, window, compact) {
   value.append(node(doc, "span", "", compact || window.unbounded || window.neutral
     ? window.value
     : say("usedValue", { value: window.value })));
-  const reset = window.neutral ? window.limit ?? ""
-    : window.limit !== null ? say("moneyOf", { amount: window.limit })
-    : window.unbounded ? say("creditsSpent")
-    : window.reset === null ? ""
-    : window.reset === "" ? say(compact ? "now" : "resettingNow")
-    : compact ? window.reset : say("resetsInValue", { time: window.reset });
+  const reset = resetText(window, compact);
   row.append(node(doc, "span", "q-lbl", window.label), bar, value, node(doc, "span", "q-rst", reset));
   return row;
+}
+
+export function limitsKey(model) {
+  return JSON.stringify(model, (key, value) => {
+    if (key === "age" || key === "reset") {
+      return typeof value === "string" ? "string" : value;
+    }
+    return value;
+  });
+}
+
+export function patchLimits(mount, model, { compact = false } = {}) {
+  const groups = mount.querySelectorAll(".q-group");
+  for (let i = 0; i < model.length; i++) {
+    const provider = model[i];
+    const group = groups[i];
+    if (!group) continue;
+    const age = group.querySelector(".q-age");
+    if (age) age.textContent = provider.age ?? "";
+    const rows = group.querySelectorAll(".q-row");
+    for (let j = 0; j < provider.windows.length; j++) {
+      const window = provider.windows[j];
+      const row = rows[j];
+      if (!row) continue;
+      const rst = row.querySelector(".q-rst");
+      if (rst) rst.textContent = resetText(window, compact);
+    }
+  }
 }
 
 /* The panel's column headings, over the percentage and the countdown. The bars
@@ -327,7 +360,9 @@ function stepButton(doc, provider, handlers) {
     button.setAttribute("aria-busy", "true");
     status.textContent = "";
     try {
-      if ((await handlers?.[kind]?.(provider.code)) === false) status.textContent = say("fixFailed");
+      const result = await handlers?.[kind]?.(provider.code);
+      if (typeof result === "string") status.textContent = result;
+      else if (result === false) status.textContent = say("fixFailed");
     } catch {
       status.textContent = say("fixFailed");
     } finally {
@@ -445,6 +480,13 @@ function nextStep(code, name, { flag, flags, records, detection, claude, claudeP
   if (code === "GEMINI_CLI" && flag?.reason === "quota_unavailable") return { note: say("geminiCliConsumerRetired") };
   if (flag?.fixKind === "unsupported") return { note: say("fixUnsupportedIssue") };
   if (CONNECTABLE.has(code) && (refused || flag?.fixKind === "reconnect" || flag?.fixKind === "sign_in")) return step("connect", "connect");
+  
+  if (detection?.recovery === "install_cli") return { ...step("check", "fixOpenAppAction", title("fixToolDetail")), note: FAILURE_SENTENCES.codex_cli_not_found ?? detection.message };
+  const missingCli = detection?.accounts?.find((a) => a.recovery === "install_cli");
+  if (missingCli) return { ...step("check", "fixOpenAppAction", title("fixToolDetail")), note: FAILURE_SENTENCES.codex_cli_not_found ?? missingCli.message };
+  const accountRecovery = detection?.accounts?.find((a) => a.recovery);
+  if (accountRecovery) return { ...step("check", "fixOpenAppAction", title("fixToolDetail")), note: accountRecovery.message };
+
   if (loggedOut || flag?.fixKind === "sign_in") return signInAgain;
   return step("check", "fixOpenAppAction", title(flag?.fixKind === "open_app" ? "fixOpenAppDetail" : "fixToolDetail"));
 }

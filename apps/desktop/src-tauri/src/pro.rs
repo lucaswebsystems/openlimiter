@@ -2367,9 +2367,15 @@ pub async fn pro_portal_url(
     hosted_url(&response)
 }
 
-#[tauri::command]
-pub fn pro_status(store: State<'_, KeyringStore>) -> ProStatus {
-    current_status(store.inner())
+#[tauri::command(async)]
+pub async fn pro_status(app: tauri::AppHandle) -> Result<ProStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri::Manager;
+        let store = app.state::<KeyringStore>();
+        current_status(&*store)
+    })
+    .await
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -4806,5 +4812,29 @@ mod tests {
             &["context-fixture-1".to_string()],
         );
         let _ = remove_hosted_trust();
+    }
+}
+
+
+#[cfg(test)]
+mod pro_tests {
+    #[tokio::test]
+    async fn collector_progresses_while_slow_pro_status_runs() {
+        let started = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let s = started.clone();
+        let slow_task = tokio::task::spawn_blocking(move || {
+            s.store(true, std::sync::atomic::Ordering::Relaxed);
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        });
+        
+        let collector = tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            "collector done"
+        });
+        
+        let result = tokio::time::timeout(std::time::Duration::from_millis(200), collector).await;
+        assert_eq!(result.unwrap().unwrap(), "collector done");
+        assert!(started.load(std::sync::atomic::Ordering::Relaxed));
+        let _ = slow_task.await;
     }
 }

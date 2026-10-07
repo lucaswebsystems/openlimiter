@@ -62,6 +62,10 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     // Serialized work on the UI thread. At most one tick may be queued. Monitor
     // enumeration every second also repairs placement on resume, hotplug and DPI
     // changes even when the platform misses a window event while asleep.
+    let (wake_tx, wake_rx) = std::sync::mpsc::sync_channel(1);
+    if let Ok(mut waker) = handle.state::<RailState>().waker.lock() {
+        *waker = Some(wake_tx);
+    }
     std::thread::spawn(move || {
         let applied = std::sync::Arc::new(std::sync::Mutex::new(Applied::default()));
         let mut last_monitors = Instant::now() - Duration::from_secs(2);
@@ -81,29 +85,32 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
             let (sender, receiver) = std::sync::mpsc::sync_channel(1);
             if handle
                 .run_on_main_thread(move || {
+                    let mut is_visible = false;
                     if let Ok(mut applied) = previous.lock() {
-                        if let Err(error) = tick(&app, &mut applied, refresh, reassert) {
-                            eprintln!("Rail update: {error}");
+                        match tick(&app, &mut applied, refresh, reassert) {
+                            Ok(v) => is_visible = v,
+                            Err(error) => eprintln!("Rail update: {error}"),
                         }
                     }
-                    let _ = sender.send(());
+                    let _ = sender.send(is_visible);
                 })
                 .is_err()
             {
                 break;
             }
             // Do not abandon the worker during sleep; timeouts just check exit.
-            loop {
+            let is_visible = loop {
                 match receiver.recv_timeout(Duration::from_secs(1)) {
-                    Ok(()) => break,
+                    Ok(v) => break v,
                     Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return,
                     Err(_) if !handle.state::<RailState>().running.load(Ordering::Relaxed) => {
                         return
                     }
                     Err(_) => {}
                 }
-            }
-            std::thread::sleep(Duration::from_millis(100));
+            };
+            let sleep_duration = if is_visible { 100 } else { 1000 };
+            let _ = wake_rx.recv_timeout(Duration::from_millis(sleep_duration));
         }
     });
     Ok(())
@@ -186,7 +193,7 @@ fn tick<R: Runtime>(
     applied: &mut Applied,
     refresh: bool,
     reassert: bool,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     let rail = app
         .get_webview_window("rail")
         .ok_or("Rail window missing")?;
@@ -216,7 +223,7 @@ fn tick<R: Runtime>(
         apply(&card, Rect::default(), false)?;
         applied.rail = None;
         announce(app, applied.card.take().map(|(_, shown)| shown), false);
-        return Ok(());
+        return Ok(false);
     };
     // Top/bottom geometry is tested but secondary edges remain disabled in this unit.
     let edge = Edge::Left;
@@ -282,7 +289,7 @@ fn tick<R: Runtime>(
         applied.card = Some((card_bounds, card_visible));
     }
     announce(app, was_shown, card_visible);
-    Ok(())
+    Ok(visible)
 }
 
 /// Tell the panel it was shown or hidden, only when that changed. Called on

@@ -248,17 +248,33 @@ pub fn project(
 pub(crate) fn detected_policy(
     store: &crate::provider_detection::DetectionStore,
 ) -> (ActiveAccounts, BTreeSet<String>) {
-    let mut active = ActiveAccounts::new();
     let mut disabled = BTreeSet::new();
     for provider in crate::provider_detection::DetectedProviderId::ALL {
         let code = provider.slug().to_uppercase().replace('-', "_");
-        active.insert(
-            code.clone(),
-            store.display_account_ids(provider).into_iter().collect(),
-        );
         if !store.switches.enabled(provider) {
             disabled.insert(code);
         }
+    }
+
+    // Must not drop account sets before the first scan.
+    let report = store.report();
+    if report.scanned_at.is_empty() {
+        if let Some(provisional) = store.provisional_policy.read().unwrap_or_else(|p| p.into_inner()).as_ref() {
+            let mut active = ActiveAccounts::new();
+            for (code, accounts) in &provisional.accounts {
+                active.insert(code.clone(), accounts.iter().cloned().collect());
+            }
+            return (active, disabled);
+        }
+    }
+
+    let mut active = ActiveAccounts::new();
+    for provider in crate::provider_detection::DetectedProviderId::ALL {
+        let code = provider.slug().to_uppercase().replace('-', "_");
+        active.insert(
+            code,
+            store.display_account_ids(provider).into_iter().collect(),
+        );
     }
     (active, disabled)
 }
@@ -379,6 +395,44 @@ mod tests {
         spend.limit_amount = Some(20.0);
         spend.currency = Some("USD".to_string());
         assert_eq!(reason(&spend, now), None);
+    }
+
+    #[test]
+    fn persisted_scan_as_provisional_policy_no_empty_policy_window() {
+        use crate::provider_detection::{DetectionStore, DiscoveryContext, Inventory, DetectionReport, ProvisionalPolicy};
+        use std::sync::{RwLock, Mutex};
+        
+        let mut provisional_accounts = BTreeMap::new();
+        provisional_accounts.insert("CODEX".to_string(), vec!["test-account".to_string()]);
+        
+        let store = DetectionStore {
+            switches: crate::provider_switches::ProviderSwitches::at(None),
+            context: DiscoveryContext::current(),
+            inventory: RwLock::new(Inventory {
+                report: DetectionReport {
+                    version: 1,
+                    scanned_at: String::new(),
+                    providers: vec![],
+                    antigravity_running: None,
+                },
+                credentials: BTreeMap::new(),
+                statusline_accounts: BTreeSet::new(),
+            }),
+            scan_gate: Mutex::new(None),
+            provisional_policy: RwLock::new(Some(ProvisionalPolicy {
+                scanned_at: 0,
+                accounts: provisional_accounts,
+            })),
+        };
+        
+        let (active, _) = detected_policy(&store);
+        assert_eq!(active.get("CODEX").unwrap().len(), 1);
+        assert!(active.get("CODEX").unwrap().contains("test-account"));
+        
+        // When scan completes, it uses actual inventory
+        store.inventory.write().unwrap().report.scanned_at = "now".to_string();
+        let (active, _) = detected_policy(&store);
+        assert!(active.get("CODEX").unwrap().is_empty());
     }
 
     #[test]

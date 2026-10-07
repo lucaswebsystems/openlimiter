@@ -94,7 +94,7 @@ export const BACKEND_ABSENT = "backend_absent";
  * rather than as a shrug: a typed failure never becomes "failed without a
  * message".
  */
-const FAILURE_SENTENCES = {
+export const FAILURE_SENTENCES = {
   invalid_input: "The backend refused this input as invalid.",
   not_found: "No such record exists in this build.",
   full: "The connection store is full, so nothing more can be added.",
@@ -107,6 +107,7 @@ const FAILURE_SENTENCES = {
   too_large: "The answer was too large to accept.",
   busy: "Another write held the cache. Trying again may succeed.",
   stale_generation: "The cache moved underneath this write. Trying again may succeed.",
+  codex_cli_not_found: "The Codex CLI could not be found. Start it once to install it.",
   no_delivered_body:
     "That read never received an answer from the provider, so there is nothing " +
     "to record from it.",
@@ -320,6 +321,11 @@ export async function replaceConnectionSecret(connectionId, secret) {
   });
 }
 
+/** Repair a refused Codex connection in place using the live login. */
+export async function repairCodexConnection(connectionId) {
+  return call("repair_codex_connection", { connection_id: connectionId });
+}
+
 /**
  * Ask the provider a question that proves the stored credential works.
  *
@@ -449,8 +455,14 @@ const PRO_ACTIONS = new Set([
 ]);
 
 /** Read the locally verified Pro state without contacting the service. */
+let proStatusPromise = null;
 export async function proStatus() {
-  return call("pro_status");
+  if (!proStatusPromise) {
+    proStatusPromise = call("pro_status").finally(() => {
+      proStatusPromise = null;
+    });
+  }
+  return proStatusPromise;
 }
 
 /** Refresh the signed device entitlement now. */

@@ -51,13 +51,19 @@ function firstRunDom(existingInstall = false) {
   const doc = fakeDocument();
   const make = doc.createElement;
   const decorate = (node) => {
-    node.classList = {
-      add: (...names) => {
-        const classes = new Set(node.className.split(/\s+/u).filter(Boolean));
-        for (const name of names) classes.add(name);
-        node.className = [...classes].join(" ");
-      },
-    };
+    if (!node.classList?.add) {
+      Object.defineProperty(node, "classList", {
+        value: {
+          add: (...names) => {
+            const classes = new Set(node.className.split(/\s+/u).filter(Boolean));
+            for (const name of names) classes.add(name);
+            node.className = [...classes].join(" ");
+          },
+        },
+        writable: true,
+        configurable: true
+      });
+    }
     const matches = (candidate, selector) => {
       if (selector.startsWith("#")) return candidate.id === selector.slice(1);
       if (selector.startsWith(".")) return candidate.className.split(/\s+/u).includes(selector.slice(1));
@@ -79,6 +85,8 @@ function firstRunDom(existingInstall = false) {
   };
   const screen = register("first-run", "section");
   const account = register("first-run-account");
+  const later = register("first-run-later", "button");
+  account.append(later);
   const setup = register("first-run-setup");
   const heading = register("first-run-title", "h1");
   const providers = register("first-run-providers");
@@ -1207,4 +1215,38 @@ test("colours and radii on the connect rows come from tokens", () => {
   for (const radius of block.matchAll(/border-radius: ([^;]+);/gu)) {
     assert.match(radius[1], /var\(--ol-radius-/u);
   }
+});
+
+test("a delayed signed out response sends users back to Account after they choose Create account later", async () => {
+  const harness = firstRunDom(false);
+  installFirstRunGlobals(harness);
+  let resolveAccount;
+  const accountPromise = new Promise((resolve) => { resolveAccount = resolve; });
+  let signedIn = false;
+  
+  initFirstRun({
+    accountStatus: () => accountPromise,
+    isSignedIn: () => signedIn,
+    onAccountState: () => {},
+    claudePollEnabled: async () => ({ state: "missing", enabled: false }),
+    detectProviders: async () => ({ providers: [] }),
+    setClaudePoll: async () => true,
+    onContinue: () => {}
+  });
+
+  await waitFor(() => harness.screen.dataset.step === "account", "did not start on account");
+  await waitFor(() => harness.screen.querySelector("#first-run-later") !== null, "later button not found");
+  
+  const later = harness.screen.querySelector("#first-run-later");
+  await later.fire("click");
+  
+  await waitFor(() => harness.screen.dataset.step === "connect", "did not navigate to connect");
+  
+  resolveAccount({ ok: true, value: { account: null } });
+  
+  // allow microtasks to flush
+  await new Promise(resolve => setImmediate(resolve));
+  await new Promise(resolve => setImmediate(resolve));
+  
+  assert.equal(harness.screen.dataset.step, "connect", "restarted onboarding after navigation");
 });

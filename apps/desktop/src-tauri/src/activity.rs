@@ -84,18 +84,28 @@ pub struct ActivitySnapshot {
     pub inspected_entries_last_tick: usize,
 }
 
-#[tauri::command]
-fn activity_snapshot(state: tauri::State<'_, ActivityState>) -> ActivitySnapshot {
-    ActivitySnapshot {
-        sessions: state.sessions.lock().map(|s| s.clone()).unwrap_or_default(),
-        skipped_files: state.skipped_files.load(Ordering::Relaxed),
-        inspected_entries_last_tick: state.inspected_entries.load(Ordering::Relaxed),
-    }
+#[tauri::command(async)]
+async fn activity_snapshot<R: Runtime>(app: tauri::AppHandle<R>) -> Result<ActivitySnapshot, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<ActivityState>();
+        Ok(ActivitySnapshot {
+            sessions: state.sessions.lock().map(|s| s.clone()).unwrap_or_default(),
+            skipped_files: state.skipped_files.load(Ordering::Relaxed),
+            inspected_entries_last_tick: state.inspected_entries.load(Ordering::Relaxed),
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
-#[tauri::command]
-fn activity_sessions(state: tauri::State<'_, ActivityState>) -> Vec<ActivityDisplayRecord> {
-    state.sessions.lock().map(|s| s.clone()).unwrap_or_default()
+#[tauri::command(async)]
+async fn activity_sessions<R: Runtime>(app: tauri::AppHandle<R>) -> Result<Vec<ActivityDisplayRecord>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<ActivityState>();
+        Ok(state.sessions.lock().map(|s| s.clone()).unwrap_or_default())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 pub fn init<R: Runtime>() -> TauriPlugin<R> {

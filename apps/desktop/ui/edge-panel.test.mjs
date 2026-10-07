@@ -133,11 +133,15 @@ test("Open app brings the main window forward and closes the panel; Escape close
 });
 
 test("polls serialize and nothing is redrawn when nothing changed", async () => {
-  const { view, scheduled, calls, stop } = panel();
+  const { view, scheduled, calls, stop, source } = panel();
   await flush();
   const first = view("panel-limits").children;
+  const note = view("panel-limits").querySelector(".limit-row-note");
+  if (note) note.textContent = "My inline message";
+  source.at += 60000;
   await scheduled[0]();
   assert.equal(view("panel-limits").children, first, "the same nodes, so focus survives a poll");
+  if (note) assert.equal(view("panel-limits").querySelector(".limit-row-note").textContent, "My inline message", "inline messages are preserved");
   assert.equal(calls.filter(([command]) => command === "read_cache").length, 2);
   stop();
   await flush();
@@ -170,19 +174,22 @@ test("the panel reads once at start, polls only while shown, and stops when hidd
   const reads = () => calls.filter(([command]) => command === "read_cache").length;
   assert.equal(reads(), 1, "the first draw sizes the panel before it is ever shown");
   assert.equal(scheduled.length, 0, "a hidden panel does not poll");
+  listeners["collector-updated"]();
+  await flush();
+  assert.equal(reads(), 2, "a collector update triggers a read even when hidden");
   listeners[PANEL_SHOWN_EVENT]({ payload: true });
   await flush();
-  assert.equal(reads(), 2, "opening reads at once");
+  assert.equal(reads(), 3, "opening reads at once");
   assert.equal(scheduled.length, 1, "and keeps reading while shown");
   await scheduled[0]();
-  assert.equal(reads(), 3);
+  assert.equal(reads(), 4);
   listeners[PANEL_SHOWN_EVENT]({ payload: false });
   await flush();
   const before = scheduled.length;
   await scheduled.at(-1)();
   assert.equal(scheduled.length, before, "hidden: the poll that was due does not schedule another");
   stop();
-  assert.equal(unlistened, 1);
+  assert.equal(unlistened, 2);
 });
 
 test("a panel already open when its listener arrives starts polling from the snapshot", async () => {

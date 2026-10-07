@@ -350,7 +350,7 @@ function openSetup(code) {
   session.activeSetup = code;
   render();
   const target = document.getElementById(SETUP_TARGETS[code]);
-  target?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+  target?.scrollIntoView?.({ behavior: "smooth", block: "start" });
   (target?.querySelector?.("input, button.q-btn-primary") ?? target)?.focus?.({ preventScroll: true });
 }
 
@@ -431,10 +431,24 @@ export async function replaceOpenrouterKey(recordId, secret) {
  */
 export async function connectTool(code) {
   if (code === "CODEX") {
+    const refused = recordsFor("CODEX").find((r) => ["NEEDS_AUTH", "AUTH_EXPIRED", "ERROR"].includes(r.state));
+    if (refused) {
+      const result = await backend.repairCodexConnection(refused.id);
+      if (result.ok) {
+        const outcome = backend.normalizeCollectionOutcome(result.value);
+        if (outcome.succeeded) {
+          await syncConnections();
+          options?.onMetersChanged();
+          return true;
+        }
+        return outcome.message;
+      }
+      return result.reason === backend.BACKEND_ABSENT ? SETUP_EN.noBackend : result.message;
+    }
     /* The backend imports the token from the Codex login file and discards
        what this window sends, so the secret here is a placeholder. */
     const result = await connectCredential("CODEX", { providerId: "codex", credentialKind: "codex_session" }, "imported from the codex login file");
-    return result.ok;
+    return result.ok ? true : (result.note ?? false);
   }
   if (SETUP_TARGETS[code]) {
     configureProvider(code);

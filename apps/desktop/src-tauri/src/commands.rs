@@ -29,7 +29,7 @@ static CODEX_APP_SERVER_TEST_RESPONSES: std::sync::LazyLock<
 
 #[cfg(test)]
 enum TestCodexRuntime {
-    Resolved(Option<(std::path::PathBuf, std::path::PathBuf)>),
+    Resolved(crate::provider_detection::CodexRuntimeOutcome),
     StoredHome(std::path::PathBuf),
 }
 
@@ -81,6 +81,8 @@ pub enum CommandFailure {
     RouteRefused,
     /// The Codex CLI login file is missing, unsafe, or incomplete.
     CodexLoginRequired,
+    /// The Codex CLI executable is missing.
+    CodexCliNotFound,
     PlanCap,
     Paused,
     /// The provider refused a candidate credential before any local state was
@@ -95,7 +97,7 @@ impl CommandFailure {
     /// Every variant, for the redaction test that formats them all. The
     /// product itself never needs the list.
     #[cfg(test)]
-    pub const ALL: [CommandFailure; 21] = [
+    pub const ALL: [CommandFailure; 22] = [
         CommandFailure::InvalidInput,
         CommandFailure::NotFound,
         CommandFailure::Full,
@@ -113,6 +115,7 @@ impl CommandFailure {
         CommandFailure::NotJson,
         CommandFailure::RouteRefused,
         CommandFailure::CodexLoginRequired,
+        CommandFailure::CodexCliNotFound,
         CommandFailure::PlanCap,
         CommandFailure::Paused,
         CommandFailure::Authentication,
@@ -148,6 +151,7 @@ impl fmt::Display for CommandFailure {
                 "this connection pairs a credential with a provider it does not belong to"
             }
             CommandFailure::CodexLoginRequired => "Codex needs a current login. Run codex login.",
+            CommandFailure::CodexCliNotFound => "Codex CLI not found.",
             CommandFailure::PlanCap => {
                 "Pro unlocks more accounts. Free reads one account per provider"
             }
@@ -924,7 +928,7 @@ pub(crate) async fn probe_core<T: Transport>(
             .lock()
             .ok()
             .and_then(|mut responses| responses.remove(&record.id))
-            .and_then(|runtime| match runtime {
+            .map(|runtime| match runtime {
                 TestCodexRuntime::Resolved(runtime) => runtime,
                 TestCodexRuntime::StoredHome(home) => {
                     crate::provider_detection::codex_runtime_for_test_home(
@@ -932,12 +936,20 @@ pub(crate) async fn probe_core<T: Transport>(
                         &home,
                     )
                 }
-            });
+            })
+            .unwrap_or(crate::provider_detection::CodexRuntimeOutcome::MissingExecutable);
         #[cfg(not(test))]
         let runtime = crate::provider_detection::current_codex_runtime(provider_account_id);
-        let Some((executable, codex_home)) = runtime else {
-            settle_request(connections, &record.id, None, false, attempt_generation)?;
-            return Err(CommandFailure::CodexLoginRequired);
+        let (executable, codex_home) = match runtime {
+            crate::provider_detection::CodexRuntimeOutcome::Found(exe, home) => (exe, home),
+            crate::provider_detection::CodexRuntimeOutcome::MissingExecutable => {
+                settle_request(connections, &record.id, None, false, attempt_generation)?;
+                return Err(CommandFailure::CodexCliNotFound);
+            }
+            crate::provider_detection::CodexRuntimeOutcome::NoMatchingLogin => {
+                settle_request(connections, &record.id, None, false, attempt_generation)?;
+                return Err(CommandFailure::CodexLoginRequired);
+            }
         };
         #[cfg(test)]
         let injected = CODEX_APP_SERVER_TEST_RESPONSES
@@ -1506,9 +1518,11 @@ pub fn set_connection_paused(
     )
 }
 
-#[tauri::command]
-pub fn detect_local_tools() -> LocalToolDetection {
-    claude_detect::detect()
+#[tauri::command(async)]
+pub async fn detect_local_tools() -> Result<LocalToolDetection, String> {
+    tauri::async_runtime::spawn_blocking(claude_detect::detect)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1850,10 +1864,10 @@ mod tests {
             .expect("test runtime registry")
             .insert(
                 connection_id.to_string(),
-                TestCodexRuntime::Resolved(Some((
+                TestCodexRuntime::Resolved(crate::provider_detection::CodexRuntimeOutcome::Found(
                     "synthetic-codex".into(),
                     "synthetic-codex-home".into(),
-                ))),
+                )),
             );
         CODEX_APP_SERVER_TEST_RESPONSES
             .lock()
