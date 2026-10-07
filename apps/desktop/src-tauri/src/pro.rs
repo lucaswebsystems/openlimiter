@@ -4833,14 +4833,17 @@ mod status_speed_tests {
     use crate::connections::ConnectionsStore;
     use crate::reader_registry::{CredentialKind, ProviderId};
     use crate::test_support::{InMemorySecrets, RecordingTransport, TempDir};
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::sync::Arc;
     use std::time::Duration;
 
-    /// A keyring that takes a second to answer, as a locked or busy one can.
+    /// A keyring that does not answer until the test releases it, as a locked
+    /// or busy one can stall; a wall clock sleep would make the proof below a
+    /// race on a loaded machine.
     struct SlowKeyring {
         inner: InMemorySecrets,
         reads: AtomicUsize,
+        released: AtomicBool,
     }
 
     impl SecretStore for SlowKeyring {
@@ -4850,7 +4853,10 @@ mod status_speed_tests {
 
         fn read_secret(&self, id: &str) -> Result<zeroize::Zeroizing<String>, CredentialError> {
             self.reads.fetch_add(1, Ordering::SeqCst);
-            std::thread::sleep(Duration::from_secs(1));
+            let deadline = std::time::Instant::now() + Duration::from_secs(60);
+            while !self.released.load(Ordering::SeqCst) && std::time::Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(10));
+            }
             self.inner.read_secret(id)
         }
 
@@ -4866,6 +4872,7 @@ mod status_speed_tests {
         let keyring = Arc::new(SlowKeyring {
             inner: InMemorySecrets::new(),
             reads: AtomicUsize::new(0),
+            released: AtomicBool::new(false),
         });
         let reader = Arc::clone(&keyring);
         let status = tokio::spawn(status_off_the_runtime(move || {
@@ -4910,13 +4917,14 @@ mod status_speed_tests {
             )
             .await
         });
-        let collected = tokio::time::timeout(Duration::from_millis(700), collector)
+        let collected = tokio::time::timeout(Duration::from_secs(30), collector)
             .await
             .expect("the collector waited on the status read")
             .expect("collector task")
             .expect("collection");
         assert!(collected.failure().is_none(), "{collected:?}");
         assert!(!status.is_finished(), "the status read was still under way");
+        keyring.released.store(true, Ordering::SeqCst);
         let status = status.await.expect("status task").expect("status read");
         assert_eq!(status.state, ProEntitlementState::Unlicensed);
     }
