@@ -575,8 +575,10 @@ async function captureProductDetails(browser, theme, port) {
     await page.getByRole('tab', { name: 'Settings', exact: true }).click();
     await page.locator('#tab-panel-settings #settings-appearance').waitFor({ state: "attached" });
     await shoot("desktop-settings");
-    /* The panel reports the height its content needs, and native code sizes
-       the window to it; the pictures place both windows the same way. */
+    /* The panel reports the height its content needs at its own width, and
+       native code sizes the window to it; the pictures place both windows the
+       same way. Measured any wider, wrapped labels would not count. */
+    await page.setViewportSize({ width: EDGE.panelWidth, height: 760 });
     await page.goto(`${origin}/edge-panel-${theme}`, { waitUntil: "networkidle" });
     await page.locator("[data-provider-card]").first().waitFor();
     const layout = edgeLayout(await page.evaluate(() => window.__heights.at(-1)));
@@ -959,7 +961,9 @@ async function capturePhone(browser, theme, snapshots, now) {
     );
     const page = await context.newPage();
     try {
-      const route = view.screen === "pair" ? `/app/pair#code=${CAPTURE_PAIR_CODE}` : "/app";
+      /* A paired phone's Usage and Pro tabs and its install button live on the
+         pair page, never on /app; only the pair view brings a code. */
+      const route = `/app/pair${view.screen === "pair" ? `#code=${CAPTURE_PAIR_CODE}` : ""}`;
       await page.goto(SITE + route, { waitUntil: "domcontentloaded" });
       if (view.screen !== "install") await page.addStyleTag({ content: STANDALONE });
 
