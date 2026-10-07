@@ -26,6 +26,7 @@ import {
 } from "@/lib/phone-session";
 import { errorCorrectionCodewords, encodeQr, qrSize, MAX_QR_VERSION } from "@/lib/qr";
 import { serialPoll } from "@/lib/serial-poll";
+import { meterRowOf } from "@/lib/device-snapshots";
 import { all, byText, findByText, flush, messages, render, type Mounted } from "./render";
 
 /**
@@ -711,7 +712,7 @@ describe("the read route: reads the token cookie, never a body", () => {
     const rows = [{
       account_id: "demo",
       provider: "CLAUDE",
-      code: "five_hour",
+      code: "FIVE_HOUR",
       percent: 41,
       amount: null,
       currency: null,
@@ -728,6 +729,7 @@ describe("the read route: reads the token cookie, never a body", () => {
     );
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ body: { rows } });
+    expect(meterRowOf(rows[0])).not.toBeNull();
   });
 
   it("forwards the upstream unpaired 401 as this route's own no_pair 401, never revoked or unavailable", async () => {

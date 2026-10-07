@@ -12,9 +12,9 @@ const whatsNewForVersion = (version) => selectRelease(version, WHATS_NEW_EN);
 const NOTES = {
   "2.1.0": [
     { key: "claude", text: "Claude now shows one number per bar, with the Claude bucket allowlist, clear status line captions and the Pro captions preset. Setup upgrades the runtime when needed." },
-    { key: "desktop", text: "The desktop opens faster, its buttons work, and Codex was found and repaired. Usage, Connect Tools and Settings now share a responsive window." },
-    { key: "phone", text: "The phone app can install to the Home Screen, follow its light or dark theme, keep working offline and show the Pro tab. OpenRouter now accepts a management key." },
-    { key: "status", text: "The terminal line keeps the new captions, including 5h, 7d, fable7d, cx7d, ag5h and or $12.54." },
+    { key: "desktop", text: "The desktop opens faster, its buttons work, and Codex setup can be found and repaired when needed. Usage, Connect Tools and Settings now share a responsive window." },
+    { key: "phone", text: "The phone app can install to the Home Screen, follow its light or dark theme, keep the last bars when offline and show the Pro tab. OpenRouter now accepts a management key." },
+    { key: "status", text: "The terminal line keeps the new captions, including 5h, 7d, fable7d, cx7d and ag5h. Money cells such as or $ keep their amounts." },
   ],
   "2.0.4": [
     { key: "codex", text: "Codex limits now use OpenAI's documented source. Your Codex sign in stays on your device." },
@@ -57,8 +57,8 @@ test("the current notes stay short and earlier releases remain available", () =>
       assert.doesNotMatch(text, /[-\u2010-\u2015]/u);
     }
   }
-  assert.equal(WHATS_NEW_EN.releases["2.0.4"].heading, "More accurate limits");
-  assert.ok(NOTES["2.0.4"].length <= 4);
+  assert.equal(WHATS_NEW_EN.releases["2.1.0"].heading, "One number per bar");
+  assert.equal(NOTES["2.1.0"].length, 4);
 });
 
 test("the 2.0.0 release notes remain available", () => {

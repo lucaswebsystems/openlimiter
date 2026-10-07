@@ -518,7 +518,13 @@
         "title": "Três abas no desktop. Um painel ao passar o mouse.",
         "lead": "Usage, Connect Tools e Settings mantêm o desktop claro. O painel mostra limites e atividade dos agentes quando a janela principal não está por perto.",
         "note": "Usage reúne as barras, Connect Tools reúne a configuração dos provedores e Settings reúne as opções do desktop. Passe o mouse sobre a aba na borda para ver primeiro o agente que precisa de você.",
-        "alt": "Desktop do OpenLimiter com três abas chamadas Usage, Connect Tools e Settings, limites sintéticos de Codex, Claude Code e OpenRouter e um painel com atividade dos agentes."
+        "alt": "Desktop do OpenLimiter com três abas chamadas Usage, Connect Tools e Settings, limites sintéticos de Codex, Claude Code e OpenRouter e um painel com atividade dos agentes.",
+        "desktopHomeAlt": "A aba Usage do desktop do OpenLimiter com barras sintéticas para Codex, Claude Code e OpenRouter.",
+        "desktopHomeNote": "Usage mostra as barras de Codex, Claude Code e OpenRouter.",
+        "desktopConnectAlt": "A aba Connect Tools do desktop do OpenLimiter com conexões sintéticas de provedores.",
+        "desktopConnectNote": "Connect Tools mostra a configuração dos provedores e o estado da conexão.",
+        "desktopSettingsAlt": "A aba Settings do desktop do OpenLimiter com as opções do aplicativo.",
+        "desktopSettingsNote": "Settings mostra as opções que definem o desktop."
       },
       "terminal": {
         "title": "Seus limites ao lado do seu prompt.",
@@ -538,16 +544,16 @@
     "docsLine": "As duas coisas estão documentadas em detalhe: <agentContext>o que um agente recebe</agentContext> e <cli>cada comando que ele já traz</cli>.",
     "bridge": {
       "line": "Continue trabalhando. Veja quando um agente precisa de você.",
-      "note": "A aba lateral e o terminal mostram leituras locais. Entre para ver leituras sincronizadas no celular."
+      "note": "A aba lateral e o terminal mostram leituras locais. Pareie seu celular pelo desktop para ver suas barras na tela inicial."
     }
   },
   "deviceFrame": {
     "title": "Usage, ferramentas e configurações em uma janela",
     "lead": "O desktop tem três abas: Usage para as barras, Connect Tools para configurar provedores e Settings para as opções do app. O painel mantém limites e agentes por perto quando a janela está distante.",
     "screenshot": {
-      "alt": "A janela do OpenLimiter com as abas Usage, Connect Tools e Settings, leituras sintéticas de Codex, Claude Code e OpenRouter e o painel pronto para abrir."
+      "alt": "A janela da aba Usage do desktop do OpenLimiter com barras sintéticas de Codex, Claude Code e OpenRouter."
     },
-    "caption": "A interface real do desktop com três abas e painel, renderizada sem interface gráfica com fixtures sintéticos. Nenhuma conta pessoal, credencial ou cifra real de uso aparece nela."
+    "caption": "A janela real da aba Usage é renderizada sem interface gráfica com fixtures sintéticos. Nenhuma conta pessoal, credencial ou cifra real de uso aparece nela."
   },
   "phonePanels": {
     "shots": {
@@ -967,7 +973,7 @@
     },
     "preview": {
       "title": "Aplicativo de desktop OpenLimiter",
-      "alt": "A aba Usage do OpenLimiter no desktop mostrando limites dos provedores e atividade dos agentes"
+      "alt": "A aba Usage do OpenLimiter no desktop com barras de uso e a linha de abas Usage, Connect Tools e Settings"
     },
     "versionLine": "Versão {version}",
     "releaseNotes": "Notas de lançamento",

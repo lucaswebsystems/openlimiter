@@ -198,9 +198,16 @@ export async function demoSnapshots(now) {
     ...(connectors.parseClaudePayload({
       five_hour: { utilization: 42, resets_at: new Date(Date.parse(now) + 18_000 * 1000).toISOString() },
       seven_day: { utilization: 64, resets_at: new Date(Date.parse(now) + 604_800 * 1000).toISOString() },
+      seven_day_fable: { utilization: 69, resets_at: new Date(Date.parse(now) + 604_800 * 1000).toISOString() },
     }, now) ?? []),
     ...(connectors.parseOpenrouterPayload(connectors.openrouterFixture(), now) ?? []),
-    ...(connectors.parseCodexPayload(connectors.codexFixture(now), now) ?? []),
+    ...(connectors.parseCodexPayload({
+      ...connectors.codexFixture(now),
+      rateLimits: {
+        ...connectors.codexFixture(now).rateLimits,
+        secondary: { usedPercent: 72, resetsAt: Math.floor(Date.parse(now) / 1000) + 604_800, windowDurationMins: 10_080 },
+      },
+    }, now) ?? []),
     ...(connectors.parseAntigravityPayload(connectors.antigravityFixture(now), now) ?? []),
     ...(connectors.parseOpencodePayload(connectors.opencodeFixture(now), now) ?? []),
     ...(connectors.parseManualPayload(connectors.manualFixture(now), now) ?? []),
@@ -458,7 +465,8 @@ async function wallpaperPage() {
 const SAMPLE_VALUES = [
   { provider: "CLAUDE", meter: "FIVE_HOUR", value: 42 },
   { provider: "CLAUDE", meter: "SEVEN_DAY", value: 64 },
-  { provider: "CODEX", value: 84 },
+  { provider: "CLAUDE", meter: "SEVEN_DAY_FABLE", value: 69 },
+  { provider: "CODEX", meter: "SEVEN_DAY", value: 72 },
   { provider: "ANTIGRAVITY", value: 94 },
 ];
 
@@ -874,8 +882,8 @@ async function capturePhone(browser, theme, snapshots, now) {
     code: row.meter,
     percent: row.unit === "PERCENT" ? Math.round(row.value) : null,
     amount: row.unit === "CREDITS" ? row.value : null,
-    currency: row.currency ?? null,
-    resets_at: row.resetAt,
+    currency: row.unit === "CREDITS" ? row.currency ?? null : null,
+    resets_at: row.resetAt ?? null,
     observed_at: row.observedAt ?? now,
     stale: false,
   }));
@@ -964,6 +972,19 @@ async function capturePhone(browser, theme, snapshots, now) {
       /* A paired phone's Usage and Pro tabs and its install button live on the
          pair page, never on /app; only the pair view brings a code. */
       const route = `/app/pair${view.screen === "pair" ? `#code=${CAPTURE_PAIR_CODE}` : ""}`;
+      if (view.screen !== "install") {
+        await page.addInitScript(() => {
+          const nativeMatchMedia = window.matchMedia.bind(window);
+          window.matchMedia = (query) => {
+            const result = nativeMatchMedia(query);
+            if (query.includes("display-mode: standalone")) {
+              Object.defineProperty(result, "matches", { configurable: true, value: true });
+            }
+            return result;
+          };
+          Object.defineProperty(navigator, "standalone", { configurable: true, value: true });
+        });
+      }
       await page.goto(SITE + route, { waitUntil: "domcontentloaded" });
       if (view.screen !== "install") await page.addStyleTag({ content: STANDALONE });
 

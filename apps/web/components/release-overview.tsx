@@ -21,8 +21,12 @@ export async function ReleaseOverview() {
       <section id="agents" {...reveal}>
         <SectionHeading title={t("agents.title")} lead={t("agents.lead")} />
         <div className="grid gap-6 md:grid-cols-3">
-          {(["desktop-home", "desktop-connect", "desktop-settings"] as const).map((shot) => (
-            <ProductFigure key={shot} name={shot} alt={t("agents.alt")} caption={t("agents.note")} />
+          {([
+            ["desktop-home", "desktopHomeAlt", "desktopHomeNote"],
+            ["desktop-connect", "desktopConnectAlt", "desktopConnectNote"],
+            ["desktop-settings", "desktopSettingsAlt", "desktopSettingsNote"],
+          ] as const).map(([shot, alt, caption]) => (
+            <ProductFigure key={shot} name={shot} alt={t(`agents.${alt}`)} caption={t(`agents.${caption}`)} />
           ))}
         </div>
       </section>
@@ -35,7 +39,7 @@ export async function ReleaseOverview() {
         <PhonePanels />
         <p className="mx-auto mt-[var(--ol-space-5)] max-w-2xl text-sm leading-relaxed text-body">{t("phone.note")}</p>
         <div className="mt-[var(--ol-space-5)]">
-          <ButtonLink href="/app" tone="primary">{t("phone.cta")}</ButtonLink>
+          <ButtonLink href="/app/pair" tone="primary">{t("phone.cta")}</ButtonLink>
         </div>
       </section>
       <p className="mx-auto max-w-2xl text-sm leading-relaxed text-muted">{t("captureNote")}</p>

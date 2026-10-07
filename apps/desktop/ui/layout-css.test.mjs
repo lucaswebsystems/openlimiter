@@ -10,6 +10,8 @@ test("built desktop CSS carries the responsive tab shell and narrow rows", () =>
   assert.match(quiet, /\.q-tools[^}]*overflow:\s*clip/su);
   assert.match(quiet, /@media\s*\(max-width:\s*34rem\)/su);
   assert.match(quiet, /\.q-tnote[^}]*white-space:\s*normal/su);
+  assert.match(quiet, /\.q-compact\s*\{[^}]*grid-template-columns:\s*minmax\(7rem,\s*1fr\)[^}]*minmax\(0,\s*45%\)/su);
+  assert.match(quiet, /\.q-compact \.q-rst\s*\{[^}]*white-space:\s*normal/su);
   assert.match(surfaces, /\.chrome\s+\.tabs[^}]*padding-inline:\s*max\(/su);
   assert.doesNotMatch(surfaces, /@media\s*\(min-width:\s*1100px\)/su);
 });

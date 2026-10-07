@@ -518,7 +518,13 @@
         "title": "Tres pestañas de escritorio. Un panel al pasar el cursor.",
         "lead": "Usage, Connect Tools y Settings mantienen despejado el escritorio. El panel muestra los límites y la actividad de los agentes cuando la ventana principal no está a mano.",
         "note": "Usage contiene las barras, Connect Tools la configuración de proveedores y Settings las opciones del escritorio. Pasa el cursor por la pestaña lateral para ver primero al agente que necesita tu atención.",
-        "alt": "Escritorio de OpenLimiter con tres pestañas llamadas Usage, Connect Tools y Settings, límites sintéticos de Codex, Claude Code y OpenRouter y un panel con actividad de agentes."
+        "alt": "Escritorio de OpenLimiter con tres pestañas llamadas Usage, Connect Tools y Settings, límites sintéticos de Codex, Claude Code y OpenRouter y un panel con actividad de agentes.",
+        "desktopHomeAlt": "La pestaña Usage del escritorio de OpenLimiter con barras sintéticas para Codex, Claude Code y OpenRouter.",
+        "desktopHomeNote": "Usage muestra las barras de Codex, Claude Code y OpenRouter.",
+        "desktopConnectAlt": "La pestaña Connect Tools del escritorio de OpenLimiter con conexiones sintéticas de proveedores.",
+        "desktopConnectNote": "Connect Tools muestra la configuración de proveedores y el estado de conexión.",
+        "desktopSettingsAlt": "La pestaña Settings del escritorio de OpenLimiter con las opciones de la aplicación.",
+        "desktopSettingsNote": "Settings muestra las opciones que configuran el escritorio."
       },
       "terminal": {
         "title": "Tus límites junto a tu prompt.",
@@ -538,16 +544,16 @@
     "docsLine": "Ambas cosas están documentadas en detalle: <agentContext>lo que se le dice a un agente</agentContext> y <cli>cada comando con el que se distribuye</cli>.",
     "bridge": {
       "line": "Sigue trabajando. Mira cuándo un agente te necesita.",
-      "note": "La pestaña lateral y el terminal muestran lecturas locales. Inicia sesión para ver lecturas sincronizadas en tu teléfono."
+      "note": "La pestaña lateral y el terminal muestran lecturas locales. Empareja tu teléfono desde el escritorio para ver sus barras en la pantalla de inicio."
     }
   },
   "deviceFrame": {
     "title": "Usage, herramientas y ajustes en una ventana",
     "lead": "El escritorio tiene tres pestañas: Usage para las barras, Connect Tools para configurar proveedores y Settings para las opciones de la aplicación. El panel mantiene cerca los límites y los agentes cuando la ventana está lejos.",
     "screenshot": {
-      "alt": "La ventana de OpenLimiter con las pestañas Usage, Connect Tools y Settings, lecturas sintéticas de Codex, Claude Code y OpenRouter y el panel listo para abrir."
+      "alt": "La ventana de la pestaña Usage del escritorio de OpenLimiter con barras sintéticas de Codex, Claude Code y OpenRouter."
     },
-    "caption": "La interfaz real de escritorio con tres pestañas y panel, renderizada sin interfaz gráfica con fixtures sintéticos. No aparece ninguna cuenta personal, credencial ni cifra de uso real."
+    "caption": "La ventana real de la pestaña Usage se renderiza sin interfaz gráfica con fixtures sintéticos. No aparece ninguna cuenta personal, credencial ni cifra de uso real."
   },
   "phonePanels": {
     "shots": {
@@ -967,7 +973,7 @@
     },
     "preview": {
       "title": "Aplicación de escritorio OpenLimiter",
-      "alt": "La pestaña Usage de OpenLimiter en el escritorio mostrando límites de proveedores y actividad de agentes"
+      "alt": "La pestaña Usage de OpenLimiter en el escritorio con barras de uso y la fila de pestañas Usage, Connect Tools y Settings"
     },
     "versionLine": "Versión {version}",
     "releaseNotes": "Notas de la versión",
@@ -2518,7 +2524,7 @@
         },
         "noCode": {
           "title": "Este enlace no tiene código de emparejamiento",
-          "body": "La aplicación de escritorio genera un código de emparejamiento que dura dos minutos. Abre OpenLimiter en tu computadora, elige Emparejar tu teléfono y escanea el código que aparece."
+          "body": "La aplicación de escritorio genera un código de emparejamiento que dura dos minutos. Abre OpenLimiter en tu computadora, elige Pair your phone y escanea el código que aparece."
         },
         "waiting": {
           "title": "Esperando aprobación",

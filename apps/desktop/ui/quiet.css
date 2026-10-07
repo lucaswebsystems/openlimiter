@@ -377,6 +377,7 @@ button.q-show {
 
 /* The panel's column form: smaller type, a thinner bar, column headings. */
 .q-compact {
+  grid-template-columns: minmax(7rem, 1fr) minmax(3rem, 1fr) max-content minmax(0, 45%);
   column-gap: 0.625rem;
 }
 
@@ -411,6 +412,12 @@ button.q-show {
 .q-compact .q-val,
 .q-compact .q-rst {
   font-size: var(--ol-text-caption);
+}
+
+.q-compact .q-rst {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: break-word;
 }
 
 .q-compact .q-bar {

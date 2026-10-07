@@ -6,10 +6,28 @@ import { JSDOM } from "jsdom";
 // @ts-expect-error Capture scripts run directly in Node.
 import { ansiHtml, assertCaptureSafe, demoSessions } from "../../../scripts/capture-screenshots-sanitize.mjs";
 import { initialPairState, pairStateAfterClaim, pairStateAfterPoll } from "@/lib/pairing";
+import { meterRowOf } from "@/lib/device-snapshots";
 // @ts-expect-error Capture scripts run directly in Node.
 import { demoSnapshots, edgeLayout, edgePage, edgeScene, pairingCaptureResponse, terminalPage, windowPage } from "../../../scripts/capture-screenshots.mjs";
 
 const now = "2026-09-28T12:00:00.000Z";
+
+type CaptureSnapshot = {
+  provider: string;
+  meter: string;
+  unit: string;
+  value: number;
+  currency?: string;
+  resetAt?: string | null;
+  observedAt?: string;
+};
+
+type CapturePhoneRow = {
+  provider: string;
+  amount: number | null;
+  currency: string | null;
+  [key: string]: unknown;
+};
 
 describe("synthetic screenshot pipeline", () => {
   it("waits for rendered provider card contents without the removed hero", () => {
@@ -62,15 +80,36 @@ describe("synthetic screenshot pipeline", () => {
       const dom = new JSDOM(await terminalPage(theme, snapshots, now));
       for (const band of ["green", "yellow", "orange", "red"]) expect(dom.window.document.querySelector(`.band-${band}`)?.textContent).toBeTruthy();
       const line = dom.window.document.querySelector("pre")?.textContent ?? "";
-      for (const percentage of [42, 64, 84, 94]) expect(line).toContain(`${percentage}%`);
+      for (const percentage of [42, 64, 69, 72, 94]) expect(line).toContain(`${percentage}%`);
+      expect(line).toMatch(/^5h \[/u);
+      expect(line).toContain("7d ");
+      expect(line).toContain("fable7d ");
+      expect(line).toContain("cx7d ");
+      expect(line).toContain("ag5h ");
       for (const money of ["or $12.54", "oa $8.20", "an $3.10"]) expect(line).toContain(money);
       // Limits and money only, so the line keeps one row on a wide screen.
-      expect(line).toMatch(/^5h \[/u);
       expect(line).not.toContain("[?]");
       // A cell never breaks across lines: each one wraps as a whole.
       expect([...dom.window.document.querySelectorAll("pre > .cell")].map((cell) => cell.textContent)).toHaveLength(line.split(" | ").length);
       dom.window.close();
     }
+  });
+
+  it("keeps every phone fixture row inside the phone wire contract", async () => {
+    const snapshots = await demoSnapshots(now);
+    const rows: CapturePhoneRow[] = snapshots.map((row: CaptureSnapshot) => ({
+      account_id: "demo",
+      provider: row.provider,
+      code: row.meter,
+      percent: row.unit === "PERCENT" ? Math.round(row.value) : null,
+      amount: row.unit === "CREDITS" ? row.value : null,
+      currency: row.unit === "CREDITS" ? row.currency ?? null : null,
+      resets_at: row.resetAt ?? null,
+      observed_at: row.observedAt ?? now,
+      stale: false,
+    }));
+    expect(rows.every((row) => meterRowOf(row) !== null)).toBe(true);
+    expect(rows.some((row) => row.provider === "OPENROUTER")).toBe(true);
   });
 
   it("feeds the real desktop, edge tab and edge panel entry points only synthetic data", async () => {

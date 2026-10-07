@@ -518,7 +518,13 @@
         "title": "Drei Desktop Tabs. Ein Panel beim Darüberfahren.",
         "lead": "Usage, Connect Tools und Settings halten den Desktop übersichtlich. Das Hover Panel zeigt Limits und Agentenaktivität neben dir, wenn das Hauptfenster nicht im Blick ist.",
         "note": "Usage enthält die Balken, Connect Tools die Anbietereinrichtung und Settings die Optionen für den Desktop. Fahre über den Randreiter, um zuerst den Agenten zu sehen, der dich braucht.",
-        "alt": "OpenLimiter Desktop mit den drei Tabs Usage, Connect Tools und Settings, synthetischen Limits für Codex, Claude Code und OpenRouter und einem Hover Panel mit Agentenaktivität."
+        "alt": "OpenLimiter Desktop mit den drei Tabs Usage, Connect Tools und Settings, synthetischen Limits für Codex, Claude Code und OpenRouter und einem Hover Panel mit Agentenaktivität.",
+        "desktopHomeAlt": "Der OpenLimiter Desktop im Tab Usage mit synthetischen Balken für Codex, Claude Code und OpenRouter.",
+        "desktopHomeNote": "Usage zeigt die Balken für Codex, Claude Code und OpenRouter.",
+        "desktopConnectAlt": "Der OpenLimiter Desktop im Tab Connect Tools mit synthetischen Anbieter Verbindungen.",
+        "desktopConnectNote": "Connect Tools zeigt die Anbietereinrichtung und den Verbindungsstatus.",
+        "desktopSettingsAlt": "Der OpenLimiter Desktop im Tab Settings mit den Optionen für die Anwendung.",
+        "desktopSettingsNote": "Settings zeigt die Optionen, die den Desktop bestimmen."
       },
       "terminal": {
         "title": "Deine Limits neben deinem Prompt.",
@@ -528,7 +534,7 @@
       },
       "phone": {
         "title": "Vom Desktop koppeln. Deine Balken auf dem Startbildschirm.",
-        "lead": "Kopple dein Handy vom Desktop aus und öffne danach die Web App über den Startbildschirm. Sie zeigt die neuesten Messungen deines Computers und den Zeitpunkt ihrer Erfassung.",
+        "lead": "Kopple dein Handy vom Desktop aus und installiere danach die Web App auf deinem Startbildschirm. Keine native iOS oder Android Anwendung ist gebaut.",
         "note": "Das Handy folgt seinem hellen oder dunklen Design und behält die letzten Messungen offline. Dein Computer sammelt weiterhin neue Messungen, und Anbieterzugangsdaten bleiben dort.",
         "cta": "Telefon App öffnen",
         "alt": "Die OpenLimiter Telefon App mit synthetischen, vom Desktop gekoppelten Messungen in den Ansichten Usage und Pro."
@@ -538,16 +544,16 @@
     "docsLine": "Beides ist ausführlich dokumentiert: <agentContext>was ein Agent erfährt</agentContext> und <cli>jeder Befehl, mit dem es ausgeliefert wird</cli>.",
     "bridge": {
       "line": "Arbeite weiter. Sieh, wann ein Agent dich braucht.",
-      "note": "Der Reiter am Rand und das Terminal zeigen lokale Messungen. Melde dich an, um synchronisierte Messungen auf deinem Handy zu sehen."
+      "note": "Der Reiter am Rand und das Terminal zeigen lokale Messungen. Kopple dein Handy vom Desktop aus, um seine Balken auf dem Startbildschirm zu sehen."
     }
   },
   "deviceFrame": {
     "title": "Usage, Tools und Settings in einem Fenster",
     "lead": "Der Desktop hat drei Tabs: Usage für die Balken, Connect Tools für die Anbietereinrichtung und Settings für die Optionen der App. Das Hover Panel hält Limits und Agenten in der Nähe, wenn das Fenster nicht da ist.",
     "screenshot": {
-      "alt": "Das OpenLimiter Desktop Fenster mit den Tabs Usage, Connect Tools und Settings, synthetischen Nutzungswerten für Codex, Claude Code und OpenRouter und dem Hover Panel zum Öffnen."
+      "alt": "Das OpenLimiter Desktop Fenster im Tab Usage mit synthetischen Balken für Codex, Claude Code und OpenRouter."
     },
-    "caption": "Die echte Desktop Oberfläche mit drei Tabs und Hover Panel, ohne grafische Oberfläche mit synthetischen Fixtures gerendert. Kein persönliches Konto, keine Zugangsdaten und kein echter Nutzungswert erscheinen darin."
+    "caption": "Das echte Fenster des Tabs Usage wurde mit synthetischen Fixtures ohne grafische Oberfläche gerendert. Kein persönliches Konto, keine Zugangsdaten und kein echter Nutzungswert erscheinen darin."
   },
   "phonePanels": {
     "shots": {
@@ -967,7 +973,7 @@
     },
     "preview": {
       "title": "OpenLimiter Desktop Anwendung",
-      "alt": "Der OpenLimiter Usage Tab auf dem Desktop mit Anbieterlimits und Agentenaktivität"
+      "alt": "Der OpenLimiter Desktop im Tab Usage mit Nutzungsbalken und der Tab Reihe Usage, Connect Tools und Settings"
     },
     "versionLine": "Version {version}",
     "releaseNotes": "Release Notes",
@@ -2518,7 +2524,7 @@
         },
         "noCode": {
           "title": "Dieser Link enthält keinen Kopplungscode",
-          "body": "Die Desktop Anwendung erzeugt einen Kopplungscode, der zwei Minuten gültig ist. Öffne OpenLimiter auf deinem Computer, wähle Handy koppeln und scanne den angezeigten Code."
+          "body": "Die Desktop Anwendung erzeugt einen Kopplungscode, der zwei Minuten gültig ist. Öffne OpenLimiter auf deinem Computer, wähle Pair your phone und scanne den angezeigten Code."
         },
         "waiting": {
           "title": "Warten auf Bestätigung",

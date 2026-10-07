@@ -61,6 +61,7 @@ function InstallSheet({ path, open, onClose, returnFocus }: {
   const t = useTranslations("hub.install");
   return (
     <Sheet open={open} title={t("title")} closeLabel={t("close")} onClose={onClose} returnFocus={returnFocus}>
+      <div className="ol-sheet-body">
       {path === "inAppBrowser" ? (
         <p className="mt-4 rounded-lg border border-hairline bg-raised px-3 py-3 text-sm leading-relaxed text-body">
           {t("openSafari")}
@@ -84,6 +85,7 @@ function InstallSheet({ path, open, onClose, returnFocus }: {
           )}
         </>
       )}
+      </div>
       <div className="mt-5 flex justify-end">
         <Button tone="primary" onClick={onClose}>{t("done")}</Button>
       </div>

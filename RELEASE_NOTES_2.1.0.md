@@ -2,7 +2,7 @@
 
 Claude shows one number per bar on every surface. The Claude bucket allowlist keeps the supported windows together, including Current session, Weekly all models and Weekly Fable.
 
-The terminal has clear captions for 5h, 7d, fable7d, cx7d, ag5h and or $12.54. Pro adds the tagged captions preset, and setup upgrades the runtime when needed.
+The terminal has clear captions for 5h, 7d, fable7d, cx7d and ag5h. Money cells such as or $ keep their amounts. Pro adds the tagged captions preset, and setup upgrades the runtime when needed.
 
 The desktop paints faster on first open. Its buttons work, and Codex is found and repaired when its local setup needs it. Usage, Connect Tools and Settings now share a responsive window.
 

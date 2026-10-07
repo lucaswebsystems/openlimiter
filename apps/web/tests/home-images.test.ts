@@ -97,7 +97,6 @@ describe("home product image delivery", () => {
       for (const theme of ["", "-light"]) {
         // Real file paths: under jsdom, import.meta.url is not a file URL.
         const base = path.join(path.dirname(fileURLToPath(import.meta.url)), "../public/screenshots", `${name}${theme}`);
-        if (["phone-4", "desktop-connect", "desktop-settings"].includes(name) && !existsSync(`${base}.png`)) continue;
         const png = readFileSync(`${base}.png`);
         expect(png.readUInt32BE(16)).toBe(shot.width);
         expect(png.readUInt32BE(20)).toBe(shot.height);

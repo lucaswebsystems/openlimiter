@@ -518,7 +518,13 @@
         "title": "Three desktop tabs. One hover panel when you step away.",
         "lead": "Usage, Connect Tools and Settings keep the desktop clear. The hover panel puts limits and agent activity beside you when the main window is out of reach.",
         "note": "Usage holds the bars, Connect Tools holds provider setup and Settings holds the choices that shape the desktop. Hover the edge tab to see the panel, with the agent that needs you first.",
-        "alt": "OpenLimiter desktop with three tabs named Usage, Connect Tools and Settings, synthetic limits for Codex, Claude Code and OpenRouter, and a hover panel with agent activity."
+        "alt": "OpenLimiter desktop with three tabs named Usage, Connect Tools and Settings, synthetic limits for Codex, Claude Code and OpenRouter, and a hover panel with agent activity.",
+        "desktopHomeAlt": "OpenLimiter desktop Usage tab with synthetic bars for Codex, Claude Code and OpenRouter.",
+        "desktopHomeNote": "Usage shows the bars for Codex, Claude Code and OpenRouter.",
+        "desktopConnectAlt": "OpenLimiter desktop Connect Tools tab showing synthetic provider connections.",
+        "desktopConnectNote": "Connect Tools shows provider setup and connection status.",
+        "desktopSettingsAlt": "OpenLimiter desktop Settings tab showing choices for the application.",
+        "desktopSettingsNote": "Settings shows the choices that shape the desktop."
       },
       "terminal": {
         "title": "Your limits beside your prompt.",
@@ -538,16 +544,16 @@
     "docsLine": "Both of those are written up in full: <agentContext>what an agent is told</agentContext> and <cli>every command it ships with</cli>.",
     "bridge": {
       "line": "Keep working. See when an agent needs you.",
-      "note": "The edge tab and terminal show local readings. Sign in to see synchronized readings on your phone."
+      "note": "The edge tab and terminal show local readings. Pair your phone from the desktop to see its bars on the home screen."
     }
   },
   "deviceFrame": {
     "title": "Usage, tools and settings in one window",
     "lead": "The desktop has three tabs: Usage for the bars, Connect Tools for provider setup and Settings for the choices around the app. The hover panel keeps limits and agents close when the window is away.",
     "screenshot": {
-      "alt": "The OpenLimiter desktop window with Usage, Connect Tools and Settings tabs, synthetic usage readings for Codex, Claude Code and OpenRouter, and the hover panel ready to open."
+      "alt": "The OpenLimiter desktop Usage tab window with synthetic bars for Codex, Claude Code and OpenRouter."
     },
-    "caption": "The real three tab desktop UI and hover panel rendered headlessly with synthetic fixtures. No personal account, credential or real usage figure appears in it."
+    "caption": "The real Usage tab window rendered headlessly with synthetic fixtures. No personal account, credential or real usage figure appears in it."
   },
   "phonePanels": {
     "shots": {
@@ -967,7 +973,7 @@
     },
     "preview": {
       "title": "OpenLimiter desktop application",
-      "alt": "OpenLimiter desktop Usage tab showing provider limits and agent activity"
+      "alt": "OpenLimiter desktop Usage tab showing usage bars and the Usage, Connect Tools and Settings tab row"
     },
     "versionLine": "Version {version}",
     "releaseNotes": "Release notes",
