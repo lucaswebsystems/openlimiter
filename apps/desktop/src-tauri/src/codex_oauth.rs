@@ -106,6 +106,21 @@ trait AppServerReader: Send + Sync {
 
 struct NativeAppServerReader;
 
+#[cfg(test)]
+thread_local! {
+    /// What a test puts in the CLI's place on its own thread.
+    static TEST_APP_SERVER: std::cell::RefCell<Option<Arc<dyn AppServerReader>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+fn app_server() -> Arc<dyn AppServerReader> {
+    #[cfg(test)]
+    if let Some(reader) = TEST_APP_SERVER.with(|slot| slot.borrow().clone()) {
+        return reader;
+    }
+    Arc::new(NativeAppServerReader)
+}
+
 impl AppServerReader for NativeAppServerReader {
     fn read(
         &self,
@@ -312,7 +327,7 @@ pub async fn collect_account<T: Transport>(
     let _ = secret;
     let outcome = collect_with_app_server(
         runtime,
-        Arc::new(NativeAppServerReader),
+        app_server(),
         writer,
         &account_id,
         &executable,
@@ -392,13 +407,12 @@ pub(crate) async fn collect_account_guarded<T: Transport>(
         now_ms,
     )
     .await;
-    let abort_provider = complete_outcome(policy, detection, runtime, &account_id, now_ms, &outcome);
+    let abort_provider = complete_outcome(policy, runtime, &account_id, now_ms, &outcome);
     (outcome, abort_provider)
 }
 
 fn complete_outcome(
     policy: &RequestPolicy,
-    detection: &DetectionStore,
     runtime: &CodexOauthRuntime,
     account_id: &str,
     now_ms: u64,
@@ -406,13 +420,9 @@ fn complete_outcome(
 ) -> bool {
     match outcome {
         CodexOutcome::Cached { .. } => false,
-        CodexOutcome::MissingExecutable { .. } => {
-            runtime.cancel(account_id);
-            policy.cancel_unstarted(DetectedProviderId::Codex, account_id);
-            detection.mark_cli_missing(DetectedProviderId::Codex, account_id);
-            false
-        }
-        CodexOutcome::MissingCredential { .. } => {
+        /* Nothing was asked of the provider, so nothing is held against the
+        account: installing the CLI makes the very next pass read. */
+        CodexOutcome::MissingExecutable { .. } | CodexOutcome::MissingCredential { .. } => {
             runtime.cancel(account_id);
             policy.cancel_unstarted(DetectedProviderId::Codex, account_id);
             false
@@ -782,7 +792,6 @@ mod tests {
     #[tokio::test]
     async fn guarded_acquisitions_follow_shared_exponential_retry() {
         let dir = TempDir::new();
-        let detection = crate::provider_detection::DetectionStore::for_test_home(dir.path(), NOW);
         let account = "synthetic-account";
         let mut at = NOW;
         for seconds in [60, 120, 240, 480, 900, 900] {
@@ -793,7 +802,6 @@ mod tests {
                 .expect("due attempt");
             complete_outcome(
                 &policy,
-                &detection,
                 &CodexOauthRuntime::default(),
                 account,
                 at,
@@ -820,7 +828,6 @@ mod tests {
     #[test]
     fn cached_outcome_preserves_shared_failures() {
         let dir = TempDir::new();
-        let detection = DetectionStore::for_test_home(dir.path(), NOW);
         let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
         let account = "synthetic-account";
         let lease = policy
@@ -834,7 +841,6 @@ mod tests {
             .unwrap();
         complete_outcome(
             &policy,
-            &detection,
             &CodexOauthRuntime::default(),
             account,
             at,
@@ -874,8 +880,7 @@ mod tests {
             NOW,
         )
         .await;
-        let detection = DetectionStore::for_test_home(dir.path(), NOW);
-        complete_outcome(&policy, &detection, &runtime, account, NOW, &missing);
+        complete_outcome(&policy, &runtime, account, NOW, &missing);
         drop(lease);
 
         let restored_lease = policy
@@ -923,65 +928,71 @@ mod tests {
         ));
     }
 
+    /// A CLI that is not installed is named as such, holds nothing against
+    /// the account, and the pass right after installing it reads.
     #[tokio::test]
-    async fn missing_executable_at_resolution_can_be_retried_immediately() {
-        let dir = TempDir::new();
-        let runtime = CodexOauthRuntime::default();
-        let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
-        let account = "unresolved-executable-account";
-        let detection = DetectionStore::for_test_home(dir.path(), NOW);
-        
-        let auth_dir = dir.path().join(".codex");
-        std::fs::create_dir_all(&auth_dir).unwrap();
-        std::fs::write(
-            auth_dir.join("auth.json"),
-            r#"{"access_token":"fake-token"}"#,
-        ).unwrap();
+    async fn installing_the_cli_after_it_was_missing_reads_on_the_next_pass() {
+        use crate::provider_detection::RecoveryAction;
 
-        // 1. First run, executable is missing.
-        let (outcome, _) = collect_account_guarded(
+        let dir = TempDir::new();
+        let codex = dir.path().join(".codex");
+        fs::create_dir_all(&codex).expect("Codex home");
+        fs::write(
+            codex.join("auth.json"),
+            format!(r#"{{"tokens":{{"access_token":"{TOKEN}","account_id":"provider-account"}}}}"#),
+        )
+        .expect("Codex login");
+        let detection = DetectionStore::for_test_home(dir.path(), NOW);
+        let account = detection
+            .account_ids(DetectedProviderId::Codex)
+            .pop()
+            .expect("the detected login");
+        let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
+        let runtime = CodexOauthRuntime::default();
+        let transport =
+            crate::test_support::FailingTransport::with(crate::net::TransportFailure::Connect);
+        let app_server = StubAppServer::new([Ok(valid_body())]);
+        TEST_APP_SERVER.with(|slot| *slot.borrow_mut() = Some(app_server.clone()));
+        let recovery = || {
+            detection
+                .report()
+                .providers
+                .into_iter()
+                .find(|provider| provider.provider_id == DetectedProviderId::Codex)
+                .and_then(|provider| provider.accounts.into_iter().next())
+                .and_then(|account| account.recovery)
+        };
+
+        let (missing, abort) = collect_account_guarded(
             &detection,
             &runtime,
             &policy,
-            &*StubAppServer::new([]),
+            &transport,
             writer(&dir),
-            account.to_string(),
+            account.clone(),
             NOW,
-        ).await;
-        
-        assert!(matches!(outcome, CodexOutcome::MissingExecutable { .. }));
-        
-        // 2. Install executable.
-        let bin_dir = dir.path().join("bin");
-        std::fs::create_dir_all(&bin_dir).unwrap();
-        let codex_bin = bin_dir.join(if cfg!(windows) { "codex.cmd" } else { "codex" });
-        std::fs::write(&codex_bin, "echo fake").unwrap();
-        let path_var = std::env::var_os("PATH").unwrap_or_default();
-        let mut new_path = std::ffi::OsString::new();
-        new_path.push(bin_dir.as_os_str());
-        if cfg!(windows) {
-            new_path.push(";");
-        } else {
-            new_path.push(":");
-        }
-        new_path.push(path_var.clone());
-        std::env::set_var("PATH", new_path);
+        )
+        .await;
+        assert!(matches!(missing, CodexOutcome::MissingExecutable { .. }), "{missing:?}");
+        assert!(!abort);
+        assert!(app_server.accounts().is_empty(), "nothing runs without a CLI");
+        assert_eq!(recovery(), Some(RecoveryAction::InstallCli));
 
-        let detection_restored = DetectionStore::for_test_home(dir.path(), NOW + 1);
-        
-        // 3. Second run, should execute successfully immediately.
-        let (outcome2, _) = collect_account_guarded(
-            &detection_restored,
+        fs::create_dir_all(dir.path().join("bin")).expect("bin");
+        fs::write(dir.path().join("bin").join("codex"), "native codex").expect("installed CLI");
+        let (read, _) = collect_account_guarded(
+            &detection,
             &runtime,
             &policy,
-            &*StubAppServer::new([Ok(valid_body())]),
+            &transport,
             writer(&dir),
-            account.to_string(),
-            NOW + 1,
-        ).await;
-        
-        std::env::set_var("PATH", path_var); // Restore PATH.
-        
-        assert!(matches!(outcome2, CodexOutcome::CacheCommitted { .. }));
+            account.clone(),
+            NOW + 1_000,
+        )
+        .await;
+        TEST_APP_SERVER.with(|slot| *slot.borrow_mut() = None);
+        assert!(matches!(read, CodexOutcome::CacheCommitted { .. }), "{read:?}");
+        assert_eq!(app_server.accounts(), vec![account]);
+        assert_eq!(recovery(), None);
     }
 }

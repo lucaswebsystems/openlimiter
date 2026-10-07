@@ -22,7 +22,6 @@ import {
 import { parseManualPayload } from "./engine/connectors/manual.js";
 import { bandForPercent, bandIconSvg, closestToLimit, providerMarkMarkup, windowRank } from "./engine/ui/provider-row.js";
 import { duration, meterLabel, meterPresentation, meterRank, providerCode, providerName, say, updatedLabel } from "./names.js";
-import { FAILURE_SENTENCES } from "./backend.js";
 
 export { updatedLabel };
 
@@ -455,6 +454,11 @@ function nextStep(code, name, { flag, flags, records, detection, claude, claudeP
     ? { ...step("poll", "showClaudeFable", say("showClaudeFableNote")), note: say("showClaudeFableNote") }
     : { note: say("fixWaitingIssue", { name }) };
   if (reasons.has("awaiting_statusline")) return waiting;
+  /* A CLI that is not installed blocks every other step, a connect or a sign
+     in included, so it is named first; native code marks it per account. */
+  if (detection?.accounts?.some((account) => account.recovery === "install_cli")) {
+    return { ...step("check", "fixOpenAppAction"), note: say("cliNotFound", { name }) };
+  }
   const signInAgain = step("check", "fixSignInAgainIssue", title("fixToolDetail"));
   /* Its action only looks again, so it says so. */
   if (reasons.has("account_unresolved")) return step("check", "fixOpenAppAction", title("fixToolDetail"));
@@ -480,13 +484,6 @@ function nextStep(code, name, { flag, flags, records, detection, claude, claudeP
   if (code === "GEMINI_CLI" && flag?.reason === "quota_unavailable") return { note: say("geminiCliConsumerRetired") };
   if (flag?.fixKind === "unsupported") return { note: say("fixUnsupportedIssue") };
   if (CONNECTABLE.has(code) && (refused || flag?.fixKind === "reconnect" || flag?.fixKind === "sign_in")) return step("connect", "connect");
-  
-  if (detection?.recovery === "install_cli") return { ...step("check", "fixOpenAppAction", title("fixToolDetail")), note: FAILURE_SENTENCES.codex_cli_not_found ?? detection.message };
-  const missingCli = detection?.accounts?.find((a) => a.recovery === "install_cli");
-  if (missingCli) return { ...step("check", "fixOpenAppAction", title("fixToolDetail")), note: FAILURE_SENTENCES.codex_cli_not_found ?? missingCli.message };
-  const accountRecovery = detection?.accounts?.find((a) => a.recovery);
-  if (accountRecovery) return { ...step("check", "fixOpenAppAction", title("fixToolDetail")), note: accountRecovery.message };
-
   if (loggedOut || flag?.fixKind === "sign_in") return signInAgain;
   return step("check", "fixOpenAppAction", title(flag?.fixKind === "open_app" ? "fixOpenAppDetail" : "fixToolDetail"));
 }

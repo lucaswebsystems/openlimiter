@@ -428,3 +428,22 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
         ])
         .build()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn switching_the_tab_on_wakes_the_hidden_runtime() {
+        let app = tauri::test::mock_builder()
+            .plugin(init())
+            .build(tauri::generate_context!(test = true))
+            .expect("mock app");
+        let (wake, woken) = std::sync::mpsc::sync_channel(1);
+        *app.state::<RailState>().waker.lock().expect("waker") = Some(wake);
+        set_visible(app.handle(), false).expect("switched off");
+        assert!(woken.try_recv().is_err(), "switching off wakes nothing");
+        set_visible(app.handle(), true).expect("switched on");
+        assert!(woken.try_recv().is_ok(), "switching on wakes the runtime at once");
+    }
+}

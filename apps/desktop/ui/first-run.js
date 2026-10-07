@@ -1367,31 +1367,23 @@ export function initFirstRun(input) {
   void (async () => {
     hadCompletedFirstRun = window.localStorage.getItem(FIRST_RUN_STORAGE_KEY) === "complete";
     const completed = hadCompletedFirstRun && readConfiguredProviders().length > 0;
-    
-    // Start account and poll loading without awaiting
-    const accountPromise = options.accountStatus().then((result) => {
-      if (result.ok) options.onAccountState(result.value);
-      if (!completed && options.isSignedIn() && screen.dataset.step === "account") {
-        void showConnect();
-      } else if (!completed && screen.dataset.step === "account") {
-        const statusEl = screen.querySelector("#first-run-way-status");
-        if (statusEl !== null) statusEl.textContent = "";
-      }
-    });
-
-    const pollSettingPromise = loadClaudePollSetting();
-
-    if (!completed) {
-      if (!hadCompletedFirstRun) {
-        const statusEl = screen.querySelector("#first-run-way-status");
-        if (statusEl !== null) say(statusEl, "checkingSignIn");
-        showAccount();
-      }
+    if (!completed) document.documentElement.dataset.firstRun = "pending";
+    /* The account answer can wait on a network refresh, so nobody waits on
+       it: a new person sees the account step at once, saying it checks. */
+    const way = screen.querySelector("#first-run-way-status");
+    const checking = say("checkingSignIn");
+    if (!hadCompletedFirstRun) {
+      showAccount();
+      if (way !== null) way.textContent = checking;
     }
-
-    await pollSettingPromise;
+    const answered = options.accountStatus().then(
+      (result) => { if (result.ok) options.onAccountState(result.value); },
+      () => {},
+    );
+    await loadClaudePollSetting();
     const poll = await claudePollGate.begin(hadCompletedFirstRun);
     if (hadCompletedFirstRun && poll.needsAcknowledgement) {
+      /* The one time consent shows over a painted Home, not a blank one. */
       document.documentElement.dataset.firstRun = "pending";
       screen.hidden = false;
       showClaudePollConsent();
@@ -1402,13 +1394,17 @@ export function initFirstRun(input) {
       return;
     }
     void detections.load();
-    await accountPromise;
-    if (document.documentElement.dataset.firstRun !== "pending" || screen.dataset.step !== "account") {
-      return;
-    }
+    await answered;
+    if (way !== null && way.textContent === checking) way.textContent = "";
+    /* The answer reconciles only the account step still showing: after
+       Create account later, or once first run is done, it changes nothing. */
+    if (document.documentElement.dataset.firstRun !== "pending") return;
+    if (!hadCompletedFirstRun && screen.dataset.step !== "account") return;
     /* Somebody already signed in has nothing left to be asked. */
     if (options.isSignedIn()) {
       await showConnect();
+      return;
     }
+    if (hadCompletedFirstRun) showAccount();
   })();
 }

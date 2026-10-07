@@ -107,7 +107,8 @@ export const FAILURE_SENTENCES = {
   too_large: "The answer was too large to accept.",
   busy: "Another write held the cache. Trying again may succeed.",
   stale_generation: "The cache moved underneath this write. Trying again may succeed.",
-  codex_cli_not_found: "The Codex CLI could not be found. Start it once to install it.",
+  codex_cli_not_found: "Codex CLI not found. Put it on PATH, then check again.",
+  codex_other_account: "This Codex login belongs to another account.",
   no_delivered_body:
     "That read never received an answer from the provider, so there is nothing " +
     "to record from it.",
@@ -321,9 +322,11 @@ export async function replaceConnectionSecret(connectionId, secret) {
   });
 }
 
-/** Repair a refused Codex connection in place using the live login. */
+/** Repair a refused Codex connection in place from the live login, then read it once. */
 export async function repairCodexConnection(connectionId) {
-  return call("repair_codex_connection", { connection_id: connectionId });
+  return call("repair_codex_connection", {
+    input: { connection_id: connectionId },
+  });
 }
 
 /**

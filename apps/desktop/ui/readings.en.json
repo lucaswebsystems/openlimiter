@@ -107,5 +107,6 @@
   "claudePollContinueOff": "Continue with Claude off",
   "claudeFableDesktopHint": "Fable shows here when Claude usage is on in OpenLimiter on your computer.",
   "pasteOpenRouterKey": "Paste your OpenRouter key in the API keys list below.",
-  "checkingSignIn": "Checking your sign in..."
+  "checkingSignIn": "Checking your sign in...",
+  "cliNotFound": "{name} CLI not found. Put it on PATH, then check again."
 }

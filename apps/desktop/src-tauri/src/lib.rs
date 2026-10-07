@@ -238,6 +238,7 @@ pub fn run() {
             api_spend::api_spend_set_budget,
             commands::connect_provider,
             commands::replace_connection_secret,
+            commands::repair_codex_connection,
             commands::test_provider,
             commands::refresh_provider,
             commands::refresh_home,
@@ -305,7 +306,9 @@ pub fn run() {
                     worker
                         .state::<provider_detection::DetectionStore>()
                         .rescan_due(false, std::time::Duration::ZERO);
-                    use tauri::Emitter; let _ = worker.emit(collector_runtime::COLLECTOR_UPDATED_EVENT, ());
+                    // The fresh scan applies the moment it lands, hidden panel included.
+                    use tauri::Emitter;
+                    let _ = worker.emit(collector_runtime::COLLECTOR_UPDATED_EVENT, ());
                     startup_cleanup::run(&worker);
                 })
                 .await;

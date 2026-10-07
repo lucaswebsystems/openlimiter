@@ -258,13 +258,20 @@ fn collection_plan(
     let mut known_providers = HashSet::new();
 
     for record in records {
-        let provider = detected_provider(record.provider_id);
-        let grants_ownership = !record.is_active() || !matches!(record.status.as_str(), "NEEDS_AUTH" | "AUTH_EXPIRED" | "ERROR");
-        if grants_ownership {
-            known_providers.insert(provider);
-        }
+        /* Ownership, in this order: a paused record holds its provider and
+        its account whatever its status; an active record the provider refused
+        claims neither, so the detected path reads the live login for that
+        account; an active working record claims both. */
+        let claims = !record.is_active()
+            || !matches!(
+                record.status.as_str(),
+                crate::commands::STATUS_NEEDS_AUTH
+                    | crate::commands::STATUS_AUTH_EXPIRED
+                    | crate::commands::STATUS_ERROR
+            );
         let identity = resolve_connection(&record, secrets);
-        if grants_ownership {
+        if claims {
+            known_providers.insert(detected_provider(record.provider_id));
             covered.insert(identity.clone());
         }
         if !record.is_active() {
@@ -882,37 +889,59 @@ mod tests {
     }
 
     #[test]
-    fn ownership_of_the_provider_handles_paused_and_refused_states() {
+    fn a_paused_connection_never_enters_the_background_poll_plan() {
         let secrets = InMemorySecrets::new();
-        for id in ["paused-error", "paused-needs", "paused-expired", "refused", "working"] {
-            secrets.store_secret(id, "token").expect("secret");
+        secrets
+            .store_secret("paused-account", "paused-antigravity-token")
+            .expect("secret");
+        let mut paused = antigravity("paused-account", 1, None);
+        paused.pause_reason = Some(crate::connections::PauseReason::PausedByPlan);
+
+        let plan = collection_plan(vec![paused], &secrets, NOW);
+
+        assert!(plan.records.is_empty());
+        assert_eq!(plan.covered.len(), 1);
+        assert!(plan
+            .known_providers
+            .contains(&DetectedProviderId::Antigravity));
+    }
+
+    #[test]
+    fn a_paused_record_holds_its_provider_a_refused_one_frees_it_a_working_one_claims_it() {
+        /* One Codex record per plan, so each case can only be answered by its
+        own record, through both sets the detected Codex reader consults. */
+        let secrets = InMemorySecrets::new();
+        let account = crate::provider_detection::opaque_account_id(
+            DetectedProviderId::Codex,
+            "codex-provider-account",
+        );
+        let owns = |status: &str, paused: bool| {
+            let mut codex = record(
+                "codex-record",
+                ProviderId::Codex,
+                ReaderId::CodexUsage,
+                CredentialKind::CodexSession,
+                Some("codex-provider-account"),
+                1,
+                None,
+            );
+            codex.status = status.to_string();
+            if paused {
+                codex.pause_reason = Some(crate::connections::PauseReason::PausedByPlan);
+            }
+            let plan = collection_plan(vec![codex], &secrets, NOW);
+            (
+                plan.known_providers.contains(&DetectedProviderId::Codex),
+                plan.covered
+                    .contains(&PollIdentity::detected(ProviderId::Codex, account.clone())),
+            )
+        };
+        for refused in ["ERROR", "NEEDS_AUTH", "AUTH_EXPIRED"] {
+            assert_eq!(owns(refused, true), (true, true), "paused {refused}");
+            assert_eq!(owns(refused, false), (false, false), "active {refused}");
         }
-        
-        let mut paused_err = record("paused-error", ProviderId::Codex, ReaderId::CodexUsage, CredentialKind::CodexSession, None, 1, None);
-        paused_err.pause_reason = Some(crate::connections::PauseReason::PausedByPlan);
-        paused_err.status = "ERROR".to_string();
-
-        let mut paused_needs = record("paused-needs", ProviderId::Grok, ReaderId::GrokUsage, CredentialKind::GrokSession, None, 2, None);
-        paused_needs.pause_reason = Some(crate::connections::PauseReason::PausedByPlan);
-        paused_needs.status = "NEEDS_AUTH".to_string();
-
-        let mut paused_exp = record("paused-expired", ProviderId::Kimi, ReaderId::KimiUsage, CredentialKind::KimiSession, None, 3, None);
-        paused_exp.pause_reason = Some(crate::connections::PauseReason::PausedByPlan);
-        paused_exp.status = "AUTH_EXPIRED".to_string();
-
-        let mut refused = record("refused", ProviderId::Openrouter, ReaderId::OpenrouterKey, CredentialKind::OpenrouterInferenceKey, None, 4, None);
-        refused.status = "NEEDS_AUTH".to_string();
-
-        let mut working = record("working", ProviderId::Cursor, ReaderId::CursorUsage, CredentialKind::CursorSession, None, 5, None);
-        working.status = "CONNECTED".to_string();
-
-        let plan = collection_plan(vec![paused_err, paused_needs, paused_exp, refused, working], &secrets, NOW);
-
-        assert!(plan.known_providers.contains(&DetectedProviderId::Codex));
-        assert!(plan.known_providers.contains(&DetectedProviderId::Grok));
-        assert!(plan.known_providers.contains(&DetectedProviderId::Kimi));
-        assert!(!plan.known_providers.contains(&DetectedProviderId::Openrouter));
-        assert!(plan.known_providers.contains(&DetectedProviderId::Cursor));
+        assert_eq!(owns("CONNECTED", false), (true, true), "working");
+        assert_eq!(owns("CONNECTED", true), (true, true), "paused working");
     }
 
     #[test]

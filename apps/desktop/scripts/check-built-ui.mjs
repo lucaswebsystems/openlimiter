@@ -246,7 +246,8 @@ async function checkMessyViews(browser, origin) {
       const antigravityInView = await page.evaluate(() => {
         const panel = document.getElementById("antigravity-add");
         if (!panel) return "panel not found";
-        if (panel.hidden || getComputedStyle(panel).display === "none") return "panel is hidden";
+        const style = getComputedStyle(panel);
+        if (panel.hidden || style.display === "none" || style.visibility === "hidden") return "panel is hidden";
         const rect = panel.getBoundingClientRect();
         if (rect.width <= 0 || rect.height <= 0) return "panel has zero dimensions";
         if (document.activeElement !== panel && !panel.contains(document.activeElement)) return "panel does not have focus";

@@ -58,6 +58,8 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
   };
   let stopped = false;
   let pending = false;
+  // Asked again while a read was under way: one more read when it ends.
+  let again = false;
   let timer;
   let drawnLimits = "";
   let drawnAgents = "";
@@ -89,9 +91,14 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
   };
 
   async function refresh() {
-    if (stopped || pending) return;
+    if (stopped) return;
+    if (pending) {
+      again = true;
+      return;
+    }
     cancel(timer);
     pending = true;
+    again = false;
     const at = now();
     try {
       const [cache, manual, rail] = await Promise.allSettled([
@@ -131,7 +138,8 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
       reportHeight();
     } finally {
       pending = false;
-      if (!stopped && shown) timer = schedule(refresh, interval);
+      if (!stopped && again) void refresh();
+      else if (!stopped && shown) timer = schedule(refresh, interval);
     }
   }
 
@@ -151,6 +159,8 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
   };
   view.open.addEventListener("click", openApp);
   doc.addEventListener("keydown", escape);
+  /* Every collector pass, and the startup rescan, reads again, shown or not,
+     so a hidden panel never opens on a projection made before detection. */
   const onUpdated = () => void refresh();
   let unlistenUpdated = null;
   if (typeof listen === "function") {

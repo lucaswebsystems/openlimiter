@@ -99,7 +99,7 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
                 break;
             }
             // Do not abandon the worker during sleep; timeouts just check exit.
-            let is_visible = loop {
+            let shown = loop {
                 match receiver.recv_timeout(Duration::from_secs(1)) {
                     Ok(v) => break v,
                     Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return,
@@ -109,11 +109,61 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
                     Err(_) => {}
                 }
             };
-            let sleep_duration = if is_visible { 100 } else { 1000 };
-            let _ = wake_rx.recv_timeout(Duration::from_millis(sleep_duration));
+            /* Shown, the tab ticks every 100 ms for the pointer. Hidden, the
+            main thread is visited once a second, and in between only a wake
+            brings the next tick forward: the tab switched on, or a change
+            this thread sees by itself (a fullscreen window gone, the
+            monitors changed). */
+            if shown {
+                let _ = wake_rx.recv_timeout(Duration::from_millis(100));
+                continue;
+            }
+            let seen = look();
+            for _ in 0..10 {
+                if wake_rx.recv_timeout(Duration::from_millis(100)).is_ok()
+                    || seen
+                        .as_ref()
+                        .zip(look())
+                        .is_some_and(|(before, now)| wakes(before, &now))
+                {
+                    break;
+                }
+            }
         }
     });
     Ok(())
+}
+
+/// What the worker sees without the main thread: whether a window of another
+/// process covers the tab's monitor, and the monitor layout. Windows only;
+/// elsewhere observing needs the main thread, so a hidden tab there waits
+/// for its next tick.
+#[cfg_attr(not(windows), allow(dead_code))]
+struct Look {
+    fullscreen: bool,
+    monitors: Vec<placement::Monitor>,
+}
+
+#[cfg(windows)]
+fn look() -> Option<Look> {
+    let monitors = super::windows::monitors();
+    let fullscreen = placement::select(&monitors, "").is_some_and(|monitor| {
+        placement::covers_monitor(super::windows::foreign_foreground(), monitor.bounds)
+    });
+    Some(Look {
+        fullscreen,
+        monitors,
+    })
+}
+
+#[cfg(not(windows))]
+fn look() -> Option<Look> {
+    None
+}
+
+/// A change the hidden tab answers at once rather than at its next tick.
+fn wakes(before: &Look, now: &Look) -> bool {
+    (before.fullscreen && !now.fullscreen) || before.monitors != now.monitors
 }
 
 fn create_windows<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
@@ -738,5 +788,40 @@ mod linux {
             gdk_x11_display_error_trap_pop_ignored(gdk);
             (pointer, fullscreen, escape_down)
         }
+    }
+}
+
+#[cfg(test)]
+mod wake_tests {
+    use super::*;
+
+    fn seen(fullscreen: bool, width: i32) -> Look {
+        let bounds = Rect {
+            x: 0,
+            y: 0,
+            width,
+            height: 1080,
+        };
+        Look {
+            fullscreen,
+            monitors: vec![placement::Monitor {
+                id: "primary".into(),
+                bounds,
+                work: bounds,
+                scale: 1.0,
+                primary: true,
+            }],
+        }
+    }
+
+    #[test]
+    fn a_hidden_tab_wakes_when_fullscreen_ends_or_the_monitors_change() {
+        assert!(!wakes(&seen(false, 1920), &seen(false, 1920)), "nothing changed");
+        assert!(wakes(&seen(true, 1920), &seen(false, 1920)), "fullscreen ended");
+        assert!(
+            !wakes(&seen(false, 1920), &seen(true, 1920)),
+            "fullscreen began: the tab stays hidden"
+        );
+        assert!(wakes(&seen(false, 1920), &seen(false, 2560)), "the monitors changed");
     }
 }

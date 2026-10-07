@@ -81,7 +81,8 @@
     "claudePollSaveFailed": "The choice could not be saved, so Claude usage stays off.",
     "claudePollContinueOff": "Continue with Claude off",
     "pasteOpenRouterKey": "Paste your OpenRouter key in the API keys list below.",
-    "checkingSignIn": "Checking your sign in..."
+    "checkingSignIn": "Checking your sign in...",
+    "cliNotFound": "{name} CLI not found. Put it on PATH, then check again."
   },
   "meta": {
     "title": "OpenLimiter, AI coding limits and agent activity",

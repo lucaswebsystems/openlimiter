@@ -86,7 +86,8 @@ function firstRunDom(existingInstall = false) {
   const screen = register("first-run", "section");
   const account = register("first-run-account");
   const later = register("first-run-later", "button");
-  account.append(later);
+  const way = register("first-run-way-status", "p");
+  account.append(later, way);
   const setup = register("first-run-setup");
   const heading = register("first-run-title", "h1");
   const providers = register("first-run-providers");
@@ -133,7 +134,7 @@ function firstRunDom(existingInstall = false) {
       for (const listener of listeners[event.type] ?? []) listener(event);
     },
   };
-  return { doc, screen, setup, status, consent, consentStatus, values, win };
+  return { doc, screen, account, way, setup, status, consent, consentStatus, values, win };
 }
 
 function installFirstRunGlobals(harness) {
@@ -1217,36 +1218,123 @@ test("colours and radii on the connect rows come from tokens", () => {
   }
 });
 
-test("a delayed signed out response sends users back to Account after they choose Create account later", async () => {
+/* What the head probe in index.html decides before any script runs. */
+function headProbe(harness) {
+  const configured = JSON.parse(harness.values.get("openlimiter-configured-providers-v1") ?? "[]");
+  harness.doc.documentElement.dataset.firstRun =
+    harness.values.get("openlimiter-first-run-complete-v1") === "complete" && configured.length > 0
+      ? "complete"
+      : "pending";
+}
+
+const never = () => new Promise(() => {});
+
+test("a finished first run stays painted while the account answer never comes", async () => {
+  const harness = firstRunDom(true);
+  installFirstRunGlobals(harness);
+  headProbe(harness);
+  let completions = 0;
+  initFirstRun({
+    accountStatus: never,
+    claudePollEnabled: async () => ({ state: "enabled", enabled: true }),
+    onContinue: () => { completions += 1; },
+    platform: "Linux",
+  });
+  assert.equal(harness.doc.documentElement.dataset.firstRun, "complete", "the head probe was overwritten");
+  assert.equal(harness.screen.dataset.step, undefined, "no step was asked of a finished install");
+  await waitFor(() => harness.screen.hidden === true, "first run did not get out of the way");
+  assert.equal(harness.doc.documentElement.dataset.firstRun, "complete");
+  assert.equal(completions, 0, "nothing was asked, so nothing continued");
+});
+
+test("a new person sees the account step at once, checking, while the account request stalls", () => {
   const harness = firstRunDom(false);
   installFirstRunGlobals(harness);
-  let resolveAccount;
-  const accountPromise = new Promise((resolve) => { resolveAccount = resolve; });
-  let signedIn = false;
-  
+  headProbe(harness);
   initFirstRun({
-    accountStatus: () => accountPromise,
-    isSignedIn: () => signedIn,
-    onAccountState: () => {},
-    claudePollEnabled: async () => ({ state: "missing", enabled: false }),
-    detectProviders: async () => ({ providers: [] }),
-    setClaudePoll: async () => true,
-    onContinue: () => {}
+    accountStatus: never,
+    claudePollEnabled: never,
+    detectProviders: never,
+    platform: "Linux",
   });
+  assert.equal(harness.doc.documentElement.dataset.firstRun, "pending");
+  assert.equal(harness.screen.dataset.step, "account");
+  assert.equal(harness.account.hidden, false);
+  assert.equal(harness.way.textContent, "Checking your sign in...");
+});
 
-  await waitFor(() => harness.screen.dataset.step === "account", "did not start on account");
-  await waitFor(() => harness.screen.querySelector("#first-run-later") !== null, "later button not found");
-  
-  const later = harness.screen.querySelector("#first-run-later");
-  await later.fire("click");
-  
-  await waitFor(() => harness.screen.dataset.step === "connect", "did not navigate to connect");
-  
-  resolveAccount({ ok: true, value: { account: null } });
-  
-  // allow microtasks to flush
-  await new Promise(resolve => setImmediate(resolve));
-  await new Promise(resolve => setImmediate(resolve));
-  
-  assert.equal(harness.screen.dataset.step, "connect", "restarted onboarding after navigation");
+test("the one time Claude consent shows pending over Home, then completes", async () => {
+  const harness = firstRunDom(true);
+  installFirstRunGlobals(harness);
+  headProbe(harness);
+  initFirstRun({
+    accountStatus: never,
+    claudePollEnabled: async () => ({ state: "missing", enabled: false }),
+    setClaudePoll: async (enabled) => ({ ok: true, value: enabled }),
+    platform: "Linux",
+  });
+  assert.equal(harness.doc.documentElement.dataset.firstRun, "complete", "Home paints first");
+  await waitFor(() => harness.consent.hidden === false, "the consent did not appear");
+  assert.equal(harness.doc.documentElement.dataset.firstRun, "pending", "the consent was hidden behind Home");
+  assert.equal(harness.screen.hidden, false);
+  await harness.doc.byId["claude-poll-consent-decline"].fire("click");
+  await waitFor(() => harness.screen.hidden === true, "the consent did not finish");
+  assert.equal(harness.doc.documentElement.dataset.firstRun, "complete");
+});
+
+test("a late signed out answer never sends a person back to Account after Create account later", async () => {
+  const harness = firstRunDom(false);
+  installFirstRunGlobals(harness);
+  headProbe(harness);
+  let answer;
+  initFirstRun({
+    accountStatus: () => new Promise((resolve) => { answer = resolve; }),
+    isSignedIn: () => false,
+    claudePollEnabled: async () => ({ state: "missing", enabled: false }),
+    detectProviders: async () => ({ ok: true, value: { providers: [] } }),
+    platform: "Linux",
+  });
+  assert.equal(harness.screen.dataset.step, "account");
+  await harness.doc.byId["first-run-later"].fire("click");
+  await waitFor(() => harness.screen.dataset.step === "connect", "Create account later did not move on");
+  answer({ ok: true, value: null });
+  for (let turn = 0; turn < 5; turn += 1) await nextTurn();
+  assert.equal(harness.screen.dataset.step, "connect", "the late answer restarted onboarding");
+  assert.equal(harness.account.hidden, true);
+});
+
+test("a signed in answer moves the account step still showing on to Connect", async () => {
+  const signedIn = firstRunDom(false);
+  installFirstRunGlobals(signedIn);
+  headProbe(signedIn);
+  let answer;
+  let session = false;
+  initFirstRun({
+    accountStatus: () => new Promise((resolve) => { answer = resolve; }),
+    isSignedIn: () => session,
+    claudePollEnabled: async () => ({ state: "missing", enabled: false }),
+    detectProviders: async () => ({ ok: true, value: { providers: [] } }),
+    platform: "Linux",
+  });
+  assert.equal(signedIn.way.textContent, "Checking your sign in...");
+  session = true;
+  answer({ ok: true, value: null });
+  await waitFor(() => signedIn.screen.dataset.step === "connect", "a signed in answer did not move on");
+  assert.equal(signedIn.way.textContent, "", "the checking line cleared");
+  for (let turn = 0; turn < 5; turn += 1) await nextTurn();
+});
+
+test("a returning person whose tools were all removed is asked again, never left on a blank screen", async () => {
+  const returning = firstRunDom(false);
+  returning.values.set("openlimiter-first-run-complete-v1", "complete");
+  installFirstRunGlobals(returning);
+  headProbe(returning);
+  initFirstRun({
+    accountStatus: async () => ({ ok: true, value: null }),
+    claudePollEnabled: async () => ({ state: "enabled", enabled: true }),
+    detectProviders: async () => ({ ok: true, value: { providers: [] } }),
+    platform: "Linux",
+  });
+  await waitFor(() => returning.screen.dataset.step === "account", "a returning person was left on a blank screen");
+  assert.equal(returning.doc.documentElement.dataset.firstRun, "pending");
 });

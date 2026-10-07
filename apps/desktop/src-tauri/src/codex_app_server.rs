@@ -268,8 +268,9 @@ mod tests {
         assert!(result.body.contains("rateLimitsByLimitId"));
     }
 
+    /// Blank stdout lines are skipped, as the TypeScript reader skips them.
     #[test]
-    fn empty_line_head_probe_ignores_blank_lines() {
+    fn blank_stdout_lines_are_skipped_like_typescript() {
         let result = fixture_read("empty-line", Duration::from_secs(2)).expect("documented response");
         assert!(result.body.contains("rateLimitsByLimitId"));
     }

@@ -209,13 +209,14 @@ pub(crate) fn parse_codex_session_v1(
     })
 }
 
-/// Read the Codex CLI login with the shared bounded, no follow primitive and
-/// split it immediately into the material destined for the two stores.
-pub(crate) fn read_codex_cli_secret_in_home(
-    home: &Path,
+/// Read the Codex CLI login from the CLI's own directory (a nonempty
+/// `CODEX_HOME`, else `.codex` under the home, as the caller resolved it)
+/// with the shared bounded, no follow primitive and split it immediately
+/// into the material destined for the two stores.
+pub(crate) fn read_codex_cli_secret_in(
+    directory: &Path,
 ) -> Result<CodexCliSession, CodexCredentialError> {
-    let directory = home.join(".codex");
-    fsx::reject_symlink(&directory).map_err(|_| CodexCredentialError::LoginRequired)?;
+    fsx::reject_symlink(directory).map_err(|_| CodexCredentialError::LoginRequired)?;
     let file = directory.join(CODEX_AUTH_FILE_NAME);
     let raw = fsx::bounded_read(&file).ok_or(CodexCredentialError::LoginRequired)?;
     let raw = Zeroizing::new(raw);
@@ -418,7 +419,7 @@ mod tests {
             ),
         )
         .expect("fixture");
-        let imported = read_codex_cli_secret_in_home(dir.path()).expect("imported");
+        let imported = read_codex_cli_secret_in(&codex).expect("imported");
         assert_eq!(imported.access_token.as_str(), TOKEN_CANARY);
         assert_eq!(imported.account_id, ACCOUNT_CANARY);
     }
@@ -440,7 +441,7 @@ mod tests {
         std::fs::write(real.join(CODEX_AUTH_FILE_NAME), "{}").expect("fixture");
         std::os::unix::fs::symlink(&real, dir.path().join(".codex")).expect("symlink");
         assert!(matches!(
-            read_codex_cli_secret_in_home(dir.path()),
+            read_codex_cli_secret_in(&dir.path().join(".codex")),
             Err(CodexCredentialError::LoginRequired)
         ));
     }
@@ -456,7 +457,7 @@ mod tests {
             return;
         }
         assert!(matches!(
-            read_codex_cli_secret_in_home(dir.path()),
+            read_codex_cli_secret_in(&dir.path().join(".codex")),
             Err(CodexCredentialError::LoginRequired)
         ));
     }
