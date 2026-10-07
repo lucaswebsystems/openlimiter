@@ -1369,10 +1369,11 @@ export function initFirstRun(input) {
     const completed = hadCompletedFirstRun && readConfiguredProviders().length > 0;
     if (!completed) document.documentElement.dataset.firstRun = "pending";
     /* The account answer can wait on a network refresh, so nobody waits on
-       it: a new person sees the account step at once, saying it checks. */
+       it: every install not yet finished sees the account step at once,
+       saying it checks, a returning person with no tools left included. */
     const way = screen.querySelector("#first-run-way-status");
     const checking = say("checkingSignIn");
-    if (!hadCompletedFirstRun) {
+    if (!completed) {
       showAccount();
       if (way !== null) way.textContent = checking;
     }
@@ -1399,12 +1400,8 @@ export function initFirstRun(input) {
     /* The answer reconciles only the account step still showing: after
        Create account later, or once first run is done, it changes nothing. */
     if (document.documentElement.dataset.firstRun !== "pending") return;
-    if (!hadCompletedFirstRun && screen.dataset.step !== "account") return;
+    if (screen.dataset.step !== "account") return;
     /* Somebody already signed in has nothing left to be asked. */
-    if (options.isSignedIn()) {
-      await showConnect();
-      return;
-    }
-    if (hadCompletedFirstRun) showAccount();
+    if (options.isSignedIn()) await showConnect();
   })();
 }

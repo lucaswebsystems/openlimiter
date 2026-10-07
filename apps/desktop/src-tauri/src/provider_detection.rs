@@ -965,7 +965,12 @@ fn provider_install_roots(
         }) else {
             continue;
         };
-        let mut root = base_path.to_path_buf();
+        /* The base is the system's own folder, taken where it really is; the
+        layout folders below it are checked as written, so a link among them
+        never carries the trust elsewhere (`validated_executable_in_roots`). */
+        let Some(mut root) = canonical_existing_path(base_path) else {
+            continue;
+        };
         for component in Path::new(relative).components() {
             if let Component::Normal(value) = component {
                 root.push(value);
@@ -983,6 +988,8 @@ const MAX_NPM_CONFIG_BYTES: u64 = 65_536;
 /// The folders a person configured for npm and pnpm on Windows: the npm
 /// `prefix` and the pnpm `global-dir`. A configured folder holds the shims
 /// and the package tree a layout uses, so it is accepted like a default one.
+/// Only a configured folder is added: pnpm's default global folder sits in
+/// pnpm's home, whose own root already covers it.
 fn configured_install_roots(context: &DiscoveryContext) -> Vec<PathBuf> {
     if context.platform != DiscoveryPlatform::Windows {
         return Vec::new();
@@ -992,7 +999,7 @@ fn configured_install_roots(context: &DiscoveryContext) -> Vec<PathBuf> {
         .as_deref()
         .and_then(|file| configured_directory(file, "prefix"))
         .into_iter()
-        .chain(pnpm_global_dir(context))
+        .chain(configured_pnpm_global_dir(context))
         .collect()
 }
 
@@ -1009,16 +1016,21 @@ fn configured_directory(file: &Path, key: &str) -> Option<PathBuf> {
         .filter(|path| path.is_absolute())
 }
 
-/// pnpm's global folder: `global-dir` from `.npmrc`, else from pnpm's own
-/// config file, else `global` under pnpm's home.
-fn pnpm_global_dir(context: &DiscoveryContext) -> Option<PathBuf> {
+/// pnpm's `global-dir` as a person configured it: in `.npmrc`, else in
+/// pnpm's own config file.
+fn configured_pnpm_global_dir(context: &DiscoveryContext) -> Option<PathBuf> {
     let pnpm = context.local.as_deref()?.join("pnpm");
     context
         .home
         .as_deref()
         .and_then(|home| configured_directory(&home.join(".npmrc"), "global-dir"))
         .or_else(|| configured_directory(&pnpm.join("config").join("rc"), "global-dir"))
-        .or_else(|| Some(pnpm.join("global")))
+}
+
+/// pnpm's global folder: the configured one, else `global` under pnpm's home.
+fn pnpm_global_dir(context: &DiscoveryContext) -> Option<PathBuf> {
+    configured_pnpm_global_dir(context)
+        .or_else(|| Some(context.local.as_deref()?.join("pnpm").join("global")))
 }
 
 /// Whether `directory` is `expected`, compared by their real paths.
@@ -1123,10 +1135,13 @@ pub(crate) fn validated_executable_in_roots(path: &Path, roots: &[PathBuf]) -> O
     if !fs::metadata(&resolved).is_ok_and(|metadata| metadata.is_file()) {
         return None;
     }
+    /* Each root is checked as written, before it is resolved: resolving
+    first would follow a link standing in for a root and trust wherever it
+    points. */
     roots
         .iter()
-        .filter_map(|root| canonical_existing_path(root))
         .filter(|root| path_components_are_real_directory(root))
+        .filter_map(|root| canonical_existing_path(root))
         .any(|root| resolved.starts_with(root))
         .then_some(resolved)
 }
@@ -3286,6 +3301,11 @@ mod tests {
         assert_eq!(resolve(&pnpm), None, "an adjacent npm tree is not the pnpm package");
         let native = windows_codex_package(&pnpm.join("global").join("5"));
         assert_eq!(resolve(&pnpm), Some(native));
+        // Its default global folder is covered by pnpm's home, never a root of its own.
+        assert_eq!(
+            configured_install_roots(&context(DiscoveryPlatform::Windows, &home)),
+            vec![prefix.clone()]
+        );
         // A `global-dir` in .npmrc is where pnpm keeps it instead.
         let global = home.join("pnpm-global");
         write(&home.join(".npmrc"), &format!("global-dir={}\n", global.display()));
@@ -3344,14 +3364,20 @@ mod tests {
         assert_eq!(resolve_windows_codex(&home, &[&npm, &nvm]), Some(nvm_native));
     }
 
+    /// A file symbolic link, which the test needs: any failure fails the test,
+    /// except Windows refusing an account without the symbolic link privilege
+    /// (no developer mode, not elevated), the one refusal a test cannot work
+    /// around. POSIX always allows the link, so CI covers it on every run.
     fn file_link(target: &Path, link: &Path) -> bool {
         #[cfg(windows)]
-        {
-            std::os::windows::fs::symlink_file(target, link).is_ok()
-        }
+        let created = std::os::windows::fs::symlink_file(target, link);
         #[cfg(unix)]
-        {
-            std::os::unix::fs::symlink(target, link).is_ok()
+        let created = std::os::unix::fs::symlink(target, link);
+        match created {
+            Ok(()) => true,
+            #[cfg(windows)]
+            Err(error) if error.raw_os_error() == Some(1314) => false,
+            Err(error) => panic!("the link this test needs was refused: {error}"),
         }
     }
 
@@ -3367,11 +3393,16 @@ mod tests {
         let outside = home.join("outside").join("codex.exe");
         write(&package, "winget codex");
         write(&outside, "outside codex");
+        // Where winget may not make links, it puts the package folder on PATH.
+        let folder = package.parent().expect("package folder");
+        assert_eq!(resolve_windows_codex(&home, &[folder]), canonical_existing_path(&package));
         let links = winget.join("Links");
-        fs::create_dir_all(&links).expect("links");
-        /* A file link needs a privilege or developer mode on Windows; where
-        the environment refuses, there is nothing to assert. */
+        // A plain file there is no link: the Links folder is not a root.
+        write(&links.join("codex.exe"), "copied codex");
+        assert_eq!(resolve_windows_codex(&home, &[&links]), None);
+        fs::remove_file(links.join("codex.exe")).expect("unlink");
         if !file_link(&package, &links.join("codex.exe")) {
+            eprintln!("skipped the link half: this Windows account may not create symbolic links");
             return;
         }
         assert_eq!(
@@ -3383,6 +3414,8 @@ mod tests {
         assert_eq!(resolve_windows_codex(&home, &[&links]), None);
     }
 
+    /// A directory junction, which needs no privilege: every one this test
+    /// asks for must exist, so the test never passes without its links.
     #[cfg(windows)]
     fn junction(link: &Path, target: &Path) -> bool {
         std::process::Command::new("cmd")
@@ -3412,9 +3445,7 @@ mod tests {
         let multishells = home.join("local").join("fnm_multishells");
         fs::create_dir_all(&multishells).expect("multishells");
         let shell = multishells.join("1234_1700000000000");
-        if !junction(&shell, &installation) {
-            return;
-        }
+        assert!(junction(&shell, &installation), "the fnm shell link");
         assert_eq!(resolve_windows_codex(&home, &[&shell]), Some(native));
 
         // nvm windows: its link folder sits outside every root and resolves into one.
@@ -3433,7 +3464,8 @@ mod tests {
         assert!(junction(&stray, &elsewhere));
         assert_eq!(resolve_windows_codex(&home, &[&stray]), None);
 
-        // and a pnpm global folder linked out of every root.
+        // and a pnpm global folder linked out of every root: one of its
+        // numbered folders,
         let pnpm = home.join("local").join("pnpm");
         shim(&pnpm);
         fs::create_dir_all(pnpm.join("global")).expect("pnpm global");
@@ -3441,6 +3473,17 @@ mod tests {
         windows_codex_package(&foreign);
         assert!(junction(&pnpm.join("global").join("5"), &foreign));
         assert_eq!(resolve_windows_codex(&home, &[&pnpm]), None);
+        // the default global folder itself,
+        fs::remove_dir_all(pnpm.join("global")).expect("pnpm global removed");
+        let store = home.join("foreign-global");
+        windows_codex_package(&store.join("5"));
+        assert!(junction(&pnpm.join("global"), &store));
+        assert_eq!(resolve_windows_codex(&home, &[&pnpm]), None, "a link at global itself");
+        // and a configured global folder that is a link.
+        let configured = home.join("configured-global");
+        assert!(junction(&configured, &store));
+        write(&home.join(".npmrc"), &format!("global-dir={}\n", configured.display()));
+        assert_eq!(resolve_windows_codex(&home, &[&pnpm]), None, "a configured link");
     }
 
     #[test]

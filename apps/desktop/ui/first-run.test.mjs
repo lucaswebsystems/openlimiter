@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import vm from "node:vm";
 
 import {
   CODEX_SIGN_IN_TIMEOUT_MILLISECONDS,
@@ -1218,16 +1219,68 @@ test("colours and radii on the connect rows come from tokens", () => {
   }
 });
 
-/* What the head probe in index.html decides before any script runs. */
+/* The head script of index.html itself, run as the page runs it before any
+   module loads, against this harness's storage and root element. A data
+   attribute it sets lands in `dataset`, as it does in a browser. */
 function headProbe(harness) {
-  const configured = JSON.parse(harness.values.get("openlimiter-configured-providers-v1") ?? "[]");
-  harness.doc.documentElement.dataset.firstRun =
-    harness.values.get("openlimiter-first-run-complete-v1") === "complete" && configured.length > 0
-      ? "complete"
-      : "pending";
+  const html = read("index.html");
+  const start = html.indexOf("<script>") + "<script>".length;
+  const script = html.slice(start, html.indexOf("</script>", start));
+  const root = harness.doc.documentElement;
+  const documentElement = {
+    setAttribute(name, value) {
+      const data = /^data-(.+)$/u.exec(name);
+      if (data === null) root.setAttribute(name, value);
+      else root.dataset[data[1].replace(/-([a-z])/gu, (_, letter) => letter.toUpperCase())] = String(value);
+    },
+  };
+  vm.runInNewContext(script, { window: harness.win, document: { documentElement } });
 }
 
 const never = () => new Promise(() => {});
+
+test("the head script paints Home only for a finished install with tools", () => {
+  const painted = (values) => {
+    const harness = firstRunDom(false);
+    for (const [key, value] of Object.entries(values)) harness.values.set(key, value);
+    headProbe(harness);
+    return harness.doc.documentElement.dataset.firstRun;
+  };
+  const done = "openlimiter-first-run-complete-v1";
+  const tools = "openlimiter-configured-providers-v1";
+  assert.equal(painted({ [done]: "complete", [tools]: '["CODEX"]' }), "complete");
+  assert.equal(painted({}), "pending", "a new install");
+  assert.equal(painted({ [done]: "complete" }), "pending", "finished, but no tools were ever kept");
+  assert.equal(painted({ [done]: "complete", [tools]: "[]" }), "pending", "every tool removed");
+  assert.equal(painted({ [tools]: '["CODEX"]' }), "pending", "tools, first run never finished");
+  assert.equal(painted({ [done]: "complete", [tools]: "{" }), "pending", "unreadable tools");
+  assert.equal(painted({ [done]: "complete", [tools]: '{"length":1}' }), "pending", "not a list");
+  const refused = firstRunDom(false);
+  refused.win.localStorage.getItem = () => { throw new Error("storage refused"); };
+  headProbe(refused);
+  assert.equal(refused.doc.documentElement.dataset.firstRun, "pending", "storage refused");
+});
+
+test("a returning person with no tools left sees the account step at once while the account request stalls", async () => {
+  const returning = firstRunDom(false);
+  returning.values.set("openlimiter-first-run-complete-v1", "complete");
+  returning.values.set("openlimiter-configured-providers-v1", "[]");
+  installFirstRunGlobals(returning);
+  headProbe(returning);
+  initFirstRun({
+    accountStatus: never,
+    claudePollEnabled: async () => ({ state: "enabled", enabled: true }),
+    detectProviders: never,
+    platform: "Linux",
+  });
+  assert.equal(returning.doc.documentElement.dataset.firstRun, "pending");
+  assert.equal(returning.screen.dataset.step, "account", "a returning person was left on a blank screen");
+  assert.equal(returning.account.hidden, false);
+  assert.equal(returning.way.textContent, "Checking your sign in...");
+  for (let turn = 0; turn < 5; turn += 1) await nextTurn();
+  assert.equal(returning.screen.dataset.step, "account", "the stalled answer took the step away");
+  assert.equal(returning.account.hidden, false);
+});
 
 test("a finished first run stays painted while the account answer never comes", async () => {
   const harness = firstRunDom(true);
