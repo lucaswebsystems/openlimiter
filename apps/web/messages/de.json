@@ -534,7 +534,7 @@
       },
       "phone": {
         "title": "Vom Desktop koppeln. Deine Balken auf dem Startbildschirm.",
-        "lead": "Kopple dein Handy vom Desktop aus und installiere danach die Web App auf deinem Startbildschirm. Keine native iOS oder Android Anwendung ist gebaut.",
+        "lead": "Kopple dein Handy vom Desktop aus und öffne dann die Web App über den Startbildschirm. Sie zeigt die neuesten Messungen von deinem Computer, einschließlich des Zeitpunkts ihrer Erfassung.",
         "note": "Das Handy folgt seinem hellen oder dunklen Design und behält die letzten Messungen offline. Dein Computer sammelt weiterhin neue Messungen, und Anbieterzugangsdaten bleiben dort.",
         "cta": "Telefon App öffnen",
         "alt": "Die OpenLimiter Telefon App mit synthetischen, vom Desktop gekoppelten Messungen in den Ansichten Usage und Pro."
@@ -997,7 +997,7 @@
       "androidGuide": "Öffne die gekoppelte Web App in Chrome, öffne das Menü und wähle App installieren oder Zum Startbildschirm.",
       "openApp": "Web App öffnen",
       "title": "Auf deinem Handy",
-      "lead": "Das installiert die Web App auf deinen Startbildschirm. Keine native iOS oder Android Anwendung ist gebaut.",
+      "lead": "Kopple dein Handy vom Desktop aus und installiere anschließend die Web App auf deinem Startbildschirm. Eine native iOS oder Android Anwendung wird nicht angeboten.",
       "qrAlt": "QR Code, der zu {url} führt",
       "scan": "Scanne den vom Desktop angezeigten Code mit der Kamera deines Handys. Die Web App öffnet sich, und du installierst sie von dort auf den Startbildschirm."
     },

@@ -55,7 +55,7 @@ export function TerminalStatusline({ caption }: { caption: string }) {
                 {cell.map((span, spanIndex) => (
                   <Span span={span} key={spanIndex} />
                 ))}
-                {cellIndex < cells.length - 1 && <span data-statusline-separator aria-hidden="true"> | </span>}
+                {cellIndex > 0 && <span data-statusline-separator aria-hidden="true"> | </span>}
               </span>
             ))}
           </div>

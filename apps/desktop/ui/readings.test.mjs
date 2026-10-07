@@ -379,6 +379,32 @@ test("money balances keep their amount and omit the empty bar track", () => {
   }
 });
 
+test("rows without a percent keep their wide value and detail columns", () => {
+  const css = read("./dist/quiet.css");
+  assert.match(css, /\.q-row\s*>\s*\.q-val\s*\{[^}]*grid-column:\s*3/su);
+  assert.match(css, /\.q-row\s*>\s*\.q-rst\s*\{[^}]*grid-column:\s*4/su);
+  assert.match(css, /@media\s*\(max-width:\s*34rem\)[\s\S]*?\.q-limits:not\(\.q-compact\) \.q-row \.q-val\s*\{[^}]*grid-column:\s*2/su);
+  assert.match(css, /\.q-compact \.q-row\[data-detail="money"\] \.q-val\s*\{[^}]*grid-column:\s*2/su);
+  const doc = fakeDocument();
+  const mount = doc.createElement("div");
+  const model = limitsModel([{
+    ...fixtures.projected.snapshots[0],
+    provider: "OPENROUTER",
+    meter: "ACCOUNT_BALANCE",
+    unit: "CREDITS",
+    value: 12.47,
+    usedAmount: 12.47,
+    limitAmount: 20,
+    currency: "USD",
+    observedAt: now,
+    resetAt: null,
+  }], now);
+  renderLimits(doc, mount, model, { compact: false });
+  const row = mount.all((node) => node.className === "q-row")[0];
+  assert.equal(row.all((node) => node.className === "q-bar").length, 0);
+  assert.deepEqual(row.children.map((node) => node.className), ["q-lbl", "q-val", "q-rst"]);
+});
+
 test("a fix reads by its route: this window's own flow, or sign in in the tool and check again", () => {
   const signIn = { provider: "GROK", fixKind: "sign_in" };
   assert.deepEqual(fixWords(signIn, "connect"), { issue: "fixSignInIssue", detail: "fixSignInDetail", action: "fixSignInAction" });

@@ -234,7 +234,7 @@ button.q-show {
  */
 .q-limits {
   display: grid;
-  grid-template-columns: minmax(9rem, fit-content(9rem)) minmax(3rem, 1fr) max-content max-content;
+  grid-template-columns: minmax(9rem, max-content) minmax(3rem, 1fr) max-content max-content;
   column-gap: 0.875rem;
 }
 
@@ -357,6 +357,14 @@ button.q-show {
   line-height: 1.25;
   text-align: right;
   white-space: nowrap;
+}
+
+.q-row > .q-val {
+  grid-column: 3;
+}
+
+.q-row > .q-rst {
+  grid-column: 4;
 }
 
 /* The narrowest window gives the indent back to the label column. */
@@ -1044,8 +1052,7 @@ html {
   background: var(--ol-canvas);
 }
 
-.chrome .strip-top,
-.chrome .tabs {
+.chrome .strip-top {
   width: min(100%, 46rem);
   margin-inline: auto;
 }

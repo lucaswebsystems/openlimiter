@@ -38,6 +38,14 @@ describe("synthetic screenshot pipeline", () => {
     expect(source).not.toContain(".ol-live-meter-card");
   });
 
+  it("measures each tab from a short viewport and sizes the desk to all Usage content", () => {
+    const source = readFileSync(new URL("../../../scripts/capture-screenshots.mjs", import.meta.url), "utf8");
+    expect(source).toContain("const tabHeight = async () => {");
+    expect(source).toContain("await page.setViewportSize({ width: 1000, height: 1 });");
+    expect(source).toContain('home.locator("#tab-panel-usage")');
+    expect(source).not.toContain('home.locator(".q-usage")');
+  });
+
   it("rejects emails and profile paths, including escaped JSON paths", () => {
     for (const value of ["demo@example.test", "C:\\Users\\example\\project", "/home/example/project", { path: "C:\\Users\\example" }]) {
       expect(() => assertCaptureSafe(value)).toThrow(/Capture refused/);

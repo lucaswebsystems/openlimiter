@@ -46,6 +46,9 @@ describe("live terminal status line", () => {
   it("does not leave a dangling separator on the final sample cell", () => {
     mounted = render(createElement(TerminalStatusline, { caption: "Real renderer" }));
     const cells = [...mounted.container.querySelectorAll("[data-statusline-cell]")];
+    expect(cells[0]?.textContent).not.toMatch(/^\s*\|/u);
+    expect(cells.slice(1).every((cell) => cell.textContent?.startsWith(" | "))).toBe(true);
+    expect(cells.slice(0, -1).every((cell) => !cell.textContent?.match(/\|\s*$/u))).toBe(true);
     expect(cells.at(-1)?.textContent).not.toMatch(/\|\s*$/u);
   });
 

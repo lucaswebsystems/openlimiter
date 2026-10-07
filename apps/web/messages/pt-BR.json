@@ -2524,7 +2524,7 @@
         },
         "noCode": {
           "title": "Este link não tem código de pareamento",
-          "body": "O aplicativo de desktop gera um código de pareamento que dura dois minutos. Abra o OpenLimiter no computador, escolha Parear seu celular e escaneie o código exibido."
+          "body": "O aplicativo de desktop gera um código de pareamento que dura dois minutos. Abra o OpenLimiter no computador, escolha Pair your phone e escaneie o código exibido."
         },
         "waiting": {
           "title": "Aguardando aprovação",

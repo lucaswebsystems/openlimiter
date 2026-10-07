@@ -10,7 +10,7 @@ test("Settings mounts its account hooks and gates captions by the feature entitl
   for (const id of ["menu-account-email", "menu-signed-in", "devices-mount", "pro-mount", "plan-cap-mount", "menu-logout"]) assert.match(html, new RegExp(`id=\"${id}\"`, "u"));
   const free = captionsMarkup("tagged", false);
   assert.match(free, /data-caption="tagged"[^>]* disabled/u);
-  assert.match(free, /Locked/u);
+  assert.match(free, /<span class="menu-lock" aria-hidden="true"><svg/u);
   const pro = captionsMarkup("tagged", true);
   assert.doesNotMatch(pro, /data-caption="tagged"[^>]* disabled/u);
   assert.match(pro, /aria-pressed="true"/u);

@@ -54,7 +54,7 @@ ${site.SITE_NAME} never asks for a vendor password: every sign in happens on tha
 - Web hub at ${site.SITE_URL}/app, account first: sign in, connect, bars. Signed in, it shows the bounded percentages your own devices synced.
 - Progressive web app. The hub installs to a phone or desktop home screen from the browser and keeps working offline.
 - An account, with sign in through GitHub, Google, Microsoft, or a magic link sent to your email address. Sync is on from the moment you sign in. It syncs bounded quota readings and nothing else.
-- Phone access by QR pairing from the hub, a Pro surface, with nothing typed. Add it to a home screen from there: Android offers to install it, iOS uses Share, then Add to Home Screen.
+- Phone access is free for current readings. Pair from the desktop, choose Pair your phone, scan the code, then add the web app to a home screen.
 - Agent adapters that inject the bounded budget block, installed with \`openlimiter hooks install <agent>\`.
 
 ## Pro

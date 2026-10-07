@@ -587,19 +587,23 @@ async function captureProductDetails(browser, theme, port) {
     await page.locator('#key-rows [data-key-row]').first().waitFor({ state: "attached" });
     await page.getByRole('tab', { name: 'Usage', exact: true }).click();
     await page.locator('#agents-section:not([hidden])').waitFor();
-    /* The 2.0.3 one screen Home (tools, API keys, agents) is taller than the
-       old tabbed window, so the window grows to the content instead of cutting it. */
-    const homeHeight = await page.evaluate(() => document.scrollingElement.scrollHeight);
+    /* Reset the viewport before each tab measurement. scrollHeight cannot shrink
+       below the current viewport, so a taller tab would otherwise leave blank space. */
+    const tabHeight = async () => {
+      await page.setViewportSize({ width: 1000, height: 1 });
+      return page.evaluate(() => document.scrollingElement.scrollHeight);
+    };
+    const homeHeight = await tabHeight();
     await page.setViewportSize({ width: 1000, height: homeHeight });
     await shoot("desktop-home");
     await page.getByRole('tab', { name: 'Connect Tools', exact: true }).click();
     await page.locator('#key-rows [data-key-row]').first().waitFor({ state: "attached" });
-    const connectHeight = await page.evaluate(() => document.scrollingElement.scrollHeight);
+    const connectHeight = await tabHeight();
     await page.setViewportSize({ width: 1000, height: connectHeight });
     await shoot("desktop-connect");
     await page.getByRole('tab', { name: 'Settings', exact: true }).click();
     await page.locator('#tab-panel-settings #settings-appearance').waitFor({ state: "attached" });
-    const settingsHeight = await page.evaluate(() => document.scrollingElement.scrollHeight);
+    const settingsHeight = await tabHeight();
     await page.setViewportSize({ width: 1000, height: settingsHeight });
     await shoot("desktop-settings");
     /* The panel reports the height its content needs at its own width, and
@@ -631,13 +635,11 @@ async function captureProductDetails(browser, theme, port) {
   return names;
 }
 
-/* The desk window ends below the API key rows, keeping the 2.0.3 one screen
-   Tools and API keys UI together while leaving Agents below the crop. */
+/* The desk window follows the complete active Usage tab, including Agents and
+   a bottom gutter, so the one screen capture does not cut the list. */
 async function fitWindowToLimits(page) {
   const home = page.frameLocator("iframe");
-  /* The 2.0.3 one screen Home runs past the desk with its API keys, so the
-     window ends under the whole Tools card (Add a tool included), as a window sized to the meters would. */
-  const content = await home.locator(".q-usage").evaluate(card => Math.ceil(card.getBoundingClientRect().bottom) + 16);
+  const content = await home.locator("#tab-panel-usage").evaluate(panel => Math.ceil(panel.getBoundingClientRect().bottom) + 16);
   await page.evaluate(({ content, titlebar, menubar, desk }) => {
     const frame = document.querySelector(".window");
     frame.style.height = `${content + titlebar}px`;
