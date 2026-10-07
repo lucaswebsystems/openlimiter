@@ -107,6 +107,10 @@ function golden(name: string): string {
 }
 
 describe("statusline golden files", () => {
+  it("keeps reset markers compact for provider rows", () => {
+    expect(golden("claude-bar-80")).toMatch(/cx5h [^|]+ 51% ·4h59m/u);
+  });
+
   describe("bar style, per host shape", () => {
     for (const host of STATUSLINE_HOSTS) {
       for (const width of WIDTHS) {

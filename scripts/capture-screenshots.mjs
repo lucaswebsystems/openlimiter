@@ -216,8 +216,10 @@ export async function demoSnapshots(now) {
   ]);
   const futureExpiry = new Date(Date.parse(now) + 24 * 60 * 60 * 1000).toISOString();
   return core.mergeSnapshots([], rawSnapshots).map((snapshot) => {
+    const capture = captureDemoOverride(snapshot, now);
     const stamped = {
       ...snapshot,
+      ...capture,
       observedAt: now,
       expiresAt: futureExpiry,
     };
@@ -317,6 +319,15 @@ const MENU_GLYPHS = `
 
 async function scenePage(theme, windowUrl) {
   const skin = AURORA[theme];
+  const snap = (value) => Math.round(value * SCENE.scale) / SCENE.scale;
+  const frame = {
+    left: snap(WINDOW.left),
+    top: snap(WINDOW.top),
+    width: snap(WINDOW.width),
+    height: snap(WINDOW.height),
+    titlebar: snap(WINDOW.titlebar),
+    border: 1 / SCENE.scale,
+  };
   /* The desk is a photograph now, Lucas's call (2026-08-10): a nature
      landscape in the spirit of a current macOS default, generated on this
      machine so there is no third party licence, frozen in the media ledger.
@@ -338,12 +349,12 @@ async function scenePage(theme, windowUrl) {
   .menu-right{display:flex;align-items:center;gap:13px;color:${skin.menubarDim}}
   .menu-right svg{display:block}
   .clock{font-size:13px;letter-spacing:0.01em}
-  .window{position:absolute;left:${String(WINDOW.left)}px;top:${String(WINDOW.top)}px;width:${String(WINDOW.width)}px;height:${String(WINDOW.height)}px;border-radius:12px;overflow:hidden;border:1px solid ${skin.windowBorder};box-shadow:${skin.windowShadow}}
-  .titlebar{position:relative;height:${String(WINDOW.titlebar)}px;display:flex;align-items:center;padding:0 16px;background:${skin.titlebar};border-bottom:1px solid ${skin.hairline}}
+  .window{position:absolute;left:${String(frame.left)}px;top:${String(frame.top)}px;width:${String(frame.width)}px;height:${String(frame.height)}px;border-radius:12px;overflow:hidden;border:${String(frame.border)}px solid ${skin.windowBorder};box-shadow:${skin.windowShadow}}
+  .titlebar{position:relative;height:${String(frame.titlebar)}px;display:flex;align-items:center;padding:0 16px;background:${skin.titlebar};border-bottom:${String(frame.border)}px solid ${skin.hairline}}
   .dots{display:flex;gap:8px}
   .dot{width:12px;height:12px;border-radius:50%}
   .title{position:absolute;left:0;right:0;text-align:center;font-size:13px;font-weight:500;color:${skin.titlebarText};pointer-events:none}
-  iframe{display:block;width:100%;height:${String(WINDOW.height - WINDOW.titlebar)}px;border:0;background:transparent}
+  iframe{display:block;width:100%;height:${String(snap(WINDOW.height - WINDOW.titlebar - 2 * frame.border))}px;border:0;background:transparent}
 </style></head>
 <body><div class="desk">
   <div class="menubar">
@@ -481,16 +492,35 @@ async function wallpaperPage() {
     <body style="margin:0;height:100vh;background:url(${wallpaper}) center / cover no-repeat"></body></html>`;
 }
 
+const CAPTURE_DEMO_READINGS = Object.freeze({
+  "CLAUDE:FIVE_HOUR": { value: 37, resetInSeconds: 4_320 },
+  "CLAUDE:SEVEN_DAY": { value: 58, resetInSeconds: 190_800 },
+  "CLAUDE:SEVEN_DAY_FABLE": { value: 63, resetInSeconds: 414_000 },
+  "CODEX:FIVE_HOUR": { value: 71, resetInSeconds: 13_200 },
+  "CODEX:SEVEN_DAY": { value: 82, resetInSeconds: 460_800 },
+  "ANTIGRAVITY:FIVE_HOUR": { value: 91, resetInSeconds: 8_760 },
+  "ANTIGRAVITY:SEVEN_DAY": { value: 67, resetInSeconds: 300_600 },
+});
+
 export const DEMO_SHARED_METERS = Object.freeze({
-  CODEX_SEVEN_DAY: 84,
-  ANTIGRAVITY_FIVE_HOUR: 94,
+  CODEX_SEVEN_DAY: CAPTURE_DEMO_READINGS["CODEX:SEVEN_DAY"].value,
+  ANTIGRAVITY_FIVE_HOUR: CAPTURE_DEMO_READINGS["ANTIGRAVITY:FIVE_HOUR"].value,
   OPENROUTER_ACCOUNT_BALANCE: 12.54,
 });
 
+function captureDemoOverride(snapshot, now) {
+  const reading = CAPTURE_DEMO_READINGS[`${snapshot.provider}:${snapshot.meter}`];
+  if (reading === undefined) return {};
+  return {
+    value: reading.value,
+    resetAt: new Date(Date.parse(now) + reading.resetInSeconds * 1_000).toISOString(),
+  };
+}
+
 export const SAMPLE_VALUES = [
-  { provider: "CLAUDE", meter: "FIVE_HOUR", value: 42 },
-  { provider: "CLAUDE", meter: "SEVEN_DAY", value: 64 },
-  { provider: "CLAUDE", meter: "SEVEN_DAY_FABLE", value: 69 },
+  { provider: "CLAUDE", meter: "FIVE_HOUR", value: CAPTURE_DEMO_READINGS["CLAUDE:FIVE_HOUR"].value },
+  { provider: "CLAUDE", meter: "SEVEN_DAY", value: CAPTURE_DEMO_READINGS["CLAUDE:SEVEN_DAY"].value },
+  { provider: "CLAUDE", meter: "SEVEN_DAY_FABLE", value: CAPTURE_DEMO_READINGS["CLAUDE:SEVEN_DAY_FABLE"].value },
   /* The line's one orange reading: the terminal shot must show all four bands. */
   { provider: "CODEX", meter: "SEVEN_DAY", value: DEMO_SHARED_METERS.CODEX_SEVEN_DAY },
   { provider: "ANTIGRAVITY", meter: "FIVE_HOUR", value: DEMO_SHARED_METERS.ANTIGRAVITY_FIVE_HOUR },
@@ -570,9 +600,9 @@ async function writeStatuslineSample(snapshots, now) {
 
 export async function terminalPage(theme, snapshots, now, { wrap = true } = {}) {
   const output = await statuslineOutput(snapshots, now);
-  /* A cell stays whole, and its separator belongs to the following cell. */
+  /* The wrapped capture groups these cells after measuring their line tops. */
   const cells = output.split(" | ");
-  const body = cells.map((cell, index) => `<span class="cell">${index === 0 ? "" : " | "}${ansiHtml(cell)}</span>`).join("");
+  const body = cells.map((cell, index) => `<span class="cell">${ansiHtml(cell)}</span>${index < cells.length - 1 ? '<span class="separator" aria-hidden="true"> | </span>' : ""}`).join("");
   const lightBandColors = theme === "light"
     ? ".band-yellow{color:#9a6700}.band-orange{color:#bc4c00}.band-red{color:#cf222e}"
     : "";
@@ -582,7 +612,7 @@ export async function terminalPage(theme, snapshots, now, { wrap = true } = {}) 
   return `<!doctype html><html lang="en" data-theme="${theme}"><head><meta charset="utf-8">
     <link rel="stylesheet" href="engine/ui/tokens.css"><style>
       *{box-sizing:border-box}body{margin:0;padding:44px;background:var(--ol-canvas);color:var(--ol-body);font-family:var(--ol-font-sans)}
-      p{font-size:16px;color:var(--ol-muted)}pre{margin-top:34px;font:19px/2 ui-monospace,monospace;white-space:${wrap ? "pre-wrap" : "pre"};${wrap ? "" : "display:table;width:max-content;max-width:none;"}}.cell{display:${wrap ? "inline-block" : "inline"};white-space:pre}
+      p{font-size:16px;color:var(--ol-muted)}pre{margin-top:34px;font:19px/2 ui-monospace,monospace;white-space:${wrap ? "pre-wrap" : "pre"};${wrap ? "" : "display:table;width:max-content;max-width:none;"}}.cell{display:${wrap ? "inline-block" : "inline"};white-space:pre}.separator{white-space:pre}
       ${["green", "yellow", "orange", "red"].map(b => `.band-${b}{color:var(--ol-band-${b}-label)}`).join("")}${lightBandColors}
 </style></head><body><p>openlimiter statusline</p><pre>${body}</pre></body></html>`;
 }
@@ -591,15 +621,49 @@ async function fitTerminalCapture(page) {
   await page.setViewportSize({ width: 1200, height: 1 });
   const measurement = await page.locator("pre").evaluate((pre) => {
     const frame = pre.getBoundingClientRect();
-    const longestLine = Math.max(0, ...Array.from(pre.querySelectorAll(".cell"), (cell) => {
+    const cells = [...pre.querySelectorAll(".cell")];
+    const lines = [];
+    let lineTop = null;
+    for (const [index, cell] of cells.entries()) {
       const rect = cell.getBoundingClientRect();
-      return rect.right - frame.left;
+      if (lineTop === null || Math.abs(rect.top - lineTop) > 0.5) {
+        lineTop = rect.top;
+        lines.push([]);
+      }
+      lines.at(-1).push(index);
+    }
+    const longestLine = Math.max(0, ...lines.map((line) => {
+      const last = cells[line.at(-1)];
+      return last === undefined ? 0 : last.getBoundingClientRect().right - frame.left;
     }));
-    return { frameWidth: pre.clientWidth, longestLine };
+    return { frameWidth: pre.clientWidth, longestLine, lines };
   });
   if (measurement.longestLine > measurement.frameWidth + 0.5) {
     throw new Error(`The terminal status line exceeds its frame: ${measurement.longestLine} > ${measurement.frameWidth}.`);
   }
+  await page.locator("pre").evaluate((pre, lines) => {
+    const cells = [...pre.querySelectorAll(".cell")];
+    const fragment = document.createDocumentFragment();
+    for (const [lineIndex, indexes] of lines.entries()) {
+      const line = document.createElement("span");
+      line.className = "terminal-line";
+      for (const [cellIndex, index] of indexes.entries()) {
+        const cell = cells[index];
+        if (cell === undefined) continue;
+        if (cellIndex > 0) {
+          const separator = document.createElement("span");
+          separator.className = "separator";
+          separator.setAttribute("aria-hidden", "true");
+          separator.textContent = " | ";
+          line.append(separator);
+        }
+        line.append(cell);
+      }
+      fragment.append(line);
+      if (lineIndex < lines.length - 1) fragment.append("\n");
+    }
+    pre.replaceChildren(fragment);
+  }, measurement.lines);
   const height = await page.evaluate(() => Math.ceil(document.scrollingElement?.scrollHeight ?? document.body.scrollHeight));
   await page.setViewportSize({ width: 1200, height });
 }
@@ -676,12 +740,13 @@ async function captureProductDetails(browser, theme, port) {
 async function fitWindowToLimits(page) {
   const home = page.frameLocator("iframe");
   const content = await home.locator("#tab-panel-usage").evaluate(panel => Math.ceil(panel.getBoundingClientRect().bottom) + 16);
-  await page.evaluate(({ content, titlebar, menubar, desk }) => {
+  await page.evaluate(({ content, titlebar, menubar, desk, scale, border }) => {
+    const snap = (value) => Math.round(value * scale) / scale;
     const frame = document.querySelector(".window");
-    frame.style.height = `${content + titlebar}px`;
-    frame.style.top = `${menubar + Math.round((desk - menubar - content - titlebar) / 2)}px`;
-    frame.querySelector("iframe").style.height = `${content}px`;
-  }, { content, titlebar: WINDOW.titlebar, menubar: MENUBAR_HEIGHT, desk: SCENE.height });
+    frame.style.height = `${snap(content + titlebar + 2 * border)}px`;
+    frame.style.top = `${snap(menubar + Math.round((desk - menubar - content - titlebar - 2 * border) / 2))}px`;
+    frame.querySelector("iframe").style.height = `${snap(content)}px`;
+  }, { content, titlebar: WINDOW.titlebar, menubar: MENUBAR_HEIGHT, desk: SCENE.height, scale: SCENE.scale, border: 1 / SCENE.scale });
   /* Spend and Agents sit inside the measured tab, so after the resize the last
      visible one must still end inside the window. */
   const last = home.locator("#spend-section:not([hidden]), #agents-section:not([hidden])").last();
@@ -689,7 +754,7 @@ async function fitWindowToLimits(page) {
     const end = await last.evaluate(section => section.getBoundingClientRect().bottom);
     if (end > content) throw new Error("The desk window would cut a visible section.");
   }
-  if (content + WINDOW.titlebar > SCENE.height - MENUBAR_HEIGHT) throw new Error("The desk window would run past the desk.");
+  if (content + WINDOW.titlebar + 2 / SCENE.scale > SCENE.height - MENUBAR_HEIGHT) throw new Error("The desk window would run past the desk.");
 }
 
 /* What's New opens once per version over Home; video frames need the same

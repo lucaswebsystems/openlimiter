@@ -5,18 +5,18 @@
         "text": "5h "
       },
       {
-        "text": "[████░░░░░░]",
+        "text": "[███░░░░░░░]",
         "band": "green"
       },
       {
         "text": " "
       },
       {
-        "text": "42%",
+        "text": "37%",
         "band": "green"
       },
       {
-        "text": " ·5h"
+        "text": " ·1h12m"
       }
     ],
     [
@@ -24,18 +24,18 @@
         "text": "7d "
       },
       {
-        "text": "[██████░░░░]",
+        "text": "[█████░░░░░]",
         "band": "yellow"
       },
       {
         "text": " "
       },
       {
-        "text": "64%",
+        "text": "58%",
         "band": "yellow"
       },
       {
-        "text": " ·7d"
+        "text": " ·2d5h"
       }
     ],
     [
@@ -50,11 +50,11 @@
         "text": " "
       },
       {
-        "text": "69%",
+        "text": "63%",
         "band": "yellow"
       },
       {
-        "text": " ·7d"
+        "text": " ·4d19h"
       }
     ],
     [
@@ -69,11 +69,11 @@
         "text": " "
       },
       {
-        "text": "84%",
+        "text": "82%",
         "band": "orange"
       },
       {
-        "text": " ·6d23h"
+        "text": " ·5d8h"
       }
     ],
     [
@@ -88,11 +88,11 @@
         "text": " "
       },
       {
-        "text": "~94%",
+        "text": "~91%",
         "band": "red"
       },
       {
-        "text": " ·5h"
+        "text": " ·2h26m"
       }
     ],
     [

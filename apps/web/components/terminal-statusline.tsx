@@ -47,9 +47,9 @@ export function TerminalStatusline({ caption }: { caption: string }) {
       <div className="elev-1 mx-auto w-full overflow-hidden rounded-xl border border-hairline bg-frame p-[var(--ol-space-2)]" style={{ maxWidth: 1200 }}>
         <div className="rounded-lg bg-[var(--ol-fixed-dark-canvas)] px-5 py-7 text-left text-[var(--ol-fixed-dark-body)] sm:px-8 sm:py-10">
           <p className="font-sans text-sm text-[var(--ol-fixed-dark-muted)] sm:text-base">openlimiter statusline</p>
-          {/* Readable type; the row wraps between cells, never inside one
-              (founder, 2026-10-01: breaking the line is fine). */}
-          <div data-statusline-row className="mt-6 flex flex-wrap font-mono text-sm leading-8 sm:text-base">
+          {/* The sample is one terminal row. Narrow screens scroll this code
+              sample horizontally, so separators never become line leaders. */}
+          <div data-statusline-row className="mt-6 overflow-x-auto whitespace-nowrap font-mono text-sm leading-8 sm:text-base">
             {cells.map((cell, cellIndex) => (
               <span data-statusline-cell className="whitespace-pre" key={cellIndex}>
                 {cellIndex > 0 && <span data-statusline-separator aria-hidden="true"> | </span>}

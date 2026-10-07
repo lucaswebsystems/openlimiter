@@ -84,7 +84,10 @@ describe("synthetic screenshot pipeline", () => {
 
   it("renders the real Claude Code line in all four bands for each theme, without the folder or unknown cells", async () => {
     const snapshots = await demoSnapshots(now);
-    expect(snapshots.find((row: CaptureSnapshot) => row.provider === "CODEX" && row.meter === "SEVEN_DAY")?.value).toBe(84);
+    expect(snapshots.find((row: CaptureSnapshot) => row.provider === "CODEX" && row.meter === "SEVEN_DAY")?.value).toBe(82);
+    expect(snapshots.filter((row: CaptureSnapshot) => row.provider === "CLAUDE").map((row: CaptureSnapshot) => row.value)).toEqual([37, 58, 63]);
+    expect(snapshots.find((row: CaptureSnapshot) => row.provider === "CODEX" && row.meter === "FIVE_HOUR")?.value).toBe(71);
+    expect(snapshots.find((row: CaptureSnapshot) => row.provider === "ANTIGRAVITY" && row.meter === "FIVE_HOUR")?.value).toBe(91);
     for (const row of snapshots) {
       if (row.resetAt === null || row.window?.durationSeconds === undefined) continue;
       const resetSeconds = (Date.parse(row.resetAt) - Date.parse(now)) / 1000;
@@ -96,7 +99,7 @@ describe("synthetic screenshot pipeline", () => {
       const dom = new JSDOM(await terminalPage(theme, snapshots, now));
       for (const band of ["green", "yellow", "orange", "red"]) expect(dom.window.document.querySelector(`.band-${band}`)?.textContent).toBeTruthy();
       const line = dom.window.document.querySelector("pre")?.textContent ?? "";
-      for (const percentage of [42, 64, 69, 84, 94]) expect(line).toContain(`${percentage}%`);
+      for (const percentage of [37, 58, 63, 71, 82, 91]) expect(line).toContain(`${percentage}%`);
       expect(line).toMatch(/^5h \[/u);
       expect(line).toContain("7d ");
       expect(line).toContain("fable7d ");
@@ -105,11 +108,11 @@ describe("synthetic screenshot pipeline", () => {
       for (const money of ["or $12.54", "oa $8.20", "an $3.10"]) expect(line).toContain(money);
       // Limits and money only, so the line keeps one row on a wide screen.
       expect(line).not.toContain("[?]");
-      // A cell never breaks across lines: each one wraps as a whole.
+      // Cells are measured first, then regrouped into complete lines.
       const cells = [...dom.window.document.querySelectorAll("pre > .cell")];
-      expect(cells.map((cell) => cell.textContent)).toHaveLength(line.split(" | ").length);
-      expect(cells.at(-1)?.textContent).not.toMatch(/\|\s*$/u);
-      expect(cells.slice(1).every((cell) => cell.textContent?.startsWith(" | "))).toBe(true);
+      expect(cells).toHaveLength(line.split(" | ").length);
+      expect(cells.every((cell) => !cell.textContent?.startsWith(" | "))).toBe(true);
+      expect(dom.window.document.querySelectorAll("pre .separator")).toHaveLength(line.split(" | ").length - 1);
       if (theme === "light") {
         const styles = dom.window.document.querySelector("style")?.textContent ?? "";
         expect(styles).toContain(".band-yellow{color:#9a6700}");
@@ -118,6 +121,7 @@ describe("synthetic screenshot pipeline", () => {
       }
       const styles = dom.window.document.querySelector("style")?.textContent ?? "";
       expect(styles).toContain(".cell{display:inline-block;white-space:pre}");
+      expect(styles).toContain(".separator{white-space:pre}");
       dom.window.close();
     }
   });

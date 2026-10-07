@@ -27,6 +27,7 @@ describe("live terminal status line", () => {
   it("keeps the three money cells and all four bands in the generated sample", () => {
     const text = sample.cells.flat().map((span) => span.text).join("");
     for (const cell of ["5h", "7d", "fable7d", "cx7d", "ag5h", "or $12.54", "oa $8.20", "an $3.10"]) expect(text).toContain(cell);
+    for (const reading of ["37%", "58%", "63%", "82%", "~91%", "·1h12m", "·2d5h", "·4d19h", "·5d8h", "·2h26m"]) expect(text).toContain(reading);
     expect(new Set(sample.cells.flat().flatMap((span) => "band" in span ? [span.band] : []))).toEqual(
       new Set(["green", "yellow", "orange", "red"]),
     );
@@ -56,16 +57,25 @@ describe("live terminal status line", () => {
     expect(CAPTURE_SOURCE).toContain(".band-yellow{color:#9a6700}");
     expect(CAPTURE_SOURCE).toContain(".band-orange{color:#bc4c00}");
     expect(CAPTURE_SOURCE).toContain(".band-red{color:#cf222e}");
-    expect(CAPTURE_SOURCE).toContain('.cell{display:${wrap ? "inline-block" : "inline"};white-space:nowrap}');
+    expect(CAPTURE_SOURCE).toContain('.cell{display:${wrap ? "inline-block" : "inline"};white-space:pre}');
+    expect(CAPTURE_SOURCE).toContain("const lines = []");
     expect(CAPTURE_SOURCE).toContain("The terminal status line exceeds its frame");
+  });
+
+  it("keeps the live sample on one horizontally scrollable row", () => {
+    mounted = render(createElement(TerminalStatusline, { caption: "Real renderer" }));
+    const row = mounted.container.querySelector("[data-statusline-row]");
+    expect(row?.className).toContain("overflow-x-auto");
+    expect(row?.className).toContain("whitespace-nowrap");
+    expect(row?.className).not.toContain("flex-wrap");
   });
 
   it("draws each meter as blocks one character cell per glyph, so no font fallback can misdraw it", () => {
     mounted = render(createElement(TerminalStatusline, { caption: "Real renderer" }));
     const meters = [...mounted.container.querySelectorAll("[data-statusline-meter]")];
     expect(meters.map((meter) => [...meter.children].map((part) => (part as HTMLElement).style.width))).toEqual([
-      ["4ch", "6ch"],
-      ["6ch", "4ch"],
+      ["3ch", "7ch"],
+      ["5ch", "5ch"],
       ["6ch", "4ch"],
       ["8ch", "2ch"],
       ["9ch", "1ch"],

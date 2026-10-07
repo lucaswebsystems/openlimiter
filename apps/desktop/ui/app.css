@@ -2917,6 +2917,10 @@ button.first-run-quiet-button {
   transform: none;
 }
 
+.app-menu #theme {
+  padding-right: 0;
+}
+
 .menu-presets {
   display: grid;
   gap: var(--ol-space-1);

@@ -677,26 +677,26 @@ export function tenBlockBar(value: number, unicode = true): string {
   return "[" + (unicode ? TEN_BLOCK_FULL : "#").repeat(filled) + (unicode ? TEN_BLOCK_EMPTY : ".").repeat(empty) + "]";
 }
 
+function compactResetDuration(diffSec: number): string {
+  if (diffSec >= 86_400) {
+    const days = Math.floor(diffSec / 86_400);
+    const hours = Math.floor((diffSec % 86_400) / 3600);
+    return String(days) + "d" + (hours > 0 ? String(hours) + "h" : "");
+  }
+  if (diffSec >= 3600) {
+    const hours = Math.floor(diffSec / 3600);
+    const mins = Math.floor((diffSec % 3600) / 60);
+    return String(hours) + "h" + (mins > 0 ? String(mins) + "m" : "");
+  }
+  return diffSec >= 60 ? String(Math.floor(diffSec / 60)) + "m" : String(diffSec) + "s";
+}
+
 export function formatResetTime(resetAt: string | null | undefined, now: string): string {
   if (!resetAt) return "";
   const diffMs = new Date(resetAt).getTime() - new Date(now).getTime();
   const diffSec = Math.floor(diffMs / 1000);
   if (!Number.isFinite(diffSec) || diffSec <= 0) return "";
-  if (diffSec >= 86_400) {
-    const days = Math.floor(diffSec / 86_400);
-    const hours = Math.floor((diffSec % 86_400) / 3600);
-    return hours > 0 ? "·" + String(days) + "d" + String(hours) + "h" : "·" + String(days) + "d";
-  }
-  if (diffSec >= 3600) {
-    const hours = Math.floor(diffSec / 3600);
-    const mins = Math.floor((diffSec % 3600) / 60);
-    return mins > 0 ? "·" + String(hours) + "h" + String(mins) + "m" : "·" + String(hours) + "h";
-  }
-  if (diffSec >= 60) {
-    const mins = Math.floor(diffSec / 60);
-    return "·" + String(mins) + "m";
-  }
-  return "·" + String(diffSec) + "s";
+  return "·" + compactResetDuration(diffSec);
 }
 
 export function paintBand(

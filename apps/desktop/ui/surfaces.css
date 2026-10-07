@@ -578,6 +578,10 @@ select.field:focus-visible {
   text-align: left;
 }
 
+.terminal-captions .preset {
+  text-align: center;
+}
+
 .preset[aria-pressed="true"] {
   border-color: var(--accent);
   background: var(--accent-subtle);

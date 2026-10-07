@@ -544,6 +544,7 @@
 
 /* Phone application shell */
 .ol-phone-shell {
+  padding-top: max(var(--ol-space-2), env(safe-area-inset-top));
   padding-bottom: calc(5rem + env(safe-area-inset-bottom));
 }
 
@@ -554,8 +555,10 @@
 
 .ol-pair-lockup {
   display: flex;
+  min-height: 4rem;
+  align-items: center;
   margin-bottom: var(--ol-space-6);
-  padding-top: var(--ol-space-2);
+  padding: max(var(--ol-space-3), env(safe-area-inset-top)) 0 var(--ol-space-3);
 }
 
 .ol-phone-shell:has(.ol-phone-app) > .ol-pair-lockup {
@@ -633,7 +636,7 @@
   margin: 0 auto;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   border-top: 1px solid var(--ol-hairline);
-  background: color-mix(in srgb, var(--ol-canvas) 96%, transparent);
+  background: var(--ol-canvas);
   padding: 0 var(--ol-space-4) max(0.5rem, env(safe-area-inset-bottom));
   backdrop-filter: blur(20px);
 }

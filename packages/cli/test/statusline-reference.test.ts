@@ -166,6 +166,13 @@ describe("Lucas reference layout", () => {
     expect(formatResetTime(NOW, NOW)).toBe("");
   });
 
+  it.each([
+    ["2026-01-01T04:59:00.000Z", "·4h59m"],
+    ["2026-01-07T23:00:00.000Z", "·6d23h"],
+  ])("formats every provider reset as one compact trailing marker", (resetAt, expected) => {
+    expect(formatResetTime(resetAt, NOW)).toBe(expected);
+  });
+
   it("preserves ANSI in Claude's captured output and honours NO_COLOR", () => {
     expect(statuslineColor("auto", {}, false, "claude")).toBe(true);
     expect(statuslineColor("auto", { NO_COLOR: "" }, false, "claude")).toBe(false);

@@ -70,6 +70,10 @@
   --color-accent-solid-hover: var(--ol-accent-solid-hover);
   --color-on-accent: var(--ol-on-accent);
 
+  --color-primary: var(--ol-primary);
+  --color-primary-hover: var(--ol-primary-hover);
+  --color-on-primary: var(--ol-on-primary);
+
   --color-solid: var(--ol-solid);
   --color-solid-hover: var(--ol-solid-hover);
   --color-on-solid: var(--ol-on-solid);

@@ -876,6 +876,8 @@ describe("the install step gating", () => {
     const dialog = document.querySelector('[role="dialog"]');
     expect(dialog?.textContent).toContain(hub.install.title);
     expect(all(dialog as HTMLElement, "li")).toHaveLength(3);
+    expect(dialog?.querySelectorAll("li svg")).toHaveLength(3);
+    expect(dialog?.querySelector("li:nth-child(3) svg path")?.getAttribute("d")).toBe("m5 12.5 4.2 4.2L19 7");
   });
 
   it("shows only the menu instruction on Android without a captured prompt", async () => {
