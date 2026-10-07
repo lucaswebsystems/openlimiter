@@ -35,7 +35,21 @@ const OAUTH_TIMEOUT_SECONDS: u64 = 180;
 const OAUTH_CONNECTION_TIMEOUT_SECONDS: u64 = 3;
 const AUTH_DIAGNOSTICS_FILE: &str = "auth-diagnostics.log";
 const AUTH_DIAGNOSTICS_LINES: usize = 50;
-const AUTH_DIAGNOSTIC_MESSAGE_CHARS: usize = 120;
+/// The Supabase Auth error codes a diagnostics line or a sentence may name.
+/// Any other code is `other`, and no server text is ever kept at all.
+const NAMED_AUTH_ERROR_CODES: [&str; 11] = [
+    "flow_state_not_found",
+    "flow_state_expired",
+    "bad_code_verifier",
+    "email_not_confirmed",
+    "user_banned",
+    "signup_disabled",
+    "provider_disabled",
+    "validation_failed",
+    "invalid_credentials",
+    "over_request_rate_limit",
+    "unexpected_failure",
+];
 
 /// The contract version the hosted sync surface accepts, and nothing else.
 const SYNC_SCHEMA_VERSION: u8 = 2;
@@ -74,7 +88,7 @@ pub enum AccountFailure {
     InvalidInput,
     Authentication {
         #[serde(skip_serializing_if = "Option::is_none")]
-        error_code: Option<String>,
+        error_code: Option<&'static str>,
     },
     Network,
     Storage,
@@ -95,25 +109,6 @@ pub enum AccountFailure {
 }
 
 impl AccountFailure {
-    fn kind(&self) -> &'static str {
-        match self {
-            Self::Unconfigured => "unconfigured",
-            Self::InvalidInput => "invalid_input",
-            Self::Authentication { .. } => "authentication",
-            Self::Network => "network",
-            Self::Storage => "storage",
-            Self::OauthBusy => "oauth_busy",
-            Self::OauthTimeout => "oauth_timeout",
-            Self::OauthRejected => "oauth_rejected",
-            Self::OauthFlowExpired => "oauth_flow_expired",
-            Self::UserBanned => "user_banned",
-            Self::SignupDisabled => "signup_disabled",
-            Self::ProviderDisabled => "provider_disabled",
-            Self::EmailConfirmationRequired => "email_confirmation_required",
-            Self::DeviceCapReached => "device_cap_reached",
-        }
-    }
-
     pub(crate) fn authentication() -> Self {
         Self::Authentication { error_code: None }
     }
@@ -145,19 +140,11 @@ struct AuthResponse {
     user: Option<AuthUser>,
 }
 
-#[derive(Debug, Default, PartialEq, Eq)]
-struct AuthErrorDetails {
-    error_code: Option<String>,
-    error: Option<String>,
-    msg: Option<String>,
-    error_description: Option<String>,
-}
-
 #[derive(Debug)]
 struct AuthPostFailure {
     failure: AccountFailure,
     status: Option<u16>,
-    details: AuthErrorDetails,
+    error_code: Option<&'static str>,
 }
 
 impl AuthPostFailure {
@@ -165,7 +152,7 @@ impl AuthPostFailure {
         Self {
             failure,
             status: None,
-            details: AuthErrorDetails::default(),
+            error_code: None,
         }
     }
 }
@@ -279,92 +266,33 @@ fn configured() -> bool {
         && configured_key().starts_with("sb_publishable_")
 }
 
-fn bounded_diagnostic_text(value: &str, maximum: usize) -> Option<String> {
-    let value = value.trim();
-    if value.is_empty() {
-        return None;
-    }
-    let mut safe = value
-        .chars()
-        .map(|character| {
-            if character.is_control() {
-                ' '
-            } else {
-                character
-            }
-        })
-        .collect::<String>();
-    for pattern in [
-        r#"(?i)(?:auth_code|code_verifier|access_token|refresh_token|token|email|account_id)\s*[:=]\s*["']?[^"',\s}]+"#,
-        r#"(?i)[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+"#,
-        r"(?i)\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b",
-        r"\b[A-Za-z0-9_-]{12,}\b",
-    ] {
-        let Ok(pattern) = regex::Regex::new(pattern) else {
-            continue;
-        };
-        safe = pattern.replace_all(&safe, "[redacted]").into_owned();
-    }
-    Some(safe.chars().take(maximum).collect())
+/// Supabase's error code from an error body of either shape it sends,
+/// `{"error_code": ...}` or `{"error": ...}`, as a named code or `other`.
+/// Message text (`msg`, `error_description`) is never read.
+fn auth_error_code(body: &[u8]) -> Option<&'static str> {
+    let value = serde_json::from_slice::<serde_json::Value>(body).ok()?;
+    let code = ["error_code", "error"]
+        .into_iter()
+        .find_map(|key| value.get(key).and_then(serde_json::Value::as_str))?;
+    Some(
+        NAMED_AUTH_ERROR_CODES
+            .into_iter()
+            .find(|named| *named == code)
+            .unwrap_or("other"),
+    )
 }
 
-fn bounded_error_code(value: &str) -> Option<String> {
-    let value = value.trim();
-    if value.is_empty()
-        || value.len() > 64
-        || (value.len() >= 12 && !value.contains('_'))
-        || !value.bytes().next().is_some_and(|byte| byte.is_ascii_lowercase())
-        || !value
-            .bytes()
-            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
-    {
-        return None;
-    }
-    Some(value.to_string())
-}
-
-fn parse_auth_error_body(body: &[u8]) -> AuthErrorDetails {
-    let Ok(value) = serde_json::from_slice::<serde_json::Value>(body) else {
-        return AuthErrorDetails::default();
-    };
-    let explicit_code = value
-        .get("error_code")
-        .and_then(serde_json::Value::as_str)
-        .and_then(bounded_error_code);
-    let raw_error = value.get("error").and_then(serde_json::Value::as_str);
-    let error_code = explicit_code
-        .or_else(|| raw_error.and_then(bounded_error_code));
-    let error = raw_error.and_then(|message| {
-        bounded_error_code(message)
-            .or_else(|| bounded_diagnostic_text(message, AUTH_DIAGNOSTIC_MESSAGE_CHARS))
-    });
-    let msg = value
-        .get("msg")
-        .and_then(serde_json::Value::as_str)
-        .and_then(|message| bounded_diagnostic_text(message, AUTH_DIAGNOSTIC_MESSAGE_CHARS));
-    let error_description = value
-        .get("error_description")
-        .and_then(serde_json::Value::as_str)
-        .and_then(|message| bounded_diagnostic_text(message, AUTH_DIAGNOSTIC_MESSAGE_CHARS));
-    AuthErrorDetails {
-        error_code,
-        error,
-        msg,
-        error_description,
-    }
-}
-
-fn auth_failure_from_error(details: &AuthErrorDetails) -> AccountFailure {
-    match details.error_code.as_deref() {
+fn auth_failure_from_code(error_code: Option<&'static str>) -> AccountFailure {
+    match error_code {
         Some("flow_state_not_found" | "flow_state_expired") => AccountFailure::OauthFlowExpired,
         Some("bad_code_verifier") => AccountFailure::OauthRejected,
         Some("email_not_confirmed") => AccountFailure::EmailConfirmationRequired,
         Some("user_banned") => AccountFailure::UserBanned,
         Some("signup_disabled") => AccountFailure::SignupDisabled,
+        Some("other") | None => AccountFailure::authentication(),
         Some(error_code) => AccountFailure::Authentication {
-            error_code: Some(error_code.to_string()),
+            error_code: Some(error_code),
         },
-        None => AccountFailure::authentication(),
     }
 }
 
@@ -373,14 +301,16 @@ fn auth_diagnostic_lock() -> &'static std::sync::Mutex<()> {
     LOCK.get_or_init(|| std::sync::Mutex::new(()))
 }
 
+/// One line per failed sign in step, made of fixed words only: the UTC time,
+/// provider, stage, HTTP status, a named error code or `other`, and the field
+/// `save_session` refused. Nothing the server or the person sent is written.
 fn write_auth_diagnostic(
     directory: &Path,
-    provider: &str,
-    stage: &str,
-    failure: &AccountFailure,
+    provider: &'static str,
+    stage: &'static str,
     status: Option<u16>,
-    details: &AuthErrorDetails,
-    refused_field: Option<&str>,
+    error_code: Option<&'static str>,
+    refused_field: Option<&'static str>,
 ) -> Result<(), ()> {
     crate::fsx::ensure_private_dir(directory).map_err(|_| ())?;
     let path = directory.join(AUTH_DIAGNOSTICS_FILE);
@@ -396,41 +326,16 @@ fn write_auth_diagnostic(
         "time": timestamp,
         "provider": provider,
         "stage": stage,
-        "failure_kind": failure.kind(),
     });
     let fields = entry.as_object_mut().ok_or(())?;
     if let Some(status) = status {
         fields.insert("http_status".to_string(), serde_json::json!(status));
     }
-    if let Some(error_code) = details.error_code.as_ref() {
-        fields.insert(
-            "error_code".to_string(),
-            serde_json::Value::String(error_code.clone()),
-        );
-    }
-    if let Some(error) = details.error.as_ref() {
-        fields.insert(
-            "error".to_string(),
-            serde_json::Value::String(error.clone()),
-        );
-    }
-    if let Some(msg) = details.msg.as_ref() {
-        fields.insert(
-            "msg".to_string(),
-            serde_json::Value::String(msg.clone()),
-        );
-    }
-    if let Some(error_description) = details.error_description.as_ref() {
-        fields.insert(
-            "error_description".to_string(),
-            serde_json::Value::String(error_description.clone()),
-        );
+    if let Some(error_code) = error_code {
+        fields.insert("error_code".to_string(), serde_json::json!(error_code));
     }
     if let Some(refused_field) = refused_field {
-        fields.insert(
-            "refused_field".to_string(),
-            serde_json::Value::String(refused_field.to_string()),
-        );
+        fields.insert("refused_field".to_string(), serde_json::json!(refused_field));
     }
     let line = serde_json::to_string(&entry).map_err(|_| ())?;
     let mut lines = existing
@@ -445,12 +350,11 @@ fn write_auth_diagnostic(
 }
 
 fn record_auth_diagnostic(
-    provider: &str,
-    stage: &str,
-    failure: &AccountFailure,
+    provider: &'static str,
+    stage: &'static str,
     status: Option<u16>,
-    details: &AuthErrorDetails,
-    refused_field: Option<&str>,
+    error_code: Option<&'static str>,
+    refused_field: Option<&'static str>,
 ) {
     let Some(directory) = crate::state::state_directory() else {
         return;
@@ -458,58 +362,33 @@ fn record_auth_diagnostic(
     let Ok(_held) = auth_diagnostic_lock().lock() else {
         return;
     };
-    let _ = write_auth_diagnostic(
-        &directory,
-        provider,
-        stage,
-        failure,
-        status,
-        details,
-        refused_field,
-    );
+    let _ = write_auth_diagnostic(&directory, provider, stage, status, error_code, refused_field);
 }
 
 fn record_auth_post_failure(
-    provider: &str,
-    stage: &str,
+    provider: &'static str,
+    stage: &'static str,
     error: AuthPostFailure,
 ) -> AccountFailure {
-    record_auth_diagnostic(
-        provider,
-        stage,
-        &error.failure,
-        error.status,
-        &error.details,
-        None,
-    );
+    record_auth_diagnostic(provider, stage, error.status, error.error_code, None);
     error.failure
 }
 
 fn record_save_failure(
-    provider: &str,
-    stage: &str,
+    provider: &'static str,
+    stage: &'static str,
     error: SaveSessionFailure,
 ) -> AccountFailure {
-    record_auth_diagnostic(
-        provider,
-        stage,
-        &error.failure,
-        None,
-        &AuthErrorDetails::default(),
-        error.refused_field,
-    );
+    record_auth_diagnostic(provider, stage, None, None, error.refused_field);
     error.failure
 }
 
-fn record_plain_failure(provider: &str, stage: &str, failure: AccountFailure) -> AccountFailure {
-    record_auth_diagnostic(
-        provider,
-        stage,
-        &failure,
-        None,
-        &AuthErrorDetails::default(),
-        None,
-    );
+fn record_plain_failure(
+    provider: &'static str,
+    stage: &'static str,
+    failure: AccountFailure,
+) -> AccountFailure {
+    record_auth_diagnostic(provider, stage, None, None, None);
     failure
 }
 
@@ -706,30 +585,30 @@ async fn auth_post(path: &str, body: serde_json::Value) -> Result<AuthResponse, 
         .map_err(|_| AuthPostFailure {
             failure: AccountFailure::Network,
             status: Some(status.as_u16()),
-            details: AuthErrorDetails::default(),
+            error_code: None,
         })?
     {
         if bytes.len() + chunk.len() > MAX_RESPONSE_BYTES {
             return Err(AuthPostFailure {
                 failure: AccountFailure::authentication(),
                 status: Some(status.as_u16()),
-                details: AuthErrorDetails::default(),
+                error_code: None,
             });
         }
         bytes.extend_from_slice(&chunk);
     }
     if !status.is_success() {
-        let details = parse_auth_error_body(&bytes);
+        let error_code = auth_error_code(&bytes);
         return Err(AuthPostFailure {
-            failure: auth_failure_from_error(&details),
+            failure: auth_failure_from_code(error_code),
             status: Some(status.as_u16()),
-            details,
+            error_code,
         });
     }
     serde_json::from_slice(&bytes).map_err(|_| AuthPostFailure {
         failure: AccountFailure::authentication(),
         status: Some(status.as_u16()),
-        details: AuthErrorDetails::default(),
+        error_code: None,
     })
 }
 
@@ -1993,56 +1872,64 @@ mod tests {
     }
 
     #[test]
-    fn supabase_error_bodies_are_bounded_and_keep_their_codes() {
-        let long_message = "word ".repeat(AUTH_DIAGNOSTIC_MESSAGE_CHARS);
-        let first = parse_auth_error_body(
-            serde_json::json!({
-                "code": 400,
-                "error_code": "flow_state_not_found",
-                "msg": long_message,
-            })
-            .to_string()
-            .as_bytes(),
-        );
-        assert_eq!(first.error_code.as_deref(), Some("flow_state_not_found"));
+    fn supabase_error_bodies_yield_only_named_codes() {
         assert_eq!(
-            first.msg.as_ref().map(|message| message.chars().count()),
-            Some(AUTH_DIAGNOSTIC_MESSAGE_CHARS)
-        );
-
-        let second = parse_auth_error_body(
-            br#"{"error":"bad_code_verifier","error_description":"The verifier was refused."}"#,
+            auth_error_code(br#"{"code":404,"error_code":"flow_state_not_found","msg":"invalid flow state"}"#),
+            Some("flow_state_not_found")
         );
         assert_eq!(
-            second,
-            AuthErrorDetails {
-                error_code: Some("bad_code_verifier".to_string()),
-                error: Some("bad_code_verifier".to_string()),
-                msg: None,
-                error_description: Some("The verifier was refused.".to_string()),
-            }
+            auth_error_code(br#"{"error":"bad_code_verifier","error_description":"The verifier was refused."}"#),
+            Some("bad_code_verifier")
         );
+        assert_eq!(
+            auth_error_code(br#"{"error":"invalid_grant","error_description":"Invalid Refresh Token"}"#),
+            Some("other")
+        );
+        assert_eq!(auth_error_code(br#"{"msg":"no code at all"}"#), None);
+        assert_eq!(auth_error_code(b"not json"), None);
+    }
 
-        let sensitive = parse_auth_error_body(
-            br#"{"error_code":"invalid_grant","msg":"person@example.com 00000000-0000-4000-8000-000000000001 A1b2C3d4E5f6"}"#,
-        );
-        let message = sensitive.msg.expect("redacted message");
-        assert_eq!(message.matches("[redacted]").count(), 3);
-        assert!(!message.contains("person@example.com"));
-        assert!(!message.contains("00000000-0000-4000-8000-000000000001"));
-        assert!(!message.contains("A1b2C3d4E5f6"));
+    #[test]
+    fn a_diagnostics_line_carries_no_server_text() {
+        let secrets = [
+            "123456",
+            "abcd1234",
+            "quoted0token0value",
+            "verifier0value0abcdef",
+            "person@example.com",
+            "\u{e9}l\u{e8}ve@exemple.fr",
+        ];
+        let body = serde_json::json!({
+            "code": 400,
+            "error_code": "abcd1234",
+            "msg": "Invalid auth code 123456 for \u{e9}l\u{e8}ve@exemple.fr",
+            "error_description": "\"access_token\":\"quoted0token0value\" code_verifier=verifier0value0abcdef person@example.com",
+        })
+        .to_string();
+        let error_code = auth_error_code(body.as_bytes());
+        assert_eq!(error_code, Some("other"));
+        let directory = crate::test_support::TempDir::new();
+        write_auth_diagnostic(directory.path(), "google", "exchange", Some(400), error_code, None)
+            .expect("diagnostic line");
+        let text = std::fs::read_to_string(directory.path().join(AUTH_DIAGNOSTICS_FILE))
+            .expect("diagnostics");
+        for secret in secrets {
+            assert!(!text.contains(secret), "{secret} reached the log");
+        }
+        let line: serde_json::Value = serde_json::from_str(text.trim()).expect("one line");
+        let mut keys = line.as_object().expect("object").keys().cloned().collect::<Vec<_>>();
+        keys.sort();
+        assert_eq!(keys, ["error_code", "http_status", "provider", "stage", "time"]);
+        assert_eq!(line["error_code"], "other");
     }
 
     #[test]
     fn supabase_error_codes_map_to_closed_account_failures() {
-        let failure = |error_code: &str| {
-            auth_failure_from_error(&AuthErrorDetails {
-                error_code: Some(error_code.to_string()),
-                error: None,
-                msg: None,
-                error_description: None,
-            })
-        };
+        let failure = |error_code: &'static str| auth_failure_from_code(Some(error_code));
+        assert_eq!(
+            serde_json::to_value(failure("other")).expect("unnamed failure"),
+            serde_json::json!({ "kind": "authentication" })
+        );
         for code in ["flow_state_not_found", "flow_state_expired"] {
             assert_eq!(
                 serde_json::to_value(failure(code)).expect("flow failure"),
@@ -2078,19 +1965,12 @@ mod tests {
     fn auth_diagnostics_are_private_bounded_and_contain_only_safe_fields() {
         let directory = crate::test_support::TempDir::new();
         for index in 0..=AUTH_DIAGNOSTICS_LINES {
-            let details = AuthErrorDetails {
-                error_code: Some(format!("failure_{index}")),
-                error: None,
-                msg: Some("A bounded service reason.".to_string()),
-                error_description: None,
-            };
             write_auth_diagnostic(
                 directory.path(),
                 "google",
                 "exchange",
-                &AccountFailure::authentication(),
-                Some(400),
-                &details,
+                Some(400 + index as u16),
+                Some("unexpected_failure"),
                 None,
             )
             .expect("diagnostic line");
@@ -2101,12 +1981,11 @@ mod tests {
         assert_eq!(lines.len(), AUTH_DIAGNOSTICS_LINES);
         let first: serde_json::Value = serde_json::from_str(lines[0]).expect("first line");
         let last: serde_json::Value = serde_json::from_str(lines[49]).expect("last line");
-        assert_eq!(first["error_code"], "failure_1");
-        assert_eq!(last["error_code"], "failure_50");
+        assert_eq!(first["http_status"], 401);
+        assert_eq!(last["http_status"], 450);
+        assert_eq!(last["error_code"], "unexpected_failure");
         assert_eq!(last["provider"], "google");
         assert_eq!(last["stage"], "exchange");
-        assert_eq!(last["http_status"], 400);
-        assert_eq!(last["msg"], "A bounded service reason.");
         assert!(last.get("auth_code").is_none());
         assert!(last.get("code_verifier").is_none());
         assert!(last.get("access_token").is_none());
@@ -2115,16 +1994,8 @@ mod tests {
         assert!(last.get("account_id").is_none());
 
         let save_directory = crate::test_support::TempDir::new();
-        write_auth_diagnostic(
-            save_directory.path(),
-            "github",
-            "save",
-            &AccountFailure::authentication(),
-            None,
-            &AuthErrorDetails::default(),
-            Some("refresh_token"),
-        )
-        .expect("save diagnostic");
+        write_auth_diagnostic(save_directory.path(), "github", "save", None, None, Some("refresh_token"))
+            .expect("save diagnostic");
         let saved = std::fs::read_to_string(save_directory.path().join(AUTH_DIAGNOSTICS_FILE))
             .expect("saved diagnostic");
         let saved: serde_json::Value = serde_json::from_str(saved.trim()).expect("saved line");

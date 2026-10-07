@@ -58,7 +58,7 @@ async function deps(): Promise<CliDependencies> {
     promptChoice: async () => "s", promptForSecret: async () => "", payloads: {},
     colorOutput: false, readStandardInput: async () => null,
     nodeExecutable: process.execPath, openLimiterScript: "test-cli.js",
-    spawnDetached: () => 5001, emit: () => undefined, sleep: async () => undefined,
+    spawnDetached: () => undefined, emit: () => undefined, sleep: async () => undefined,
     openBrowser: () => undefined,
     detectedAgentInstallations: {
       codex: {

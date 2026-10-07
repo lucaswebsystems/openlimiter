@@ -1,5 +1,4 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
@@ -199,9 +198,7 @@ impl ClaudeOauthRuntime {
     fn postpone(&self, account_id: &str, now_ms: u64, seconds: u64) -> u64 {
         let next = now_ms.saturating_add(seconds.saturating_mul(1_000));
         if let Ok(mut entries) = self.next_allowed.lock() {
-            let entry = entries.entry(account_id.to_string()).or_insert(next);
-            *entry = (*entry).max(next);
-            return *entry;
+            entries.insert(account_id.to_string(), next);
         }
         next
     }
@@ -965,20 +962,18 @@ pub async fn collect_account_guarded<T: Transport>(
     writer: Arc<CacheWriter>,
     account_id: String,
     now_ms: u64,
-    state_directory: Option<&Path>,
 ) -> (ClaudeOauthOutcome, bool) {
     let revision = detection
         .read_credential(DetectedProviderId::Claude, &account_id)
         .map(|secret| secret.credential_revision)
         .unwrap_or_else(|_| "unavailable".to_string());
-    let lease = match policy.begin_with_revision(
+    let _lease = match policy.begin_with_revision(
         DetectedProviderId::Claude,
         &account_id,
         now_ms,
         Some(&revision),
     ) {
-        Ok(lease) => Some(lease),
-        Err(GateRejection::Deferred { .. }) if !authoritative_weekly_fresh(state_directory, &account_id, now_ms) => None,
+        Ok(lease) => lease,
         Err(GateRejection::Deferred { retry_at }) => {
             return (
                 ClaudeOauthOutcome::Cached {
@@ -999,10 +994,8 @@ pub async fn collect_account_guarded<T: Transport>(
             )
         }
     };
-    /* A shared lease owns retry timing after a process restart. When an older
-       runtime renews that schedule but this desktop has no authoritative
-       weekly row, the desktop uses its own runtime schedule. */
-    if lease.is_some() { runtime.postpone(&account_id, now_ms, 0); }
+    // The durable gate owns retry timing, including after a process restart.
+    runtime.postpone(&account_id, now_ms, 0);
     let outcome = collect_account(
         detection,
         runtime,
@@ -1014,22 +1007,6 @@ pub async fn collect_account_guarded<T: Transport>(
     .await;
     let abort_provider = complete_outcome(policy, &account_id, now_ms, &outcome);
     (outcome, abort_provider)
-}
-
-fn authoritative_weekly_fresh(directory: Option<&Path>, account_id: &str, now_ms: u64) -> bool {
-    let Some(text) = directory.and_then(|directory| crate::fsx::bounded_read(
-        &directory.join(crate::cache_write::AUTHORITATIVE_CACHE_FILE_NAME)
-    )) else { return false; };
-    let Ok(document) = serde_json::from_str::<Value>(&text) else { return false; };
-    document.get("snapshots").and_then(Value::as_array).into_iter().flatten().any(|row| {
-        row.get("provider").and_then(Value::as_str) == Some("CLAUDE")
-            && row.get("accountId").and_then(Value::as_str) == Some(account_id)
-            && row.get("meter").and_then(Value::as_str)
-                .is_some_and(|meter| meter == "SEVEN_DAY" || meter.starts_with("SEVEN_DAY_"))
-            && row.get("expiresAt").and_then(Value::as_str)
-                .and_then(|instant| chrono::DateTime::parse_from_rfc3339(instant).ok())
-                .is_some_and(|instant| instant.timestamp_millis() > now_ms as i64)
-    })
 }
 
 fn complete_outcome(
@@ -1105,7 +1082,6 @@ pub async fn run_pass(app: &AppHandle, automatic_account_limit: usize) -> bool {
         .account_ids(DetectedProviderId::Claude);
     account_ids.truncate(automatic_account_limit);
     let mut succeeded = true;
-    let state_directory = crate::state::state_directory();
     for account_id in account_ids {
         let detection = app.state::<DetectionStore>();
         let runtime = app.state::<ClaudeOauthRuntime>();
@@ -1120,7 +1096,6 @@ pub async fn run_pass(app: &AppHandle, automatic_account_limit: usize) -> bool {
             Arc::clone(&writer),
             account_id,
             crate::connections::now_epoch_ms(),
-            state_directory.as_deref(),
         )
         .await;
         succeeded &= pass_read_succeeded(&outcome);
@@ -1202,23 +1177,6 @@ mod tests {
 
     fn writer(dir: &TempDir) -> Arc<CacheWriter> {
         Arc::new(CacheWriter::at(Some(dir.path().to_path_buf())))
-    }
-
-    fn detected_claude(dir: &TempDir) -> (DetectionStore, String) {
-        let path = dir.path().join(".claude/.credentials.json");
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(path, serde_json::json!({"claudeAiOauth": {
-            "accessToken": TOKEN, "accountId": "synthetic-account"
-        }}).to_string()).unwrap();
-        let detection = DetectionStore::for_test_home(dir.path(), NOW);
-        let account = detection.account_ids(DetectedProviderId::Claude).pop().unwrap();
-        (detection, account)
-    }
-
-    fn postpone_shared_policy(policy: &RequestPolicy, account: &str, seconds: u64) {
-        let lease = policy.begin(DetectedProviderId::Claude, account, NOW).expect("older runtime reserves Claude");
-        policy.complete_after(DetectedProviderId::Claude, account, NOW, seconds);
-        drop(lease);
     }
 
     #[test]
@@ -1388,7 +1346,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn desktop_interval_is_the_floor_for_rate_limit_backoff() {
+    async fn plan_rule_rate_limit_zero_starts_at_sixty_seconds() {
         let dir = TempDir::new();
         let runtime = ClaudeOauthRuntime::default();
         let transport = RecordingTransport::replying(429, Vec::new(), Some(0));
@@ -1411,14 +1369,14 @@ mod tests {
             panic!("rate limit fallback");
         };
         assert_eq!(reason, ClaudeOauthFailure::RateLimited);
-        assert_eq!(retry_at, iso_from_epoch_ms(NOW + REFRESH_SECONDS * 1_000).unwrap());
+        assert_eq!(retry_at, iso_from_epoch_ms(NOW + 60_000).unwrap());
         let second = collect_with_secret(
             &runtime,
             &transport,
             writer(&dir),
             ACCOUNT,
             &credential,
-            NOW + REFRESH_SECONDS * 1_000 - 1,
+            NOW + 59_999,
         )
         .await;
         assert!(matches!(second, ClaudeOauthOutcome::Cached { .. }));
@@ -1715,7 +1673,6 @@ mod tests {
                 writer(&dir),
                 account.clone(),
                 NOW,
-                Some(dir.path()),
             )
             .await;
             let (same, _) = collect_account_guarded(
@@ -1726,7 +1683,6 @@ mod tests {
                 writer(&dir),
                 account.clone(),
                 NOW + 60_000,
-                Some(dir.path()),
             )
             .await;
             assert!(matches!(same, ClaudeOauthOutcome::Cached { .. }));
@@ -1741,7 +1697,6 @@ mod tests {
                 writer(&dir),
                 account,
                 NOW + 60_001,
-                Some(dir.path()),
             )
             .await;
             assert!(
@@ -1750,62 +1705,6 @@ mod tests {
             );
             assert_eq!(transport.recorded_urls().len(), 2);
         }
-    }
-
-    #[tokio::test]
-    async fn an_older_runtime_schedule_cannot_starve_a_missing_authoritative_weekly_row() {
-        let dir = TempDir::new();
-        let (detection, account) = detected_claude(&dir);
-        let runtime = ClaudeOauthRuntime::default();
-        let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
-        postpone_shared_policy(&policy, &account, 7_200);
-        let transport = RecordingTransport::scripted(vec![(200, valid_body(), None)]);
-        let (first, _) = collect_account_guarded(
-            &detection, &runtime, &policy, &transport, writer(&dir), account.clone(), NOW, Some(dir.path())
-        ).await;
-        assert!(matches!(first, ClaudeOauthOutcome::CacheCommitted { .. }));
-        assert!(authoritative_weekly_fresh(Some(dir.path()), &account, NOW));
-        let (second, _) = collect_account_guarded(
-            &detection, &runtime, &policy, &transport, writer(&dir), account, NOW + 16 * 60_000, Some(dir.path())
-        ).await;
-        assert!(matches!(second, ClaudeOauthOutcome::Cached { .. }));
-        assert_eq!(transport.recorded_urls().len(), 1);
-    }
-
-    #[tokio::test]
-    async fn local_refusals_and_rate_limit_backoff_survive_shared_policy_bypass() {
-        for (status, retry_after) in [(403, None), (429, Some(3_600)), (500, None)] {
-            let dir = TempDir::new();
-            let (detection, account) = detected_claude(&dir);
-            let runtime = ClaudeOauthRuntime::default();
-            let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
-            postpone_shared_policy(&policy, &account, 7_200);
-            let transport = RecordingTransport::scripted(vec![(status, Vec::new(), retry_after)]);
-            collect_account_guarded(
-                &detection, &runtime, &policy, &transport, writer(&dir), account.clone(), NOW, Some(dir.path())
-            ).await;
-            collect_account_guarded(
-                &detection, &runtime, &policy, &transport, writer(&dir), account, NOW + 60_000, Some(dir.path())
-            ).await;
-            assert_eq!(transport.recorded_urls().len(), 1, "status {status}");
-        }
-    }
-
-    #[tokio::test]
-    async fn shared_policy_bypass_still_allows_only_one_desktop_poll_per_interval() {
-        let dir = TempDir::new();
-        let (detection, account) = detected_claude(&dir);
-        let runtime = ClaudeOauthRuntime::default();
-        let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
-        postpone_shared_policy(&policy, &account, 7_200);
-        let transport = RecordingTransport::scripted(vec![(200, valid_body(), None), (200, valid_body(), None)]);
-        let unavailable_writer = || Arc::new(CacheWriter::at(None));
-        for now in [NOW, NOW + REFRESH_SECONDS * 1_000 - 1, NOW + REFRESH_SECONDS * 1_000] {
-            collect_account_guarded(
-                &detection, &runtime, &policy, &transport, unavailable_writer(), account.clone(), now, Some(dir.path())
-            ).await;
-        }
-        assert_eq!(transport.recorded_urls().len(), 2);
     }
 
     /* --------------------------------------------------- every bucket sent */

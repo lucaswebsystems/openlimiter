@@ -11,7 +11,13 @@ use zeroize::Zeroizing;
 
 use crate::fsx;
 
-pub const CLAUDE_INSTALL_COMMAND: &str = "npm install -g openlimiter";
+/// Pinned to this build, because a bare or unpinned `openlimiter` resolves to
+/// whatever older global install the machine already has.
+pub const CLAUDE_INSTALL_COMMAND: &str = concat!(
+    "npx -y openlimiter@",
+    env!("CARGO_PKG_VERSION"),
+    " terminal install claude"
+);
 const CLI_CONFIG_ENV: &str = "OPENLIMITER_CLI_PATH";
 const STATUSLINE_WRAPPER_FLAG: &str = "OPENLIMITER_CLAUDE_STATUSLINE_WRAPPER";
 const CLI_PROBE_TIMEOUT_SECONDS: u64 = 10;
@@ -1631,7 +1637,10 @@ mod tests {
         assert_eq!(verdict.kind, ClaudePreflightKind::CliMissing);
         assert!(!verdict.cli_found);
         assert!(!verdict.cli_working);
-        assert_eq!(verdict.install_command, "npm install -g openlimiter");
+        assert_eq!(
+            verdict.install_command,
+            format!("npx -y openlimiter@{} terminal install claude", env!("CARGO_PKG_VERSION"))
+        );
     }
 
     #[test]

@@ -220,6 +220,11 @@ async function inspectTab(page, id, width, height, shots) {
     if (setupGeometry.closeIntersections !== 0) throw new Error("Antigravity close button intersects a command box");
     if (setupGeometry.copyEdgeGaps.some((gap) => gap < 8)) throw new Error("Antigravity Copy button is less than 8 px from the panel edge");
   }
+  if (id === "usage") {
+    /* The stub's terminal runtime 2.0.3 is older than its app 2.1.0. */
+    const update = page.locator('#tab-panel-usage [data-provider-card][data-provider="CLAUDE"] .q-runtime-notice pre');
+    if (await update.textContent() !== "npx -y openlimiter@2.1.0 terminal install claude") throw new Error("the Usage tab's Claude card does not offer the runtime update");
+  }
   const findings = await page.evaluate(({ panelId, tabId }) => {
     const panel = document.querySelector(panelId);
     const tabs = [...document.querySelectorAll("[role=tab]")];

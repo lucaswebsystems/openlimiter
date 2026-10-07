@@ -374,7 +374,8 @@ button.q-show {
     column-gap: 0.625rem;
   }
 
-  .q-limits:not(.q-compact) .q-row {
+  .q-limits:not(.q-compact) .q-row,
+  .q-limits:not(.q-compact) .q-runtime-notice {
     padding-left: 0;
   }
 }
@@ -826,8 +827,18 @@ button.q-addrow:focus-visible {
   gap: var(--ol-space-2);
 }
 
-.q-setup .q-fstatus {
+.q-setup .q-fstatus,
+.q-runtime-notice .q-fstatus {
   margin: 0;
+}
+
+/* The update line under Claude's bars: the setup panels' command box, on the
+   bars' indent and across the whole card. */
+.q-runtime-notice {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: var(--ol-space-2);
+  padding: var(--ol-space-2) 0 var(--ol-space-1) 1.75rem;
 }
 
 /* -------------------------------------------------------------- API keys */

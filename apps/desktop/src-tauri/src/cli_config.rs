@@ -213,6 +213,91 @@ fn terminal_runtime_status_in(home: &Path, app_version: &str) -> Result<Value, S
     Ok(serde_json::json!({ "version": version, "app_version": app_version }))
 }
 
+/// The terminal runtime's node only draws status lines (milliseconds) and
+/// runs detached refreshes (under a minute), so one older than this is stuck.
+#[cfg(any(windows, test))]
+const STUCK_RUNTIME_AGE: Duration = Duration::from_secs(5 * 60);
+
+/// Whether a process is this profile's terminal runtime node and has outlived
+/// any real work. Only the exact image path counts, so a reused pid, which
+/// belongs to another image, never matches.
+#[cfg(any(windows, test))]
+fn stuck_runtime_node(image: &str, home: &Path, age: Duration) -> bool {
+    let normal = |path: &str| path.strip_prefix(r"\\?\").unwrap_or(path).replace('/', r"\").to_lowercase();
+    let runtime = home.join(".openlimiter").join("terminal-runtime").join("node.exe");
+    age > STUCK_RUNTIME_AGE && normal(image) == normal(&runtime.to_string_lossy())
+}
+
+/// End stuck terminal runtime nodes at startup and every ten minutes.
+#[cfg(windows)]
+pub fn spawn_runtime_sweep() {
+    thread::spawn(|| loop {
+        let ended = end_stuck_runtime_nodes();
+        if ended > 0 {
+            eprintln!("OpenLimiter ended {ended} stuck terminal runtime processes");
+        }
+        thread::sleep(Duration::from_secs(10 * 60));
+    });
+}
+
+/// Each process is judged and ended through the one handle that read its
+/// image path and start time, so the process ended is the process judged.
+#[cfg(windows)]
+fn end_stuck_runtime_nodes() -> usize {
+    use windows_sys::Win32::{
+        Foundation::{CloseHandle, FILETIME, INVALID_HANDLE_VALUE},
+        System::{
+            Diagnostics::ToolHelp::{
+                CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
+                TH32CS_SNAPPROCESS,
+            },
+            Threading::{
+                GetProcessTimes, OpenProcess, QueryFullProcessImageNameW, TerminateProcess,
+                PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_TERMINATE,
+            },
+        },
+    };
+    let Some(home) = crate::state::non_empty("USERPROFILE") else { return 0 };
+    let mut ended = 0;
+    unsafe {
+        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if snapshot == INVALID_HANDLE_VALUE {
+            return 0;
+        }
+        let mut entry = PROCESSENTRY32W { dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32, ..Default::default() };
+        let mut more = Process32FirstW(snapshot, &mut entry);
+        while more != 0 {
+            let name = &entry.szExeFile[..entry.szExeFile.iter().position(|&unit| unit == 0).unwrap_or(entry.szExeFile.len())];
+            // Nothing but a node.exe is ever opened.
+            let process = if String::from_utf16_lossy(name).eq_ignore_ascii_case("node.exe") {
+                OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE, 0, entry.th32ProcessID)
+            } else {
+                std::ptr::null_mut()
+            };
+            if !process.is_null() {
+                let mut image = [0u16; 1024];
+                let mut length = image.len() as u32;
+                let [mut created, mut exited, mut kernel, mut user] = [FILETIME::default(); 4];
+                if QueryFullProcessImageNameW(process, PROCESS_NAME_WIN32, image.as_mut_ptr(), &mut length) != 0
+                    && GetProcessTimes(process, &mut created, &mut exited, &mut kernel, &mut user) != 0
+                {
+                    let ticks = (u64::from(created.dwHighDateTime) << 32) | u64::from(created.dwLowDateTime);
+                    let started_ms = (ticks / 10_000).saturating_sub(11_644_473_600_000);
+                    let age = Duration::from_millis(crate::connections::now_epoch_ms().saturating_sub(started_ms));
+                    let image = String::from_utf16_lossy(&image[..length as usize]);
+                    if stuck_runtime_node(&image, &home, age) && TerminateProcess(process, 1) != 0 {
+                        ended += 1;
+                    }
+                }
+                CloseHandle(process);
+            }
+            more = Process32NextW(snapshot, &mut entry);
+        }
+        CloseHandle(snapshot);
+    }
+    ended
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -266,6 +351,27 @@ mod tests {
             terminal_runtime_status_in(home.path(), "2.1.1").unwrap(),
             serde_json::json!({"version":"2.0.3","app_version":"2.1.1"})
         );
+    }
+
+    #[test]
+    fn only_this_profiles_runtime_node_past_five_minutes_is_stuck() {
+        let home = Path::new(r"C:\Users\Person");
+        let old = STUCK_RUNTIME_AGE + Duration::from_secs(1);
+        assert!(stuck_runtime_node(r"C:\Users\Person\.openlimiter\terminal-runtime\node.exe", home, old));
+        assert!(stuck_runtime_node(r"\\?\c:/users/PERSON/.OpenLimiter/Terminal-Runtime/NODE.EXE", home, old));
+        // A render or a refresh still inside its time is never touched.
+        assert!(!stuck_runtime_node(r"C:\Users\Person\.openlimiter\terminal-runtime\node.exe", home, STUCK_RUNTIME_AGE));
+        // A reused pid runs another image, which never matches.
+        for other in [
+            r"C:\Program Files\nodejs\node.exe",
+            r"C:\Users\Other\.openlimiter\terminal-runtime\node.exe",
+            r"C:\Users\Person\.openlimiter\terminal-runtime\sub\node.exe",
+            r"C:\Users\Person\.openlimiter\terminal-runtime\node.exe.old",
+            r"D:\Users\Person\.openlimiter\terminal-runtime\node.exe",
+            "",
+        ] {
+            assert!(!stuck_runtime_node(other, home, old), "{other}");
+        }
     }
 
     #[test]

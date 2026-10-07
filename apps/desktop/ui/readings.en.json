@@ -108,6 +108,7 @@
   "runtimeOutdated": "This terminal runtime is older than OpenLimiter.",
   "runtimeNewer": "This terminal runtime is newer than OpenLimiter.",
   "runtimeInstall": "npx -y openlimiter@{version} terminal install {host}",
+  "claudeRuntimeUpdate": "Weekly limits need your terminal status line updated.",
   "appearance": "Appearance",
   "alerts": "Alerts",
   "accountPro": "Account and Pro",

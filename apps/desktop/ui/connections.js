@@ -10,8 +10,8 @@
  *
  * Two kinds of step, the two a row's button can carry:
  *
- *   connect, for a tool this window can set up itself: Claude Code's settings
- *   block, Codex's login import, a session token for Antigravity or OpenCode,
+ *   connect, for a tool this window can set up itself: Claude Code's install
+ *   command, Codex's login import, a session token for Antigravity or OpenCode,
  *   and OpenRouter's key (whose field is in the key rows, owned by app.js);
  *
  *   check, for a sign in that lives in the tool itself: the person signs in
@@ -33,36 +33,9 @@ const COLLECTOR_UPDATED_EVENT = "collector-updated";
 
 const KNOWN_STATES = new Set(CONNECTION_STATES);
 
-/**
- * The exact statusline wiring, byte for byte the block the documentation
- * publishes. Copy plus verify is the whole flow: this window never edits
- * anybody's settings file.
- */
-const CLAUDE_SETUP_SNIPPET = `{
-  "statusLine": {
-    "type": "command",
-    "command": "openlimiter statusline"
-  },
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "openlimiter hook"
-          }
-        ]
-      }
-    ]
-  }
-}`;
-
 // English catalog for the setup panels. L7 owns translations.
 export const SETUP_EN = Object.freeze({
-  ready: "Add this to your Claude Code settings, then Verify.",
-  wrappable: "Another status line is set. Combine them by hand, then Verify.",
-  guided: "Another tool owns these settings. Merge this by hand, then Verify.",
-  unknownShape: "Settings file not understood. Merge this by hand, then Verify.",
+  ready: "Run this command, then Verify.",
   cliMissing: "Install the OpenLimiter command first.",
   cliNotWorking: "The OpenLimiter command did not answer.",
   runtimeMissing: say("runtimeMissing"),
@@ -191,7 +164,7 @@ function normalizePreflight(value) {
   return {
     kind,
     cliPath: typeof cliPath === "string" ? cliPath : null,
-    installCommand: typeof installCommand === "string" ? installCommand : "npm install -g openlimiter",
+    installCommand: typeof installCommand === "string" ? installCommand : null,
   };
 }
 
@@ -252,23 +225,6 @@ function setNote(node, text, tone) {
 }
 
 /* ------------------------------------------------------------ claude setup */
-
-async function copyClaudeSnippet(note, block) {
-  try {
-    await window.navigator.clipboard.writeText(CLAUDE_SETUP_SNIPPET);
-    setNote(note, SETUP_EN.copied, "ok");
-  } catch {
-    /* Clipboard refused. The block is selectable, so select it instead. */
-    const selection = window.getSelection();
-    if (selection !== null && block) {
-      const range = document.createRange();
-      range.selectNodeContents(block);
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
-    setNote(note, SETUP_EN.copyRefused, "bad");
-  }
-}
 
 async function verifyClaude() {
   await refreshRuntime();
@@ -341,45 +297,48 @@ function appendRuntimeGuidance(body, host, note) {
   }
 }
 
-/* The Claude setup panel: one short line, the block, and its two controls. */
+/* The Claude setup panel: one short line, the installer command, which writes
+   the settings with the runtime launcher itself, and its controls. */
 function renderClaude() {
   const body = document.getElementById("claude-body");
   const note = document.getElementById("claude-note");
   if (!body) return;
   body.textContent = "";
   const verdict = session.claudeVerdict;
+  const command = runtimeInstallCommand("claude") ?? verdict?.installCommand ?? null;
   const recheck = button(SETUP_EN.checkAgain, () => void verifyClaude());
   const verify = button(SETUP_EN.verify, () => void verifyClaude(), "q-btn q-btn-primary");
   const actions = element("div", "q-setup-actions");
   appendRuntimeGuidance(body, "claude", note);
   if (verdict?.kind === "cli_missing" || verdict?.kind === "cli_not_working") {
     const missing = verdict.kind === "cli_missing";
-    const line = element("pre", "q-snippet mono", missing ? verdict.installCommand : (verdict.cliPath ?? ""));
-    body.append(element("p", "q-setup-line", missing ? SETUP_EN.cliMissing : SETUP_EN.cliNotWorking), line);
-    if (missing) {
-      actions.append(button(SETUP_EN.copy, async () => {
-        try {
-          await window.navigator.clipboard.writeText(verdict.installCommand);
-          setNote(note, SETUP_EN.copied, "ok");
-        } catch {
-          setNote(note, SETUP_EN.copyRefused, "bad");
-        }
-      }));
-    }
+    body.append(element("p", "q-setup-line", missing ? SETUP_EN.cliMissing : SETUP_EN.cliNotWorking));
+    if (!missing) body.append(element("pre", "q-snippet mono", verdict.cliPath ?? ""));
+    else if (command) body.append(commandBox(command, note));
     actions.append(recheck);
     body.append(actions);
     return;
   }
-  const lead = {
-    wrappable_status_line: SETUP_EN.wrappable,
-    guided_manual: SETUP_EN.guided,
-    settings_unknown: SETUP_EN.unknownShape,
-  }[verdict?.kind] ?? SETUP_EN.ready;
-  const block = element("pre", "q-snippet mono", CLAUDE_SETUP_SNIPPET);
-  body.append(element("p", "q-setup-line", lead), block);
-  if (verdict?.kind !== "wrappable_status_line") actions.append(button(SETUP_EN.copy, () => void copyClaudeSnippet(note, block)));
+  body.append(element("p", "q-setup-line", SETUP_EN.ready));
+  if (command) body.append(commandBox(command, note));
   actions.append(verify);
   body.append(actions);
+}
+
+/**
+ * The line and update command the Usage tab's Claude card carries while the
+ * terminal runtime is older than this app, whose shared request schedule keeps
+ * the weekly limits from being read. Null when the runtime is current, newer
+ * or not installed.
+ */
+export function claudeRuntimeNotice() {
+  const command = runtimeState(session.runtime) === "older" ? runtimeInstallCommand("claude") : null;
+  if (command === null) return null;
+  const notice = element("div", "q-runtime-notice");
+  const note = element("p", "q-fstatus");
+  note.setAttribute("role", "status");
+  notice.append(element("p", "q-setup-line", say("claudeRuntimeUpdate")), commandBox(command, note), note);
+  return notice;
 }
 
 function renderAntigravity() {
@@ -649,8 +608,10 @@ export function initConnections(configuration) {
       save.addEventListener("click", () => void savePasted(code, input, note, save));
     }
   }
+  /* The runtime is reread too, so the Usage tab's update line leaves once
+     the terminal runtime has been updated. */
   void backend.listen(COLLECTOR_UPDATED_EVENT, () => {
-    void syncConnections().then(() => options.onMetersChanged());
+    void Promise.all([syncConnections(), refreshRuntime()]).then(() => options.onMetersChanged());
   });
   void bootstrap();
 }

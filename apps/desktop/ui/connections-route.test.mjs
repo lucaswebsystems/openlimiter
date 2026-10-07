@@ -13,6 +13,7 @@ const opened = [];
 const copied = [];
 let records = [];
 let runtimeVersion = "2.1.4";
+let preflight = { kind: "ready", cli_path: "openlimiter" };
 // Commands the next calls reject, with the failure kind native code sends.
 const refusing = new Map();
 const storage = new Map();
@@ -33,7 +34,7 @@ globalThis.window = {
     if (command === "test_provider") return { kind: "tested", connection_id: args.input.connection_id };
     if (command === "refresh_provider") return { kind: "cache_committed", connection_id: args.input.connection_id };
     if (command === "detect_local_tools") return { claude_settings_present: true, statusline_wired: false };
-    if (command === "claude_connect_preflight") return { kind: "ready", cli_path: "openlimiter" };
+    if (command === "claude_connect_preflight") return preflight;
     return null;
   } } },
   open: (...args) => opened.push(args),
@@ -46,7 +47,7 @@ globalThis.window = {
 };
 globalThis.CustomEvent = class { constructor(type) { this.type = type; } };
 globalThis.document = fakeDocument(["claude-card", "claude-body", "claude-note", "antigravity-add", "antigravity-body", "antigravity-note", "opencode-add"]);
-const { catalogueModel, checkTool, chooseTool, connectTool, initConnections, refreshConnection, saveOpenrouterKey } = await import("./dist/connections.js");
+const { catalogueModel, checkTool, chooseTool, claudeRuntimeNotice, connectTool, initConnections, refreshConnection, saveOpenrouterKey } = await import("./dist/connections.js");
 
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 let meters = 0;
@@ -115,13 +116,28 @@ test("Connect for Claude Code, Antigravity and OpenCode opens that tool's setup 
     assert.equal(copied.at(-1), shown);
   }
   assert.equal(calls.some(([command, input]) => command === "connect_provider" && input?.input?.provider_id === "antigravity"), false);
-  // Claude Code's setup reads the preflight and shows the block with Copy and Verify.
+  // Claude Code's setup reads the preflight and shows the installer command with Copy and Verify.
   await connectTool("CLAUDE");
   const body = document.getElementById("claude-body");
-  assert.match(body.textContent, /Add this to your Claude Code settings, then Verify\./u);
-  assert.match(body.textContent, /"command": "openlimiter statusline"/u);
-  assert.match(body.textContent, /npx -y openlimiter@2\.1\.5 terminal install claude/u);
+  assert.match(body.textContent, /Run this command, then Verify\./u);
+  assert.doesNotMatch(body.textContent, /openlimiter (?:statusline|hook)|npm install/u);
   assert.deepEqual(body.all((node) => node.localName === "button").map((button) => button.textContent), ["Copy", "Copy", "Verify"]);
+  copied.length = 0;
+  for (const command of body.all((node) => node.classList?.contains("q-command-box"))) {
+    await command.all((node) => node.localName === "button")[0].fire("click");
+  }
+  assert.deepEqual(copied, ["npx -y openlimiter@2.1.5 terminal install claude", "npx -y openlimiter@2.1.5 terminal install claude"]);
+  // Without a global command the panel offers the same installer, never a bare one.
+  preflight = { kind: "cli_missing" };
+  try {
+    await connectTool("CLAUDE");
+    assert.match(body.textContent, /Install the OpenLimiter command first\./u);
+    assert.doesNotMatch(body.textContent, /npm install/u);
+    assert.equal(body.all((node) => node.localName === "pre").at(-1).textContent, "npx -y openlimiter@2.1.5 terminal install claude");
+  } finally {
+    preflight = { kind: "ready", cli_path: "openlimiter" };
+    await connectTool("CLAUDE");
+  }
   const runtimeReads = calls.filter(([command]) => command === "terminal_runtime_status").length;
   runtimeVersion = "2.1.6";
   await body.all((node) => node.localName === "button" && node.textContent === "Verify")[0].fire("click");
@@ -129,6 +145,29 @@ test("Connect for Claude Code, Antigravity and OpenCode opens that tool's setup 
   assert.equal(calls.filter(([command]) => command === "terminal_runtime_status").length, runtimeReads + 1);
   assert.match(document.getElementById("claude-body").textContent, /Installed terminal runtime 2\.1\.6\./u);
   assert.match(document.getElementById("claude-body").textContent, /newer than OpenLimiter/u);
+});
+
+test("the Usage tab's Claude card asks for the runtime update only while the runtime is older than the app", async () => {
+  const noticeWith = async (version) => {
+    runtimeVersion = version;
+    await initConnections({ onMetersChanged: () => { meters += 1; }, hasFreshLocalClaude: () => false });
+    await settle();
+    return claudeRuntimeNotice();
+  };
+  try {
+    const older = await noticeWith("2.1.4");
+    assert.match(older.textContent, /^Weekly limits need your terminal status line updated\./u);
+    const box = older.all((node) => node.classList?.contains("q-command-box"))[0];
+    assert.equal(box.all((node) => node.localName === "pre")[0].textContent, "npx -y openlimiter@2.1.5 terminal install claude");
+    copied.length = 0;
+    await box.all((node) => node.localName === "button")[0].fire("click");
+    assert.deepEqual(copied, ["npx -y openlimiter@2.1.5 terminal install claude"]);
+    assert.equal(await noticeWith("2.1.5"), null, "the same version shows nothing");
+    assert.equal(await noticeWith(null), null, "no runtime installed shows nothing");
+    assert.equal(await noticeWith("2.1.6"), null, "a newer runtime shows nothing");
+  } finally {
+    runtimeVersion = "2.1.4";
+  }
 });
 
 test("Check again for a tool whose sign in lives in the tool scans and reads once, never opening a web page", async () => {
