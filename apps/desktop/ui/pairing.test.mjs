@@ -20,7 +20,7 @@ test("the phone panel is in the header, beside refresh and the menu", () => {
   const markup = html();
   assert.match(markup, /id="phone-button"[\s\S]*aria-controls="phone-popover"/u);
   assert.match(markup, /id="phone-popover"[\s\S]*id="phone-panel-body"/u);
-  assert.match(markup, /aria-label="Pair your phone"/u);
+  assert.match(markup, /id="phone-button"[\s\S]*data-copy-aria="pairPhone"/u);
 });
 
 test("a signed out person is told to sign in rather than shown a dead button", () => {

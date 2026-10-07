@@ -1,13 +1,21 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { captionsMarkup, presetMarkup } from "./settings.js";
 
 const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
 const settings = readFileSync(new URL("./settings.js", import.meta.url), "utf8");
 
-test("Settings keeps the account hooks and the Pro caption preset", () => {
+test("Settings mounts its account hooks and gates captions by the feature entitlement", () => {
   for (const id of ["menu-account-email", "menu-signed-in", "devices-mount", "pro-mount", "plan-cap-mount", "menu-logout"]) assert.match(html, new RegExp(`id=\"${id}\"`, "u"));
-  assert.match(settings, /terminalCaptions/u);
-  assert.match(settings, /data-caption/u);
+  const free = captionsMarkup("tagged", false);
+  assert.match(free, /data-caption="tagged"[^>]* disabled/u);
+  assert.match(free, /Locked/u);
+  const pro = captionsMarkup("tagged", true);
+  assert.doesNotMatch(pro, /data-caption="tagged"[^>]* disabled/u);
+  assert.match(pro, /aria-pressed="true"/u);
+  const freePresets = presetMarkup(false, "graphite");
+  assert.match(freePresets, /data-preset="default"(?![^>]* disabled)/u);
+  assert.match(freePresets, /data-preset="graphite"[^>]* disabled/u);
   assert.match(settings, /theme_preset/u);
 });

@@ -330,7 +330,7 @@ function wireRailSettings(mount) {
   return wireRailVisibility(mount.querySelector("#rail-visible"), mount.querySelector("#rail-visibility-status"));
 }
 
-function presetMarkup(entitled, chosen) {
+export function presetMarkup(entitled, chosen) {
   return PRESETS.map(
     (preset) =>
       '<button type="button" class="preset" data-preset="' + preset.id + '" aria-pressed="' + String(preset.id === chosen) + '"' +
@@ -384,14 +384,14 @@ function alertsMarkup(settings) {
 }
 
 function themeMarkup() {
-  return '<div class="menu-line"><span>Theme</span><button type="button" id="theme" class="icon" aria-label="Switch between the light and dark theme" title="Switch between the light and dark theme">Theme</button></div>';
+  return '<div class="menu-line"><span>' + say("theme") + '</span><button type="button" id="theme" class="icon" aria-label="' + say("themeToggle") + '" title="' + say("themeToggle") + '">' + say("theme") + '</button></div>';
 }
 
-function captionsMarkup(captions, entitled) {
+export function captionsMarkup(captions, entitled) {
   return '<div class="menu-presets terminal-captions"><span>' + CAPTIONS_EN.title + '</span><span class="preset-grid">' +
     '<button type="button" class="preset" data-caption="short" aria-pressed="' + String(captions === "short") + '">' + CAPTIONS_EN.short + '</button>' +
     '<button type="button" class="preset" data-caption="tagged" aria-pressed="' + String(captions === "tagged") + '"' + (entitled ? "" : " disabled") + '>' +
-    (entitled ? "" : '<span aria-hidden="true">Locked: </span>') + CAPTIONS_EN.tagged + '</button></span></div>' +
+    (entitled ? "" : '<span aria-hidden="true">' + say("locked") + ': </span>') + CAPTIONS_EN.tagged + '</button></span></div>' +
     '<p class="menu-note">' + CAPTIONS_EN.note + '</p>';
 }
 

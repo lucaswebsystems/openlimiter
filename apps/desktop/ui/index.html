@@ -250,8 +250,9 @@
             type="button"
             id="phone-button"
             class="icon"
-            aria-label="Pair your phone"
-            title="Pair your phone"
+            data-copy-aria="pairPhone"
+            aria-label=""
+            title=""
             aria-expanded="false"
             aria-controls="phone-popover"
           >
@@ -347,15 +348,15 @@
 
       <div id="tab-panel-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
         <section class="settings q-section" aria-labelledby="appearance-title">
-          <div class="q-head"><h2 id="appearance-title">Appearance</h2></div>
+          <div class="q-head"><h2 id="appearance-title" data-copy="appearance"></h2></div>
           <div id="settings-appearance" class="q-card"></div>
         </section>
         <section class="settings q-section" aria-labelledby="alerts-title">
-          <div class="q-head"><h2 id="alerts-title">Alerts</h2></div>
+          <div class="q-head"><h2 id="alerts-title" data-copy="alerts"></h2></div>
           <div id="settings-alerts" class="q-card"></div>
         </section>
         <section class="settings q-section" aria-labelledby="account-title">
-          <div class="q-head"><h2 id="account-title">Account and Pro</h2></div>
+          <div class="q-head"><h2 id="account-title" data-copy="accountPro"></h2></div>
           <div class="q-card">
             <div class="menu-account">
               <strong id="menu-account-email">Signed out</strong>
@@ -368,7 +369,7 @@
               <label class="menu-line"><span>Sync usage percentages</span><span class="provider-switch"><input id="menu-sync" type="checkbox" role="switch" checked /><span class="provider-switch-track" aria-hidden="true"></span></span></label>
               <div id="devices-mount" class="menu-device-list"></div>
             </div>
-            <button type="button" id="pair-phone" class="q-btn q-btn-ghost">Pair your phone</button>
+            <button type="button" id="pair-phone" class="q-btn q-btn-ghost" data-copy="pairPhone"></button>
             <div class="desktop-trial" data-desktop-trial hidden></div>
             <div id="pro-mount" class="menu-group"></div>
             <div id="plan-cap-mount" class="menu-group"></div>
@@ -376,7 +377,7 @@
           </div>
         </section>
         <section class="settings q-section" aria-labelledby="about-title">
-          <div class="q-head"><h2 id="about-title">Updates and About</h2></div>
+          <div class="q-head"><h2 id="about-title" data-copy="updatesAbout"></h2></div>
           <div class="q-card">
             <button type="button" id="menu-update">Check for updates</button>
             <button type="button" id="menu-whats-new">What's new</button>

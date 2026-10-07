@@ -203,8 +203,11 @@ async function readPlan() {
   const pro = result.ok ? result.value : null;
   const entitled = proEntitled(pro);
   trialOffered = !entitled;
-  if (result.ok && !entitled) await setTerminalCaptions("short");
-  return result;
+  if (result.ok && pro?.theme_preset !== true) {
+    const reset = await setTerminalCaptions("short");
+    return { ...result, captionsReset: reset.ok };
+  }
+  return { ...result, captionsReset: true };
 }
 
 /* ------------------------------------------------ account, menu and alerts */
@@ -582,6 +585,18 @@ const tabs = tabSwitcher({
     if (id === "tab-settings") void askAlertPermission();
   },
 });
+
+for (const node of document.querySelectorAll("[data-copy]")) {
+  const value = say(node.getAttribute("data-copy"));
+  if (value) node.textContent = value;
+}
+for (const node of document.querySelectorAll("[data-copy-aria]")) {
+  const value = say(node.getAttribute("data-copy-aria"));
+  if (value) {
+    node.setAttribute("aria-label", value);
+    node.setAttribute("title", value);
+  }
+}
 elements.usageConnect?.addEventListener("click", () => tabs.select(document.getElementById("tab-tools")));
 document.getElementById("pair-phone")?.addEventListener("click", (event) => {
   event.stopPropagation();
@@ -636,9 +651,9 @@ window.addEventListener("focus", () => {
    downgraded Tagged caption choice never paints for one frame. */
 const mountPlanCap = () => renderPlanCap(elements.planCapMount, { onChange: () => void refresh() });
 void (async () => {
-  await readPlan();
+  const plan = await readPlan();
   await renderPro(elements.proMount);
-  await renderSettings(elements.settingsMount);
+  if (plan.captionsReset !== false) await renderSettings(elements.settingsMount);
   await mountPlanCap();
 })();
 
@@ -646,10 +661,10 @@ void (async () => {
    offer, the account cap, the plan card and the preset. */
 window.addEventListener("openlimiter:pro-changed", () => {
   void (async () => {
-    await readPlan();
+    const plan = await readPlan();
     await mountPlanCap();
     await renderPro(elements.proMount);
-    await renderSettings(elements.settingsMount);
+    if (plan.captionsReset !== false) await renderSettings(elements.settingsMount);
   })();
 });
 

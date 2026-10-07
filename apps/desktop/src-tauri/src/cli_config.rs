@@ -61,20 +61,13 @@ fn owner_stamp(token: &str) -> Value {
 }
 
 fn stale_lock(path: &Path) -> bool {
-    let owner = fs::read_to_string(path.join("owner.json"))
-        .ok()
-        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
-        .and_then(|value| {
-            let pid = value.get("pid").and_then(Value::as_u64)?;
-            let started = value.get("startedAt").and_then(Value::as_u64)?;
-            value.get("token").and_then(Value::as_str)?;
-            Some((pid, started))
-        });
+    let owner = read_owner(path);
     let now = SystemTime::now();
     let stale_by_age = owner
-        .map(|(_, started)| {
+        .as_ref()
+        .map(|(_, started, _)| {
             let current = now.duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
-            current.saturating_sub(started) > MAX_LOCK_AGE.as_millis() as u64
+            current.saturating_sub(*started) >= MAX_LOCK_AGE.as_millis() as u64
         })
         .unwrap_or_else(|| {
             fs::metadata(path)
@@ -83,14 +76,26 @@ fn stale_lock(path: &Path) -> bool {
                 .and_then(|modified| now.duration_since(modified).ok())
                 .is_none_or(|age| age > MAX_LOCK_AGE)
         });
-    stale_by_age || owner.map(|(pid, _)| !pid_alive(pid)).unwrap_or(false)
+    stale_by_age || owner.as_ref().map(|(pid, _, _)| !pid_alive(*pid)).unwrap_or(false)
+}
+
+fn read_owner(path: &Path) -> Option<(u64, u64, String)> {
+    fs::read_to_string(path.join("owner.json"))
+        .ok()
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+        .and_then(|value| Some((
+            value.get("pid").and_then(Value::as_u64)?,
+            value.get("startedAt").and_then(Value::as_u64)?,
+            value.get("token").and_then(Value::as_str)?.to_string(),
+        )))
 }
 
 fn pid_alive(pid: u64) -> bool {
     if pid == 0 { return false; }
     #[cfg(unix)]
     {
-        return std::process::Command::new("kill").args(["-0", &pid.to_string()]).status().map(|status| status.success()).unwrap_or(false);
+        let result = unsafe { libc::kill(pid as libc::pid_t, 0) };
+        return result == 0 || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM);
     }
     #[cfg(windows)]
     {
@@ -129,10 +134,15 @@ fn lock(directory: &Path) -> Result<ConfigLock, String> {
                 return Ok(ConfigLock { path, token });
             }
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                let observed_owner = read_owner(&path);
                 if stale_lock(&path) {
                     let displaced = path.with_file_name(format!("{LOCK_DIR_NAME}.reclaim.{}", Uuid::new_v4()));
                     if fs::rename(&path, &displaced).is_ok() {
-                        let _ = fs::remove_dir_all(displaced);
+                        let still_observed = match observed_owner {
+                            Some((_, _, token)) => read_owner(&displaced).is_some_and(|(_, _, observed)| observed == token),
+                            None => !displaced.join("owner.json").exists(),
+                        };
+                        if still_observed { let _ = fs::remove_dir_all(displaced); }
                     }
                 }
                 thread::sleep(Duration::from_millis(50));
@@ -162,6 +172,12 @@ fn read_captions(directory: &Path) -> Result<String, String> {
     Ok(document.get("statusline").and_then(Value::as_object).and_then(|statusline| statusline.get("captions")).and_then(Value::as_str).filter(|value| *value == "short" || *value == "tagged").unwrap_or("short").to_string())
 }
 
+fn caption_request_allowed(captions: &str, theme_preset: bool) -> Result<(), String> {
+    if captions != "short" && captions != "tagged" { return Err("invalid_input".to_string()); }
+    if captions == "tagged" && !theme_preset { return Err("entitlement_required".to_string()); }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn terminal_captions() -> Result<Value, String> {
     let directory = crate::state::state_directory().ok_or_else(|| "config_refused".to_string())?;
@@ -170,9 +186,7 @@ pub fn terminal_captions() -> Result<Value, String> {
 
 #[tauri::command]
 pub fn set_terminal_captions(captions: String, app: tauri::AppHandle) -> Result<Value, String> {
-    if captions == "tagged" && !crate::pro::theme_preset_enabled(&*app.state::<crate::credentials::KeyringStore>()) {
-        return Err("entitlement_required".to_string());
-    }
+    caption_request_allowed(&captions, crate::pro::theme_preset_enabled(&*app.state::<crate::credentials::KeyringStore>()))?;
     let directory = crate::state::state_directory().ok_or_else(|| "config_refused".to_string())?;
     write_captions(&directory, &captions)?;
     Ok(serde_json::json!({ "captions": captions }))
@@ -215,6 +229,33 @@ mod tests {
         assert_eq!(write_captions(dir.path(), "short"), Err("config_refused".to_string()));
         fs::write(config_path(dir.path()), r#"{"version":2}"#).unwrap();
         assert_eq!(write_captions(dir.path(), "short"), Err("config_refused".to_string()));
+    }
+
+    #[test]
+    fn concurrent_caption_writes_preserve_claude_poll_consent() {
+        let dir = TempDir::new();
+        private_directory(dir.path()).unwrap();
+        let mut document = skeleton();
+        document["providers"]["claude"]["poll"] = Value::Bool(true);
+        fs::write(config_path(dir.path()), canonical_json(&document).unwrap()).unwrap();
+        let path = dir.path().to_path_buf();
+        let first = path.clone();
+        let left = std::thread::spawn(move || write_captions(&first, "short"));
+        let second = path.clone();
+        let right = std::thread::spawn(move || write_captions(&second, "tagged"));
+        assert!(left.join().unwrap().is_ok());
+        assert!(right.join().unwrap().is_ok());
+        let saved: Value = serde_json::from_str(&fs::read_to_string(config_path(dir.path())).unwrap()).unwrap();
+        assert_eq!(saved["providers"]["claude"]["poll"], true);
+        assert!(saved["statusline"]["captions"] == "short" || saved["statusline"]["captions"] == "tagged");
+    }
+
+    #[test]
+    fn caption_command_distinguishes_free_and_theme_preset_entitlements() {
+        assert_eq!(caption_request_allowed("short", false), Ok(()));
+        assert_eq!(caption_request_allowed("tagged", false), Err("entitlement_required".to_string()));
+        assert_eq!(caption_request_allowed("tagged", true), Ok(()));
+        assert_eq!(caption_request_allowed("other", true), Err("invalid_input".to_string()));
     }
 
     #[test]

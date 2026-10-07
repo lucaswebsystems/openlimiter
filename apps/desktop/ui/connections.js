@@ -65,10 +65,8 @@ export const SETUP_EN = Object.freeze({
   unknownShape: "Settings file not understood. Merge this by hand, then Verify.",
   cliMissing: "Install the OpenLimiter command first.",
   cliNotWorking: "The OpenLimiter command did not answer.",
-  runtimeInstalled: say("runtimeInstalled"),
   runtimeMissing: say("runtimeMissing"),
   runtimeOutdated: say("runtimeOutdated"),
-  runtimeInstall: say("runtimeInstall"),
   copy: "Copy",
   copied: "Copied",
   copyRefused: "Copy refused, select it by hand",
@@ -274,10 +272,45 @@ async function copyClaudeSnippet(note, block) {
 }
 
 async function verifyClaude() {
+  await refreshRuntime();
   await detectClaude();
   await runClaudePreflight();
   options?.onMetersChanged();
   render();
+}
+
+function compareRuntimeVersions(left, right) {
+  const parse = (value) => {
+    const parts = String(value ?? "").match(/^\d+(?:\.\d+){0,3}/u);
+    return parts === null ? null : parts[0].split(".").map(Number);
+  };
+  const a = parse(left);
+  const b = parse(right);
+  if (a === null || b === null) return null;
+  for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
+    const difference = (a[index] ?? 0) - (b[index] ?? 0);
+    if (difference !== 0) return difference < 0 ? -1 : 1;
+  }
+  return 0;
+}
+
+function runtimeState(runtime) {
+  if (runtime === null) return null;
+  if (!runtime.version) return "missing";
+  const comparison = compareRuntimeVersions(runtime.version, runtime.appVersion);
+  return comparison === null || comparison === 0 ? "current" : comparison < 0 ? "older" : "newer";
+}
+
+function appendRuntimeGuidance(body, host) {
+  const runtime = session.runtime;
+  if (runtime?.version) body.append(element("p", "q-setup-line", say("runtimeInstalled", { version: runtime.version })));
+  const state = runtimeState(runtime);
+  if (state === "older" || state === "missing") {
+    const command = element("pre", "q-snippet mono", say("runtimeInstall", { host }));
+    body.append(element("p", "q-setup-line", state === "older" ? SETUP_EN.runtimeOutdated : SETUP_EN.runtimeMissing), command);
+  } else if (state === "newer") {
+    body.append(element("p", "q-setup-line", say("runtimeNewer")));
+  }
 }
 
 /* The Claude setup panel: one short line, the block, and its two controls. */
@@ -287,18 +320,10 @@ function renderClaude() {
   if (!body) return;
   body.textContent = "";
   const verdict = session.claudeVerdict;
-  const runtime = session.runtime;
   const recheck = button(SETUP_EN.checkAgain, () => void verifyClaude());
   const verify = button(SETUP_EN.verify, () => void verifyClaude(), "q-btn q-btn-primary");
   const actions = element("div", "q-setup-actions");
-  if (runtime?.version) {
-    body.append(element("p", "q-setup-line", SETUP_EN.runtimeInstalled.replace("{version}", runtime.version)));
-  }
-  const runtimeNeedsInstall = runtime !== null && (runtime.version === null || runtime.version === undefined || runtime.appVersion !== runtime.version);
-  if (runtimeNeedsInstall) {
-    const host = element("pre", "q-snippet mono", SETUP_EN.runtimeInstall.replace("{host}", "claude"));
-    body.append(element("p", "q-setup-line", runtime?.version ? SETUP_EN.runtimeOutdated : SETUP_EN.runtimeMissing), host);
-  }
+  appendRuntimeGuidance(body, "claude");
   if (verdict?.kind === "cli_missing" || verdict?.kind === "cli_not_working") {
     const missing = verdict.kind === "cli_missing";
     const line = element("pre", "q-snippet mono", missing ? verdict.installCommand : (verdict.cliPath ?? ""));
@@ -334,6 +359,7 @@ function renderAntigravity() {
   const note = document.getElementById("antigravity-note");
   if (!body) return;
   body.textContent = "";
+  appendRuntimeGuidance(body, "antigravity");
   const block = element("pre", "q-snippet mono", ANTIGRAVITY_SETUP_COMMAND);
   const actions = element("div", "q-setup-actions");
   actions.append(button(SETUP_EN.copy, async () => {
@@ -554,16 +580,20 @@ export function noteMetersRefreshed() {
 
 async function bootstrap() {
   await syncConnections();
-  const runtime = await backend.terminalRuntimeStatus();
-  session.runtime = runtime.ok && runtime.value && typeof runtime.value === "object"
-    ? { version: typeof runtime.value.version === "string" ? runtime.value.version : null, appVersion: typeof runtime.value.app_version === "string" ? runtime.value.app_version : null }
-    : null;
+  await refreshRuntime();
   if (session.backendPresent !== false) {
     await detectClaude();
     await runClaudePreflight();
   }
   render();
   options?.onMetersChanged();
+}
+
+async function refreshRuntime() {
+  const runtime = await backend.terminalRuntimeStatus();
+  session.runtime = runtime.ok && runtime.value && typeof runtime.value === "object"
+    ? { version: typeof runtime.value.version === "string" ? runtime.value.version : null, appVersion: typeof runtime.value.app_version === "string" ? runtime.value.app_version : null }
+    : null;
 }
 
 /** Wire the setup panels and the collector event, then read once. */

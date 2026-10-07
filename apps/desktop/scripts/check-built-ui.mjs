@@ -55,11 +55,24 @@ function installCaptureStub() {
   localStorage.setItem("openlimiter-first-run-complete-v1", "complete");
   localStorage.setItem("openlimiter-configured-providers-v1", JSON.stringify(["CLAUDE"]));
   const now = new Date().toISOString();
+  const expires = new Date(Date.now() + 15 * 60_000).toISOString();
+  const labels = { credentialOrigin: "official-local-tool", dataInterfaceStatus: "documented-api", automationRisk: "low", verification: "UNVERIFIED" };
+  const snapshot = (provider, meter, value, accountId) => ({
+    provider, meter, value, unit: "PERCENT", window: { kind: "rolling", durationSeconds: 18_000 },
+    resetAt: new Date(Date.now() + 4 * 60 * 60_000).toISOString(), source: "documented_api", precision: "exact",
+    observedAt: now, expiresAt: expires, labels, accountId,
+  });
+  const snapshots = [
+    snapshot("CLAUDE", "FIVE_HOUR", 42, "claude-fixture"),
+    snapshot("CODEX", "PRIMARY", 68, "codex-fixture"),
+    snapshot("ANTIGRAVITY", "FIVE_HOUR", 84, "antigravity-fixture"),
+    snapshot("OPENROUTER", "KEY_LIMIT", 32, "openrouter-fixture"),
+  ];
   const session = { sessionId: "synthetic-session", agent: "claude_code", state: "busy", confidence: "explicit", firstObservedAt: now, observedAt: now, elapsedSeconds: 0, computer: "local" };
   const account = { provider: "claude", account: null, headlineMeterId: "quota", kind: "quota_percent", value: 42, meaning: "used", windowLabel: "Session", resetAt: null, freshness: "fresh", availability: "available", band: "green", precision: "exact", fidelityMarker: null, sessions: { busy: 1, waiting: 0, done: 0, idle: 0, unknown: 0 } };
   window.__TAURI__ = {
     core: { invoke: async name => {
-      if (name === "read_cache") return JSON.stringify({ version: 2, snapshots: [{ provider: "CLAUDE", meter: "FIVE_HOUR", unit: "PERCENT", value: 42, observed_at: now, expires_at: null, reset_at: null, source: "native_payload" }], suppressions: [] });
+      if (name === "read_cache") return JSON.stringify({ version: 2, snapshots, suppressions: [] });
       if (name === "read_manual") return "";
       if (name === "state_directory") return "the demo fixtures";
       if (name === "account_status") return { signedIn: false, syncEnabled: false, backendReachable: false };
@@ -94,8 +107,37 @@ function inspectFit(page) {
       const box = element.getBoundingClientRect();
       if (box.left < -1 || box.right > innerWidth + 1) findings.push(`content clips: ${element.className}`);
     }
+    for (const panel of document.querySelectorAll("main > [role=tabpanel]")) {
+      if (panel.hidden) continue;
+      const box = panel.getBoundingClientRect();
+      if (box.width <= 0 || box.left < -1 || box.right > innerWidth + 1) findings.push(`panel clips: ${panel.id}`);
+      if (panel.scrollWidth > innerWidth + 1) findings.push(`panel overflows: ${panel.id}`);
+    }
+    const visible = [...document.querySelectorAll("main .q-group, main button, main input")]
+      .filter(element => element.checkVisibility());
+    for (let index = 0; index < visible.length; index += 1) {
+      const left = visible[index];
+      const a = left.getBoundingClientRect();
+      for (const right of visible.slice(index + 1)) {
+        if (left.contains(right) || right.contains(left)) continue;
+        const b = right.getBoundingClientRect();
+        if (a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top) {
+          findings.push(`controls overlap: ${left.className} and ${right.className}`);
+        }
+      }
+    }
     return findings;
   });
+}
+
+async function dismissModal(page) {
+  const firstRun = page.locator("#first-run");
+  if (await firstRun.isVisible()) {
+    await page.locator("#first-run-later").click();
+    await firstRun.waitFor({ state: "hidden" });
+  }
+  if (await page.locator("[role=dialog][aria-modal=true]:visible").count()) return ["a modal remains visible"];
+  return [];
 }
 
 function inspectChrome(page) {
@@ -131,6 +173,11 @@ async function inspectTab(page, id, width, height, shots) {
   const panel = `#tab-panel-${id}`;
   await page.locator(`#tab-${id}`).click();
   await page.waitForTimeout(30);
+  if (id === "tools") {
+    const antigravity = page.locator('#tab-panel-tools [data-provider="ANTIGRAVITY"] [data-action="connect"]');
+    await antigravity.click();
+    await page.locator("#antigravity-add").waitFor({ state: "visible" });
+  }
   const findings = await page.evaluate(({ panelId, tabId }) => {
     const panel = document.querySelector(panelId);
     const tabs = [...document.querySelectorAll("[role=tab]")];
@@ -197,6 +244,8 @@ try {
     await page.goto(`${origin}/index.html`);
     await page.waitForLoadState("networkidle");
     await page.locator(".chrome").waitFor({ state: "visible" });
+    const modalFindings = await dismissModal(page);
+    if (modalFindings.length) throw new Error(`FAIL modal ${width}x${height}: ${modalFindings.join(", ")}`);
     const chromeFindings = await inspectChrome(page);
     assert.deepEqual(errors, [], `${width}x${height} browser errors`);
     if (chromeFindings.length) throw new Error(`FAIL chrome ${width}x${height}: ${chromeFindings.join(", ")}`);
