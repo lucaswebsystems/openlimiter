@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
-import { THEME_ATTR, THEME_STORAGE_KEY, isTheme, type Theme } from "@/lib/theme";
+import { applyTheme, THEME_ATTR, isTheme, type Theme } from "@/lib/theme";
 
 function resolveTheme(): Theme {
   const explicit = document.documentElement.getAttribute(THEME_ATTR);
@@ -48,12 +48,7 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
 
   const toggle = () => {
     const next: Theme = resolveTheme() === "dark" ? "light" : "dark";
-    document.documentElement.setAttribute(THEME_ATTR, next);
-    try {
-      window.localStorage.setItem(THEME_STORAGE_KEY, next);
-    } catch {
-      /* Private mode can refuse storage. The choice still applies to this page. */
-    }
+    applyTheme(next);
   };
 
   return (

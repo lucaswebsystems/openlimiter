@@ -2240,6 +2240,7 @@
       "phone": "Abrir en tu teléfono",
       "install": "Instalar aplicación",
       "installed": "Instalada",
+      "reinstall": "¿Instalaste OpenLimiter antes de la versión 2.1? Elimina el icono anterior e instálalo de nuevo.",
       "updates": "Buscar actualizaciones",
       "about": "Acerca de OpenLimiter",
       "logout": "Cerrar sesión"
@@ -2421,12 +2422,39 @@
       "download": "Descargar la aplicación de escritorio",
       "qrAlt": "Código QR que lleva a la página de emparejamiento del teléfono"
     },
+    "phonePairHint": "Vincula la aplicación de escritorio para ver tus barras sin iniciar sesión",
     "phoneInstall": {
       "add": "Agregar a la pantalla de inicio",
       "androidMenu": "Toca ⋮ y luego Agregar a la pantalla de inicio",
       "ios": "Agregar a Pantalla de Inicio",
       "share": "Compartir",
       "openSafari": "Abre en Safari para instalar"
+    },
+    "install": {
+      "action": "Instalar aplicación",
+      "title": "Añadir OpenLimiter a tu pantalla de inicio",
+      "what": "Se añade un icono a tu pantalla de inicio. Desde ese icono se abre a pantalla completa, muestra primero tus barras y conserva la última lectura cuando no tienes conexión. No se descarga nada de una tienda de aplicaciones y tu cuenta no cambia.",
+      "stepShare": "Toca Compartir",
+      "stepChoose": "Elige Añadir a pantalla de inicio",
+      "stepAdd": "Toca Añadir",
+      "menu": "Toca ⋮ y luego elige Instalar aplicación o Añadir a pantalla de inicio.",
+      "openSafari": "Ábrelo en Safari para añadirlo a tu pantalla de inicio",
+      "done": "Listo",
+      "close": "Cerrar"
+    },
+    "phoneTabs": { "label": "Aplicación móvil", "usage": "Uso", "pro": "Pro" },
+    "phoneSettings": {
+      "open": "Abrir ajustes",
+      "title": "Ajustes",
+      "close": "Cerrar ajustes",
+      "pairedAs": "Vinculado como",
+      "theme": { "label": "Tema", "system": "Sistema", "light": "Claro", "dark": "Oscuro" },
+      "install": "Instalar",
+      "installAction": "Añadir a pantalla de inicio",
+      "installed": "En tu pantalla de inicio",
+      "version": "Versión",
+      "unpair": "Desvincular este teléfono",
+      "unpairing": "Desvinculando"
     },
     "pairPage": {
       "retry": "Actualizar lecturas",

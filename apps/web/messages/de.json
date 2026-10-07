@@ -2240,6 +2240,7 @@
       "phone": "Auf dem Telefon öffnen",
       "install": "App installieren",
       "installed": "Installiert",
+      "reinstall": "OpenLimiter vor Version 2.1 installiert? Entferne das alte Symbol und installiere die App erneut.",
       "updates": "Nach Updates suchen",
       "about": "Über OpenLimiter",
       "logout": "Abmelden"
@@ -2421,12 +2422,39 @@
       "download": "Desktop App holen",
       "qrAlt": "QR Code, der zur Kopplungsseite für das Telefon führt"
     },
+    "phonePairHint": "Mit der Desktop App koppeln und die Balken ohne Anmeldung sehen",
     "phoneInstall": {
       "add": "Zum Startbildschirm hinzufügen",
       "androidMenu": "Tippen Sie auf ⋮, dann auf Zum Startbildschirm hinzufügen",
       "ios": "Zum Startbildschirm",
       "share": "Teilen",
       "openSafari": "Zum Installieren in Safari öffnen"
+    },
+    "install": {
+      "action": "App installieren",
+      "title": "OpenLimiter zum Startbildschirm hinzufügen",
+      "what": "Ein Symbol wird auf deinem Startbildschirm abgelegt. Darüber öffnet sich die App im Vollbild, zeigt zuerst deine Balken und behält die letzte Anzeige, wenn du offline bist. Es wird nichts aus einem App Store geladen und an deinem Konto ändert sich nichts.",
+      "stepShare": "Tippe auf Teilen",
+      "stepChoose": "Wähle Zum Startbildschirm",
+      "stepAdd": "Tippe auf Hinzufügen",
+      "menu": "Tippe auf ⋮ und wähle dann App installieren oder Zum Startbildschirm.",
+      "openSafari": "Öffne die Seite in Safari, um sie zum Startbildschirm hinzuzufügen",
+      "done": "Fertig",
+      "close": "Schließen"
+    },
+    "phoneTabs": { "label": "Handy App", "usage": "Nutzung", "pro": "Pro" },
+    "phoneSettings": {
+      "open": "Einstellungen öffnen",
+      "title": "Einstellungen",
+      "close": "Einstellungen schließen",
+      "pairedAs": "Gekoppelt als",
+      "theme": { "label": "Design", "system": "System", "light": "Hell", "dark": "Dunkel" },
+      "install": "Installieren",
+      "installAction": "Zum Startbildschirm",
+      "installed": "Auf deinem Startbildschirm",
+      "version": "Version",
+      "unpair": "Dieses Handy entkoppeln",
+      "unpairing": "Wird entkoppelt"
     },
     "pairPage": {
       "retry": "Messungen aktualisieren",

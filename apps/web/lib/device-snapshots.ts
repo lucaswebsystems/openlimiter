@@ -27,7 +27,7 @@ const CODE_PATTERN = /^[A-Z0-9_]{2,48}$/u;
 const CURRENCY_PATTERN = /^[A-Z]{3}$/u;
 
 /** How long a fresh phone reading stays fresh on screen. */
-export const DEVICE_FRESH_MILLISECONDS = 5 * 60_000;
+export const DEVICE_FRESH_MILLISECONDS = 20 * 60_000;
 
 export interface MeterRow {
   accountId: string;

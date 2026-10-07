@@ -2240,6 +2240,7 @@
       "phone": "Abrir no celular",
       "install": "Instalar aplicativo",
       "installed": "Instalado",
+      "reinstall": "Instalou o OpenLimiter antes da versão 2.1? Remova o ícone antigo e instale novamente.",
       "updates": "Verificar atualizações",
       "about": "Sobre o OpenLimiter",
       "logout": "Sair"
@@ -2421,12 +2422,39 @@
       "download": "Baixar o aplicativo de desktop",
       "qrAlt": "Código QR que leva à página de pareamento do celular"
     },
+    "phonePairHint": "Pareie com o aplicativo para desktop e veja suas barras sem entrar na conta",
     "phoneInstall": {
       "add": "Adicionar à tela de início",
       "androidMenu": "Toque em ⋮ e depois em Adicionar à tela inicial",
       "ios": "Adicionar à Tela de Início",
       "share": "Compartilhar",
       "openSafari": "Abra no Safari para instalar"
+    },
+    "install": {
+      "action": "Instalar aplicativo",
+      "title": "Adicionar o OpenLimiter à Tela de Início",
+      "what": "Um ícone é adicionado à sua Tela de Início. Ele abre o aplicativo em tela cheia, mostra primeiro as suas barras e mantém a última leitura quando você está sem conexão. Nada é baixado de uma loja de aplicativos e nada muda na sua conta.",
+      "stepShare": "Toque em Compartilhar",
+      "stepChoose": "Escolha Adicionar à Tela de Início",
+      "stepAdd": "Toque em Adicionar",
+      "menu": "Toque em ⋮ e escolha Instalar aplicativo ou Adicionar à Tela de Início.",
+      "openSafari": "Abra no Safari para adicionar à sua Tela de Início",
+      "done": "Concluído",
+      "close": "Fechar"
+    },
+    "phoneTabs": { "label": "Aplicativo para celular", "usage": "Uso", "pro": "Pro" },
+    "phoneSettings": {
+      "open": "Abrir configurações",
+      "title": "Configurações",
+      "close": "Fechar configurações",
+      "pairedAs": "Pareado como",
+      "theme": { "label": "Tema", "system": "Sistema", "light": "Claro", "dark": "Escuro" },
+      "install": "Instalar",
+      "installAction": "Adicionar à Tela de Início",
+      "installed": "Na sua Tela de Início",
+      "version": "Versão",
+      "unpair": "Desparear este celular",
+      "unpairing": "Despareando"
     },
     "pairPage": {
       "retry": "Atualizar leituras",

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PhoneButton from "@/app/app/phone-button";
 import PairPage from "@/app/app/pair/page";
 import { PairFlow } from "@/app/app/pair/pair-flow";
-import { ANDROID_PROMPT_WAIT, PairInstallStep } from "@/app/app/pair/pair-install";
+import { detectInstallPath, InstallControl } from "@/app/app/install";
 import { DELETE as sessionDelete, POST as sessionPost } from "@/app/app/pair/api/session/route";
 import { POST as renewPost } from "@/app/app/pair/api/renew/route";
 import { POST as readPost } from "@/app/app/pair/api/read/route";
@@ -777,7 +777,7 @@ describe("the phone button panel", () => {
     press(trigger);
     await flush();
 
-    const panel = mounted.container.querySelector('[role="dialog"]');
+    const panel = document.querySelector('[role="dialog"]');
     expect(panel).not.toBeNull();
     expect(panel?.getAttribute("aria-modal")).toBe("true");
     const phone = hub.phone;
@@ -803,7 +803,7 @@ describe("the phone button panel", () => {
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     });
     await flush();
-    expect(mounted.container.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(trigger).toBe(document.activeElement);
   });
 
@@ -813,20 +813,26 @@ describe("the phone button panel", () => {
   });
 });
 
-const install = hub.phoneInstall as Record<string, string>;
 const IOS_SAFARI =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/19.0 Mobile/15E148 Safari/604.1";
 const ANDROID_CHROME =
   "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36";
 
 describe("the install step gating", () => {
-  it("shows the Android button on Android Chrome, and replays the prompt", async () => {
+  it("chooses a deterministic path for each installation environment", () => {
+    expect(detectInstallPath(IOS_SAFARI, false, false)).toBe("ios");
+    expect(detectInstallPath(ANDROID_CHROME, false, false)).toBe("menu");
+    expect(detectInstallPath(ANDROID_CHROME, true, false)).toBe("prompt");
+    expect(detectInstallPath(IOS_SAFARI, false, true)).toBe("installed");
+    expect(detectInstallPath("Mozilla/5.0 (Windows NT 10.0) Chrome/140", false, false)).toBe("manual");
+    expect(detectInstallPath("Mozilla/5.0 (iPhone) AppleWebKit/605.1 Mobile/15E148", false, false)).toBe("inAppBrowser");
+  });
+
+  it("replays Android's captured installation prompt", async () => {
     stubMatchMedia(false);
     stubUserAgent("Mozilla/5.0 (Linux; Android 15) Chrome/140");
-    mounted = render(createElement(PairInstallStep));
+    mounted = render(createElement(InstallControl));
     await flush();
-    expect(mounted.container.textContent).not.toContain((hub.phoneInstall as Record<string, string>).add);
-
     const prompted: boolean[] = [];
     await mounted.run(async () => {
       const event = new Event("beforeinstallprompt", { cancelable: true });
@@ -840,39 +846,37 @@ describe("the install step gating", () => {
     });
     await flush();
 
-    const button = byText(mounted.container, "button", (hub.phoneInstall as Record<string, string>).add);
+    const button = byText(mounted.container, "button", hub.install.action);
     expect(button).not.toBeNull();
     press(button);
     await flush();
     expect(prompted).toEqual([true]);
   });
 
-  it("ignores beforeinstallprompt on a desktop Chromium browser", async () => {
-    stubMatchMedia(false);
-    stubUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140 Safari/537.36");
-    mounted = render(createElement(PairInstallStep));
-    await flush();
-    await mounted.run(async () => {
-      const event = new Event("beforeinstallprompt", { cancelable: true });
-      Object.assign(event, { prompt: async () => undefined, userChoice: Promise.resolve({ outcome: "accepted" }) });
-      window.dispatchEvent(event);
-    });
-    await flush();
-    expect(mounted.container.textContent?.trim()).toBe("");
-  });
-
-  it("shows one Share row on real iOS Safari: the glyph, an arrow, Add to Home Screen", async () => {
+  it("opens the three step Home Screen sheet on iOS Safari", async () => {
     stubMatchMedia(false);
     stubUserAgent(IOS_SAFARI);
-    mounted = render(createElement(PairInstallStep));
+    mounted = render(createElement(InstallControl));
     await flush();
-    const status = mounted.container.querySelector('[role="status"]');
-    expect(status?.getAttribute("aria-live")).toBe("polite");
-    expect(status?.querySelector("svg")?.getAttribute("aria-label")).toBe(install.share);
-    expect(status?.textContent).toContain(install.ios);
-    /* One row, not a numbered list of steps. */
-    expect(all(mounted.container, "li")).toHaveLength(0);
-    expect(all(mounted.container, "button")).toHaveLength(0);
+    press(byText(mounted.container, "button", hub.install.action));
+    await flush();
+    const dialog = document.querySelector('[role="dialog"]');
+    expect(dialog?.textContent).toContain(hub.install.title);
+    expect(all(dialog as HTMLElement, "li")).toHaveLength(3);
+  });
+
+  it("shows only the menu instruction on Android without a captured prompt", async () => {
+    stubMatchMedia(false);
+    stubUserAgent(ANDROID_CHROME);
+    mounted = render(createElement(InstallControl));
+    await flush();
+    press(byText(mounted.container, "button", hub.install.action));
+    await flush();
+    const dialog = document.querySelector('[role="dialog"]');
+    expect(dialog?.textContent).toContain(hub.install.menu);
+    expect(dialog?.textContent).not.toContain(hub.install.stepShare);
+    expect(dialog?.textContent).not.toContain(hub.install.stepChoose);
+    expect(all(dialog as HTMLElement, "li")).toHaveLength(0);
   });
 
   it.each([
@@ -882,10 +886,11 @@ describe("the install step gating", () => {
   ])("says open in Safari inside %s, where Add to Home Screen is missing", async (_name, agent) => {
     stubMatchMedia(false);
     stubUserAgent(agent);
-    mounted = render(createElement(PairInstallStep));
+    mounted = render(createElement(InstallControl));
     await flush();
-    expect(mounted.container.textContent?.trim()).toBe(install.openSafari);
-    expect(mounted.container.querySelector("svg")).toBeNull();
+    press(byText(mounted.container, "button", hub.install.action));
+    await flush();
+    expect(document.body.textContent).toContain(hub.install.openSafari);
   });
 
   it.each([
@@ -894,51 +899,8 @@ describe("the install step gating", () => {
   ])("shows nothing in %s when the page already runs installed", async (_name, agent) => {
     stubMatchMedia(true);
     stubUserAgent(agent);
-    mounted = render(createElement(PairInstallStep));
+    mounted = render(createElement(InstallControl));
     await flush();
-    expect(mounted.container.textContent?.trim()).toBe("");
-  });
-
-  it("shows one menu line on Android when no install prompt arrives, and upgrades to the button if one does", async () => {
-    vi.useFakeTimers();
-    stubMatchMedia(false);
-    stubUserAgent(ANDROID_CHROME);
-    mounted = render(createElement(PairInstallStep));
-    await flush();
-    /* Chrome gets a moment to offer its own prompt first. */
-    expect(mounted.container.textContent?.trim()).toBe("");
-    await mounted.run(async () => { await vi.advanceTimersByTimeAsync(ANDROID_PROMPT_WAIT); });
-    expect(mounted.container.textContent?.trim()).toBe(install.androidMenu);
-    expect(install.androidMenu).toContain("⋮");
-    /* The menu mark is drawn, not left to a thin text glyph. */
-    const glyph = mounted.container.querySelector('[role="status"] svg');
-    expect(glyph?.getAttribute("aria-hidden")).toBe("true");
-    expect(glyph?.querySelectorAll("circle")).toHaveLength(3);
-
-    await mounted.run(async () => {
-      const event = new Event("beforeinstallprompt", { cancelable: true });
-      Object.assign(event, { prompt: async () => undefined, userChoice: Promise.resolve({ outcome: "accepted" }) });
-      window.dispatchEvent(event);
-    });
-    expect(byText(mounted.container, "button", install.add)).not.toBeNull();
-    expect(mounted.container.textContent).not.toContain(install.androidMenu);
-  });
-
-  it("never shows the Android menu line when the page already runs installed", async () => {
-    vi.useFakeTimers();
-    stubMatchMedia(true);
-    stubUserAgent(ANDROID_CHROME);
-    mounted = render(createElement(PairInstallStep));
-    await mounted.run(async () => { await vi.advanceTimersByTimeAsync(ANDROID_PROMPT_WAIT * 4); });
-    expect(mounted.container.textContent?.trim()).toBe("");
-  });
-
-  it("keeps the Android menu line off a desktop browser", async () => {
-    vi.useFakeTimers();
-    stubMatchMedia(false);
-    stubUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140 Safari/537.36");
-    mounted = render(createElement(PairInstallStep));
-    await mounted.run(async () => { await vi.advanceTimersByTimeAsync(ANDROID_PROMPT_WAIT * 4); });
     expect(mounted.container.textContent?.trim()).toBe("");
   });
 });
@@ -1060,14 +1022,17 @@ describe("the pair page", () => {
     expect(reads).toBe(3);
     await mounted.run(async () => { document.dispatchEvent(new Event("visibilitychange")); });
     expect(reads).toBe(4);
-    await mounted.run(async () => { await vi.advanceTimersByTimeAsync(320_000); });
+    await mounted.run(async () => { await vi.advanceTimersByTimeAsync(5 * 60_000); });
+    expect(mounted.container.textContent).toContain("Observed 6 min ago");
+    expect(mounted.container.querySelector('[data-state="stale"]')).toBeNull();
+    await mounted.run(async () => { await vi.advanceTimersByTimeAsync(14 * 60_000 + 1_000); });
     expect(mounted.container.querySelector("[data-state=stale]")).not.toBeNull();
     fail = true;
     await mounted.run(async () => { window.dispatchEvent(new Event("focus")); });
     await flush(4);
     expect(mounted.container.querySelector("[data-stale-mark]")).not.toBeNull();
     fail = false;
-    press(byText(mounted.container, "button", hub.pairPage.retry));
+    await mounted.run(async () => { window.dispatchEvent(new Event("focus")); });
     await flush(4);
     expect(mounted.container.querySelector("[data-stale-mark]")).toBeNull();
     const before = reads;
@@ -1099,10 +1064,10 @@ describe("the pair page", () => {
     expect(readPhonePairMeta()).not.toBeNull();
     expect(mounted.container.textContent).toContain(hub.pairPage.offline.title);
     unavailable = false;
-    press(byText(mounted.container, "button", hub.pairPage.retry));
+    await mounted.run(async () => { window.dispatchEvent(new Event("focus")); });
     await flush(6);
     expect(calls).toEqual(["renew", "renew", "read"]);
-    expect(mounted.container.textContent).toContain(hub.pairPage.bars.title);
+    expect(mounted.container.textContent).toContain(hub.phoneTabs.usage);
   });
 
   it("clears the local pairing marker when renewal reports no_pair", async () => {
@@ -1242,12 +1207,12 @@ describe("the pair page", () => {
       }),
     );
     mounted = render(createElement(PairFlow));
-    await findByText(mounted.container, hub.pairPage.bars.title);
+    await findByText(mounted.container, hub.phoneTabs.usage);
     expect(mounted.container.querySelector("input")).toBeNull();
     expect(mounted.container.textContent).not.toContain(codeEntry.label);
   });
 
-  it("puts the install row first and the bars right after, once paired", async () => {
+  it("puts the install row before the bars once paired", async () => {
     stubUserAgent(IOS_SAFARI);
     vi.stubGlobal(
       "fetch",
@@ -1256,9 +1221,12 @@ describe("the pair page", () => {
       }),
     );
     mounted = render(createElement(PairFlow));
-    await findByText(mounted.container, install.ios);
-    const text = mounted.container.textContent ?? "";
-    expect(text.indexOf(install.ios)).toBeLessThan(text.indexOf(hub.pairPage.bars.title));
+    await findByText(mounted.container, hub.install.action);
+    const row = mounted.container.querySelector(".ol-install-row");
+    const bars = mounted.container.querySelector(".ol-telemetry-table");
+    expect(row).not.toBeNull();
+    expect(bars).not.toBeNull();
+    expect((row as Node).compareDocumentPosition(bars as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("shows the bars for a returning visit whose pairing is still good", async () => {
@@ -1290,10 +1258,18 @@ describe("the pair page", () => {
     );
     mounted = render(createElement(PairFlow));
     await flush(6);
-    expect(mounted.container.textContent).toContain(hub.pairPage.bars.title);
+    expect(mounted.container.textContent).toContain(hub.phoneTabs.usage);
     expect(mounted.container.querySelector("openlimiter-provider-row")).not.toBeNull();
     expect(mounted.container.querySelector(".ol-card-grip")).not.toBeNull();
     expect(mounted.container.querySelector(".ol-live-meter-card")).toBeNull();
+    const usagePanel = mounted.container.querySelector<HTMLElement>("#ol-phone-panel-usage")!;
+    const proPanel = mounted.container.querySelector<HTMLElement>("#ol-phone-panel-pro")!;
+    expect(usagePanel.hidden).toBe(false);
+    expect(proPanel.hidden).toBe(true);
+    press(byText(mounted.container, "button", hub.phoneTabs.pro));
+    expect(usagePanel.hidden).toBe(true);
+    expect(proPanel.hidden).toBe(false);
+    expect(usagePanel.isConnected).toBe(true);
   });
 
   it("claims, receives approval, and establishes cookies without retaining credentials", async () => {
@@ -1357,6 +1333,14 @@ describe("the pair page", () => {
       .join("\n");
     expect(stored).not.toContain("read.token");
     expect(stored).not.toContain("credential.one");
+    const gear = mounted.container.querySelector<HTMLButtonElement>(".ol-phone-gear")!;
+    press(gear);
+    await flush();
+    const unpair = [...document.querySelectorAll<HTMLButtonElement>("button")]
+      .find((button) => button.textContent === hub.phoneSettings.unpair)!;
+    await mounted.run(async () => { unpair.click(); await Promise.resolve(); });
+    await findByText(mounted.container, hub.pairPage.setup.noCode.title);
+    expect(readPhonePairMeta()).toBeNull();
   });
 
   it("clears the delivered credentials when cookie establishment fails", async () => {
@@ -1464,7 +1448,7 @@ describe("the pair page", () => {
     );
     mounted = render(createElement(PairFlow));
     await flush(6);
-    expect(mounted.container.textContent).toContain(hub.pairPage.bars.title);
+    expect(mounted.container.textContent).toContain(hub.phoneTabs.usage);
     vi.useRealTimers();
   });
 

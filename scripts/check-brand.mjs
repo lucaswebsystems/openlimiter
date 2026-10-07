@@ -26,6 +26,7 @@ const STATIC_OUTPUTS = [
   "assets/brand/web-icons.provenance.json",
   "assets/brand/desktop-icons.provenance.json",
   "apps/web/lib/brand.generated.ts",
+  "apps/web/app/apple-icon.png",
 ];
 const GENERATED_DIRS = [
   "apps/web/public/brand",

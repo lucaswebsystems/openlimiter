@@ -29,6 +29,7 @@
  */
 
 import { readDeviceSnapshots, renewPhoneCredential, type HostedResponse } from "./pro-device";
+import { meterRowsOf } from "./device-snapshots";
 
 /** Renew once the token is this close to its end, rather than at it. */
 export const PHONE_RENEW_WITHIN_SECONDS = 12 * 3_600;
@@ -55,7 +56,14 @@ export const PHONE_REFRESH_COOKIE = "ol-phone-refresh";
 
 /** The one local storage key for the non-secret pairing marker. */
 export const PHONE_PAIR_META_KEY = "openlimiter-phone-pair-meta";
+export const PHONE_LAST_BARS_KEY = "openlimiter-phone-last-bars";
+export const PHONE_PAIRING_GENERATION_KEY = "openlimiter-phone-pairing-generation";
+export const PHONE_LAST_BARS_VERSION = 1;
+const PHONE_LAST_BARS_LIMIT = 128;
 const PHONE_DISABLED_KEY = "openlimiter-phone-disabled";
+const PHONE_PAIRING_PENDING_KEY = "openlimiter-phone-pairing-pending";
+const PHONE_PAIRING_OWNER_KEY = "openlimiter-phone-pairing-owner";
+const PHONE_PAIRING_LEASE_MILLISECONDS = 15_000;
 
 function phoneDisabled(): boolean {
   try { return typeof window !== "undefined" && window.localStorage.getItem(PHONE_DISABLED_KEY) === "true"; }
@@ -150,6 +158,9 @@ export function writePhonePairMeta(meta: PhonePairMeta): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(PHONE_PAIR_META_KEY, JSON.stringify(meta));
+    if (window.localStorage.getItem(PHONE_PAIRING_GENERATION_KEY) === null) {
+      window.localStorage.setItem(PHONE_PAIRING_GENERATION_KEY, crypto.randomUUID());
+    }
   } catch {
     /* A browser with storage refused keeps the marker in memory only. */
   }
@@ -157,8 +168,12 @@ export function writePhonePairMeta(meta: PhonePairMeta): void {
 
 export function clearPhonePairMeta(): void {
   if (typeof window === "undefined") return;
+  pendingReplacement = null;
   try {
     window.localStorage.removeItem(PHONE_PAIR_META_KEY);
+    window.localStorage.removeItem(PHONE_LAST_BARS_KEY);
+    window.localStorage.removeItem(PHONE_PAIRING_GENERATION_KEY);
+    window.localStorage.removeItem(PHONE_PAIRING_PENDING_KEY);
   } catch {
     /* Nothing to clear if storage was never available. */
   }
@@ -349,6 +364,9 @@ async function postJson(path: string, body?: unknown): Promise<{ status: number;
  */
 export async function establishPhoneSession(pair: PhonePair, label: string): Promise<boolean> {
   invalidatePhoneRequests();
+  const replacement = crypto.randomUUID();
+  pendingReplacement = replacement;
+  writePairingReplacementLease(replacement);
   const current = phoneRequestGuard();
   const answer = await postJson("/app/pair/api/session", {
     token: pair.token,
@@ -356,9 +374,18 @@ export async function establishPhoneSession(pair: PhonePair, label: string): Pro
     refresh_credential: pair.refreshCredential,
     refresh_expires_at: pair.refreshExpiresAt,
   });
-  if (!current() || answer.status !== 200) return false;
+  if (!current() || answer.status !== 200) {
+    clearPairingReplacementLease(replacement);
+    if (pendingReplacement === replacement) pendingReplacement = null;
+    return false;
+  }
   try { window.localStorage.removeItem(PHONE_DISABLED_KEY); } catch { /* Storage refused. */ }
   writePhonePairMeta({ label, expiresAt: pair.expiresAt });
+  try {
+    window.localStorage.setItem(PHONE_PAIRING_GENERATION_KEY, crypto.randomUUID());
+  } catch { /* The in-tab request revision still fences this replacement. */ }
+  clearPairingReplacementLease(replacement);
+  if (pendingReplacement === replacement) pendingReplacement = null;
   return true;
 }
 
@@ -381,16 +408,19 @@ export type RenewSessionOutcome =
   | { kind: "revoked" }
   | { kind: "unpaired" }
   | { kind: "unavailable" }
+  | { kind: "superseded" }
   | { kind: "skipped"; expiresAt: number };
 
 /** The fixed name every tab requests the same Web Lock under. */
 const RENEW_LOCK_NAME = "openlimiter-phone-renew";
 
 async function renewOnce(): Promise<RenewSessionOutcome> {
+  const pairingGeneration = currentPairingGeneration();
   const current = phoneRequestGuard();
   if (phoneDisabled()) return { kind: "unpaired" };
   const answer = await postJson("/app/pair/api/renew");
-  if (!current() || phoneDisabled()) return { kind: "unpaired" };
+  const invalidated = phoneRequestInvalidation(current, pairingGeneration);
+  if (invalidated !== null) return { kind: invalidated };
   if (answer.status === 403) {
     clearPhonePairMeta();
     return { kind: "revoked" };
@@ -428,19 +458,104 @@ async function renewOnce(): Promise<RenewSessionOutcome> {
 let renewalFlight: Promise<RenewSessionOutcome> | null = null;
 
 let phoneGeneration = 0;
+let pendingReplacement: string | null = null;
+let fallbackPairingOwner: string | null = null;
 const PHONE_REVISION_KEY = "openlimiter-phone-session-revision";
 function storedRevision(): string | null {
   try { return window.localStorage.getItem(PHONE_REVISION_KEY); } catch { return null; }
 }
+function storedPairingGeneration(): string | null {
+  try { return window.localStorage.getItem(PHONE_PAIRING_GENERATION_KEY); } catch { return null; }
+}
 function invalidatePhoneRequests(): void {
   phoneGeneration += 1;
   renewalFlight = null;
+  try { window.localStorage.removeItem(PHONE_LAST_BARS_KEY); } catch { /* Storage is optional. */ }
   try { window.localStorage.setItem(PHONE_REVISION_KEY, crypto.randomUUID()); } catch { /* Memory still fences this tab. */ }
+}
+interface PairingReplacementLease {
+  owner: string;
+  replacement: string;
+  expiresAt: number;
+}
+function pairingOwner(): string {
+  if (fallbackPairingOwner === null) fallbackPairingOwner = crypto.randomUUID();
+  try {
+    const stored = window.sessionStorage.getItem(PHONE_PAIRING_OWNER_KEY);
+    if (stored !== null) return stored;
+    window.sessionStorage.setItem(PHONE_PAIRING_OWNER_KEY, fallbackPairingOwner);
+  } catch { /* The module owner still recovers this tab while it remains loaded. */ }
+  return fallbackPairingOwner;
+}
+function pairingReplacementLease(): PairingReplacementLease | null {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(PHONE_PAIRING_PENDING_KEY) ?? "null") as unknown;
+    if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+    const lease = value as Partial<PairingReplacementLease>;
+    return typeof lease.owner === "string" && typeof lease.replacement === "string" &&
+      typeof lease.expiresAt === "number" && Number.isFinite(lease.expiresAt)
+      ? lease as PairingReplacementLease : null;
+  } catch { return null; }
+}
+function writePairingReplacementLease(replacement: string): void {
+  try {
+    window.localStorage.setItem(PHONE_PAIRING_PENDING_KEY, JSON.stringify({
+      owner: pairingOwner(),
+      replacement,
+      expiresAt: Date.now() + PHONE_PAIRING_LEASE_MILLISECONDS,
+    } satisfies PairingReplacementLease));
+  } catch { /* This tab still fences its own reads in memory. */ }
+}
+function clearPairingReplacementLease(replacement: string): void {
+  try {
+    if (pairingReplacementLease()?.replacement === replacement) {
+      window.localStorage.removeItem(PHONE_PAIRING_PENDING_KEY);
+    }
+  } catch { /* Storage is optional. */ }
+}
+function discardUncertainPairingState(): void {
+  pendingReplacement = null;
+  invalidatePhoneRequests();
+  try {
+    window.localStorage.removeItem(PHONE_PAIR_META_KEY);
+    window.localStorage.removeItem(PHONE_PAIRING_GENERATION_KEY);
+    window.localStorage.removeItem(PHONE_PAIRING_PENDING_KEY);
+  } catch { /* A verified cookie read can still recover without storage. */ }
+}
+function pairingReplacementPending(): boolean {
+  if (pendingReplacement !== null) return true;
+  let markerPresent = false;
+  try { markerPresent = window.localStorage.getItem(PHONE_PAIRING_PENDING_KEY) !== null; }
+  catch { return false; }
+  if (!markerPresent) return false;
+  const lease = pairingReplacementLease();
+  if (lease !== null && lease.owner !== pairingOwner() && lease.expiresAt > Date.now()) return true;
+  discardUncertainPairingState();
+  return false;
 }
 function phoneRequestGuard(): () => boolean {
   const generation = phoneGeneration;
   const revision = storedRevision();
   return () => generation === phoneGeneration && revision === storedRevision();
+}
+function currentPairingGeneration(): string | null {
+  if (readPhonePairMeta() !== null && storedPairingGeneration() === null) {
+    try { window.localStorage.setItem(PHONE_PAIRING_GENERATION_KEY, crypto.randomUUID()); }
+    catch { /* A current request can still be fenced by its in-tab revision. */ }
+  }
+  return storedPairingGeneration();
+}
+function phoneRequestInvalidation(
+  current: () => boolean,
+  pairingGeneration: string | null,
+): "superseded" | "unpaired" | null {
+  if (pairingReplacementPending()) return "superseded";
+  const latestPairingGeneration = storedPairingGeneration();
+  if (latestPairingGeneration !== null && latestPairingGeneration !== pairingGeneration) {
+    return "superseded";
+  }
+  if (!current() || phoneDisabled()) return "unpaired";
+  return null;
 }
 
 /** Lamport's bakery lock for browsers without Web Locks. Tickets are per tab attempt.
@@ -478,10 +593,13 @@ async function storageRenewalLock(run: () => Promise<RenewSessionOutcome>): Prom
 
 export function requestPhoneRenewal(force = false): Promise<RenewSessionOutcome> {
   if (renewalFlight) return renewalFlight;
+  if (pairingReplacementPending()) return Promise.resolve({ kind: "superseded" });
+  const pairingGeneration = currentPairingGeneration();
   const current = phoneRequestGuard();
   const initialExpiry = readPhonePairMeta()?.expiresAt;
   const renew = async (): Promise<RenewSessionOutcome> => {
-    if (!current() || phoneDisabled()) return { kind: "unpaired" };
+    const invalidated = phoneRequestInvalidation(current, pairingGeneration);
+    if (invalidated !== null) return { kind: invalidated };
     const meta = readPhonePairMeta();
     if (meta !== null && ((!force && !phonePairNeedsRenewal(meta)) || (force && meta.expiresAt !== initialExpiry))) {
       return { kind: "skipped", expiresAt: meta.expiresAt };
@@ -491,8 +609,10 @@ export function requestPhoneRenewal(force = false): Promise<RenewSessionOutcome>
   const request = typeof navigator !== "undefined" && navigator.locks
     ? navigator.locks.request(RENEW_LOCK_NAME, renew)
     : storageRenewalLock(renew);
-  const flight = Promise.resolve(request).then((answer): RenewSessionOutcome =>
-    current() ? answer : { kind: "unpaired" }).finally(() => {
+  const flight = Promise.resolve(request).then((answer): RenewSessionOutcome => {
+    const invalidated = phoneRequestInvalidation(current, pairingGeneration);
+    return invalidated === null ? answer : { kind: invalidated };
+  }).finally(() => {
     if (renewalFlight === flight) renewalFlight = null;
   });
   renewalFlight = flight;
@@ -503,45 +623,126 @@ export type PhoneReadOutcome =
   | { kind: "fresh"; body: unknown }
   | { kind: "revoked" }
   | { kind: "unpaired" }
+  | { kind: "superseded" }
   | { kind: "empty" };
 
+interface PhoneLastBarsRecord {
+  version: 1;
+  pairingGeneration: string;
+  rows: Array<{
+    account_id: string;
+    provider: string;
+    code: string;
+    percent: number;
+    resets_at: string | null;
+    observed_at: string;
+    stale: true;
+  }>;
+}
+
+export function writePhoneLastBars(body: unknown): void {
+  if (typeof window === "undefined" || readPhonePairMeta() === null) return;
+  const pairingGeneration = storedPairingGeneration();
+  if (pairingGeneration === null) return;
+  const rows = meterRowsOf(body)
+    .filter((row) => row.percent !== null)
+    .slice(0, PHONE_LAST_BARS_LIMIT)
+    .map((row) => ({
+      account_id: row.accountId,
+      provider: row.provider,
+      code: row.code,
+      percent: row.percent as number,
+      resets_at: row.resetsAt,
+      observed_at: row.observedAt,
+      stale: true as const,
+    }));
+  const record: PhoneLastBarsRecord = {
+    version: PHONE_LAST_BARS_VERSION,
+    pairingGeneration,
+    rows,
+  };
+  try { window.localStorage.setItem(PHONE_LAST_BARS_KEY, JSON.stringify(record)); }
+  catch { /* An offline convenience must never block a fresh reading. */ }
+}
+
+export function readPhoneLastBars(): { rows: PhoneLastBarsRecord["rows"] } | null {
+  if (typeof window === "undefined" || readPhonePairMeta() === null) return null;
+  try {
+    const raw = window.localStorage.getItem(PHONE_LAST_BARS_KEY);
+    if (raw === null) return null;
+    const value = record(JSON.parse(raw));
+    const revision = storedPairingGeneration();
+    if (value?.version !== PHONE_LAST_BARS_VERSION ||
+        typeof value.pairingGeneration !== "string" ||
+        value.pairingGeneration !== revision ||
+        !Array.isArray(value.rows) || value.rows.length > PHONE_LAST_BARS_LIMIT) return null;
+    const body = { rows: value.rows };
+    const parsed = meterRowsOf(body).filter((row) => row.percent !== null);
+    if (parsed.length !== value.rows.length) return null;
+    return { rows: value.rows as PhoneLastBarsRecord["rows"] };
+  } catch { return null; }
+}
+
 /** Read the account's meters through the same-origin route. */
-export async function requestPhoneRead(): Promise<PhoneReadOutcome> {
+export async function requestPhoneRead(recoveredLabel = "This phone"): Promise<PhoneReadOutcome> {
+  if (pairingReplacementPending()) return { kind: "superseded" };
+  const pairingGeneration = currentPairingGeneration();
   const current = phoneRequestGuard();
   if (phoneDisabled()) return { kind: "unpaired" };
   const answer = await postJson("/app/pair/api/read");
-  if (!current() || phoneDisabled()) return { kind: "unpaired" };
+  const invalidated = phoneRequestInvalidation(current, pairingGeneration);
+  if (invalidated !== null) return { kind: invalidated };
   if (answer.status === 401) {
     const body = record(answer.body);
     return body?.error === "no_pair" ? { kind: "unpaired" } : { kind: "empty" };
   }
-  if (answer.status === 403) return { kind: "revoked" };
+  if (answer.status === 403) {
+    clearPhonePairMeta();
+    return { kind: "revoked" };
+  }
   if (answer.status !== 200) return { kind: "empty" };
   const body = record(answer.body);
-  return { kind: "fresh", body: body?.body ?? null };
+  const fresh = body?.body ?? null;
+  if (readPhonePairMeta() === null) {
+    writePhonePairMeta({
+      label: recoveredLabel,
+      expiresAt: Math.floor(Date.now() / 1_000) + PHONE_RENEW_WITHIN_SECONDS + 60,
+    });
+  }
+  writePhoneLastBars(fresh);
+  return { kind: "fresh", body: fresh };
 }
 
 /** Renew before reading, and recover a missing access cookie without deleting the refresh cookie. */
-export async function readCurrentPhoneBars(): Promise<PhoneReadOutcome> {
+export async function readCurrentPhoneBars(recoveredLabel = "This phone"): Promise<PhoneReadOutcome> {
+  const pairingGeneration = currentPairingGeneration();
   const current = phoneRequestGuard();
   if (phoneDisabled()) return { kind: "unpaired" };
   const meta = readPhonePairMeta();
   if (meta !== null && phonePairNeedsRenewal(meta)) {
     const renewal = await requestPhoneRenewal();
-    if (!current() || phoneDisabled()) return { kind: "unpaired" };
+    const invalidated = phoneRequestInvalidation(current, pairingGeneration);
+    if (invalidated !== null) return { kind: invalidated };
+    if (renewal.kind === "superseded") return renewal;
     if (renewal.kind === "revoked") return renewal;
     if (renewal.kind === "unpaired") return renewal;
     if (renewal.kind === "unavailable") return { kind: "empty" };
   }
-  const answer = await requestPhoneRead();
-  if (!current() || phoneDisabled()) return { kind: "unpaired" };
+  const answer = await requestPhoneRead(recoveredLabel);
+  let invalidated = phoneRequestInvalidation(current, pairingGeneration);
+  if (invalidated !== null) return { kind: invalidated };
+  if (answer.kind === "superseded") return answer;
   if (answer.kind !== "unpaired") return answer;
   const renewal = await requestPhoneRenewal(true);
-  if (!current() || phoneDisabled()) return { kind: "unpaired" };
+  invalidated = phoneRequestInvalidation(current, pairingGeneration);
+  if (invalidated !== null) return { kind: invalidated };
+  if (renewal.kind === "superseded") return renewal;
   if (renewal.kind === "revoked") return renewal;
   if (renewal.kind === "unpaired") return renewal;
   if (renewal.kind === "unavailable") return { kind: meta === null ? "unpaired" : "empty" };
-  const retried = await requestPhoneRead();
-  if (!current() || phoneDisabled()) return { kind: "unpaired" };
+  const retried = await requestPhoneRead(recoveredLabel);
+  invalidated = phoneRequestInvalidation(current, pairingGeneration);
+  if (invalidated !== null) return { kind: invalidated };
+  if (retried.kind === "superseded") return retried;
   return retried.kind === "unpaired" ? { kind: "empty" } : retried;
 }

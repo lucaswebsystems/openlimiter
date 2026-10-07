@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
   amountRows,
+  DEVICE_FRESH_MILLISECONDS,
   formatAmount,
   meterRowsOf,
   snapshotFromMeterRow,
@@ -26,6 +27,7 @@ import {
 import {
   establishPhoneSession,
   readCurrentPhoneBars,
+  readPhoneLastBars,
   readPhonePairMeta,
   phonePairOf,
 } from "@/lib/phone-session";
@@ -33,10 +35,14 @@ import { createPhoneSessionRuntime } from "@/lib/session-runtime";
 import { serialPoll } from "@/lib/serial-poll";
 import { claimPairingCode, pollPairingClaim } from "@/lib/pro-device";
 import { PROVIDER_CODES, buildProviderAccountRows, parseQuotaText } from "../engine";
-import { DollarRow, ProviderRows, observationAgeMinutes } from "../pieces";
+import { DollarRow, ProviderRows, SkeletonRows, observationAgeMinutes } from "../pieces";
 import { claudeMeterOverride, meterName, type ClaudeMeterCopy } from "../language";
 import { useClaudeMeterCopy } from "../use-claude-meter-copy";
-import { PairInstallStep, runningInstalled } from "./pair-install";
+import { InstallControl, runningInstalled } from "../install";
+import { PhoneSettings } from "./phone-settings";
+import { PhoneTabs, type PhoneTab } from "./phone-tabs";
+import { ProTab } from "./pro-tab";
+import { authStorageKey, readKeepSignedIn } from "@/lib/account-client";
 
 /**
  * The pairing flow, at 375 wide first, and the phone's own dashboard after.
@@ -181,7 +187,6 @@ interface PhoneBarsProps {
   /** True when these are the last good readings and the service did not answer. */
   stale: boolean;
   locale: string;
-  heading: string;
   staleLabel: string;
   now: string;
   freshLabel: string;
@@ -199,11 +204,15 @@ interface PhoneBarsProps {
  * browser dashboard draw, so one reading cannot look like two different
  * readings on two screens.
  */
-function PhoneBars({ body, stale, locale, heading, staleLabel, now, freshLabel, staleStateLabel, unknownAgeLabel, ageLabel, stateAnnouncement, accountLabel, claudeMeterCopy = {}, claudeFableHintText = "" }: PhoneBarsProps) {
-  const rows = useMemo(() => meterRowsOf(body), [body]);
+function PhoneBars({ body, stale, locale, staleLabel, now, freshLabel, staleStateLabel, unknownAgeLabel, ageLabel, stateAnnouncement, accountLabel, claudeMeterCopy = {}, claudeFableHintText = "" }: PhoneBarsProps) {
+  const rows = useMemo(
+    () => meterRowsOf(body).map((row) => stale ? { ...row, stale: true } : row),
+    [body, stale],
+  );
   const snapshots = useMemo(() => {
     const raw = rows.map(snapshotFromMeterRow).filter((row) => row !== null);
     const parsed = parseQuotaText(JSON.stringify(raw), new Date().toISOString());
+    // Lane A eligibility hook: the shared engine result becomes the only filter when that rule lands.
     return parsed.ok ? parsed.snapshots : [];
   }, [rows]);
   const money = useMemo(() => amountRows(rows, ENGINE_PROVIDERS), [rows]);
@@ -211,33 +220,23 @@ function PhoneBars({ body, stale, locale, heading, staleLabel, now, freshLabel, 
     () => buildProviderAccountRows(snapshots, now, [], {
       accountLabel: (_accountId, count) => accountLabel(count),
       meterLabel: (code, provider) => claudeMeterOverride(code, provider, claudeMeterCopy),
+      updatedLabel: (observedAt) => {
+        const age = observationAgeMinutes(observedAt, now);
+        return age !== null && age >= 5 ? ageLabel(age) : null;
+      },
     }),
-    [accountLabel, claudeMeterCopy, now, snapshots],
+    [accountLabel, ageLabel, claudeMeterCopy, now, snapshots],
   );
 
   return (
-    <section className="space-y-3" data-stale={stale ? "" : undefined}>
-      <h1 className="flex items-center justify-center gap-2 text-lg font-medium text-heading">
-        <span
-          aria-hidden="true"
-          className={`h-2 w-2 flex-none rounded-full ${stale ? "bg-muted" : "bg-accent-solid"}`}
-        />
-        {heading}
-        {stale && (
-          <span
-            data-stale-mark=""
-            className="rounded-full border border-hairline bg-raised px-2 py-0.5 text-xs font-medium text-muted"
-          >
-            {staleLabel}
-          </span>
-        )}
-      </h1>
+    <section className="space-y-3" data-stale={stale ? "" : undefined} aria-label={stale ? staleLabel : undefined}>
       <div className="space-y-3">
         {snapshots.length > 0 && (
           <ProviderRows
             rows={providerRows}
             orderScope={{ kind: "paired", id: "current-device" }}
             reorderable
+            layout="stacked"
             claudeFableHintText={claudeFableHintText}
           />
         )}
@@ -249,7 +248,7 @@ function PhoneBars({ body, stale, locale, heading, staleLabel, now, freshLabel, 
           </div>
         )}
         {snapshots.length === 0 && money.length === 0 && (
-          <p className={`${CARD} text-sm leading-relaxed text-muted`}>{heading}</p>
+          <SkeletonRows />
         )}
       </div>
     </section>
@@ -258,7 +257,7 @@ function PhoneBars({ body, stale, locale, heading, staleLabel, now, freshLabel, 
 
 function MoneyRow({ row, locale, now, offline, freshLabel, staleStateLabel, unknownAgeLabel, ageLabel, stateAnnouncement, claudeMeterCopy }: { row: MeterRow; locale: string; now: string; offline: boolean; freshLabel: string; staleStateLabel: string; unknownAgeLabel: string; ageLabel: (minutes: number) => string; stateAnnouncement: (state: string) => string; claudeMeterCopy: ClaudeMeterCopy }) {
   const age = observationAgeMinutes(row.observedAt, now);
-  const stale = offline || row.stale || age === null || age > 5;
+  const stale = offline || row.stale || age === null || age * 60_000 >= DEVICE_FRESH_MILLISECONDS;
   return (
     <DollarRow
       name={`${row.provider} ${meterName(row.code, row.provider, claudeMeterCopy)}`}
@@ -308,14 +307,16 @@ function PairedPhone({
   t,
   onUnpaired,
   initialBars,
+  lockup,
 }: {
   label: string;
   t: (key: string, values?: Record<string, string | number | Date>) => string;
   onUnpaired: () => void;
   initialBars: unknown;
+  lockup: ReactNode;
 }) {
   const [state, setState] = useState<PairedState>({
-    phase: initialBars === null ? "reading" : "ready",
+    phase: initialBars === null ? "reading" : "offline",
     bars: initialBars,
     generation: 0,
   });
@@ -323,7 +324,7 @@ function PairedPhone({
   const claudeMeterCopy = useClaudeMeterCopy();
   const readingsT = useTranslations("hub");
   const [now, setNow] = useState(() => new Date().toISOString());
-  const retry = useRef<(() => Promise<void>) | null>(null);
+  const [tab, setTab] = useState<PhoneTab>("usage");
   const unpairedRef = useRef(onUnpaired);
   unpairedRef.current = onUnpaired;
 
@@ -332,6 +333,7 @@ function PairedPhone({
   }, []);
 
   useEffect(() => {
+    document.documentElement.setAttribute("data-ol-ready", "1");
     const runtime = createPhoneSessionRuntime();
     const unsubscribe = runtime.subscribe((answer) => {
       if (answer.kind === "revoked") {
@@ -340,12 +342,11 @@ function PairedPhone({
         unpairedRef.current();
       } else if (answer.kind === "fresh") {
         setState((previous) => ({ ...previous, bars: answer.body, phase: "ready", generation: previous.generation + 1 }));
-      } else {
+      } else if (answer.kind === "empty") {
         setState((previous) => ({ ...previous, phase: "offline" }));
       }
     });
     runtime.start();
-    retry.current = runtime.refresh;
     const refreshClock = () => {
       if (document.visibilityState !== "hidden") setNow(new Date().toISOString());
     };
@@ -357,70 +358,73 @@ function PairedPhone({
       runtime.stop();
       window.clearInterval(clock);
       document.removeEventListener("visibilitychange", onVisibilityChange);
-      retry.current = null;
     };
   }, []);
 
-  if (state.phase === "revoked") {
-    return (
-      <Card title={t("pairPage.revoked.title")}>
-        <p>{t("pairPage.revoked.body")}</p>
-        <p>
-          <Link href="/app" className={BUTTON_GHOST}>
-            {t("pairPage.openDashboard")}
-          </Link>
-        </p>
-      </Card>
-    );
-  }
-
-  if (state.phase === "renewing" && state.bars === null) {
-    return (
-      <Card title={t("pairPage.renewing.title")} tone="accent">
-        <p>{t("pairPage.renewing.body")}</p>
-      </Card>
-    );
-  }
-
-  if (state.phase === "reading" && state.bars === null) {
-    return (
-      <Card title={t("pairPage.reading.title")} tone="accent">
-        <p>{t("pairPage.reading.body")}</p>
-      </Card>
-    );
-  }
-
-  if (state.phase === "offline" && state.bars === null) {
-    return (
-      <Card title={t("pairPage.offline.title")}>
-        <p>{t("pairPage.offline.body")}</p>
-        <button className={BUTTON_GHOST} onClick={() => { void retry.current?.(); }}>{t("pairPage.retry")}</button>
-      </Card>
-    );
-  }
-
   return (
-    <div className="space-y-4">
-      {/* Approved, so installing is the next step: it comes first. */}
-      <PairInstallStep />
-      <p className="text-center text-xs text-muted">{t("pairPage.pairedAs", { label })}</p>
-      <PhoneBars
-        body={state.bars}
-        stale={state.phase === "offline"}
-        locale={locale.current}
-        heading={t("pairPage.bars.title")}
-        staleLabel={t("pairPage.offline.staleMark")}
-        now={now}
-        freshLabel={t("cloud.fresh")}
-        staleStateLabel={t("cloud.stale")}
-        unknownAgeLabel={t("cloud.observationUnknown")}
-        ageLabel={(minutes) => t("cloud.observationAge", { minutes })}
-        stateAnnouncement={(state) => t("cloud.stateAnnouncement", { state })}
-        accountLabel={(count) => t("grid.account", { count })}
-        claudeMeterCopy={claudeMeterCopy}
-        claudeFableHintText={readingsT("claudeFableDesktopHint")}
-      />
-      <button className={BUTTON_GHOST} onClick={() => { void retry.current?.(); }}>{t("pairPage.retry")}</button>
+    <div className="ol-phone-app">
+      <header className="ol-phone-header">
+        {lockup}
+        <div className="ol-phone-header-actions">
+          {state.phase === "offline" && <span data-stale-mark="" className="ol-stale-pill">{t("pairPage.offline.staleMark")}</span>}
+          <PhoneSettings label={label} onUnpaired={onUnpaired} />
+        </div>
+      </header>
+      <main className="ol-phone-content">
+        <section
+          id="ol-phone-panel-usage"
+          role="tabpanel"
+          aria-labelledby="ol-phone-tab-usage"
+          tabIndex={0}
+          hidden={tab !== "usage"}
+        >
+        {state.phase === "revoked" ? (
+          <Card title={t("pairPage.revoked.title")}>
+            <p>{t("pairPage.revoked.body")}</p>
+            <p>
+              <Link href="/app" className={BUTTON_GHOST}>
+                {t("pairPage.openDashboard")}
+              </Link>
+            </p>
+          </Card>
+        ) : state.bars === null && (state.phase === "reading" || state.phase === "renewing") ? (
+          <SkeletonRows />
+        ) : state.phase === "offline" && state.bars === null ? (
+          <Card title={t("pairPage.offline.title")}>
+            <p>{t("pairPage.offline.body")}</p>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            <InstallControl compact />
+            <PhoneBars
+              body={state.bars}
+              stale={state.phase === "offline"}
+              locale={locale.current}
+              staleLabel={t("pairPage.offline.staleMark")}
+              now={now}
+              freshLabel={t("cloud.fresh")}
+              staleStateLabel={t("cloud.stale")}
+              unknownAgeLabel={t("cloud.observationUnknown")}
+              ageLabel={(minutes) => t("cloud.observationAge", { minutes })}
+              stateAnnouncement={(value) => t("cloud.stateAnnouncement", { state: value })}
+              accountLabel={(count) => t("grid.account", { count })}
+              claudeMeterCopy={claudeMeterCopy}
+              claudeFableHintText={readingsT("claudeFableDesktopHint")}
+            />
+          </div>
+        )}
+        </section>
+        <section
+          id="ol-phone-panel-pro"
+          role="tabpanel"
+          aria-labelledby="ol-phone-tab-pro"
+          tabIndex={0}
+          hidden={tab !== "pro"}
+        >
+          <ProTab />
+        </section>
+      </main>
+      <PhoneTabs active={tab} onSelect={setTab} />
     </div>
   );
 }
@@ -455,7 +459,16 @@ function initialFragmentState(): PairState {
   return next;
 }
 
-export function PairFlow() {
+function hasHubSession(): boolean {
+  const key = authStorageKey();
+  if (key === null) return false;
+  try {
+    const storage = readKeepSignedIn() ? window.localStorage : window.sessionStorage;
+    return storage.getItem(key) !== null;
+  } catch { return false; }
+}
+
+export function PairFlow({ lockup = null }: { lockup?: ReactNode }) {
   const t = useTranslations("hub");
   const defaultLabel = t("pairPage.defaultLabel");
   const [state, setState] = useState<PairState>(initialFragmentState);
@@ -520,11 +533,16 @@ export function PairFlow() {
     void (async () => {
       const meta = readPhonePairMeta();
       if (meta !== null) {
+        setPairedBars(readPhoneLastBars());
         setPairedLabel(meta.label);
         setCheckingExisting(false);
         return;
       }
-      const answer = await readCurrentPhoneBars();
+      if (state.phase === "noCode" && hasHubSession()) {
+        window.location.replace("/app");
+        return;
+      }
+      const answer = await readCurrentPhoneBars(defaultLabel);
       if (!live) return;
       if (answer.kind === "fresh") {
         setPairedBars(answer.body);
@@ -613,9 +631,14 @@ export function PairFlow() {
         label={pairedLabel}
         t={t}
         initialBars={pairedBars}
+        lockup={lockup}
         onUnpaired={() => {
           setPairedLabel(null);
           setPairedBars(null);
+          claimStarted.current = false;
+          setRemaining(null);
+          setCheckingExisting(false);
+          setState(initialPairState(""));
         }}
       />
     );

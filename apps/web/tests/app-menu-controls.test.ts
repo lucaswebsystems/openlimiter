@@ -1,6 +1,7 @@
 import { createElement, createRef } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { InstallControl } from "@/app/app/install";
+import { RegisterServiceWorker } from "@/app/app/register-service-worker";
 import { SettingsMenu } from "@/app/app/pieces";
 import { byText, flush, messages, render, type Mounted } from "./render";
 
@@ -25,9 +26,30 @@ let mounted: Mounted | null = null;
 afterEach(() => {
   mounted?.unmount();
   mounted = null;
+  vi.unstubAllEnvs();
+  Reflect.deleteProperty(navigator, "serviceWorker");
 });
 
 describe("application menu controls", () => {
+  it("registers the scoped worker and checks for a deployed update", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.spyOn(document, "readyState", "get").mockReturnValue("complete");
+    Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
+    const update = vi.fn(async () => undefined);
+    const register = vi.fn(async () => ({ update }));
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      value: { controller: null, register, addEventListener: vi.fn(), removeEventListener: vi.fn() },
+    });
+    mounted = render(createElement(RegisterServiceWorker));
+    await flush(4);
+    expect(register).toHaveBeenCalledWith(expect.stringMatching(/^\/sw\.js\?build=6-/u), {
+      scope: "/app",
+      updateViaCache: "none",
+    });
+    expect(update).toHaveBeenCalledOnce();
+  });
+
   it("reports installation state and disables the completed menu action", async () => {
     const states: boolean[] = [];
     mounted = render(createElement(InstallControl, {

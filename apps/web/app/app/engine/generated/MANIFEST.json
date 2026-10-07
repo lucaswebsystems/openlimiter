@@ -31,7 +31,7 @@
     "connectors/index.ts": "cb259accae69925b",
     "adapters/claude-code.ts": "d6d1183bd8093600",
     "ui/provider-connect.ts": "ac27de48b19b41e8",
-    "ui/provider-row.ts": "5b64e48118aa5d1e",
+    "ui/provider-row.ts": "96d1b16a0a255012",
     "ui/tokens.css": "11c79e1125538355",
     "provider_specs/provider-specs.json": "40fa3017bad7a42b"
   }

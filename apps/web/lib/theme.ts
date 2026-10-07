@@ -14,9 +14,33 @@ export const THEME_ATTR = "data-theme";
 export const THEME_STORAGE_KEY = "openlimiter-theme";
 
 export type Theme = "light" | "dark";
+export type ThemeChoice = Theme | "system";
+
+export const THEME_COLORS: Record<Theme, string> = {
+  light: "#f4f7fb",
+  dark: "#080b10",
+};
 
 export function isTheme(value: unknown): value is Theme {
   return value === "light" || value === "dark";
+}
+
+export function systemTheme(): Theme {
+  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
+
+export function applyTheme(choice: ThemeChoice): Theme {
+  const theme = choice === "system" ? systemTheme() : choice;
+  document.documentElement.setAttribute(THEME_ATTR, theme);
+  try {
+    if (choice === "system") window.localStorage.removeItem(THEME_STORAGE_KEY);
+    else window.localStorage.setItem(THEME_STORAGE_KEY, choice);
+  } catch {
+    /* Storage is optional. The visible choice still applies to this page. */
+  }
+  document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+    ?.setAttribute("content", THEME_COLORS[theme]);
+  return theme;
 }
 
 /**
@@ -28,6 +52,9 @@ export function isTheme(value: unknown): value is Theme {
 export const themeArmScript = [
   "(function(){try{",
   `var v=window.localStorage.getItem("${THEME_STORAGE_KEY}");`,
-  `if(v==="light"||v==="dark"){document.documentElement.setAttribute("${THEME_ATTR}",v)}`,
+  'var s=window.matchMedia("(display-mode: standalone)").matches||window.navigator.standalone===true;',
+  'var t=(v==="light"||v==="dark")?v:(s?(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"):null);',
+  `if(t){document.documentElement.setAttribute("${THEME_ATTR}",t)}`,
+  `var m=document.querySelector('meta[name="theme-color"]');if(m){m.setAttribute("content",t==="light"?"${THEME_COLORS.light}":"${THEME_COLORS.dark}")}`,
   "}catch(e){}})();",
 ].join("");
