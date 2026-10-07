@@ -74,6 +74,7 @@
     "showTool": "Show",
     "removeTool": "Remove",
     "removeConfirm": "Press again to remove",
+    "claudeWeeklyOAuthApps": "Weekly, OAuth Apps",
     "showClaudeFable": "Show Fable limit",
     "showClaudeFableNote": "Reads the same usage Claude shows by sending a direct usage request with your Claude sign in on this computer. Anthropic's policy for tools like this is unresolved. Turn it off in Settings.",
     "claudePollConsentTitle": "Show your Fable limit?",
@@ -82,7 +83,8 @@
     "claudePollContinueOff": "Continue with Claude off",
     "pasteOpenRouterKey": "Paste your OpenRouter key in the API keys list below.",
     "checkingSignIn": "Checking your sign in...",
-    "cliNotFound": "{name} CLI not found. Put it on PATH, then check again."
+    "cliNotFound": "{name} CLI not found. Put it on PATH, then check again.",
+    "claudeWeeklyPollHint": "Turn on the usage poll in Connect Tools to see your weekly limits."
   },
   "meta": {
     "title": "OpenLimiter, AI coding limits and agent activity",
@@ -2181,6 +2183,7 @@
     "updatedDays": "Updated {count} d ago",
     "claudeCurrentSession": "Current session",
     "claudeWeeklyAllModels": "Weekly, all models",
+    "claudeWeeklyOAuthApps": "Weekly, OAuth Apps",
     "claudeWeeklyFable": "Weekly, Fable",
     "claudeWeeklyModel": "Weekly, {model}",
     "claudeExtraUsage": "Extra usage",
@@ -2212,6 +2215,7 @@
     "balance": "Balance",
     "percentUsed": "{value}% used",
     "claudeFableDesktopHint": "Fable shows here when Claude usage is on in OpenLimiter on your computer.",
+    "claudeWeeklyPollHint": "Turn on the usage poll in Connect Tools to see your weekly limits.",
     "providers": {
       "title": "Providers",
       "automaticPrompt": "Open the desktop app. Local detection starts there.",
@@ -2243,6 +2247,7 @@
       "phone": "Open on your phone",
       "install": "Install app",
       "installed": "Installed",
+      "reinstall": "Installed OpenLimiter before 2.1? Remove the old icon and install again.",
       "updates": "Check for updates",
       "about": "About OpenLimiter",
       "logout": "Log out"
@@ -2424,12 +2429,39 @@
       "download": "Get the desktop app",
       "qrAlt": "QR code linking to the phone pairing page"
     },
+    "phonePairHint": "Pair with the desktop app to see your bars without signing in",
     "phoneInstall": {
       "add": "Add to home screen",
       "androidMenu": "Tap ⋮ then Add to home screen",
       "ios": "Add to Home Screen",
       "share": "Share",
       "openSafari": "Open in Safari to install"
+    },
+    "install": {
+      "action": "Install app",
+      "title": "Add OpenLimiter to your Home Screen",
+      "what": "An icon goes on your Home Screen. It opens full screen from that icon, shows your bars first, and keeps the last reading when you are offline. Nothing is downloaded from an app store and nothing about your account changes.",
+      "stepShare": "Tap Share",
+      "stepChoose": "Choose Add to Home Screen",
+      "stepAdd": "Tap Add",
+      "menu": "Tap ⋮, then choose Install app or Add to Home Screen.",
+      "openSafari": "Open in Safari to add it to your Home Screen",
+      "done": "Done",
+      "close": "Close"
+    },
+    "phoneTabs": { "label": "Phone app", "usage": "Usage", "pro": "Pro" },
+    "phoneSettings": {
+      "open": "Open settings",
+      "title": "Settings",
+      "close": "Close settings",
+      "pairedAs": "Paired as",
+      "theme": { "label": "Theme", "system": "System", "light": "Light", "dark": "Dark" },
+      "install": "Install",
+      "installAction": "Add to Home Screen",
+      "installed": "On your Home Screen",
+      "version": "Version",
+      "unpair": "Unpair this phone",
+      "unpairing": "Unpairing"
     },
     "pairPage": {
       "retry": "Refresh readings",

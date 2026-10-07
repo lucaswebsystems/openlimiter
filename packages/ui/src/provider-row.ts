@@ -6,6 +6,7 @@ import {
   providerMeterLabel as sharedProviderMeterLabel,
   providerMeterPresentation,
   providerMeterRank,
+  isSnapshotDisplayEligible,
   type ProviderCode,
   type ProviderFailure,
   type Snapshot,
@@ -451,8 +452,8 @@ function toWindowView(
     };
   }
 
-  const used = floorFixed(usedPercent, 1);
-  const available = floorFixed(100 - usedPercent, 1);
+  const used = String(Math.round(usedPercent));
+  const available = String(Math.round(100 - usedPercent));
   const hasMoney =
     snapshot.usedAmount !== undefined &&
     snapshot.limitAmount !== undefined &&
@@ -555,7 +556,8 @@ export function buildProviderAccountRows(
   failures: readonly ProviderFailure[] = [],
   options: ProviderRowOptions = {}
 ): readonly ProviderAccountRowView[] {
-  const observed = new Set(snapshots.map((snapshot) => snapshot.provider));
+  const eligibleSnapshots = snapshots.filter(isSnapshotDisplayEligible);
+  const observed = new Set(eligibleSnapshots.map((snapshot) => snapshot.provider));
   const providers =
     options.providers ??
     DEFAULT_PROVIDER_CODES.filter((provider) => observed.has(provider));
@@ -569,7 +571,7 @@ export function buildProviderAccountRows(
 
   for (const provider of providers) {
     const groups = new Map<string | null, Snapshot[]>();
-    for (const snapshot of snapshots) {
+    for (const snapshot of eligibleSnapshots) {
       if (snapshot.provider !== provider) continue;
       const accountId = snapshot.accountId ?? null;
       const held = groups.get(accountId);
@@ -645,7 +647,7 @@ function escapeText(value: string): string {
 function percentLabel(window: ProviderWindowView): string {
   return window.usedPercent === null
     ? "No data"
-    : floorFixed(window.usedPercent, 1) + "%";
+    : Math.round(window.usedPercent) + "%";
 }
 
 export type ProviderMetricColumn = "session" | "week" | "month";
@@ -1122,6 +1124,34 @@ slot[name="footer"] {
   .band-icon svg { width: 0.75rem; height: 0.75rem; }
   .window-reset { font-size: var(--ol-text-micro); }
 }
+:host([data-layout="stacked"]) .column-label { display: none; }
+:host([data-layout="stacked"]) .identity {
+  grid-template-columns: minmax(0, 1fr) 2rem;
+}
+:host([data-layout="stacked"]) .identity-name { grid-column: 1; }
+:host([data-layout="stacked"]) ::slotted([slot="actions"]) { grid-column: 2; }
+:host([data-layout="stacked"]) .window-line {
+  grid-template-columns: minmax(0, 1fr) minmax(max-content, 3.75rem);
+  gap: var(--ol-space-2) var(--ol-space-3);
+}
+:host([data-layout="stacked"]) .window-name {
+  grid-column: 1;
+  grid-row: 1;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+:host([data-layout="stacked"]) .window-reset {
+  grid-column: 2;
+  grid-row: 1;
+  overflow: visible;
+  font-size: var(--ol-text-caption);
+  text-overflow: clip;
+}
+:host([data-layout="stacked"]) .window-meter { grid-column: 1; grid-row: 2; }
+:host([data-layout="stacked"]) .window-readout { grid-column: 2; grid-row: 2; }
+:host([data-layout="stacked"]) .window-percent { overflow: visible; text-overflow: clip; }
+:host([data-layout="stacked"]) .window-updated { font-size: var(--ol-text-micro); }
 @media (prefers-reduced-motion: reduce) {
   .meter-fill { animation: none; }
   .meter-fill,

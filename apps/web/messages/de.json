@@ -77,12 +77,14 @@
     "showTool": "Anzeigen",
     "removeTool": "Entfernen",
     "removeConfirm": "Zum Entfernen erneut drücken",
+    "claudeWeeklyOAuthApps": "Wöchentlich, OAuth Apps",
     "showClaudeFable": "Fable Limit anzeigen",
     "showClaudeFableNote": "Liest dieselbe Nutzung, die Claude anzeigt, indem eine direkte Nutzungsanfrage mit deiner Claude Anmeldung auf diesem Computer gesendet wird. Anthropics Richtlinie für solche Werkzeuge ist ungeklärt. Du kannst dies in den Einstellungen ausschalten.",
     "claudePollConsentTitle": "Dein Fable Limit anzeigen?",
     "claudePollNotNow": "Jetzt nicht",
     "claudePollSaveFailed": "Die Auswahl konnte nicht gespeichert werden, deshalb bleibt die Claude Nutzung ausgeschaltet.",
-    "claudePollContinueOff": "Mit ausgeschalteter Claude Nutzung fortfahren"
+    "claudePollContinueOff": "Mit ausgeschalteter Claude Nutzung fortfahren",
+    "claudeWeeklyPollHint": "Aktiviere die Nutzungsabfrage in den Verbindungstools, um deine Wochenlimits zu sehen."
   },
   "meta": {
     "title": "OpenLimiter, KI Programmierlimits und Agentenaktivität",
@@ -2181,6 +2183,7 @@
     "updatedDays": "Aktualisiert vor {count} Tg.",
     "claudeCurrentSession": "Aktuelle Sitzung",
     "claudeWeeklyAllModels": "Wöchentlich, alle Modelle",
+    "claudeWeeklyOAuthApps": "Wöchentlich, OAuth Apps",
     "claudeWeeklyFable": "Wöchentlich, Fable",
     "claudeWeeklyModel": "Wöchentlich, {model}",
     "claudeExtraUsage": "Zusätzliche Nutzung",
@@ -2212,6 +2215,7 @@
     "balance": "Kontostand",
     "percentUsed": "{value}% verwendet",
     "claudeFableDesktopHint": "Fable wird hier angezeigt, wenn die Claude Nutzung in OpenLimiter auf deinem Computer aktiviert ist.",
+    "claudeWeeklyPollHint": "Aktiviere die Nutzungsabfrage in den Verbindungstools, um deine Wochenlimits zu sehen.",
     "providers": {
       "title": "Anbieter",
       "automaticPrompt": "Öffne die Desktopanwendung. Dort beginnt die lokale Erkennung.",
@@ -2243,6 +2247,7 @@
       "phone": "Auf dem Telefon öffnen",
       "install": "App installieren",
       "installed": "Installiert",
+      "reinstall": "OpenLimiter vor Version 2.1 installiert? Entferne das alte Symbol und installiere die App erneut.",
       "updates": "Nach Updates suchen",
       "about": "Über OpenLimiter",
       "logout": "Abmelden"
@@ -2424,12 +2429,39 @@
       "download": "Desktop App holen",
       "qrAlt": "QR Code, der zur Kopplungsseite für das Telefon führt"
     },
+    "phonePairHint": "Mit der Desktop App koppeln und die Balken ohne Anmeldung sehen",
     "phoneInstall": {
       "add": "Zum Startbildschirm hinzufügen",
       "androidMenu": "Tippen Sie auf ⋮, dann auf Zum Startbildschirm hinzufügen",
       "ios": "Zum Startbildschirm",
       "share": "Teilen",
       "openSafari": "Zum Installieren in Safari öffnen"
+    },
+    "install": {
+      "action": "App installieren",
+      "title": "OpenLimiter zum Startbildschirm hinzufügen",
+      "what": "Ein Symbol wird auf deinem Startbildschirm abgelegt. Darüber öffnet sich die App im Vollbild, zeigt zuerst deine Balken und behält die letzte Anzeige, wenn du offline bist. Es wird nichts aus einem App Store geladen und an deinem Konto ändert sich nichts.",
+      "stepShare": "Tippe auf Teilen",
+      "stepChoose": "Wähle Zum Startbildschirm",
+      "stepAdd": "Tippe auf Hinzufügen",
+      "menu": "Tippe auf ⋮ und wähle dann App installieren oder Zum Startbildschirm.",
+      "openSafari": "Öffne die Seite in Safari, um sie zum Startbildschirm hinzuzufügen",
+      "done": "Fertig",
+      "close": "Schließen"
+    },
+    "phoneTabs": { "label": "Handy App", "usage": "Nutzung", "pro": "Pro" },
+    "phoneSettings": {
+      "open": "Einstellungen öffnen",
+      "title": "Einstellungen",
+      "close": "Einstellungen schließen",
+      "pairedAs": "Gekoppelt als",
+      "theme": { "label": "Design", "system": "System", "light": "Hell", "dark": "Dunkel" },
+      "install": "Installieren",
+      "installAction": "Zum Startbildschirm",
+      "installed": "Auf deinem Startbildschirm",
+      "version": "Version",
+      "unpair": "Dieses Handy entkoppeln",
+      "unpairing": "Wird entkoppelt"
     },
     "pairPage": {
       "retry": "Messungen aktualisieren",

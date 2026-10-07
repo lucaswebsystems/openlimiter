@@ -30,16 +30,26 @@
  */
 
 /* The registering page hashes its Next assets into this query value. */
-const BUILD = new URL(self.location.href).searchParams.get("build") || "bootstrap-v5";
+const BUILD = new URL(self.location.href).searchParams.get("build") || "bootstrap-v6";
 const VERSION = "openlimiter-app-private-v1-" + BUILD.replace(/[^a-z0-9]/giu, "").slice(0, 24);
 
 /* The one path this worker is allowed to touch, and its assets. */
-const SHELL = "/app";
+const HUB_SHELL = "/app";
+const PAIR_SHELL = "/app/pair";
+const SHELLS = [HUB_SHELL, PAIR_SHELL];
+const CORE_ASSETS = [
+  "/pair.webmanifest",
+  "/icons/openlimiter-192.png",
+  "/icons/openlimiter-512.png",
+  "/icons/openlimiter-maskable-512.png",
+  "/icons/openlimiter-monochrome-512.png",
+];
 /** Immutable build output. Hashed names, so cache first is always correct. */
 const BUILD_PREFIX = "/_next/static/";
 
 function ownsPath(pathname) {
-  return pathname === SHELL || pathname.startsWith(BUILD_PREFIX);
+  return pathname === HUB_SHELL || pathname.startsWith(HUB_SHELL + "/") ||
+    pathname.startsWith(BUILD_PREFIX);
 }
 
 /**
@@ -59,13 +69,14 @@ function publicResponse(response) {
 
 async function cachePublicAsset(cache, asset) {
   const response = await fetch(asset, { credentials: "omit", cache: "no-store" });
-  if (publicResponse(response)) await cache.put(asset, response);
+  if (!publicResponse(response)) throw new Error("Application asset is not public");
+  await cache.put(asset, response);
 }
 
-async function shellAssets(cache) {
-  const response = await fetch(SHELL, { cache: "no-store", credentials: "omit" });
-  if (!publicResponse(response)) return [];
-  await cache.put(SHELL, response.clone());
+async function shellAssets(cache, shell) {
+  const response = await fetch(shell, { cache: "no-store", credentials: "omit" });
+  if (!publicResponse(response)) throw new Error("Application shell is not public");
+  await cache.put(shell, response.clone());
   const html = await response.text();
   const found = html.match(/\/_next\/static\/[A-Za-z0-9._\-/]+/gu);
   if (found === null) return [];
@@ -77,13 +88,9 @@ self.addEventListener("install", (event) => {
     caches
       .open(VERSION)
       .then(async (cache) => {
-        /* A single asset that will not fetch must not sink the whole install. */
-        try {
-          const build = await shellAssets(cache);
-          await Promise.allSettled(build.map((asset) => cachePublicAsset(cache, asset)));
-        } catch {
-          /* No warm start this time. The worker is still perfectly useful. */
-        }
+        const builds = await Promise.all(SHELLS.map((shell) => shellAssets(cache, shell)));
+        const assets = [...new Set([...CORE_ASSETS, ...builds.flat()])];
+        await Promise.all(assets.map((asset) => cachePublicAsset(cache, asset)));
       })
       .then(() => self.skipWaiting()),
   );
@@ -118,14 +125,14 @@ self.addEventListener("fetch", (event) => {
   /* Anything on another origin, or anywhere else on this one, is left alone.
      Not calling respondWith is what hands the request back to the browser. */
   if (url.origin !== self.location.origin) return;
-  if (!ownsPath(url.pathname) || url.search !== "") return;
+  if (!ownsPath(url.pathname)) return;
 
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request)
         .catch(() =>
           caches
-            .match(SHELL)
+            .match(url.pathname.startsWith(PAIR_SHELL) ? PAIR_SHELL : HUB_SHELL)
             .then((cached) =>
               cached ??
               new Response(
@@ -139,7 +146,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (!url.pathname.startsWith(BUILD_PREFIX)) return;
+  if (url.search !== "" || !url.pathname.startsWith(BUILD_PREFIX)) return;
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached !== undefined) return cached;

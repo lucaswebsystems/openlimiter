@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-const SERVICE_WORKER_PROTOCOL = "5";
+const SERVICE_WORKER_PROTOCOL = "6";
 
 const RELOAD_MARK = "ol-sw-reload-at";
 const RELOAD_GUARD_MS = 30_000;

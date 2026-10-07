@@ -153,6 +153,7 @@ describe("usageSamplesFromSnapshots", () => {
     const fresh = usageSnapshot();
     const stale = usageSnapshot({
       meter: "SEVEN_DAY",
+      window: { kind: "rolling", durationSeconds: 604_800 },
       observedAt: "2026-09-07T00:00:00.000Z",
       expiresAt: "2026-09-07T00:05:00.000Z"
     });
@@ -182,7 +183,10 @@ describe("usageSamplesFromSnapshots", () => {
 
   it("drops a row whose account id is present but not shaped like one, and keeps the single account case", () => {
     const malformed = usageSnapshot({ accountId: "Not Valid!" });
-    const missing = usageSnapshot({ meter: "SEVEN_DAY" });
+    const missing = usageSnapshot({
+      meter: "SEVEN_DAY",
+      window: { kind: "rolling", durationSeconds: 604_800 }
+    });
     delete missing.accountId;
     const rows = usageSamplesFromSnapshots([malformed, missing], NOW);
     expect(rows).toHaveLength(1);

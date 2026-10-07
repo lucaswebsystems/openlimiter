@@ -204,10 +204,7 @@ describe("Claude statusline wrapper", () => {
     const cache = JSON.parse(
       await readFile(path.join(directory, CACHE_FILE_NAME), "utf8")
     ) as { snapshots: { meter: string }[] };
-    expect(cache.snapshots.map((snapshot) => snapshot.meter).sort()).toEqual([
-      "FIVE_HOUR",
-      "SEVEN_DAY"
-    ]);
+    expect(cache.snapshots.map((snapshot) => snapshot.meter).sort()).toEqual(["FIVE_HOUR"]);
   });
 
   it("keeps a payload without rate limits invisible and preserves the original", async () => {

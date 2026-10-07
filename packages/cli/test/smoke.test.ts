@@ -237,7 +237,7 @@ describe("smoke: reading a provider through the real reader", () => {
     const claude = entries.find((entry) => entry.provider === "CLAUDE");
     expect(claude?.via).toBe("payload_file");
     expect(claude?.connection?.state).toBe("CONNECTED");
-    expect(claude?.meters.map((meter) => meter.meter)).toEqual(["FIVE_HOUR", "SEVEN_DAY"]);
+    expect(claude?.meters.map((meter) => meter.meter)).toEqual(["FIVE_HOUR"]);
     expect(claude?.meters[0]?.value).toBe(42);
   });
 
@@ -313,7 +313,7 @@ describe("smoke: writing the evidence", () => {
     expect(containsSecret(written)).toBeNull();
     const document = JSON.parse(written) as Record<string, unknown>;
     expect(document["provider"]).toBe("CLAUDE");
-    expect(document["meterCount"]).toBe(2);
+    expect(document["meterCount"]).toBe(1);
     expect(written).not.toContain(state);
     expect(written).not.toContain(file);
   });

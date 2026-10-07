@@ -66,10 +66,12 @@ export function ProviderAccountRow({
   row,
   actions,
   footer,
+  layout,
 }: {
   row: ProviderAccountRowView;
   actions?: ReactNode;
   footer?: ReactNode;
+  layout?: "stacked";
 }) {
   const host = useRef<HTMLElement | null>(null);
 
@@ -85,6 +87,7 @@ export function ProviderAccountRow({
         host.current = element;
       },
       "data-row-key": row.key,
+      "data-layout": layout,
       suppressHydrationWarning: true,
     },
     actions,
@@ -134,12 +137,14 @@ export function ProviderRows({
   reorderable = false,
   onAddAccount,
   claudeFableHintText = null,
+  layout,
 }: {
   rows: readonly ProviderAccountRowView[];
   orderScope?: CardOrderScope;
   reorderable?: boolean;
   onAddAccount?: () => void;
   claudeFableHintText?: string | null;
+  layout?: "stacked";
 }) {
   const t = useTranslations("hub.grid");
   const visibleRows = useMemo(() => rows.filter((row) => row.windows.length > 0), [rows]);
@@ -356,6 +361,7 @@ export function ProviderRows({
             >
               <ProviderAccountRow
                 row={row}
+                layout={layout}
                 actions={reorderable ? (
                   <button
                     ref={(node) => { if (node === null) grips.current.delete(row.key); else grips.current.set(row.key, node); }}
@@ -1004,6 +1010,7 @@ export function SettingsMenu({
               const trigger = triggerRef.current;
               if (trigger !== null) act(() => onInstall(trigger));
             }}>{installed ? t("installed") : t("install")}</button>
+            <p className="ol-menu-note">{t("reinstall")}</p>
             <button type="button" className="ol-menu-action focus-ring" onClick={() => act(onCheckUpdate)}>{t("updates")}</button>
             <Link className="ol-menu-link focus-ring" href="/en/docs" onClick={() => close(false)}>{t("about")}</Link>
             <button type="button" className="ol-menu-action ol-menu-action-quiet focus-ring" onClick={() => act(onLogout)}>{t("logout")}</button>

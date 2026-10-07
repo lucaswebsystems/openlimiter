@@ -14,12 +14,14 @@ import {
   freshness,
   freshnessPolicy,
   mergeSnapshots,
+  projectSnapshots,
   normalizeMeters,
   normalizeMetersReport,
   providerMeterLabel as sharedProviderMeterLabel,
   providerMeterPresentation,
   providerMeterRank as sharedProviderMeterRank,
   providerMeterVisible,
+  isSnapshotDisplayEligible,
   queryCatalogueRows,
   isClaudeModelScopedMeter,
   type Advice,
@@ -128,6 +130,8 @@ export {
   providerMeterLabel,
   providerMeterPresentation,
   providerMeterVisible,
+  projectSnapshots,
+  isSnapshotDisplayEligible,
   sharedProviderMeterLabel,
   sharedProviderMeterRank,
   buildProviderAccountRows,
@@ -205,11 +209,12 @@ export function parseQuotaText(text: string, now: string): ParseResult {
   if (Array.isArray(document)) {
     const report = normalizeMetersReport(document as RawMeter[]);
     const failures = rejectionsAsFailures(report.rejected);
-    return report.snapshots.length === 0
+    const snapshots = report.snapshots.filter(isSnapshotDisplayEligible);
+    return snapshots.length === 0
       ? { ok: false, reason: "no_meters", failures }
       : {
           ok: true,
-          snapshots: report.snapshots,
+          snapshots,
           recognised: ["openlimiter export output"],
           failures,
         };
@@ -224,9 +229,10 @@ export function parseQuotaText(text: string, now: string): ParseResult {
   }
   const report = normalizeMetersReport(meters);
   const failures = rejectionsAsFailures(report.rejected);
-  return report.snapshots.length === 0
+  const snapshots = report.snapshots.filter(isSnapshotDisplayEligible);
+  return snapshots.length === 0
     ? { ok: false, reason: "no_meters", failures }
-    : { ok: true, snapshots: report.snapshots, recognised, failures };
+    : { ok: true, snapshots, recognised, failures };
 }
 
 function rejectionsAsFailures(
@@ -333,12 +339,13 @@ export function dashboardView(
   now: string,
   failures: readonly ProviderFailure[] = [],
 ): DashboardView {
-  const advice = buildAdvice(snapshots, now, PROVIDER_CODES);
+  const projected = projectSnapshots(snapshots, now).snapshots;
+  const advice = buildAdvice(projected, now, PROVIDER_CODES);
   const byProvider = new Map(
     dedupeFailures(failures).map((failure) => [failure.provider, failure.category]),
   );
   const providers = PROVIDER_CODES.map((provider) => {
-    const meters = snapshots
+    const meters = projected
       .filter((snapshot) => snapshot.provider === provider)
       .map((snapshot) => toMeterView(snapshot, now))
       .sort((left, right) => right.value - left.value);

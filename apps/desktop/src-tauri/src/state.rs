@@ -13,6 +13,7 @@ use std::path::PathBuf;
 /// `packages/core/src/cache.ts`. If that ever changes, this changes with it.
 /// The cache file name is `openlimiter-cache.json`, from the same module.
 const CACHE_FILE_NAME: &str = "openlimiter-cache.json";
+pub(crate) const AUTHORITATIVE_CACHE_FILE_NAME: &str = "openlimiter-authoritative.json";
 
 /// The manual quota document, from `packages/connectors/src/manual.ts`.
 const MANUAL_FILE_NAME: &str = "manual.json";
@@ -74,7 +75,37 @@ pub fn state_directory() -> Option<PathBuf> {
 /// repaired here and nothing is invented, because a reading that cannot be
 /// trusted has to reach the engine as an absence, never as a zero.
 pub fn read_cache() -> Option<String> {
-    read_state_file(CACHE_FILE_NAME)
+    let main = read_state_file(CACHE_FILE_NAME);
+    let authoritative = read_state_file(AUTHORITATIVE_CACHE_FILE_NAME);
+    if authoritative.is_none() {
+        return main;
+    }
+    let Some(authoritative) = authoritative else { return main; };
+    let mut document = main
+        .as_deref()
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(text).ok())
+        .unwrap_or_else(|| serde_json::json!({"version": 3, "snapshots": []}));
+    let Some(target) = document.get_mut("snapshots").and_then(serde_json::Value::as_array_mut) else {
+        return main;
+    };
+    let Some(source) = serde_json::from_str::<serde_json::Value>(&authoritative).ok()
+        .and_then(|value| value.get("snapshots").cloned())
+        .and_then(|value| value.as_array().cloned()) else {
+        return main;
+    };
+    for row in source {
+        let identity = |value: &serde_json::Value| (
+            value.get("provider").and_then(serde_json::Value::as_str).map(str::to_owned),
+            value.get("meter").and_then(serde_json::Value::as_str).map(str::to_owned),
+            value.get("accountId").and_then(serde_json::Value::as_str).map(str::to_owned),
+        );
+        if let Some(existing) = target.iter_mut().find(|candidate| identity(candidate) == identity(&row)) {
+            *existing = row;
+        } else {
+            target.push(row);
+        }
+    }
+    serde_json::to_string(&document).ok()
 }
 
 /// Read the snapshot cache for the window, telling a cache that is not there
@@ -91,12 +122,14 @@ pub fn read_cache_document() -> Result<Option<String>, String> {
     let Some(directory) = state_directory() else {
         return Ok(None);
     };
-    let file = directory.join(CACHE_FILE_NAME);
-    let Some(text) = crate::fsx::bounded_read(&file) else {
+    let main_file = directory.join(CACHE_FILE_NAME);
+    let authoritative_file = directory.join(AUTHORITATIVE_CACHE_FILE_NAME);
+    let Some(text) = read_cache() else {
         // Absent only when the path names nothing at all: a link, a folder, a
         // file too large and a file another process holds all exist.
-        return match std::fs::symlink_metadata(&file) {
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        return match (std::fs::symlink_metadata(&main_file), std::fs::symlink_metadata(&authoritative_file)) {
+            (Err(main), Err(authoritative))
+                if main.kind() == std::io::ErrorKind::NotFound && authoritative.kind() == std::io::ErrorKind::NotFound => Ok(None),
             _ => Err(UNREADABLE.into()),
         };
     };

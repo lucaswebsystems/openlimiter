@@ -10,6 +10,7 @@ export function useClaudeMeterCopy(): ClaudeMeterCopy {
   return useMemo(() => ({
     claudeCurrentSession: t("claudeCurrentSession"),
     claudeWeeklyAllModels: t("claudeWeeklyAllModels"),
+    claudeWeeklyOAuthApps: t("claudeWeeklyOAuthApps"),
     claudeWeeklyFable: t("claudeWeeklyFable"),
     claudeWeeklyModel: t("claudeWeeklyModel", { model: "{model}" }),
     claudeExtraUsage: t("claudeExtraUsage"),

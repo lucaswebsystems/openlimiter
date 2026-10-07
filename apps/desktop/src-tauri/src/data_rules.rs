@@ -5,6 +5,38 @@ use std::collections::{BTreeMap, BTreeSet};
 use tauri::Manager;
 
 pub const RETENTION_MS: u64 = 7 * 86_400_000;
+const CLAUDE_WEEK_SECONDS: u64 = 604_800;
+
+pub(crate) fn display_eligible(row: &Snapshot) -> bool {
+    if row.provider != "CLAUDE" {
+        return true;
+    }
+    if row.meter == "ACQUISITION" {
+        return true;
+    }
+    let weekly = row.meter == "SEVEN_DAY"
+        || row.meter == "SEVEN_DAY_OAUTH_APPS"
+        || ["FABLE", "OPUS", "SONNET", "HAIKU"]
+            .iter()
+            .any(|family| {
+                row.meter
+                    .strip_prefix(&format!("SEVEN_DAY_{family}"))
+                    .is_some_and(|suffix| suffix.is_empty() || suffix.starts_with('_'))
+            });
+    if row.meter.starts_with("SEVEN_DAY") {
+        return weekly
+            && row
+                .provenance
+                .as_ref()
+                .and_then(|value| value.get("sourceKind"))
+                .and_then(serde_json::Value::as_str)
+                != Some("statusline_payload")
+            && row.window.duration_seconds.unwrap_or(CLAUDE_WEEK_SECONDS) == CLAUDE_WEEK_SECONDS;
+    }
+    row.meter == "FIVE_HOUR"
+        || row.meter == "SESSION"
+        || row.meter == "EXTRA_USAGE"
+}
 
 pub(crate) fn retained(row: &Snapshot, now: u64) -> bool {
     crate::native_time::epoch_ms_from_rfc3339(&row.observed_at)
@@ -190,6 +222,9 @@ pub fn project(
     let mut snapshots = Vec::new();
     let mut flags = BTreeMap::new();
     for mut row in rows {
+        if !display_eligible(&row) {
+            continue;
+        }
         if hidden_legacy_meter(&row) {
             continue;
         }

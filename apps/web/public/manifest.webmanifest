@@ -2,64 +2,26 @@
   "id": "/app",
   "name": "OpenLimiter",
   "short_name": "OpenLimiter",
-  "description": "Read your AI subscription quota on your own device. The desktop app and the terminal need no account, and this hub shows the bars your own devices synced.",
+  "description": "Read your AI subscription quota on your own device.",
   "start_url": "/app",
   "scope": "/app",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#0d0d0f",
-  "theme_color": "#0d0d0f",
+  "background_color": "#080b10",
+  "theme_color": "#080b10",
   "categories": ["developer", "productivity", "utilities"],
   "lang": "en",
   "dir": "ltr",
   "icons": [
-    {
-      "src": "/icons/openlimiter-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icons/openlimiter-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icons/openlimiter-maskable-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    }
+    { "src": "/icons/openlimiter-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/openlimiter-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/openlimiter-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/openlimiter-monochrome-512.png", "sizes": "512x512", "type": "image/png", "purpose": "monochrome" }
   ],
   "screenshots": [
-    {
-      "src": "/screenshots/phone-1.png",
-      "sizes": "1170x2532",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "One matching card for every provider, ready to rearrange"
-    },
-    {
-      "src": "/screenshots/phone-2.png",
-      "sizes": "1170x2532",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "Every provider's limits, with the time until each resets"
-    },
-    {
-      "src": "/screenshots/phone-3.png",
-      "sizes": "1170x2532",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "More providers, then Pro with a free 30 day trial"
-    },
-    {
-      "src": "/screenshots/desktop-app.png",
-      "sizes": "2560x1600",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "The desktop app, with your limits tightest first"
-    }
+    { "src": "/screenshots/phone-1.png", "sizes": "1170x2532", "type": "image/png", "form_factor": "narrow", "label": "Usage bars from every connected provider" },
+    { "src": "/screenshots/phone-2.png", "sizes": "1170x2532", "type": "image/png", "form_factor": "narrow", "label": "Pro features and the free trial" },
+    { "src": "/screenshots/phone-3.png", "sizes": "1170x2532", "type": "image/png", "form_factor": "narrow", "label": "Guided Home Screen installation" },
+    { "src": "/screenshots/phone-4.png", "sizes": "1170x2532", "type": "image/png", "form_factor": "narrow", "label": "Waiting for pairing approval" }
   ]
 }

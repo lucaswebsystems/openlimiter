@@ -4,7 +4,8 @@ import {
   canonicalJson,
   readJsonFileSafely,
   resolveStateDirectory,
-  writeFileAtomically
+  writeFileAtomically,
+  withStateLock
 } from "@openlimiter/core";
 import { connectors } from "@openlimiter/connectors";
 import type { CredentialStore } from "./credentials.js";
@@ -21,9 +22,10 @@ export type StatuslineMeters = "worst" | "all";
 export type StatuslineColor = "auto" | "always" | "never";
 
 export type StatuslineStyle = "bar" | "cells";
+export type StatuslineCaptions = "short" | "tagged";
 
 export const TERMINAL_SEGMENTS = ["model", "effort", "dir", "ctx", "style", "5h", "7d"] as const;
-export const TERMINAL_METER_SEGMENTS = ["fable", "opus", "sonnet", "oauth-apps", "extra"] as const;
+export const TERMINAL_METER_SEGMENTS = ["fable", "opus", "sonnet", "haiku", "oauth-apps", "extra"] as const;
 
 export interface StatuslineConfig {
   /**
@@ -42,6 +44,7 @@ export interface StatuslineConfig {
   readonly bars: boolean;
   readonly color: StatuslineColor;
   readonly style: StatuslineStyle;
+  readonly captions: StatuslineCaptions;
   readonly show: readonly string[];
   readonly showMode?: "auto" | "explicit";
   /** Independent overrides leave unselected providers in automatic mode. */
@@ -57,6 +60,7 @@ export const STATUSLINE_KEYS = [
   "bars",
   "color",
   "style",
+  "captions",
   "show",
   "hosts"
 ] as const;
@@ -82,6 +86,7 @@ export const DEFAULT_STATUSLINE: StatuslineConfig = {
   bars: true,
   color: "auto",
   style: "bar",
+  captions: "short",
   show: [],
   hosts: {}
 };
@@ -150,6 +155,7 @@ export function normalizeStatusline(value: unknown): StatuslineConfig {
   const bars = value["bars"];
   const color = value["color"];
   const style = value["style"];
+  const captions = value["captions"];
   return {
     order: normalizeOrder(value["order"]) ?? DEFAULT_STATUSLINE.order,
     meters: meters === "worst" || meters === "all" ? meters : DEFAULT_STATUSLINE.meters,
@@ -160,6 +166,7 @@ export function normalizeStatusline(value: unknown): StatuslineConfig {
       ? color
       : DEFAULT_STATUSLINE.color,
     style: style === "bar" || style === "cells" ? style : DEFAULT_STATUSLINE.style,
+    captions: captions === "short" || captions === "tagged" ? captions : DEFAULT_STATUSLINE.captions,
     show: normalizeShow(value["show"]) ?? DEFAULT_STATUSLINE.show,
     ...(value["showMode"] === "explicit" ? { showMode: "explicit" as const } : {}),
     ...(isRecord(value["visibility"]) ? {
@@ -186,6 +193,7 @@ export function statuslineValueText(
   if (key === "bars") return statusline.bars ? "true" : "false";
   if (key === "color") return statusline.color;
   if (key === "style") return statusline.style;
+  if (key === "captions") return statusline.captions;
   if (key === "show") {
     return statusline.show.length === 0 ? "NONE" : statusline.show.join(",");
   }
@@ -265,6 +273,11 @@ export function setStatuslineValue(
     return value === "bar" || value === "cells"
       ? { ok: true, statusline: { ...statusline, style: value } }
       : { ok: false, message: "statusline.style must be bar or cells." };
+  }
+  if (key === "captions") {
+    return value === "short" || value === "tagged"
+      ? { ok: true, statusline: { ...statusline, captions: value } }
+      : { ok: false, message: "statusline.captions must be short or tagged." };
   }
   if (key === "show") {
     if (value === "" || value === "NONE" || value === "none") {
@@ -413,6 +426,22 @@ export async function writeConfig(
   await writeFileAtomically(target, canonicalJson(config));
 }
 
+/** Read, mutate, and replace one config document while holding the state lock. */
+export async function updateConfig(
+  mutate: (config: OpenLimiterConfig) => OpenLimiterConfig | Promise<OpenLimiterConfig>,
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+  directory = resolveStateDirectory()
+): Promise<OpenLimiterConfig> {
+  return withStateLock(directory, async () => {
+    const stored = await readConfig(directory);
+    if (!stored.ok && stored.reason !== "missing") throw new Error("Configuration could not be read");
+    const current = stored.ok ? stored.config : defaultConfig(environment);
+    const next = await mutate(current);
+    await writeConfig(next, directory);
+    return next;
+  });
+}
+
 function connectorRows(
   environment: Readonly<Record<string, string | undefined>>
 ): readonly ConfigConnector[] {
@@ -493,7 +522,6 @@ export async function readStatuslineConfig(
 export async function initialize(
   environment: Readonly<Record<string, string | undefined>>,
   credentialStore: CredentialStore,
-  promptForSecret: () => Promise<string>,
   directory?: string
 ): Promise<{ config: OpenLimiterConfig; credentialStored: boolean }> {
   /*
@@ -502,32 +530,26 @@ export async function initialize(
    * be refreshed; the layout is a preference and overwriting it would punish
    * anyone who ran the command twice.
    */
-  const existing = await readConfig(
-    directory ?? resolveStateDirectory()
-  ).catch((): ConfigReadResult => ({ ok: false, reason: "missing" }));
-  const config: OpenLimiterConfig = {
-    version: 1,
-    connectors: connectorRows(environment),
-    statusline: existing.ok ? existing.config.statusline : DEFAULT_STATUSLINE,
-    providers: existing.ok ? existing.config.providers : DEFAULT_PROVIDERS
-  };
+  const stateDirectory = directory ?? resolveStateDirectory();
   let credentialStored = false;
-  const openrouter = config.connectors.find((connector) => connector.id === "openrouter");
-  if (openrouter?.detected === true) {
-    try {
-      const existingSecret = await credentialStore.get("openlimiter", "openrouter");
-      if (existingSecret === null) {
-        const secret = await promptForSecret();
-        if (secret.length > 0 && secret.length <= 8_192) {
-          await credentialStore.set("openlimiter", "openrouter", secret);
-          credentialStored = true;
-        }
+  const config = await updateConfig(async (current) => {
+    const next: OpenLimiterConfig = {
+      version: 1,
+      connectors: connectorRows(environment),
+      statusline: current.statusline,
+      providers: current.providers
+    };
+    const openrouter = next.connectors.find((connector) => connector.id === "openrouter");
+    if (openrouter?.detected === true) {
+      try {
+        const existingSecret = await credentialStore.get("openlimiter", "openrouter");
+        credentialStored = existingSecret !== null;
+      } catch {
+        credentialStored = false;
       }
-    } catch {
-      credentialStored = false;
     }
-  }
-  await writeConfig(config, directory);
+    return next;
+  }, environment, stateDirectory);
   return { config, credentialStored };
 }
 

@@ -244,6 +244,7 @@ const WEEKLY_KEY_PREFIX: &str = "seven_day_";
 
 /// The prefix a model scoped meter code carries.
 const WEEKLY_METER_PREFIX: &str = "SEVEN_DAY_";
+const CLAUDE_WEEKLY_FAMILIES: [&str; 4] = ["FABLE", "OPUS", "SONNET", "HAIKU"];
 
 /// The `limits` kind that states one model's own weekly allowance.
 const WEEKLY_SCOPED_KIND: &str = "weekly_scoped";
@@ -258,6 +259,7 @@ const EXTRA_USAGE_METER: &str = "EXTRA_USAGE";
 /// Longest meter code the cache accepts, mirroring `safe_identifier` in
 /// `native_snapshot.rs`.
 const MAX_METER_BYTES: usize = 32;
+const MAX_METER_SOURCE_BYTES: usize = 64;
 
 /// Largest amount the cache accepts on a row, mirroring `MAX_AMOUNT` there.
 const MAX_EXTRA_USAGE_AMOUNT: f64 = 1_000_000.0;
@@ -285,13 +287,6 @@ impl BucketWindow {
         }
     }
 
-    /// A bucket this build has never seen. Its length is not guessed, because
-    /// a guessed length is a claim about a window nobody here has read.
-    const UNKNOWN: Self = Self {
-        kind: "unknown",
-        duration_seconds: None,
-    };
-
     /// The paid overflow allowance: a budget with a billing period, and the
     /// endpoint states neither its length nor when it turns over.
     const BILLING_PERIOD: Self = Self {
@@ -301,6 +296,9 @@ impl BucketWindow {
 
     fn maximum_ahead(self) -> u64 {
         match self.duration_seconds {
+            Some(seconds) if seconds == SEVEN_DAY_SECONDS => {
+                seconds.saturating_add(CLOCK_SKEW_SECONDS)
+            }
             Some(seconds) => seconds.saturating_mul(2).saturating_add(CLOCK_SKEW_SECONDS),
             None => UNKNOWN_WINDOW_MAX_AHEAD_SECONDS,
         }
@@ -362,6 +360,12 @@ fn upper_snake(name: &str) -> Option<String> {
 /// cannot survive that is refused rather than trimmed, because a trimmed code
 /// no longer names the bucket it came from.
 fn meter_code(prefix: &str, name: &str) -> Option<String> {
+    if name.is_empty()
+        || name.len() > MAX_METER_SOURCE_BYTES
+        || !name.bytes().all(|byte| (0x20..=0x7e).contains(&byte))
+    {
+        return None;
+    }
     let code = format!("{prefix}{}", upper_snake(name)?);
     let mut bytes = code.bytes();
     let starts_with_letter = bytes.next().is_some_and(|byte| byte.is_ascii_uppercase());
@@ -369,6 +373,33 @@ fn meter_code(prefix: &str, name: &str) -> Option<String> {
         && code.len() <= MAX_METER_BYTES
         && bytes.all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit() || byte == b'_'))
     .then_some(code)
+}
+
+fn weekly_root_key(key: &str) -> bool {
+    let key = key.to_ascii_lowercase();
+    if matches!(key.as_str(), "seven_day" | "seven_day_oauth_apps") {
+        return true;
+    }
+    let Some(rest) = key.strip_prefix("seven_day_") else {
+        return false;
+    };
+    CLAUDE_WEEKLY_FAMILIES.iter().any(|family| {
+        let family = family.to_ascii_lowercase();
+        if rest == family { return true; }
+        let Some(suffix) = rest.strip_prefix(&(family.clone() + "_"))
+            .or_else(|| rest.strip_prefix(&(family + "-"))) else { return false; };
+        !suffix.is_empty() && suffix.split(['_', '-']).all(|part| {
+            !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_alphanumeric())
+        })
+    })
+}
+
+fn weekly_family_code(display_name: &str) -> Option<String> {
+    let code = upper_snake(display_name)?;
+    CLAUDE_WEEKLY_FAMILIES
+        .iter()
+        .any(|family| code == *family || code.starts_with(&format!("{family}_")))
+        .then_some(code)
 }
 
 /// One cache row, built from a reading that already passed its own bounds.
@@ -561,7 +592,11 @@ pub fn parse_usage(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snap
     let mut root_models: BTreeSet<String> = BTreeSet::new();
 
     for (key, meter, duration_seconds) in ROOT_WINDOWS {
-        let Some(bucket) = root.get(key).filter(|value| !value.is_null()) else {
+        let Some(bucket) = root
+            .iter()
+            .find(|(candidate, value)| candidate.eq_ignore_ascii_case(key) && !value.is_null())
+            .map(|(_, value)| value)
+        else {
             continue;
         };
         let parsed = bucket.as_object().and_then(|bucket| {
@@ -587,8 +622,14 @@ pub fn parse_usage(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snap
     }
 
     for (key, value) in root {
-        let named = ROOT_WINDOWS.iter().any(|(root_key, _, _)| *root_key == key);
+        let named = ROOT_WINDOWS
+            .iter()
+            .any(|(root_key, _, _)| root_key.eq_ignore_ascii_case(key));
         if named || key == LIMITS_KEY || key == EXTRA_USAGE_KEY {
+            continue;
+        }
+        let normalized_key = key.to_ascii_lowercase();
+        if !weekly_root_key(&normalized_key) && normalized_key != "five_hour" {
             continue;
         }
         let Some(bucket) = value.as_object() else {
@@ -597,16 +638,21 @@ pub fn parse_usage(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snap
         if !bucket.contains_key("utilization") || !bucket.contains_key("resets_at") {
             continue;
         }
-        let Some(meter) = meter_code("", key) else {
+        let Some(meter) = (if normalized_key == "five_hour" {
+            Some("FIVE_HOUR".to_string())
+        } else {
+            normalized_key.strip_prefix(WEEKLY_KEY_PREFIX)
+                .and_then(|family| meter_code(WEEKLY_METER_PREFIX, family))
+        }) else {
             dropped("unnamed root window", "unnamed");
             continue;
         };
-        let window = if key.starts_with("seven_day") {
+        let window = if weekly_root_key(&normalized_key) {
             BucketWindow::rolling(604_800)
-        } else if key.starts_with("five_hour") {
+        } else if normalized_key == "five_hour" {
             BucketWindow::rolling(18_000)
         } else {
-            BucketWindow::UNKNOWN
+            continue;
         };
         let Some(row) = parse_reading(bucket, "utilization", &meter, window, now_ms, account_id)
         else {
@@ -640,10 +686,11 @@ pub fn parse_usage(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snap
         else {
             continue;
         };
-        let (Some(model), Some(meter)) = (
-            upper_snake(display_name),
-            meter_code(WEEKLY_METER_PREFIX, display_name),
-        ) else {
+        let Some(model) = weekly_family_code(display_name) else {
+            dropped("model scoped", "unnamed");
+            continue;
+        };
+        let Some(meter) = meter_code(WEEKLY_METER_PREFIX, &model) else {
             dropped("model scoped", "unnamed");
             continue;
         };
@@ -1064,6 +1111,28 @@ mod tests {
     use super::*;
 
     #[test]
+    fn weekly_root_key_accepts_the_shared_case_and_separator_grammar() {
+        for key in ["seven_day_Haiku_4_5", "seven_day_haiku_4-5"] {
+            assert!(weekly_root_key(key), "accepted key: {key}");
+        }
+        assert!(!weekly_root_key("seven_day_gemini_4"));
+    }
+
+    #[test]
+    fn complete_parser_normalizes_weekly_root_names_and_durations() {
+        let body = r#"{
+            "SEVEN_DAY_HAIKU_4_5":{"utilization":31,"resets_at":"2026-08-21T12:00:00Z"},
+            "SEVEN_DAY_OAUTH_APPS":{"utilization":3,"resets_at":"2026-08-21T12:00:00Z"}
+        }"#;
+        let rows = parse_usage(body, 1_786_713_600_000, "fixture").expect("usage");
+        assert_eq!(rows.iter().map(|row| row.meter.as_str()).collect::<Vec<_>>(), [
+            "SEVEN_DAY_OAUTH_APPS",
+            "SEVEN_DAY_HAIKU_4_5"
+        ]);
+        assert!(rows.iter().all(|row| row.window.duration_seconds == Some(604_800)));
+    }
+
+    #[test]
     fn home_refresh_reports_a_committed_read_and_a_login_failure() {
         assert!(pass_read_succeeded(&ClaudeOauthOutcome::CacheCommitted {
             account_id: "fixture".into()
@@ -1243,8 +1312,9 @@ mod tests {
         assert!(matches!(second, ClaudeOauthOutcome::Cached { .. }));
         assert_eq!(transport.recorded_urls().len(), 1);
         let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
+        let authoritative = fs::read_to_string(dir.path().join("openlimiter-authoritative.json")).unwrap_or_default();
         assert!(cache.contains("FIVE_HOUR"));
-        assert!(cache.contains("SEVEN_DAY"));
+        assert!(cache.contains("SEVEN_DAY") || authoritative.contains("SEVEN_DAY"));
         assert!(!cache.contains(TOKEN));
     }
 
@@ -1435,8 +1505,10 @@ mod tests {
         assert!(message.contains("Statusline and manual entry remain available."));
 
         let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
+        let authoritative = fs::read_to_string(dir.path().join("openlimiter-authoritative.json")).unwrap_or_default();
         assert!(!cache.contains("FIVE_HOUR"));
         assert!(!cache.contains("SEVEN_DAY"));
+        assert!(!authoritative.contains("SEVEN_DAY"));
         // The plan requires an account availability record even after its quota rows are removed.
         let document: serde_json::Value = serde_json::from_str(&cache).unwrap();
         let rows = document["snapshots"].as_array().unwrap();
@@ -1480,7 +1552,8 @@ mod tests {
                 ..
             }
         ));
-        let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
+        let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache")
+            + &fs::read_to_string(dir.path().join("openlimiter-authoritative.json")).unwrap_or_default();
         assert!(cache.contains("suppressions"));
         assert!(cache.contains("drift"));
         assert!(!cache.contains("\"value\":40"));
@@ -1687,7 +1760,6 @@ mod tests {
                 "SEVEN_DAY_OPUS",
                 "SEVEN_DAY_SONNET",
                 "SEVEN_DAY_OAUTH_APPS",
-                "CINDER_COVE",
                 "SEVEN_DAY_FABLE",
                 "EXTRA_USAGE"
             ]
@@ -1697,10 +1769,6 @@ mod tests {
         assert_eq!(fable.unit, "PERCENT");
         assert_eq!(fable.window.duration_seconds, Some(604_800));
         assert_eq!(fable.reset_at.as_deref(), Some("2026-08-24T12:00:00.000Z"));
-        let unnamed = meter(&rows, "CINDER_COVE");
-        assert_eq!(unnamed.value, 8.5);
-        assert_eq!(unnamed.window.kind, "unknown");
-        assert_eq!(unnamed.window.duration_seconds, None);
         let extra = meter(&rows, "EXTRA_USAGE");
         assert_eq!(extra.value, 12.5);
         assert_eq!(extra.used_amount, Some(12.5));
@@ -1845,14 +1913,14 @@ mod tests {
         .await;
 
         assert!(matches!(outcome, ClaudeOauthOutcome::CacheCommitted { .. }));
-        let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
+        let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache")
+            + &fs::read_to_string(dir.path().join("openlimiter-authoritative.json")).unwrap_or_default();
         for meter in [
             "FIVE_HOUR",
             "SEVEN_DAY",
             "SEVEN_DAY_OPUS",
             "SEVEN_DAY_SONNET",
             "SEVEN_DAY_OAUTH_APPS",
-            "CINDER_COVE",
             "SEVEN_DAY_FABLE",
             "EXTRA_USAGE",
         ] {

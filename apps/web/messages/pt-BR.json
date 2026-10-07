@@ -77,12 +77,14 @@
     "showTool": "Mostrar",
     "removeTool": "Remover",
     "removeConfirm": "Clique de novo para remover",
+    "claudeWeeklyOAuthApps": "Semanal, aplicativos OAuth",
     "showClaudeFable": "Mostrar limite do Fable",
     "showClaudeFableNote": "Lê o mesmo uso que o Claude mostra ao enviar uma solicitação direta com seu login do Claude neste computador. A política da Anthropic para ferramentas como esta ainda não está resolvida. Desative em Configurações.",
     "claudePollConsentTitle": "Mostrar seu limite do Fable?",
     "claudePollNotNow": "Agora não",
     "claudePollSaveFailed": "A escolha não pôde ser salva, então o uso do Claude continua desativado.",
-    "claudePollContinueOff": "Continuar com o uso do Claude desativado"
+    "claudePollContinueOff": "Continuar com o uso do Claude desativado",
+    "claudeWeeklyPollHint": "Ative a consulta de uso em Ferramentas de conexão para ver seus limites semanais."
   },
   "meta": {
     "title": "OpenLimiter, limites de codificação com IA e atividade de agentes",
@@ -2181,6 +2183,7 @@
     "updatedDays": "Atualizado há {count} d",
     "claudeCurrentSession": "Sessão atual",
     "claudeWeeklyAllModels": "Semanal, todos os modelos",
+    "claudeWeeklyOAuthApps": "Semanal, aplicativos OAuth",
     "claudeWeeklyFable": "Semanal, Fable",
     "claudeWeeklyModel": "Semanal, {model}",
     "claudeExtraUsage": "Uso extra",
@@ -2212,6 +2215,7 @@
     "balance": "Saldo",
     "percentUsed": "{value}% usado",
     "claudeFableDesktopHint": "O Fable aparece aqui quando o uso do Claude está ativado no OpenLimiter no seu computador.",
+    "claudeWeeklyPollHint": "Ative a consulta de uso em Ferramentas de conexão para ver seus limites semanais.",
     "providers": {
       "title": "Provedores",
       "automaticPrompt": "Abra o aplicativo de desktop. A detecção local começa por lá.",
@@ -2243,6 +2247,7 @@
       "phone": "Abrir no celular",
       "install": "Instalar aplicativo",
       "installed": "Instalado",
+      "reinstall": "Instalou o OpenLimiter antes da versão 2.1? Remova o ícone antigo e instale novamente.",
       "updates": "Verificar atualizações",
       "about": "Sobre o OpenLimiter",
       "logout": "Sair"
@@ -2424,12 +2429,39 @@
       "download": "Baixar o aplicativo de desktop",
       "qrAlt": "Código QR que leva à página de pareamento do celular"
     },
+    "phonePairHint": "Pareie com o aplicativo para desktop e veja suas barras sem entrar na conta",
     "phoneInstall": {
       "add": "Adicionar à tela de início",
       "androidMenu": "Toque em ⋮ e depois em Adicionar à tela inicial",
       "ios": "Adicionar à Tela de Início",
       "share": "Compartilhar",
       "openSafari": "Abra no Safari para instalar"
+    },
+    "install": {
+      "action": "Instalar aplicativo",
+      "title": "Adicionar o OpenLimiter à Tela de Início",
+      "what": "Um ícone é adicionado à sua Tela de Início. Ele abre o aplicativo em tela cheia, mostra primeiro as suas barras e mantém a última leitura quando você está sem conexão. Nada é baixado de uma loja de aplicativos e nada muda na sua conta.",
+      "stepShare": "Toque em Compartilhar",
+      "stepChoose": "Escolha Adicionar à Tela de Início",
+      "stepAdd": "Toque em Adicionar",
+      "menu": "Toque em ⋮ e escolha Instalar aplicativo ou Adicionar à Tela de Início.",
+      "openSafari": "Abra no Safari para adicionar à sua Tela de Início",
+      "done": "Concluído",
+      "close": "Fechar"
+    },
+    "phoneTabs": { "label": "Aplicativo para celular", "usage": "Uso", "pro": "Pro" },
+    "phoneSettings": {
+      "open": "Abrir configurações",
+      "title": "Configurações",
+      "close": "Fechar configurações",
+      "pairedAs": "Pareado como",
+      "theme": { "label": "Tema", "system": "Sistema", "light": "Claro", "dark": "Escuro" },
+      "install": "Instalar",
+      "installAction": "Adicionar à Tela de Início",
+      "installed": "Na sua Tela de Início",
+      "version": "Versão",
+      "unpair": "Desparear este celular",
+      "unpairing": "Despareando"
     },
     "pairPage": {
       "retry": "Atualizar leituras",

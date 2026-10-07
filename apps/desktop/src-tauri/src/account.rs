@@ -871,6 +871,29 @@ fn usage_samples_from_cache(
         if provider == "OPENROUTER" && window == "CREDITS" {
             continue;
         }
+        if provider == "CLAUDE" && window.starts_with("SEVEN_DAY") {
+            let family = ["FABLE", "OPUS", "SONNET", "HAIKU"]
+                .iter()
+                .any(|name| {
+                    window
+                        .strip_prefix(&format!("SEVEN_DAY_{name}"))
+                        .is_some_and(|suffix| suffix.is_empty() || suffix.starts_with('_'))
+                });
+            let fixed = window == "SEVEN_DAY" || window == "SEVEN_DAY_OAUTH_APPS";
+            let payload = snapshot
+                .get("provenance")
+                .and_then(|value| value.get("sourceKind"))
+                .and_then(serde_json::Value::as_str)
+                == Some("statusline_payload");
+            let duration = snapshot
+                .get("window")
+                .and_then(|value| value.get("durationSeconds"))
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(604_800);
+            if (!family && !fixed) || payload || duration != 604_800 {
+                continue;
+            }
+        }
         let account_balance = provider == "OPENROUTER" && window == "ACCOUNT_BALANCE";
         if !account_balance
             && snapshot.get("unit").and_then(serde_json::Value::as_str) != Some("PERCENT")

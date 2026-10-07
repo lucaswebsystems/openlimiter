@@ -1,0 +1,16 @@
+{
+  "provider": "claude",
+  "case": "weekly-families-limits",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "limits": [
+      { "kind": "weekly_scoped", "percent": 11, "resets_at": "2026-08-14T12:00:00.000Z", "scope": { "model": { "display_name": "Fable" } } },
+      { "kind": "weekly_scoped", "percent": 22, "resets_at": "2026-08-14T12:00:00.000Z", "scope": { "model": { "display_name": "Opus" } } },
+      { "kind": "weekly_scoped", "percent": 33, "resets_at": "2026-08-14T12:00:00.000Z", "scope": { "model": { "display_name": "Sonnet" } } },
+      { "kind": "weekly_scoped", "percent": 44, "resets_at": "2026-08-14T12:00:00.000Z", "scope": { "model": { "display_name": "Haiku" } } }
+    ]
+  }
+}

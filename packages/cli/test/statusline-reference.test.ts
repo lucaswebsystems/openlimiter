@@ -23,6 +23,16 @@ const hostRows = normalizeMeters(parseClaudePayload(payload("/work/project"), NO
 const row = (overrides: Partial<Snapshot>): Snapshot => ({ ...hostRows[0]!, ...overrides });
 const snapshots = [
   ...hostRows,
+  row({
+    meter: "SEVEN_DAY",
+    value: 26,
+    source: "internal_payload",
+    provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
+    window: { kind: "rolling", durationSeconds: 604_800 },
+    resetAt: "2026-01-05T02:00:00Z",
+    observedAt: NOW,
+    expiresAt: "2026-01-01T00:05:00.000Z"
+  }),
   row({ provider: "CODEX", meter: "SEVEN_DAY", value: 32, window: { kind: "rolling", durationSeconds: 604800 }, resetAt: "2026-01-05T02:00:00Z" }),
   row({ provider: "ANTIGRAVITY", value: 9, resetAt: "2026-01-01T00:18:00Z" }),
   row({ provider: "OPENCODE", value: 42, resetAt: null }),
@@ -41,8 +51,8 @@ describe("Lucas reference layout", () => {
     ["Linux", "/workspace/Olá projeto"]
   ])("renders the exact plain and ANSI payload line for %s paths", (_os, directory) => {
     const session = parseStatuslineSession(payload(directory));
-    const plain = "opus-5-5 high | ctx 42% | 5h [█░░░░░░░░░] 17% ·3h20m | 7d [██░░░░░░░░] 26% ·4d2h | cx7d [███░░░░░░░] 32% ·4d2h | ag5h [█░░░░░░░░░] 9% ·18m | oc Page 5h [████░░░░░░] 42% | or $12.34 | concise";
-    const painted = "opus-5-5 high | ctx 42% | 5h " + green("[█░░░░░░░░░]") + " " + green("17%") + " ·3h20m | 7d " + green("[██░░░░░░░░]") + " " + green("26%") + " ·4d2h | cx7d " + green("[███░░░░░░░]") + " " + green("32%") + " ·4d2h | ag5h " + green("[█░░░░░░░░░]") + " " + green("9%") + " ·18m | oc Page 5h " + green("[████░░░░░░]") + " " + green("42%") + " | or $12.34 | concise";
+    const plain = "opus-5-5 high | ctx 42% | 5h [█░░░░░░░░░] 17% ·3h20m | 7d [██░░░░░░░░] 26% ·4d2h | cx7d [███░░░░░░░] 32% ·4d2h | ag5h [█░░░░░░░░░] 9% ·18m | oc5h [████░░░░░░] 42% | or $12.34 | concise";
+    const painted = "opus-5-5 high | ctx 42% | 5h " + green("[█░░░░░░░░░]") + " " + green("17%") + " ·3h20m | 7d " + green("[██░░░░░░░░]") + " " + green("26%") + " ·4d2h | cx7d " + green("[███░░░░░░░]") + " " + green("32%") + " ·4d2h | ag5h " + green("[█░░░░░░░░░]") + " " + green("9%") + " ·18m | oc5h " + green("[████░░░░░░]") + " " + green("42%") + " | or $12.34 | concise";
     expect(render(snapshots, { session })).toBe(plain);
     expect(render(snapshots, { session, color: true })).toBe(painted);
     expect(render(snapshots, { session, color: statuslineColor("always", { NO_COLOR: "" }, true, "claude") })).toBe(plain);
@@ -100,7 +110,7 @@ describe("Lucas reference layout", () => {
       data: { limit: null, limit_remaining: null, usage: 500 },
     }, NOW) ?? []);
 
-    expect(render(rows)).toBe("or key No key cap | or Balance unavailable");
+    expect(render(rows)).toBe("or No key cap | or unavailable");
   });
 
   it("keeps the account balance beside key pressure in worst mode", () => {
@@ -133,8 +143,8 @@ describe("Lucas reference layout", () => {
       row({ provider: "KIMI", meter: "FIVE_HOUR", value: 20 }),
       row({ provider: "OPENCODE", meter: "FIVE_HOUR", value: 38.3 }),
     ], { config: { ...DEFAULT_STATUSLINE, meters: "worst" } });
-    expect(rendered).toContain("km 5h used");
-    expect(rendered).toContain("oc Page 5h");
+    expect(rendered).toContain("km5h");
+    expect(rendered).toContain("oc5h");
   });
 
   it("never draws unknown markers, even for a selected provider, and leaves dormant accounts out", () => {
@@ -163,18 +173,23 @@ describe("Lucas reference layout", () => {
 
   it("labels each provider window by its actual duration", () => {
     expect(render([row({ provider: "OPENCODE", window: { kind: "rolling", durationSeconds: 14400 }, resetAt: null })]))
-      .toBe("oc Page 5h [█░░░░░░░░░] 17%");
+      .toBe("oc4h [█░░░░░░░░░] 17%");
   });
   it("keeps weekly visibility stable while allowing a model override", () => {
     const weekly = row({ meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604_800 } });
     const fable = row({ meter: "SEVEN_DAY_FABLE_5_1", window: { kind: "rolling", durationSeconds: 604_800 } });
     const opus = row({ meter: "SEVEN_DAY_OPUS", window: { kind: "rolling", durationSeconds: 604_800 } });
     const hidden = normalizeStatusline({ visibility: { "7d": false, fable: true, opus: false } });
+    const visible = render([weekly, fable, opus], {
+      config: normalizeStatusline({ visibility: { "7d": true, fable: true, opus: true } })
+    });
 
     expect(hidden.visibility).toEqual({ "7d": false, fable: true, opus: false });
-    expect(render([weekly, fable, opus], { config: hidden })).toContain("Fable ");
-    expect(render([weekly, fable, opus], { config: hidden })).not.toContain("7d ");
-    expect(render([weekly, fable, opus], { config: hidden })).not.toContain("Opus ");
+    expect(visible).toContain("fable7d ");
+    expect(visible).toContain("opus7d");
+    expect(render([weekly, fable, opus], { config: hidden })).toContain("fable7d ");
+    expect(render([weekly, fable, opus], { config: hidden })).not.toMatch(/(?:^|\| )7d /u);
+    expect(render([weekly, fable, opus], { config: hidden })).not.toContain("opus7d");
   });
 
   it("renders parsed Claude extra usage with its compact caption and both amounts", () => {
@@ -182,7 +197,7 @@ describe("Lucas reference layout", () => {
       extra_usage: { used_amount: 12.47, limit_amount: 20, currency: "USD" },
     }, NOW) ?? []);
 
-    expect(render(parsed)).toBe("Extra $12.47/$20.00");
+    expect(render(parsed)).toBe("extra $12.47/$20.00");
   });
 });
 
@@ -201,7 +216,7 @@ describe("terminal visibility persistence", () => {
     expect(saved.config.statusline.show).toEqual([]);
     expect(saved.config.statusline.visibility).toEqual({ model: false, effort: false, dir: false, ctx: false, style: false, "7d": false, antigravity: false, codex: true, "5h": true });
     expect(render(snapshots, { config: saved.config.statusline, session: parseStatuslineSession(payload("/work/project")) }))
-      .toBe("5h [█░░░░░░░░░] 17% ·3h20m | oc Page 5h [████░░░░░░] 42% | or $12.34");
+      .toBe("5h [█░░░░░░░░░] 17% ·3h20m | oc5h [████░░░░░░] 42% | or $12.34");
     const status = await terminalStatusTable(context);
     expect(status).toContain("Hidden: model, effort, dir, ctx, style, 7d, antigravity");
     const before = saved.config;

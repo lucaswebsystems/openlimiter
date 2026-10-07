@@ -258,9 +258,10 @@ function validRenderedLine(line: string): boolean {
   if (line.startsWith("provider=")) {
     const fields = pairs(line);
     if (fields === null || [...fields.keys()].join(",") !==
-      "provider,state,usage_percent,reset_at") return false;
+      "provider,meter,state,usage_percent,reset_at") return false;
     const usage = Number(fields.get("usage_percent"));
     return localProvider.has(fields.get("provider") ?? "") &&
+      /^[A-Z][A-Z0-9_]{0,63}$/u.test(fields.get("meter") ?? "") &&
       (fields.get("state") === "fresh" || fields.get("state") === "stale") &&
       Number.isFinite(usage) && usage >= 0 && usage <= 100 &&
       validIsoOrNone(fields.get("reset_at") ?? "");

@@ -1,20 +1,19 @@
 import {
   PROVIDER_CODES,
-  claudeMeterCompactLabel,
   claudeMeterPresentation,
   floorFixed,
   freshness,
-  providerMeterCompactLabel,
   providerMeterPresentation,
   providerMeterRank,
   providerMeterVisible,
+  isSnapshotDisplayEligible,
   type Advice,
   type ProviderCode,
   type Snapshot,
   type SnapshotAvailability
 } from "@openlimiter/core";
 import { STATUSLINE_BAR_SEGMENTS, meterBar } from "./render.js";
-import type { StatuslineColor, StatuslineConfig } from "./config.js";
+import type { StatuslineColor, StatuslineConfig, StatuslineCaptions } from "./config.js";
 import type { StatuslineSession } from "./statusline-ingest.js";
 import { MONEY_TAGS, moneyCells } from "./api-spend.js";
 
@@ -224,7 +223,7 @@ function buildCell(
   wide?: boolean,
   bars = true
 ): StatuslineCell {
-  const percent = floorFixed(snapshot.value, 1) + "%";
+  const percent = Math.round(snapshot.value) + "%";
   if (!bars) {
     const text = label + " " + percent;
     return { plain: text, painted: text, percent: snapshot.value };
@@ -268,7 +267,8 @@ function readingsFor(
   now: string
 ): Reading[] {
   const providerRows = snapshots.filter((snapshot) =>
-    snapshot.provider === provider && providerMeterVisible(snapshot.provider, snapshot.meter));
+    snapshot.provider === provider && providerMeterVisible(snapshot.provider, snapshot.meter) &&
+    isSnapshotDisplayEligible(snapshot));
   const latestAccount = new Map<string | undefined, number>();
   for (const snapshot of providerRows) {
     const observed = Date.parse(snapshot.observedAt);
@@ -286,7 +286,12 @@ function readingsFor(
       snapshot,
       state: freshness(snapshot.observedAt, snapshot.expiresAt, now)
     }))
-    .filter((reading): reading is Reading => reading.state !== "unknown")
+    .filter((reading): reading is Reading =>
+      reading.state !== "unknown" &&
+      !(reading.snapshot.provider === "CLAUDE" &&
+        reading.snapshot.meter.startsWith("SEVEN_DAY") &&
+        reading.state !== "fresh")
+    )
     .sort((left, right) => {
       const presentationRank = (providerMeterRank(provider, left.snapshot.meter) ?? 90) -
         (providerMeterRank(provider, right.snapshot.meter) ?? 90);
@@ -323,6 +328,15 @@ function readingsFor(
     providerMeterPresentation(reading.snapshot.provider, reading.snapshot.meter)?.displayAvailability === true ||
     reading.snapshot.availability === "unlimited" && !measuredAccounts.has(reading.snapshot.accountId)
   );
+}
+
+function claudeFamilyCodesFor(
+  snapshot: Snapshot,
+  snapshots: readonly Snapshot[]
+): readonly string[] {
+  return snapshots
+    .filter((candidate) => candidate.provider === "CLAUDE" && candidate.accountId === snapshot.accountId)
+    .map((candidate) => candidate.meter);
 }
 
 function tightest(readings: readonly Reading[]): Reading | undefined {
@@ -366,7 +380,9 @@ export function statuslineCells(
   meters: StatuslineConfig["meters"],
   color: boolean,
   wide?: boolean,
-  bars = true
+  bars = true,
+  hostProvider: ProviderCode | null = null,
+  captions: StatuslineCaptions = "short"
 ): readonly StatuslineCell[] {
   const cells: StatuslineCell[] = [];
   for (const provider of order) {
@@ -375,17 +391,16 @@ export function statuslineCells(
     if (meters === "all") {
       for (const reading of readings) {
         if (isAvailabilitySnapshot(reading.snapshot)) {
-          const scope = providerMeterCompactLabel(provider, reading.snapshot.meter);
-          cells.push(availabilityCell(provider + (scope === null ? "" : ":" + scope), reading.snapshot, now));
+          cells.push(availabilityCell(captionFor(reading.snapshot, hostProvider, captions, claudeFamilyCodesFor(reading.snapshot, snapshots)), reading.snapshot, now));
           continue;
         }
-        const meterTag = providerMeterCompactLabel(provider, reading.snapshot.meter) ?? reading.snapshot.meter;
+        const meterTag = captionFor(reading.snapshot, hostProvider, captions, claudeFamilyCodesFor(reading.snapshot, snapshots));
         if (providerMeterPresentation(provider, reading.snapshot.meter)?.valueSemantics === "balance") {
-          cells.push(balanceCell(provider + ":" + meterTag, reading.snapshot, reading.state === "stale"));
+          cells.push(balanceCell(meterTag, reading.snapshot, reading.state === "stale"));
           continue;
         }
         cells.push(buildCell(
-          provider + ":" + meterTag,
+          meterTag,
           reading.snapshot,
           reading.state,
           color,
@@ -396,12 +411,9 @@ export function statuslineCells(
       continue;
     }
     for (const worst of worstReadings(provider, readings)) {
-      const scope = providerMeterCompactLabel(provider, worst.snapshot.meter);
-      const directional = (provider === "KIMI" || provider === "OPENCODE" ||
-        provider === "OPENROUTER" && !bars) && scope !== null;
-      const label = directional ? provider + ":" + scope : provider;
+      const label = captionFor(worst.snapshot, hostProvider, captions, claudeFamilyCodesFor(worst.snapshot, snapshots));
       if (isAvailabilitySnapshot(worst.snapshot)) {
-        cells.push(availabilityCell(provider + (scope === null ? "" : ":" + scope), worst.snapshot, now));
+        cells.push(availabilityCell(label, worst.snapshot, now));
         continue;
       }
       if (providerMeterPresentation(provider, worst.snapshot.meter)?.valueSemantics === "balance") {
@@ -421,9 +433,11 @@ export function renderPlainStatusline(
   now: string,
   order: readonly ProviderCode[],
   meters: StatuslineConfig["meters"],
+  pollHint?: string,
+  hostProvider: ProviderCode | null = null,
 ): string {
   if (!advice.inject || advice.reason === "UNKNOWN") return "OpenLimiter UNKNOWN";
-  const cells = statuslineCells(snapshots, now, order, meters, false, undefined, false);
+  const cells = statuslineCells(snapshots, now, order, meters, false, undefined, false, hostProvider);
   if (cells.length === 0) return "OpenLimiter UNKNOWN";
   const recommendation = advice.recommendation.code === "PREFER"
     ? " PREFER " + advice.recommendation.provider
@@ -432,7 +446,7 @@ export function renderPlainStatusline(
     ? ""
     : " UNKNOWN " + advice.unknownProviders.join(",");
   return "OpenLimiter " + advice.reason + " " + cells.map((cell) => cell.plain).join(" ") +
-    recommendation + unknown;
+    recommendation + unknown + (pollHint === undefined ? "" : " " + pollHint);
 }
 
 /* ------------------------------------------------------------------ layout */
@@ -577,8 +591,11 @@ export const TEN_BLOCK_FULL = "█";
 export const TEN_BLOCK_EMPTY = "░";
 
 export function windowCode(snapshot: Snapshot): string {
-  const providerLabel = providerMeterCompactLabel(snapshot.provider, snapshot.meter);
-  if (providerLabel !== null) return providerLabel;
+  const presentation = providerMeterPresentation(snapshot.provider, snapshot.meter);
+  const claude = snapshot.provider === "CLAUDE" ? claudeMeterPresentation(snapshot.meter) : null;
+  if (claude !== null && (claude.model !== null || claude.labelKey === "claudeExtraUsage")) {
+    return claude.compactLabel.toLowerCase();
+  }
   if (snapshot.unit === "CREDITS" || snapshot.window.kind === "lifetime") {
     return "";
   }
@@ -598,12 +615,38 @@ export function windowCode(snapshot: Snapshot): string {
   return "";
 }
 
-function scopedProviderTag(providerTag: string, shortTag: string, snapshot: Snapshot): string {
-  const base = providerTag || shortTag;
-  if (isOpenRouterAccountBalance(snapshot)) return base;
-  const scope = providerMeterCompactLabel(snapshot.provider, snapshot.meter);
-  const separator = snapshot.provider === "ANTIGRAVITY" ? "" : " ";
-  return scope === null || scope === "" ? base : base + separator + scope;
+/** The one caption rule used by bar cells, legacy cells, and availability. */
+export function captionFor(
+  snapshot: Snapshot,
+  hostProvider: ProviderCode | null,
+  captions: StatuslineCaptions = "short",
+  familyCodes: readonly string[] = []
+): string {
+  const provider = snapshot.provider;
+  const presentation = providerMeterPresentation(provider, snapshot.meter, familyCodes);
+  const claude = provider === "CLAUDE" ? claudeMeterPresentation(snapshot.meter, familyCodes) : null;
+  if (claude !== null && (claude.model !== null || claude.labelKey === "claudeExtraUsage")) {
+    return claude.compactLabel.toLowerCase();
+  }
+  if (provider === "ANTIGRAVITY" &&
+      (snapshot.meter === "THIRD_PARTY_SESSION" || snapshot.meter === "THIRD_PARTY_WEEKLY")) {
+    const scoped = presentation?.compactLabel.toLowerCase() ?? windowCode(snapshot);
+    return captions === "tagged" || hostProvider !== provider
+      ? PROVIDER_SHORT_TAGS[provider] + scoped
+      : scoped;
+  }
+  if (provider === "OPENROUTER" && snapshot.meter === "KEY_LIMIT" && snapshot.availability === undefined) {
+    const key = presentation?.compactLabel.toLowerCase() ?? "key";
+    return captions === "tagged" || hostProvider !== provider
+      ? PROVIDER_SHORT_TAGS[provider] + " " + key
+      : key;
+  }
+  const code = windowCode(snapshot);
+  if (code === "") return PROVIDER_SHORT_TAGS[provider];
+  if (captions === "tagged" || hostProvider !== provider) {
+    return PROVIDER_SHORT_TAGS[provider] + code;
+  }
+  return code;
 }
 
 function visibilityKey(snapshot: Snapshot): string {
@@ -611,7 +654,7 @@ function visibilityKey(snapshot: Snapshot): string {
     const presentation = claudeMeterPresentation(snapshot.meter);
     if (presentation?.labelKey === "claudeWeeklyFable") return "fable";
     if (presentation?.model !== null && presentation?.model !== undefined) {
-      return presentation.model.toLowerCase().replace(/[^a-z0-9]+/gu, "-").replace(/^-|-$/gu, "");
+      return presentation.model.split(/[\s-]+/u)[0]!.toLowerCase();
     }
     if (presentation?.labelKey === "claudeExtraUsage") return "extra";
   }
@@ -679,7 +722,8 @@ export function barStyleCells(
   wide?: boolean,
   explicitSelection = false,
   visibility: Readonly<Record<string, boolean>> = {},
-  unicode = true
+  unicode = true,
+  inputCaptions: StatuslineCaptions = "short"
 ): readonly StatuslineCell[] {
   const cells: StatuslineCell[] = [];
   const hostProvider = HOST_PROVIDER[host];
@@ -711,15 +755,11 @@ export function barStyleCells(
 
     for (const reading of selectedReadings) {
       const { snapshot, state } = reading;
-      const providerTag = provider === hostProvider ? "" : shortTag;
       const ageSeconds = Math.max(0, Math.floor((Date.parse(now) - Date.parse(snapshot.observedAt)) / 1000));
       const stale = state === "stale" || ageSeconds >= 180 || snapshot.precision === "estimated";
 
       if (isAvailabilitySnapshot(snapshot)) {
-        const baseTag = providerTag || shortTag;
-        const scope = providerMeterCompactLabel(snapshot.provider, snapshot.meter);
-        const separator = snapshot.provider === "ANTIGRAVITY" ? "" : " ";
-        const tag = scope === null || scope === "" ? baseTag : baseTag + separator + scope;
+        const tag = captionFor(snapshot, hostProvider, inputCaptions, claudeFamilyCodesFor(snapshot, snapshots));
         const plain = tag + " " + availabilityText(snapshot, now);
         const chosen = visibility[provider.toLowerCase()] === true ||
           allowedProviders?.has(provider.toLowerCase()) || allowedProviders?.has(shortTag);
@@ -730,7 +770,7 @@ export function barStyleCells(
       }
 
       if (isBalanceSnapshot(snapshot)) {
-        cells.push(balanceCell(scopedProviderTag(providerTag, shortTag, snapshot), snapshot, stale));
+        cells.push(balanceCell(captionFor(snapshot, hostProvider, inputCaptions, claudeFamilyCodesFor(snapshot, snapshots)), snapshot, stale));
         continue;
       }
 
@@ -739,7 +779,7 @@ export function barStyleCells(
           snapshot.currency === "USD") {
         const amount = (stale ? "~" : "") + "$" + snapshot.usedAmount.toFixed(2) +
           "/$" + snapshot.limitAmount.toFixed(2);
-        const plain = scopedProviderTag(providerTag, shortTag, snapshot) + " " + amount;
+        const plain = captionFor(snapshot, hostProvider, inputCaptions, claudeFamilyCodesFor(snapshot, snapshots)) + " " + amount;
         cells.push({ plain, painted: plain, percent: snapshot.value });
         continue;
       }
@@ -749,26 +789,20 @@ export function barStyleCells(
           snapshot.currency === "USD") {
         const amount = (stale ? "~" : "") + "$" + snapshot.usedAmount.toFixed(2) +
           "/$" + snapshot.limitAmount.toFixed(2);
-        const tag = providerTag + (claudeMeterCompactLabel(snapshot.meter) ?? "Extra");
+        const tag = captionFor(snapshot, hostProvider, inputCaptions, claudeFamilyCodesFor(snapshot, snapshots));
         const plain = tag + " " + amount;
         cells.push({ plain, painted: plain, percent: snapshot.value });
         continue;
       }
 
       if (snapshot.usedAmount !== undefined && snapshot.currency === "USD") {
-        const tag = providerTag || shortTag;
+        const tag = captionFor(snapshot, hostProvider, inputCaptions, claudeFamilyCodesFor(snapshot, snapshots));
         const plain = tag + " spend " + (stale ? "~" : "") + "$" + snapshot.usedAmount.toFixed(2);
         cells.push({ plain, painted: plain, percent: snapshot.value });
         continue;
       }
 
-      const winTag = windowCode(snapshot);
-      const hasProviderCaption = providerMeterCompactLabel(snapshot.provider, snapshot.meter) !== null;
-      const captionSeparator = snapshot.provider === "ANTIGRAVITY" ? "" : " ";
-      const combinedTag = providerTag !== "" && winTag !== ""
-        ? providerTag + (hasProviderCaption ? captionSeparator : "") + winTag
-        : providerTag + winTag;
-      const tag = combinedTag === "" ? shortTag : combinedTag;
+      const tag = captionFor(snapshot, hostProvider, inputCaptions, claudeFamilyCodesFor(snapshot, snapshots));
 
       const bar = tenBlockBar(snapshot.value, unicode);
       const percentStr = (stale ? "~" : "") + Math.round(snapshot.value) + "%";
@@ -813,7 +847,8 @@ function renderBarStatusline(input: StatuslineLayoutInput): string {
     input.wide,
     config.showMode === "explicit",
     config.visibility,
-    input.unicode
+    input.unicode,
+    config.captions
   );
   const listed = new Set(config.show.map((entry) => entry.toLowerCase()));
   const apiMoney = moneyCells(input.apiSpend, {
@@ -838,6 +873,7 @@ function renderBarStatusline(input: StatuslineLayoutInput): string {
     ? cell.prefix + paintBand(cell.amount, cell.band, "fresh")
     : cell.plain));
   if (shown("style") && session.style) parts.push(session.style);
+  if (input.pollHint && shown("7d")) parts.push(input.pollHint);
   // The host owns wrapping. A column guess must not silently hide a provider.
   return parts.join(BAR_CELL_SEPARATOR) || STATUSLINE_UNKNOWN;
 }
@@ -855,6 +891,7 @@ export interface StatuslineLayoutInput {
   unicode?: boolean;
   /** The parsed `api-spend-v1.json`, when the desktop app has saved one. */
   apiSpend?: unknown;
+  pollHint?: string;
 }
 
 /** What the statusline says when it has nothing bounded to say. */
@@ -873,7 +910,7 @@ export function renderStatuslineLayout(input: StatuslineLayoutInput): string {
   if (config.style === "cells") {
     if (!advice.inject || advice.reason === "UNKNOWN") return STATUSLINE_UNKNOWN;
     const cells = statuslineCells(
-      input.snapshots.filter((snapshot) => config.visibility?.[windowCode(snapshot)] !== false),
+      input.snapshots.filter((snapshot) => windowVisible(snapshot, config.visibility ?? {})),
       input.now,
       resolveProviderOrder(config.order).filter((provider) =>
         config.visibility?.[provider.toLowerCase()] ??
@@ -881,7 +918,10 @@ export function renderStatuslineLayout(input: StatuslineLayoutInput): string {
         config.show.includes(provider.toLowerCase()) || config.show.includes(PROVIDER_SHORT_TAGS[provider]))),
       config.meters,
       input.color,
-      input.wide
+      input.wide,
+      true,
+      HOST_PROVIDER[input.host ?? "claude"],
+      config.captions
     );
     if (cells.length === 0) return STATUSLINE_UNKNOWN;
     const head = statuslineHead(advice);

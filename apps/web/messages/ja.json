@@ -77,12 +77,14 @@
     "showTool": "表示",
     "removeTool": "削除",
     "removeConfirm": "もう一度押すと削除します",
+    "claudeWeeklyOAuthApps": "週間、OAuth アプリ",
     "showClaudeFable": "Fable の上限を表示",
     "showClaudeFableNote": "このコンピューターの Claude サインインを使って使用量を直接リクエストし、Claude に表示されるものと同じ使用量を読み取ります。このようなツールに関する Anthropic の方針は未解決です。設定でオフにできます。",
     "claudePollConsentTitle": "Fable の上限を表示しますか？",
     "claudePollNotNow": "今はしない",
     "claudePollSaveFailed": "選択を保存できなかったため、Claude の使用量はオフのままです。",
-    "claudePollContinueOff": "Claude の使用量をオフにして続行"
+    "claudePollContinueOff": "Claude の使用量をオフにして続行",
+    "claudeWeeklyPollHint": "接続ツールで使用量のポーリングをオンにすると、週間上限を確認できます。"
   },
   "meta": {
     "title": "OpenLimiter、AIコーディングの制限とエージェントの活動",
@@ -2181,6 +2183,7 @@
     "updatedDays": "{count} 日前に更新",
     "claudeCurrentSession": "現在のセッション",
     "claudeWeeklyAllModels": "週間、全モデル",
+    "claudeWeeklyOAuthApps": "週間、OAuth アプリ",
     "claudeWeeklyFable": "週間、Fable",
     "claudeWeeklyModel": "週間、{model}",
     "claudeExtraUsage": "追加使用量",
@@ -2212,6 +2215,7 @@
     "balance": "残高",
     "percentUsed": "{value}% 使用済み",
     "claudeFableDesktopHint": "お使いのコンピューターの OpenLimiter で Claude の使用量がオンになっていると、ここに Fable が表示されます。",
+    "claudeWeeklyPollHint": "接続ツールで使用量のポーリングをオンにすると、週間上限を確認できます。",
     "providers": {
       "title": "プロバイダー",
       "automaticPrompt": "デスクトップアプリを開いてください。ローカル検出はそこから始まります。",
@@ -2243,6 +2247,7 @@
       "phone": "スマートフォンで開く",
       "install": "アプリをインストール",
       "installed": "インストール済み",
+      "reinstall": "2.1 より前に OpenLimiter をインストールしましたか。古いアイコンを削除して、もう一度インストールしてください。",
       "updates": "更新を確認",
       "about": "OpenLimiterについて",
       "logout": "ログアウト"
@@ -2424,12 +2429,39 @@
       "download": "デスクトップアプリを入手",
       "qrAlt": "スマートフォンのペア設定ページにつながる QR コード"
     },
+    "phonePairHint": "デスクトップアプリとペアリングして、ログインせずに使用量バーを表示",
     "phoneInstall": {
       "add": "ホーム画面に追加",
       "androidMenu": "⋮ をタップして、ホーム画面に追加を選択",
       "ios": "ホーム画面に追加",
       "share": "共有",
       "openSafari": "インストールするには Safari で開いてください"
+    },
+    "install": {
+      "action": "アプリをインストール",
+      "title": "OpenLimiterをホーム画面に追加",
+      "what": "ホーム画面にアイコンが追加されます。そのアイコンから全画面で開き、最初に使用量バーを表示し、オフラインでも最後の測定値を保持します。アプリストアからダウンロードされるものはなく、アカウントの内容も変わりません。",
+      "stepShare": "共有をタップ",
+      "stepChoose": "ホーム画面に追加を選択",
+      "stepAdd": "追加をタップ",
+      "menu": "⋮ をタップし、アプリをインストールまたはホーム画面に追加を選択します。",
+      "openSafari": "Safariで開いてホーム画面に追加してください",
+      "done": "完了",
+      "close": "閉じる"
+    },
+    "phoneTabs": { "label": "スマートフォンアプリ", "usage": "使用量", "pro": "Pro" },
+    "phoneSettings": {
+      "open": "設定を開く",
+      "title": "設定",
+      "close": "設定を閉じる",
+      "pairedAs": "ペアリング名",
+      "theme": { "label": "テーマ", "system": "システム", "light": "ライト", "dark": "ダーク" },
+      "install": "インストール",
+      "installAction": "ホーム画面に追加",
+      "installed": "ホーム画面に追加済み",
+      "version": "バージョン",
+      "unpair": "このスマートフォンのペアリングを解除",
+      "unpairing": "解除しています"
     },
     "pairPage": {
       "retry": "読み取りを更新",

@@ -32,6 +32,7 @@ import {
   record,
   shortExpiry
 } from "./shared";
+import { CLOCK_SKEW_SECONDS } from "./shared";
 
 export const claudeLabels = {
   credentialOrigin: "official-local-tool",
@@ -48,6 +49,7 @@ export const claudeInput = {
 
 const FIVE_HOURS = 18_000;
 const SEVEN_DAYS = 604_800;
+const CLAUDE_WEEKLY_FAMILIES = ["fable", "opus", "sonnet", "haiku"] as const;
 
 /**
  * The longest a window this reader was never told the length of may run.
@@ -62,20 +64,15 @@ export const CLAUDE_UNKNOWN_WINDOW_SECONDS = 2_678_400;
 /**
  * The buckets whose names this build knows, and how long each one runs.
  *
- * Being on this list buys one thing: a fixed meter code that never moves, so a
- * surface can style the weekly Opus bar and keep styling it. It is NOT what
- * makes a bucket readable. Everything else in the table is read too, under a
- * code derived from its own key, because the failure this parser is fixing was
- * a frozen two entry table silently dropping every bucket Anthropic added
- * after it was written.
+ * Only the root keys Anthropic's Usage screen exposes become meters. Unknown
+ * weekly names are deliberately ignored, because a provider supplied name is
+ * not evidence that it belongs to a user facing allowance.
  */
 const KNOWN_WINDOWS: Readonly<
   Record<string, { readonly meter: string; readonly durationSeconds: number }>
 > = {
   five_hour: { meter: "FIVE_HOUR", durationSeconds: FIVE_HOURS },
   seven_day: { meter: "SEVEN_DAY", durationSeconds: SEVEN_DAYS },
-  seven_day_opus: { meter: "SEVEN_DAY_OPUS", durationSeconds: SEVEN_DAYS },
-  seven_day_sonnet: { meter: "SEVEN_DAY_SONNET", durationSeconds: SEVEN_DAYS },
   seven_day_oauth_apps: {
     meter: "SEVEN_DAY_OAUTH_APPS",
     durationSeconds: SEVEN_DAYS
@@ -84,7 +81,6 @@ const KNOWN_WINDOWS: Readonly<
 
 /** Keys that carry something other than one window, so never read as one. */
 const RESERVED_KEYS: ReadonlySet<string> = new Set([
-  "model_scoped",
   "limits",
   "extra_usage"
 ]);
@@ -114,7 +110,20 @@ function meterCode(value: unknown): string | null {
     .toUpperCase()
     .replace(/[^A-Z0-9]+/gu, "_")
     .replace(/^_+|_+$/gu, "");
-  return /^[A-Z][A-Z0-9_]{0,47}$/u.test(code) ? code : null;
+  return /^[A-Z][A-Z0-9_]{0,31}$/u.test(code) ? code : null;
+}
+
+function claudeWeeklyKey(key: string): boolean {
+  if (key === "seven_day" || key === "seven_day_oauth_apps") return true;
+  return /^seven_day_(fable|opus|sonnet|haiku)(?:[_-][a-z0-9]+)*$/iu.test(key);
+}
+
+function claudeFamilyCode(value: unknown): string | null {
+  const code = meterCode(value);
+  if (code === null) return null;
+  const family = CLAUDE_WEEKLY_FAMILIES.find((candidate) =>
+    code === candidate.toUpperCase() || code.startsWith(candidate.toUpperCase() + "_"));
+  return family === undefined ? null : code;
 }
 
 /**
@@ -196,8 +205,9 @@ function resetInstant(
  * and an honestly unknown window rather than an invented five hours.
  */
 function durationForKey(key: string): number | null {
-  if (key.startsWith("seven_day")) return SEVEN_DAYS;
-  if (key.startsWith("five_hour")) return FIVE_HOURS;
+  const normalized = key.toLowerCase();
+  if (claudeWeeklyKey(normalized)) return SEVEN_DAYS;
+  if (normalized.startsWith("five_hour")) return FIVE_HOURS;
   return null;
 }
 
@@ -255,7 +265,9 @@ function parseWindow(
   const resetAt = resetInstant(
     input["resets_at"],
     now,
-    plausibleResetHorizon(durationSeconds ?? CLAUDE_UNKNOWN_WINDOW_SECONDS)
+    durationSeconds === SEVEN_DAYS
+      ? SEVEN_DAYS + CLOCK_SKEW_SECONDS
+      : plausibleResetHorizon(durationSeconds ?? CLAUDE_UNKNOWN_WINDOW_SECONDS)
   );
   if (percent === null || resetAt === null) return null;
   return { meter, percent, durationSeconds, resetAt };
@@ -278,17 +290,25 @@ function parseWindow(
  * could produce two different meter lists on two consecutive reads.
  */
 function orderedWindowKeys(table: Record<string, unknown>): string[] {
-  const remaining = new Set(
-    Object.keys(table).filter((key) => !RESERVED_KEYS.has(key))
+  const remaining = new Map(
+    Object.keys(table).filter((key) => {
+      const normalized = key.toLowerCase();
+      return !RESERVED_KEYS.has(normalized) &&
+        (normalized === "five_hour" || claudeWeeklyKey(normalized));
+    }).map((key) => [key.toLowerCase(), key] as const)
   );
   const ordered: string[] = [];
   /* The buckets this build knows lead, shortest window first, which is the
      order a person reads them in and the order every surface ranks them in. */
   for (const key of Object.keys(KNOWN_WINDOWS)) {
-    if (!remaining.delete(key)) continue;
-    ordered.push(key);
+    const original = remaining.get(key);
+    if (original === undefined) continue;
+    remaining.delete(key);
+    ordered.push(original);
   }
-  return [...ordered, ...[...remaining].sort()];
+  return [...ordered, ...[...remaining.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([, original]) => original)];
 }
 
 function parseWindowTable(
@@ -299,47 +319,16 @@ function parseWindowTable(
   const found: MeterInput[] = [];
   for (const key of orderedWindowKeys(table)) {
     const value = table[key];
-    const known = KNOWN_WINDOWS[key];
+    const normalizedKey = key.toLowerCase();
+    const known = KNOWN_WINDOWS[normalizedKey];
     const meter = known?.meter ?? meterCode(key);
     if (meter === null || seen.has(meter)) continue;
     const parsed = parseWindow(
       value,
       now,
       meter,
-      known?.durationSeconds ?? durationForKey(key)
+      known?.durationSeconds ?? durationForKey(normalizedKey)
     );
-    if (parsed === null) continue;
-    seen.add(meter);
-    found.push(parsed);
-  }
-  return found;
-}
-
-/**
- * The model scoped weekly buckets the statusline adds beside the root table.
- *
- * Each entry names a model in words a human reads, so the code is built from
- * that name and prefixed with the cadence it belongs to: a Fable 5 entry is
- * SEVEN_DAY_FABLE_5. Deduplicated against whatever the root table already
- * reported, because Opus arrives twice on a payload that carries both
- * `seven_day_opus` and a model scoped Opus entry, and two bars for one pool is
- * the same lie as no bar at all.
- */
-function parseModelScoped(
-  value: unknown,
-  now: string,
-  seen: Set<string>
-): MeterInput[] {
-  if (!Array.isArray(value)) return [];
-  const found: MeterInput[] = [];
-  for (const entry of value) {
-    const scoped = record(entry);
-    if (scoped === null) continue;
-    const name = meterCode(scoped["display_name"]);
-    if (name === null) continue;
-    const meter = CLAUDE_MODEL_WEEKLY_PREFIX + name;
-    if (seen.has(meter)) continue;
-    const parsed = parseWindow(scoped, now, meter, SEVEN_DAYS);
     if (parsed === null) continue;
     seen.add(meter);
     found.push(parsed);
@@ -367,7 +356,7 @@ function parseScopedLimits(
     if (limit === null || limit["kind"] !== "weekly_scoped") continue;
     const scope = record(limit["scope"]);
     const model = record(scope?.["model"]);
-    const name = meterCode(model?.["display_name"]);
+    const name = claudeFamilyCode(model?.["display_name"]);
     if (name === null) continue;
     const meter = CLAUDE_MODEL_WEEKLY_PREFIX + name;
     if (seen.has(meter)) continue;
@@ -474,9 +463,10 @@ function parseExtraUsage(value: unknown, now: string): MeterInput | null {
  */
 function looksLikeUsageDocument(root: Record<string, unknown>): boolean {
   if (Array.isArray(root["limits"])) return true;
-  if (Array.isArray(root["model_scoped"])) return true;
   if (record(root["extra_usage"]) !== null) return true;
-  return Object.keys(KNOWN_WINDOWS).some((key) => record(root[key]) !== null);
+  return Object.keys(root).some((key) =>
+    (key.toLowerCase() === "five_hour" || claudeWeeklyKey(key.toLowerCase())) &&
+    record(root[key]) !== null);
 }
 
 /**
@@ -555,15 +545,15 @@ export function parseClaudePayload(payload: unknown, now: string): RawMeter[] | 
    * is skipped rather than drawn twice.
    */
   const seen = new Set<string>();
-  const inputs: MeterInput[] = [
-    ...parseWindowTable(table, now, seen),
-    ...parseModelScoped(table["model_scoped"], now, seen),
-    ...parseScopedLimits(table["limits"], now, seen)
-  ];
-  const extra = parseExtraUsage(table["extra_usage"], now);
-  if (extra !== null && !seen.has(extra.meter)) {
-    seen.add(extra.meter);
-    inputs.push(extra);
+  const inputs: MeterInput[] = statusline
+    ? parseWindowTable({ five_hour: table["five_hour"] }, now, seen)
+    : parseWindowTable(table, now, seen).concat(parseScopedLimits(table["limits"], now, seen));
+  if (!statusline) {
+    const extra = parseExtraUsage(table["extra_usage"], now);
+    if (extra !== null && !seen.has(extra.meter)) {
+      seen.add(extra.meter);
+      inputs.push(extra);
+    }
   }
   if (inputs.length === 0) return null;
   /*
