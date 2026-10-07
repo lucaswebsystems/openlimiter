@@ -19,6 +19,7 @@ import contract from "./contracts/claude-presentation.json" with { type: "json" 
 export type ClaudeMeterLabelKey =
   | "claudeCurrentSession"
   | "claudeWeeklyAllModels"
+  | "claudeWeeklyOAuthApps"
   | "claudeWeeklyFable"
   | "claudeWeeklyModel"
   | "claudeExtraUsage";
@@ -58,7 +59,10 @@ function modelName(code: string): string | null {
         : lower.charAt(0).toUpperCase() + lower.slice(1));
     }
   }
-  return words.join(" ");
+  const model = words.join(" ");
+  const family = contract.modelWeekly.families.find((candidate) =>
+    model === candidate || model.startsWith(candidate + " "));
+  return family === undefined ? null : model;
 }
 
 function labelOf(
@@ -70,11 +74,25 @@ function labelOf(
   return template.replaceAll("{model}", model ?? "");
 }
 
+function compactModelLabel(model: string, familyCodes: readonly string[]): string {
+  const familyModels = new Set(
+    familyCodes
+      .map((code) => modelName(code.toUpperCase()))
+      .filter((candidate): candidate is string => candidate !== null)
+      .filter((candidate) => candidate.startsWith(contract.modelWeekly.fablePrefix)),
+  );
+  if (familyModels.size <= 1) return "fable7d";
+  return model.toLowerCase().split(" ")[0]! + "7d";
+}
+
 export function isClaudeModelScopedMeter(code: string): boolean {
   return modelName(code.toUpperCase()) !== null;
 }
 
-export function claudeMeterPresentation(code: string): ClaudeMeterPresentation | null {
+export function claudeMeterPresentation(
+  code: string,
+  familyCodes: readonly string[] = [],
+): ClaudeMeterPresentation | null {
   const meter = code.toUpperCase();
   if (contract.fixed.session.meters.includes(meter)) {
     return {
@@ -96,6 +114,16 @@ export function claudeMeterPresentation(code: string): ClaudeMeterPresentation |
       modelScoped: false,
     };
   }
+  if (contract.fixed.oauthApps.meters.includes(meter)) {
+    return {
+      labelKey: contractLabelKey(contract.fixed.oauthApps.labelKey),
+      defaultLabel: CLAUDE_METER_ENGLISH.claudeWeeklyOAuthApps,
+      compactLabel: contract.fixed.oauthApps.compactLabel,
+      order: contract.fixed.oauthApps.order,
+      model: null,
+      modelScoped: false,
+    };
+  }
   const model = modelName(meter);
   if (model !== null) {
     const fable = model === contract.modelWeekly.fablePrefix ||
@@ -113,7 +141,9 @@ export function claudeMeterPresentation(code: string): ClaudeMeterPresentation |
     return {
       labelKey: key,
       defaultLabel: labelOf(key, model),
-      compactLabel: fable ? contract.modelWeekly.fableCompactLabel : model,
+      compactLabel: fable
+        ? compactModelLabel(model, familyCodes)
+        : model.toLowerCase().split(" ")[0]! + contract.modelWeekly.modelCompactSuffix,
       order,
       model,
       modelScoped: true,
@@ -264,8 +294,11 @@ const FIXED_PRESENTATION: Readonly<Record<string, ProviderMeterPresentation>> = 
   "CURSOR:INCLUDED": presentation("cursorLegacyHidden", "", "", 90, "used", false),
 });
 
-function claudeProviderPresentation(code: string): ProviderMeterPresentation | null {
-  const found = claudeMeterPresentation(code);
+function claudeProviderPresentation(
+  code: string,
+  familyCodes: readonly string[] = [],
+): ProviderMeterPresentation | null {
+  const found = claudeMeterPresentation(code, familyCodes);
   if (found === null) return null;
   return presentation(
     found.labelKey,
@@ -290,10 +323,11 @@ function antigravityProviderPresentation(code: string): ProviderMeterPresentatio
 export function providerMeterPresentation(
   provider: string,
   code: string,
+  familyCodes: readonly string[] = [],
 ): ProviderMeterPresentation | null {
   const normalizedProvider = provider.toUpperCase();
   const meter = code.toUpperCase();
-  if (normalizedProvider === "CLAUDE") return claudeProviderPresentation(meter);
+  if (normalizedProvider === "CLAUDE") return claudeProviderPresentation(meter, familyCodes);
   if (normalizedProvider === "ANTIGRAVITY") return antigravityProviderPresentation(meter);
   const fixed = FIXED_PRESENTATION[normalizedProvider + ":" + meter];
   if (fixed !== undefined) return fixed;

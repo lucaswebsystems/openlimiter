@@ -7,6 +7,7 @@ import {
   DEFAULT_PROVIDER_ORDER,
   STATUSLINE_UNKNOWN,
   barStyleCells,
+  captionFor,
   meterClass,
   renderStatuslineLayout,
   resolveProviderOrder,
@@ -159,15 +160,15 @@ describe("provider ordering", () => {
   it("renders the cells in that order and nothing else", () => {
     const cells = cellsOf(everyProvider);
     expect(cells.map((cell) => cell.split(" ")[0])).toEqual([
-      "CLAUDE",
-      "CODEX",
-      "ANTIGRAVITY",
-      "GEMINI_CLI",
-      "OPENCODE",
-      "GROK",
-      "KIMI:5h",
-      "MANUAL",
-      "OPENROUTER"
+      "cl7d",
+      "cx5h",
+      "ag",
+      "gm",
+      "oc",
+      "gk7d",
+      "km5h",
+      "mnmo",
+      "or"
     ]);
   });
 
@@ -204,8 +205,8 @@ describe("provider ordering", () => {
   it("draws the configured order in the line itself", () => {
     const rendered = layout(everyProvider, { order: ["openrouter"], width: 400 });
     const names = rowsOf(rendered)[0]!.slice(1).map((cell) => cell.split(" ")[0]);
-    expect(names[0]).toBe("OPENROUTER");
-    expect(names[1]).toBe("CLAUDE");
+    expect(names[0]).toBe("or");
+    expect(names[1]).toBe("7d");
   });
 });
 
@@ -232,11 +233,11 @@ describe("meter ordering", () => {
       reading({ provider: "CODEX", meter: "FIVE_HOUR", window: { kind: "rolling", durationSeconds: 18_000 } })
     ];
     expect(cellsOf(many, ["CODEX"], "all").map((cell) => cell.split(" ")[0])).toEqual([
-      "CODEX:FIVE_HOUR",
-      "CODEX:DAILY",
-      "CODEX:SEVEN_DAY",
-      "CODEX:MONTHLY",
-      "CODEX:LIFETIME"
+      "cx5h",
+      "cx1d",
+      "cx7d",
+      "cxmo",
+      "cx"
     ]);
   });
 });
@@ -252,7 +253,7 @@ describe("worst against all", () => {
         value,
         window: { kind: "lifetime" },
       });
-      expect(cellsOf([quota, balance], ["CODEX"])[0]).toBe("CODEX ###.. 60.0%");
+      expect(cellsOf([quota, balance], ["CODEX"])[0]).toBe("cx5h ###.. 60%");
       expect(cellsOf([quota, balance], ["CODEX"], "all")[1]).toContain(`${value.toFixed(2)} credits`);
       expect(cellsOf([quota, balance], ["CODEX"], "all")[1]).not.toContain("%");
     }
@@ -268,7 +269,7 @@ describe("worst against all", () => {
         value: 0,
         window: { kind: "unknown" },
       });
-      expect(cellsOf([quota, balance], ["CODEX"])[0]).toBe("CODEX ###.. 60.0%");
+      expect(cellsOf([quota, balance], ["CODEX"])[0]).toBe("cx5h ###.. 60%");
       expect(cellsOf([quota, balance], ["CODEX"], "all")[1]).not.toContain("0.0%");
     }
   });
@@ -278,33 +279,33 @@ describe("worst against all", () => {
       reading({ provider: "KIMI", meter: "WEEKLY", value: 10 }),
       reading({ provider: "KIMI", meter: "FIVE_HOUR", value: 80 }),
     ], ["KIMI"], "all");
-    expect(cells[0]).toContain("Weekly used");
-    expect(cells[1]).toContain("5h used");
+    expect(cells[0]).toContain("km5h");
+    expect(cells[1]).toContain("km5h");
     expect(cellsOf([
       reading({ provider: "KIMI", meter: "FIVE_HOUR", value: 80 }),
-    ], ["KIMI"], "worst")[0]).toContain("5h used");
+    ], ["KIMI"], "worst")[0]).toContain("km5h");
     expect(cellsOf([
       reading({ provider: "OPENCODE", meter: "FIVE_HOUR", value: 80 }),
-    ], ["OPENCODE"], "worst")[0]).toContain("Page 5h");
+    ], ["OPENCODE"], "worst")[0]).toContain("oc5h");
   });
 
   it("shows only the meter closest to its cap by default", () => {
     const cells = cellsOf(everyProvider);
     expect(cells).toHaveLength(9);
-    expect(cells[0]).toBe("CLAUDE ###.. 64.0%");
+    expect(cells[0]).toBe("cl7d ###.. 64%");
   });
 
   it("shows every meter as its own cell when asked", () => {
     const cells = cellsOf(everyProvider, DEFAULT_PROVIDER_ORDER, "all");
     expect(cells).toHaveLength(10);
-    expect(cells[0]).toBe("CLAUDE:5h ##... 42.0%");
-    expect(cells[1]).toBe("CLAUDE:7d ###.. 64.0%");
+    expect(cells[0]).toBe("cl5h ##... 42%");
+    expect(cells[1]).toBe("cl7d ###.. 64%");
   });
 
   it("keeps the worst cell agreeing with the reason code above it", () => {
     const rendered = layout(everyProvider, { width: 400 });
     expect(rendered.startsWith("OpenLimiter NEAR_CAP")).toBe(true);
-    expect(rendered).toContain("OPENCODE ####. 92.0%");
+    expect(rendered).toContain("oc ####. 92%");
   });
 });
 
@@ -313,16 +314,16 @@ describe("the cell", () => {
     const cells = cellsOf([reading({ value: 99.99 })], ["CLAUDE"]);
     const parts = cells[0]!.split(" ");
     expect(parts).toHaveLength(3);
-    expect(parts[0]).toBe("CLAUDE");
+    expect(parts[0]).toBe("cl5h");
     expect(parts[1]).toHaveLength(STATUSLINE_BAR_SEGMENTS);
-    expect(parts[2]).toBe("99.9%");
+    expect(parts[2]).toBe("100%");
   });
 
   it("draws the bar in ASCII and never rounds a block upward", () => {
-    expect(cellsOf([reading({ value: 19.9 })], ["CLAUDE"])[0]).toBe("CLAUDE ..... 19.9%");
-    expect(cellsOf([reading({ value: 20 })], ["CLAUDE"])[0]).toBe("CLAUDE #.... 20.0%");
-    expect(cellsOf([reading({ value: 99.99 })], ["CLAUDE"])[0]).toBe("CLAUDE ####. 99.9%");
-    expect(cellsOf([reading({ value: 100 })], ["CLAUDE"])[0]).toBe("CLAUDE ##### 100.0%");
+      expect(cellsOf([reading({ value: 19.9 })], ["CLAUDE"])[0]).toBe("cl5h ..... 20%");
+      expect(cellsOf([reading({ value: 20 })], ["CLAUDE"])[0]).toBe("cl5h #.... 20%");
+      expect(cellsOf([reading({ value: 99.99 })], ["CLAUDE"])[0]).toBe("cl5h ####. 100%");
+      expect(cellsOf([reading({ value: 100 })], ["CLAUDE"])[0]).toBe("cl5h ##### 100%");
   });
 
   it("leaves a reading with no percentage out of the line entirely", () => {
@@ -370,7 +371,7 @@ describe("stacking", () => {
         for (const cell of row) {
           /* Every cell is either the head or a whole three field cell. */
           if (cell.startsWith("OpenLimiter ")) continue;
-          expect(cell).toMatch(/^[A-Za-z:_0-9]+(?: [A-Za-z0-9]+)* [#.]{5} \d+\.\d%$|^[A-Z:_]+ \$\d+\.\d{2}$|^\+\d+ more$/u);
+                    expect(cell).toMatch(/^[A-Za-z:_0-9]+(?: [A-Za-z0-9]+)* [#.]{5} \d+%$|^[A-Za-z:_0-9]+ \$\d+\.\d{2}$|^\+\d+ more$/u);
         }
       }
     }
@@ -389,13 +390,13 @@ describe("stacking", () => {
   it("stops at one row when told to, and says what it dropped", () => {
     const rendered = layout(everyProvider, { rows: 1 });
     expect(rendered.split("\n")).toHaveLength(1);
-    expect(rendered).toContain("+7 more");
+    expect(rendered).toContain("+5 more");
   });
 
   it("keeps the worst providers when it has to drop some", () => {
     const rendered = layout(everyProvider, { rows: 1, width: 100 });
     const shown = rowsOf(rendered)[0]!.slice(1);
-    expect(rendered).toContain("OPENCODE ####. 92.0%");
+    expect(rendered).toContain("oc ####. 92%");
     expect(rendered).toContain("+8 more");
     /* Twenty eight percent is the furthest from a cap, so it goes first. */
     expect(shown.some((cell) => cell.startsWith("ANTIGRAVITY "))).toBe(false);
@@ -463,7 +464,7 @@ describe("colour", () => {
     expect(rendered).toContain("38;5;208");
     expect(rendered).toContain(ESCAPE + "[33m");
     /* The cell is not dropped and the reading is not changed. The locked band remains orange. */
-    expect(rendered).toContain("84.0%");
+        expect(rendered).toContain("84%");
     expect(rendered).toContain(ESCAPE + "[31m");
   });
 
@@ -539,8 +540,28 @@ describe("statusline bar rendering window codes and unknown cells", () => {
     });
     expect(windowCode(claude("FIVE_HOUR"))).toBe("5h");
     expect(windowCode(claude("SEVEN_DAY"))).toBe("7d");
-    expect(windowCode(claude("SEVEN_DAY_FABLE_5"))).toBe("Fable");
-    expect(windowCode(claude("SEVEN_DAY_FABLE_5_1"))).toBe("Fable");
+    expect(windowCode(claude("SEVEN_DAY_FABLE_5"))).toBe("fable7d");
+    expect(windowCode(claude("SEVEN_DAY_FABLE_5_1"))).toBe("fable7d");
+  });
+
+  it("uses short host aware captions and tagged window captions", () => {
+    const weekly = reading({
+      meter: "SEVEN_DAY",
+      window: { kind: "rolling", durationSeconds: 604_800 },
+      provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
+    });
+    const fable = reading({
+      meter: "SEVEN_DAY_FABLE",
+      window: { kind: "rolling", durationSeconds: 604_800 },
+      provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
+    });
+    const antigravity = reading({ provider: "ANTIGRAVITY", meter: "FIVE_HOUR" });
+    expect(captionFor(weekly, "CLAUDE", "short")).toBe("7d");
+    expect(captionFor(weekly, "CODEX", "short")).toBe("cl7d");
+    expect(captionFor(weekly, "CLAUDE", "tagged")).toBe("cl7d");
+    expect(captionFor(fable, "CODEX", "short")).toBe("fable7d");
+    expect(captionFor(antigravity, "CLAUDE", "short")).toBe("ag5h");
+    expect(captionFor(antigravity, "ANTIGRAVITY", "short")).toBe("5h");
   });
 
   it("keeps a usable percentage when the window is unknown", () => {

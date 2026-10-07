@@ -69,6 +69,7 @@
   "removeConfirm": "Press again to remove",
   "claudeCurrentSession": "Current session",
   "claudeWeeklyAllModels": "Weekly, all models",
+  "claudeWeeklyOAuthApps": "Weekly, OAuth Apps",
   "claudeWeeklyFable": "Weekly, Fable",
   "claudeWeeklyModel": "Weekly, {model}",
   "claudeExtraUsage": "Extra usage",
@@ -105,5 +106,6 @@
   "claudePollNotNow": "Not now",
   "claudePollSaveFailed": "The choice could not be saved, so Claude usage stays off.",
   "claudePollContinueOff": "Continue with Claude off",
+  "claudeWeeklyPollHint": "Turn on the usage poll in Connect Tools to see your weekly limits.",
   "claudeFableDesktopHint": "Fable shows here when Claude usage is on in OpenLimiter on your computer."
 }

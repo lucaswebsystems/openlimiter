@@ -28,6 +28,7 @@ import {
   readJsonFileSafely,
   resolveStateDirectory,
   writeFileAtomically,
+  isSnapshotDisplayEligible,
   type Snapshot
 } from "@openlimiter/core";
 import { parseHubJson, syncSnapshotsRequest, type HubTransport } from "./hub.js";
@@ -159,6 +160,7 @@ export function usageSamplesFromSnapshots(
 ): UsageSample[] {
   const rows: UsageSample[] = [];
   for (const snapshot of snapshots) {
+    if (!isSnapshotDisplayEligible(snapshot)) continue;
     if (snapshot.provider === "OPENROUTER" && snapshot.meter === "CREDITS") continue;
     if (snapshot.provider === "OPENROUTER" && snapshot.meter === "ACCOUNT_BALANCE") {
       if (snapshot.availability !== undefined || snapshot.usedAmount === undefined ||

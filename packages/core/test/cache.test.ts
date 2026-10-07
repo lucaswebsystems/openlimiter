@@ -16,6 +16,7 @@ import {
   CACHE_FILE_NAME,
   CACHE_LOCK_NAME,
   LOCK_STALE_MILLISECONDS,
+  mergeAuthoritativeSnapshotCache,
   mergeSnapshotCache,
   readSnapshotCache,
   resolveStateDirectory,
@@ -154,7 +155,7 @@ describe("snapshot cache", () => {
       JSON.stringify({
         snapshots: [
           snapshot({ value: 101 }),
-          snapshot({ meter: "SEVEN_DAY", value: 64 })
+          snapshot({ meter: "SEVEN_DAY", value: 64, window: { kind: "rolling", durationSeconds: 604_800 } })
         ],
         version: 1
       }),
@@ -166,7 +167,7 @@ describe("snapshot cache", () => {
       ok: true,
       suppressed: 0,
       suppressions: [],
-      snapshots: [snapshot({ meter: "SEVEN_DAY", value: 64 })],
+      snapshots: [snapshot({ meter: "SEVEN_DAY", value: 64, window: { kind: "rolling", durationSeconds: 604_800 } })],
       dropped: 1
     });
   });
@@ -176,7 +177,7 @@ describe("snapshot cache", () => {
     await writeFile(
       path.join(directory, CACHE_FILE_NAME),
       JSON.stringify({
-        snapshots: [null, "invalid", 42, snapshot({ meter: "SEVEN_DAY", value: 64 })],
+        snapshots: [null, "invalid", 42, snapshot({ meter: "SEVEN_DAY", value: 64, window: { kind: "rolling", durationSeconds: 604_800 } })],
         version: 2
       }),
       "utf8"
@@ -185,7 +186,7 @@ describe("snapshot cache", () => {
       ok: true,
       suppressed: 0,
       suppressions: [],
-      snapshots: [snapshot({ meter: "SEVEN_DAY", value: 64 })],
+      snapshots: [snapshot({ meter: "SEVEN_DAY", value: 64, window: { kind: "rolling", durationSeconds: 604_800 } })],
       dropped: 3
     });
   });
@@ -220,7 +221,7 @@ describe("snapshot cache", () => {
       }),
       "utf8"
     );
-    const incoming = snapshot({ meter: "SEVEN_DAY", value: 64 });
+    const incoming = snapshot({ meter: "SEVEN_DAY", value: 64, window: { kind: "rolling", durationSeconds: 604_800 } });
     const result = await mergeSnapshotCache(
       [incoming],
       directory,
@@ -237,12 +238,51 @@ describe("snapshot cache", () => {
     });
   });
 
+  it.each(["main then authoritative", "authoritative then main"])(
+    "gives authoritative rows precedence across stores, %s",
+    async (order) => {
+      const directory = await temporaryDirectory();
+      const main = snapshot({
+        meter: "SEVEN_DAY",
+        value: 67,
+        observedAt: "2026-01-01T00:20:00.000Z",
+        expiresAt: "2026-01-08T00:20:00.000Z",
+        resetAt: "2026-01-08T00:20:00.000Z",
+        window: { kind: "rolling", durationSeconds: 604_800 },
+        provenance: { sourceKind: "statusline_payload", observedVia: "claude_code_statusline" }
+      });
+      const authoritative = snapshot({
+        meter: "SEVEN_DAY",
+        value: 13,
+        observedAt: "2026-01-01T00:10:00.000Z",
+        expiresAt: "2026-01-08T00:10:00.000Z",
+        resetAt: "2026-01-08T00:10:00.000Z",
+        window: { kind: "rolling", durationSeconds: 604_800 },
+        source: "internal_payload",
+        provenance: { sourceKind: "remote_api", observedVia: "remote_http" }
+      });
+      const session = snapshot({ meter: "FIVE_HOUR", value: 42 });
+      if (order === "main then authoritative") {
+        await writeSnapshotCache([main, session], directory);
+        await mergeAuthoritativeSnapshotCache([authoritative], directory, "2026-01-01T00:20:00.000Z");
+      } else {
+        await mergeAuthoritativeSnapshotCache([authoritative], directory, "2026-01-01T00:10:00.000Z");
+        await writeSnapshotCache([main, session], directory);
+      }
+      const result = await readSnapshotCache(directory);
+      expect(result.ok && result.snapshots.filter((row) => row.meter === "SEVEN_DAY")).toHaveLength(1);
+      expect(result.ok && result.snapshots.find((row) => row.meter === "SEVEN_DAY")?.value).toBe(13);
+      expect(result.ok && result.snapshots.find((row) => row.meter === "FIVE_HOUR")?.value).toBe(42);
+    }
+  );
+
   it("reclaims a stale lock instead of freezing the cache", async () => {
     const directory = await temporaryDirectory();
     const lockPath = path.join(directory, CACHE_LOCK_NAME);
+    await mkdir(lockPath);
     await writeFile(
-      lockPath,
-      JSON.stringify({ at: Date.now() - LOCK_STALE_MILLISECONDS - 60_000, pid: 1 }),
+      path.join(lockPath, "owner.json"),
+      JSON.stringify({ pid: 0, startedAt: Date.now(), token: "stale" }),
       "utf8"
     );
     await writeSnapshotCache([snapshot()], directory);
@@ -254,7 +294,7 @@ describe("snapshot cache", () => {
   it("reclaims a stale lock that carries no owner stamp", async () => {
     const directory = await temporaryDirectory();
     const lockPath = path.join(directory, CACHE_LOCK_NAME);
-    await writeFile(lockPath, "", "utf8");
+    await mkdir(lockPath);
     const stale = new Date(Date.now() - LOCK_STALE_MILLISECONDS - 60_000);
     await utimes(lockPath, stale, stale);
     await writeSnapshotCache([snapshot()], directory);
@@ -279,7 +319,7 @@ describe("snapshot cache", () => {
     vi.spyOn(Date, "now").mockReturnValue(Date.parse(snapshot().observedAt));
     const merges = Array.from({ length: 8 }, (_unused, index) =>
       mergeSnapshotCache(
-        [snapshot({ meter: "W_" + String(index), value: index })],
+        [snapshot({ provider: "MANUAL", meter: "W_" + String(index), value: index })],
         directory
       ));
     const settled = await Promise.allSettled(merges);
@@ -288,7 +328,7 @@ describe("snapshot cache", () => {
     expect(result.ok).toBe(true);
     expect(result.ok ? result.snapshots : []).toEqual(
       Array.from({ length: 8 }, (_unused, index) =>
-        snapshot({ meter: "W_" + String(index), value: index }))
+        snapshot({ provider: "MANUAL", meter: "W_" + String(index), value: index }))
     );
   });
 

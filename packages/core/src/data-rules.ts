@@ -2,6 +2,19 @@ import type { Snapshot } from "./types.js";
 import { providerMeterPresentation } from "./provider-presentation.js";
 
 export const RETENTION_MILLISECONDS = 7 * 86_400_000;
+const CLAUDE_WEEK_SECONDS = 604_800;
+
+/** One eligibility rule for every Claude consumer, including synced rows. */
+export function isSnapshotDisplayEligible(row: Snapshot): boolean {
+  if (row.provider !== "CLAUDE") return true;
+  if (row.meter === "ACQUISITION") return true;
+  if (providerMeterPresentation(row.provider, row.meter) === null) return false;
+  if (!row.meter.startsWith("SEVEN_DAY")) return true;
+  const weeklyMeter = row.meter === "SEVEN_DAY" || row.meter === "SEVEN_DAY_OAUTH_APPS" ||
+    /^SEVEN_DAY_(FABLE|OPUS|SONNET|HAIKU)(?:_|$)/u.test(row.meter);
+  if (!weeklyMeter || row.provenance?.sourceKind === "statusline_payload") return false;
+  return (row.window.durationSeconds ?? CLAUDE_WEEK_SECONDS) === CLAUDE_WEEK_SECONDS;
+}
 
 /** Rust twin: data_rules::freshness_policy. Poll jitter plus bounded request latency. */
 export function freshnessPolicy(input: { sourceClass: string; observedAt: string; now: string; provider?: string; writer?: string }) {
@@ -73,6 +86,7 @@ export function projectSnapshots(rows: readonly Snapshot[], now: string, active?
   const snapshots: Snapshot[] = [];
   const flags = new Map<string, ConnectionFlag>();
   for (const row of rows) {
+    if (!isSnapshotDisplayEligible(row)) continue;
     const presentation = providerMeterPresentation(row.provider, row.meter);
     if (presentation?.visible === false) continue;
     const accounts = active?.get(row.provider);

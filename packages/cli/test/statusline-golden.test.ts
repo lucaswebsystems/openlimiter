@@ -49,7 +49,7 @@ describe("account and freshness status line goldens", () => {
   });
   it("marks stale spend and unknown window readings", () => {
     expect(render([row({ provider: "GROK", meter: "SPEND", usedAmount: 12.5, currency: "USD", observedAt: ago(900) })]))
-      .toBe("gk spend ~$12.50");
+      .toBe("gk5h spend ~$12.50");
     expect(render([row({ provider: "GROK", meter: "UNSPECIFIED", window: { kind: "unknown" }, observedAt: ago(900) })]))
       .toBe("gk [████░░░░░░] ~42%");
   });
@@ -151,9 +151,9 @@ describe("statusline golden files", () => {
     });
   });
 
-  describe("cells style, host independent", () => {
+  describe("cells style, host aware", () => {
     for (const width of WIDTHS) {
-      it("at width " + String(width) + " is the same for every host", () => {
+      it("at width " + String(width) + " keeps host captions explicit", () => {
         const goldenText = golden("cells-" + String(width));
         for (const host of STATUSLINE_HOSTS) {
           const rendered = renderStatuslineLayout({
@@ -164,7 +164,17 @@ describe("statusline golden files", () => {
             color: false,
             host
           });
-          expect(rendered + "\n").toBe(goldenText);
+          const hostGolden = host === "claude"
+            ? goldenText
+            : goldenText.replace("  7d ", "  cl7d ");
+          const hostAwareGolden = host === "antigravity"
+            ? hostGolden.replaceAll("ag5h", "5h").replaceAll("ag7d", "7d")
+            : host === "grok"
+            ? hostGolden.replaceAll("gk7d", "7d").replaceAll("gkmo", "mo")
+            : host === "codex"
+            ? hostGolden.replaceAll("cx5h", "5h").replaceAll("cx7d", "7d")
+            : hostGolden;
+          expect(rendered + "\n").toBe(hostAwareGolden);
         }
       });
     }

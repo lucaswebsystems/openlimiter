@@ -1,4 +1,4 @@
-import { cp, link, mkdir, mkdtemp, open, readFile, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { cp, link, mkdir, mkdtemp, open, readFile, realpath, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -277,6 +277,26 @@ describe("P2 durable runtime", () => {
 });
 
 describe("P2 launcher trust and migration", () => {
+  it("recovers a trusted displaced runtime before sweeping it", async () => {
+    const home = await scratch();
+    const state = path.join(home, "state");
+    await installLauncher(state, compiledLauncherSource);
+    const displaced = path.join(state, "terminal-runtime.123.376e6202-46e4-462c-99aa-d7bb9d0912c8.old");
+    await rename(path.join(state, "terminal-runtime"), displaced);
+    const recovered = await installLauncher(state, compiledLauncherSource);
+    await expect(verifyLauncher(recovered)).resolves.toBeUndefined();
+    await expect(stat(displaced)).rejects.toThrow();
+  }, 30_000);
+
+  it("serializes concurrent installers through the shared lock", async () => {
+    const home = await scratch();
+    const state = path.join(home, "state");
+    const results = await Promise.all(Array.from({ length: 4 }, () =>
+      installLauncher(state, compiledLauncherSource)));
+    expect(results).toHaveLength(4);
+    await expect(verifyLauncher(results[0]!)).resolves.toBeUndefined();
+  }, 30_000);
+
   it("replaces a runtime with an old version stamp", async () => {
     const home = await scratch();
     const state = path.join(home, "state");

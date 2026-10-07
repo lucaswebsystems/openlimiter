@@ -74,12 +74,14 @@
     "showTool": "表示",
     "removeTool": "削除",
     "removeConfirm": "もう一度押すと削除します",
+    "claudeWeeklyOAuthApps": "週間、OAuth アプリ",
     "showClaudeFable": "Fable の上限を表示",
     "showClaudeFableNote": "このコンピューターの Claude サインインを使って使用量を直接リクエストし、Claude に表示されるものと同じ使用量を読み取ります。このようなツールに関する Anthropic の方針は未解決です。設定でオフにできます。",
     "claudePollConsentTitle": "Fable の上限を表示しますか？",
     "claudePollNotNow": "今はしない",
     "claudePollSaveFailed": "選択を保存できなかったため、Claude の使用量はオフのままです。",
-    "claudePollContinueOff": "Claude の使用量をオフにして続行"
+    "claudePollContinueOff": "Claude の使用量をオフにして続行",
+    "claudeWeeklyPollHint": "接続ツールで使用量のポーリングをオンにすると、週間上限を確認できます。"
   },
   "meta": {
     "title": "OpenLimiter、AIコーディングの制限とエージェントの活動",
@@ -2178,6 +2180,7 @@
     "updatedDays": "{count} 日前に更新",
     "claudeCurrentSession": "現在のセッション",
     "claudeWeeklyAllModels": "週間、全モデル",
+    "claudeWeeklyOAuthApps": "週間、OAuth アプリ",
     "claudeWeeklyFable": "週間、Fable",
     "claudeWeeklyModel": "週間、{model}",
     "claudeExtraUsage": "追加使用量",
@@ -2209,6 +2212,7 @@
     "balance": "残高",
     "percentUsed": "{value}% 使用済み",
     "claudeFableDesktopHint": "お使いのコンピューターの OpenLimiter で Claude の使用量がオンになっていると、ここに Fable が表示されます。",
+    "claudeWeeklyPollHint": "接続ツールで使用量のポーリングをオンにすると、週間上限を確認できます。",
     "providers": {
       "title": "プロバイダー",
       "automaticPrompt": "デスクトップアプリを開いてください。ローカル検出はそこから始まります。",

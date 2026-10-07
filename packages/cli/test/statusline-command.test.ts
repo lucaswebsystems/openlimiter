@@ -2,7 +2,7 @@ import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CACHE_FILE_NAME, normalizeMeters } from "@openlimiter/core";
+import { AUTHORITATIVE_CACHE_FILE_NAME, CACHE_FILE_NAME, mergeAuthoritativeSnapshotCache, normalizeMeters } from "@openlimiter/core";
 import { parseClaudePayload } from "@openlimiter/connectors";
 import { AGENT_CONTEXT_FILE_NAME } from "@openlimiter/adapters";
 import { runCli } from "../src/cli.js";
@@ -28,11 +28,16 @@ async function seeded(): Promise<string> {
   const directory = await mkdtemp(path.join(await realpath(tmpdir()), "openlimiter-statusline-command-"));
   roots.push(directory);
   const rows = normalizeMeters(parseClaudePayload(payload(), NOW)!);
+  const pollRows = normalizeMeters(parseClaudePayload({
+    five_hour: { used_percentage: 17, resets_at: Date.parse("2026-01-01T03:20:00Z") / 1000 },
+    seven_day: { utilization: 65, resets_at: "2026-01-05T02:00:00Z" }
+  }, NOW)!).filter((row) => row.meter.startsWith("SEVEN_DAY"));
   await persistSnapshots([
     // Old host readings must be replaced, while another provider survives.
     ...rows.map((row) => ({ ...row, value: 1 })),
-    { ...rows[1]!, provider: "CODEX", value: 85 }
+    { ...pollRows[0]!, provider: "CODEX", value: 85 }
   ], directory, NOW);
+  await mergeAuthoritativeSnapshotCache(pollRows, directory, NOW);
   return directory;
 }
 afterEach(async () => {
@@ -72,6 +77,22 @@ describe("statusline command reference layout", () => {
       "\x1b[32m[█░░░░░░░░░]\x1b[0m \x1b[32m17%\x1b[0m",
       "\x1b[31m[█████████░]\x1b[0m \x1b[31m95%\x1b[0m"
     ));
+  });
+
+  it.each([
+    ["true", "7d poll pending"],
+    ["false", "7d poll off"]
+  ])("shows the weekly poll hint when the Claude weekly is missing and polling is %s", async (setting, hint) => {
+    const stateDirectory = await seeded();
+    await rm(path.join(stateDirectory, AUTHORITATIVE_CACHE_FILE_NAME));
+    await runCli(["config", "set", "providers.claude.poll", setting], { stateDirectory, now: () => NOW });
+    const result = await runCli(["statusline", "--host", "claude"], {
+      stateDirectory,
+      now: () => NOW,
+      environment: { NO_COLOR: "" },
+      readStandardInput: async () => JSON.stringify(payload())
+    });
+    expect(result.stdout).toContain(hint);
   });
 
   it("keeps saved segments, windows and providers hidden", async () => {
@@ -116,7 +137,7 @@ describe("statusline command reference layout", () => {
     });
     expect(result).toEqual({
       exitCode: 0, stderr: "",
-      stdout: plain.replace("17%", "1%").replace("[██████░░░░] 65%", "[█░░░░░░░░░] 1%")
+      stdout: plain.replace("17%", "1%")
     });
     const context = await readFile(contextPath, "utf8");
     expect(context).toContain("CODEX");

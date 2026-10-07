@@ -4,14 +4,11 @@
     "readings": [
       {
         "provider": "CLAUDE",
-        "meter": "SEVEN_DAY_HAIKU",
-        "value": 12,
+        "meter": "FIVE_HOUR",
+        "value": 25,
         "unit": "PERCENT",
-        "window": {
-          "kind": "rolling",
-          "durationSeconds": 604800
-        },
-        "resetAt": "2026-08-11T12:00:00.000Z",
+        "window": { "kind": "rolling", "durationSeconds": 18000 },
+        "resetAt": "2026-08-07T16:00:00.000Z",
         "precision": "exact",
         "source": "internal_payload",
         "kind": null,

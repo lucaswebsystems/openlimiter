@@ -1,0 +1,14 @@
+{
+  "provider": "claude",
+  "case": "weekly-reset-too-far",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "seven_day": {
+      "utilization": 18,
+      "resets_at": "2026-08-16T12:00:00.000Z"
+    }
+  }
+}

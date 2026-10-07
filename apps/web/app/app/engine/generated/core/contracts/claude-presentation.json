@@ -2,6 +2,7 @@
   "copy": {
     "claudeCurrentSession": "Current session",
     "claudeWeeklyAllModels": "Weekly, all models",
+    "claudeWeeklyOAuthApps": "Weekly, OAuth Apps",
     "claudeWeeklyFable": "Weekly, Fable",
     "claudeWeeklyModel": "Weekly, {model}",
     "claudeExtraUsage": "Extra usage"
@@ -19,10 +20,16 @@
       "compactLabel": "7d",
       "order": 20
     },
+    "oauthApps": {
+      "meters": ["SEVEN_DAY_OAUTH_APPS"],
+      "labelKey": "claudeWeeklyOAuthApps",
+      "compactLabel": "oauth7d",
+      "order": 21
+    },
     "extra": {
       "meters": ["EXTRA_USAGE"],
       "labelKey": "claudeExtraUsage",
-      "compactLabel": "Extra",
+      "compactLabel": "extra",
       "order": 50
     }
   },
@@ -31,10 +38,12 @@
     "labelKey": "claudeWeeklyModel",
     "fablePrefix": "Fable",
     "fableLabelKey": "claudeWeeklyFable",
-    "fableCompactLabel": "Fable",
+    "fableCompactLabel": "fable7d",
     "fableOrder": 30,
     "opusOrder": 40,
     "sonnetOrder": 41,
-    "otherOrder": 42
+    "otherOrder": 42,
+    "families": ["Fable", "Opus", "Sonnet", "Haiku"],
+    "modelCompactSuffix": "7d"
   }
 }

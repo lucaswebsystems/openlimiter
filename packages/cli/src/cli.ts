@@ -9,6 +9,7 @@ import {
   acquireRefreshLock,
   clearRefreshSpawnFailure,
   mergeAcquiredSnapshots,
+  mergeAuthoritativeSnapshotCache,
   createFetchTransport,
   readRefreshSpawnFailure,
   buildAdvice,
@@ -110,6 +111,7 @@ import {
   readProvidersConfig,
   readStatuslineConfig,
   setProviderValue,
+  updateConfig,
   setStatuslineValue,
   statuslineValueText,
   writeConfig,
@@ -151,6 +153,7 @@ import {
 } from "./render.js";
 import {
   isStatuslineHost,
+  HOST_PROVIDER,
   renderPlainStatusline,
   renderStatuslineLayout,
   resolveProviderOrder,
@@ -167,8 +170,10 @@ import {
   terminalShow,
   terminalStatusTable,
   uninstallHost,
+  hostStatus,
   type TerminalHostContext
 } from "./terminal.js";
+import { installLauncher } from "./terminal-launcher.js";
 import {
   createFetchHubTransport,
   hubConfigured,
@@ -206,7 +211,8 @@ export interface CliDependencies {
   environment: Readonly<Record<string, string | undefined>>;
   stateDirectory?: string;
   credentialStore: CredentialStore;
-  promptForSecret: () => Promise<string>;
+  /** Legacy injection is accepted for in process callers, but init never prompts. */
+  promptForSecret?: () => Promise<string>;
   now: () => string;
   payloads: Readonly<Record<string, unknown>>;
   /**
@@ -333,7 +339,6 @@ function defaults(): CliDependencies {
   return {
     environment: process.env,
     credentialStore: new UnavailableCredentialStore(),
-    promptForSecret: async () => "",
     now: () => new Date().toISOString(),
     payloads: {},
     readStandardInput: async () => null,
@@ -993,7 +998,15 @@ async function refreshCommand(
       }
       if (!report.ok) continue;
       try {
-        await mergeAcquiredSnapshots(report, dependencies.stateDirectory);
+        const pollRows = report.snapshots.filter((row) =>
+          row.provider === "CLAUDE" && row.meter.startsWith("SEVEN_DAY"));
+        if (pollRows.length > 0) {
+          await mergeAuthoritativeSnapshotCache(pollRows, dependencies.stateDirectory, now);
+        }
+        await mergeAcquiredSnapshots({
+          ...report,
+          snapshots: report.snapshots.filter((row) => !pollRows.includes(row))
+        }, dependencies.stateDirectory);
       } catch {
         /* One provider's write failing is that provider's problem. The rest of
            the round still has readings worth keeping. */
@@ -1232,15 +1245,18 @@ async function initCommand(dependencies: CliDependencies): Promise<CliResult> {
     const result = await initialize(
       environment,
       dependencies.credentialStore,
-      dependencies.promptForSecret,
       dependencies.stateDirectory
     );
     const detected = result.config.connectors
       .filter((connector) => connector.detected)
       .map((connector) => connector.id)
       .join(",");
+    const openrouterNotice = environment["OPENLIMITER_OPENROUTER_KEY"] !== undefined &&
+      !result.credentialStored
+      ? " OpenRouter: set OPENLIMITER_OPENROUTER_KEY in your shell for the key allowance cell, or add the key in the desktop app."
+      : "";
     return succeed(
-      "Configuration saved. Detected: " + (detected === "" ? "none" : detected)
+      "Configuration saved. Detected: " + (detected === "" ? "none" : detected) + openrouterNotice
     );
   } catch {
     return fail(EXIT_FAILURE, "openlimiter init: configuration could not be written.");
@@ -1481,7 +1497,10 @@ async function statuslineCommand(
     ? (hostFlag.toLowerCase() as StatuslineHost)
     : "claude";
   const ingested = await ingestStandardInput(dependencies, now, host);
-  const snapshots = ingested?.snapshots ?? await cachedSnapshots(dependencies.stateDirectory);
+  const cached = await cachedSnapshots(dependencies.stateDirectory);
+  const snapshots = ingested?.snapshots === null || ingested === null
+    ? cached
+    : mergeSnapshots(cached, ingested.snapshots);
   /*
    * The refresh that keeps the other providers current starts here and is never
    * waited for. This render draws whatever the cache already holds, the child
@@ -1499,6 +1518,15 @@ async function statuslineCommand(
   }
   const advice = buildAdvice(snapshots, now, PROVIDER_CODES);
   const config = await readStatuslineConfig(dependencies.stateDirectory);
+  const providers = await readProvidersConfig(dependencies.stateDirectory);
+  const weeklyFresh = snapshots.some((snapshot) =>
+    snapshot.provider === "CLAUDE" && snapshot.meter.startsWith("SEVEN_DAY") &&
+    freshness(snapshot.observedAt, snapshot.expiresAt, now) === "fresh"
+  );
+  const hasClaudeReading = snapshots.some((snapshot) => snapshot.provider === "CLAUDE");
+  const pollHint = host === "claude" && hasClaudeReading && !weeklyFresh
+    ? providers.claude.poll ? "7d poll pending" : "7d poll off"
+    : undefined;
   if (!config.bars) {
     return succeed(renderPlainStatusline(
       advice,
@@ -1506,6 +1534,8 @@ async function statuslineCommand(
       now,
       resolveProviderOrder(config.order),
       config.meters,
+      pollHint,
+      HOST_PROVIDER[host]
     ));
   }
   return succeed(renderStatuslineLayout({
@@ -1522,7 +1552,8 @@ async function statuslineCommand(
       host
     ),
     unicode: statuslineUnicode(dependencies.environment),
-    host
+    host,
+    ...(pollHint === undefined ? {} : { pollHint })
   }));
 }
 
@@ -1824,8 +1855,12 @@ async function providersConfigCommand(
   const update = setProviderValue(config.providers, key, value);
   if (!update.ok) return fail(EXIT_USAGE, "openlimiter config: " + update.message);
   try {
-    await writeConfig(
-      { ...config, providers: update.providers },
+    await updateConfig(
+      (latest) => {
+        const next = setProviderValue(latest.providers, key, value);
+        return { ...latest, providers: next.ok ? next.providers : update.providers };
+      },
+      dependencies.environment,
       dependencies.stateDirectory
     );
   } catch {
@@ -1900,8 +1935,12 @@ async function configCommand(
   const update = setStatuslineValue(config.statusline, target.key, value);
   if (!update.ok) return fail(EXIT_USAGE, "openlimiter config: " + update.message);
   try {
-    await writeConfig(
-      { ...config, statusline: update.statusline },
+    await updateConfig(
+      (latest) => {
+        const next = setStatuslineValue(latest.statusline, target.key!, value);
+        return { ...latest, statusline: next.ok ? next.statusline : update.statusline };
+      },
+      dependencies.environment,
       dependencies.stateDirectory
     );
   } catch {
@@ -2250,10 +2289,10 @@ async function ensureClaudePollChoice(dependencies: CliDependencies): Promise<bo
     enabled = !answer.trim().toLowerCase().startsWith("n");
   }
   try {
-    await writeConfig({
-      ...config,
+    await updateConfig((latest) => ({
+      ...latest,
       providers: { claude: { poll: enabled, recorded: true } }
-    }, dependencies.stateDirectory);
+    }), dependencies.environment, dependencies.stateDirectory);
     return true;
   } catch {
     return false;
@@ -2312,7 +2351,6 @@ const AGENT_CREDENTIAL_PROVIDER: Readonly<Partial<Record<AgentId, AcquisitionPro
   codex: "CODEX",
   cursor: "CURSOR",
   gemini: "GEMINI_CLI",
-  antigravity: "ANTIGRAVITY",
   grok: "GROK",
   kimi: "KIMI"
 };
@@ -2324,13 +2362,14 @@ const AGENT_CREDENTIAL_PROVIDER: Readonly<Partial<Record<AgentId, AcquisitionPro
  */
 const UNVERIFIED_DEVICE_LOGIN_AGENTS: ReadonlySet<AgentId> = new Set(["grok", "kimi"]);
 
-type ConnectRowState = "use_current_login" | "sign_in" | "install" | "verified_on_install";
+type ConnectRowState = "use_current_login" | "sign_in" | "install" | "verified_on_install" | "status_line";
 
 const CONNECT_ROW_LABEL: Readonly<Record<ConnectRowState, string>> = {
   use_current_login: "use current login",
   sign_in: "sign in",
   install: "install",
-  verified_on_install: "verified on install"
+  verified_on_install: "verified on install",
+  status_line: "reads its status line, wire it in step 3"
 };
 
 async function connectRowState(
@@ -2338,6 +2377,7 @@ async function connectRowState(
   installed: AgentInstallation | null,
   readCredential: (provider: AcquisitionProvider) => Promise<CredentialResult>
 ): Promise<ConnectRowState> {
+  if (agent === "antigravity") return "status_line";
   if (installed === null) {
     return UNVERIFIED_DEVICE_LOGIN_AGENTS.has(agent) ? "verified_on_install" : "install";
   }
@@ -2468,7 +2508,16 @@ async function setupShowBarsStep(dependencies: CliDependencies): Promise<string[
   const result = await terminalCommand(dependencies, ["terminal"]);
   const lines = ["3. Show bars in", result.stdout];
   lines.forEach(dependencies.emit);
+  const detected = await detectedProviderIds(dependencies);
+  const context = terminalContext(dependencies, detected);
   for (const host of TERMINAL_HOST_NAMES) {
+    if (host !== "codex" && await hostStatus(host, context) === "Wired") {
+      await installLauncher(context.stateDirectory ?? path.join(context.homeDirectory, ".openlimiter"));
+      const line = host + ": already wired, status line runtime updated.";
+      lines.push(line);
+      dependencies.emit(line);
+      continue;
+    }
     if (await promptOrSkip(dependencies, host + ": Enter to install, S to skip: ")) {
       const installed = await terminalCommand(dependencies, ["terminal", "install", host]);
       lines.push(installed.stdout || installed.stderr);

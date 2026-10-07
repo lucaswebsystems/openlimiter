@@ -1,4 +1,4 @@
-import { freshnessPolicy, retainSnapshots } from "./data-rules.js";
+import { freshnessPolicy, isSnapshotDisplayEligible, retainSnapshots } from "./data-rules.js";
 export { freshnessPolicy } from "./data-rules.js";
 import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
@@ -9,6 +9,7 @@ import {
   open,
   readFile,
   rename,
+  rm,
   unlink,
   type FileHandle
 } from "node:fs/promises";
@@ -28,6 +29,7 @@ import { canonicalJson, normalizeMeter, normalizeMeters } from "./normalizer.js"
 import type { ProviderCode, RawMeter, Snapshot } from "./types.js";
 
 export const CACHE_FILE_NAME = "openlimiter-cache.json";
+export const AUTHORITATIVE_CACHE_FILE_NAME = "openlimiter-authoritative.json";
 export const MAX_POLICY_TIMESTAMP = 253_402_300_799_999;
 
 /** Pure policy shared with the desktop contract. All instants are UTC. */
@@ -158,7 +160,7 @@ export const CACHE_LOCK_NAME = "openlimiter.lock";
 export const MAX_JSON_FILE_BYTES = 1_048_576;
 
 /** A lock older than this is treated as abandoned and reclaimed. */
-export const LOCK_STALE_MILLISECONDS = 5_000;
+export const LOCK_STALE_MILLISECONDS = 60_000;
 
 /** The longest pause between lock acquisition attempts. It is not a deadline. */
 const LOCK_BACKOFF_CEILING_MILLISECONDS = 25;
@@ -307,7 +309,18 @@ export async function readSnapshotCache(
     return { ok: false, reason: "unsafe" };
   }
   const document = await readJsonFileSafely(path.join(directory, CACHE_FILE_NAME));
-  if (!document.ok) return document;
+  if (!document.ok) {
+    if (document.reason !== "missing") return document;
+    const authoritative = await readJsonFileSafely(path.join(directory, AUTHORITATIVE_CACHE_FILE_NAME));
+    if (!authoritative.ok) return authoritative.reason === "missing" ? document : authoritative;
+    if (!isRecord(authoritative.value) || !Array.isArray(authoritative.value["snapshots"])) {
+      return { ok: false, reason: "corrupt" };
+    }
+    const snapshots = normalizeMeters(authoritative.value["snapshots"] as RawMeter[]);
+    return { ok: true, snapshots: snapshots.filter(isSnapshotDisplayEligible), dropped: authoritative.value["snapshots"].length - snapshots.length, suppressed: 0, suppressions: [] };
+  }
+  const authoritative = await readJsonFileSafely(path.join(directory, AUTHORITATIVE_CACHE_FILE_NAME));
+  if (!authoritative.ok && authoritative.reason !== "missing") return authoritative;
   if (!isRecord(document.value)) return { ok: false, reason: "corrupt" };
   const rawSnapshots = document.value["snapshots"];
   if (!Array.isArray(rawSnapshots)) return { ok: false, reason: "corrupt" };
@@ -319,8 +332,19 @@ export async function readSnapshotCache(
     return { ok: false, reason: "corrupt" };
   }
   const migrated = migrateLegacyMeterIdentities(rawSnapshots, version);
-  const validated = normalizeMeters(migrated as RawMeter[]);
-  const dropped = rawSnapshots.length - validated.length;
+  const mainValidated = normalizeMeters(migrated as RawMeter[]);
+  const authoritativeRows = authoritative.ok && isRecord(authoritative.value) &&
+    Array.isArray(authoritative.value["snapshots"]) && authoritative.value["snapshots"].length <= MAX_CACHE_ENTRIES
+    ? normalizeMeters(authoritative.value["snapshots"] as RawMeter[])
+    : [];
+  const authoritativeIdentities = new Set(authoritativeRows.map(snapshotIdentity));
+  const validated = authoritativeRows.length > 0
+    ? mergeSnapshots(
+        mainValidated.filter((snapshot) => !authoritativeIdentities.has(snapshotIdentity(snapshot))),
+        authoritativeRows
+      )
+    : mainValidated;
+  const dropped = rawSnapshots.length - mainValidated.length;
   const read = readSuppressions(document.value["suppressions"]);
   if (!read.ok) {
     /* Unreadable suppressions make every identity in the document unknown.
@@ -350,14 +374,15 @@ export async function readSnapshotCache(
  * and quietly resurrecting what it could not see.
  */
 export async function readCacheState(
-  directory = resolveStateDirectory()
+  directory = resolveStateDirectory(),
+  fileName = CACHE_FILE_NAME
 ): Promise<{ ok: true; state: CacheState } | { ok: false; reason: "missing" | "corrupt" | "unsafe" }> {
   try {
     await rejectSymlink(directory);
   } catch {
     return { ok: false, reason: "unsafe" };
   }
-  const document = await readJsonFileSafely(path.join(directory, CACHE_FILE_NAME));
+  const document = await readJsonFileSafely(path.join(directory, fileName));
   if (!document.ok) return document;
   if (!isRecord(document.value)) return { ok: false, reason: "corrupt" };
   const rawSnapshots = document.value["snapshots"];
@@ -452,50 +477,81 @@ export async function writeFileAtomically(
  * lock falls back to the file modification time, which covers the short window
  * between creating the lock and writing the stamp into it.
  */
-async function reclaimStaleLock(lockPath: string): Promise<boolean> {
-  const now = Date.now();
-  let heldSince: number | null = null;
-  let observedContents: string | null = null;
+interface LockOwner {
+  readonly pid: number;
+  readonly startedAt: number;
+  readonly token: string;
+}
+
+async function processIsAlive(pid: number): Promise<boolean> {
+  if (!Number.isSafeInteger(pid) || pid <= 0) return false;
   try {
-    observedContents = await readFile(lockPath, "utf8");
-    const parsed: unknown = JSON.parse(observedContents);
-    const stamp = isRecord(parsed) ? parsed["at"] : undefined;
-    if (typeof stamp === "number" && Number.isFinite(stamp) && stamp <= now) {
-      heldSince = stamp;
-    }
-  } catch {
-    heldSince = null;
-  }
-  let observedDevice: number;
-  let observedInode: number;
-  let modificationTime: number;
-  try {
-    const observed = await lstat(lockPath);
-    observedDevice = observed.dev;
-    observedInode = observed.ino;
-    modificationTime = observed.mtimeMs;
-  } catch (error) {
-    if (errorCode(error) === "ENOENT") return true;
-    throw error;
-  }
-  if (heldSince === null) {
-    heldSince = modificationTime;
-    if (!Number.isFinite(heldSince) || heldSince > now) heldSince = now;
-  }
-  if (now - heldSince < LOCK_STALE_MILLISECONDS) return false;
-  try {
-    if (
-      observedContents !== null &&
-      (await readFile(lockPath, "utf8")) !== observedContents
-    ) return false;
-    const observed = await lstat(lockPath);
-    if (observed.dev !== observedDevice || observed.ino !== observedInode) return false;
-    await unlink(lockPath);
+    process.kill(pid, 0);
     return true;
   } catch (error) {
+    return errorCode(error) === "EPERM";
+  }
+}
+
+async function reclaimStaleLock(lockPath: string): Promise<boolean> {
+  let stat;
+  try {
+    stat = await lstat(lockPath);
+  } catch (error) {
     if (errorCode(error) === "ENOENT") return true;
     throw error;
   }
+  if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error("Unsafe state lock");
+  const ownerPath = path.join(lockPath, "owner.json");
+  let owner: LockOwner | null = null;
+  try {
+    const parsed: unknown = JSON.parse(await readFile(ownerPath, "utf8"));
+    if (isRecord(parsed) &&
+        Number.isSafeInteger(parsed["pid"]) &&
+        typeof parsed["startedAt"] === "number" &&
+        Number.isFinite(parsed["startedAt"]) &&
+        typeof parsed["token"] === "string") {
+      owner = {
+        pid: parsed["pid"] as number,
+        startedAt: parsed["startedAt"] as number,
+        token: parsed["token"] as string
+      };
+    }
+  } catch {
+    /* A process can die between mkdir and the owner write. The directory mtime
+       is the only honest signal until the owner stamp exists. */
+  }
+  const now = Date.now();
+  const stale = owner === null
+    ? now - stat.mtimeMs >= LOCK_STALE_MILLISECONDS
+    : now - owner.startedAt >= LOCK_STALE_MILLISECONDS ||
+      !(await processIsAlive(owner.pid));
+  if (!stale) return false;
+  const displaced = lockPath + ".reclaim." + randomUUID();
+  try {
+    await rename(lockPath, displaced);
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") return true;
+    return false;
+  }
+  let stillObserved = owner === null;
+  if (owner !== null) {
+    try {
+      const parsed: unknown = JSON.parse(await readFile(path.join(displaced, "owner.json"), "utf8"));
+      stillObserved = isRecord(parsed) && parsed["token"] === owner.token;
+    } catch {
+      stillObserved = false;
+    }
+  } else {
+    try {
+      await lstat(path.join(displaced, "owner.json"));
+      stillObserved = false;
+    } catch (error) {
+      stillObserved = errorCode(error) === "ENOENT";
+    }
+  }
+  if (stillObserved) await rm(displaced, { recursive: true, force: true });
+  return true;
 }
 
 const transientLockCodes = new Set(["EEXIST", "EPERM", "EACCES", "EBUSY"]);
@@ -512,23 +568,19 @@ async function lockPathExists(lockPath: string): Promise<boolean> {
 
 async function acquireLock(
   lockPath: string
-): Promise<{ handle: FileHandle; token: string }> {
+): Promise<{ token: string }> {
   /* Contention has no deadline. A live owner releases the lock and an
      abandoned owner becomes stale, so neither case should discard this write. */
   for (let attempt = 0; ; attempt += 1) {
     try {
-      const handle = await open(lockPath, "wx", 0o600);
-      const token = JSON.stringify({
-        at: Date.now(),
-        id: randomUUID(),
-        pid: process.pid
-      });
+      await mkdir(lockPath, { mode: 0o700 });
+      const token = randomUUID();
+      const owner: LockOwner = { pid: process.pid, startedAt: Date.now(), token };
       try {
-        await handle.writeFile(token, "utf8");
-        return { handle, token };
+        await writeFileAtomically(path.join(lockPath, "owner.json"), canonicalJson(owner));
+        return { token };
       } catch (error) {
-        await handle.close().catch(() => undefined);
-        await unlink(lockPath).catch(() => undefined);
+        await rm(lockPath, { recursive: true, force: true }).catch(() => undefined);
         throw error;
       }
     } catch (error) {
@@ -547,11 +599,12 @@ async function acquireLock(
 
 async function releaseLock(lockPath: string, token: string): Promise<void> {
   try {
-    if ((await readFile(lockPath, "utf8")) !== token) return;
+    const parsed: unknown = JSON.parse(await readFile(path.join(lockPath, "owner.json"), "utf8"));
+    if (!isRecord(parsed) || parsed["token"] !== token) return;
   } catch {
     return;
   }
-  await unlink(lockPath).catch(() => undefined);
+  await rm(lockPath, { recursive: true, force: true }).catch(() => undefined);
 }
 
 function rejectOutOfBounds(snapshots: readonly Snapshot[]): void {
@@ -574,7 +627,7 @@ const processLockQueues = new Map<string, Promise<void>>();
  * Readers never take this lock. They rely on the atomic replacement below, so
  * the lock exists only to keep two writers from interleaving.
  */
-async function withCacheLock<Result>(
+export async function withStateLock<Result>(
   directory: string,
   action: () => Promise<Result>
 ): Promise<Result> {
@@ -593,11 +646,10 @@ async function withCacheLock<Result>(
     await prepareStateDirectory(absoluteDirectory);
     const lockPath = path.join(absoluteDirectory, CACHE_LOCK_NAME);
     await rejectSymlink(lockPath);
-    const { handle, token } = await acquireLock(lockPath);
+    const { token } = await acquireLock(lockPath);
     try {
       return await action();
     } finally {
-      await handle.close().catch(() => undefined);
       await releaseLock(lockPath, token);
     }
   } finally {
@@ -607,6 +659,9 @@ async function withCacheLock<Result>(
     }
   }
 }
+
+/* Snapshot and configuration writers share one state directory lock. */
+const withCacheLock = withStateLock;
 
 /**
  * Document version of the snapshot cache.
@@ -671,6 +726,39 @@ export async function writeSnapshotCache(
   rejectOutOfBounds(snapshots);
   await withCacheLock(directory, async () => {
     await replaceCache(directory, snapshots);
+  });
+}
+
+/** Poll owned rows live apart from the statusline cache so legacy runtimes can
+ * never overwrite a weekly usage value. */
+export async function mergeAuthoritativeSnapshotCache(
+  incoming: readonly Snapshot[],
+  directory = resolveStateDirectory(),
+  now?: string,
+): Promise<Snapshot[]> {
+  rejectOutOfBounds(incoming);
+  return withStateLock(directory, async () => {
+    const cached = await readCacheState(directory, AUTHORITATIVE_CACHE_FILE_NAME);
+    const existing = cached.ok ? cached.state.snapshots : [];
+    const byIdentity = new Map(existing.map((row) => [snapshotIdentity(row), row]));
+    for (const row of incoming) {
+      const previous = byIdentity.get(snapshotIdentity(row));
+      if (previous === undefined || Date.parse(row.observedAt) >= Date.parse(previous.observedAt)) {
+        byIdentity.set(snapshotIdentity(row), row);
+      }
+    }
+    const retentionNow = now === undefined
+      ? incoming
+        .map((row) => Date.parse(row.observedAt))
+        .filter(Number.isFinite)
+        .reduce((latest, observed) => Math.max(latest, observed), 0)
+      : Date.parse(now);
+    const rows = retainSnapshots([...byIdentity.values()], retentionNow);
+    rejectOutOfBounds(rows);
+    const target = path.join(directory, AUTHORITATIVE_CACHE_FILE_NAME);
+    await rejectSymlink(target);
+    await writeFileAtomically(target, canonicalJson({ snapshots: rows, version: CACHE_DOCUMENT_VERSION }));
+    return rows;
   });
 }
 

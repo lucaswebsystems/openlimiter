@@ -112,6 +112,22 @@ it("extra usage past its cap is still a reading, never a placeholder", () => {
   expect(projectSnapshots([spend], now).snapshots).toHaveLength(1);
 });
 
+it("projects only the poll owned Claude weeklies", () => {
+  const poll = snapshot({
+    meter: "SEVEN_DAY",
+    value: 13,
+    observedAt: now,
+    expiresAt: "2026-09-29T12:19:00.000Z",
+    resetAt: "2026-10-06T12:00:00.000Z",
+    window: { kind: "rolling", durationSeconds: 604_800 },
+    source: "internal_payload",
+    provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
+  });
+  const payload = { ...poll, value: 67, provenance: { sourceKind: "statusline_payload" as const, observedVia: "claude_code_statusline" as const } };
+  const unknown = { ...poll, meter: "SEVEN_DAY_IGUANA_NECKTIE" };
+  expect(projectSnapshots([payload, unknown, poll], now).snapshots).toEqual([poll]);
+});
+
 it("all cache writers prune old accounts at seven days and preserve the boundary", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "d1-cache-"));
   try {

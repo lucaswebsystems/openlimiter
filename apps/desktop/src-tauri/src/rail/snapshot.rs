@@ -460,10 +460,9 @@ mod tests {
 
     #[test]
     fn claude_model_scoped_headlines_use_the_shared_presentation_contract() {
-        let value = project(
-            vec![quota("CLAUDE", "SEVEN_DAY_FABLE_5_1", None)],
-            NOW,
-        );
+        let mut fable = quota("CLAUDE", "SEVEN_DAY_FABLE_5_1", None);
+        fable["window"]["durationSeconds"] = 604_800.into();
+        let value = project(vec![fable], NOW);
 
         assert_eq!(value[0]["windowLabel"], "Weekly, Fable");
     }

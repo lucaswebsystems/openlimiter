@@ -38,6 +38,11 @@ function isClaudeStatuslineFallback(snapshot: Snapshot): boolean {
     snapshot.provenance.observedVia === "claude_code_statusline";
 }
 
+function isClaudePayloadWeekly(snapshot: Snapshot): boolean {
+  return snapshot.provider === "CLAUDE" && snapshot.meter.startsWith("SEVEN_DAY") &&
+    snapshot.provenance?.sourceKind === "statusline_payload";
+}
+
 function scopedClaudeCoversFallback(
   candidate: Snapshot,
   snapshots: readonly Snapshot[]
@@ -65,8 +70,16 @@ export function mergeSnapshots(
   limit = MAX_CACHE_ENTRIES
 ): Snapshot[] {
   const byIdentity = new Map<string, Snapshot>();
-  for (const snapshot of existing) byIdentity.set(identity(snapshot), snapshot);
-  for (const snapshot of incoming) byIdentity.set(identity(snapshot), snapshot);
+  for (const snapshot of existing) {
+    if (!isClaudePayloadWeekly(snapshot)) byIdentity.set(identity(snapshot), snapshot);
+  }
+  for (const snapshot of incoming) {
+    if (isClaudePayloadWeekly(snapshot)) continue;
+    const previous = byIdentity.get(identity(snapshot));
+    if (previous === undefined || observedMilliseconds(snapshot) >= observedMilliseconds(previous)) {
+      byIdentity.set(identity(snapshot), snapshot);
+    }
+  }
   const combined = [...byIdentity.values()];
   const merged = combined.filter(
     (snapshot) => !scopedClaudeCoversFallback(snapshot, combined)

@@ -124,10 +124,6 @@ export function claudeFixture(now: string = FIXTURE_NOW): Record<string, unknown
       five_hour: {
         used_percentage: 42,
         resets_at: epochOffset(now, FIVE_HOURS)
-      },
-      seven_day: {
-        used_percentage: 64,
-        resets_at: epochOffset(now, SEVEN_DAYS)
       }
     }
   };
@@ -386,10 +382,6 @@ export function claudeDocumentedFixture(
       five_hour: {
         used_percentage: 23.5,
         resets_at: epochOffset(now, FIVE_HOURS)
-      },
-      seven_day: {
-        used_percentage: 41.2,
-        resets_at: epochOffset(now, SEVEN_DAYS)
       }
     }
   };
@@ -428,7 +420,7 @@ export const documentedFixtures: readonly DocumentedFixture[] = [
     reviewedAt: FIXTURE_REVIEWED_AT,
     sourceStatus: "official",
     note: "Published statusline example: used_percentage and Unix epoch seconds.",
-    expectedMeters: 2,
+    expectedMeters: 1,
     build: (now) => claudeDocumentedFixture(now)
   },
   {
@@ -969,7 +961,7 @@ const claudeMalformed: readonly MalformedFixture[] = [
     connector: "claude",
     reason: "a reset three days out, implausible for five hours and fine for " +
       "seven days, so exactly one window survives",
-    expectedMeters: 1,
+    expectedMeters: 0,
     build: (now) => claudeWindows(
       { used_percentage: 42, resets_at: epochOffset(now, ONE_DAY * 3) },
       { used_percentage: 64, resets_at: epochOffset(now, ONE_DAY * 3) }
@@ -979,7 +971,7 @@ const claudeMalformed: readonly MalformedFixture[] = [
     id: "claude.edge.missing_five_hour",
     connector: "claude",
     reason: "only the seven day window present, which is one complete answer",
-    expectedMeters: 1,
+    expectedMeters: 0,
     build: (now) => claudeWindows(undefined, goodSevenDay(now))
   },
   {
@@ -1008,7 +1000,7 @@ const claudeMalformed: readonly MalformedFixture[] = [
     connector: "claude",
     reason: "an undocumented three_hour window, read under a code built from " +
       "its own key rather than dropped, alongside the two documented windows",
-    expectedMeters: 3,
+    expectedMeters: 1,
     build: (now) => ({
       rate_limits: {
         five_hour: goodFiveHour(now),
@@ -1022,7 +1014,7 @@ const claudeMalformed: readonly MalformedFixture[] = [
     connector: "claude",
     reason: "nothing but an undocumented window, which is still one real " +
       "reading the provider stated",
-    expectedMeters: 1,
+    expectedMeters: 0,
     build: (now) => ({
       rate_limits: {
         three_hour: { used_percentage: 10, resets_at: epochOffset(now, 10_800) }

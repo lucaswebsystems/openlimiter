@@ -8,19 +8,6 @@ import {
   runStatuslineWrapper
 } from "./statusline-wrapper.js";
 
-async function promptForSecret(): Promise<string> {
-  if (!process.stdin.isTTY || !process.stdout.isTTY) return "";
-  const interfaceHandle = createInterface({
-    input: process.stdin,
-    output: process.stdout
-  });
-  try {
-    return await interfaceHandle.question("OpenRouter key: ");
-  } finally {
-    interfaceHandle.close();
-  }
-}
-
 async function promptChoice(question: string): Promise<string> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) return "";
   const interfaceHandle = createInterface({
@@ -89,7 +76,6 @@ if (wrapperRequested && wrapped === null) {
   if (controller !== null) process.on("SIGINT", onInterrupt);
   const result = await runCli(argumentsList, {
     ...runtime,
-    promptForSecret,
     promptChoice,
     interactive: process.stdin.isTTY === true && process.stdout.isTTY === true,
     ...(controller === null ? {} : { interruptSignal: controller.signal }),

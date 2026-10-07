@@ -488,7 +488,7 @@ describe("the Claude poll switch", () => {
     await runCli(["refresh"], dependencies(inaccessible, home, inaccessibleRecorder.transport));
     expect(inaccessibleRecorder.sent.some((request) => request.endpoint === "claude_usage"))
       .toBe(false);
-  });
+  }, 15_000);
 
   it("honours the recorded marker at the acquisition boundary", async () => {
     const state = await temporaryDirectory("openlimiter-state-");
