@@ -31,7 +31,7 @@ type CapturePhoneRow = {
 
 describe("synthetic screenshot pipeline", () => {
   it("waits for rendered provider card contents without the removed hero", () => {
-    const source = readFileSync(new URL("../../../scripts/capture-screenshots.mjs", import.meta.url), "utf8");
+    const source = readFileSync("../../scripts/capture-screenshots.mjs", "utf8");
     // The wait loops over the card's rendered parts inside the shadow card.
     expect(source).toContain('[".window-name", ".window-percent", ".window-reset"]');
     expect(source).toContain("firstCard.locator(selector)");
@@ -39,7 +39,7 @@ describe("synthetic screenshot pipeline", () => {
   });
 
   it("measures each tab from a short viewport and sizes the desk to all Usage content", () => {
-    const source = readFileSync(new URL("../../../scripts/capture-screenshots.mjs", import.meta.url), "utf8");
+    const source = readFileSync("../../scripts/capture-screenshots.mjs", "utf8");
     expect(source).toContain("const tabHeight = async () => {");
     expect(source).toContain("await page.setViewportSize({ width: 1000, height: 1 });");
     expect(source).toContain('home.locator("#tab-panel-usage")');
@@ -88,7 +88,7 @@ describe("synthetic screenshot pipeline", () => {
       const dom = new JSDOM(await terminalPage(theme, snapshots, now));
       for (const band of ["green", "yellow", "orange", "red"]) expect(dom.window.document.querySelector(`.band-${band}`)?.textContent).toBeTruthy();
       const line = dom.window.document.querySelector("pre")?.textContent ?? "";
-      for (const percentage of [42, 64, 69, 72, 94]) expect(line).toContain(`${percentage}%`);
+      for (const percentage of [42, 64, 69, 84, 94]) expect(line).toContain(`${percentage}%`);
       expect(line).toMatch(/^5h \[/u);
       expect(line).toContain("7d ");
       expect(line).toContain("fable7d ");
@@ -136,7 +136,7 @@ describe("synthetic screenshot pipeline", () => {
     const desktop = new JSDOM(await windowPage("dark", snapshots, sessions), { url: "http://localhost", runScripts: "dangerously" });
     const bridge = (desktop.window as unknown as Bridge).__TAURI__.core;
     expect(await bridge.invoke("plugin:activity|activity_sessions")).toEqual(sessions);
-    expect(JSON.parse(await bridge.invoke("read_cache") as string).snapshots).toHaveLength(10);
+    expect(JSON.parse(await bridge.invoke("read_cache") as string).snapshots).toHaveLength(12);
     desktop.window.close();
     for (const entry of ["edge-tab", "edge-panel"]) {
       const edge = new JSDOM(await edgePage(entry, "light", snapshots, sessions), { url: `http://localhost/${entry}-light?open`, runScripts: "dangerously" });
@@ -144,7 +144,7 @@ describe("synthetic screenshot pipeline", () => {
       const state = await edgeBridge.invoke("plugin:rail|rail_snapshot") as { sessions: unknown; window: { cardOpen: boolean } };
       expect(state.sessions).toEqual(sessions);
       expect(state.window.cardOpen).toBe(true);
-      expect(JSON.parse(await edgeBridge.invoke("read_cache") as string).snapshots).toHaveLength(10);
+      expect(JSON.parse(await edgeBridge.invoke("read_cache") as string).snapshots).toHaveLength(12);
       await edgeBridge.invoke("plugin:rail|rail_card_height", { height: 480 });
       expect((edge.window as unknown as { __heights: number[] }).__heights).toEqual([480]);
       expect(edge.window.document.querySelector('script[type="module"]')?.getAttribute("src")).toBe(`${entry}.js`);
@@ -167,7 +167,7 @@ describe("synthetic screenshot pipeline", () => {
     expect(layout.tab).toEqual({ left: 0, top: 687, width: 24, height: 44 });
     expect(layout.panel).toEqual({ left: 28, top: 422, width: 360, height: 560 });
     expect(layout.view).toEqual({ left: 0, top: 422, width: 560, height: 560 });
-    expect(edgeTabLayout(layout).view).toEqual({ left: -8, top: 679, width: 40, height: 60 });
+    expect(edgeTabLayout(layout).view).toEqual({ left: 0, top: 589, width: 360, height: 240 });
     // A short panel keeps its top level with the tab's, and never shrinks below 160.
     expect(edgeLayout(100).panel).toEqual({ left: 28, top: 687, width: 360, height: 160 });
     for (const natural of [884, Number.NaN, 0]) expect(() => edgeLayout(natural)).toThrow(/not captured/);

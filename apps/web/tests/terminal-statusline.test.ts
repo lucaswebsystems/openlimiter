@@ -15,7 +15,7 @@ vi.mock("@/i18n/navigation", async () => {
   };
 });
 
-const CAPTURE_SOURCE = readFileSync(new URL("../../../scripts/capture-screenshots.mjs", import.meta.url), "utf8");
+const CAPTURE_SOURCE = readFileSync("../../scripts/capture-screenshots.mjs", "utf8");
 
 let mounted: Mounted | undefined;
 afterEach(() => {
@@ -63,6 +63,7 @@ describe("live terminal status line", () => {
     const meters = [...mounted.container.querySelectorAll("[data-statusline-meter]")];
     expect(meters.map((meter) => [...meter.children].map((part) => (part as HTMLElement).style.width))).toEqual([
       ["4ch", "6ch"],
+      ["6ch", "4ch"],
       ["6ch", "4ch"],
       ["8ch", "2ch"],
       ["9ch", "1ch"],

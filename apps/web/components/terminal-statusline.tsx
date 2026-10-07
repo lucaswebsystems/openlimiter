@@ -52,10 +52,10 @@ export function TerminalStatusline({ caption }: { caption: string }) {
           <div data-statusline-row className="mt-6 flex flex-wrap font-mono text-sm leading-8 sm:text-base">
             {cells.map((cell, cellIndex) => (
               <span data-statusline-cell className="whitespace-pre" key={cellIndex}>
+                {cellIndex > 0 && <span data-statusline-separator aria-hidden="true"> | </span>}
                 {cell.map((span, spanIndex) => (
                   <Span span={span} key={spanIndex} />
                 ))}
-                {cellIndex > 0 && <span data-statusline-separator aria-hidden="true"> | </span>}
               </span>
             ))}
           </div>

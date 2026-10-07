@@ -34,8 +34,8 @@ const body = {
   }],
 };
 
-const PHONE_THEME = readFileSync(new URL("../app/app/theme.css", import.meta.url), "utf8");
-const PAIR_FLOW = readFileSync(new URL("../app/app/pair/pair-flow.tsx", import.meta.url), "utf8");
+const PHONE_THEME = readFileSync("app/app/theme.css", "utf8");
+const PAIR_FLOW = readFileSync("app/app/pair/pair-flow.tsx", "utf8");
 
 describe("phone card geometry", () => {
   it("uses the bar card radius for pairing and Pro cards and hangs bullet text", () => {

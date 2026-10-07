@@ -68,8 +68,10 @@ const execFileAsync = promisify(execFile);
 /** Where the built site is already being served. Nothing is started here. */
 const SITE = process.env.OPENLIMITER_SITE ?? "http://127.0.0.1:3111";
 
-/** The desk, in CSS pixels, captured at two device pixels to the CSS pixel. */
-const SCENE = { width: 1280, height: 800, scale: 2 };
+/** The desk, in CSS pixels: a 1440 by 900 screen holds the whole Usage tab, and
+    16/9 device pixels to the CSS pixel keeps the capture at the wallpaper's own
+    2560 by 1600. */
+const SCENE = { width: 1440, height: 900, scale: 16 / 9 };
 
 /**
  * The phone, at the logical screen of the device the frames on the home page
@@ -77,9 +79,9 @@ const SCENE = { width: 1280, height: 800, scale: 2 };
  */
 const PHONE = { width: 390, height: 844, scale: 3 };
 
-/** Geometry lifted from the capture this replaces, so the scene is unchanged. */
+/** Geometry lifted from the capture this replaces, the window centred on the wider desk. */
 const MENUBAR_HEIGHT = 26;
-const WINDOW = { left: 141, top: 93, width: 998, height: 642, titlebar: 37 };
+const WINDOW = { left: 221, top: 93, width: 998, height: 642, titlebar: 37 };
 
 /**
  * The edge tab and its panel, placed by the product's own rule
@@ -440,16 +442,11 @@ export function edgeLayout(natural) {
   return { tab, panel, view: { left: 0, top, width: slice, height: bottom - top } };
 }
 
-export function edgeTabLayout(layout, margin = 8) {
-  return {
-    ...layout,
-    view: {
-      left: layout.tab.left - margin,
-      top: layout.tab.top - margin,
-      width: layout.tab.width + margin * 2,
-      height: layout.tab.height + margin * 2,
-    },
-  };
+/** The folded tab in context: a slice from the screen edge, the tab at its own
+    place and centred top to bottom, the wallpaper around it. */
+export function edgeTabLayout(layout, width = 360, height = 240) {
+  const top = layout.tab.top + Math.round((layout.tab.height - height) / 2);
+  return { ...layout, view: { left: 0, top, width, height } };
 }
 
 /** The slice: the wallpaper as the whole work area, the tab, and the panel when `open`. */
@@ -479,7 +476,8 @@ const SAMPLE_VALUES = [
   { provider: "CLAUDE", meter: "FIVE_HOUR", value: 42 },
   { provider: "CLAUDE", meter: "SEVEN_DAY", value: 64 },
   { provider: "CLAUDE", meter: "SEVEN_DAY_FABLE", value: 69 },
-  { provider: "CODEX", meter: "SEVEN_DAY", value: 72 },
+  /* The line's one orange reading: the terminal shot must show all four bands. */
+  { provider: "CODEX", meter: "SEVEN_DAY", value: 84 },
   { provider: "ANTIGRAVITY", value: 94 },
 ];
 
@@ -646,10 +644,12 @@ async function fitWindowToLimits(page) {
     frame.style.top = `${menubar + Math.round((desk - menubar - content - titlebar) / 2)}px`;
     frame.querySelector("iframe").style.height = `${content}px`;
   }, { content, titlebar: WINDOW.titlebar, menubar: MENUBAR_HEIGHT, desk: SCENE.height });
-  const subsequent = home.locator("#spend-section:not([hidden]), #agents-section:not([hidden])").first();
-  if (await subsequent.count()) {
-    const next = await subsequent.evaluate(section => section.getBoundingClientRect().top);
-    if (next < content) throw new Error("The desk window would cut a visible section heading.");
+  /* Spend and Agents sit inside the measured tab, so after the resize the last
+     visible one must still end inside the window. */
+  const last = home.locator("#spend-section:not([hidden]), #agents-section:not([hidden])").last();
+  if (await last.count()) {
+    const end = await last.evaluate(section => section.getBoundingClientRect().bottom);
+    if (end > content) throw new Error("The desk window would cut a visible section.");
   }
   if (content + WINDOW.titlebar > SCENE.height - MENUBAR_HEIGHT) throw new Error("The desk window would run past the desk.");
 }
@@ -1094,6 +1094,7 @@ async function captureDesk(browser, theme, port) {
   await home.getByRole('tab', { name: 'Connect Tools', exact: true }).click();
   await home.locator('#key-rows [data-key-row]').first().waitFor({ state: "attached" });
   await home.getByRole('tab', { name: 'Usage', exact: true }).click();
+  await home.locator('#agents-section:not([hidden])').waitFor();
   /* The desk shows the window as a person uses it, after What's New is closed. */
   await fitWindowToLimits(page);
   await page.waitForTimeout(1200);

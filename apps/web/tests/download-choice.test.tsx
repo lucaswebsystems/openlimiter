@@ -41,7 +41,7 @@ describe("download choice", () => {
   it("renders equal platform destinations and the real capture fallback", () => {
     mounted = render(createElement(DownloadChoice, props));
     expect([...mounted.container.querySelectorAll("article")].map((node) => node.id)).toEqual(["windows", "macos", "linux"]);
-    expect(mounted.container.querySelectorAll('a[href^="https://example.test/"]').length).toBe(4);
+    expect(mounted.container.querySelectorAll('a[href^="https://example.test/"]').length).toBe(5);
     expect(mounted.container.querySelector("picture source[type='image/webp']")?.getAttribute("srcset")).toContain("desktop-app@2x.webp");
     const image = mounted.container.querySelector("picture img");
     expect(image?.getAttribute("src")).toBe("/screenshots/desktop-app.png");
