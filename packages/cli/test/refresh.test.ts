@@ -618,8 +618,9 @@ describe("starting a refresh from a render", () => {
     const spawnDetached = (
       executable: string,
       argumentsList: readonly string[]
-    ): void => {
+    ): number => {
       started.push([executable, ...argumentsList]);
+      return 4001;
     };
 
     const fresh = await runCli(["statusline"], {

@@ -311,25 +311,31 @@
 
           <!-- The one setup panel a Connect opens, under the list. -->
             <section id="claude-card" class="q-setup" aria-label="Claude Code setup" tabindex="-1" hidden>
+            <div class="q-setup-header">
+              <button type="button" class="q-iconbtn q-setup-close" data-setup-close aria-label="Close">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="m4.5 4.5 7 7M11.5 4.5l-7 7" /></svg>
+              </button>
+            </div>
             <div id="claude-body"></div>
             <p id="claude-note" class="q-fstatus" role="status"></p>
-            <button type="button" class="q-iconbtn q-setup-close" data-setup-close aria-label="Close">
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="m4.5 4.5 7 7M11.5 4.5l-7 7" /></svg>
-            </button>
             </section>
             <section id="antigravity-add" class="q-setup" aria-label="Antigravity setup" tabindex="-1" hidden>
+            <div class="q-setup-header">
+              <button type="button" class="q-iconbtn q-setup-close" data-setup-close aria-label="Close">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="m4.5 4.5 7 7M11.5 4.5l-7 7" /></svg>
+              </button>
+            </div>
             <div id="antigravity-body"></div>
-            <button type="button" class="q-iconbtn q-setup-close" data-setup-close aria-label="Close">
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="m4.5 4.5 7 7M11.5 4.5l-7 7" /></svg>
-            </button>
             <p id="antigravity-note" class="q-fstatus" role="status"></p>
             </section>
             <section id="opencode-add" class="q-setup q-setup-key" aria-label="OpenCode setup" tabindex="-1" hidden>
+            <div class="q-setup-header">
+              <button type="button" class="q-iconbtn q-setup-close" data-setup-close aria-label="Close">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="m4.5 4.5 7 7M11.5 4.5l-7 7" /></svg>
+              </button>
+            </div>
             <input id="opencode-key" class="q-kfield" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Session cookie" aria-label="OpenCode session cookie" />
             <button type="button" class="q-btn q-btn-primary" data-setup-save>Save</button>
-            <button type="button" class="q-iconbtn q-setup-close" data-setup-close aria-label="Close">
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="m4.5 4.5 7 7M11.5 4.5l-7 7" /></svg>
-            </button>
             <p class="q-fstatus" data-setup-note role="status"></p>
             </section>
 

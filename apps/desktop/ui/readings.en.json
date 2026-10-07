@@ -107,7 +107,7 @@
   "runtimeMissing": "The terminal runtime is not installed.",
   "runtimeOutdated": "This terminal runtime is older than OpenLimiter.",
   "runtimeNewer": "This terminal runtime is newer than OpenLimiter.",
-  "runtimeInstall": "npx -y openlimiter terminal install {host}",
+  "runtimeInstall": "npx -y openlimiter@{version} terminal install {host}",
   "appearance": "Appearance",
   "alerts": "Alerts",
   "accountPro": "Account and Pro",

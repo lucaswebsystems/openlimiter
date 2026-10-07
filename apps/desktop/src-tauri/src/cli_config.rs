@@ -194,8 +194,14 @@ pub fn set_terminal_captions(captions: String, app: tauri::AppHandle) -> Result<
 
 #[tauri::command]
 pub fn terminal_runtime_status() -> Result<Value, String> {
-    let directory = crate::state::state_directory().ok_or_else(|| "config_refused".to_string())?;
-    let stamp = directory.join("terminal-runtime").join(".openlimiter-runtime.json");
+    let home = if cfg!(target_os = "windows") {
+        crate::state::non_empty("USERPROFILE").or_else(|| crate::state::non_empty("HOME"))
+    } else { crate::state::home() }.ok_or_else(|| "config_refused".to_string())?;
+    terminal_runtime_status_in(&home, env!("CARGO_PKG_VERSION"))
+}
+
+fn terminal_runtime_status_in(home: &Path, app_version: &str) -> Result<Value, String> {
+    let stamp = home.join(".openlimiter").join("terminal-runtime").join(".openlimiter-runtime.json");
     let version = match crate::fsx::bounded_read_result(&stamp, crate::fsx::MAX_STATE_FILE_BYTES) {
         Err(crate::fsx::ReadFailure::Missing) => None,
         Err(_) => return Err("config_refused".to_string()),
@@ -204,7 +210,7 @@ pub fn terminal_runtime_status() -> Result<Value, String> {
             value.get("version").and_then(Value::as_str).map(str::to_owned)
         }
     };
-    Ok(serde_json::json!({ "version": version, "app_version": env!("CARGO_PKG_VERSION") }))
+    Ok(serde_json::json!({ "version": version, "app_version": app_version }))
 }
 
 #[cfg(test)]
@@ -248,6 +254,18 @@ mod tests {
         let saved: Value = serde_json::from_str(&fs::read_to_string(config_path(dir.path())).unwrap()).unwrap();
         assert_eq!(saved["providers"]["claude"]["poll"], true);
         assert!(saved["statusline"]["captions"] == "short" || saved["statusline"]["captions"] == "tagged");
+    }
+
+    #[test]
+    fn terminal_runtime_status_reads_the_profile_runtime_stamp() {
+        let home = TempDir::new();
+        let runtime = home.path().join(".openlimiter").join("terminal-runtime");
+        fs::create_dir_all(&runtime).unwrap();
+        fs::write(runtime.join(".openlimiter-runtime.json"), r#"{"version":"2.0.3","files":{}}"#).unwrap();
+        assert_eq!(
+            terminal_runtime_status_in(home.path(), "2.1.1").unwrap(),
+            serde_json::json!({"version":"2.0.3","app_version":"2.1.1"})
+        );
     }
 
     #[test]

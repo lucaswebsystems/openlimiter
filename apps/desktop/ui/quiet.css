@@ -765,7 +765,17 @@ button.q-addrow:focus-visible {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  padding-right: 3rem;
+}
+
+.q-setup-header {
+  display: flex;
+  min-height: 2rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.q-setup-key .q-setup-header {
+  flex: 1 0 100%;
 }
 
 .q-setup-key .q-kfield {
@@ -793,16 +803,27 @@ button.q-addrow:focus-visible {
   user-select: text;
 }
 
+.q-command-box {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--ol-space-2);
+  align-items: center;
+  padding: var(--ol-space-2);
+  border: 1px solid var(--ol-hairline);
+  border-radius: var(--ol-radius-xs);
+  background: var(--ol-code);
+}
+
+.q-command-box .q-snippet {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
 .q-setup-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--ol-space-2);
-}
-
-button.q-setup-close {
-  position: absolute;
-  top: var(--ol-space-3);
-  right: var(--ol-space-3);
 }
 
 .q-setup .q-fstatus {

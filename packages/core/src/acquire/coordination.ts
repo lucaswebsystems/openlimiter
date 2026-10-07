@@ -360,7 +360,7 @@ export interface DetachedSpawn {
        */
       readonly onError?: () => void;
     }
-  ): void;
+  ): number;
 }
 
 export interface SpawnRefreshOptions {
@@ -371,6 +371,9 @@ export interface SpawnRefreshOptions {
   readonly openLimiterScript: string;
   readonly spawn: DetachedSpawn;
   readonly staleSeconds?: number;
+  readonly nowMilliseconds?: () => number;
+  readonly processAlive?: (pid: number) => boolean;
+  readonly killProcess?: (pid: number) => void;
 }
 
 export type SpawnRefreshResult =
@@ -379,6 +382,124 @@ export type SpawnRefreshResult =
       spawned: false;
       reason: "fresh" | "desktop_running" | "already_running" | "no_script" | "failed";
     };
+
+/** Children created behind status line renders, and no other process. */
+export const REFRESH_CHILD_REGISTRY_NAME = "openlimiter-refresh-children.json";
+export const REFRESH_CHILD_STALE_MILLISECONDS = 120_000;
+const REFRESH_CHILD_REGISTRY_LOCK_NAME = "openlimiter-refresh-children.lock";
+const MAX_REFRESH_CHILDREN = 32;
+
+interface RefreshChild {
+  readonly pid: number;
+  readonly spawnedAt: number;
+}
+
+function systemProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return errorCode(error) !== "ESRCH";
+  }
+}
+
+async function readRefreshChildren(directory: string): Promise<RefreshChild[] | null> {
+  const document = await readJsonFileSafely(
+    path.join(directory, REFRESH_CHILD_REGISTRY_NAME),
+    16_384
+  );
+  if (!document.ok) return document.reason === "missing" ? [] : null;
+  if (typeof document.value !== "object" || document.value === null || Array.isArray(document.value)) return null;
+  const value = document.value as Record<string, unknown>;
+  if (value["version"] !== 1 || !Array.isArray(value["children"]) || value["children"].length > MAX_REFRESH_CHILDREN) return null;
+  const children: RefreshChild[] = [];
+  for (const child of value["children"]) {
+    if (typeof child !== "object" || child === null || Array.isArray(child)) return null;
+    const pid = (child as Record<string, unknown>)["pid"];
+    const spawnedAt = (child as Record<string, unknown>)["spawnedAt"];
+    if (!Number.isSafeInteger(pid) || Number(pid) <= 0 || !Number.isSafeInteger(spawnedAt) || Number(spawnedAt) < 0) return null;
+    children.push({ pid: Number(pid), spawnedAt: Number(spawnedAt) });
+  }
+  return children;
+}
+
+async function writeRefreshChildren(directory: string, children: readonly RefreshChild[]): Promise<void> {
+  const target = path.join(directory, REFRESH_CHILD_REGISTRY_NAME);
+  if (children.length === 0) {
+    await unlink(target).catch((error: unknown) => {
+      if (errorCode(error) !== "ENOENT") throw error;
+    });
+    return;
+  }
+  await writeFileAtomically(target, canonicalJson({ children, version: 1 }));
+}
+
+async function refreshLockOwnedByPid(
+  directory: string,
+  pid: number,
+  nowMilliseconds: number
+): Promise<boolean> {
+  const lock = await readJsonFileSafely(path.join(directory, REFRESH_LOCK_NAME), 4_096);
+  if (!lock.ok) return lock.reason === "missing" ? false : true;
+  if (typeof lock.value !== "object" || lock.value === null || Array.isArray(lock.value)) return true;
+  if ((lock.value as Record<string, unknown>)["pid"] !== pid) return false;
+  return refreshLockHeld(directory, nowMilliseconds);
+}
+
+async function reconcileRefreshChildren(
+  directory: string,
+  children: readonly RefreshChild[],
+  nowMilliseconds: number,
+  processAlive: (pid: number) => boolean,
+  killProcess: (pid: number) => void
+): Promise<{ children: RefreshChild[]; changed: boolean }> {
+  const kept: RefreshChild[] = [];
+  let changed = false;
+  for (const child of children) {
+    let alive = true;
+    try {
+      alive = processAlive(child.pid);
+    } catch {
+      alive = true;
+    }
+    if (!alive) {
+      changed = true;
+      continue;
+    }
+    if (nowMilliseconds - child.spawnedAt < REFRESH_CHILD_STALE_MILLISECONDS) {
+      kept.push(child);
+      continue;
+    }
+    if (await refreshLockOwnedByPid(directory, child.pid, nowMilliseconds)) {
+      kept.push(child);
+      continue;
+    }
+    try {
+      killProcess(child.pid);
+      changed = true;
+    } catch {
+      kept.push(child);
+    }
+  }
+  return { children: kept, changed };
+}
+
+async function removeRegisteredRefreshChild(directory: string, pid: number): Promise<void> {
+  const decisionLock = await acquireRefreshLock(
+    directory,
+    Date.now(),
+    REFRESH_CHILD_REGISTRY_LOCK_NAME
+  );
+  if (!decisionLock.ok) return;
+  try {
+    const children = await readRefreshChildren(directory);
+    if (children === null) return;
+    const remaining = children.filter((child) => child.pid !== pid);
+    if (remaining.length !== children.length) await writeRefreshChildren(directory, remaining);
+  } finally {
+    await decisionLock.release();
+  }
+}
 
 /**
  * Start a refresh behind the caller, and never wait for it.
@@ -392,37 +513,69 @@ export type SpawnRefreshResult =
 export async function spawnDetachedRefresh(
   options: SpawnRefreshOptions
 ): Promise<SpawnRefreshResult> {
-  const decision = shouldStartRefresh(
-    options.snapshots,
-    options.now,
-    options.staleSeconds ?? CACHE_REFRESH_STALE_SECONDS
-  );
-  if (!decision.refresh) return { spawned: false, reason: decision.reason };
-  if (options.openLimiterScript === "") return { spawned: false, reason: "no_script" };
   const directory = options.stateDirectory ?? resolveStateDirectory();
-  /*
-   * The parent only checks the lock; the child takes it. Taking it here would
-   * mean releasing it here, and the parent exits long before the child has
-   * finished, which would leave every render starting one more refresh.
-   */
-  if (await refreshLockHeld(directory)) {
-    return { spawned: false, reason: "already_running" };
+  const nowMilliseconds = (options.nowMilliseconds ?? Date.now)();
+  const processAlive = options.processAlive ?? systemProcessAlive;
+  const killProcess = options.killProcess ?? ((pid: number) => process.kill(pid));
+  const decisionLock = await acquireRefreshLock(
+    directory,
+    nowMilliseconds,
+    REFRESH_CHILD_REGISTRY_LOCK_NAME
+  );
+  if (!decisionLock.ok) {
+    return { spawned: false, reason: decisionLock.reason === "held" ? "already_running" : "failed" };
   }
   try {
-    await prepareStateDirectory(directory);
-    options.spawn(
+    const registered = await readRefreshChildren(directory);
+    if (registered === null) return { spawned: false, reason: "failed" };
+    const reconciled = await reconcileRefreshChildren(
+      directory,
+      registered,
+      nowMilliseconds,
+      processAlive,
+      killProcess
+    );
+    if (reconciled.changed) await writeRefreshChildren(directory, reconciled.children);
+    if (reconciled.children.some((child) => nowMilliseconds - child.spawnedAt < REFRESH_CHILD_STALE_MILLISECONDS)) {
+      return { spawned: false, reason: "already_running" };
+    }
+    const decision = shouldStartRefresh(
+      options.snapshots,
+      options.now,
+      options.staleSeconds ?? CACHE_REFRESH_STALE_SECONDS
+    );
+    if (!decision.refresh) return { spawned: false, reason: decision.reason };
+    if (options.openLimiterScript === "") return { spawned: false, reason: "no_script" };
+    /* The child takes the refresh lock. The short registry lock only makes
+       the decision and the child record one transaction across status lines. */
+    if (await refreshLockHeld(directory, nowMilliseconds)) {
+      return { spawned: false, reason: "already_running" };
+    }
+    let childPid: number | undefined;
+    const pid = options.spawn(
       options.nodeExecutable,
       [options.openLimiterScript, "refresh", "--detached"],
       {
         cwd: directory,
         onError: () => {
           void recordRefreshSpawnFailure(directory, options.now);
+          if (childPid !== undefined) void removeRegisteredRefreshChild(directory, childPid);
         }
       }
     );
+    childPid = pid;
+    if (!Number.isSafeInteger(pid) || pid <= 0) throw new Error("Detached refresh has no process id");
+    try {
+      await writeRefreshChildren(directory, [...reconciled.children, { pid, spawnedAt: nowMilliseconds }]);
+    } catch (error) {
+      try { killProcess(pid); } catch { /* The child may already be gone. */ }
+      throw error;
+    }
     return { spawned: true };
   } catch {
     await recordRefreshSpawnFailure(directory, options.now);
     return { spawned: false, reason: "failed" };
+  } finally {
+    await decisionLock.release();
   }
 }

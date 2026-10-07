@@ -12,6 +12,8 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   CACHE_REFRESH_STALE_SECONDS,
+  REFRESH_CHILD_REGISTRY_NAME,
+  REFRESH_CHILD_STALE_MILLISECONDS,
   REFRESH_LOCK_HEARTBEAT_MILLISECONDS,
   REFRESH_LOCK_NAME,
   REFRESH_LOCK_STALE_MILLISECONDS,
@@ -324,6 +326,7 @@ describe("starting a refresh behind a render", () => {
       ...spawnOptions,
       spawn: (executable, argumentsList, options) => {
         calls.push({ executable, argumentsList, cwd: options.cwd });
+        return 1001;
       }
     });
     expect(result).toEqual({ spawned: true });
@@ -337,8 +340,9 @@ describe("starting a refresh behind a render", () => {
   it("starts nothing while the cache is fresh or a desktop is running", async () => {
     const directory = await temporaryDirectory();
     let spawned = 0;
-    const spawn = (): void => {
+    const spawn = (): number => {
       spawned += 1;
+      return 1002;
     };
     expect(await spawnDetachedRefresh({
       snapshots: [rowObservedAt("2026-01-01T00:09:30.000Z")],
@@ -369,6 +373,7 @@ describe("starting a refresh behind a render", () => {
       ...spawnOptions,
       spawn: () => {
         spawned += 1;
+        return 1003;
       }
     })).toEqual({ spawned: false, reason: "already_running" });
     expect(spawned).toBe(0);
@@ -404,6 +409,7 @@ describe("starting a refresh behind a render", () => {
       ...spawnOptions,
       spawn: (_executable, _argumentsList, options) => {
         report = options.onError;
+        return 1004;
       }
     });
     expect(result).toEqual({ spawned: true });
@@ -422,5 +428,68 @@ describe("starting a refresh behind a render", () => {
     expect(recorded).toBe(NOW);
     await clearRefreshSpawnFailure(directory);
     expect(await readRefreshSpawnFailure(directory)).toBeNull();
+  });
+
+  it("keeps one young registered refresh in flight", async () => {
+    const directory = await temporaryDirectory();
+    let now = Date.parse(NOW);
+    let nextPid = 2000;
+    let spawned = 0;
+    const controls = {
+      nowMilliseconds: () => now,
+      processAlive: () => true,
+      killProcess: () => { throw new Error("a young child must not be killed"); },
+    };
+    const spawn = (): number => {
+      spawned += 1;
+      nextPid += 1;
+      return nextPid;
+    };
+    expect(await spawnDetachedRefresh({
+      snapshots: [], now: NOW, stateDirectory: directory, ...spawnOptions, ...controls, spawn
+    })).toEqual({ spawned: true });
+    now += REFRESH_CHILD_STALE_MILLISECONDS - 1;
+    expect(await spawnDetachedRefresh({
+      snapshots: [], now: NOW, stateDirectory: directory, ...spawnOptions, ...controls, spawn
+    })).toEqual({ spawned: false, reason: "already_running" });
+    expect(spawned).toBe(1);
+  });
+
+  it("terminates only a registered stale child without the refresh lock", async () => {
+    const directory = await temporaryDirectory();
+    let now = Date.parse(NOW);
+    const alive = new Set([3001]);
+    const killed: number[] = [];
+    const pids = [3001, 3002, 3003];
+    const controls = {
+      nowMilliseconds: () => now,
+      processAlive: (pid: number) => alive.has(pid),
+      killProcess: (pid: number) => {
+        killed.push(pid);
+        alive.delete(pid);
+      },
+    };
+    const spawn = (): number => {
+      const pid = pids.shift();
+      if (pid === undefined) throw new Error("unexpected spawn");
+      alive.add(pid);
+      return pid;
+    };
+    expect(await spawnDetachedRefresh({
+      snapshots: [], now: NOW, stateDirectory: directory, ...spawnOptions, ...controls, spawn
+    })).toEqual({ spawned: true });
+    now += REFRESH_CHILD_STALE_MILLISECONDS;
+    expect(await spawnDetachedRefresh({
+      snapshots: [], now: NOW, stateDirectory: directory, ...spawnOptions, ...controls, spawn
+    })).toEqual({ spawned: true });
+    expect(killed).toEqual([3001]);
+    alive.delete(3002);
+    now += 1;
+    expect(await spawnDetachedRefresh({
+      snapshots: [], now: NOW, stateDirectory: directory, ...spawnOptions, ...controls, spawn
+    })).toEqual({ spawned: true });
+    expect(killed).toEqual([3001]);
+    const registry = JSON.parse(await readFile(path.join(directory, REFRESH_CHILD_REGISTRY_NAME), "utf8")) as { children: { pid: number }[] };
+    expect(registry.children.map((child) => child.pid)).toEqual([3003]);
   });
 });

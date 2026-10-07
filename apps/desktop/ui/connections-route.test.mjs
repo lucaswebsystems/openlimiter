@@ -10,12 +10,14 @@ import { fakeDocument } from "./test-dom.mjs";
  */
 const calls = [];
 const opened = [];
+const copied = [];
 let records = [];
 let runtimeVersion = "2.1.4";
 // Commands the next calls reject, with the failure kind native code sends.
 const refusing = new Map();
 const storage = new Map();
 globalThis.window = {
+  navigator: { clipboard: { writeText: async (value) => { copied.push(value); } } },
   __TAURI__: { core: { invoke: async (command, args) => {
     calls.push([command, args]);
     if (refusing.has(command)) throw { kind: refusing.get(command) };
@@ -101,16 +103,25 @@ test("Connect for Claude Code, Antigravity and OpenCode opens that tool's setup 
     }
   }
   await connectTool("ANTIGRAVITY");
-  assert.match(document.getElementById("antigravity-body").textContent, /openlimiter terminal install antigravity/u);
-  assert.match(document.getElementById("antigravity-body").textContent, /Installed terminal runtime 2\.1\.4\./u);
+  const antigravityBody = document.getElementById("antigravity-body");
+  assert.match(antigravityBody.textContent, /npx -y openlimiter@2\.1\.5 terminal install antigravity/u);
+  assert.match(antigravityBody.textContent, /Installed terminal runtime 2\.1\.4\./u);
+  const antigravityCommands = antigravityBody.all((node) => node.classList?.contains("q-command-box"));
+  assert.equal(antigravityCommands.length, 2);
+  copied.length = 0;
+  for (const command of antigravityCommands) {
+    const shown = command.all((node) => node.localName === "pre")[0].textContent;
+    await command.all((node) => node.localName === "button")[0].fire("click");
+    assert.equal(copied.at(-1), shown);
+  }
   assert.equal(calls.some(([command, input]) => command === "connect_provider" && input?.input?.provider_id === "antigravity"), false);
   // Claude Code's setup reads the preflight and shows the block with Copy and Verify.
   await connectTool("CLAUDE");
   const body = document.getElementById("claude-body");
   assert.match(body.textContent, /Add this to your Claude Code settings, then Verify\./u);
   assert.match(body.textContent, /"command": "openlimiter statusline"/u);
-  assert.match(body.textContent, /npx -y openlimiter terminal install claude/u);
-  assert.deepEqual(body.all((node) => node.localName === "button").map((button) => button.textContent), ["Copy", "Verify"]);
+  assert.match(body.textContent, /npx -y openlimiter@2\.1\.5 terminal install claude/u);
+  assert.deepEqual(body.all((node) => node.localName === "button").map((button) => button.textContent), ["Copy", "Copy", "Verify"]);
   const runtimeReads = calls.filter(([command]) => command === "terminal_runtime_status").length;
   runtimeVersion = "2.1.6";
   await body.all((node) => node.localName === "button" && node.textContent === "Verify")[0].fire("click");

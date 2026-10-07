@@ -358,7 +358,7 @@ function defaults(): CliDependencies {
     acquisitionTransport: async () => {
       throw new Error("No acquisition transport was injected");
     },
-    spawnDetached: () => undefined,
+    spawnDetached: () => 0,
     promptChoice: async () => "",
     interactive: false,
     hubTransport: async () => {
@@ -533,6 +533,8 @@ export function runtimeDependencies(): Pick<
       });
       /* Unreferenced so this process can exit while the refresh continues. */
       child.unref();
+      if (child.pid === undefined) throw new Error("Detached process has no pid");
+      return child.pid;
     },
     windowsCredentialRunner: execFileRunner,
     windowsAclRunner: execFileRunner,

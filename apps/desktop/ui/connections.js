@@ -105,8 +105,6 @@ const PASTED = {
   OPENCODE: { providerId: "opencode", credentialKind: "opencode_browser_session" },
 };
 
-const ANTIGRAVITY_SETUP_COMMAND = "openlimiter terminal install antigravity";
-
 /* ----------------------------------------------------------------- backend */
 
 async function syncConnections() {
@@ -302,13 +300,42 @@ function runtimeState(runtime) {
   return comparison === null || comparison === 0 ? "current" : comparison < 0 ? "older" : "newer";
 }
 
-function appendRuntimeGuidance(body, host) {
+function runtimeInstallCommand(host) {
+  const version = session.runtime?.appVersion;
+  return version ? say("runtimeInstall", { host, version }) : null;
+}
+
+async function copyCommand(command, note, block) {
+  try {
+    await window.navigator.clipboard.writeText(command);
+    setNote(note, SETUP_EN.copied, "ok");
+  } catch {
+    const selection = window.getSelection?.();
+    if (selection !== null && selection !== undefined && block) {
+      const range = document.createRange();
+      range.selectNodeContents(block);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+    setNote(note, SETUP_EN.copyRefused, "bad");
+  }
+}
+
+function commandBox(command, note) {
+  const box = element("div", "q-command-box");
+  const block = element("pre", "q-snippet mono", command);
+  box.append(block, button(SETUP_EN.copy, () => void copyCommand(command, note, block)));
+  return box;
+}
+
+function appendRuntimeGuidance(body, host, note) {
   const runtime = session.runtime;
   if (runtime?.version) body.append(element("p", "q-setup-line", say("runtimeInstalled", { version: runtime.version })));
   const state = runtimeState(runtime);
   if (state === "older" || state === "missing") {
-    const command = element("pre", "q-snippet mono", say("runtimeInstall", { host }));
-    body.append(element("p", "q-setup-line", state === "older" ? SETUP_EN.runtimeOutdated : SETUP_EN.runtimeMissing), command);
+    const command = runtimeInstallCommand(host);
+    body.append(element("p", "q-setup-line", state === "older" ? SETUP_EN.runtimeOutdated : SETUP_EN.runtimeMissing));
+    if (command) body.append(commandBox(command, note));
   } else if (state === "newer") {
     body.append(element("p", "q-setup-line", say("runtimeNewer")));
   }
@@ -324,7 +351,7 @@ function renderClaude() {
   const recheck = button(SETUP_EN.checkAgain, () => void verifyClaude());
   const verify = button(SETUP_EN.verify, () => void verifyClaude(), "q-btn q-btn-primary");
   const actions = element("div", "q-setup-actions");
-  appendRuntimeGuidance(body, "claude");
+  appendRuntimeGuidance(body, "claude", note);
   if (verdict?.kind === "cli_missing" || verdict?.kind === "cli_not_working") {
     const missing = verdict.kind === "cli_missing";
     const line = element("pre", "q-snippet mono", missing ? verdict.installCommand : (verdict.cliPath ?? ""));
@@ -360,18 +387,10 @@ function renderAntigravity() {
   const note = document.getElementById("antigravity-note");
   if (!body) return;
   body.textContent = "";
-  appendRuntimeGuidance(body, "antigravity");
-  const block = element("pre", "q-snippet mono", ANTIGRAVITY_SETUP_COMMAND);
-  const actions = element("div", "q-setup-actions");
-  actions.append(button(SETUP_EN.copy, async () => {
-    try {
-      await window.navigator.clipboard.writeText(ANTIGRAVITY_SETUP_COMMAND);
-      setNote(note, SETUP_EN.copied, "ok");
-    } catch {
-      setNote(note, SETUP_EN.copyRefused, "bad");
-    }
-  }));
-  body.append(element("p", "q-setup-line", say("antigravitySetupNote")), block, actions);
+  appendRuntimeGuidance(body, "antigravity", note);
+  const command = runtimeInstallCommand("antigravity");
+  body.append(element("p", "q-setup-line", say("antigravitySetupNote")));
+  if (command) body.append(commandBox(command, note));
 }
 
 /* ------------------------------------------------------------------ render */
