@@ -40,7 +40,7 @@ import {
 } from "./readings.js";
 import { providerCode, providerName, say } from "./names.js";
 import { renderPlanCap } from "./plan-cap.js";
-import { refreshDesktopTrial, renderSettings, tickDesktopTrial } from "./settings.js";
+import { refreshDesktopTrial, renderSettings, themeLabel, tickDesktopTrial } from "./settings.js";
 import { mountAgents } from "./agents.js";
 import { keyRepaintGate, keyRows, proEntitled, refreshEntitlement, renderKeys, renderPro, saveOpenrouterConnection } from "./pro.js";
 /* The phone panel and the device list it produces. Both live behind an
@@ -117,6 +117,7 @@ import {
   connectTool,
   initConnections,
   noteMetersRefreshed,
+  placeSetupPanels,
   recordsFor,
   refreshConnection,
   removeConnection,
@@ -886,6 +887,7 @@ function paintTools(snapshots, now) {
   } else {
     patchLimits(elements.toolRows, tools);
   }
+  placeSetupPanels();
   if (elements.loading !== null) elements.loading.hidden = true;
   const catalogue = catalogueModel(tools.map((tool) => tool.code));
   const catalogueKey = limitsKey(catalogue);
@@ -1097,7 +1099,9 @@ function toggleTheme() {
   const light = document.documentElement.getAttribute("data-theme") === "light";
   const next = light ? "dark" : "light";
   document.documentElement.setAttribute("data-theme", next);
-  document.getElementById("theme")?.setAttribute("aria-pressed", next === "dark" ? "true" : "false");
+  const theme = document.getElementById("theme");
+  theme?.setAttribute("aria-pressed", next === "dark" ? "true" : "false");
+  if (theme) theme.textContent = themeLabel(next);
   try {
     window.localStorage.setItem(THEME_KEY, next);
   } catch {

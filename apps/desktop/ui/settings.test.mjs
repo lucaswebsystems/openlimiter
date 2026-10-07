@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { captionsMarkup, presetMarkup } from "./settings.js";
+import { captionsMarkup, presetMarkup, themeLabel } from "./settings.js";
 
 const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
 const settings = readFileSync(new URL("./settings.js", import.meta.url), "utf8");
@@ -18,4 +18,6 @@ test("Settings mounts its account hooks and gates captions by the feature entitl
   assert.match(freePresets, /data-preset="default"(?![^>]* disabled)/u);
   assert.match(freePresets, /data-preset="graphite"[^>]* disabled/u);
   assert.match(settings, /theme_preset/u);
+  assert.equal(themeLabel("dark"), "Dark");
+  assert.equal(themeLabel("light"), "Light");
 });

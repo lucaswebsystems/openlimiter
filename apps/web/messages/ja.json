@@ -46,6 +46,8 @@
     "updatesAbout": "更新と概要",
     "theme": "テーマ",
     "themeToggle": "ライトテーマとダークテーマを切り替え",
+    "themeDark": "ダーク",
+    "themeLight": "ライト",
     "locked": "ロック中",
     "terminalCaptions": "ターミナルキャプション",
     "terminalCaptionsShort": "短い表示",

@@ -96,11 +96,23 @@ function installCaptureStub() {
 
 function inspectFit(page) {
   return page.evaluate(() => {
+    function wraps(control) {
+      const range = document.createRange();
+      const lines = new Set();
+      const walker = document.createTreeWalker(control, NodeFilter.SHOW_TEXT);
+      while (walker.nextNode()) {
+        const text = walker.currentNode;
+        if (!text.textContent.trim()) continue;
+        range.selectNodeContents(text);
+        for (const rect of range.getClientRects()) lines.add(Math.round(rect.top));
+      }
+      return lines.size > 1;
+    }
     const findings = [];
     if (document.documentElement.scrollWidth > document.documentElement.clientWidth + 1) findings.push("the page scrolls sideways");
     for (const button of document.querySelectorAll("main button:not(.preset):not(.q-more), main a")) {
       if (!button.checkVisibility()) continue;
-      if (button.getBoundingClientRect().height > 40) findings.push(`control wraps: ${button.textContent.trim()}`);
+      if (wraps(button)) findings.push(`control wraps: ${button.textContent.trim()}`);
     }
     for (const element of document.querySelectorAll("main .q-card, main .q-group, main .q-row")) {
       if (!element.checkVisibility()) continue;
@@ -185,7 +197,13 @@ async function inspectTab(page, id, width, height, shots) {
   if (id === "tools") {
     const antigravity = page.locator('#tab-panel-tools [data-provider="ANTIGRAVITY"] [data-action="connect"]');
     await antigravity.click();
-    await page.locator("#antigravity-add").waitFor({ state: "visible" });
+    const setup = page.locator("#antigravity-add");
+    await setup.waitFor({ state: "visible" });
+    await setup.scrollIntoViewIfNeeded();
+    const setupBox = await setup.boundingBox();
+    const rowBox = await page.locator('#tab-panel-tools [data-provider="ANTIGRAVITY"]').boundingBox();
+    if (!setupBox || setupBox.top < -1 || setupBox.bottom > height + 1) throw new Error("Antigravity setup is not in the viewport");
+    if (!rowBox || setupBox.top < rowBox.bottom - 1) throw new Error("Antigravity setup is not under its row");
   }
   const findings = await page.evaluate(({ panelId, tabId }) => {
     const panel = document.querySelector(panelId);

@@ -1563,6 +1563,17 @@ body > .tabs {
   );
 }
 
+.chrome .tabs {
+  width: auto;
+  max-width: none;
+  margin-inline: 0;
+  padding-inline: max(
+    var(--ol-space-4),
+    calc((100% - var(--window-column, 46rem)) / 2 + var(--ol-space-4))
+  );
+  box-sizing: border-box;
+}
+
 body > .strip {
   border-bottom: 0;
   background: transparent;

@@ -233,6 +233,10 @@ const PRESETS = [
 
 const PRESET_KEY = "openlimiter-theme-preset";
 
+export function themeLabel(theme) {
+  return say(theme === "light" ? "themeLight" : "themeDark");
+}
+
 /* The quiet range a switched on quiet hours starts from. */
 const QUIET_DEFAULT = { quietStart: "22:00", quietEnd: "07:00" };
 
@@ -384,7 +388,8 @@ function alertsMarkup(settings) {
 }
 
 function themeMarkup() {
-  return '<div class="menu-line"><span>' + say("theme") + '</span><button type="button" id="theme" class="icon" aria-label="' + say("themeToggle") + '" title="' + say("themeToggle") + '">' + say("theme") + '</button></div>';
+  const current = globalThis.document?.documentElement?.getAttribute("data-theme") === "light" ? "light" : "dark";
+  return '<div class="menu-line"><span>' + say("theme") + '</span><button type="button" id="theme" class="icon" aria-label="' + say("themeToggle") + '" title="' + say("themeToggle") + '">' + themeLabel(current) + '</button></div>';
 }
 
 export function captionsMarkup(captions, entitled) {

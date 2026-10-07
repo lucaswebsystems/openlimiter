@@ -115,6 +115,8 @@
   "updatesAbout": "Updates and About",
   "theme": "Theme",
   "themeToggle": "Switch between the light and dark theme",
+  "themeDark": "Dark",
+  "themeLight": "Light",
   "locked": "Locked",
   "terminalCaptions": "Terminal captions",
   "terminalCaptionsShort": "Short",

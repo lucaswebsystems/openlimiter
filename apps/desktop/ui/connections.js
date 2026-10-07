@@ -98,6 +98,7 @@ let options = null;
 
 /* The setup panels under the list, by the tool each one sets up. */
 const SETUP_TARGETS = { CLAUDE: "claude-card", ANTIGRAVITY: "antigravity-add", OPENCODE: "opencode-add" };
+const setupPanels = new Map();
 
 /* The closed wire words for the remaining pasted credential. */
 const PASTED = {
@@ -385,6 +386,21 @@ function render() {
   renderAntigravity();
 }
 
+/** Keep each setup panel immediately after the row that opens it. */
+export function placeSetupPanels(doc = globalThis.document) {
+  if (!doc?.querySelectorAll) return;
+  const groups = [...doc.querySelectorAll("#tool-rows [data-provider]")];
+  for (const [code, targetId] of Object.entries(SETUP_TARGETS)) {
+    const group = groups.find((entry) => entry.getAttribute("data-provider") === code);
+    const target = setupPanels.get(targetId) ?? doc.getElementById(targetId);
+    const parent = group?.parentElement;
+    if (!group || !target || !parent) continue;
+    const next = group.nextElementSibling;
+    if (target.parentElement === parent && next === target) continue;
+    parent.insertBefore(target, next ?? null);
+  }
+}
+
 /** Open one setup panel under the list, close any other, and focus it. */
 function openSetup(code) {
   session.activeSetup = code;
@@ -602,6 +618,7 @@ export function initConnections(configuration) {
   session.ready = true;
   for (const code of Object.keys(SETUP_TARGETS)) {
     const panel = document.getElementById(SETUP_TARGETS[code]);
+    if (panel) setupPanels.set(SETUP_TARGETS[code], panel);
     panel?.querySelector?.("[data-setup-close]")?.addEventListener("click", () => {
       session.activeSetup = null;
       render();
