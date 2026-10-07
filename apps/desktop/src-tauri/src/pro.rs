@@ -1346,6 +1346,10 @@ pub(crate) fn multi_account_enabled(store: &dyn SecretStore) -> bool {
     current_status(store).multi_account
 }
 
+pub(crate) fn theme_preset_enabled(store: &dyn SecretStore) -> bool {
+    current_status(store).theme_preset
+}
+
 /// Whether this machine's entitlement permits hosted API spend sync.
 ///
 /// Local API spend tracking is available to every account. The hosted surface

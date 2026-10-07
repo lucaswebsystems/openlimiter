@@ -20,17 +20,16 @@
 import {
   BACKEND_ABSENT,
   accountStatus,
-  claudePollEnabled,
   notificationSettings,
   proStatus,
   proService,
   setClaudePollEnabled,
   setNotificationSettings,
-  setProviderEnabled,
+  setTerminalCaptions,
+  terminalCaptions,
 } from "./backend.js";
 import { activityClient } from "./agents.js";
-import { homeSelectionControl } from "./configured-providers.js";
-import { providerName, say } from "./names.js";
+import { say } from "./names.js";
 
 // English catalog for the menu's settings. L7 owns translations.
 export const ALERTS_EN = Object.freeze({
@@ -53,6 +52,12 @@ export const CLAUDE_POLL_EN = Object.freeze({
 });
 
 export const MENU_EN = Object.freeze({ tools: "Tools", preset: "Theme preset", agentAlerts: "Agent alerts" });
+export const CAPTIONS_EN = Object.freeze({
+  title: "Terminal captions",
+  short: "Short",
+  tagged: "Tagged everywhere",
+  note: "Short leaves the host tool's own bars untagged. Tagged everywhere adds the tool tag to every bar.",
+});
 
 // English catalog for the trial control. L7 owns translations.
 export const TRIAL_EN = Object.freeze({
@@ -75,7 +80,7 @@ export function openTrialInBrowser(url = TRIAL_URL) {
 
 /** Bring the plan card into view: open the menu when it is closed, then scroll. */
 export function showPlan(doc = document) {
-  if (doc.getElementById("app-menu")?.hidden) doc.getElementById("menu-button")?.click();
+  doc.getElementById("tab-settings")?.click();
   doc.getElementById("pro-plan")?.scrollIntoView?.({ block: "start", behavior: "smooth" });
 }
 
@@ -378,28 +383,43 @@ function alertsMarkup(settings) {
   );
 }
 
-function claudePollMarkup(enabled) {
-  return '<div class="menu-line"><label for="claude-poll">' + CLAUDE_POLL_EN.label + "</label>" +
-    switchMarkup("claude-poll", enabled === true, enabled === null) + "</div>" +
-    '<p class="menu-note">' + CLAUDE_POLL_EN.note + "</p>";
+function themeMarkup() {
+  return '<div class="menu-line"><span>Theme</span><button type="button" id="theme" class="icon" aria-label="Switch between the light and dark theme" title="Switch between the light and dark theme">Theme</button></div>';
 }
 
-/** The menu's settings: alerts, quiet hours, snooze, preset, edge tab, the Claude poll, the tools. */
+function captionsMarkup(captions, entitled) {
+  return '<div class="menu-presets terminal-captions"><span>' + CAPTIONS_EN.title + '</span><span class="preset-grid">' +
+    '<button type="button" class="preset" data-caption="short" aria-pressed="' + String(captions === "short") + '">' + CAPTIONS_EN.short + '</button>' +
+    '<button type="button" class="preset" data-caption="tagged" aria-pressed="' + String(captions === "tagged") + '"' + (entitled ? "" : " disabled") + '>' +
+    (entitled ? "" : '<span aria-hidden="true">Locked: </span>') + CAPTIONS_EN.tagged + '</button></span></div>' +
+    '<p class="menu-note">' + CAPTIONS_EN.note + '</p>';
+}
+
+function appearanceMarkup(chosen, entitled, captions) {
+  return themeMarkup() +
+    '<div class="menu-presets"><span>' + MENU_EN.preset + '</span><span class="preset-grid">' + presetMarkup(entitled, chosen) + "</span></div>" +
+    captionsMarkup(captions, entitled) + railSettingsMarkup();
+}
+
+/** Settings are divided into appearance and alerts mounts, while account and Pro stay in the page. */
 export async function renderSettings(mount) {
-  state.mount = mount;
-  if (mount === null) return;
+  const target = mount?.appearance ? mount : { appearance: mount, alerts: document.getElementById("settings-alerts") };
+  if (!target.alerts) target.alerts = target.appearance;
+  state.mount = target.appearance;
+  if (target.appearance === null) return;
 
   const agents = activityClient();
-  const [settingsResult, proResult, pollResult, agentResult] = await Promise.all([
+  const [settingsResult, proResult, captionsResult, agentResult] = await Promise.all([
     notificationSettings(),
     proStatus(),
-    claudePollEnabled(),
+    terminalCaptions(),
     agents.preferences().then((value) => ({ ok: true, value }), () => ({ ok: false })),
   ]);
 
   if (!settingsResult.ok && settingsResult.reason === BACKEND_ABSENT) {
-    mount.innerHTML = railSettingsMarkup() + '<p class="menu-note">' + ALERTS_EN.unavailable + "</p>";
-    await wireRailSettings(mount);
+    target.appearance.innerHTML = appearanceMarkup("default", false, "short");
+    target.alerts.innerHTML = '<p class="menu-note">' + ALERTS_EN.unavailable + "</p>";
+    await wireRailSettings(target.appearance);
     return;
   }
 
@@ -407,6 +427,7 @@ export async function renderSettings(mount) {
   state.settings = settings;
   const pro = proResult.ok ? proResult.value : null;
   const entitled = pro?.theme_preset === true;
+  const captions = captionsResult.ok && captionsResult.value?.captions === "tagged" ? "tagged" : "short";
   let chosen = "default";
   try {
     chosen = globalThis.localStorage.getItem(PRESET_KEY) ?? "default";
@@ -418,27 +439,14 @@ export async function renderSettings(mount) {
   document.documentElement.setAttribute("data-preset", entitled ? chosen : "default");
 
   state.agentAlerts = agentResult.ok ? agentResult.value : null;
-  mount.innerHTML =
+  target.appearance.innerHTML = appearanceMarkup(chosen, entitled, captions);
+  target.alerts.innerHTML =
     alertsMarkup(settings) +
     '<div class="menu-line"><label for="agent-alerts">' + MENU_EN.agentAlerts + "</label>" +
-    switchMarkup("agent-alerts", state.agentAlerts?.local?.enabled === true, state.agentAlerts === null) + "</div>" +
-    claudePollMarkup(pollResult.ok && typeof pollResult.value?.enabled === "boolean" ? pollResult.value.enabled : null) +
-    railSettingsMarkup() +
-    '<div class="menu-presets"><span>' + MENU_EN.preset + '</span><span class="preset-grid">' + presetMarkup(entitled, chosen) + "</span></div>" +
-    '<div class="menu-switches" role="group" aria-labelledby="menu-tools-title"><strong id="menu-tools-title">' + MENU_EN.tools + "</strong></div>";
-
-  const switches = mount.querySelector(".menu-switches");
-  for (const code of TOOL_SWITCHES) {
-    const line = document.createElement("div");
-    line.className = "menu-line";
-    const name = document.createElement("span");
-    name.textContent = providerName(code);
-    line.append(name, homeSelectionControl(code, () => {}, document, setProviderEnabled, providerName(code)));
-    switches.append(line);
-  }
+    switchMarkup("agent-alerts", state.agentAlerts?.local?.enabled === true, state.agentAlerts === null) + "</div>";
 
   wire(agents);
-  await wireRailSettings(mount);
+  await wireRailSettings(target.appearance);
 }
 
 async function save(patch) {
@@ -508,6 +516,13 @@ function wire(agents) {
         /* Storage refused. The choice lasts for this window only. */
       }
       await renderSettings(state.mount);
+    });
+  }
+  for (const control of document.querySelectorAll("[data-caption]")) {
+    control.addEventListener("click", async () => {
+      if (control.disabled) return;
+      const result = await setTerminalCaptions(control.getAttribute("data-caption"));
+      if (result.ok) await renderSettings(state.mount);
     });
   }
 }

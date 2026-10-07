@@ -36,6 +36,7 @@ import {
   patchLimits,
   projectReadings,
   renderLimits,
+  splitInventory,
 } from "./readings.js";
 import { providerCode, providerName, say } from "./names.js";
 import { renderPlanCap } from "./plan-cap.js";
@@ -99,6 +100,7 @@ import {
   setClaudePollEnabled,
   setProviderEnabled,
   setTrayStatus,
+  setTerminalCaptions,
 } from "./backend.js";
 import { readConfiguredProviders, readRemovedProviders, adoptDetectedProviders, homeSelectionControl } from "./configured-providers.js";
 import { bindHomeRefresh } from "./home-refresh.js";
@@ -123,7 +125,8 @@ import {
 } from "./connections.js";
 import { initFirstRun } from "./first-run.js";
 import { useClaudeSignIn } from "./claude-sign-in.js";
-import { initWhatsNew } from "./whats-new.js";
+import { initWhatsNew, openWhatsNew } from "./whats-new.js";
+import { tabSwitcher } from "./tabs.js";
 
 /** How often the window re reads the cache, in milliseconds. */
 const REFRESH_INTERVAL = 30_000;
@@ -132,6 +135,11 @@ const REFRESH_INTERVAL = 30_000;
 const THEME_KEY = "openlimiter-theme";
 
 const elements = {
+  usageRows: document.getElementById("usage-rows"),
+  usageEmpty: document.getElementById("usage-empty"),
+  usageConnect: document.getElementById("usage-connect"),
+  spendSection: document.getElementById("spend-section"),
+  spendRows: document.getElementById("spend-rows"),
   toolRows: document.getElementById("tool-rows"),
   addTool: document.getElementById("add-tool"),
   catalogue: document.getElementById("tool-catalogue"),
@@ -177,7 +185,7 @@ const elements = {
   loading: document.getElementById("loading"),
   planCapMount: document.getElementById("plan-cap-mount"),
   proMount: document.getElementById("pro-mount"),
-  settingsMount: document.getElementById("settings-mount"),
+  settingsMount: document.getElementById("settings-appearance"),
 };
 
 /*
@@ -222,6 +230,7 @@ function applyAccountState(status) {
   if (elements.menuSignIn !== null) elements.menuSignIn.hidden = signedIn;
   if (elements.menuSignedIn !== null) elements.menuSignedIn.hidden = !signedIn;
   if (elements.menuLogout !== null) elements.menuLogout.hidden = !signedIn;
+  if (signedIn) void renderDevices();
   setPairingAccountState(signedIn);
   void refreshDesktopTrial();
 }
@@ -562,11 +571,17 @@ async function askAlertPermission() {
 const popovers = headerPopovers([
   { panel: elements.phonePopover, button: elements.phoneButton,
     onOpen: pairingPanelOpened, onClose: pairingPanelClosed },
-  { panel: elements.menu, button: elements.menuButton, onOpen() {
-    if (signedIn) void renderDevices();
-    void askAlertPermission();
-  } },
 ]);
+
+const tabs = tabSwitcher({
+  tabs: document.querySelectorAll('[role="tab"]'),
+  panels: document.querySelectorAll('[role="tabpanel"]'),
+  onSelect: (id) => {
+    if (id === "tab-settings") void askAlertPermission();
+  },
+});
+elements.usageConnect?.addEventListener("click", () => tabs.select(document.getElementById("tab-tools")));
+document.getElementById("pair-phone")?.addEventListener("click", () => elements.phoneButton?.click());
 
 elements.menuSync?.addEventListener("change", () => {
   const requested = elements.menuSync.checked;
@@ -579,6 +594,8 @@ elements.menuSync?.addEventListener("change", () => {
 elements.menuUpdate?.addEventListener("click", () => {
   void runUpdateCheck(false);
 });
+elements.menuWhatsNew = document.getElementById("menu-whats-new");
+elements.menuWhatsNew?.addEventListener("click", () => { void openWhatsNew(); });
 
 elements.updateBanner?.addEventListener("click", () => {
   elements.updateBanner.disabled = true;
@@ -620,7 +637,10 @@ void mountPlanCap();
 /* One refresh repaints every control gated on the entitlement: the tray
    offer, the account cap, the plan card and the preset. */
 window.addEventListener("openlimiter:pro-changed", () => {
-  void readPlan();
+  void proStatus().then((result) => {
+    if (result.ok && result.value?.theme_preset !== true) void setTerminalCaptions("short");
+    return readPlan();
+  });
   void mountPlanCap();
   void renderPro(elements.proMount);
   void renderSettings(elements.settingsMount);
@@ -782,6 +802,7 @@ async function repaintHome() {
 
 /* ------------------------------------------------------------ the one list */
 
+let drawnUsage = "";
 let drawnTools = "";
 let drawnCatalogue = "";
 /* Which rows have their small menu open, kept across redraws. */
@@ -790,7 +811,10 @@ let catalogueOpen = false;
 
 const toolHandlers = {
   /* OpenRouter connects through its key row, so its Connect goes there. */
-  connect: (code) => (code === "OPENROUTER" ? focusKey("openrouter") : connectTool(code)),
+  connect: (code) => {
+    document.getElementById("tab-tools")?.click();
+    return code === "OPENROUTER" ? focusKey("openrouter") : connectTool(code);
+  },
   check: (code) => checkTool(code),
   /* Claude's one click: the direct check on, the menu switch repainted, one read. */
   poll: async () => {
@@ -824,15 +848,24 @@ function paintTools(snapshots, now) {
   }, now);
   /* Redrawn only when something on it changed, so a step in flight keeps
      its button and its line. */
-  const key = limitsKey(model);
+  const { usage, tools } = splitInventory(model);
+  const usageKey = limitsKey(usage);
+  if (usageKey !== drawnUsage) {
+    drawnUsage = usageKey;
+    renderLimits(document, elements.usageRows, usage);
+  } else {
+    patchLimits(elements.usageRows, usage);
+  }
+  if (elements.usageEmpty !== null) elements.usageEmpty.hidden = usage.length !== 0;
+  const key = limitsKey(tools);
   if (key !== drawnTools) {
     drawnTools = key;
-    renderLimits(document, elements.toolRows, model, { handlers: toolHandlers, more: fillMore, opened: openMenus });
+    renderLimits(document, elements.toolRows, tools, { handlers: toolHandlers, more: fillMore, opened: openMenus });
   } else {
-    patchLimits(elements.toolRows, model);
+    patchLimits(elements.toolRows, tools);
   }
   if (elements.loading !== null) elements.loading.hidden = true;
-  const catalogue = catalogueModel(model.map((tool) => tool.code));
+  const catalogue = catalogueModel(tools.map((tool) => tool.code));
   const catalogueKey = limitsKey(catalogue);
   if (catalogueKey !== drawnCatalogue) {
     drawnCatalogue = catalogueKey;
@@ -904,6 +937,26 @@ function fillMore(tool, panel) {
     panel.append(moreLine(text("q-morelabel", say("showTool")),
       homeSelectionControl(tool.code, () => {}, document, setProviderEnabled, tool.name)));
   }
+  if (tool.code === "CLAUDE") {
+    const label = document.createElement("label");
+    label.className = "q-morelabel";
+    label.textContent = say("showClaudeFable");
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.role = "switch";
+    input.checked = claudePoll === true;
+    input.disabled = claudePoll === null;
+    input.addEventListener("change", async () => {
+      input.disabled = true;
+      const result = await setClaudePollEnabled(input.checked);
+      if (result.ok) claudePoll = input.checked;
+      else input.checked = claudePoll === true;
+      input.disabled = claudePoll === null;
+      drawnTools = "";
+      void refresh();
+    });
+    panel.append(moreLine(label, input), moreLine(text("q-morelabel", say("showClaudeFableNote"))));
+  }
   for (const flag of tool.extra) {
     const route = ["CODEX", "ANTIGRAVITY", "OPENCODE", "CLAUDE"].includes(flag.provider) && flag.fixKind !== "open_app" ? "connect" : "rescan";
     const words = fixWords(flag, route);
@@ -943,8 +996,8 @@ function focusKey(provider) {
 const keyHandlers = {
   markFor: officialMark,
   /* A refused row replaces only its connection. An empty row adds one. */
-  saveOpenrouter: async (secret, recordId) => {
-    return saveOpenrouterConnection(secret, recordId, {
+  saveOpenrouter: async (secret, recordId, credentialKind) => {
+    return saveOpenrouterConnection(secret, recordId, credentialKind, {
       replace: replaceOpenrouterKey,
       save: saveOpenrouterKey,
     });
@@ -986,6 +1039,9 @@ function paintKeys(now) {
     const key = JSON.stringify(rows);
     if (key === drawnKeys) return;
     renderKeys(document, elements.keyRows, rows, keyHandlers);
+    const spendRows = rows.filter((row) => row.state === "reading" && (row.amount || row.cny));
+    elements.spendSection.hidden = spendRows.length === 0;
+    renderKeys(document, elements.spendRows, spendRows, keyHandlers, { readOnly: true });
     drawnKeys = key;
   });
 }
@@ -1010,16 +1066,19 @@ bindHomeRefresh({
  * choice, so all this does is flip the attribute the stylesheet keys off and
  * write the new choice down, under the key the site's own toggle uses.
  */
-elements.theme.addEventListener("click", () => {
+function toggleTheme() {
   const light = document.documentElement.getAttribute("data-theme") === "light";
   const next = light ? "dark" : "light";
   document.documentElement.setAttribute("data-theme", next);
-  elements.theme.setAttribute("aria-pressed", next === "dark" ? "true" : "false");
+  document.getElementById("theme")?.setAttribute("aria-pressed", next === "dark" ? "true" : "false");
   try {
     window.localStorage.setItem(THEME_KEY, next);
   } catch {
     /* Storage refused. The choice still applies to this window. */
   }
+}
+document.addEventListener("click", (event) => {
+  if (event.target instanceof Element && event.target.closest("#theme")) toggleTheme();
 });
 
 /* The tools' steps: Claude Code's setup, the pasted keys, Codex's import. */
@@ -1082,6 +1141,7 @@ initFirstRun({
   },
   /* An install row's tool gets its own step on the one screen. */
   onInstall: (provider) => {
+    document.getElementById("tab-tools")?.click();
     const code = providerCode(provider);
     void (ALWAYS_LISTED.includes(code) || code === "CODEX" ? toolHandlers.connect(code) : checkTool(code));
   },

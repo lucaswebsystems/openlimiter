@@ -6,6 +6,10 @@
     "saveFailed": "画面端のタブの設定を保存できませんでした。もう一度お試しください。"
   },
   "desktopReadings": {
+    "usageTab": "使用状況",
+    "connectToolsTab": "ツールを接続",
+    "settingsTab": "設定",
+    "apiSpend": "API 支出",
     "pasteOpenRouterKey": "下の API キー一覧に OpenRouter のキーを貼り付けてください。",
     "checkingSignIn": "サインインを確認しています...",
     "cliNotFound": "{name} CLI が見つかりません。PATH に追加してから、もう一度確認してください。",
@@ -79,7 +83,7 @@
     "removeConfirm": "もう一度押すと削除します",
     "claudeWeeklyOAuthApps": "週間、OAuth アプリ",
     "showClaudeFable": "Fable の上限を表示",
-    "showClaudeFableNote": "このコンピューターの Claude サインインを使って使用量を直接リクエストし、Claude に表示されるものと同じ使用量を読み取ります。このようなツールに関する Anthropic の方針は未解決です。設定でオフにできます。",
+    "showClaudeFableNote": "このコンピューターの Claude サインインを使って使用量を直接リクエストし、Claude に表示されるものと同じ使用量を読み取ります。このようなツールに関する Anthropic の方針は未解決です。ツールを接続でオフにできます。",
     "claudePollConsentTitle": "Fable の上限を表示しますか？",
     "claudePollNotNow": "今はしない",
     "claudePollSaveFailed": "選択を保存できなかったため、Claude の使用量はオフのままです。",

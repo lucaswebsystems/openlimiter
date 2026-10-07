@@ -6,6 +6,10 @@
     "saveFailed": "Die Einstellung für den Tab am Bildschirmrand konnte nicht gespeichert werden. Versuche es erneut."
   },
   "desktopReadings": {
+    "usageTab": "Nutzung",
+    "connectToolsTab": "Werkzeuge verbinden",
+    "settingsTab": "Einstellungen",
+    "apiSpend": "API Ausgaben",
     "pasteOpenRouterKey": "Fügen Sie Ihren OpenRouter Schlüssel unten in die Liste der API Schlüssel ein.",
     "checkingSignIn": "Ihre Anmeldung wird geprüft...",
     "cliNotFound": "{name} CLI nicht gefunden. Nehmen Sie sie in PATH auf und prüfen Sie dann erneut.",
@@ -79,7 +83,7 @@
     "removeConfirm": "Zum Entfernen erneut drücken",
     "claudeWeeklyOAuthApps": "Wöchentlich, OAuth Apps",
     "showClaudeFable": "Fable Limit anzeigen",
-    "showClaudeFableNote": "Liest dieselbe Nutzung, die Claude anzeigt, indem eine direkte Nutzungsanfrage mit deiner Claude Anmeldung auf diesem Computer gesendet wird. Anthropics Richtlinie für solche Werkzeuge ist ungeklärt. Du kannst dies in den Einstellungen ausschalten.",
+    "showClaudeFableNote": "Liest dieselbe Nutzung, die Claude anzeigt, indem eine direkte Nutzungsanfrage mit deiner Claude Anmeldung auf diesem Computer gesendet wird. Anthropics Richtlinie für solche Werkzeuge ist ungeklärt. Du kannst dies unter Werkzeuge verbinden ausschalten.",
     "claudePollConsentTitle": "Dein Fable Limit anzeigen?",
     "claudePollNotNow": "Jetzt nicht",
     "claudePollSaveFailed": "Die Auswahl konnte nicht gespeichert werden, deshalb bleibt die Claude Nutzung ausgeschaltet.",

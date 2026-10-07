@@ -46,7 +46,7 @@ describe("download choice", () => {
     const image = mounted.container.querySelector("picture img");
     expect(image?.getAttribute("src")).toBe("/screenshots/desktop-home.png");
     expect(image?.getAttribute("width")).toBe("2000");
-    expect(image?.getAttribute("height")).toBe("1520");
+    expect(image?.getAttribute("height")).toBe("2410");
     expect(mounted.container.querySelectorAll("article a svg")).toHaveLength(3);
   });
 });

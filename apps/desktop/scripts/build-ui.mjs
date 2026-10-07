@@ -271,6 +271,7 @@ const WINDOW_FILES = [
   "theme.css",
   "app.css",
   "app.js",
+  "tabs.js",
   "agents.js",
   "agents.css",
   "agents.en.js",

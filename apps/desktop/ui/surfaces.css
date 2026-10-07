@@ -1607,19 +1607,3 @@ body > .strip {
  * its own contents. Two cards side by side at different heights read as two
  * unrelated things; at one height they read as a row.
  */
-@media (min-width: 1100px) {
-  body {
-    --window-column: 74rem;
-  }
-
-  #panel-meters {
-    display: grid;
-    grid-template-columns: repeat(12, minmax(0, 1fr));
-    align-items: stretch;
-    gap: var(--ol-space-4);
-  }
-
-  #panel-meters > * {
-    grid-column: 1 / -1;
-  }
-}

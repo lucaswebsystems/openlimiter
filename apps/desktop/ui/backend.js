@@ -419,6 +419,15 @@ export async function setProviderEnabled(provider, enabled) {
   return call("set_provider_enabled", { provider: provider.toLowerCase().replaceAll("-", "_"), enabled });
 }
 
+export async function terminalCaptions() {
+  return call("terminal_captions");
+}
+
+export async function setTerminalCaptions(captions) {
+  if (captions !== "short" && captions !== "tagged") return refusedInput("set_terminal_captions");
+  return call("set_terminal_captions", { captions });
+}
+
 /** The provider and account presence report owned by the native detector. */
 export async function listDetectedProviders() {
   const ready = await syncProviderSwitches();

@@ -9,13 +9,21 @@ import { fakeDocument, leaks, spoken } from "./test-dom.mjs";
 // readings.js reaches the compiled engine, which only exists in the build.
 import {
   attentionFlags, fixWords, holdReadings, inventoryModel, limitsKey, limitsModel, officialMark, patchLimits, projectReadings,
-  renderLimits, timeLeft, updatedLabel,
+  renderLimits, splitInventory, timeLeft, updatedLabel,
 } from "./dist/readings.js";
 
 const NOW = Date.parse("2026-09-29T12:00:00.000Z");
 const now = new Date(NOW).toISOString();
 const fixtures = messyFixtures(NOW);
 const read = (file) => readFileSync(new URL(file, import.meta.url), "utf8");
+
+test("splitInventory keeps measured bars separate and strips Usage actions", () => {
+  const measured = { code: "CLAUDE", windows: [{ label: "Weekly" }], action: { label: "Connect" }, note: "old", extra: ["detail"] };
+  const setup = { code: "KIMI", windows: [], action: { label: "Connect" }, note: null, extra: [] };
+  const result = splitInventory([measured, setup]);
+  assert.deepEqual(result.usage, [{ ...measured, action: null, note: null, extra: [] }]);
+  assert.deepEqual(result.tools, [measured, setup]);
+});
 
 test("one case insensitive name for every provider code, from the registry", () => {
   for (const code of ["CLAUDE", "claude", "Claude"]) assert.equal(providerName(code), "Claude Code");

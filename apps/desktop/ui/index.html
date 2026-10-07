@@ -233,13 +233,9 @@
       </div>
     </section>
 
-    <!--
-      One screen. The header is the mark and the name, refresh, the phone
-      and the menu; there is no tab bar. Every tool is one row, every API key
-      is one row, and everything else is in the menu.
-    -->
-    <header class="strip">
-      <div class="strip-top">
+    <div class="chrome">
+      <header class="strip">
+        <div class="strip-top">
         <div class="lockup" role="img" aria-label="OpenLimiter">
           <img class="brand-lockup-light" src="./brand/openlimiter-lockup-light.svg" alt="" />
           <img class="brand-lockup-dark" src="./brand/openlimiter-lockup-dark.svg" alt="" />
@@ -264,133 +260,149 @@
               <path d="M11 18.5h2" />
             </svg>
           </button>
-          <button type="button" id="menu-button" class="icon" aria-label="Open menu" title="Menu" aria-expanded="false" aria-controls="app-menu">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" focusable="false">
-              <path d="M4 7h16M4 12h16M4 17h16" />
-            </svg>
-          </button>
         </div>
-      </div>
-    </header>
+        </div>
+      </header>
+      <nav class="tabs" role="tablist" aria-label="OpenLimiter">
+        <button type="button" id="tab-usage" role="tab" aria-controls="tab-panel-usage" aria-selected="true">Usage</button>
+        <button type="button" id="tab-tools" role="tab" aria-controls="tab-panel-tools" aria-selected="false" tabindex="-1">Connect Tools</button>
+        <button type="button" id="tab-settings" role="tab" aria-controls="tab-panel-settings" aria-selected="false" tabindex="-1">Settings</button>
+      </nav>
+    </div>
 
     <button type="button" id="update-banner" class="update-banner" hidden></button>
     <p id="offline-banner" class="offline-banner" hidden>Offline. Local collection is still running.</p>
 
     <main id="home">
-      <p id="home-refresh-status" class="q-note" role="status" aria-live="polite"></p>
-
-      <!-- One alert per provider that failed, in the words the core used. -->
-      <div id="failures" class="stack" hidden></div>
-
-      <!-- Every tool in play: its bars, or one step, or a muted note. -->
-      <section class="q-section" aria-labelledby="tools-title">
-        <div class="q-head"><h2 id="tools-title">Tools</h2></div>
-        <div class="q-card q-tools">
-          <!-- The skeleton, at the geometry of the rows it stands in for. -->
-          <div id="loading" class="q-skeleton" hidden aria-hidden="true">
-            <span class="q-skel q-skel-name"></span>
-            <span class="q-skel"></span>
-            <span class="q-skel"></span>
+      <div id="tab-panel-usage" role="tabpanel" aria-labelledby="tab-usage">
+        <p id="home-refresh-status" class="q-note" role="status" aria-live="polite"></p>
+        <div id="failures" class="stack" hidden></div>
+        <section class="q-section" aria-labelledby="usage-title">
+          <div class="q-head"><h2 id="usage-title">Usage</h2></div>
+          <div class="q-card q-usage">
+            <div id="loading" class="q-skeleton" hidden aria-hidden="true">
+              <span class="q-skel q-skel-name"></span>
+              <span class="q-skel"></span>
+              <span class="q-skel"></span>
+            </div>
+            <div id="usage-rows" class="q-limits" aria-label="Usage"></div>
+            <div id="usage-empty" class="q-empty" hidden>
+              <p>No bars yet. Connect a tool to see its usage.</p>
+              <button type="button" id="usage-connect" class="q-btn q-btn-ghost">Connect a tool</button>
+            </div>
           </div>
-          <div id="tool-rows" class="q-limits" aria-label="Tools"></div>
+        </section>
+        <section id="spend-section" class="q-section" aria-labelledby="spend-title" hidden>
+          <div class="q-head"><h2 id="spend-title">API spend</h2></div>
+          <div id="spend-rows" class="q-card q-keys"></div>
+        </section>
+        <section id="agents-section" class="q-section" aria-labelledby="agents-title" hidden>
+          <div class="q-head"><h2 id="agents-title">Agents</h2></div>
+          <div id="agents-mount"></div>
+        </section>
+      </div>
+
+      <div id="tab-panel-tools" role="tabpanel" aria-labelledby="tab-tools" hidden>
+        <section class="q-section" aria-labelledby="tools-title">
+          <div class="q-head"><h2 id="tools-title">Connect Tools</h2></div>
+          <div class="q-card q-tools">
+            <div id="tool-rows" class="q-limits" aria-label="Tools"></div>
 
           <!-- The one setup panel a Connect opens, under the list. -->
-          <section id="claude-card" class="q-setup" aria-label="Claude Code setup" tabindex="-1" hidden>
+            <section id="claude-card" class="q-setup" aria-label="Claude Code setup" tabindex="-1" hidden>
             <div id="claude-body"></div>
             <p id="claude-note" class="q-fstatus" role="status"></p>
             <button type="button" class="q-iconbtn q-setup-close" data-setup-close aria-label="Close">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="m4.5 4.5 7 7M11.5 4.5l-7 7" /></svg>
             </button>
-          </section>
-          <section id="antigravity-add" class="q-setup" aria-label="Antigravity setup" tabindex="-1" hidden>
+            </section>
+            <section id="antigravity-add" class="q-setup" aria-label="Antigravity setup" tabindex="-1" hidden>
             <div id="antigravity-body"></div>
             <button type="button" class="q-iconbtn q-setup-close" data-setup-close aria-label="Close">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="m4.5 4.5 7 7M11.5 4.5l-7 7" /></svg>
             </button>
             <p id="antigravity-note" class="q-fstatus" role="status"></p>
-          </section>
-          <section id="opencode-add" class="q-setup q-setup-key" aria-label="OpenCode setup" tabindex="-1" hidden>
+            </section>
+            <section id="opencode-add" class="q-setup q-setup-key" aria-label="OpenCode setup" tabindex="-1" hidden>
             <input id="opencode-key" class="q-kfield" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Session cookie" aria-label="OpenCode session cookie" />
             <button type="button" class="q-btn q-btn-primary" data-setup-save>Save</button>
             <button type="button" class="q-iconbtn q-setup-close" data-setup-close aria-label="Close">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="m4.5 4.5 7 7M11.5 4.5l-7 7" /></svg>
             </button>
             <p class="q-fstatus" data-setup-note role="status"></p>
-          </section>
+            </section>
 
-          <button type="button" id="add-tool" class="q-addrow" aria-expanded="false" aria-controls="tool-catalogue">
+            <button type="button" id="add-tool" class="q-addrow" aria-expanded="false" aria-controls="tool-catalogue">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M8 3.2v9.6M3.2 8h9.6" /></svg>
             <span>Add a tool</span>
-          </button>
-          <div id="tool-catalogue" class="q-limits q-catalogue" aria-label="Add a tool" hidden></div>
-        </div>
-      </section>
+            </button>
+            <div id="tool-catalogue" class="q-limits q-catalogue" aria-label="Add a tool" hidden></div>
+          </div>
+        </section>
+        <section class="q-section" aria-labelledby="keys-title">
+          <div class="q-head"><h2 id="keys-title">API keys</h2></div>
+          <div id="key-rows" class="q-card q-keys"></div>
+        </section>
+      </div>
 
-      <!-- The API keys: one row each, a field and Save, then the money. -->
-      <section class="q-section" aria-labelledby="keys-title">
-        <div class="q-head"><h2 id="keys-title">API keys</h2></div>
-        <div id="key-rows" class="q-card q-keys"></div>
-      </section>
-
-      <!-- Shown only while an agent session exists. -->
-      <section id="agents-section" class="q-section" aria-labelledby="agents-title" hidden>
-        <div class="q-head"><h2 id="agents-title">Agents</h2></div>
-        <div id="agents-mount"></div>
-      </section>
+      <div id="tab-panel-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+        <section class="settings q-section" aria-labelledby="appearance-title">
+          <div class="q-head"><h2 id="appearance-title">Appearance</h2></div>
+          <div id="settings-appearance" class="q-card"></div>
+        </section>
+        <section class="settings q-section" aria-labelledby="alerts-title">
+          <div class="q-head"><h2 id="alerts-title">Alerts</h2></div>
+          <div id="settings-alerts" class="q-card"></div>
+        </section>
+        <section class="settings q-section" aria-labelledby="account-title">
+          <div class="q-head"><h2 id="account-title">Account and Pro</h2></div>
+          <div class="q-card">
+            <div class="menu-account">
+              <strong id="menu-account-email">Signed out</strong>
+              <span id="menu-backend-state"></span>
+            </div>
+            <div id="menu-signin" class="menu-signin" hidden>
+              <button type="button" id="menu-sign-in" class="primary">Sign in</button>
+            </div>
+            <div id="menu-signed-in" class="menu-group" hidden>
+              <label class="menu-line"><span>Sync usage percentages</span><span class="provider-switch"><input id="menu-sync" type="checkbox" role="switch" checked /><span class="provider-switch-track" aria-hidden="true"></span></span></label>
+              <div id="devices-mount" class="menu-device-list"></div>
+            </div>
+            <button type="button" id="pair-phone" class="q-btn q-btn-ghost">Pair your phone</button>
+            <div class="desktop-trial" data-desktop-trial hidden></div>
+            <div id="pro-mount" class="menu-group"></div>
+            <div id="plan-cap-mount" class="menu-group"></div>
+            <button type="button" id="menu-logout" class="q-btn q-btn-ghost" hidden>Sign out</button>
+          </div>
+        </section>
+        <section class="settings q-section" aria-labelledby="about-title">
+          <div class="q-head"><h2 id="about-title">Updates and About</h2></div>
+          <div class="q-card">
+            <button type="button" id="menu-update">Check for updates</button>
+            <button type="button" id="menu-whats-new">What's new</button>
+            <p class="menu-note" data-app-version>OpenLimiter</p>
+            <nav class="menu-links" aria-label="About">
+              <a href="https://openlimiter.com/en/privacy" target="_blank" rel="noopener noreferrer">Privacy</a>
+              <a href="https://openlimiter.com/en/terms" target="_blank" rel="noopener noreferrer">Terms</a>
+              <a href="https://openlimiter.com/en/docs" target="_blank" rel="noopener noreferrer">Docs</a>
+            </nav>
+            <details id="trademark-note">
+              <summary>Trademarks</summary>
+              <p>
+                Product names, logos, brands, and other trademarks featured or
+                referred to within OpenLimiter are the property of their respective
+                trademark holders. These trademark holders are not affiliated with
+                OpenLimiter, our products, or our website. They do not sponsor or
+                endorse OpenLimiter. Use of them does not imply any affiliation
+                with or endorsement by them.
+              </p>
+            </details>
+          </div>
+        </section>
+      </div>
     </main>
 
-    <!-- The menu: one compact panel with short labels and no paragraphs. -->
-    <div id="app-menu" class="header-popover app-menu" aria-label="Menu" hidden>
-      <div class="menu-account">
-        <strong id="menu-account-email">Signed out</strong>
-        <span id="menu-backend-state"></span>
-      </div>
-      <div id="menu-signin" class="menu-signin" hidden>
-        <button type="button" id="menu-sign-in" class="primary">Sign in</button>
-      </div>
-      <div id="menu-signed-in" class="menu-group" hidden>
-        <label class="menu-line"><span>Sync usage percentages</span><span class="provider-switch"><input id="menu-sync" type="checkbox" role="switch" checked /><span class="provider-switch-track" aria-hidden="true"></span></span></label>
-        <div id="devices-mount" class="menu-device-list"></div>
-      </div>
-      <div class="desktop-trial" data-desktop-trial hidden></div>
-      <div id="pro-mount" class="menu-group"></div>
-      <div id="plan-cap-mount" class="menu-group"></div>
-      <div id="settings-mount" class="menu-group"></div>
-      <div class="menu-line">
-        <span>Theme</span>
-        <button type="button" id="theme" class="icon" aria-label="Switch between the light and dark theme" title="Switch between the light and dark theme">
-          <!-- Moon, offered while the light theme is active. -->
-          <svg class="icon-to-dark" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-            <path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z" />
-          </svg>
-          <!-- Sun, offered while the dark theme is active. -->
-          <svg class="icon-to-light" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" focusable="false">
-            <circle cx="12" cy="12" r="4" />
-            <path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6l1.4 1.4m10 10 1.4 1.4m0-12.8-1.4 1.4m-10 10-1.4 1.4" />
-          </svg>
-        </button>
-      </div>
-      <div class="menu-actions">
-        <button type="button" id="menu-update">Check for updates</button>
-        <button type="button" id="menu-logout" hidden>Sign out</button>
-      </div>
-      <nav class="menu-links" aria-label="About">
-        <a href="https://openlimiter.com/en/privacy" target="_blank" rel="noopener noreferrer">Privacy</a>
-        <a href="https://openlimiter.com/en/terms" target="_blank" rel="noopener noreferrer">Terms</a>
-        <a href="https://openlimiter.com/en/docs" target="_blank" rel="noopener noreferrer">Docs</a>
-      </nav>
-      <details id="trademark-note">
-        <summary>Trademarks</summary>
-        <p>
-          Product names, logos, brands, and other trademarks featured or
-          referred to within OpenLimiter are the property of their respective
-          trademark holders. These trademark holders are not affiliated with
-          OpenLimiter, our products, or our website. They do not sponsor or
-          endorse OpenLimiter. Use of them does not imply any affiliation
-          with or endorsement by them.
-        </p>
-      </details>
-    </div>
+    <!-- The phone popover is the only header popover. -->
     <div id="phone-popover" class="header-popover" hidden>
       <div id="phone-panel-body" class="phone-panel"></div>
     </div>

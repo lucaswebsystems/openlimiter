@@ -557,8 +557,10 @@ async function captureProductDetails(browser, theme, port) {
   };
   try {
     await page.goto(`${origin}/window-${theme}`, { waitUntil: "networkidle" });
-    await page.locator('#tool-rows [data-provider-card]').nth(2).waitFor();
+    await page.locator('#usage-rows [data-provider-card]').nth(2).waitFor();
+    await page.getByRole('tab', { name: 'Connect Tools', exact: true }).click();
     await page.locator('#key-rows [data-key-row]').first().waitFor();
+    await page.getByRole('tab', { name: 'Usage', exact: true }).click();
     await page.locator('#agents-section:not([hidden])').waitFor();
     await closeWhatsNew(page);
     /* The 2.0.3 one screen Home (tools, API keys, agents) is taller than the
@@ -599,14 +601,14 @@ async function fitWindowToLimits(page) {
   const home = page.frameLocator("iframe");
   /* The 2.0.3 one screen Home runs past the desk with its API keys, so the
      window ends under the whole Tools card (Add a tool included), as a window sized to the meters would. */
-  const content = await home.locator(".q-tools").evaluate(card => Math.ceil(card.getBoundingClientRect().bottom) + 16);
+  const content = await home.locator(".q-usage").evaluate(card => Math.ceil(card.getBoundingClientRect().bottom) + 16);
   await page.evaluate(({ content, titlebar, menubar, desk }) => {
     const frame = document.querySelector(".window");
     frame.style.height = `${content + titlebar}px`;
     frame.style.top = `${menubar + Math.round((desk - menubar - content - titlebar) / 2)}px`;
     frame.querySelector("iframe").style.height = `${content}px`;
   }, { content, titlebar: WINDOW.titlebar, menubar: MENUBAR_HEIGHT, desk: SCENE.height });
-  const next = await home.locator("#keys-title").evaluate(title => title.getBoundingClientRect().top);
+  const next = await home.locator("#spend-title").evaluate(title => title.getBoundingClientRect().top);
   if (next < content) throw new Error("The desk window would cut the API keys heading.");
   if (content + WINDOW.titlebar > SCENE.height - MENUBAR_HEIGHT) throw new Error("The desk window would run past the desk.");
 }
@@ -672,7 +674,7 @@ async function captureVideoShots(browser, port) {
        notifications; without it this optional shot is skipped, not faked. */
     try {
       await page.getByRole("tab", { name: "Settings", exact: true }).click();
-      const alerts = page.locator("#settings-mount section[aria-labelledby=\"alerts-title\"]");
+      const alerts = page.locator("#tab-panel-settings #settings-alerts");
       await alerts.waitFor({ timeout: 8000 });
       if ((await alerts.innerText()).includes("Desktop alerts stay free")) {
         written.push(await captureVideoElement(page, alerts, "settings-alerts.png", transparent));
@@ -1008,8 +1010,9 @@ async function captureDesk(browser, theme, port) {
     waitUntil: "networkidle",
   });
   const home = page.frameLocator("iframe");
-  await home.locator('#tool-rows [data-provider-card]').nth(2).waitFor();
+  await home.getByRole('tab', { name: 'Connect Tools', exact: true }).click();
   await home.locator('#key-rows [data-key-row]').first().waitFor();
+  await home.getByRole('tab', { name: 'Usage', exact: true }).click();
   /* The desk shows the window as a person uses it, after What's New is closed. */
   await closeWhatsNew(page.frameLocator("iframe"));
   await fitWindowToLimits(page);

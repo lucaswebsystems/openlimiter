@@ -407,8 +407,8 @@ async function connectCredential(code, { providerId, credentialKind }, secret) {
  * Save OpenRouter's key from its key row: the quota connection, proved with
  * one test. Answers what the key row needs to word a refusal.
  */
-export async function saveOpenrouterKey(secret) {
-  const result = await connectCredential("OPENROUTER", { providerId: "openrouter", credentialKind: "openrouter_inference_key" }, secret);
+export async function saveOpenrouterKey(secret, credentialKind = "openrouter_inference_key") {
+  const result = await connectCredential("OPENROUTER", { providerId: "openrouter", credentialKind }, secret);
   return result.ok ? { ok: true } : { ok: false, kind: "ineligible_or_revoked", note: result.note };
 }
 
