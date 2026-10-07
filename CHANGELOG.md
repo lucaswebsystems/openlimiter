@@ -2,6 +2,18 @@
 
 All notable project changes appear in this file.
 
+## [2.1.1]
+
+Desktop sign in works again. The app no longer refuses the twelve character refresh tokens Supabase issues, so Google, GitHub and email sign in finish in the app, and a refused sign in now shows its error code.
+
+Weekly limits stay visible when an older terminal status line runtime is installed: the Usage tab shows the one command that updates it.
+
+Every command the desktop shows is pinned to the app version, so an old global install can no longer answer it, and the Antigravity setup panel lays out its command and Copy button cleanly.
+
+Stuck background refresh processes no longer pile up on Windows. A new one starts at most every two minutes, and the desktop ends any that stay stuck.
+
+DeepSeek shows its official mark in Connect Tools.
+
 ## [2.1.0]
 
 Claude now shows one number per bar on the desktop, in the terminal and on the phone. The Claude bucket allowlist keeps only supported windows, including Current session, Weekly all models and Weekly Fable.
