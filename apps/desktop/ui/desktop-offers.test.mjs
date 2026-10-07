@@ -33,8 +33,8 @@ test("every trial offer keeps its duration and card assurance together without d
 test("the unchanged trademark notice belongs only to the menu, beside the links, never a footer or the screen", () => {
   const html = read("./index.html");
   const at = html.indexOf('<details id="trademark-note">');
-  assert.ok(html.indexOf('<div id="app-menu"') < at && at < html.indexOf('<div id="phone-popover"'), "in the menu");
-  assert.ok(at > html.indexOf("</main>"), "not on the screen");
+  const settings = html.slice(html.indexOf('id="tab-panel-settings"'), html.indexOf('id="phone-popover"'));
+  assert.ok(settings.includes('<details id="trademark-note">'), "in Settings");
   const links = html.slice(html.indexOf('<nav class="menu-links"'), at);
   assert.match(links, /href="https:\/\/openlimiter\.com\/en\/privacy"[^>]*>Privacy</u);
   assert.match(links, /href="https:\/\/openlimiter\.com\/en\/terms"[^>]*>Terms</u);
@@ -52,12 +52,11 @@ test("first run retains exactly one clearly labelled account bypass", () => {
 
 test("switch styles expose a real track, moving knob and keyboard focus using product colours", () => {
   const css = read("./surfaces.css");
-  const switches = css.slice(css.indexOf(".provider-switch {"), css.indexOf("#trademark-note {"));
+  const switches = css.slice(css.indexOf(".provider-switch {"));
   assert.match(switches, /input:checked \+ .provider-switch-track::before\s*\{\s*transform: translateX/u);
   assert.match(switches, /input:focus-visible \+ .provider-switch-track\s*\{\s*outline: 2px solid var\(--ol-accent\)/u);
   assert.match(switches, /prefers-reduced-motion: reduce/u);
   assert.doesNotMatch(switches, /#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/iu);
   const layout = read("./app.css");
-  assert.match(layout, /\.catalogue-row > \.provider-switch \{\s*grid-column: 2;\s*grid-row: 1;/u);
-  assert.match(layout, /\.catalogue-action \{\s*grid-column: 2;\s*grid-row: 2 \/ span 2;/u);
+  assert.doesNotMatch(layout, /@media\s*\([^)]*699px/u);
 });

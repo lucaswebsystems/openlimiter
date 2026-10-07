@@ -65,6 +65,8 @@ export const SETUP_EN = Object.freeze({
   unknownShape: "Settings file not understood. Merge this by hand, then Verify.",
   cliMissing: "Install the OpenLimiter command first.",
   cliNotWorking: "The OpenLimiter command did not answer.",
+  runtimeMissing: say("runtimeMissing"),
+  runtimeOutdated: say("runtimeOutdated"),
   copy: "Copy",
   copied: "Copied",
   copyRefused: "Copy refused, select it by hand",
@@ -86,6 +88,7 @@ const session = {
   claudeProbed: false,
   /** The preflight verdict for Claude Code's settings. */
   claudeVerdict: null,
+  runtime: null,
   /** The one setup panel open under the list, or null. */
   activeSetup: null,
 };
@@ -95,6 +98,7 @@ let options = null;
 
 /* The setup panels under the list, by the tool each one sets up. */
 const SETUP_TARGETS = { CLAUDE: "claude-card", ANTIGRAVITY: "antigravity-add", OPENCODE: "opencode-add" };
+const setupPanels = new Map();
 
 /* The closed wire words for the remaining pasted credential. */
 const PASTED = {
@@ -269,10 +273,45 @@ async function copyClaudeSnippet(note, block) {
 }
 
 async function verifyClaude() {
+  await refreshRuntime();
   await detectClaude();
   await runClaudePreflight();
   options?.onMetersChanged();
   render();
+}
+
+function compareRuntimeVersions(left, right) {
+  const parse = (value) => {
+    const parts = String(value ?? "").match(/^\d+(?:\.\d+){0,3}/u);
+    return parts === null ? null : parts[0].split(".").map(Number);
+  };
+  const a = parse(left);
+  const b = parse(right);
+  if (a === null || b === null) return null;
+  for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
+    const difference = (a[index] ?? 0) - (b[index] ?? 0);
+    if (difference !== 0) return difference < 0 ? -1 : 1;
+  }
+  return 0;
+}
+
+function runtimeState(runtime) {
+  if (runtime === null) return null;
+  if (!runtime.version) return "missing";
+  const comparison = compareRuntimeVersions(runtime.version, runtime.appVersion);
+  return comparison === null || comparison === 0 ? "current" : comparison < 0 ? "older" : "newer";
+}
+
+function appendRuntimeGuidance(body, host) {
+  const runtime = session.runtime;
+  if (runtime?.version) body.append(element("p", "q-setup-line", say("runtimeInstalled", { version: runtime.version })));
+  const state = runtimeState(runtime);
+  if (state === "older" || state === "missing") {
+    const command = element("pre", "q-snippet mono", say("runtimeInstall", { host }));
+    body.append(element("p", "q-setup-line", state === "older" ? SETUP_EN.runtimeOutdated : SETUP_EN.runtimeMissing), command);
+  } else if (state === "newer") {
+    body.append(element("p", "q-setup-line", say("runtimeNewer")));
+  }
 }
 
 /* The Claude setup panel: one short line, the block, and its two controls. */
@@ -285,6 +324,7 @@ function renderClaude() {
   const recheck = button(SETUP_EN.checkAgain, () => void verifyClaude());
   const verify = button(SETUP_EN.verify, () => void verifyClaude(), "q-btn q-btn-primary");
   const actions = element("div", "q-setup-actions");
+  appendRuntimeGuidance(body, "claude");
   if (verdict?.kind === "cli_missing" || verdict?.kind === "cli_not_working") {
     const missing = verdict.kind === "cli_missing";
     const line = element("pre", "q-snippet mono", missing ? verdict.installCommand : (verdict.cliPath ?? ""));
@@ -320,6 +360,7 @@ function renderAntigravity() {
   const note = document.getElementById("antigravity-note");
   if (!body) return;
   body.textContent = "";
+  appendRuntimeGuidance(body, "antigravity");
   const block = element("pre", "q-snippet mono", ANTIGRAVITY_SETUP_COMMAND);
   const actions = element("div", "q-setup-actions");
   actions.append(button(SETUP_EN.copy, async () => {
@@ -343,6 +384,21 @@ function render() {
   }
   renderClaude();
   renderAntigravity();
+}
+
+/** Keep each setup panel immediately after the row that opens it. */
+export function placeSetupPanels(doc = globalThis.document) {
+  if (!doc?.querySelectorAll) return;
+  const groups = [...doc.querySelectorAll("#tool-rows [data-provider]")];
+  for (const [code, targetId] of Object.entries(SETUP_TARGETS)) {
+    const group = groups.find((entry) => entry.getAttribute("data-provider") === code);
+    const target = setupPanels.get(targetId) ?? doc.getElementById(targetId);
+    const parent = group?.parentElement;
+    if (!group || !target || !parent) continue;
+    const next = group.nextElementSibling;
+    if (target.parentElement === parent && next === target) continue;
+    parent.insertBefore(target, next ?? null);
+  }
 }
 
 /** Open one setup panel under the list, close any other, and focus it. */
@@ -407,8 +463,8 @@ async function connectCredential(code, { providerId, credentialKind }, secret) {
  * Save OpenRouter's key from its key row: the quota connection, proved with
  * one test. Answers what the key row needs to word a refusal.
  */
-export async function saveOpenrouterKey(secret) {
-  const result = await connectCredential("OPENROUTER", { providerId: "openrouter", credentialKind: "openrouter_inference_key" }, secret);
+export async function saveOpenrouterKey(secret, credentialKind = "openrouter_inference_key") {
+  const result = await connectCredential("OPENROUTER", { providerId: "openrouter", credentialKind }, secret);
   return result.ok ? { ok: true } : { ok: false, kind: "ineligible_or_revoked", note: result.note };
 }
 
@@ -540,6 +596,7 @@ export function noteMetersRefreshed() {
 
 async function bootstrap() {
   await syncConnections();
+  await refreshRuntime();
   if (session.backendPresent !== false) {
     await detectClaude();
     await runClaudePreflight();
@@ -548,12 +605,20 @@ async function bootstrap() {
   options?.onMetersChanged();
 }
 
+async function refreshRuntime() {
+  const runtime = await backend.terminalRuntimeStatus();
+  session.runtime = runtime.ok && runtime.value && typeof runtime.value === "object"
+    ? { version: typeof runtime.value.version === "string" ? runtime.value.version : null, appVersion: typeof runtime.value.app_version === "string" ? runtime.value.app_version : null }
+    : null;
+}
+
 /** Wire the setup panels and the collector event, then read once. */
 export function initConnections(configuration) {
   options = configuration;
   session.ready = true;
   for (const code of Object.keys(SETUP_TARGETS)) {
     const panel = document.getElementById(SETUP_TARGETS[code]);
+    if (panel) setupPanels.set(SETUP_TARGETS[code], panel);
     panel?.querySelector?.("[data-setup-close]")?.addEventListener("click", () => {
       session.activeSetup = null;
       render();

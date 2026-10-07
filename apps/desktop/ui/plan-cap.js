@@ -4,7 +4,7 @@
  * Contract section 3 is the whole of this file's brief, and two sentences in
  * it decide almost every pixel below.
  *
- *   "The Free cap is one active account per provider and is enforced only by
+ *   "The Free cap is one active account per provider reader pair and is enforced only by
  *   desktop business logic."
  *
  * So this screen never deletes anything and never asks Rust to. It presents a
@@ -93,7 +93,7 @@ export const PAUSE_REASONS = {
     badge: "Paused by plan",
     tone: "watch",
     sentence:
-      "Your plan allows one active account for this provider, so this one is held. Nothing was deleted and nothing was changed inside it.",
+      "Your plan allows one active account for this provider and reader, so this one is held. Nothing was deleted and nothing was changed inside it.",
     action: "Make this the active account",
   },
   paused_by_user: {
@@ -135,11 +135,19 @@ function providerLabel(id) {
   return PROVIDER_LABEL[id] ?? id;
 }
 
-/** Group connections by provider, oldest first, which is the tie breaker. */
+function capKey(row) {
+  return String(row.provider) + "::" + String(row.readerId ?? "");
+}
+
+function providerFromCapKey(key) {
+  return String(key).split("::", 1)[0];
+}
+
+/** Group connections by provider and reader, oldest first, which is the tie breaker. */
 export function groupByProvider(connections) {
   const groups = new Map();
   for (const row of connections) {
-    const key = row.provider;
+    const key = capKey(row);
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(row);
   }
@@ -154,7 +162,7 @@ export function groupByProvider(connections) {
 }
 
 /**
- * How many ordinary accounts this provider may keep active.
+ * How many ordinary accounts this provider reader pair may keep active.
  *
  * Contract 3.1: `max(1, active_surviving_legacy_count)`, and when any legacy
  * record is active no ordinary record may be active beside it. The arithmetic
@@ -271,7 +279,8 @@ function accountRowMarkup(row, context) {
   );
 }
 
-function groupMarkup(provider, rows, multiAccount) {
+function groupMarkup(providerKey, rows, multiAccount) {
+  const provider = providerFromCapKey(providerKey);
   const cap = capFor(rows, multiAccount);
   const activeOrdinary = rows.filter(
     (row) => row.active === true && row.legacyGrandfathered !== true
@@ -296,11 +305,11 @@ function groupMarkup(provider, rows, multiAccount) {
       " grandfathered " +
       (cap.legacyActive === 1 ? "account is" : "accounts are") +
       " active, so no ordinary account can be active beside them."
-    : "Free: one active account for this provider.";
+    : "Free: one active account for this provider and reader.";
 
   return (
     '<section class="provider-group" data-provider="' +
-    escapeText(provider) +
+    escapeText(providerKey) +
     '">' +
     '<h3 class="provider-group-head"><span>' +
     escapeText(providerLabel(provider)) +
@@ -316,9 +325,9 @@ function groupMarkup(provider, rows, multiAccount) {
     (multiAccount || rows.length < 2
       ? ""
       : '<button type="button" class="small" id="cap-choose-' +
-        escapeText(provider) +
-        '" data-cap-action="choose" data-provider="' +
-        escapeText(provider) +
+         escapeText(providerKey) +
+         '" data-cap-action="choose" data-provider="' +
+         escapeText(providerKey) +
         '">Choose the active account</button>') +
     "</p></section>"
   );
@@ -379,17 +388,17 @@ function keeperSheetMarkup(provider, rows) {
     'aria-labelledby="keeper-title">' +
     '<div class="sheet-panel">' +
     '<h2 id="keeper-title">Choose the active ' +
-    escapeText(providerLabel(provider)) +
+    escapeText(providerLabel(providerFromCapKey(provider))) +
     " account</h2>" +
-    '<p class="note tight">Free keeps one account per provider active. Every other one is paused, which leaves its credential, its history and its label exactly where they are. You can swap at any time.</p>' +
+     '<p class="note tight">Free keeps one account per provider reader pair active. Every other one is paused, which leaves its credential, its history and its label exactly where they are. You can swap at any time.</p>' +
     '<div class="stack" role="radiogroup" aria-labelledby="keeper-title">' +
     choices +
     "</div>" +
     legacyNote +
     '<div class="sheet-actions">' +
     '<button type="button" data-keeper="cancel">Cancel</button>' +
-    '<button type="button" class="primary" data-keeper="confirm" data-provider="' +
-    escapeText(provider) +
+     '<button type="button" class="primary" data-keeper="confirm" data-provider="' +
+     escapeText(provider) +
     '">Keep this one active</button>' +
     "</div></div></div>"
   );
@@ -476,11 +485,11 @@ export async function renderPlanCap(mount, options = {}) {
   mount.innerHTML =
     (blocked.length === 0 || multiAccount
       ? ""
-      : '<div class="callout" id="cap-unlock"><strong>More than one account per provider is a Pro feature</strong>' +
+      : '<div class="callout" id="cap-unlock"><strong>More than one account per provider reader pair is a Pro feature</strong>' +
         "<p>You have " +
         String(blocked.length) +
         (blocked.length === 1 ? " provider" : " providers") +
-        " with a second account. On Free one stays active per provider and the rest are held, with nothing deleted. Pro runs them all at once." +
+        " with a second account. On Free one stays active per pair and the rest are held, with nothing deleted. Pro runs them all at once." +
         '</p><div class="button-row">' +
         '<button type="button" class="primary" data-cap-action="unlock">See what Pro adds</button>' +
         "</div></div>") +

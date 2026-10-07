@@ -14,6 +14,7 @@ mod collector_runtime;
 mod collector_schedule;
 mod commands;
 mod connections;
+mod cli_config;
 mod credentials;
 mod data_rules;
 #[cfg(test)]
@@ -230,6 +231,9 @@ pub fn run() {
             connection_flags,
             read_manual,
             state_directory,
+            cli_config::terminal_captions,
+            cli_config::set_terminal_captions,
+            cli_config::terminal_runtime_status,
             set_tray_status,
             api_spend::api_spend_status,
             api_spend::api_spend_save_source,

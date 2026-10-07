@@ -271,6 +271,7 @@ const WINDOW_FILES = [
   "theme.css",
   "app.css",
   "app.js",
+  "tabs.js",
   "agents.js",
   "agents.css",
   "agents.en.js",
@@ -322,7 +323,9 @@ for (const file of WINDOW_FILES) {
     /* Keep the early theme script synchronous while satisfying script-src self
        even when the configured CSP is served verbatim by a static server. */
     let index = 0;
-    const html = readFileSync(source, "utf8").replace(/<script>([\s\S]*?)<\/script>/gu, (_, script) => {
+    const html = readFileSync(source, "utf8")
+      .replaceAll("__OPENLIMITER_VERSION__", version)
+      .replace(/<script>([\s\S]*?)<\/script>/gu, (_, script) => {
       const name = `${path.basename(file, ".html")}.inline-${++index}.js`;
       writeFileSync(path.join(DIST, name), browserJsonImports(script, source, path.join(DIST, name)), "utf8");
       return `<script src="./${name}"></script>`;

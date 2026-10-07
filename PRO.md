@@ -33,6 +33,8 @@ The routing context is advice. The coding agent chooses whether to follow it. Op
 
 Current quota synchronization between devices and the phone PWA is free. Device management, team dashboards, and priority requests are not part of Pro.
 
+OpenRouter's free allowance permits one inference key and one management key. These are separate key kinds, each with its own allowance.
+
 ## Price and trial
 
 Pro is planned at $5 per month or $50 per year. Checkout is not available before every promised launch requirement is implemented, activated, and proven.

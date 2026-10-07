@@ -165,7 +165,7 @@ impl fmt::Display for CommandFailure {
             }
             CommandFailure::CodexOtherAccount => "This Codex login belongs to another account.",
             CommandFailure::PlanCap => {
-                "Pro unlocks more accounts. Free reads one account per provider"
+                "Pro unlocks more accounts. Free reads one account per provider reader pair"
             }
             CommandFailure::Paused => "the connection is paused and cannot perform work",
             CommandFailure::Authentication => "the provider refused this credential",

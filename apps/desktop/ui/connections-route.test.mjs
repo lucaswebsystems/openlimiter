@@ -11,6 +11,7 @@ import { fakeDocument } from "./test-dom.mjs";
 const calls = [];
 const opened = [];
 let records = [];
+let runtimeVersion = "2.1.4";
 // Commands the next calls reject, with the failure kind native code sends.
 const refusing = new Map();
 const storage = new Map();
@@ -21,6 +22,7 @@ globalThis.window = {
     if (command === "list_detected_providers") return { providers: [] };
     if (command === "repair_codex_connection") return { kind: "cache_committed", connection_id: args.input.connection_id };
     if (command === "list_connections") return records;
+    if (command === "terminal_runtime_status") return { version: runtimeVersion, app_version: "2.1.5" };
     if (command === "disabled_providers") return [];
     if (command === "connect_provider") {
       records = [...records, { id: "c-" + String(records.length + 1), provider_id: args.input.provider_id, status: "READY_TO_ENABLE" }];
@@ -100,13 +102,22 @@ test("Connect for Claude Code, Antigravity and OpenCode opens that tool's setup 
   }
   await connectTool("ANTIGRAVITY");
   assert.match(document.getElementById("antigravity-body").textContent, /openlimiter terminal install antigravity/u);
+  assert.match(document.getElementById("antigravity-body").textContent, /Installed terminal runtime 2\.1\.4\./u);
   assert.equal(calls.some(([command, input]) => command === "connect_provider" && input?.input?.provider_id === "antigravity"), false);
   // Claude Code's setup reads the preflight and shows the block with Copy and Verify.
   await connectTool("CLAUDE");
   const body = document.getElementById("claude-body");
   assert.match(body.textContent, /Add this to your Claude Code settings, then Verify\./u);
   assert.match(body.textContent, /"command": "openlimiter statusline"/u);
+  assert.match(body.textContent, /npx -y openlimiter terminal install claude/u);
   assert.deepEqual(body.all((node) => node.localName === "button").map((button) => button.textContent), ["Copy", "Verify"]);
+  const runtimeReads = calls.filter(([command]) => command === "terminal_runtime_status").length;
+  runtimeVersion = "2.1.6";
+  await body.all((node) => node.localName === "button" && node.textContent === "Verify")[0].fire("click");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(calls.filter(([command]) => command === "terminal_runtime_status").length, runtimeReads + 1);
+  assert.match(document.getElementById("claude-body").textContent, /Installed terminal runtime 2\.1\.6\./u);
+  assert.match(document.getElementById("claude-body").textContent, /newer than OpenLimiter/u);
 });
 
 test("Check again for a tool whose sign in lives in the tool scans and reads once, never opening a web page", async () => {

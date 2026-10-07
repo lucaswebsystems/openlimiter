@@ -216,7 +216,7 @@ export function DownloadChoice({
               src="/screenshots/desktop-home.png"
               alt={previewAlt}
               width={2000}
-              height={1520}
+              height={2410}
               loading="lazy"
               sizes="(min-width: 1024px) 900px, calc(100vw - 2rem)"
               className="h-auto w-full"

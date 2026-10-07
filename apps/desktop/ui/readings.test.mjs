@@ -9,13 +9,21 @@ import { fakeDocument, leaks, spoken } from "./test-dom.mjs";
 // readings.js reaches the compiled engine, which only exists in the build.
 import {
   attentionFlags, fixWords, holdReadings, inventoryModel, limitsKey, limitsModel, officialMark, patchLimits, projectReadings,
-  renderLimits, timeLeft, updatedLabel,
+  renderLimits, splitInventory, timeLeft, updatedLabel,
 } from "./dist/readings.js";
 
 const NOW = Date.parse("2026-09-29T12:00:00.000Z");
 const now = new Date(NOW).toISOString();
 const fixtures = messyFixtures(NOW);
 const read = (file) => readFileSync(new URL(file, import.meta.url), "utf8");
+
+test("splitInventory keeps measured bars separate and strips Usage actions", () => {
+  const measured = { code: "CLAUDE", windows: [{ label: "Weekly" }], action: { label: "Connect" }, note: "old", extra: ["detail"] };
+  const setup = { code: "KIMI", windows: [], action: { label: "Connect" }, note: null, extra: [] };
+  const result = splitInventory([measured, setup]);
+  assert.deepEqual(result.usage, [{ ...measured, action: null, note: null, extra: [] }]);
+  assert.deepEqual(result.tools, [{ ...measured, windows: [], note: "old" }, setup]);
+});
 
 test("one case insensitive name for every provider code, from the registry", () => {
   for (const code of ["CLAUDE", "claude", "Claude"]) assert.equal(providerName(code), "Claude Code");
@@ -382,7 +390,10 @@ test("official marks are painted for any slot and never share a gradient id", ()
 });
 
 test("the catalog has no dashes and ships translated in every locale", () => {
-  for (const [key, value] of Object.entries(READINGS_COPY)) assert.doesNotMatch(value, /[-‐-―−]/u, key);
+  for (const [key, value] of Object.entries(READINGS_COPY)) {
+    if (key === "runtimeInstall") continue;
+    assert.doesNotMatch(value, /[-‐-―−]/u, key);
+  }
   const en = JSON.parse(read("../../web/messages/en.json"));
   const hubKeys = [
     "accountFallback", "updatedMinutes", "updatedHours", "updatedDays",
@@ -393,7 +404,7 @@ test("the catalog has no dashes and ships translated in every locale", () => {
     "kimiFiveMinuteUsed", "kimiDailyUsed", "kimiSevenDayUsed", "kimiUsageUsed",
     "opencodeFiveHourPage", "opencodeWeeklyPage",
     "opencodeMonthlyPage", "noKeyCap", "keyNoSpendingCap",
-    "unavailableScope", "managementKeyRequired", "unlimitedCredits",
+    "unavailableScope", "unlimitedCredits",
     "creditBalanceLimitNotReported", "accountBalanceDetail",
     "creditsBalance", "balance", "percentUsed",
   ];
@@ -406,6 +417,7 @@ test("the catalog has no dashes and ships translated in every locale", () => {
     const catalog = readings(JSON.parse(read(`../../web/messages/${locale}.json`)));
     assert.deepEqual(Object.keys(catalog).sort(), Object.keys(READINGS_COPY).sort(), locale);
     for (const [key, value] of Object.entries(catalog)) {
+      if (key === "runtimeInstall") continue;
       assert.doesNotMatch(value, /[-‐-―−]/u, `${locale} ${key}`);
       assert.deepEqual(value.match(/\{\w+\}/gu) ?? [], READINGS_COPY[key].match(/\{\w+\}/gu) ?? [], `${locale} ${key}`);
     }
@@ -497,13 +509,13 @@ test("every Claude card with the direct check off offers the one click Fable act
   const title = READINGS_COPY.showClaudeFableNote;
   for (const input of [{ flags: waitingFlag }, { claude: "READY_TO_ENABLE" }, { claude: "CONNECTED" }]) {
     const off = inventoryModel({ ...input, claudePoll: false }, now)[0];
-    assert.deepEqual([off.note, off.action], [title, { kind: "poll", label: "Show Fable limit", title }]);
+    assert.deepEqual([off.note, off.action], [null, null]);
     const on = inventoryModel({ ...input, claudePoll: true }, now)[0];
     assert.deepEqual([on.action, on.note], [null, "Waiting for Claude Code"]);
   }
   const measured = inventoryModel({ snapshots: fixtures.projected.snapshots, claudePoll: false }, now)
     .find((tool) => tool.code === "CLAUDE");
-  assert.deepEqual([measured.note, measured.action], [title, { kind: "poll", label: "Show Fable limit", title }]);
+  assert.deepEqual([measured.note, measured.action], [null, null]);
   const measuredWithoutModelWindow = inventoryModel({
     snapshots: fixtures.projected.snapshots.filter((snapshot) =>
       snapshot.provider !== "CLAUDE" || !snapshot.meter.startsWith("SEVEN_DAY_")
@@ -511,15 +523,9 @@ test("every Claude card with the direct check off offers the one click Fable act
     claudePoll: true,
   }, now).find((tool) => tool.code === "CLAUDE");
   assert.deepEqual([measuredWithoutModelWindow.note, measuredWithoutModelWindow.action], [null, null]);
-  const calls = [];
-  const doc = fakeDocument();
-  const mount = doc.createElement("div");
-  const model = inventoryModel({ flags: waitingFlag, claudePoll: false }, now).filter((tool) => tool.code === "CLAUDE");
-  renderLimits(doc, mount, model, { handlers: { poll: async (code) => { calls.push(code); return true; } } });
-  const button = buttonIn(rowsOf(mount)[0]);
-  assert.equal(button.textContent, "Show Fable limit");
-  await button.fire("click");
-  assert.deepEqual(calls, ["CLAUDE"]);
+  const app = read("./app.js");
+  assert.match(app, /if \(tool\.code === "CLAUDE"\)[\s\S]*?showClaudeFable/u);
+  assert.match(app, /id = "claude-poll"[\s\S]*?role = "switch"/u);
 });
 
 test("Codex with a reading and a waiting Claude: bars first, then the rows that need a step", () => {

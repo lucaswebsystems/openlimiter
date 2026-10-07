@@ -275,11 +275,15 @@ export const KEY_CONSENT = Object.freeze({
 });
 
 /** Replace one refused OpenRouter connection, or add one from an empty row. */
-export async function saveOpenrouterConnection(secret, recordId, actions) {
+export async function saveOpenrouterConnection(secret, recordId, credentialKind, actions) {
+  if (actions === undefined) {
+    actions = credentialKind;
+    credentialKind = "openrouter_inference_key";
+  }
   if (typeof recordId === "string" && recordId !== "") {
     return actions.replace(recordId, secret);
   }
-  return actions.save(secret);
+  return actions.save(secret, credentialKind);
 }
 
 /* One row each, in this order. `mark` is the provider code whose official
@@ -311,6 +315,9 @@ export const KEYS_EN = Object.freeze({
   lastMonth: "last month",
   inMonth: "spent in {month}",
   balance: "balance",
+  inferenceKey: say("openrouterKeyAllowance"),
+  managementKey: say("openrouterAccountBalance"),
+  managementKeyRequired: say("managementKeyRequired"),
 });
 
 const fill = (text, values) => text.replace(/\{(\w+)\}/gu, (_, name) => String(values[name] ?? ""));
@@ -436,8 +443,15 @@ export function keyRows({ status = null, openrouter = null } = {}, now) {
     const own = sources.filter((source) => source.provider === provider.id);
     if (provider.id === "openrouter") {
       const records = (openrouter?.records ?? []).filter((record) => record.active !== false);
-      const quota = records.length === 0 ? [{ ...base, kind: "quota", state: "empty" }]
-        : records.map((record) => quotaRow({ ...base, kind: "quota", label: records.length > 1 ? record.maskedLabel ?? null : null }, record, openrouter?.readings ?? [], now));
+      const inference = records.filter((record) => record.readerId !== "openrouter_credits");
+      const management = records.filter((record) => record.readerId === "openrouter_credits");
+      const quotaRows = (owned, credentialKind, placeholder, url, label) => owned.length === 0
+        ? [{ ...base, kind: "quota", state: "empty", credentialKind, placeholder, url, label }]
+        : owned.map((record) => quotaRow({ ...base, kind: "quota", credentialKind, placeholder, url, label: owned.length > 1 ? record.maskedLabel ?? label : label }, record, openrouter?.readings ?? [], now));
+      const quota = [
+        ...quotaRows(inference, "openrouter_inference_key", say("apiKey"), "https://openrouter.ai/settings/keys", KEYS_EN.inferenceKey),
+        ...quotaRows(management, "openrouter_management_key", say("managementKey"), "https://openrouter.ai/settings/provisioning-keys", KEYS_EN.managementKey),
+      ];
       /* A 2.0.2 OpenRouter spend source keeps its own row under the key. */
       return [...quota, ...own.map((source) => spendRow(base, source, newest(source.id), true, now))];
     }
@@ -501,7 +515,7 @@ function keyForm(doc, row, handlers, status) {
     let result;
     try {
       result = row.kind === "quota"
-        ? await handlers.saveOpenrouter(secret, row.recordId)
+        ? await handlers.saveOpenrouter(secret, row.recordId, row.credentialKind)
         : await handlers.save({
           provider: row.provider,
           keyLabel: row.keyLabel ?? row.name,
@@ -605,10 +619,10 @@ export function keyRepaintGate(doc, mount) {
 }
 
 /** Draw keyRows: one consent line above the first Save, then a row per key. */
-export function renderKeys(doc, mount, rows, handlers) {
+export function renderKeys(doc, mount, rows, handlers, { readOnly = false } = {}) {
   const consent = element(doc, "p", "q-note q-consent", KEY_CONSENT.text);
   consent.id = "key-consent";
-  const asks = rows.some((row) => row.state === "empty" || row.replace === true);
+  const asks = !readOnly && rows.some((row) => row.state === "empty" || row.replace === true);
   const desired = [...(asks ? [consent] : []), ...rows.map((row) => {
     const line = element(doc, "div", "q-key");
     line.dataset.keyRow = row.provider;
@@ -629,7 +643,7 @@ export function renderKeys(doc, mount, rows, handlers) {
     const body = row.state === "empty" || row.replace ? keyForm(doc, row, handlers, status)
       : row.state === "error" ? element(doc, "div", "q-kvalue") : keyValue(doc, row);
     const tail = element(doc, "div", "q-kact");
-    if (["reading", "saved", "checking"].includes(row.state)) {
+    if (!readOnly && ["reading", "saved", "checking"].includes(row.state)) {
       const refresh = iconButton(doc, "refresh", fill(KEYS_EN.refresh, { name: row.name }), REFRESH_ICON);
       refresh.addEventListener("click", async () => {
         refresh.disabled = true;
@@ -641,7 +655,7 @@ export function renderKeys(doc, mount, rows, handlers) {
       });
       tail.append(refresh);
     }
-    if (row.state !== "empty") tail.append(removeButton(doc, row, handlers, status));
+    if (!readOnly && row.state !== "empty") tail.append(removeButton(doc, row, handlers, status));
     line.append(mark, name, body, tail, status);
     return line;
   })];

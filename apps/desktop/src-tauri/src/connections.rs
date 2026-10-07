@@ -165,6 +165,10 @@ impl ConnectionRecord {
     }
 }
 
+fn cap_key(record: &ConnectionRecord) -> (ProviderId, ReaderId) {
+    (record.provider_id, record.reader_id)
+}
+
 /// Account identifiers are intentionally absent from debug output because a
 /// debug rendering can become a log line even though the field is not secret.
 impl fmt::Debug for ConnectionRecord {
@@ -795,11 +799,11 @@ impl ConnectionsStore {
             return Err(StoreError::InvalidField);
         }
         if !multi_account {
-            let active_same_provider = document
+            let active_same_cap = document
                 .connections
                 .iter()
-                .any(|existing| existing.provider_id == record.provider_id && existing.is_active());
-            /* Free is one ACTIVE account per provider, and a second one is
+                .any(|existing| cap_key(existing) == cap_key(&record) && existing.is_active());
+            /* Free is one ACTIVE account per provider reader pair, and a second one is
             refused rather than stored asleep. Storing it would leave a person
             holding a credential OpenLimiter will never read, in a row that
             explains itself as a plan pause, which reads as a punishment for
@@ -807,7 +811,7 @@ impl ConnectionsStore {
             the same thing once, before anything is written, and leaves the
             keyring exactly as it was. Extras that already exist keep their
             paused row: those were added while the plan allowed them. */
-            if active_same_provider {
+            if active_same_cap {
                 return Err(StoreError::PlanCap);
             }
         }
@@ -845,13 +849,13 @@ impl ConnectionsStore {
         multi_account: bool,
         keeper_ids: &[String],
     ) -> Result<Vec<ConnectionRecord>, StoreError> {
-        if keeper_ids.len() > ProviderId::ALL.len() || keeper_ids.iter().any(|id| !valid_id(id)) {
+        if keeper_ids.len() > MAX_CONNECTIONS || keeper_ids.iter().any(|id| !valid_id(id)) {
             return Err(StoreError::InvalidField);
         }
         let _held = self.guard.lock().map_err(|_| StoreError::Io)?;
         let mut document = self.load()?;
         if !multi_account {
-            let mut selected_providers = Vec::new();
+            let mut selected_caps = Vec::new();
             for keeper_id in keeper_ids {
                 let keeper = document
                     .connections
@@ -862,19 +866,26 @@ impl ConnectionsStore {
                             && matches!(record.pause_reason, None | Some(PauseReason::PausedByPlan))
                     })
                     .ok_or(StoreError::InvalidField)?;
-                if selected_providers.contains(&keeper.provider_id) {
+                if selected_caps.contains(&cap_key(keeper)) {
                     return Err(StoreError::InvalidField);
                 }
-                selected_providers.push(keeper.provider_id);
+                selected_caps.push(cap_key(keeper));
             }
         }
         let before = document.connections.clone();
-        for provider in ProviderId::ALL {
+        let mut cap_keys = Vec::new();
+        for record in &document.connections {
+            let key = cap_key(record);
+            if !cap_keys.contains(&key) {
+                cap_keys.push(key);
+            }
+        }
+        for (provider, reader) in cap_keys {
             if multi_account {
                 for record in document
                     .connections
                     .iter_mut()
-                    .filter(|record| record.provider_id == provider)
+                    .filter(|record| cap_key(record) == (provider, reader))
                 {
                     if record.pause_reason == Some(PauseReason::PausedByPlan) {
                         record.pause_reason = None;
@@ -883,7 +894,7 @@ impl ConnectionsStore {
                 continue;
             }
             let active_legacy = document.connections.iter().any(|record| {
-                record.provider_id == provider && record.legacy_grandfathered && record.is_active()
+                cap_key(record) == (provider, reader) && record.legacy_grandfathered && record.is_active()
             });
             let keeper = if active_legacy {
                 None
@@ -893,7 +904,7 @@ impl ConnectionsStore {
                     .find(|id| {
                         document.connections.iter().any(|record| {
                             &record.id == *id
-                                && record.provider_id == provider
+                                && cap_key(record) == (provider, reader)
                                 && !record.legacy_grandfathered
                                 && matches!(
                                     record.pause_reason,
@@ -907,7 +918,7 @@ impl ConnectionsStore {
                             .connections
                             .iter()
                             .filter(|record| {
-                                record.provider_id == provider
+                                cap_key(record) == (provider, reader)
                                     && !record.legacy_grandfathered
                                     && record.is_active()
                             })
@@ -919,7 +930,7 @@ impl ConnectionsStore {
                             .connections
                             .iter()
                             .filter(|record| {
-                                record.provider_id == provider
+                                cap_key(record) == (provider, reader)
                                     && !record.legacy_grandfathered
                                     && matches!(
                                         record.pause_reason,
@@ -937,7 +948,7 @@ impl ConnectionsStore {
             for record in document
                 .connections
                 .iter_mut()
-                .filter(|record| record.provider_id == provider && !record.legacy_grandfathered)
+                .filter(|record| cap_key(record) == (provider, reader) && !record.legacy_grandfathered)
             {
                 if !matches!(record.pause_reason, None | Some(PauseReason::PausedByPlan)) {
                     continue;
@@ -978,14 +989,14 @@ impl ConnectionsStore {
                 return Err(StoreError::InvalidField);
             }
             if !multi_account {
-                let provider = document.connections[index].provider_id;
+                let cap = cap_key(&document.connections[index]);
                 let another_active =
                     document
                         .connections
                         .iter()
                         .enumerate()
                         .any(|(other, record)| {
-                            other != index && record.provider_id == provider && record.is_active()
+                            other != index && cap_key(record) == cap && record.is_active()
                         });
                 if another_active {
                     return Err(StoreError::PlanCap);
@@ -1988,6 +1999,33 @@ mod tests {
         );
         assert_eq!(store.list().expect("the stored list").len(), 1);
         assert_eq!(store.get("second"), Err(StoreError::NotFound));
+    }
+
+    #[test]
+    fn free_openrouter_cap_is_one_per_reader_pair_through_pause_downgrade_and_restart() {
+        let dir = TempDir::new();
+        let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        let mut management = record("management");
+        management.reader_id = ReaderId::OpenrouterCredits;
+        management.credential_kind = CredentialKind::OpenrouterManagementKey;
+        management.base_seconds = ReaderId::OpenrouterCredits.base_seconds();
+
+        store.insert_for_plan(record("inference"), false).unwrap();
+        store.insert_for_plan(management, false).unwrap();
+        assert_eq!(store.insert_for_plan(record("inference-two"), false), Err(StoreError::PlanCap));
+        let mut management_two = record("management-two");
+        management_two.reader_id = ReaderId::OpenrouterCredits;
+        management_two.credential_kind = CredentialKind::OpenrouterManagementKey;
+        management_two.base_seconds = ReaderId::OpenrouterCredits.base_seconds();
+        assert_eq!(store.insert_for_plan(management_two, false), Err(StoreError::PlanCap));
+
+        store.set_user_paused("inference", true, false).unwrap();
+        store.set_user_paused("inference", false, false).unwrap();
+        store.apply_plan(false, &[]).unwrap();
+        let restarted = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        let rows = restarted.list().unwrap();
+        assert_eq!(rows.len(), 2);
+        assert!(rows.iter().all(ConnectionRecord::is_active));
     }
 
     #[test]

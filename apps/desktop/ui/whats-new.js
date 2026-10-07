@@ -74,3 +74,31 @@ export async function initWhatsNew({
   watcher.observe(doc.documentElement, { attributes: true, attributeFilter: ["data-first-run"] });
   show();
 }
+
+export async function openWhatsNew({ document: doc = document, load = () => import("./whats-new-data.js") } = {}) {
+  const { version, catalog } = await load();
+  const entry = whatsNewForVersion(version, catalog);
+  if (!entry) return null;
+  const node = (tag, text) => {
+    const element = doc.createElement(tag);
+    element.textContent = text;
+    return element;
+  };
+  const dialog = doc.createElement("dialog");
+  dialog.className = "whats-new";
+  dialog.setAttribute("aria-labelledby", "whats-new-title");
+  const title = node("h2", entry.title);
+  title.id = "whats-new-title";
+  title.tabIndex = -1;
+  const list = doc.createElement("ul");
+  for (const { text } of entry.items) list.append(node("li", text));
+  const dismiss = node("button", entry.dismiss);
+  dismiss.type = "button";
+  dismiss.addEventListener("click", () => dialog.close());
+  dialog.addEventListener("close", () => dialog.remove());
+  dialog.append(title, node("p", entry.versionLabel), node("h3", entry.heading), list, dismiss);
+  doc.body.append(dialog);
+  dialog.showModal?.();
+  title.focus?.();
+  return dialog;
+}

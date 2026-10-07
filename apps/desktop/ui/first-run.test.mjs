@@ -150,7 +150,7 @@ const DASH = /[-‐‑‒–—―−]/u;
 
 test("keeps an unconfigured screen to its rows: no paragraph ships visible and nothing points at a tab", () => {
   const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
-  const screen = html.slice(html.indexOf('<main id="home">'), html.indexOf("</main>"));
+  const screen = html.slice(html.indexOf('id="tab-panel-usage"'), html.indexOf('id="tab-panel-tools"'));
   assert.doesNotMatch(screen, /Open Connections|id="empty"|Nothing measurable yet/u);
   /*
    * The tools list always has Claude Code, Antigravity and OpenRouter, each
@@ -160,7 +160,7 @@ test("keeps an unconfigured screen to its rows: no paragraph ships visible and n
    */
   for (const paragraph of screen.matchAll(/<p\b[^>]*>(.*?)<\/p>/gsu)) {
     const [whole, inner] = paragraph;
-    assert.ok(/hidden/u.test(whole.slice(0, whole.indexOf(">"))) || inner.trim() === "", "a paragraph ships visible: " + whole);
+    assert.ok(/hidden/u.test(whole.slice(0, whole.indexOf(">"))) || whole.includes('data-copy="usageEmpty"') || inner.trim() === "", "a paragraph ships visible: " + whole);
   }
   assert.match(screen, /id="home-refresh-status" class="q-note" role="status" aria-live="polite"><\/p>/u);
 });

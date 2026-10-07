@@ -424,6 +424,21 @@ export function renderLimits(doc, mount, model, { compact = false, handlers = nu
   }));
 }
 
+/** Split the measured bars from the full connection inventory used by Tools. */
+export function splitInventory(model = []) {
+  const usage = [];
+  const tools = [];
+  for (const tool of model) {
+    if (tool.windows.length > 0) {
+      usage.push({ ...tool, action: null, note: null, extra: [] });
+      tools.push({ ...tool, windows: [], note: tool.note ?? say("connected") });
+    } else {
+      tools.push(tool);
+    }
+  }
+  return { usage, tools };
+}
+
 /* ------------------------------------------------------------ the inventory */
 
 /* The tools that always have a row, set up or not: the three 2.0.2 hid. */
@@ -451,7 +466,7 @@ function nextStep(code, name, { flag, flags, records, detection, claude, claudeP
   const reasons = new Set(flags.map((entry) => entry.reason));
   /* Waiting with the direct check still off: one click turns it on and reads. */
   const waiting = code === "CLAUDE" && claudePoll === false
-    ? { ...step("poll", "showClaudeFable", say("showClaudeFableNote")), note: say("showClaudeFableNote") }
+    ? {}
     : { note: say("fixWaitingIssue", { name }) };
   if (reasons.has("awaiting_statusline")) return waiting;
   /* A CLI that is not installed blocks every other step, a connect or a sign
@@ -522,12 +537,8 @@ export function inventoryModel({ snapshots = [], flags = [], detections = null, 
         : null;
       return {
         ...tool,
-        action: tool.code === "CLAUDE" && claudePoll === false
-          ? step("poll", "showClaudeFable", say("showClaudeFableNote")).action
-          : antigravity?.action ?? null,
-        note: tool.code === "CLAUDE" && claudePoll === false
-          ? say("showClaudeFableNote")
-          : antigravity?.note ?? null,
+        action: antigravity?.action ?? null,
+        note: antigravity?.note ?? null,
         extra: flags.filter((flag) => flag.provider === tool.code && ACCOUNT_FIXES.has(flag.fixKind)),
       };
     }),

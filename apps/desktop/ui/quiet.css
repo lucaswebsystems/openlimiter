@@ -556,7 +556,7 @@ button.q-show {
  * row has the same height.
  */
 .q-tools {
-  overflow: hidden;
+  overflow: clip;
 }
 
 .q-tools .q-group {
@@ -773,7 +773,7 @@ button.q-setup-close {
   display: grid;
   grid-template-columns: auto fit-content(7.5rem) minmax(0, 1fr) auto;
   column-gap: 0.625rem;
-  overflow: hidden;
+  overflow: clip;
 }
 
 .q-consent {
@@ -992,5 +992,126 @@ button.q-addrow[hidden] {
 
   .q-bar > i {
     transition: none;
+  }
+}
+
+/* Release 2.1 window chrome and the responsive desktop column. */
+html {
+  scroll-padding-top: 7rem;
+}
+
+.chrome {
+  position: sticky;
+  z-index: 30;
+  top: 0;
+  background: var(--ol-canvas);
+}
+
+.chrome .strip {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--ol-canvas);
+}
+
+.chrome .strip-top,
+.chrome .tabs {
+  width: min(100%, 46rem);
+  margin-inline: auto;
+}
+
+#home {
+  width: min(100%, 46rem);
+  box-sizing: border-box;
+  margin-inline: auto;
+}
+
+.q-limits:not(.q-compact) .q-prov {
+  flex-wrap: wrap;
+}
+
+.q-tnote {
+  min-width: 0;
+  flex: 1 1 auto;
+  white-space: normal;
+  text-align: right;
+}
+
+.q-tact {
+  flex-wrap: wrap;
+}
+
+.q-fstatus {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.q-tools,
+.q-keys {
+  /* Clip only the rounded card corners. Rows remain free to wrap. */
+  overflow: clip;
+}
+
+.settings .q-card {
+  max-width: 36rem;
+}
+
+@media (max-width: 34rem) {
+  .q-limits:not(.q-compact) {
+    grid-template-columns: minmax(0, 1fr) max-content max-content;
+    column-gap: 0.625rem;
+  }
+
+  .q-limits:not(.q-compact) .q-group,
+  .q-limits:not(.q-compact) .q-row {
+    grid-template-columns: subgrid;
+  }
+
+  .q-limits:not(.q-compact) .q-row .q-lbl {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .q-limits:not(.q-compact) .q-row .q-val {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .q-limits:not(.q-compact) .q-row .q-rst {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .q-limits:not(.q-compact) .q-row .q-bar {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    margin-top: 0.25rem;
+  }
+
+  .q-keys {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .q-key {
+    grid-template-columns: subgrid;
+  }
+
+  .q-key .q-kform {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 26rem) {
+  .settings .preset-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [role="tabpanel"],
+  .card {
+    animation: none;
   }
 }
