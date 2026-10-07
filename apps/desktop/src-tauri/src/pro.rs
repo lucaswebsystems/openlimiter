@@ -117,8 +117,11 @@ fn map_account_failure(error: crate::account::AccountFailure) -> ProFailure {
         crate::account::AccountFailure::Storage => ProFailure::CredentialStore,
         crate::account::AccountFailure::DeviceCapReached => ProFailure::DeviceCapReached,
         crate::account::AccountFailure::InvalidInput
-        | crate::account::AccountFailure::Authentication
+        | crate::account::AccountFailure::Authentication { .. }
         | crate::account::AccountFailure::OauthRejected
+        | crate::account::AccountFailure::OauthFlowExpired
+        | crate::account::AccountFailure::UserBanned
+        | crate::account::AccountFailure::SignupDisabled
         | crate::account::AccountFailure::ProviderDisabled
         | crate::account::AccountFailure::EmailConfirmationRequired => ProFailure::NoSession,
     }
@@ -2803,7 +2806,7 @@ mod tests {
             ProFailure::Network
         );
         assert_eq!(
-            map_account_failure(crate::account::AccountFailure::Authentication),
+            map_account_failure(crate::account::AccountFailure::authentication()),
             ProFailure::NoSession
         );
         assert_eq!(

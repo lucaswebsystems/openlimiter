@@ -149,8 +149,10 @@ function absent(command) {
   return { ok: false, reason: BACKEND_ABSENT, command };
 }
 
-function failed(command, kind, message) {
-  return { ok: false, reason: "command_failed", command, kind, message };
+function failed(command, kind, message, errorCode = null) {
+  const failure = { ok: false, reason: "command_failed", command, kind, message };
+  if (errorCode !== null) failure.errorCode = errorCode;
+  return failure;
 }
 
 /**
@@ -187,7 +189,11 @@ function failureOf(command, error) {
   if (kind !== null) {
     const sentence =
       FAILURE_SENTENCES[kind] ?? "The backend reported " + kind + ".";
-    return failed(command, kind, sentence + " (" + kind + ")");
+    const errorCode =
+      typeof error.error_code === "string" && /^[a-z][a-z0-9_]{0,63}$/u.test(error.error_code)
+        ? error.error_code
+        : null;
+    return failed(command, kind, sentence + " (" + kind + ")", errorCode);
   }
   if (typeof error === "string" && error !== "") {
     return failed(command, null, error);
