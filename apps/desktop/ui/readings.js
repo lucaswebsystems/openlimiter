@@ -286,6 +286,7 @@ function limitRow(doc, window, compact) {
   const row = node(doc, "div", "q-row");
   row.dataset.band = window.band;
   row.dataset.detail = window.moneyDetail ? "money" : "plain";
+  if (window.usedPercent === null) row.dataset.bar = "none";
   const value = node(doc, "span", "q-val");
   if (["yellow", "orange", "red"].includes(window.band)) value.append(art(doc, "q-shape", bandIconSvg(window.band)));
   value.append(node(doc, "span", "", compact || window.unbounded || window.neutral

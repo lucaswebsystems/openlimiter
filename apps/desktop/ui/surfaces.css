@@ -569,22 +569,25 @@ select.field:focus-visible {
 }
 
 .preset {
+  position: relative;
   display: grid;
+  justify-items: center;
+  align-content: center;
   gap: var(--ol-space-2);
   padding: var(--ol-space-3);
   border: 1px solid var(--hairline);
   border-radius: var(--ol-radius-xs);
   background: var(--raised);
   cursor: pointer;
-  text-align: left;
-}
-
-.terminal-captions .preset {
   text-align: center;
 }
 
-.terminal-captions .menu-lock {
-  justify-self: center;
+/* A locked tile keeps its content where an open tile has it: the lock is a
+   corner badge, so swatches and names line up across the whole row. */
+.preset .menu-lock {
+  position: absolute;
+  top: var(--ol-space-2);
+  right: var(--ol-space-2);
 }
 
 .preset[aria-pressed="true"] {
@@ -594,10 +597,16 @@ select.field:focus-visible {
 
 .preset[disabled] {
   cursor: default;
+}
+
+/* Dim what is locked, never the lock itself, so the badge keeps its contrast. */
+.preset[disabled] .preset-swatches,
+.preset[disabled] .preset-name {
   opacity: 0.55;
 }
 
-:root[data-theme="light"] .preset[disabled] {
+:root[data-theme="light"] .preset[disabled] .preset-swatches,
+:root[data-theme="light"] .preset[disabled] .preset-name {
   opacity: 1;
 }
 

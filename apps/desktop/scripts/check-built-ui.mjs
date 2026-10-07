@@ -67,6 +67,8 @@ function installCaptureStub() {
     snapshot("CODEX", "PRIMARY", 68, "codex-fixture"),
     snapshot("ANTIGRAVITY", "FIVE_HOUR", 84, "antigravity-fixture"),
     snapshot("OPENROUTER", "KEY_LIMIT", 32, "openrouter-fixture"),
+    // An amount row: its value must not push the panel's countdown column out.
+    { ...snapshot("OPENROUTER", "ACCOUNT_BALANCE", 12.54, "openrouter-fixture"), unit: "CREDITS" },
   ];
   const session = { sessionId: "synthetic-session", agent: "claude_code", state: "busy", confidence: "explicit", firstObservedAt: now, observedAt: now, elapsedSeconds: 0, computer: "local" };
   const account = { provider: "claude", account: null, headlineMeterId: "quota", kind: "quota_percent", value: 42, meaning: "used", windowLabel: "Session", resetAt: null, freshness: "fresh", availability: "available", band: "green", precision: "exact", fidelityMarker: null, sessions: { busy: 1, waiting: 0, done: 0, idle: 0, unknown: 0 } };
@@ -267,6 +269,22 @@ try {
       return true;
     });
     assert.equal(compactLabelsFit, true, "edge panel compact labels wrap past two lines at 360 by 480");
+    /* The panel card clips its own overflow, so a page level scroll test cannot
+       see a countdown pushed past its border; measure each cell instead. */
+    const cellsInside = await page.evaluate(() => {
+      const outside = [];
+      for (const list of document.querySelectorAll(".q-compact")) {
+        const edge = list.getBoundingClientRect().right + 1;
+        for (const cell of list.querySelectorAll(".q-val, .q-rst, .q-colhead > *")) {
+          const range = document.createRange();
+          range.selectNodeContents(cell);
+          const right = Math.max(0, ...[...range.getClientRects()].map((rect) => rect.right));
+          if (right > edge) outside.push(cell.textContent.trim() || cell.className);
+        }
+      }
+      return outside;
+    });
+    assert.deepEqual(cellsInside, [], "edge panel cells run past the panel edge at 360 by 480");
     assert.deepEqual(errors, [], "edge panel browser errors at 360 by 480");
     await context.close();
   }

@@ -1305,11 +1305,18 @@ body:has(.ol-product-shell) .page-overlap {
   padding-right: max(var(--ol-space-5), env(safe-area-inset-right));
 }
 
-@media (min-width: 768px) {
-  body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
-    padding-top: max(var(--ol-space-6), env(safe-area-inset-top));
-  }
+/* Product pages hide the site header, so the shell must not keep the site
+   header clearance from .page-overlap (a 112px blank band on a phone). The
+   phone header carries the top inset itself. */
+body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
+  padding-top: max(var(--ol-space-6), env(safe-area-inset-top));
+}
 
+body:has(.ol-product-shell) .page-overlap > .ol-product-shell.ol-phone-shell {
+  padding-top: 0;
+}
+
+@media (min-width: 768px) {
   .ol-dashboard {
     padding-left: max(var(--ol-space-7), env(safe-area-inset-left));
     padding-right: max(var(--ol-space-7), env(safe-area-inset-right));

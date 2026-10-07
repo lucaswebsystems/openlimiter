@@ -28,8 +28,9 @@ test("Settings mounts its account hooks and gates captions by the feature entitl
 });
 
 test("Settings aligns caption tiles and keeps filled controls on the shared brand token", () => {
-  assert.match(surfaces, /\.terminal-captions \.preset \{\s*text-align: center;/u);
-  assert.match(surfaces, /\.terminal-captions \.menu-lock \{\s*justify-self: center;/u);
+  assert.match(surfaces, /\.preset \{[^}]*justify-items: center;[^}]*text-align: center;/u);
+  assert.match(surfaces, /\.preset \.menu-lock \{\s*position: absolute;/u);
+  assert.doesNotMatch(surfaces, /\.preset\[disabled\] \{[^}]*opacity/u);
   assert.match(appCss, /#settings-appearance #theme \{\s*padding-right: 0;/u);
   assert.doesNotMatch(appCss, /\.app-menu #theme/u);
   assert.match(tokens, /:root \{[\s\S]*?--ol-primary-fill: #0866FF;[\s\S]*?--ol-on-primary-fill: #ffffff;/u);
