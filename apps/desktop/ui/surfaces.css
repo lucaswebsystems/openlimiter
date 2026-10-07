@@ -1591,6 +1591,14 @@ body > .tabs {
   box-sizing: border-box;
 }
 
+.chrome .actions {
+  margin-right: calc(-1 * var(--ol-space-2));
+}
+
+:root[data-theme="light"] button.primary {
+  border-color: var(--hairline-strong);
+}
+
 body > .strip {
   border-bottom: 0;
   background: transparent;

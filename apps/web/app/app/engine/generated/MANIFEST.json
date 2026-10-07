@@ -21,7 +21,7 @@
     "connectors/codex.ts": "448de6f8ad6b25b0",
     "connectors/cursor.ts": "4f48ea7b33669ff4",
     "connectors/contract-gate.ts": "0be97577d12a40b1",
-    "connectors/fixtures.ts": "0d5423caefe60212",
+    "connectors/fixtures.ts": "f3a6bbdb5a75a67d",
     "connectors/gemini-cli.ts": "6bdf5b986d6bc9be",
     "connectors/grok.ts": "2effd4e9325bd882",
     "connectors/kimi.ts": "247cffe264807106",
@@ -31,7 +31,7 @@
     "connectors/index.ts": "cb259accae69925b",
     "adapters/claude-code.ts": "781a03a27d96d34d",
     "ui/provider-connect.ts": "ac27de48b19b41e8",
-    "ui/provider-row.ts": "70cd4e8c7b34b631",
+    "ui/provider-row.ts": "920582e661ef1a42",
     "ui/tokens.css": "11c79e1125538355",
     "provider_specs/provider-specs.json": "40fa3017bad7a42b"
   }

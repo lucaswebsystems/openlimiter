@@ -1105,6 +1105,7 @@ slot[name="footer"] {
     grid-template-columns: 1.75rem minmax(0, 1fr);
     column-gap: var(--ol-space-2);
     row-gap: 0.125rem;
+    align-items: center;
   }
   .mark { grid-column: 1; grid-row: 1 / 3; }
   .provider-name,

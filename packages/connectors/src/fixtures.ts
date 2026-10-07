@@ -281,7 +281,7 @@ export function kimiFixture(now: string = FIXTURE_NOW): Record<string, unknown> 
  */
 export function opencodeFixture(now: string = FIXTURE_NOW): string {
   return opencodePage(
-    { percent: 92, resetsIn: "20 hours" },
+    { percent: 92, resetsIn: "4 hours" },
     { percent: 40, resetsIn: "5 days 20 hours" },
     { percent: 15, resetsIn: "21 days" },
     now

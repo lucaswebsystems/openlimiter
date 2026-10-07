@@ -18,6 +18,7 @@ type CaptureSnapshot = {
   unit: string;
   value: number;
   currency?: string;
+  window?: { durationSeconds?: number };
   resetAt?: string | null;
   observedAt?: string;
 };
@@ -83,6 +84,13 @@ describe("synthetic screenshot pipeline", () => {
 
   it("renders the real Claude Code line in all four bands for each theme, without the folder or unknown cells", async () => {
     const snapshots = await demoSnapshots(now);
+    expect(snapshots.find((row: CaptureSnapshot) => row.provider === "CODEX" && row.meter === "SEVEN_DAY")?.value).toBe(84);
+    for (const row of snapshots) {
+      if (row.resetAt === null || row.window?.durationSeconds === undefined) continue;
+      const resetSeconds = (Date.parse(row.resetAt) - Date.parse(now)) / 1000;
+      expect(resetSeconds, `${row.provider}:${row.meter}`).toBeGreaterThan(0);
+      expect(resetSeconds, `${row.provider}:${row.meter}`).toBeLessThanOrEqual(row.window.durationSeconds + 1);
+    }
     assertCaptureSafe(snapshots);
     for (const theme of ["dark", "light"]) {
       const dom = new JSDOM(await terminalPage(theme, snapshots, now));
@@ -108,6 +116,8 @@ describe("synthetic screenshot pipeline", () => {
         expect(styles).toContain(".band-orange{color:#bc4c00}");
         expect(styles).toContain(".band-red{color:#cf222e}");
       }
+      const styles = dom.window.document.querySelector("style")?.textContent ?? "";
+      expect(styles).toContain(".cell{display:inline-block;white-space:nowrap}");
       dom.window.close();
     }
   });
@@ -167,7 +177,7 @@ describe("synthetic screenshot pipeline", () => {
     expect(layout.tab).toEqual({ left: 0, top: 687, width: 24, height: 44 });
     expect(layout.panel).toEqual({ left: 28, top: 422, width: 360, height: 560 });
     expect(layout.view).toEqual({ left: 0, top: 422, width: 560, height: 560 });
-    expect(edgeTabLayout(layout).view).toEqual({ left: 0, top: 589, width: 360, height: 240 });
+    expect(edgeTabLayout(layout).view).toEqual({ left: 0, top: 639, width: 200, height: 140 });
     // A short panel keeps its top level with the tab's, and never shrinks below 160.
     expect(edgeLayout(100).panel).toEqual({ left: 28, top: 687, width: 360, height: 160 });
     for (const natural of [884, Number.NaN, 0]) expect(() => edgeLayout(natural)).toThrow(/not captured/);

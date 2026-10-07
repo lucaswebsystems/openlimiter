@@ -207,7 +207,7 @@ export async function demoSnapshots(now) {
       ...connectors.codexFixture(now),
       rateLimits: {
         ...connectors.codexFixture(now).rateLimits,
-        secondary: { usedPercent: 72, resetsAt: Math.floor(Date.parse(now) / 1000) + 604_800, windowDurationMins: 10_080 },
+        secondary: { usedPercent: 84, resetsAt: Math.floor(Date.parse(now) / 1000) + 604_800, windowDurationMins: 10_080 },
       },
     }, now) ?? []),
     ...(connectors.parseAntigravityPayload(connectors.antigravityFixture(now), now) ?? []),
@@ -381,6 +381,7 @@ export async function windowPage(theme, snapshots, sessions) {
                throws in first run before it can check the stored completion. */
             if (name === "account_status") return Promise.resolve({configured:true,signedIn:false,email:null,syncEnabled:true,backendReachable:true});
             if (name === "notification_settings") return Promise.resolve({enabled:true,threshold60:true,threshold80:true,threshold90:true,reset:true,quietStart:"22:00",quietEnd:"07:00",followSystemTimeZone:true,timeZone:"America/Sao_Paulo",snoozedUntil:null});
+            if (name === "plugin:rail|rail_snapshot") return Promise.resolve({ accounts: [], flags: [], sessions: [], window: { available: true, visible: true, unfolded: false, keepOpen: false, offset: 0, cardOpen: false, cardAnchor: null } });
             if (name === "plugin:activity|activity_sessions") return Promise.resolve(${JSON.stringify(sessions)});
             if (name === "plugin:activity|activity_notification_preferences") return Promise.resolve({local:{enabled:true,quietHours:null,mutedProviders:[]},sound:"silent"});
             if (name === "read_manual") return Promise.resolve("");
@@ -444,7 +445,7 @@ export function edgeLayout(natural) {
 
 /** The folded tab in context: a slice from the screen edge, the tab at its own
     place and centred top to bottom, the wallpaper around it. */
-export function edgeTabLayout(layout, width = 360, height = 240) {
+export function edgeTabLayout(layout, width = 200, height = 140) {
   const top = layout.tab.top + Math.round((layout.tab.height - height) / 2);
   return { ...layout, view: { left: 0, top, width, height } };
 }
@@ -561,9 +562,26 @@ export async function terminalPage(theme, snapshots, now, { wrap = true } = {}) 
   return `<!doctype html><html lang="en" data-theme="${theme}"><head><meta charset="utf-8">
     <link rel="stylesheet" href="engine/ui/tokens.css"><style>
       *{box-sizing:border-box}body{margin:0;padding:44px;background:var(--ol-canvas);color:var(--ol-body);font-family:var(--ol-font-sans)}
-      p{font-size:16px;color:var(--ol-muted)}pre{margin-top:34px;font:19px/2 ui-monospace,monospace;white-space:${wrap ? "pre-wrap" : "pre"};${wrap ? "" : "display:table;width:max-content;max-width:none;"}}.cell{white-space:nowrap}
+      p{font-size:16px;color:var(--ol-muted)}pre{margin-top:34px;font:19px/2 ui-monospace,monospace;white-space:${wrap ? "pre-wrap" : "pre"};${wrap ? "" : "display:table;width:max-content;max-width:none;"}}.cell{display:${wrap ? "inline-block" : "inline"};white-space:nowrap}
       ${["green", "yellow", "orange", "red"].map(b => `.band-${b}{color:var(--ol-band-${b}-label)}`).join("")}${lightBandColors}
-    </style></head><body><p>openlimiter statusline</p><pre>${body}</pre></body></html>`;
+</style></head><body><p>openlimiter statusline</p><pre>${body}</pre></body></html>`;
+}
+
+async function fitTerminalCapture(page) {
+  await page.setViewportSize({ width: 1200, height: 1 });
+  const measurement = await page.locator("pre").evaluate((pre) => {
+    const frame = pre.getBoundingClientRect();
+    const longestLine = Math.max(0, ...Array.from(pre.querySelectorAll(".cell"), (cell) => {
+      const rect = cell.getBoundingClientRect();
+      return rect.right - frame.left;
+    }));
+    return { frameWidth: pre.clientWidth, longestLine };
+  });
+  if (measurement.longestLine > measurement.frameWidth + 0.5) {
+    throw new Error(`The terminal status line exceeds its frame: ${measurement.longestLine} > ${measurement.frameWidth}.`);
+  }
+  const height = await page.evaluate(() => Math.ceil(document.scrollingElement?.scrollHeight ?? document.body.scrollHeight));
+  await page.setViewportSize({ width: 1200, height });
 }
 
 async function captureProductDetails(browser, theme, port) {
@@ -626,8 +644,8 @@ async function captureProductDetails(browser, theme, port) {
       await page.waitForTimeout(500);
       await shoot(open ? "edge-panel" : "edge-tab");
     }
-    await page.setViewportSize({ width: 1200, height: 300 });
     await page.goto(`${origin}/terminal-${theme}`, { waitUntil: "networkidle" });
+    await fitTerminalCapture(page);
     await shoot("terminal-statusline");
   } finally { await context.close(); }
   return names;
@@ -824,11 +842,10 @@ const STANDALONE = [
   ".ol-appmark-full { display: flex !important; }",
   "nextjs-portal { display: none !important; }",
   /* The safe area, which a headless browser reports as zero and a phone with an
-     island reports as about 59 pixels. The route already spends
-     `env(safe-area-inset-top)` here, so this only supplies the number the device
-     would have supplied, and it is what keeps the frame's island from landing on
-     the first line of the page. */
-  ".ol-shell { padding-top: 40px !important; }",
+     island reports as about 59 pixels. Keep the app header responsible for the
+     inset so its background covers the whole top band. */
+  ".ol-shell { padding-top: 0 !important; }",
+  ".ol-phone-header { padding-top: 52px !important; background: var(--ol-canvas) !important; }",
 ].join("\n");
 
 /* Each view names both the real screen it opens and where that screen starts. */

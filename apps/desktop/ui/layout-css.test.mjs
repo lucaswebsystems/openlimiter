@@ -19,9 +19,12 @@ test("built desktop CSS carries the responsive tab shell and narrow rows", () =>
   assert.match(quiet, /\.chrome \.strip-top\s*\{[^}]*width:\s*min\(100%,\s*46rem\)/su);
   assert.doesNotMatch(quiet, /\.chrome \.strip-top,\s*\.chrome \.tabs/su);
   assert.match(surfaces, /\.chrome \.tabs\s*\{[^}]*width:\s*auto[^}]*max-width:\s*none[^}]*margin-inline:\s*0/su);
+  assert.match(quiet, /\.settings \.q-card\s*\{[^}]*display:\s*grid[^}]*gap:\s*var\(--ol-space-3\)/su);
+  assert.doesNotMatch(quiet, /\.settings \.q-card\s*\{[^}]*max-width:\s*36rem/su);
   assert.match(quiet, /\.q-row\s*>\s*\.q-val\s*\{[^}]*grid-column:\s*3/su);
   assert.match(quiet, /\.q-row\s*>\s*\.q-rst\s*\{[^}]*grid-column:\s*4/su);
   assert.match(quiet, /\.q-tools \.q-group ~ \.q-group\s*\{[^}]*border-top/su);
   assert.match(surfaces, /\.chrome\s+\.tabs[^}]*padding-inline:\s*max\(/su);
+  assert.match(surfaces, /\.chrome \.actions\s*\{[^}]*margin-right:\s*calc\(-1 \* var\(--ol-space-2\)\)/su);
   assert.doesNotMatch(surfaces, /@media\s*\(min-width:\s*1100px\)/su);
 });

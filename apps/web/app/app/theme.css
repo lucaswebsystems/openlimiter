@@ -580,7 +580,7 @@
   justify-content: space-between;
   padding: max(var(--ol-space-3), env(safe-area-inset-top)) var(--ol-space-4) var(--ol-space-3);
   border-bottom: 1px solid var(--ol-hairline);
-  background: color-mix(in srgb, var(--ol-canvas) 92%, transparent);
+  background: var(--ol-canvas);
   backdrop-filter: blur(18px);
 }
 
@@ -638,7 +638,7 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   border-top: 1px solid var(--ol-hairline);
   background: color-mix(in srgb, var(--ol-canvas) 96%, transparent);
-  padding: 0 var(--ol-space-4) env(safe-area-inset-bottom);
+  padding: 0 var(--ol-space-4) max(0.5rem, env(safe-area-inset-bottom));
   backdrop-filter: blur(20px);
 }
 
@@ -986,7 +986,7 @@
   display: flex;
   max-height: calc(100dvh - 1rem);
   flex-direction: column;
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
 
 .ol-sheet-body {

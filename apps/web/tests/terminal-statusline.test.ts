@@ -56,6 +56,8 @@ describe("live terminal status line", () => {
     expect(CAPTURE_SOURCE).toContain(".band-yellow{color:#9a6700}");
     expect(CAPTURE_SOURCE).toContain(".band-orange{color:#bc4c00}");
     expect(CAPTURE_SOURCE).toContain(".band-red{color:#cf222e}");
+    expect(CAPTURE_SOURCE).toContain('.cell{display:${wrap ? "inline-block" : "inline"};white-space:nowrap}');
+    expect(CAPTURE_SOURCE).toContain("The terminal status line exceeds its frame");
   });
 
   it("draws each meter as blocks one character cell per glyph, so no font fallback can misdraw it", () => {
