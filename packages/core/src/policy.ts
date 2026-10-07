@@ -1,4 +1,5 @@
 import { freshness } from "./freshness.js";
+import { isSnapshotDisplayEligible } from "./data-rules.js";
 import { providerMeterPresentation } from "./provider-presentation.js";
 import {
   PROVIDER_CODES,
@@ -46,7 +47,7 @@ function recommendationFor(known: readonly AdviceProvider[]): AdviceRecommendati
 }
 
 function isAdviceQuota(snapshot: Snapshot): boolean {
-  return snapshot.unit === "PERCENT" &&
+  return isSnapshotDisplayEligible(snapshot) && snapshot.unit === "PERCENT" &&
     providerMeterPresentation(snapshot.provider, snapshot.meter)?.valueSemantics !== "balance" &&
     snapshot.availability === undefined &&
     (snapshot.kind === undefined || snapshot.kind === "quota_percent") &&
@@ -76,6 +77,7 @@ export function buildAdvice(
     if (worst !== undefined) {
       known.push({
         provider,
+        meter: worst.snapshot.meter,
         state: worst.state,
         usagePercent: worst.snapshot.value,
         resetAt: worst.snapshot.resetAt

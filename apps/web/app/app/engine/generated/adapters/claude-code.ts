@@ -7,7 +7,6 @@
  */
 import {
   PROVIDER_CODES,
-  floorFixed,
   type Advice,
   type AdviceProvider
 } from "../core";
@@ -85,6 +84,7 @@ function validInstant(value: string | null): boolean {
 
 function validProvider(value: AdviceProvider): boolean {
   return providerCodes.has(value.provider) &&
+    typeof value.meter === "string" && value.meter.length > 0 &&
     (value.state === "fresh" || value.state === "stale") &&
     Number.isFinite(value.usagePercent) &&
     value.usagePercent >= 0 &&
@@ -126,8 +126,9 @@ function renderProvider(provider: AdviceProvider): string {
   const reset = provider.resetAt ?? "NONE";
   return [
     "provider=" + provider.provider,
+    "meter=" + provider.meter,
     "state=" + provider.state,
-    "usage_percent=" + floorFixed(provider.usagePercent, 2),
+    "usage_percent=" + Math.round(provider.usagePercent),
     "reset_at=" + reset
   ].join(" ");
 }
@@ -168,13 +169,12 @@ export function buildUserPromptSubmitPayload(advice: Advice): {
 /**
  * Render the human facing statusline.
  *
- * Usage is truncated, never rounded upward, so a meter at 99.99 percent reads
- * as 99.9 percent and a cap is only ever claimed once it is actually reached.
+ * Human facing percentages use whole percent rounding everywhere.
  */
 export function renderClaudeStatusline(advice: Advice): string {
   if (!validAdvice(advice) || !advice.inject) return "OpenLimiter UNKNOWN";
   const meters = advice.providers
-    .map((provider) => provider.provider + " " + floorFixed(provider.usagePercent, 1) + "%")
+    .map((provider) => provider.provider + " " + Math.round(provider.usagePercent) + "%")
     .join(" ");
   const unknown = advice.unknownProviders.length === 0
     ? ""

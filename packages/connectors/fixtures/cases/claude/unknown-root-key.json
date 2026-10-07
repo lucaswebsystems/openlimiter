@@ -1,0 +1,18 @@
+{
+  "provider": "claude",
+  "case": "unknown-root-key",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "five_hour": {
+      "utilization": 25,
+      "resets_at": "2026-08-07T16:00:00.000Z"
+    },
+    "seven_day_cinder_cove": {
+      "utilization": 91,
+      "resets_at": "2026-08-11T12:00:00.000Z"
+    }
+  }
+}

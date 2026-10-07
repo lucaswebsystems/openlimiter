@@ -22,6 +22,9 @@ const binary = path.join(root, "packages", "cli", "dist", "bin.js");
 const fixtures = await import(
   pathToFileURL(path.join(root, "packages", "connectors", "dist", "fixtures.js")).href
 );
+const core = await import(
+  pathToFileURL(path.join(root, "packages", "core", "dist", "index.js")).href
+);
 
 const scratch = mkdtempSync(path.join(tmpdir(), "openlimiter-capture-"));
 
@@ -31,6 +34,11 @@ const stateEnvironment = process.platform === "win32"
   : process.platform === "darwin"
     ? { HOME: scratch }
     : { XDG_STATE_HOME: scratch };
+const stateDirectory = process.platform === "win32"
+  ? path.join(scratch, "openlimiter")
+  : process.platform === "darwin"
+    ? path.join(scratch, "Library", "Application Support", "openlimiter")
+    : path.join(scratch, "openlimiter");
 
 function run(argumentsList, environment = {}) {
   return execFileSync(process.execPath, [binary, ...argumentsList], {
@@ -59,6 +67,11 @@ try {
   for (const [provider, payload] of payloads) {
     run(["ingest", "--provider", provider, "--payload", JSON.stringify(payload)]);
   }
+  const pollRows = core.normalizeMeters(fixtures.parseClaudePayload({
+    five_hour: { utilization: 42, resets_at: new Date(Date.parse(now) + 18_000 * 1000).toISOString() },
+    seven_day: { utilization: 64, resets_at: new Date(Date.parse(now) + 604_800 * 1000).toISOString() },
+  }, now) ?? []);
+  await core.mergeAuthoritativeSnapshotCache(pollRows, stateDirectory, now);
 
   banner("demo", "NO_COLOR=1 node packages/cli/dist/bin.js demo");
   console.log(run(["demo"], { NO_COLOR: "1" }));

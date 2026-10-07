@@ -12,9 +12,10 @@ import {
   kimiFixture,
   manualFixture,
   opencodeFixture,
-  openrouterFixture
+  openrouterFixture,
+  parseClaudePayload
 } from "@openlimiter/connectors";
-import { CACHE_FILE_NAME } from "@openlimiter/core";
+import { CACHE_FILE_NAME, mergeAuthoritativeSnapshotCache, normalizeMeters } from "@openlimiter/core";
 import {
   CONFIG_FILE_NAME,
   OperatingSystemCredentialStore,
@@ -89,6 +90,17 @@ function statuslinePayload(now = FIXTURE_NOW): string {
   });
 }
 
+async function seedClaudePoll(directory: string): Promise<void> {
+  const rows = normalizeMeters((parseClaudePayload({
+    five_hour: { utilization: 42, resets_at: new Date(Date.parse(FIXTURE_NOW) + 18_000 * 1000).toISOString() },
+    seven_day: { utilization: 64, resets_at: new Date(Date.parse(FIXTURE_NOW) + 604_800 * 1000).toISOString() }
+  }, FIXTURE_NOW) ?? []).map((row) => ({
+    ...row,
+    provenance: { sourceKind: "remote_api" as const, observedVia: "remote_http" as const }
+  })));
+  await mergeAuthoritativeSnapshotCache(rows, directory, FIXTURE_NOW);
+}
+
 describe("CLI", () => {
   it.each(["--version", "-v", "version"])("prints the package version for %s", async (command) => {
     const { version } = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
@@ -101,7 +113,7 @@ describe("CLI", () => {
     expect(result.stdout).toContain("openlimiter --version | -v | version");
   });
 
-  it("initializes every connector as enabled and stores only the prompted key", async () => {
+  it("initializes every connector without prompting for an environment key", async () => {
     const directory = await temporaryDirectory();
     const store = new MemoryCredentialStore();
     let prompts = 0;
@@ -116,8 +128,8 @@ describe("CLI", () => {
       now: () => FIXTURE_NOW
     });
     expect(result.exitCode).toBe(0);
-    expect(prompts).toBe(1);
-    expect(store.value).toBe("sk-DEMO-000");
+    expect(prompts).toBe(0);
+    expect(store.value).toBeNull();
     const configText = await readFile(path.join(directory, CONFIG_FILE_NAME), "utf8");
     const config = JSON.parse(configText) as {
       connectors: { enabled: boolean }[];
@@ -162,15 +174,15 @@ describe("CLI", () => {
         payloads
       });
       expect(result.exitCode).toBe(0);
+      await seedClaudePoll(directory);
       return directory;
     }
 
     it("pins the whole snapshot table", async () => {
-      const directory = await temporaryDirectory();
-      const result = await runCli(["snapshot", "--refresh"], {
+      const directory = await seeded();
+      const result = await runCli(["snapshot"], {
         stateDirectory: directory,
-        now: () => FIXTURE_NOW,
-        payloads
+        now: () => FIXTURE_NOW
       });
       expect(result.stdout).toBe([
         "PROVIDER    METER                                 BAR        USAGE             AMOUNT STATE RESET                    IN    SOURCE       ",
@@ -180,8 +192,8 @@ describe("CLI", () => {
         "CODEX       5h                                    ########.. 84.00PERCENT      NONE   fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
         "KIMI        Weekly limit                          #......... 10.44PERCENT USED NONE   fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
         "KIMI        5 hour limit                          ######.... 69.50PERCENT USED NONE   fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
-        "CLAUDE      Current session                       ####...... 42.00PERCENT      NONE   fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
-        "CLAUDE      Weekly, all models                    ######.... 64.00PERCENT      NONE   fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
+        "CLAUDE      Current session                       ####...... 42.00PERCENT      NONE   fresh 2026-01-01T05:00:00.000Z 5h0m  [connected]  ",
+        "CLAUDE      Weekly, all models                    ######.... 64.00PERCENT      NONE   fresh 2026-01-08T00:00:00.000Z 7d0h  [connected]  ",
         "GROK        Weekly                                ####...... 42.50PERCENT      NONE   fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
         "GROK        On demand monthly                     .......... 6.00PERCENT       NONE   fresh NONE                     NONE  [import only]",
         "MANUAL      Monthly                               ###....... 35.00PERCENT      NONE   fresh 2026-02-01T00:00:00.000Z 31d0h [import only]",
@@ -201,19 +213,19 @@ describe("CLI", () => {
         "recommendation_code=PREFER",
         "recommendation_provider=ANTIGRAVITY",
         "recommendation_reason=LOWEST_USAGE",
-        "provider=CLAUDE state=fresh usage_percent=64.00 " +
-          "reset_at=2026-01-08T00:00:00.000Z",
-        "provider=CODEX state=fresh usage_percent=84.00 " +
+        "provider=CLAUDE meter=FIVE_HOUR state=fresh usage_percent=42 " +
           "reset_at=2026-01-01T05:00:00.000Z",
-        "provider=ANTIGRAVITY state=fresh usage_percent=28.00 " +
+        "provider=CODEX meter=FIVE_HOUR state=fresh usage_percent=84 " +
           "reset_at=2026-01-01T05:00:00.000Z",
-        "provider=OPENCODE state=fresh usage_percent=92.00 " +
+        "provider=ANTIGRAVITY meter=FIVE_HOUR state=fresh usage_percent=28 " +
+          "reset_at=2026-01-01T05:00:00.000Z",
+        "provider=OPENCODE meter=FIVE_HOUR state=fresh usage_percent=92 " +
           "reset_at=2026-01-01T20:00:00.000Z",
-        "provider=GROK state=fresh usage_percent=42.50 " +
+        "provider=GROK meter=WEEKLY state=fresh usage_percent=43 " +
           "reset_at=2026-01-08T00:00:00.000Z",
-        "provider=KIMI state=fresh usage_percent=69.50 " +
+        "provider=KIMI meter=FIVE_HOUR state=fresh usage_percent=70 " +
           "reset_at=2026-01-01T05:00:00.000Z",
-        "provider=MANUAL state=fresh usage_percent=35.00 " +
+        "provider=MANUAL meter=MONTHLY state=fresh usage_percent=35 " +
           "reset_at=2026-02-01T00:00:00.000Z",
         "unknown=OPENROUTER,GEMINI_CLI,CURSOR",
         "</openlimiter_untrusted_data>"
@@ -242,9 +254,14 @@ describe("CLI", () => {
      * is noise at best. Both halves are asserted, because either one silently
      * failing is a defect: an unstamped row cannot be labelled, and a stamped
      * statusline is a format change nobody asked for.
-     */
+    */
     it("stamps provenance without moving a byte of the rendered output", async () => {
-      const directory = await seeded();
+      const directory = await temporaryDirectory();
+      await runCli(["snapshot", "--refresh"], {
+        stateDirectory: directory,
+        now: () => FIXTURE_NOW,
+        payloads
+      });
       const exported = await runCli(["export"], {
         stateDirectory: directory,
         now: () => FIXTURE_NOW
@@ -253,7 +270,7 @@ describe("CLI", () => {
         provider: string;
         provenance?: { sourceKind: string; observedVia: string };
       }[];
-      expect(rows).toHaveLength(14);
+      expect(rows).toHaveLength(13);
       for (const row of rows) {
         expect(row.provenance).toEqual({
           sourceKind: "explicit_ingest",
@@ -297,12 +314,12 @@ describe("CLI", () => {
       expect(statusline.stdout).toBe([
         "5h [████░░░░░░] 42% ·5h | 7d [██████░░░░] 64% ·7d | " +
           "cx5h [████████░░] 84% ·5h | ag5h [██░░░░░░░░] ~28% ·5h | " +
-          "ag7d [█░░░░░░░░░] ~10% ·7d | oc Page 5h [█████████░] ~92% ·20h | " +
-          "oc Page 7d [████░░░░░░] ~40% ·5d20h | oc Page month [█░░░░░░░░░] ~15% ·21d | " +
+          "ag7d [█░░░░░░░░░] ~10% ·7d | oc5h [█████████░] ~92% ·20h | " +
+          "oc7d [████░░░░░░] ~40% ·5d20h | ocmo [█░░░░░░░░░] ~15% ·21d | " +
           "gk7d [████░░░░░░] ~43% ·7d | gkmo [█░░░░░░░░░] ~6% | " +
           "km Weekly used [█░░░░░░░░░] ~10% ·7d | km 5h used [██████░░░░] ~70% ·5h | " +
           "mnmo [███░░░░░░░] 35% ·31d | or $7.53"
-      ].join(""));
+      ].join("").replace("km Weekly used", "km7d").replace("km 5h used", "km5h"));
     });
   });
 
@@ -321,7 +338,7 @@ describe("CLI", () => {
        NEAR_CAP. The bar grammar (decision D6, the default since this lane)
        states pressure as a reading rather than as that reason word, so the
        assertion looks for the reading itself. */
-    expect(statusline.stdout).toContain("oc Page 5h");
+    expect(statusline.stdout).toContain("oc5h");
     expect(statusline.stdout).toContain("92%");
     const hook = await runCli(["hook"], {
       stateDirectory: directory,
@@ -368,7 +385,7 @@ describe("CLI", () => {
       });
       expect(result.exitCode).toBe(0);
       const rows = await exported(directory);
-      expect(rows).toHaveLength(2);
+      expect(rows).toHaveLength(1);
       for (const row of rows) {
         expect(row.provider).toBe("CLAUDE");
         expect(row.provenance).toEqual({
@@ -387,7 +404,7 @@ describe("CLI", () => {
       );
       expect(result.exitCode).toBe(0);
       const rows = await exported(directory);
-      expect(rows).toHaveLength(2);
+      expect(rows).toHaveLength(1);
       for (const row of rows) {
         expect(row.provenance).toEqual({
           sourceKind: "explicit_ingest",
@@ -500,21 +517,20 @@ describe("CLI", () => {
     });
     expect(result.exitCode).toBe(0);
     /* Host defaults to claude, so Claude's own windows carry no tag. */
-    expect(result.stdout).toContain("7d");
-    expect(result.stdout).toContain("64%");
+    expect(result.stdout).toContain("7d poll off");
+        expect(result.stdout).toContain("42%");
     const cache = JSON.parse(
       await readFile(path.join(directory, CACHE_FILE_NAME), "utf8")
     ) as { snapshots: { meter: string }[] };
-    expect(cache.snapshots.map((entry) => entry.meter).sort()).toEqual([
-      "FIVE_HOUR",
-      "SEVEN_DAY"
-    ]);
+        expect(cache.snapshots.map((entry) => entry.meter).sort()).toEqual([
+            "FIVE_HOUR"
+        ]);
     const rendered = await runCli(["statusline"], {
       stateDirectory: directory,
       now: () => FIXTURE_NOW
     });
-    expect(rendered.stdout).toContain("7d");
-    expect(rendered.stdout).toContain("64%");
+        expect(rendered.stdout).toContain("7d poll off");
+    expect(rendered.stdout).toContain("42%");
   });
 
   it("falls back to the cache when standard input carries nothing usable", async () => {
@@ -613,9 +629,8 @@ describe("CLI", () => {
     });
     const snapshots = JSON.parse(exported.stdout) as { provider: string }[];
     expect(snapshots.map((entry) => entry.provider).sort()).toEqual([
-      "CLAUDE",
-      "CLAUDE",
-      "MANUAL"
+            "CLAUDE",
+            "MANUAL"
     ]);
   });
 
@@ -936,9 +951,9 @@ describe("CLI", () => {
       environment: { NO_COLOR: "" }
     });
     expect(statusline.stdout).toMatch(/^OpenLimiter [A-Z_]+ /u);
-    expect(statusline.stdout).toContain("OPENCODE:Page 5h ####. 92.0%");
+    expect(statusline.stdout).toContain("oc5h ####. 92%");
     /* A statusline states pressure. Money and failure text belong elsewhere. */
-    expect(statusline.stdout).not.toContain("$");
+    expect(statusline.stdout).toContain("or $7.53");
     expect(statusline.stdout).not.toContain("PAYLOAD_UNREADABLE");
     expect(statusline.stdout).not.toContain(ESCAPE);
   });
@@ -976,10 +991,10 @@ describe("CLI", () => {
       now: () => FIXTURE_NOW,
       colorOutput: true
     });
-    expect(statusline.stdout).toContain("OPENCODE:Page 5h 92.0%");
-    expect(statusline.stdout).toContain("KIMI:Weekly used 10.4%");
-    expect(statusline.stdout).toContain("KIMI:5h used 69.5%");
-    expect(statusline.stdout).toContain("OPENROUTER:Balance $7.53");
+    expect(statusline.stdout).toContain("oc5h 92%");
+    expect(statusline.stdout).toContain("km7d 10%");
+    expect(statusline.stdout).toContain("km5h 70%");
+    expect(statusline.stdout).toContain("or $7.53");
     /* One line, no bar, no escape code, no failure line. */
     expect(statusline.stdout.split("\n")).toHaveLength(1);
     expect(statusline.stdout).not.toContain(ESCAPE);
@@ -1000,7 +1015,7 @@ describe("CLI", () => {
     });
     const rows = stacked.stdout.split("\n");
     expect(rows).toHaveLength(1);
-    expect(stacked.stdout).toContain("oc Page 7d");
+    expect(stacked.stdout).toContain("oc7d");
     await runCli(["config", "set", "statusline.width", "260"], {
       stateDirectory: directory,
       now: () => FIXTURE_NOW
@@ -1021,6 +1036,7 @@ describe("CLI", () => {
       now: () => FIXTURE_NOW,
       payloads
     });
+    await seedClaudePoll(directory);
     for (const [key, value] of [
       ["statusline.style", "cells"],
       ["statusline.order", "openrouter"],
@@ -1042,10 +1058,11 @@ describe("CLI", () => {
           colorOutput: false
         });
     expect(statusline.stdout).toContain(ESCAPE + "[31m");
-    expect(statusline.stdout).toContain("CLAUDE:5h");
-    expect(statusline.stdout).toContain("CLAUDE:7d");
-    expect(statusline.stdout.indexOf("OPENROUTER:Balance"))
-      .toBeLessThan(statusline.stdout.indexOf("CLAUDE:5h"));
+    expect(statusline.stdout).toContain("5h");
+    expect(statusline.stdout).toContain("7d");
+    expect(statusline.stdout).toContain("or $7.53");
+    expect(statusline.stdout.indexOf("or $7.53"))
+      .toBeLessThan(statusline.stdout.indexOf("5h"));
   });
 
   it("keeps drawing the statusline when the configuration is nonsense", async () => {
@@ -1071,7 +1088,7 @@ describe("CLI", () => {
     });
     /* Every unusable key falls back to the complete reference line. */
     expect(statusline.stdout.split("\n")).toHaveLength(1);
-    expect(statusline.stdout).toContain("oc Page 5h");
+    expect(statusline.stdout).toContain("oc5h");
     expect(statusline.stdout).toContain("92%");
   });
 
@@ -1108,6 +1125,7 @@ describe("CLI", () => {
       "statusline.bars=true",
       "statusline.color=auto",
       "statusline.style=bar",
+      "statusline.captions=short",
       "statusline.show=NONE",
       "statusline.hosts=NONE"
     ]);
@@ -1152,6 +1170,7 @@ describe("CLI", () => {
     expect(read.stdout.split("\n")).toEqual([
       ...written.map(([key, value]) => "statusline." + key + "=" + value),
       "statusline.style=bar",
+      "statusline.captions=short",
       "statusline.show=NONE",
       "statusline.hosts=NONE"
     ]);
@@ -1167,6 +1186,7 @@ describe("CLI", () => {
       bars: false,
       color: "always",
       style: "bar",
+      captions: "short",
       show: [],
       hosts: {}
     });

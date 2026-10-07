@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 use crate::cache_write::{CacheWriteError, CacheWriter};
+use crate::fsx;
+use crate::state::AUTHORITATIVE_CACHE_FILE_NAME;
 pub use crate::native_time::{
     epoch_ms_from_rfc3339, future_epoch_seconds, future_rfc3339, iso_from_epoch_ms,
 };
@@ -453,6 +455,7 @@ pub(crate) fn surface_snapshots(text: Option<&str>) -> Result<Vec<Snapshot>, Cac
     let (rows, suppressions) = read_document_for_surface(text, true)?;
     Ok(rows
         .into_iter()
+        .filter(crate::data_rules::display_eligible)
         .filter(|row| {
             !suppressions.iter().any(|suppression| {
                 row.provider == suppression.provider
@@ -486,54 +489,89 @@ fn fold(
     report: &CacheReport,
 ) -> Result<String, CacheWriteError> {
     let (mut rows, mut suppressions) = read_document(text)?;
-    let observed = match report {
-        CacheReport::Success(incoming) => incoming.iter().map(|row| row.observed_at.as_str()).max(),
-        CacheReport::Drift { observed_at } => Some(observed_at.as_str()),
-        CacheReport::Unavailable => None,
-    };
-    let delayed = observed.is_some_and(|at| {
-        rows.iter().any(|row| {
-            row.provider == provider
-                && row.account_id.as_deref() == account_id
-                && row.observed_at.as_str() > at
-        }) || suppressions.iter().any(|entry| {
-            entry.provider == provider
-                && entry.account_id.as_deref() == account_id
-                && entry.suppressed_at.as_str() > at
-        })
-    });
-    let belongs = |existing: Option<&str>| match report {
-        CacheReport::Unavailable => existing == account_id,
-        CacheReport::Success(_) | CacheReport::Drift { .. } => {
-            account_matches(existing, account_id)
-        }
-    };
-    rows.retain(|row| delayed || row.provider != provider || !belongs(row.account_id.as_deref()));
-    suppressions.retain(|entry| {
-        delayed || entry.provider != provider || !belongs(entry.account_id.as_deref())
-    });
-    if !delayed {
-        match report {
-            /* Stamped here and nowhere else. Every row this process writes reaches
-            disk through this fold, so one line makes the whole desktop attributable
-            and no reader has to remember to set it. A row that arrives already
-            claiming another writer is corrected: this process is the one writing
-            it. */
-            CacheReport::Success(incoming) => {
-                rows.extend(incoming.iter().cloned().filter_map(|row| {
-                    normalize_snapshot(Snapshot {
-                        writer: Some(DESKTOP_WRITER.to_string()),
-                        ..row
-                    })
-                }))
+    match report {
+        CacheReport::Success(incoming) => {
+            let partial = !incoming.is_empty() && incoming.iter().all(|row| {
+                row.provenance
+                    .as_ref()
+                    .and_then(|value| value.get("sourceKind"))
+                    .and_then(serde_json::Value::as_str)
+                    == Some("statusline_payload")
+            });
+            if !partial {
+                rows.retain(|current| {
+                    current.provider != provider
+                        || !account_matches(current.account_id.as_deref(), account_id)
+                        || incoming.iter().any(|row| identity(row) == identity(current))
+                });
             }
-            CacheReport::Drift { observed_at } => suppressions.push(Suppression {
-                provider: provider.to_string(),
-                account_id: account_id.map(str::to_string),
-                reason: "drift".to_string(),
-                suppressed_at: observed_at.clone(),
-            }),
-            CacheReport::Unavailable => {}
+            for row in incoming.iter().cloned().filter_map(|row| {
+                let payload_weekly = provider == "CLAUDE"
+                    && row.meter.starts_with("SEVEN_DAY")
+                    && row.provenance.as_ref()
+                        .and_then(|value| value.get("sourceKind"))
+                        .and_then(serde_json::Value::as_str)
+                        == Some("statusline_payload");
+                if payload_weekly { return None; }
+                normalize_snapshot(Snapshot {
+                    writer: Some(DESKTOP_WRITER.to_string()),
+                    ..row
+                })
+            }) {
+                let key = identity(&row);
+                let existing = rows.iter().position(|current| identity(current) == key);
+                let can_replace = existing.is_none_or(|index| {
+                    epoch_ms_from_rfc3339(&row.observed_at).unwrap_or(0)
+                        >= epoch_ms_from_rfc3339(&rows[index].observed_at).unwrap_or(0)
+                });
+                if can_replace {
+                    if let Some(index) = existing {
+                        rows[index] = row;
+                    } else {
+                        rows.push(row);
+                    }
+                }
+            }
+            let newest = incoming.iter()
+                .filter_map(|row| epoch_ms_from_rfc3339(&row.observed_at))
+                .max()
+                .unwrap_or(0);
+            suppressions.retain(|entry| {
+                entry.provider != provider
+                    || entry.account_id.as_deref() != account_id
+                    || epoch_ms_from_rfc3339(&entry.suppressed_at).unwrap_or(0) >= newest
+            });
+        }
+        CacheReport::Drift { observed_at } => {
+            let delayed = rows.iter().any(|row| {
+                row.provider == provider
+                    && row.account_id.as_deref() == account_id
+                    && row.observed_at.as_str() > observed_at.as_str()
+            }) || suppressions.iter().any(|entry| {
+                entry.provider == provider
+                    && entry.account_id.as_deref() == account_id
+                    && entry.suppressed_at.as_str() > observed_at.as_str()
+            });
+            if !delayed {
+                rows.retain(|row| row.provider != provider || !account_matches(row.account_id.as_deref(), account_id));
+                suppressions.retain(|entry| entry.provider != provider || !account_matches(entry.account_id.as_deref(), account_id));
+                suppressions.push(Suppression {
+                    provider: provider.to_string(),
+                    account_id: account_id.map(str::to_string),
+                    reason: "drift".to_string(),
+                    suppressed_at: observed_at.clone(),
+                });
+            }
+        }
+        CacheReport::Unavailable => {
+            rows.retain(|row| {
+                row.provider != provider
+                    || row.account_id.as_deref() != account_id
+            });
+            suppressions.retain(|entry| {
+                entry.provider != provider
+                    || entry.account_id.as_deref() != account_id
+            });
         }
     }
     let now = match report {
@@ -682,16 +720,41 @@ pub fn write_report(
     account_id: Option<&str>,
     report: CacheReport,
 ) -> Result<(), CacheWriteError> {
+    let authoritative = match &report {
+        CacheReport::Success(rows) if provider == "CLAUDE" => rows
+            .iter()
+            .filter(|row| {
+                row.meter.starts_with("SEVEN_DAY")
+                    && row
+                        .provenance
+                        .as_ref()
+                        .and_then(|value| value.get("sourceKind"))
+                        .and_then(serde_json::Value::as_str)
+                        != Some("statusline_payload")
+            })
+            .cloned()
+            .collect::<Vec<_>>(),
+        _ => Vec::new(),
+    };
+    let main_report = match &report {
+        CacheReport::Success(rows) => CacheReport::Success(
+            rows.iter()
+                .filter(|row| !(provider == "CLAUDE" && row.meter.starts_with("SEVEN_DAY")))
+                .cloned()
+                .collect(),
+        ),
+        _ => report.clone(),
+    };
     for round in 0..2 {
         let begun = writer.begin()?;
-        let text = match fold(begun.text.as_deref(), provider, account_id, &report) {
+        let text = match fold(begun.text.as_deref(), provider, account_id, &main_report) {
             Ok(text) => text,
             Err(error) => {
                 writer.abort(begun.generation);
                 return Err(error);
             }
         };
-        match writer.commit(&text, begun.generation) {
+        match writer.commit_with_authoritative(&text, &authoritative, begun.generation) {
             Ok(()) => return Ok(()),
             Err(CacheWriteError::Busy | CacheWriteError::StaleGeneration) if round == 0 => {}
             Err(error) => return Err(error),
@@ -710,15 +773,14 @@ pub fn purge_connection_rows(
 ) -> Result<usize, CacheWriteError> {
     for round in 0..2 {
         let begun = writer.begin()?;
-        let Some(text) = begun.text.as_deref() else {
-            writer.abort(begun.generation);
-            return Ok(0);
-        };
-        let mut document: Value = match serde_json::from_str(text) {
-            Ok(document) => document,
-            Err(_) => {
-                writer.abort(begun.generation);
-                return Err(CacheWriteError::NotJson);
+        let mut document: Value = match begun.text.as_deref() {
+            None => serde_json::json!({"version": 3, "snapshots": []}),
+            Some(text) => match serde_json::from_str(text) {
+                Ok(document) => document,
+                Err(_) => {
+                    writer.abort(begun.generation);
+                    return Err(CacheWriteError::NotJson);
+                }
             }
         };
         if document
@@ -738,7 +800,23 @@ pub fn purge_connection_rows(
                 || row.get("accountId").and_then(Value::as_str) != Some(account_id)
         });
         let removed = before - rows.len();
-        if removed == 0 {
+        let authoritative_all = writer
+            .directory()
+            .ok()
+            .and_then(|directory| fsx::bounded_read(&directory.join(AUTHORITATIVE_CACHE_FILE_NAME)))
+            .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
+            .and_then(|document| document.get("snapshots").and_then(Value::as_array).cloned())
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|row| serde_json::from_value::<Snapshot>(row).ok())
+            .collect::<Vec<_>>();
+        let authoritative_rows = authoritative_all
+            .iter()
+            .filter(|row| row.provider != provider || row.account_id.as_deref() != Some(account_id))
+            .cloned()
+            .collect::<Vec<_>>();
+        let authoritative_removed = authoritative_all.len() - authoritative_rows.len();
+        if removed == 0 && authoritative_removed == 0 {
             writer.abort(begun.generation);
             return Ok(0);
         }
@@ -749,8 +827,8 @@ pub fn purge_connection_rows(
                 return Err(CacheWriteError::Io);
             }
         };
-        match writer.commit(&text, begun.generation) {
-            Ok(()) => return Ok(removed),
+        match writer.commit_with_authoritative_replacement(&text, &authoritative_rows, begun.generation) {
+            Ok(()) => return Ok(removed + authoritative_removed),
             Err(CacheWriteError::Busy | CacheWriteError::StaleGeneration) if round == 0 => {}
             Err(error) => return Err(error),
         }

@@ -187,7 +187,7 @@ The single public launch: every provider bar in one place, a free product that n
 
 ### Added
 
-- Every Claude bucket the usage API returns is now its own bar, including model specific weekly windows such as Fable 5, extra usage credits and any bucket Anthropic adds later; both the desktop reader and the TypeScript engine parse what arrives instead of a fixed list, and a bucket named by the server renders under its own name.
+- Claude weekly bars now follow the usage screen allowlist, covering Fable, Opus, Sonnet and Haiku families plus the shared weekly pools. Unknown buckets are ignored, while extra usage remains available as its own reading.
 - Phone access by QR: the desktop shows a pairing code, the phone claims it, the desktop approves, and the phone receives a read only device token that can be revoked from the device list.
 - Pro checkout and billing management from the desktop and the web portal, with GitHub and Google sign in and a magic link fallback; the trial starts on the server at first sign in.
 - API spend meters for OpenAI, Anthropic and xAI plus a Moonshot balance, free up to USD 100 per calendar month per source and capped with a hatched "100 plus" state above that without Pro; the real figure never leaks into a capped payload.

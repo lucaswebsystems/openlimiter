@@ -1,6 +1,5 @@
 use std::fmt;
 use std::fs;
-use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -42,6 +41,7 @@ use crate::fsx;
 /// mirrors. If the core protocol changes, this module changes with it.
 /// Mirrors `CACHE_FILE_NAME`, `packages/core/src/cache.ts:19`.
 pub const CACHE_FILE_NAME: &str = "openlimiter-cache.json";
+pub const AUTHORITATIVE_CACHE_FILE_NAME: &str = "openlimiter-authoritative.json";
 
 /// Mirrors `CACHE_LOCK_NAME`, `packages/core/src/cache.ts:20`.
 pub const CACHE_LOCK_NAME: &str = "openlimiter.lock";
@@ -50,7 +50,7 @@ pub const CACHE_LOCK_NAME: &str = "openlimiter.lock";
 pub const MAX_JSON_FILE_BYTES: u64 = 1_048_576;
 
 /// Mirrors `LOCK_STALE_MILLISECONDS`, `packages/core/src/cache.ts:26`.
-pub const LOCK_STALE_MILLISECONDS: u64 = 5_000;
+pub const LOCK_STALE_MILLISECONDS: u64 = 60_000;
 
 /// Mirrors `LOCK_ATTEMPT_LIMIT`, `packages/core/src/cache.ts:28`.
 const LOCK_ATTEMPT_LIMIT: u32 = 40;
@@ -60,8 +60,10 @@ const LOCK_ATTEMPT_LIMIT: u32 = 40;
 /// exactly that field order.
 #[derive(Serialize)]
 struct LockStamp {
-    at: u64,
     pid: u32,
+    #[serde(rename = "startedAt")]
+    started_at: u64,
+    token: String,
 }
 
 /// What `begin` hands to the webview: the cache as it stands, and the stamp a
@@ -117,12 +119,14 @@ impl From<fsx::FsFailure> for CacheWriteError {
 struct PendingWrite {
     generation: u64,
     token: String,
-    /// The lock file's own handle, open from `begin` until the session ends.
-    /// On Windows it was opened with share mode none, which is what makes
-    /// possession physical; everywhere it is the object commit proves
-    /// possession through. Process death closes it, which is what lets the
-    /// watchdog reclaim after a crash.
-    handle: fs::File,
+}
+
+enum AuthoritativeMutation<'a> {
+    Rows(&'a [crate::native_snapshot::Snapshot], bool),
+    RemoveWeekly {
+        provider: &'a str,
+        account: Option<&'a str>,
+    },
 }
 
 struct WriterInner {
@@ -149,35 +153,45 @@ fn now_ms() -> u64 {
 /// younger than the stale window is left alone.
 fn reclaim_stale_lock(lock_path: &Path) -> bool {
     let now = now_ms();
-    let mut held_since: Option<u64> = None;
-    if let Ok(text) = fs::read_to_string(lock_path) {
-        if let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) {
-            if let Some(stamp) = value.get("at").and_then(serde_json::Value::as_u64) {
-                if stamp <= now {
-                    held_since = Some(stamp);
-                }
-            }
-        }
-    }
-    let held_since = match held_since {
-        Some(stamp) => stamp,
-        None => match fs::symlink_metadata(lock_path) {
-            Ok(metadata) => metadata
-                .modified()
-                .ok()
-                .and_then(|instant| instant.duration_since(UNIX_EPOCH).ok())
-                .map(|elapsed| u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX))
-                .map(|stamp| stamp.min(now))
-                .unwrap_or(now),
-            /* The lock vanished between the failed create and this look,
-            which is what the core also treats as reclaimed. */
-            Err(_) => return true,
-        },
+    let metadata = match fs::symlink_metadata(lock_path) {
+        Ok(metadata) => metadata,
+        Err(_) => return true,
     };
-    if now.saturating_sub(held_since) < LOCK_STALE_MILLISECONDS {
+    if !metadata.is_dir() {
         return false;
     }
-    let _ = fs::remove_file(lock_path);
+    let owner = fs::read_to_string(lock_path.join("owner.json"))
+        .ok()
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok());
+    let started_at = owner.as_ref()
+        .and_then(|value| value.get("startedAt").or_else(|| value.get("started_at")))
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or_else(|| metadata.modified()
+            .ok()
+            .and_then(|instant| instant.duration_since(UNIX_EPOCH).ok())
+            .map(|elapsed| u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX))
+            .unwrap_or(now)
+            .min(now));
+    if now.saturating_sub(started_at) < LOCK_STALE_MILLISECONDS {
+        return false;
+    }
+    let displaced = lock_path.with_extension(format!("reclaim.{}", uuid::Uuid::new_v4()));
+    if fs::rename(lock_path, &displaced).is_err() {
+        return false;
+    }
+    let still_observed = if owner.is_none() {
+        !displaced.join("owner.json").exists()
+    } else {
+        fs::read_to_string(displaced.join("owner.json"))
+            .ok()
+            .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+            .and_then(|value| value.get("token").and_then(serde_json::Value::as_str).map(str::to_owned))
+            .zip(owner.as_ref().and_then(|value| value.get("token").and_then(serde_json::Value::as_str).map(str::to_owned)))
+            .is_some_and(|(observed, expected)| observed == expected)
+    };
+    if still_observed {
+        let _ = fs::remove_dir_all(displaced);
+    }
     true
 }
 
@@ -205,22 +219,20 @@ fn open_lock_exclusively(lock_path: &Path) -> std::io::Result<fs::File> {
 /// `backoffMilliseconds`, `packages/core/src/cache.ts:169-172`, for at most
 /// `LOCK_ATTEMPT_LIMIT` attempts.
 fn acquire_lock(lock_path: &Path, generation: u64) -> Result<PendingWrite, CacheWriteError> {
-    let token = serde_json::to_string(&LockStamp {
-        at: now_ms(),
+    let token = uuid::Uuid::new_v4().to_string();
+    let stamp = serde_json::to_string(&LockStamp {
         pid: std::process::id(),
+        started_at: now_ms(),
+        token: token.clone(),
     })
     .map_err(|_| CacheWriteError::Io)?;
     for attempt in 0..LOCK_ATTEMPT_LIMIT {
-        match open_lock_exclusively(lock_path) {
-            Ok(mut handle) => {
-                /* Best effort, as in the core: a stamp that fails to land
-                leaves a lock the stale window will eventually reclaim. */
-                let _ = handle.write_all(token.as_bytes());
-                let _ = handle.sync_all();
+        match fs::create_dir(lock_path) {
+            Ok(()) => {
+                fsx::atomic_write(&lock_path.join("owner.json"), &stamp)?;
                 return Ok(PendingWrite {
                     generation,
                     token,
-                    handle,
                 });
             }
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
@@ -240,8 +252,12 @@ fn acquire_lock(lock_path: &Path, generation: u64) -> Result<PendingWrite, Cache
 /// lives, nothing else could have touched the file, so holding the handle is
 /// the proof.
 #[cfg(windows)]
-fn still_possessed(_session: &PendingWrite, _lock_path: &Path) -> bool {
-    true
+fn still_possessed(session: &PendingWrite, lock_path: &Path) -> bool {
+    fs::read_to_string(lock_path.join("owner.json"))
+        .ok()
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+        .and_then(|value| value.get("token").and_then(serde_json::Value::as_str).map(str::to_owned))
+        .is_some_and(|token| token == session.token)
 }
 
 /// On Unix an open handle cannot stop an unlink, so possession is proved
@@ -251,14 +267,11 @@ fn still_possessed(_session: &PendingWrite, _lock_path: &Path) -> bool {
 /// commit is refused with the newer writer's work untouched.
 #[cfg(unix)]
 fn still_possessed(session: &PendingWrite, lock_path: &Path) -> bool {
-    use std::os::unix::fs::MetadataExt;
-    let Ok(held) = session.handle.metadata() else {
-        return false;
-    };
-    let Ok(on_disk) = fs::symlink_metadata(lock_path) else {
-        return false;
-    };
-    held.dev() == on_disk.dev() && held.ino() == on_disk.ino()
+    fs::read_to_string(lock_path.join("owner.json"))
+        .ok()
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+        .and_then(|value| value.get("token").and_then(serde_json::Value::as_str).map(str::to_owned))
+        .is_some_and(|token| token == session.token)
 }
 
 /// End a session: close the handle, then remove the lock only while it still
@@ -268,17 +281,77 @@ fn still_possessed(session: &PendingWrite, lock_path: &Path) -> bool {
 /// comparison then keeps a lock that changed hands in that closing instant
 /// strictly alone.
 fn release_session(lock_path: &Path, session: PendingWrite) {
-    let PendingWrite { token, handle, .. } = session;
-    drop(handle);
-    match fs::read_to_string(lock_path) {
-        Ok(content) if content == token => {
-            let _ = fs::remove_file(lock_path);
-        }
-        _ => {}
+    if still_possessed(&session, lock_path) {
+        let _ = fs::remove_dir_all(lock_path);
     }
 }
 
 impl CacheWriter {
+    fn replace_authoritative_rows(
+        directory: &Path,
+        incoming: &[crate::native_snapshot::Snapshot],
+    ) -> Result<(), CacheWriteError> {
+        let file = directory.join(AUTHORITATIVE_CACHE_FILE_NAME);
+        fsx::reject_symlink(&file)?;
+        let mut document = fsx::bounded_read(&file)
+            .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+            .unwrap_or_else(|| serde_json::json!({"version": 3, "snapshots": []}));
+        let rows = document
+            .get_mut("snapshots")
+            .and_then(serde_json::Value::as_array_mut)
+            .ok_or(CacheWriteError::NotJson)?;
+        for snapshot in incoming {
+            let value = serde_json::to_value(snapshot).map_err(|_| CacheWriteError::Io)?;
+            let identity = |row: &serde_json::Value| {
+                (
+                    row.get("provider").and_then(serde_json::Value::as_str).unwrap_or("").to_owned(),
+                    row.get("meter").and_then(serde_json::Value::as_str).unwrap_or("").to_owned(),
+                    row.get("accountId").and_then(serde_json::Value::as_str).map(str::to_owned),
+                )
+            };
+            let key = identity(&value);
+            if let Some(existing) = rows.iter_mut().find(|row| identity(row) == key) {
+                let old = existing.get("observedAt").and_then(serde_json::Value::as_str).unwrap_or("");
+                let next = value.get("observedAt").and_then(serde_json::Value::as_str).unwrap_or("");
+                if next >= old {
+                    *existing = value;
+                }
+            } else {
+                rows.push(value);
+            }
+        }
+        document["version"] = serde_json::json!(3);
+        fsx::atomic_write(&file, &document.to_string())?;
+        Ok(())
+    }
+
+    fn authoritative_rows_without(
+        directory: &Path,
+        provider: &str,
+        account_id: Option<&str>,
+    ) -> Result<Vec<crate::native_snapshot::Snapshot>, CacheWriteError> {
+        let file = directory.join(AUTHORITATIVE_CACHE_FILE_NAME);
+        fsx::reject_symlink(&file)?;
+        let mut document = fsx::bounded_read(&file)
+            .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+            .unwrap_or_else(|| serde_json::json!({"version": 3, "snapshots": []}));
+        let rows = document
+            .get_mut("snapshots")
+            .and_then(serde_json::Value::as_array_mut)
+            .ok_or(CacheWriteError::NotJson)?;
+        rows.retain(|row| {
+            let matches_provider = row.get("provider").and_then(serde_json::Value::as_str) == Some(provider);
+            let matches_account = account_id.is_none_or(|account| {
+                row.get("accountId").and_then(serde_json::Value::as_str) == Some(account)
+            });
+            !(matches_provider && matches_account && row.get("meter").and_then(serde_json::Value::as_str).is_some_and(|meter| meter.starts_with("SEVEN_DAY")))
+        });
+        rows.iter()
+            .cloned()
+            .map(|row| serde_json::from_value(row).map_err(|_| CacheWriteError::NotJson))
+            .collect()
+    }
+
     pub(crate) fn record_availability(
         &self,
         provider: &str,
@@ -328,7 +401,9 @@ impl CacheWriter {
                     object.remove("retryAt");
                 }
             }
-            self.commit(&document.to_string(), begun.generation)
+            self.commit_with_authoritative_account_replacement(
+                &document.to_string(), provider, account, begun.generation
+            )
         })();
         if result.is_err() {
             self.abort(begun.generation);
@@ -362,7 +437,7 @@ impl CacheWriter {
         }
     }
 
-    fn directory(&self) -> Result<&Path, CacheWriteError> {
+    pub(crate) fn directory(&self) -> Result<&Path, CacheWriteError> {
         self.directory
             .as_deref()
             .ok_or(CacheWriteError::NoStateDirectory)
@@ -403,6 +478,49 @@ impl CacheWriter {
         self.commit_with_gap(text, generation, || {})
     }
 
+    pub(crate) fn commit_with_authoritative(
+        &self,
+        text: &str,
+        authoritative: &[crate::native_snapshot::Snapshot],
+        generation: u64,
+    ) -> Result<(), CacheWriteError> {
+        self.commit_parts(
+            text,
+            generation,
+            Some(AuthoritativeMutation::Rows(authoritative, false)),
+            || {},
+        )
+    }
+
+    pub(crate) fn commit_with_authoritative_replacement(
+        &self,
+        text: &str,
+        authoritative: &[crate::native_snapshot::Snapshot],
+        generation: u64,
+    ) -> Result<(), CacheWriteError> {
+        self.commit_parts(
+            text,
+            generation,
+            Some(AuthoritativeMutation::Rows(authoritative, true)),
+            || {},
+        )
+    }
+
+    pub(crate) fn commit_with_authoritative_account_replacement(
+        &self,
+        text: &str,
+        provider: &str,
+        account: Option<&str>,
+        generation: u64,
+    ) -> Result<(), CacheWriteError> {
+        self.commit_parts(
+            text,
+            generation,
+            Some(AuthoritativeMutation::RemoveWeekly { provider, account }),
+            || {},
+        )
+    }
+
     /// End one native mutation without writing, but only when it still owns
     /// the named generation. This keeps a refused cache fold from holding the
     /// shared lock until another writer happens to arrive.
@@ -435,6 +553,16 @@ impl CacheWriter {
         generation: u64,
         gap: impl FnOnce(),
     ) -> Result<(), CacheWriteError> {
+        self.commit_parts(text, generation, None, gap)
+    }
+
+    fn commit_parts(
+        &self,
+        text: &str,
+        generation: u64,
+        authoritative: Option<AuthoritativeMutation<'_>>,
+        gap: impl FnOnce(),
+    ) -> Result<(), CacheWriteError> {
         let directory = self.directory()?;
         let mut inner = self.inner.lock().map_err(|_| CacheWriteError::Io)?;
         let current = matches!(
@@ -456,7 +584,30 @@ impl CacheWriter {
             is not ours to remove. */
             return Err(CacheWriteError::StaleGeneration);
         }
-        let outcome = Self::replace_cache(directory, text);
+        let outcome = Self::replace_cache(directory, text).and_then(|()| {
+            if let Some(mutation) = authoritative {
+                match mutation {
+                    AuthoritativeMutation::Rows(rows, replace) => {
+                        if replace {
+                            let file = directory.join(AUTHORITATIVE_CACHE_FILE_NAME);
+                            fsx::reject_symlink(&file)?;
+                            let document = serde_json::json!({ "version": 3, "snapshots": rows });
+                            fsx::atomic_write(&file, &document.to_string())?;
+                        } else {
+                            Self::replace_authoritative_rows(directory, rows)?;
+                        }
+                    }
+                    AuthoritativeMutation::RemoveWeekly { provider, account } => {
+                        let rows = Self::authoritative_rows_without(directory, provider, account)?;
+                        let file = directory.join(AUTHORITATIVE_CACHE_FILE_NAME);
+                        fsx::reject_symlink(&file)?;
+                        let document = serde_json::json!({ "version": 3, "snapshots": rows });
+                        fsx::atomic_write(&file, &document.to_string())?;
+                    }
+                }
+            }
+            Ok(())
+        });
         release_session(&lock_path, session);
         outcome
     }
@@ -530,7 +681,7 @@ mod tests {
         let writer = writer(&dir);
         let begun = writer.begin().expect("begin");
         assert_eq!(begun.text, None);
-        assert!(lock_path(&dir).is_file(), "begin holds the lock");
+        assert!(lock_path(&dir).is_dir(), "begin holds the lock");
         let merged = "{\"snapshots\":[],\"version\":1}";
         writer.commit(merged, begun.generation).expect("commit");
         assert_eq!(
@@ -559,13 +710,14 @@ mod tests {
         let writer = writer(&dir);
         let begun = writer.begin().expect("begin");
         /* The merge stalls past the stale window. A CLI writer's watchdog
-        reclaims the lock, takes it, writes the cache, and releases. POSIX
-        lets the unlink happen under our open handle, which is exactly why
-        commit must re prove possession through that handle. */
-        fs::remove_file(lock_path(&dir)).expect("watchdog reclaim");
-        fs::write(lock_path(&dir), "{\"at\":9999999999999,\"pid\":424242}").expect("foreign lock");
+        reclaims the lock directory, takes it with its own stamp, writes the
+        cache, and releases. Nothing stops that on POSIX, which is exactly why
+        commit must re prove possession through the token in owner.json. */
+        fs::remove_dir_all(lock_path(&dir)).expect("watchdog reclaim");
+        fs::create_dir(lock_path(&dir)).expect("foreign lock");
+        fs::write(lock_path(&dir).join("owner.json"), "{\"pid\":424242,\"started_at\":9999999999999,\"token\":\"foreign\"}").expect("foreign stamp");
         fs::write(cache_path(&dir), "{\"foreign\":true}").expect("foreign write");
-        fs::remove_file(lock_path(&dir)).expect("foreign release");
+        fs::remove_dir_all(lock_path(&dir)).expect("foreign release");
         /* The stalled merge now tries to land. It must be refused, and the
         foreign write must survive untouched. */
         let outcome = writer.commit("{\"stalled\":true}", begun.generation);
@@ -589,10 +741,11 @@ mod tests {
         let lock = lock_path(&dir);
         let cache = cache_path(&dir);
         let outcome = writer.commit_with_gap("{\"stalled\":true}", begun.generation, || {
-            fs::remove_file(&lock).expect("watchdog reclaim");
-            fs::write(&lock, "{\"at\":9999999999999,\"pid\":424242}").expect("foreign lock");
+            fs::remove_dir_all(&lock).expect("watchdog reclaim");
+            fs::create_dir(&lock).expect("foreign lock");
+            fs::write(lock.join("owner.json"), "{\"pid\":424242,\"started_at\":9999999999999,\"token\":\"foreign\"}").expect("foreign stamp");
             fs::write(&cache, "{\"foreign\":true}").expect("foreign write");
-            fs::remove_file(&lock).expect("foreign release");
+            fs::remove_dir_all(&lock).expect("foreign release");
         });
         assert_eq!(outcome, Err(CacheWriteError::StaleGeneration));
         assert_eq!(
@@ -694,7 +847,11 @@ mod tests {
     fn stale_foreign_lock_is_reclaimed() {
         let dir = TempDir::new();
         fs::create_dir_all(dir.path()).expect("dir");
-        fs::write(lock_path(&dir), "{\"at\":1000,\"pid\":424242}").expect("stale foreign lock");
+        fs::create_dir(lock_path(&dir)).expect("stale foreign lock");
+        fs::write(
+            lock_path(&dir).join("owner.json"),
+            "{\"pid\":424242,\"startedAt\":1000,\"token\":\"foreign\"}"
+        ).expect("owner");
         let writer = writer(&dir);
         let begun = writer.begin().expect("begin reclaims");
         writer.commit("{}", begun.generation).expect("commit");
@@ -704,11 +861,15 @@ mod tests {
     fn fresh_foreign_lock_stays_busy() {
         let dir = TempDir::new();
         fs::create_dir_all(dir.path()).expect("dir");
-        let stamp = format!("{{\"at\":{},\"pid\":424242}}", now_ms());
-        fs::write(lock_path(&dir), stamp).expect("fresh foreign lock");
+        fs::create_dir(lock_path(&dir)).expect("fresh foreign lock");
+        let stamp = format!(
+            "{{\"pid\":{},\"startedAt\":{},\"token\":\"foreign\"}}",
+            std::process::id(), now_ms()
+        );
+        fs::write(lock_path(&dir).join("owner.json"), stamp).expect("fresh foreign lock");
         let writer = writer(&dir);
         assert_eq!(writer.begin().map(|_| ()), Err(CacheWriteError::Busy));
-        assert!(lock_path(&dir).is_file(), "the foreign lock is untouched");
+        assert!(lock_path(&dir).is_dir(), "the foreign lock is untouched");
     }
 
     #[test]
@@ -790,7 +951,7 @@ mod tests {
         let dir = TempDir::new();
         let writer = writer(&dir);
         let begun = writer.begin().expect("begin");
-        assert!(lock_path(&dir).is_file());
+        assert!(lock_path(&dir).is_dir());
         writer.abort(begun.generation);
         assert!(!lock_path(&dir).exists());
         assert!(

@@ -6,6 +6,7 @@ import {
   providerMeterLabel as sharedProviderMeterLabel,
   providerMeterPresentation,
   providerMeterRank,
+  isSnapshotDisplayEligible,
   type ProviderCode,
   type ProviderFailure,
   type Snapshot,
@@ -451,8 +452,8 @@ function toWindowView(
     };
   }
 
-  const used = floorFixed(usedPercent, 1);
-  const available = floorFixed(100 - usedPercent, 1);
+  const used = String(Math.round(usedPercent));
+  const available = String(Math.round(100 - usedPercent));
   const hasMoney =
     snapshot.usedAmount !== undefined &&
     snapshot.limitAmount !== undefined &&
@@ -555,7 +556,8 @@ export function buildProviderAccountRows(
   failures: readonly ProviderFailure[] = [],
   options: ProviderRowOptions = {}
 ): readonly ProviderAccountRowView[] {
-  const observed = new Set(snapshots.map((snapshot) => snapshot.provider));
+  const eligibleSnapshots = snapshots.filter(isSnapshotDisplayEligible);
+  const observed = new Set(eligibleSnapshots.map((snapshot) => snapshot.provider));
   const providers =
     options.providers ??
     DEFAULT_PROVIDER_CODES.filter((provider) => observed.has(provider));
@@ -569,7 +571,7 @@ export function buildProviderAccountRows(
 
   for (const provider of providers) {
     const groups = new Map<string | null, Snapshot[]>();
-    for (const snapshot of snapshots) {
+    for (const snapshot of eligibleSnapshots) {
       if (snapshot.provider !== provider) continue;
       const accountId = snapshot.accountId ?? null;
       const held = groups.get(accountId);
@@ -645,7 +647,7 @@ function escapeText(value: string): string {
 function percentLabel(window: ProviderWindowView): string {
   return window.usedPercent === null
     ? "No data"
-    : floorFixed(window.usedPercent, 1) + "%";
+    : Math.round(window.usedPercent) + "%";
 }
 
 export type ProviderMetricColumn = "session" | "week" | "month";

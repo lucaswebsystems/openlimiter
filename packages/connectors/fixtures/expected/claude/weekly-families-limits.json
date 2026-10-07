@@ -1,0 +1,11 @@
+{
+  "expected": {
+    "outcome": "readings",
+    "readings": [
+      { "provider": "CLAUDE", "meter": "SEVEN_DAY_FABLE", "value": 11, "unit": "PERCENT", "window": { "kind": "rolling", "durationSeconds": 604800 }, "resetAt": "2026-08-14T12:00:00.000Z", "precision": "exact", "source": "internal_payload", "kind": null, "availability": null, "currency": null, "usedAmount": null, "limitAmount": null, "observedAt": "2026-08-07T12:00:00.000Z" },
+      { "provider": "CLAUDE", "meter": "SEVEN_DAY_HAIKU", "value": 44, "unit": "PERCENT", "window": { "kind": "rolling", "durationSeconds": 604800 }, "resetAt": "2026-08-14T12:00:00.000Z", "precision": "exact", "source": "internal_payload", "kind": null, "availability": null, "currency": null, "usedAmount": null, "limitAmount": null, "observedAt": "2026-08-07T12:00:00.000Z" },
+      { "provider": "CLAUDE", "meter": "SEVEN_DAY_OPUS", "value": 22, "unit": "PERCENT", "window": { "kind": "rolling", "durationSeconds": 604800 }, "resetAt": "2026-08-14T12:00:00.000Z", "precision": "exact", "source": "internal_payload", "kind": null, "availability": null, "currency": null, "usedAmount": null, "limitAmount": null, "observedAt": "2026-08-07T12:00:00.000Z" },
+      { "provider": "CLAUDE", "meter": "SEVEN_DAY_SONNET", "value": 33, "unit": "PERCENT", "window": { "kind": "rolling", "durationSeconds": 604800 }, "resetAt": "2026-08-14T12:00:00.000Z", "precision": "exact", "source": "internal_payload", "kind": null, "availability": null, "currency": null, "usedAmount": null, "limitAmount": null, "observedAt": "2026-08-07T12:00:00.000Z" }
+    ]
+  }
+}

@@ -9,15 +9,11 @@
       "encoding": "json",
       "parser": "parseClaudePayload",
       "evidence": "documented",
-      "expectedMeters": 2,
+      "expectedMeters": 1,
       "expect": [
         {
           "meter": "FIVE_HOUR",
           "value": 47.5
-        },
-        {
-          "meter": "SEVEN_DAY",
-          "value": 63.2
         }
       ]
     },
@@ -28,31 +24,11 @@
       "encoding": "json",
       "parser": "parseClaudePayload",
       "evidence": "documented",
-      "expectedMeters": 6,
+      "expectedMeters": 1,
       "expect": [
         {
           "meter": "FIVE_HOUR",
           "value": 47.5
-        },
-        {
-          "meter": "SEVEN_DAY",
-          "value": 63.2
-        },
-        {
-          "meter": "SEVEN_DAY_OAUTH_APPS",
-          "value": 3.1
-        },
-        {
-          "meter": "SEVEN_DAY_OPUS",
-          "value": 61
-        },
-        {
-          "meter": "SEVEN_DAY_SONNET",
-          "value": 12.4
-        },
-        {
-          "meter": "SEVEN_DAY_FABLE_5",
-          "value": 21.5
         }
       ]
     },

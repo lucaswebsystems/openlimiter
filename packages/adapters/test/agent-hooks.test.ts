@@ -27,7 +27,7 @@ const CONTEXT = [
   "recommendation_code=NONE",
   "recommendation_provider=NONE",
   "recommendation_reason=NO_HEALTHY_PROVIDER",
-  "provider=CODEX state=fresh usage_percent=90.00 reset_at=NONE",
+  "provider=CODEX meter=FIVE_HOUR state=fresh usage_percent=90 reset_at=NONE",
   "unknown=NONE",
   "</openlimiter_untrusted_data>"
 ].join("\n");

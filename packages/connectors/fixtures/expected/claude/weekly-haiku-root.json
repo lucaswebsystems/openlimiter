@@ -1,0 +1,23 @@
+{
+  "expected": {
+    "outcome": "readings",
+    "readings": [
+      {
+        "provider": "CLAUDE",
+        "meter": "SEVEN_DAY_HAIKU",
+        "value": 12,
+        "unit": "PERCENT",
+        "window": { "kind": "rolling", "durationSeconds": 604800 },
+        "resetAt": "2026-08-11T12:00:00.000Z",
+        "precision": "exact",
+        "source": "internal_payload",
+        "kind": null,
+        "availability": null,
+        "currency": null,
+        "usedAmount": null,
+        "limitAmount": null,
+        "observedAt": "2026-08-07T12:00:00.000Z"
+      }
+    ]
+  }
+}

@@ -195,6 +195,10 @@ export async function demoSnapshots(now) {
   const core = await import(pathToFileURL(coreEntry).href);
   const rawSnapshots = core.normalizeMeters([
     ...(connectors.parseClaudePayload(connectors.claudeFixture(now), now) ?? []),
+    ...(connectors.parseClaudePayload({
+      five_hour: { utilization: 42, resets_at: new Date(Date.parse(now) + 18_000 * 1000).toISOString() },
+      seven_day: { utilization: 64, resets_at: new Date(Date.parse(now) + 604_800 * 1000).toISOString() },
+    }, now) ?? []),
     ...(connectors.parseOpenrouterPayload(connectors.openrouterFixture(), now) ?? []),
     ...(connectors.parseCodexPayload(connectors.codexFixture(now), now) ?? []),
     ...(connectors.parseAntigravityPayload(connectors.antigravityFixture(now), now) ?? []),
@@ -202,13 +206,13 @@ export async function demoSnapshots(now) {
     ...(connectors.parseManualPayload(connectors.manualFixture(now), now) ?? []),
   ]);
   const futureExpiry = new Date(Date.parse(now) + 24 * 60 * 60 * 1000).toISOString();
-  return rawSnapshots.map((snapshot) => {
+  return core.mergeSnapshots([], rawSnapshots).map((snapshot) => {
     const stamped = {
       ...snapshot,
       observedAt: now,
       expiresAt: futureExpiry,
     };
-    if (snapshot.provider === "CLAUDE") {
+    if (snapshot.provider === "CLAUDE" && snapshot.source === "native_payload") {
       stamped.provenance = {
         sourceKind: "statusline_payload",
         observedVia: "claude_code_statusline",
