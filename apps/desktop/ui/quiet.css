@@ -1100,8 +1100,21 @@ html {
 .settings .q-card {
   display: grid;
   gap: var(--ol-space-3);
-  justify-items: start;
   padding: var(--ol-space-3) var(--ol-space-4) 0.625rem;
+}
+
+/* Blocks span the card; standalone actions keep their own width. */
+.settings .q-card > button {
+  justify-self: start;
+}
+
+/* Updates and About: the two actions share the first row, the rest spans. */
+.settings .q-card:has(> #menu-update) {
+  grid-template-columns: max-content 1fr;
+}
+
+.settings .q-card:has(> #menu-update) > :not(#menu-update, #menu-whats-new) {
+  grid-column: 1 / -1;
 }
 
 #menu-whats-new {

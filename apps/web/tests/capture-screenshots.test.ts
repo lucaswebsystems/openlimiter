@@ -99,7 +99,8 @@ describe("synthetic screenshot pipeline", () => {
       const dom = new JSDOM(await terminalPage(theme, snapshots, now));
       for (const band of ["green", "yellow", "orange", "red"]) expect(dom.window.document.querySelector(`.band-${band}`)?.textContent).toBeTruthy();
       const line = dom.window.document.querySelector("pre")?.textContent ?? "";
-      for (const percentage of [37, 58, 63, 71, 82, 91]) expect(line).toContain(`${percentage}%`);
+      /* The terminal shows Codex weekly only (cx7d), never its five hour cell. */
+      for (const percentage of [37, 58, 63, 82, 91]) expect(line).toContain(`${percentage}%`);
       expect(line).toMatch(/^5h \[/u);
       expect(line).toContain("7d ");
       expect(line).toContain("fable7d ");
@@ -130,6 +131,7 @@ describe("synthetic screenshot pipeline", () => {
     const snapshots = await demoSnapshots(now);
     const phoneRows: CapturePhoneRow[] = snapshots.map((row: CaptureSnapshot) => ({
       provider: row.provider,
+      code: row.meter,
       amount: row.unit === "CREDITS" ? row.value : null,
       currency: row.unit === "CREDITS" ? row.currency ?? null : null,
       percent: row.unit === "PERCENT" ? Math.round(row.value) : null,
@@ -142,7 +144,7 @@ describe("synthetic screenshot pipeline", () => {
     ] as const) {
       const [provider, meter] = key.split(":");
       const desktop = snapshots.find((row: CaptureSnapshot) => row.provider === provider && row.meter === meter);
-      const phone = phoneRows.find((row) => row.provider === provider);
+      const phone = phoneRows.find((row) => row.provider === provider && row.code === meter);
       expect(terminalRows.get(key)).toBe(value);
       expect(desktop?.value).toBe(value);
       expect(phone?.percent ?? phone?.amount).toBe(value);
