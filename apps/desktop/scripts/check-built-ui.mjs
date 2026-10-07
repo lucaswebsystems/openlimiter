@@ -195,22 +195,22 @@ async function checkMessyViews(browser, origin) {
   const readings = [
     ["CODEX", "Codex", [["Weekly", "70%"]]],
     ["CLAUDE", "Claude Code", [["Current session", "6%"], ["Weekly, all models", "46%"], ["Weekly, Fable", "31%"]]],
-    ["OPENROUTER", "OpenRouter", [["Credits", "$12.50"]]],
+    ["OPENROUTER", "OpenRouter", [["Account balance", "$37.50"]]],
   ];
   // Each tool that cannot be measured, on its own row: its one step, or its note.
-  const steps = { KIMI: "Check again", ANTIGRAVITY: "Open Antigravity", GROK: "Sign in again", OPENCODE: "Connect", GEMINI_CLI: "note:Not measurable yet" };
+  const steps = { KIMI: "Check again", ANTIGRAVITY: "Set up status line", GROK: "Sign in again", OPENCODE: "Connect", GEMINI_CLI: "note:Not measurable yet" };
   const stateSteps = {
-    empty: { CLAUDE: "Connect", ANTIGRAVITY: "Open Antigravity", OPENROUTER: "Connect" },
-    waiting: { CLAUDE: "note:Waiting for Claude Code", ANTIGRAVITY: "Open Antigravity", OPENROUTER: "Connect" },
+    empty: { CLAUDE: "Connect", ANTIGRAVITY: "Set up status line", OPENROUTER: "Connect" },
+    waiting: { CLAUDE: "note:Waiting for Claude Code", ANTIGRAVITY: "Set up status line", OPENROUTER: "Connect" },
     money: {},
-    errors: { CLAUDE: "Sign in again", ANTIGRAVITY: "Open Antigravity", OPENROUTER: "Connect", GROK: "Sign in again", GEMINI_CLI: "note:Not measurable yet", KIMI: "Check again" },
+    errors: { CLAUDE: "Check again", ANTIGRAVITY: "Set up status line", OPENROUTER: "Connect", GROK: "Sign in again", GEMINI_CLI: "note:Not measurable yet", KIMI: "Check again" },
   };
   const emptyKeys = Object.fromEntries(["openrouter", "openai", "anthropic", "xai", "moonshot", "deepseek"].map((provider) => [provider, ["Save", "Get key"]]));
   const stateKeys = {
     empty: emptyKeys,
     waiting: emptyKeys,
     money: {
-      openrouter: ["$37.50", "balance", "USD"], openai: ["$84.17", "spent this month", "USD"], anthropic: ["$212.40", "last month"],
+      openrouter: ["OpenRouter Key saved"], openai: ["$84.17", "spent this month", "USD"], anthropic: ["$212.40", "last month"],
       xai: ["$9.03", "Incomplete"], moonshot: ["$41.50", "balance"], deepseek: ["$18.20", "balance"],
     },
     errors: {
@@ -240,6 +240,21 @@ async function checkMessyViews(browser, origin) {
       const canary = await page.evaluate(inspectView, { scope: "#overlap-canary", cards: "button", forbidden: [] });
       const caught = canary.findings.some(finding => finding.startsWith("overlap:"));
       record("Overlap reader finds an icon drawn over its own button's label", [...(caught ? [] : ["it was not found"]), ...errors]);
+
+      await page.locator('#tool-rows [data-provider="ANTIGRAVITY"] button:not(.q-more)').click();
+      await settle(page);
+      const antigravityInView = await page.evaluate(() => {
+        const panel = document.getElementById("antigravity-add");
+        if (!panel) return "panel not found";
+        const style = getComputedStyle(panel);
+        if (panel.hidden || style.display === "none" || style.visibility === "hidden") return "panel is hidden";
+        const rect = panel.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return "panel has zero dimensions";
+        if (document.activeElement !== panel && !panel.contains(document.activeElement)) return "panel does not have focus";
+        return rect.top >= 0 && rect.bottom <= window.innerHeight ? true : "panel is not within the viewport";
+      });
+      if (antigravityInView !== true) errors.push(antigravityInView);
+      record("Antigravity setup scroll", errors);
     } finally { await context.close(); }
   }
 

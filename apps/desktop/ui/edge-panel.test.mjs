@@ -13,7 +13,7 @@ const IDS = ["panel-card", "panel-scroll", "panel-content", "panel-updated", "pa
 const UNREADABLE = "The saved readings could not be read.";
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
-function panel({ cache, sessions = [], windows, event, content = 300, cardOpen = false } = {}) {
+function panel({ cache, sessions = [], windows, event, content = 300, cardOpen = false, stall = null } = {}) {
   const fixtures = messyFixtures(NOW);
   const doc = fakeDocument(IDS);
   // The card sits 12 pixels in, is 400 tall, and shows 300 of the scroller.
@@ -22,11 +22,12 @@ function panel({ cache, sessions = [], windows, event, content = 300, cardOpen =
   Object.assign(doc.getElementById("panel-content"), { offsetHeight: content });
   const calls = [];
   const scheduled = [];
-  // What the next reads answer, and the clock, both changeable mid test.
-  const source = { cache, at: NOW };
+  // What the next reads answer, the clock, and a read held back, all changeable mid test.
+  const source = { cache, at: NOW, stall };
   const invoke = async (command, args) => {
     calls.push([command, args]);
     if (command === "read_cache") {
+      if (source.stall) await source.stall;
       if (source.cache === "fail") throw UNREADABLE;
       return JSON.stringify(source.cache ?? fixtures.projected);
     }
@@ -132,16 +133,51 @@ test("Open app brings the main window forward and closes the panel; Escape close
   stop();
 });
 
-test("polls serialize and nothing is redrawn when nothing changed", async () => {
-  const { view, scheduled, calls, stop } = panel();
+test("polls serialize, keep their rows, and rewrite only the countdowns in place", async () => {
+  const { view, scheduled, calls, stop, source } = panel();
   await flush();
-  const first = view("panel-limits").children;
+  const rows = () => view("panel-limits").all((node) => node.className === "q-row");
+  const countdowns = () => view("panel-limits").all((node) => node.className === "q-rst").map((node) => node.textContent);
+  const before = { rows: rows(), countdowns: countdowns() };
+  source.at += 60_000;
   await scheduled[0]();
-  assert.equal(view("panel-limits").children, first, "the same nodes, so focus survives a poll");
   assert.equal(calls.filter(([command]) => command === "read_cache").length, 2);
+  assert.ok(rows().length === before.rows.length && rows().every((row, index) => row === before.rows[index]),
+    "the same nodes, so focus survives a poll");
+  assert.notDeepEqual(countdowns(), before.countdowns, "a minute later the countdowns moved");
+  assert.ok(countdowns().includes("1h 54m"));
   stop();
   await flush();
   assert.equal(scheduled.length, 2);
+});
+
+test("without an event channel the panel starts and keeps polling rather than going stale", async () => {
+  const { calls, scheduled, stop } = panel();
+  await flush();
+  assert.equal(calls.filter(([command]) => command === "read_cache").length, 1);
+  assert.equal(scheduled.length, 1, "it cannot hear when it is hidden, so it polls");
+  stop();
+});
+
+test("a collector event during a read still under way gets one more read when it ends", async () => {
+  const listeners = {};
+  const event = { listen: async (name, handler) => { listeners[name] = handler; return () => {}; } };
+  let release;
+  const { calls, scheduled, source, stop } = panel({ event, stall: new Promise((resolve) => { release = resolve; }) });
+  await flush();
+  const reads = () => calls.filter(([command]) => command === "read_cache").length;
+  assert.equal(reads(), 1, "the start read is still waiting");
+  listeners["collector-updated"]();
+  listeners["collector-updated"]();
+  await flush();
+  assert.equal(reads(), 1, "nothing reads beside a read under way");
+  source.stall = null;
+  release();
+  await flush();
+  await flush();
+  assert.equal(reads(), 2, "one more read answers both events");
+  assert.equal(scheduled.length, 0, "and the hidden panel still does not poll");
+  stop();
 });
 
 test("the panel reports the height its content needs, and only when it changes", async () => {
@@ -170,19 +206,22 @@ test("the panel reads once at start, polls only while shown, and stops when hidd
   const reads = () => calls.filter(([command]) => command === "read_cache").length;
   assert.equal(reads(), 1, "the first draw sizes the panel before it is ever shown");
   assert.equal(scheduled.length, 0, "a hidden panel does not poll");
+  listeners["collector-updated"]();
+  await flush();
+  assert.equal(reads(), 2, "a collector update triggers a read even when hidden");
   listeners[PANEL_SHOWN_EVENT]({ payload: true });
   await flush();
-  assert.equal(reads(), 2, "opening reads at once");
+  assert.equal(reads(), 3, "opening reads at once");
   assert.equal(scheduled.length, 1, "and keeps reading while shown");
   await scheduled[0]();
-  assert.equal(reads(), 3);
+  assert.equal(reads(), 4);
   listeners[PANEL_SHOWN_EVENT]({ payload: false });
   await flush();
   const before = scheduled.length;
   await scheduled.at(-1)();
   assert.equal(scheduled.length, before, "hidden: the poll that was due does not schedule another");
   stop();
-  assert.equal(unlistened, 1);
+  assert.equal(unlistened, 2);
 });
 
 test("a panel already open when its listener arrives starts polling from the snapshot", async () => {

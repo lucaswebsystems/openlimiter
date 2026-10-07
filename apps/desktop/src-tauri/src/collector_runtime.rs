@@ -109,9 +109,10 @@ pub async fn run_guarded<T: Transport>(
         .as_ref()
         .map(|secret| crate::poll_identity::credential_revision(secret))
         .unwrap_or_else(|| "unavailable".to_string());
-    if credential
-        .as_ref()
-        .is_some_and(|secret| crate::poll_identity::credential_expired(secret, now_ms))
+    if provider != DetectedProviderId::Codex
+        && credential
+            .as_ref()
+            .is_some_and(|secret| crate::poll_identity::credential_expired(secret, now_ms))
     {
         let code = provider.slug().to_uppercase().replace('-', "_");
         let _ = writer.record_availability(
@@ -257,9 +258,22 @@ fn collection_plan(
     let mut known_providers = HashSet::new();
 
     for record in records {
-        known_providers.insert(detected_provider(record.provider_id));
+        /* Ownership, in this order: a paused record holds its provider and
+        its account whatever its status; an active record the provider refused
+        claims neither, so the detected path reads the live login for that
+        account; an active working record claims both. */
+        let claims = !record.is_active()
+            || !matches!(
+                record.status.as_str(),
+                crate::commands::STATUS_NEEDS_AUTH
+                    | crate::commands::STATUS_AUTH_EXPIRED
+                    | crate::commands::STATUS_ERROR
+            );
         let identity = resolve_connection(&record, secrets);
-        covered.insert(identity.clone());
+        if claims {
+            known_providers.insert(detected_provider(record.provider_id));
+            covered.insert(identity.clone());
+        }
         if !record.is_active() {
             continue;
         }
@@ -623,10 +637,10 @@ mod tests {
             let secrets = InMemorySecrets::new();
             let saved = record(
                 "expired",
-                ProviderId::Codex,
-                ReaderId::CodexUsage,
-                CredentialKind::CodexSession,
-                Some("account"),
+                ProviderId::Cursor,
+                ReaderId::CursorUsage,
+                CredentialKind::CursorSession,
+                None,
                 NOW,
                 None,
             );
@@ -890,6 +904,44 @@ mod tests {
         assert!(plan
             .known_providers
             .contains(&DetectedProviderId::Antigravity));
+    }
+
+    #[test]
+    fn a_paused_record_holds_its_provider_a_refused_one_frees_it_a_working_one_claims_it() {
+        /* One Codex record per plan, so each case can only be answered by its
+        own record, through both sets the detected Codex reader consults. */
+        let secrets = InMemorySecrets::new();
+        let account = crate::provider_detection::opaque_account_id(
+            DetectedProviderId::Codex,
+            "codex-provider-account",
+        );
+        let owns = |status: &str, paused: bool| {
+            let mut codex = record(
+                "codex-record",
+                ProviderId::Codex,
+                ReaderId::CodexUsage,
+                CredentialKind::CodexSession,
+                Some("codex-provider-account"),
+                1,
+                None,
+            );
+            codex.status = status.to_string();
+            if paused {
+                codex.pause_reason = Some(crate::connections::PauseReason::PausedByPlan);
+            }
+            let plan = collection_plan(vec![codex], &secrets, NOW);
+            (
+                plan.known_providers.contains(&DetectedProviderId::Codex),
+                plan.covered
+                    .contains(&PollIdentity::detected(ProviderId::Codex, account.clone())),
+            )
+        };
+        for refused in ["ERROR", "NEEDS_AUTH", "AUTH_EXPIRED"] {
+            assert_eq!(owns(refused, true), (true, true), "paused {refused}");
+            assert_eq!(owns(refused, false), (false, false), "active {refused}");
+        }
+        assert_eq!(owns("CONNECTED", false), (true, true), "working");
+        assert_eq!(owns("CONNECTED", true), (true, true), "paused working");
     }
 
     #[test]

@@ -107,5 +107,8 @@
   "claudePollSaveFailed": "The choice could not be saved, so Claude usage stays off.",
   "claudePollContinueOff": "Continue with Claude off",
   "claudeWeeklyPollHint": "Turn on the usage poll in Connect Tools to see your weekly limits.",
-  "claudeFableDesktopHint": "Fable shows here when Claude usage is on in OpenLimiter on your computer."
+  "claudeFableDesktopHint": "Fable shows here when Claude usage is on in OpenLimiter on your computer.",
+  "pasteOpenRouterKey": "Paste your OpenRouter key in the API keys list below.",
+  "checkingSignIn": "Checking your sign in...",
+  "cliNotFound": "{name} CLI not found. Put it on PATH, then check again."
 }

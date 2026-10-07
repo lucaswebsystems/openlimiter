@@ -771,7 +771,7 @@ impl ConnectionsStore {
 
     pub fn insert_for_plan(
         &self,
-        mut record: ConnectionRecord,
+        record: ConnectionRecord,
         multi_account: bool,
     ) -> Result<ConnectionRecord, StoreError> {
         validate_record(&record)?;

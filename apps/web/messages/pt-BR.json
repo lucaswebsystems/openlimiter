@@ -6,6 +6,9 @@
     "saveFailed": "Não foi possível salvar a configuração da aba lateral. Tente novamente."
   },
   "desktopReadings": {
+    "pasteOpenRouterKey": "Cole sua chave do OpenRouter na lista de chaves de API abaixo.",
+    "checkingSignIn": "Verificando seu login...",
+    "cliNotFound": "CLI do {name} não encontrada. Adicione ao PATH e verifique novamente.",
     "limits": "Limites",
     "agents": "Agentes",
     "used": "Usado",

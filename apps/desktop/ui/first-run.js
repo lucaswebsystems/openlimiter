@@ -1108,7 +1108,9 @@ export function initFirstRun(input) {
   const setup = screen.querySelector("#first-run-setup");
   const account = screen.querySelector("#first-run-account");
 
-  document.documentElement.dataset.firstRun = "pending";
+  if (document.documentElement.dataset.firstRun !== "complete") {
+    document.documentElement.dataset.firstRun = "pending";
+  }
 
   let microsoft = null;
   let hadCompletedFirstRun = false;
@@ -1363,13 +1365,28 @@ export function initFirstRun(input) {
   });
 
   void (async () => {
-    const result = await options.accountStatus();
-    if (result.ok) options.onAccountState(result.value);
     hadCompletedFirstRun = window.localStorage.getItem(FIRST_RUN_STORAGE_KEY) === "complete";
     const completed = hadCompletedFirstRun && readConfiguredProviders().length > 0;
+    if (!completed) document.documentElement.dataset.firstRun = "pending";
+    /* The account answer can wait on a network refresh, so nobody waits on
+       it: every install not yet finished sees the account step at once,
+       saying it checks, a returning person with no tools left included. */
+    const way = screen.querySelector("#first-run-way-status");
+    const checking = say("checkingSignIn");
+    if (!completed) {
+      showAccount();
+      if (way !== null) way.textContent = checking;
+    }
+    const answered = options.accountStatus().then(
+      (result) => { if (result.ok) options.onAccountState(result.value); },
+      () => {},
+    );
     await loadClaudePollSetting();
     const poll = await claudePollGate.begin(hadCompletedFirstRun);
     if (hadCompletedFirstRun && poll.needsAcknowledgement) {
+      /* The one time consent shows over a painted Home, not a blank one. */
+      document.documentElement.dataset.firstRun = "pending";
+      screen.hidden = false;
       showClaudePollConsent();
       return;
     }
@@ -1378,11 +1395,13 @@ export function initFirstRun(input) {
       return;
     }
     void detections.load();
+    await answered;
+    if (way !== null && way.textContent === checking) way.textContent = "";
+    /* The answer reconciles only the account step still showing: after
+       Create account later, or once first run is done, it changes nothing. */
+    if (document.documentElement.dataset.firstRun !== "pending") return;
+    if (screen.dataset.step !== "account") return;
     /* Somebody already signed in has nothing left to be asked. */
-    if (options.isSignedIn()) {
-      await showConnect();
-      return;
-    }
-    showAccount();
+    if (options.isSignedIn()) await showConnect();
   })();
 }

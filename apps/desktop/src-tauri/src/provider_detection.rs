@@ -19,14 +19,28 @@ const MAX_ACCOUNTS_PER_FILE: usize = 16;
 const MAX_TOKEN_BYTES: usize = 4_096;
 const MAX_IDENTITY_BYTES: usize = 512;
 
-/* Windows: the Antigravity probe's application roots plus the npm global bin
-below the roaming profile are the only user install locations accepted for
-these command line clients. */
+/* Windows: the only user install locations accepted for these command line
+clients. The roots stay although the CLI itself walks PATH: the desktop runs
+what it resolves, so an arbitrary PATH directory must never supply that code.
+Each documented layout is named by where it really keeps its files: npm's
+default prefix, pnpm's home (shims and its default global folder), Volta's
+tree (shims and package images), nvm windows' version folders, fnm's
+installed versions (its per shell link resolves into them), scoop's app and
+persisted folders, and winget's packages (its Links entries resolve into
+them). A prefix or global folder configured in `.npmrc` is added at run time,
+see `configured_install_roots`. */
 const CODEX_INSTALL_ROOTS_WINDOWS: &[&str] = &[
     "home/bin",
     "home/Applications",
     "roaming/npm",
     "local/Programs",
+    "local/pnpm",
+    "local/Volta",
+    "roaming/nvm",
+    "roaming/fnm/node-versions",
+    "home/scoop/apps",
+    "home/scoop/persist",
+    "local/Microsoft/WinGet/Packages",
 ];
 const CLAUDE_INSTALL_ROOTS_WINDOWS: &[&str] = CODEX_INSTALL_ROOTS_WINDOWS;
 const GEMINI_INSTALL_ROOTS_WINDOWS: &[&str] = CODEX_INSTALL_ROOTS_WINDOWS;
@@ -189,6 +203,7 @@ pub enum IdentityQuality {
 pub enum RecoveryAction {
     ReopenCli,
     SignInToCli,
+    InstallCli,
     ConnectApiKey,
     ManualEntry,
 }
@@ -950,7 +965,12 @@ fn provider_install_roots(
         }) else {
             continue;
         };
-        let mut root = base_path.to_path_buf();
+        /* The base is the system's own folder, taken where it really is; the
+        layout folders below it are checked as written, so a link among them
+        never carries the trust elsewhere (`validated_executable_in_roots`). */
+        let Some(mut root) = canonical_existing_path(base_path) else {
+            continue;
+        };
         for component in Path::new(relative).components() {
             if let Component::Normal(value) = component {
                 root.push(value);
@@ -958,7 +978,88 @@ fn provider_install_roots(
         }
         roots.push(root);
     }
+    roots.extend(configured_install_roots(context));
     roots
+}
+
+/// Largest npm style config file read for a prefix or a global folder.
+const MAX_NPM_CONFIG_BYTES: u64 = 65_536;
+
+/// The folders a person configured for npm and pnpm on Windows: the npm
+/// `prefix` and the pnpm `global-dir`. A configured folder holds the shims
+/// and the package tree a layout uses, so it is accepted like a default one.
+/// Only a configured folder is added: pnpm's default global folder sits in
+/// pnpm's home, whose own root already covers it.
+fn configured_install_roots(context: &DiscoveryContext) -> Vec<PathBuf> {
+    if context.platform != DiscoveryPlatform::Windows {
+        return Vec::new();
+    }
+    let npmrc = context.home.as_deref().map(|home| home.join(".npmrc"));
+    npmrc
+        .as_deref()
+        .and_then(|file| configured_directory(file, "prefix"))
+        .into_iter()
+        .chain(configured_pnpm_global_dir(context))
+        .collect()
+}
+
+/// One folder an npm style config file names (`key=value`, the last one
+/// winning), read bounded and never through a link. Only an absolute path is
+/// taken; a relative or variable value is not resolved.
+fn configured_directory(file: &Path, key: &str) -> Option<PathBuf> {
+    let text = fsx::bounded_read_up_to(file, MAX_NPM_CONFIG_BYTES)?;
+    text.lines()
+        .filter_map(|line| line.split_once('='))
+        .filter(|(name, _)| name.trim() == key)
+        .map(|(_, value)| PathBuf::from(value.trim().trim_matches('"')))
+        .last()
+        .filter(|path| path.is_absolute())
+}
+
+/// pnpm's `global-dir` as a person configured it: in `.npmrc`, else in
+/// pnpm's own config file.
+fn configured_pnpm_global_dir(context: &DiscoveryContext) -> Option<PathBuf> {
+    let pnpm = context.local.as_deref()?.join("pnpm");
+    context
+        .home
+        .as_deref()
+        .and_then(|home| configured_directory(&home.join(".npmrc"), "global-dir"))
+        .or_else(|| configured_directory(&pnpm.join("config").join("rc"), "global-dir"))
+}
+
+/// pnpm's global folder: the configured one, else `global` under pnpm's home.
+fn pnpm_global_dir(context: &DiscoveryContext) -> Option<PathBuf> {
+    configured_pnpm_global_dir(context)
+        .or_else(|| Some(context.local.as_deref()?.join("pnpm").join("global")))
+}
+
+/// Whether `directory` is `expected`, compared by their real paths.
+fn same_directory(directory: &Path, expected: &Path) -> bool {
+    canonical_existing_path(expected)
+        .is_some_and(|expected| canonical_existing_path(directory) == Some(expected))
+}
+
+/// A folder under the local application data, Windows only: where Volta,
+/// pnpm and winget keep the shims and links that point at their packages.
+fn windows_folder(context: &DiscoveryContext, parts: &[&str]) -> Option<PathBuf> {
+    if context.platform != DiscoveryPlatform::Windows {
+        return None;
+    }
+    let mut folder = context.local.as_deref()?.to_path_buf();
+    folder.extend(parts);
+    Some(folder)
+}
+
+/// winget keeps one symbolic link per command in its Links folder. The link
+/// is never run: its target is, and only once validated like any other file.
+fn winget_link_target(context: &DiscoveryContext, path: &Path) -> Option<PathBuf> {
+    if !fs::symlink_metadata(path).ok()?.file_type().is_symlink() {
+        return None;
+    }
+    let links = windows_folder(context, &["Microsoft", "WinGet", "Links"])?;
+    same_directory(path.parent()?, &links)
+        .then(|| canonical_existing_path(path))
+        .flatten()
 }
 
 #[cfg(windows)]
@@ -1034,10 +1135,13 @@ pub(crate) fn validated_executable_in_roots(path: &Path, roots: &[PathBuf]) -> O
     if !fs::metadata(&resolved).is_ok_and(|metadata| metadata.is_file()) {
         return None;
     }
+    /* Each root is checked as written, before it is resolved: resolving
+    first would follow a link standing in for a root and trust wherever it
+    points. */
     roots
         .iter()
-        .filter_map(|root| canonical_existing_path(root))
         .filter(|root| path_components_are_real_directory(root))
+        .filter_map(|root| canonical_existing_path(root))
         .any(|root| resolved.starts_with(root))
         .then_some(resolved)
 }
@@ -1053,8 +1157,11 @@ fn validated_launcher(
     context: &DiscoveryContext,
     path: &Path,
 ) -> Option<PathBuf> {
-    let roots = provider_install_roots(provider, context);
-    validated_executable_in_roots(path, &roots)
+    let target = winget_link_target(context, path);
+    let path = target.as_deref().unwrap_or(path);
+    // Most PATH entries hold nothing by this name: no roots to work out then.
+    fs::symlink_metadata(path).ok()?;
+    validated_executable_in_roots(path, &provider_install_roots(provider, context))
 }
 
 fn executable_names(provider: DetectedProviderId, platform: DiscoveryPlatform) -> Vec<String> {
@@ -1205,6 +1312,8 @@ fn installed_executable(
     for directory in &context.path_entries {
         for name in &names {
             let candidate = directory.join(name);
+            // A winget link stands for its target from here on.
+            let candidate = winget_link_target(context, &candidate).unwrap_or(candidate);
             if let Some(resolved) = validated_launcher(provider, context, &candidate) {
                 if provider == DetectedProviderId::Codex {
                     let executable_is_link = fs::symlink_metadata(&candidate)
@@ -1220,7 +1329,11 @@ fn installed_executable(
                                 .join("bin")
                                 .join("codex.js"),
                         );
-                    let is_windows_shim = matches!(extension.as_deref(), Some("cmd" | "bat"));
+                    /* A Volta shim is an executable that only names a package,
+                    so it is mapped like a script shim and never run itself. */
+                    let is_windows_shim = matches!(extension.as_deref(), Some("cmd" | "bat"))
+                        || windows_folder(context, &["Volta", "bin"])
+                            .is_some_and(|shims| same_directory(directory, &shims));
                     if executable_is_link && !is_npm_launcher {
                         continue;
                     }
@@ -1231,7 +1344,8 @@ fn installed_executable(
                         }
                     }
                     if executable_is_link
-                        || matches!(extension.as_deref(), Some("cmd" | "bat" | "js"))
+                        || is_windows_shim
+                        || matches!(extension.as_deref(), Some("js"))
                     {
                         continue;
                     }
@@ -1250,39 +1364,74 @@ fn codex_native_executable(
 ) -> Option<PathBuf> {
     let (platform, arch, triple, executable_name) = codex_native_layout(context.platform);
     let package = format!("codex-{platform}-{arch}");
-    let package_root = if launcher
-        .extension()
-        .is_some_and(|extension| extension == "js")
-    {
-        launcher.parent()?.parent()?.to_path_buf()
-    } else {
-        path_directory
-            .join("node_modules")
-            .join("@openai")
-            .join("codex")
-    };
-    let package_parent = package_root.parent()?.to_path_buf();
-    for vendor in [
-        package_root.join("vendor").join(triple),
-        package_root
-            .join("node_modules")
-            .join("@openai")
-            .join(&package)
-            .join("vendor")
-            .join(triple),
-        package_parent.join(&package).join("vendor").join(triple),
-    ] {
-        for binary_directory in ["codex", "bin"] {
-            let candidate = vendor.join(binary_directory).join(executable_name);
-            if let Some(native) = validated_executable_in_roots(
-                &candidate,
-                &provider_install_roots(DetectedProviderId::Codex, context),
-            ) {
-                return Some(native);
+    let roots = provider_install_roots(DetectedProviderId::Codex, context);
+    for package_root in codex_package_roots(path_directory, launcher, context) {
+        /* pnpm links the package out of its store, and the platform package
+        sits beside the real folder there, never beside the link. */
+        let Some(package_root) = canonical_existing_path(&package_root) else {
+            continue;
+        };
+        let Some(package_parent) = package_root.parent() else {
+            continue;
+        };
+        for vendor in [
+            package_root.join("vendor").join(triple),
+            package_root
+                .join("node_modules")
+                .join("@openai")
+                .join(&package)
+                .join("vendor")
+                .join(triple),
+            package_parent.join(&package).join("vendor").join(triple),
+        ] {
+            for binary_directory in ["codex", "bin"] {
+                let candidate = vendor.join(binary_directory).join(executable_name);
+                if let Some(native) = validated_executable_in_roots(&candidate, &roots) {
+                    return Some(native);
+                }
             }
         }
     }
     None
+}
+
+/// Where the `@openai/codex` package a launcher starts really lives, by
+/// layout: the package of a POSIX npm link; Volta's package image for a Volta
+/// shim; pnpm's global folders for a pnpm shim; and the shim's own prefix for
+/// npm, nvm windows, fnm and scoop, whose prefix holds shims and packages.
+fn codex_package_roots(
+    path_directory: &Path,
+    launcher: &Path,
+    context: &DiscoveryContext,
+) -> Vec<PathBuf> {
+    let package = |prefix: &Path| prefix.join("node_modules").join("@openai").join("codex");
+    if launcher.extension().is_some_and(|extension| extension == "js") {
+        return launcher
+            .parent()
+            .and_then(Path::parent)
+            .map(Path::to_path_buf)
+            .into_iter()
+            .collect();
+    }
+    if let Some(volta) = windows_folder(context, &["Volta"]) {
+        if same_directory(path_directory, &volta.join("bin")) {
+            let mut image = volta;
+            image.extend(["tools", "image", "packages", "@openai", "codex"]);
+            return vec![package(&image)];
+        }
+    }
+    if let Some(pnpm) = windows_folder(context, &["pnpm"]) {
+        if same_directory(path_directory, &pnpm) {
+            return pnpm_global_dir(context)
+                .and_then(|global| fs::read_dir(global).ok())
+                .into_iter()
+                .flatten()
+                .flatten()
+                .map(|entry| package(&entry.path()))
+                .collect();
+        }
+    }
+    vec![package(path_directory)]
 }
 
 fn codex_native_layout(
@@ -2072,11 +2221,66 @@ pub struct DetectedSecret {
     pub credential_revision: String,
 }
 
+const PROVISIONAL_POLICY_FILE_NAME: &str = "detection-policy.json";
+/// A scan older than this no longer speaks for this machine's logins.
+const PROVISIONAL_POLICY_MAX_AGE_MS: u64 = 7 * 86_400_000;
+const MAX_PROVISIONAL_POLICY_BYTES: u64 = 65_536;
+const MAX_PROVISIONAL_ACCOUNTS: usize = 128;
+
+fn provider_code(provider: DetectedProviderId) -> String {
+    provider.slug().to_uppercase().replace('-', "_")
+}
+
+/// The accounts the last scan vouched for, per provider code, kept so the
+/// first projection after a start is not an empty policy. Opaque account ids
+/// and the scan time only: nothing secret.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProvisionalPolicy {
+    pub scanned_at: u64,
+    pub accounts: BTreeMap<String, BTreeSet<String>>,
+}
+
+impl ProvisionalPolicy {
+    /// The policy saved in `directory`, only when it is recent, names every
+    /// provider and stays in bounds. Anything else reads as no policy: a
+    /// partial one would lift the restriction for every provider it omits.
+    pub(crate) fn load(directory: &Path, now_ms: u64) -> Option<Self> {
+        let text = fsx::bounded_read_up_to(
+            &directory.join(PROVISIONAL_POLICY_FILE_NAME),
+            MAX_PROVISIONAL_POLICY_BYTES,
+        )?;
+        let policy: Self = serde_json::from_str(&text).ok()?;
+        // A scan stamped in the future (a clock set back) is no evidence either.
+        let age = now_ms.checked_sub(policy.scanned_at)?;
+        let complete = policy.accounts.len() == DetectedProviderId::ALL.len()
+            && DetectedProviderId::ALL.into_iter().all(|provider| {
+                policy.accounts.get(&provider_code(provider)).is_some_and(|ids| {
+                    ids.len() <= MAX_PROVISIONAL_ACCOUNTS
+                        && ids.iter().all(|id| {
+                            !id.is_empty()
+                                && id.len() <= MAX_IDENTITY_BYTES
+                                && !id.chars().any(char::is_control)
+                        })
+                })
+            });
+        (age < PROVISIONAL_POLICY_MAX_AGE_MS && complete).then_some(policy)
+    }
+
+    fn save(&self, directory: &Path) -> Result<(), fsx::FsFailure> {
+        let text = serde_json::to_string(self).map_err(|_| fsx::FsFailure::Io)?;
+        fsx::ensure_private_dir(directory)?;
+        fsx::atomic_write(&directory.join(PROVISIONAL_POLICY_FILE_NAME), &text)
+    }
+}
+
 pub struct DetectionStore {
     pub switches: crate::provider_switches::ProviderSwitches,
     context: DiscoveryContext,
     inventory: RwLock<Inventory>,
     scan_gate: Mutex<Option<Instant>>,
+    /// The previous run's saved policy, consulted only until this run scans.
+    provisional_policy: Option<ProvisionalPolicy>,
 }
 
 pub fn spawn_rescans(app: tauri::AppHandle) {
@@ -2120,12 +2324,27 @@ impl DetectionStore {
             credentials: BTreeMap::new(),
             statusline_accounts: BTreeSet::new(),
         };
+        let provisional_policy = crate::state::state_directory().and_then(|directory| {
+            ProvisionalPolicy::load(&directory, crate::connections::now_epoch_ms())
+        });
         Self {
             switches,
             context,
             inventory: RwLock::new(inventory),
             scan_gate: Mutex::new(None),
+            provisional_policy,
         }
+    }
+
+    /// Before this run's first scan, the accounts the previous run's last
+    /// scan vouched for; after it, nothing, because the scan itself rules.
+    pub(crate) fn provisional_policy(&self) -> Option<&ProvisionalPolicy> {
+        let scanned = self
+            .inventory
+            .read()
+            .map(|inventory| !inventory.report.scanned_at.is_empty())
+            .unwrap_or(true);
+        self.provisional_policy.as_ref().filter(|_| !scanned)
     }
 
     pub fn report(&self) -> DetectionReport {
@@ -2152,8 +2371,26 @@ impl DetectionStore {
             &self.switches,
         );
         let report = self.merge_inventory(next);
+        self.persist_provisional_policy();
         *gate = Some(Instant::now());
         report
+    }
+
+    /// Save what this scan vouched for, for the next run's first projection.
+    fn persist_provisional_policy(&self) {
+        let policy = ProvisionalPolicy {
+            scanned_at: crate::connections::now_epoch_ms(),
+            accounts: DetectedProviderId::ALL
+                .into_iter()
+                .map(|provider| {
+                    let accounts = self.display_account_ids(provider).into_iter().collect();
+                    (provider_code(provider), accounts)
+                })
+                .collect(),
+        };
+        if let Some(directory) = crate::state::state_directory() {
+            let _ = policy.save(&directory);
+        }
     }
 
     fn merge_inventory(&self, mut next: Inventory) -> DetectionReport {
@@ -2204,9 +2441,8 @@ impl DetectionStore {
                 inventory
                     .credentials
                     .values()
-                    .filter_map(|reference| match &reference.source {
-                        CredentialSource::File(path) => Some(path.clone()),
-                        _ => None,
+                    .map(|reference| match &reference.source {
+                        CredentialSource::File(path) => path.clone(),
                     })
                     .collect()
             })
@@ -2416,6 +2652,19 @@ impl DetectionStore {
         );
     }
 
+    pub fn mark_cli_missing(&self, provider: DetectedProviderId, account_id: &str) {
+        self.update_collection(
+            provider,
+            account_id,
+            DetectedCollectionState::Fallback,
+            Some(RecoveryAction::InstallCli),
+            Some(&format!(
+                "{} CLI not found. Put it on PATH, then check again.",
+                provider.display_name()
+            )),
+        );
+    }
+
     fn update_collection(
         &self,
         provider: DetectedProviderId,
@@ -2472,15 +2721,45 @@ impl DetectionStore {
             context,
             inventory: RwLock::new(inventory),
             scan_gate: Mutex::new(None),
+            provisional_policy: None,
         }
     }
+
+    /// A store as the app holds it between start and its first scan.
+    #[cfg(test)]
+    pub(crate) fn unscanned_for_test_home(
+        home: &Path,
+        provisional_policy: Option<ProvisionalPolicy>,
+    ) -> Self {
+        let store = Self::for_test_home(home, 1_800_000_000_000);
+        if let Ok(mut inventory) = store.inventory.write() {
+            inventory.report.scanned_at.clear();
+            inventory.report.providers.clear();
+            inventory.credentials.clear();
+            inventory.statusline_accounts.clear();
+        }
+        Self {
+            provisional_policy,
+            ..store
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CodexRuntimeOutcome {
+    Found(PathBuf, PathBuf),
+    MissingExecutable,
+    NoMatchingLogin,
 }
 
 fn codex_runtime_in_context(
     provider_account_id: &str,
     context: &DiscoveryContext,
-) -> Option<(PathBuf, PathBuf)> {
-    let executable = installed_executable(DetectedProviderId::Codex, context)?;
+) -> CodexRuntimeOutcome {
+    let executable = match installed_executable(DetectedProviderId::Codex, context) {
+        Some(exe) => exe,
+        None => return CodexRuntimeOutcome::MissingExecutable,
+    };
     let mut candidates = candidate_paths(DetectedProviderId::Codex, context);
     candidates.extend(profile_candidates(
         DetectedProviderId::Codex,
@@ -2497,13 +2776,14 @@ fn codex_runtime_in_context(
             return candidate
                 .path
                 .parent()
-                .map(|home| (executable.clone(), home.to_path_buf()));
+                .map(|home| CodexRuntimeOutcome::Found(executable.clone(), home.to_path_buf()))
+                .unwrap_or(CodexRuntimeOutcome::NoMatchingLogin);
         }
     }
-    None
+    CodexRuntimeOutcome::NoMatchingLogin
 }
 
-pub(crate) fn current_codex_runtime(provider_account_id: &str) -> Option<(PathBuf, PathBuf)> {
+pub(crate) fn current_codex_runtime(provider_account_id: &str) -> CodexRuntimeOutcome {
     codex_runtime_in_context(provider_account_id, &DiscoveryContext::current())
 }
 
@@ -2511,7 +2791,7 @@ pub(crate) fn current_codex_runtime(provider_account_id: &str) -> Option<(PathBu
 pub(crate) fn codex_runtime_for_test_home(
     provider_account_id: &str,
     home: &Path,
-) -> Option<(PathBuf, PathBuf)> {
+) -> CodexRuntimeOutcome {
     let store = DetectionStore::for_test_home(home, 1_800_000_000_000);
     codex_runtime_in_context(provider_account_id, &store.context)
 }
@@ -2791,6 +3071,7 @@ mod tests {
                 context,
                 switches: crate::provider_switches::ProviderSwitches::at(None),
                 inventory: RwLock::new(inventory),
+                provisional_policy: None,
             };
             let state = dir.path().join("state");
             let policy = RequestPolicy::at(Some(state.clone()));
@@ -2966,6 +3247,289 @@ mod tests {
                 fs::canonicalize(&executable).unwrap()
             ))
         );
+    }
+
+    /// A Codex npm package under `prefix`, its platform package hoisted
+    /// beside it: the npm layout every Windows package manager here reuses.
+    fn windows_codex_package(prefix: &Path) -> PathBuf {
+        let (platform, arch, triple, executable) = codex_native_layout(DiscoveryPlatform::Windows);
+        let scope = prefix.join("node_modules").join("@openai");
+        write(&scope.join("codex").join("bin").join("codex.js"), "launcher");
+        let native = scope
+            .join(format!("codex-{platform}-{arch}"))
+            .join("vendor")
+            .join(triple)
+            .join("codex")
+            .join(executable);
+        write(&native, "native codex");
+        canonical_existing_path(&native).expect("native codex")
+    }
+
+    fn resolve_windows_codex(home: &Path, path_entries: &[&Path]) -> Option<PathBuf> {
+        let mut discovery = context(DiscoveryPlatform::Windows, home);
+        discovery.path_entries = path_entries.iter().map(|entry| entry.to_path_buf()).collect();
+        installed_executable(DetectedProviderId::Codex, &discovery)
+    }
+
+    #[test]
+    fn each_windows_layout_resolves_codex_from_its_own_package_tree() {
+        let dir = TempDir::new();
+        let home = canonical_existing_path(dir.path()).expect("canonical home");
+        let (roaming, local) = (home.join("roaming"), home.join("local"));
+        let resolve = |entry: &Path| resolve_windows_codex(&home, &[entry]);
+        let shim = |prefix: &Path| write(&prefix.join("codex.cmd"), "@echo off");
+
+        // npm, its default prefix: the shim and the package share it.
+        let npm = roaming.join("npm");
+        shim(&npm);
+        let native = windows_codex_package(&npm);
+        assert_eq!(resolve(&npm), Some(native));
+
+        // npm, a prefix named in .npmrc, and only while it is named there.
+        let prefix = home.join("npm-prefix");
+        shim(&prefix);
+        let native = windows_codex_package(&prefix);
+        assert_eq!(resolve(&prefix), None, "an unnamed folder is outside every root");
+        write(&home.join(".npmrc"), &format!("prefix={}\n", prefix.display()));
+        assert_eq!(resolve(&prefix), Some(native));
+
+        // pnpm: the shim in its home, the package in its global folder, never
+        // in an npm tree that happens to sit beside the shim.
+        let pnpm = local.join("pnpm");
+        shim(&pnpm);
+        windows_codex_package(&pnpm);
+        assert_eq!(resolve(&pnpm), None, "an adjacent npm tree is not the pnpm package");
+        let native = windows_codex_package(&pnpm.join("global").join("5"));
+        assert_eq!(resolve(&pnpm), Some(native));
+        // Its default global folder is covered by pnpm's home, never a root of its own.
+        assert_eq!(
+            configured_install_roots(&context(DiscoveryPlatform::Windows, &home)),
+            vec![prefix.clone()]
+        );
+        // A `global-dir` in .npmrc is where pnpm keeps it instead.
+        let global = home.join("pnpm-global");
+        write(&home.join(".npmrc"), &format!("global-dir={}\n", global.display()));
+        let native = windows_codex_package(&global.join("5"));
+        assert_eq!(resolve(&pnpm), Some(native));
+
+        // Volta: its shim is an executable that is never run itself.
+        let volta = local.join("Volta");
+        write(&volta.join("bin").join("codex.exe"), "volta shim");
+        assert_eq!(resolve(&volta.join("bin")), None, "a shim without its package image");
+        let mut image = volta.clone();
+        image.extend(["tools", "image", "packages", "@openai", "codex"]);
+        let native = windows_codex_package(&image);
+        assert_eq!(resolve(&volta.join("bin")), Some(native));
+
+        // nvm windows: a version folder is the prefix.
+        let nvm = roaming.join("nvm").join("v22.11.0");
+        shim(&nvm);
+        let native = windows_codex_package(&nvm);
+        assert_eq!(resolve(&nvm), Some(native));
+
+        // scoop: the persisted prefix, and an app's current folder.
+        let scoop = home.join("scoop");
+        for prefix in [
+            scoop.join("persist").join("nodejs").join("bin"),
+            scoop.join("apps").join("nodejs-lts").join("current"),
+        ] {
+            shim(&prefix);
+            let native = windows_codex_package(&prefix);
+            assert_eq!(resolve(&prefix), Some(native));
+        }
+    }
+
+    #[test]
+    fn a_path_entry_outside_the_roots_never_shadows_an_installed_codex() {
+        let dir = TempDir::new();
+        let home = canonical_existing_path(dir.path()).expect("canonical home");
+        let outside = home.join("outside");
+        let npm = home.join("roaming").join("npm");
+        let nvm = home.join("roaming").join("nvm").join("v22.11.0");
+        for prefix in [&outside, &npm, &nvm] {
+            write(&prefix.join("codex.cmd"), "@echo off");
+        }
+        windows_codex_package(&outside);
+        let npm_native = windows_codex_package(&npm);
+        let nvm_native = windows_codex_package(&nvm);
+        // First on PATH, but outside every root: passed over, never run.
+        assert_eq!(resolve_windows_codex(&home, &[&outside, &npm]), Some(npm_native.clone()));
+        // Between two accepted layouts, PATH order decides, as in a shell.
+        assert_eq!(resolve_windows_codex(&home, &[&nvm, &npm]), Some(nvm_native.clone()));
+        assert_eq!(resolve_windows_codex(&home, &[&npm, &nvm]), Some(npm_native));
+        // A shim stands only for its own layout's package: an npm shim whose
+        // package is gone is never answered by pnpm's store off PATH.
+        fs::remove_dir_all(npm.join("node_modules")).expect("npm package removed");
+        windows_codex_package(&home.join("local").join("pnpm").join("global").join("5"));
+        assert_eq!(resolve_windows_codex(&home, &[&npm, &nvm]), Some(nvm_native));
+    }
+
+    /// A file symbolic link, which the test needs: any failure fails the test,
+    /// except Windows refusing an account without the symbolic link privilege
+    /// (no developer mode, not elevated), the one refusal a test cannot work
+    /// around. POSIX always allows the link, so CI covers it on every run.
+    fn file_link(target: &Path, link: &Path) -> bool {
+        #[cfg(windows)]
+        let created = std::os::windows::fs::symlink_file(target, link);
+        #[cfg(unix)]
+        let created = std::os::unix::fs::symlink(target, link);
+        match created {
+            Ok(()) => true,
+            #[cfg(windows)]
+            Err(error) if error.raw_os_error() == Some(1314) => false,
+            Err(error) => panic!("the link this test needs was refused: {error}"),
+        }
+    }
+
+    #[test]
+    fn a_winget_link_runs_its_target_only_inside_winget_packages() {
+        let dir = TempDir::new();
+        let home = canonical_existing_path(dir.path()).expect("canonical home");
+        let winget = home.join("local").join("Microsoft").join("WinGet");
+        let package = winget
+            .join("Packages")
+            .join("OpenAI.Codex_Microsoft.Winget.Source_8wekyb3d8bbwe")
+            .join("codex.exe");
+        let outside = home.join("outside").join("codex.exe");
+        write(&package, "winget codex");
+        write(&outside, "outside codex");
+        // Where winget may not make links, it puts the package folder on PATH.
+        let folder = package.parent().expect("package folder");
+        assert_eq!(resolve_windows_codex(&home, &[folder]), canonical_existing_path(&package));
+        let links = winget.join("Links");
+        // A plain file there is no link: the Links folder is not a root.
+        write(&links.join("codex.exe"), "copied codex");
+        assert_eq!(resolve_windows_codex(&home, &[&links]), None);
+        fs::remove_file(links.join("codex.exe")).expect("unlink");
+        if !file_link(&package, &links.join("codex.exe")) {
+            eprintln!("skipped the link half: this Windows account may not create symbolic links");
+            return;
+        }
+        assert_eq!(
+            resolve_windows_codex(&home, &[&links]),
+            canonical_existing_path(&package)
+        );
+        fs::remove_file(links.join("codex.exe")).expect("unlink");
+        assert!(file_link(&outside, &links.join("codex.exe")));
+        assert_eq!(resolve_windows_codex(&home, &[&links]), None);
+    }
+
+    /// A directory junction, which needs no privilege: every one this test
+    /// asks for must exist, so the test never passes without its links.
+    #[cfg(windows)]
+    fn junction(link: &Path, target: &Path) -> bool {
+        std::process::Command::new("cmd")
+            .args(["/C", "mklink", "/J"])
+            .arg(link)
+            .arg(target)
+            .output()
+            .is_ok_and(|output| output.status.success())
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn junctions_resolve_into_their_layout_and_never_out_of_it() {
+        let dir = TempDir::new();
+        let home = canonical_existing_path(dir.path()).expect("canonical home");
+        let shim = |prefix: &Path| write(&prefix.join("codex.cmd"), "@echo off");
+
+        // fnm: the per shell folder is a link into an installed version.
+        let installation = home
+            .join("roaming")
+            .join("fnm")
+            .join("node-versions")
+            .join("v22.11.0")
+            .join("installation");
+        shim(&installation);
+        let native = windows_codex_package(&installation);
+        let multishells = home.join("local").join("fnm_multishells");
+        fs::create_dir_all(&multishells).expect("multishells");
+        let shell = multishells.join("1234_1700000000000");
+        assert!(junction(&shell, &installation), "the fnm shell link");
+        assert_eq!(resolve_windows_codex(&home, &[&shell]), Some(native));
+
+        // nvm windows: its link folder sits outside every root and resolves into one.
+        let version = home.join("roaming").join("nvm").join("v22.11.0");
+        shim(&version);
+        let native = windows_codex_package(&version);
+        let nodejs = home.join("nodejs");
+        assert!(junction(&nodejs, &version));
+        assert_eq!(resolve_windows_codex(&home, &[&nodejs]), Some(native));
+
+        // A link out of a layout is refused: a per shell folder pointing elsewhere,
+        let elsewhere = home.join("elsewhere");
+        shim(&elsewhere);
+        windows_codex_package(&elsewhere);
+        let stray = multishells.join("5678_1700000000000");
+        assert!(junction(&stray, &elsewhere));
+        assert_eq!(resolve_windows_codex(&home, &[&stray]), None);
+
+        // and a pnpm global folder linked out of every root: one of its
+        // numbered folders,
+        let pnpm = home.join("local").join("pnpm");
+        shim(&pnpm);
+        fs::create_dir_all(pnpm.join("global")).expect("pnpm global");
+        let foreign = home.join("foreign-store");
+        windows_codex_package(&foreign);
+        assert!(junction(&pnpm.join("global").join("5"), &foreign));
+        assert_eq!(resolve_windows_codex(&home, &[&pnpm]), None);
+        // the default global folder itself,
+        fs::remove_dir_all(pnpm.join("global")).expect("pnpm global removed");
+        let store = home.join("foreign-global");
+        windows_codex_package(&store.join("5"));
+        assert!(junction(&pnpm.join("global"), &store));
+        assert_eq!(resolve_windows_codex(&home, &[&pnpm]), None, "a link at global itself");
+        // and a configured global folder that is a link.
+        let configured = home.join("configured-global");
+        assert!(junction(&configured, &store));
+        write(&home.join(".npmrc"), &format!("global-dir={}\n", configured.display()));
+        assert_eq!(resolve_windows_codex(&home, &[&pnpm]), None, "a configured link");
+    }
+
+    #[test]
+    fn the_provisional_policy_loads_only_when_recent_complete_and_bounded() {
+        let dir = TempDir::new();
+        let now = 1_800_000_000_000;
+        let mut accounts: BTreeMap<String, BTreeSet<String>> = DetectedProviderId::ALL
+            .into_iter()
+            .map(|provider| (provider_code(provider), BTreeSet::new()))
+            .collect();
+        accounts.insert(
+            "CODEX".into(),
+            BTreeSet::from([opaque_account_id(DetectedProviderId::Codex, "provider-account")]),
+        );
+        let saved = ProvisionalPolicy {
+            scanned_at: now - 60_000,
+            accounts,
+        };
+        saved.save(dir.path()).expect("saved");
+        assert_eq!(ProvisionalPolicy::load(dir.path(), now), Some(saved.clone()));
+        assert_eq!(
+            fs::read_dir(dir.path()).expect("state").count(),
+            1,
+            "the write left no temporary file behind"
+        );
+        let expiry = saved.scanned_at + PROVISIONAL_POLICY_MAX_AGE_MS;
+        assert_eq!(ProvisionalPolicy::load(dir.path(), expiry), None, "too old");
+        assert_eq!(
+            ProvisionalPolicy::load(dir.path(), saved.scanned_at - 1),
+            None,
+            "stamped in the future"
+        );
+        let partial = ProvisionalPolicy {
+            accounts: saved.accounts.clone().into_iter().skip(1).collect(),
+            ..saved.clone()
+        };
+        for text in [
+            r#"{"scanned_at":1799999940000,"accounts":{}}"#.to_string(),
+            serde_json::to_string(&partial).expect("partial"),
+            r#"{"scanned_at":1799999940000,"accounts":{},"more":true}"#.to_string(),
+            "x".repeat(MAX_PROVISIONAL_POLICY_BYTES as usize + 1),
+            "{".to_string(),
+        ] {
+            fs::write(dir.path().join(PROVISIONAL_POLICY_FILE_NAME), &text).expect("fixture");
+            assert_eq!(ProvisionalPolicy::load(dir.path(), now), None, "{text:.48}");
+        }
     }
 
     #[test]
@@ -3795,6 +4359,7 @@ mod tests {
             context,
             inventory: RwLock::new(inventory),
             scan_gate: Mutex::new(None),
+            provisional_policy: None,
         };
         let secret = store
             .read_credential(DetectedProviderId::Codex, &account_id)

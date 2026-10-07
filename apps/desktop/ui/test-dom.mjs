@@ -22,6 +22,19 @@ export class FakeElement {
     this.style = { props, setProperty: (name, value) => { props[name] = value; } };
   }
 
+  get classList() {
+    return {
+      contains: (name) => this.className.split(/\s+/).includes(name),
+      add: (name) => {
+        const classes = this.className.split(/\s+/).filter(Boolean);
+        if (!classes.includes(name)) this.className = [...classes, name].join(" ");
+      },
+      remove: (name) => {
+        this.className = this.className.split(/\s+/).filter((c) => c !== name && c).join(" ");
+      }
+    };
+  }
+
   get textContent() {
     return this.children.length ? this.children.map((child) => child.textContent).join("") : this.text;
   }
@@ -108,6 +121,36 @@ export class FakeElement {
   removeAttribute(name) { delete this.attributes[name]; }
   toggleAttribute(name, force) { if (force) this.attributes[name] = ""; else delete this.attributes[name]; }
   addEventListener(name, listener) { (this.listeners[name] ??= []).push(listener); }
+
+  querySelector(selector) {
+    if (selector.startsWith(".") && this.classList.contains(selector.slice(1))) return this;
+    if (selector.startsWith("#") && this.id === selector.slice(1)) return this;
+    if (/^[a-z]+$/iu.test(selector) && this.localName === selector) return this;
+    for (const child of this.children) {
+      if (child instanceof FakeElement) {
+        const found = child.querySelector(selector);
+        if (found !== null) return found;
+      }
+    }
+    return null;
+  }
+
+  querySelectorAll(selector) {
+    const results = [];
+    const match = () => {
+      if (selector.startsWith(".")) return this.classList.contains(selector.slice(1));
+      if (selector.startsWith("#")) return this.id === selector.slice(1);
+      if (/^[a-z]+$/iu.test(selector)) return this.localName === selector;
+      return false;
+    };
+    if (match()) results.push(this);
+    for (const child of this.children) {
+      if (child instanceof FakeElement) {
+        results.push(...child.querySelectorAll(selector));
+      }
+    }
+    return results;
+  }
   removeEventListener(name, listener) { this.listeners[name] = (this.listeners[name] ?? []).filter((entry) => entry !== listener); }
   fire(name, event = {}) { return Promise.all((this.listeners[name] ?? []).map((listener) => listener(event))); }
 

@@ -2367,9 +2367,23 @@ pub async fn pro_portal_url(
     hosted_url(&response)
 }
 
-#[tauri::command]
-pub fn pro_status(store: State<'_, KeyringStore>) -> ProStatus {
-    current_status(store.inner())
+#[tauri::command(async)]
+pub async fn pro_status(app: tauri::AppHandle) -> Result<ProStatus, String> {
+    status_off_the_runtime(move || {
+        use tauri::Manager;
+        current_status(&*app.state::<KeyringStore>())
+    })
+    .await
+}
+
+/// A status read touches the keyring and the disk, so it runs on the
+/// blocking pool, where a slow store never holds a worker the collector needs.
+async fn status_off_the_runtime(
+    read: impl FnOnce() -> ProStatus + Send + 'static,
+) -> Result<ProStatus, String> {
+    tauri::async_runtime::spawn_blocking(read)
+        .await
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -4806,5 +4820,112 @@ mod tests {
             &["context-fixture-1".to_string()],
         );
         let _ = remove_hosted_trust();
+    }
+}
+
+
+#[cfg(test)]
+mod status_speed_tests {
+    use super::*;
+    use crate::collector::CollectionMode;
+    use crate::collector_runtime::{run_guarded, CollectorRuntime};
+    use crate::commands::{connect_core, ConnectProviderInput};
+    use crate::connections::ConnectionsStore;
+    use crate::reader_registry::{CredentialKind, ProviderId};
+    use crate::test_support::{InMemorySecrets, RecordingTransport, TempDir};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    /// A keyring that does not answer until the test releases it, as a locked
+    /// or busy one can stall; a wall clock sleep would make the proof below a
+    /// race on a loaded machine.
+    struct SlowKeyring {
+        inner: InMemorySecrets,
+        reads: AtomicUsize,
+        released: AtomicBool,
+    }
+
+    impl SecretStore for SlowKeyring {
+        fn store_secret(&self, id: &str, secret: &str) -> Result<(), CredentialError> {
+            self.inner.store_secret(id, secret)
+        }
+
+        fn read_secret(&self, id: &str) -> Result<zeroize::Zeroizing<String>, CredentialError> {
+            self.reads.fetch_add(1, Ordering::SeqCst);
+            let deadline = std::time::Instant::now() + Duration::from_secs(60);
+            while !self.released.load(Ordering::SeqCst) && std::time::Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            self.inner.read_secret(id)
+        }
+
+        fn delete_secret(&self, id: &str) -> Result<(), CredentialError> {
+            self.inner.delete_secret(id)
+        }
+    }
+
+    /// One runtime worker, as tight as it gets: a status read stuck in the
+    /// keyring must leave a real collector pass room to finish meanwhile.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn a_slow_status_read_leaves_the_collector_running() {
+        let keyring = Arc::new(SlowKeyring {
+            inner: InMemorySecrets::new(),
+            reads: AtomicUsize::new(0),
+            released: AtomicBool::new(false),
+        });
+        let reader = Arc::clone(&keyring);
+        let status = tokio::spawn(status_off_the_runtime(move || {
+            current_status_inner_with_keys_after_trust(&*reader, &HashMap::new(), |_, _| {})
+        }));
+        for _ in 0..200 {
+            if keyring.reads.load(Ordering::SeqCst) > 0 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        assert_eq!(keyring.reads.load(Ordering::SeqCst), 1, "the status read is under way");
+
+        let collector = tokio::spawn(async move {
+            let dir = TempDir::new();
+            let state = Some(dir.path().to_path_buf());
+            let connections = ConnectionsStore::at(state.clone());
+            let secrets = InMemorySecrets::new();
+            let record = connect_core(
+                &connections,
+                &secrets,
+                ConnectProviderInput {
+                    provider_id: ProviderId::Openrouter,
+                    credential_kind: CredentialKind::OpenrouterManagementKey,
+                    account_alias: "personal".to_string(),
+                    secret: "sk-or-v1-fixture-key".to_string(),
+                },
+            )
+            .expect("connection");
+            let fixture =
+                include_bytes!("../../../../packages/connectors/fixtures/openrouter.credits.json");
+            run_guarded(
+                &CollectorRuntime::default(),
+                &crate::provider_switches::ProviderSwitches::at(state.clone()),
+                &crate::request_policy::RequestPolicy::at(state.clone()),
+                &connections,
+                &secrets,
+                &RecordingTransport::replying(200, fixture.to_vec(), None),
+                Arc::new(crate::cache_write::CacheWriter::at(state)),
+                record.id,
+                CollectionMode::Refresh,
+            )
+            .await
+        });
+        let collected = tokio::time::timeout(Duration::from_secs(30), collector)
+            .await
+            .expect("the collector waited on the status read")
+            .expect("collector task")
+            .expect("collection");
+        assert!(collected.failure().is_none(), "{collected:?}");
+        assert!(!status.is_finished(), "the status read was still under way");
+        keyring.released.store(true, Ordering::SeqCst);
+        let status = status.await.expect("status task").expect("status read");
+        assert_eq!(status.state, ProEntitlementState::Unlicensed);
     }
 }

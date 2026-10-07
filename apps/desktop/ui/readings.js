@@ -271,6 +271,15 @@ export function markNode(doc, provider) {
   return mark;
 }
 
+function resetText(window, compact) {
+  return window.neutral ? window.limit ?? ""
+    : window.limit !== null ? say("moneyOf", { amount: window.limit })
+    : window.unbounded ? say("creditsSpent")
+    : window.reset === null ? ""
+    : window.reset === "" ? say(compact ? "now" : "resettingNow")
+    : compact ? window.reset : say("resetsInValue", { time: window.reset });
+}
+
 function limitRow(doc, window, compact) {
   const row = node(doc, "div", "q-row");
   row.dataset.band = window.band;
@@ -291,14 +300,37 @@ function limitRow(doc, window, compact) {
   value.append(node(doc, "span", "", compact || window.unbounded || window.neutral
     ? window.value
     : say("usedValue", { value: window.value })));
-  const reset = window.neutral ? window.limit ?? ""
-    : window.limit !== null ? say("moneyOf", { amount: window.limit })
-    : window.unbounded ? say("creditsSpent")
-    : window.reset === null ? ""
-    : window.reset === "" ? say(compact ? "now" : "resettingNow")
-    : compact ? window.reset : say("resetsInValue", { time: window.reset });
+  const reset = resetText(window, compact);
   row.append(node(doc, "span", "q-lbl", window.label), bar, value, node(doc, "span", "q-rst", reset));
   return row;
+}
+
+export function limitsKey(model) {
+  return JSON.stringify(model, (key, value) => {
+    if (key === "age" || key === "reset") {
+      return typeof value === "string" ? "string" : value;
+    }
+    return value;
+  });
+}
+
+export function patchLimits(mount, model, { compact = false } = {}) {
+  const groups = mount.querySelectorAll(".q-group");
+  for (let i = 0; i < model.length; i++) {
+    const provider = model[i];
+    const group = groups[i];
+    if (!group) continue;
+    const age = group.querySelector(".q-age");
+    if (age) age.textContent = provider.age ?? "";
+    const rows = group.querySelectorAll(".q-row");
+    for (let j = 0; j < provider.windows.length; j++) {
+      const window = provider.windows[j];
+      const row = rows[j];
+      if (!row) continue;
+      const rst = row.querySelector(".q-rst");
+      if (rst) rst.textContent = resetText(window, compact);
+    }
+  }
 }
 
 /* The panel's column headings, over the percentage and the countdown. The bars
@@ -327,7 +359,9 @@ function stepButton(doc, provider, handlers) {
     button.setAttribute("aria-busy", "true");
     status.textContent = "";
     try {
-      if ((await handlers?.[kind]?.(provider.code)) === false) status.textContent = say("fixFailed");
+      const result = await handlers?.[kind]?.(provider.code);
+      if (typeof result === "string") status.textContent = result;
+      else if (result === false) status.textContent = say("fixFailed");
     } catch {
       status.textContent = say("fixFailed");
     } finally {
@@ -420,6 +454,11 @@ function nextStep(code, name, { flag, flags, records, detection, claude, claudeP
     ? { ...step("poll", "showClaudeFable", say("showClaudeFableNote")), note: say("showClaudeFableNote") }
     : { note: say("fixWaitingIssue", { name }) };
   if (reasons.has("awaiting_statusline")) return waiting;
+  /* A CLI that is not installed blocks every other step, a connect or a sign
+     in included, so it is named first; native code marks it per account. */
+  if (detection?.accounts?.some((account) => account.recovery === "install_cli")) {
+    return { ...step("check", "fixOpenAppAction"), note: say("cliNotFound", { name }) };
+  }
   const signInAgain = step("check", "fixSignInAgainIssue", title("fixToolDetail"));
   /* Its action only looks again, so it says so. */
   if (reasons.has("account_unresolved")) return step("check", "fixOpenAppAction", title("fixToolDetail"));

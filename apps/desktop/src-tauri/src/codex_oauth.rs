@@ -43,6 +43,9 @@ pub enum CodexOutcome {
         account_id: String,
         retry_at: String,
     },
+    MissingExecutable {
+        account_id: String,
+    },
     MissingCredential {
         account_id: String,
     },
@@ -102,6 +105,21 @@ trait AppServerReader: Send + Sync {
 }
 
 struct NativeAppServerReader;
+
+#[cfg(test)]
+thread_local! {
+    /// What a test puts in the CLI's place on its own thread.
+    static TEST_APP_SERVER: std::cell::RefCell<Option<Arc<dyn AppServerReader>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+fn app_server() -> Arc<dyn AppServerReader> {
+    #[cfg(test)]
+    if let Some(reader) = TEST_APP_SERVER.with(|slot| slot.borrow().clone()) {
+        return reader;
+    }
+    Arc::new(NativeAppServerReader)
+}
 
 impl AppServerReader for NativeAppServerReader {
     fn read(
@@ -223,7 +241,7 @@ async fn collect_with_app_server(
         }
         Ok(Err(AppServerFailure::MissingExecutable)) => {
             runtime.cancel(account_id);
-            return CodexOutcome::MissingCredential {
+            return CodexOutcome::MissingExecutable {
                 account_id: account_id.to_string(),
             };
         }
@@ -294,8 +312,8 @@ pub async fn collect_account<T: Transport>(
     let executable = match detection.client_executable(DetectedProviderId::Codex) {
         Some(executable) => executable,
         None => {
-            detection.mark_stale(DetectedProviderId::Codex, &account_id);
-            return credential_failure(&account_id, DetectedCredentialError::NotFound);
+            detection.mark_cli_missing(DetectedProviderId::Codex, &account_id);
+            return CodexOutcome::MissingExecutable { account_id: account_id.clone() };
         }
     };
     let codex_home = match detection.codex_home(&account_id) {
@@ -309,7 +327,7 @@ pub async fn collect_account<T: Transport>(
     let _ = secret;
     let outcome = collect_with_app_server(
         runtime,
-        Arc::new(NativeAppServerReader),
+        app_server(),
         writer,
         &account_id,
         &executable,
@@ -331,6 +349,9 @@ pub async fn collect_account<T: Transport>(
             detection.mark_fallback(DetectedProviderId::Codex, &account_id)
         }
         CodexOutcome::Cached { .. } | CodexOutcome::Failed { .. } => {}
+        CodexOutcome::MissingExecutable { .. } => {
+            detection.mark_cli_missing(DetectedProviderId::Codex, &account_id)
+        }
     }
     outcome
 }
@@ -399,7 +420,9 @@ fn complete_outcome(
 ) -> bool {
     match outcome {
         CodexOutcome::Cached { .. } => false,
-        CodexOutcome::MissingCredential { .. } => {
+        /* Nothing was asked of the provider, so nothing is held against the
+        account: installing the CLI makes the very next pass read. */
+        CodexOutcome::MissingExecutable { .. } | CodexOutcome::MissingCredential { .. } => {
             runtime.cancel(account_id);
             policy.cancel_unstarted(DetectedProviderId::Codex, account_id);
             false
@@ -903,5 +926,73 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    /// A CLI that is not installed is named as such, holds nothing against
+    /// the account, and the pass right after installing it reads.
+    #[tokio::test]
+    async fn installing_the_cli_after_it_was_missing_reads_on_the_next_pass() {
+        use crate::provider_detection::RecoveryAction;
+
+        let dir = TempDir::new();
+        let codex = dir.path().join(".codex");
+        fs::create_dir_all(&codex).expect("Codex home");
+        fs::write(
+            codex.join("auth.json"),
+            format!(r#"{{"tokens":{{"access_token":"{TOKEN}","account_id":"provider-account"}}}}"#),
+        )
+        .expect("Codex login");
+        let detection = DetectionStore::for_test_home(dir.path(), NOW);
+        let account = detection
+            .account_ids(DetectedProviderId::Codex)
+            .pop()
+            .expect("the detected login");
+        let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
+        let runtime = CodexOauthRuntime::default();
+        let transport =
+            crate::test_support::FailingTransport::with(crate::net::TransportFailure::Connect);
+        let app_server = StubAppServer::new([Ok(valid_body())]);
+        TEST_APP_SERVER.with(|slot| *slot.borrow_mut() = Some(app_server.clone()));
+        let recovery = || {
+            detection
+                .report()
+                .providers
+                .into_iter()
+                .find(|provider| provider.provider_id == DetectedProviderId::Codex)
+                .and_then(|provider| provider.accounts.into_iter().next())
+                .and_then(|account| account.recovery)
+        };
+
+        let (missing, abort) = collect_account_guarded(
+            &detection,
+            &runtime,
+            &policy,
+            &transport,
+            writer(&dir),
+            account.clone(),
+            NOW,
+        )
+        .await;
+        assert!(matches!(missing, CodexOutcome::MissingExecutable { .. }), "{missing:?}");
+        assert!(!abort);
+        assert!(app_server.accounts().is_empty(), "nothing runs without a CLI");
+        assert_eq!(recovery(), Some(RecoveryAction::InstallCli));
+
+        fs::create_dir_all(dir.path().join("bin")).expect("bin");
+        fs::write(dir.path().join("bin").join("codex"), "native codex").expect("installed CLI");
+        let (read, _) = collect_account_guarded(
+            &detection,
+            &runtime,
+            &policy,
+            &transport,
+            writer(&dir),
+            account.clone(),
+            NOW + 1_000,
+        )
+        .await;
+        TEST_APP_SERVER.with(|slot| *slot.borrow_mut() = None);
+        assert!(matches!(read, CodexOutcome::CacheCommitted { .. }), "{read:?}");
+        assert_eq!(app_server.accounts(), vec![account]);
+        assert_eq!(recovery(), None);
     }
 }

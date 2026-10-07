@@ -8,8 +8,8 @@ import { agentName, meterLabel, providerCode, providerName, READINGS_COPY, say }
 import { fakeDocument, leaks, spoken } from "./test-dom.mjs";
 // readings.js reaches the compiled engine, which only exists in the build.
 import {
-  attentionFlags, fixWords, holdReadings, inventoryModel, limitsModel, officialMark, projectReadings, renderLimits, timeLeft,
-  updatedLabel,
+  attentionFlags, fixWords, holdReadings, inventoryModel, limitsKey, limitsModel, officialMark, patchLimits, projectReadings,
+  renderLimits, timeLeft, updatedLabel,
 } from "./dist/readings.js";
 
 const NOW = Date.parse("2026-09-29T12:00:00.000Z");
@@ -571,4 +571,51 @@ test("a row's small menu opens on demand and is filled by its owner", async () =
   assert.equal(panel.hidden, false);
   assert.deepEqual(filled, ["CLAUDE"]);
   assert.match(toggle.getAttribute("aria-label"), /Claude Code/u);
+});
+
+test("a Codex CLI that is not installed is named first, before any connect or sign in step", () => {
+  const detection = { provider_id: "codex", state: "present", accounts: [{ account_id: "codex-a", recovery: "install_cli" }] };
+  for (const situation of [
+    {},
+    { connections: [{ provider: "CODEX", state: "NEEDS_AUTH" }] },
+    { flags: [{ provider: "CODEX", reason: "account_not_connected", fixKind: "sign_in" }] },
+  ]) {
+    const codex = inventoryModel({ detections: { providers: [detection] }, ...situation }, now)
+      .find((tool) => tool.code === "CODEX");
+    assert.deepEqual([codex.action?.kind, codex.action?.label, codex.note],
+      ["check", "Check again", "Codex CLI not found. Put it on PATH, then check again."], JSON.stringify(situation));
+  }
+});
+
+test("a step that did not work shows the handler's own sentence, and false keeps the general one", async () => {
+  const sentence = "Codex needs a current login. Run codex login.";
+  const answers = { CLAUDE: sentence, ANTIGRAVITY: false, OPENROUTER: true };
+  const doc = fakeDocument();
+  const mount = doc.createElement("div");
+  renderLimits(doc, mount, inventoryModel({}, now), { handlers: { connect: async (code) => answers[code] } });
+  for (const row of rowsOf(mount)) await buttonIn(row).fire("click");
+  const status = (row) => row.all((node) => node.className === "q-fstatus")[0].textContent;
+  assert.deepEqual(rowsOf(mount).map(status), [sentence, say("fixFailed"), ""]);
+});
+
+test("a minute later the key holds, and a patch rewrites age and countdown without touching rows or messages", () => {
+  const window = { key: "SEVEN_DAY", label: "Weekly", usedPercent: 40, observedAt: now, band: "stale", value: "40%",
+    limit: null, unbounded: false, neutral: false };
+  const tool = (age, reset, band = "stale") => [{ code: "CODEX", name: "Codex", age, windows: [{ ...window, band, reset }],
+    action: { kind: "check", label: "Check again", title: null }, note: null, extra: [] }];
+  const earlier = tool("Updated 7 min ago", "4h 12m");
+  const later = tool("Updated 8 min ago", "4h 11m");
+  assert.equal(limitsKey(later), limitsKey(earlier), "age and countdown are not structure");
+  assert.notEqual(limitsKey(tool("Updated 8 min ago", "4h 11m", "red")), limitsKey(earlier), "a band is");
+  const doc = fakeDocument();
+  const mount = doc.createElement("div");
+  renderLimits(doc, mount, earlier, { handlers: { check: async () => true } });
+  const nodes = mount.all(() => true);
+  const message = mount.all((node) => node.className === "q-fstatus")[0];
+  message.textContent = say("fixFailed");
+  patchLimits(mount, later);
+  assert.ok(mount.all(() => true).every((node, index) => node === nodes[index]), "the same nodes");
+  assert.equal(mount.all((node) => node.className === "q-age")[0].textContent, "Updated 8 min ago");
+  assert.equal(mount.all((node) => node.className === "q-rst")[0].textContent, say("resetsInValue", { time: "4h 11m" }));
+  assert.equal(message.textContent, say("fixFailed"), "the row's own message survives");
 });

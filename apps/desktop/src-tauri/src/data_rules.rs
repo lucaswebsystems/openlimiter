@@ -283,14 +283,20 @@ pub fn project(
 pub(crate) fn detected_policy(
     store: &crate::provider_detection::DetectionStore,
 ) -> (ActiveAccounts, BTreeSet<String>) {
+    /* Every provider is restricted, always. Before this run's first scan the
+    accounts come from the previous run's last scan, so a dormant, anonymous
+    or signed out account never flashes in; without that record they are
+    none until the startup scan lands. */
+    let provisional = store.provisional_policy();
     let mut active = ActiveAccounts::new();
     let mut disabled = BTreeSet::new();
     for provider in crate::provider_detection::DetectedProviderId::ALL {
         let code = provider.slug().to_uppercase().replace('-', "_");
-        active.insert(
-            code.clone(),
-            store.display_account_ids(provider).into_iter().collect(),
-        );
+        let accounts = match provisional {
+            Some(policy) => policy.accounts.get(&code).cloned().unwrap_or_default(),
+            None => store.display_account_ids(provider).into_iter().collect(),
+        };
+        active.insert(code.clone(), accounts);
         if !store.switches.enabled(provider) {
             disabled.insert(code);
         }
@@ -414,6 +420,52 @@ mod tests {
         spend.limit_amount = Some(20.0);
         spend.currency = Some("USD".to_string());
         assert_eq!(reason(&spend, now), None);
+    }
+
+    #[test]
+    fn before_the_first_scan_the_saved_policy_restricts_every_provider() {
+        use crate::provider_detection::{DetectedProviderId, DetectionStore, ProvisionalPolicy};
+        let home = crate::test_support::TempDir::new();
+        let now =
+            crate::native_time::epoch_ms_from_rfc3339("2026-09-29T12:00:00.000Z").unwrap() as i64;
+        let row = |provider: &str, account: &str| {
+            let mut row = measured(Some(account));
+            row.provider = provider.into();
+            row
+        };
+        let shown = |store: &DetectionStore| {
+            let (active, disabled) = detected_policy(store);
+            let rows = vec![
+                row("CODEX", "codex-saved"),
+                row("CODEX", "codex-dormant"),
+                row("CLAUDE", "claude-signed-out"),
+            ];
+            project(rows, now, &active, &disabled)
+                .snapshots
+                .into_iter()
+                .filter_map(|row| row.account_id)
+                .collect::<Vec<_>>()
+        };
+        /* Loading refuses a record that omits a provider; the projection
+        holds the line too, so an omitted provider is restricted to nothing. */
+        let saved = ProvisionalPolicy {
+            scanned_at: 0,
+            accounts: BTreeMap::from([(
+                "CODEX".to_string(),
+                BTreeSet::from(["codex-saved".to_string()]),
+            )]),
+        };
+
+        // The saved record vouches for one Codex account and nothing else.
+        let store = DetectionStore::unscanned_for_test_home(home.path(), Some(saved));
+        assert_eq!(detected_policy(&store).0.len(), DetectedProviderId::ALL.len());
+        assert_eq!(shown(&store), vec!["codex-saved".to_string()]);
+        // No record: nothing shows until the first scan, never everything.
+        let bare = DetectionStore::unscanned_for_test_home(home.path(), None);
+        assert!(shown(&bare).is_empty());
+        // Once this run scans, the scan rules (this home holds no login).
+        store.rescan();
+        assert!(shown(&store).is_empty());
     }
 
     #[test]

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::State;
 use zeroize::Zeroizing;
@@ -14,7 +14,7 @@ use crate::connections::{
     MAX_ATTEMPT_GENERATION, MAX_CONSECUTIVE_FAILURES, MAX_ID_CHARS,
 };
 use crate::credentials::{
-    mask_label, parse_codex_session_v1, read_codex_cli_secret_in_home, valid_codex_account_id,
+    mask_label, parse_codex_session_v1, read_codex_cli_secret_in, valid_codex_account_id,
     valid_codex_token, CodexCredentialError, CredentialError, KeyringStore, SecretStore, MASK_DOTS,
 };
 use crate::native_readers::parse_body;
@@ -29,7 +29,7 @@ static CODEX_APP_SERVER_TEST_RESPONSES: std::sync::LazyLock<
 
 #[cfg(test)]
 enum TestCodexRuntime {
-    Resolved(Option<(std::path::PathBuf, std::path::PathBuf)>),
+    Resolved(crate::provider_detection::CodexRuntimeOutcome),
     StoredHome(std::path::PathBuf),
 }
 
@@ -37,6 +37,12 @@ enum TestCodexRuntime {
 static CODEX_RUNTIME_TEST_RESPONSES: std::sync::LazyLock<
     std::sync::Mutex<std::collections::BTreeMap<String, TestCodexRuntime>>,
 > = std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::BTreeMap::new()));
+
+/// Every login home a test's app server read was started on, by record.
+#[cfg(test)]
+static CODEX_APP_SERVER_TEST_HOMES: std::sync::LazyLock<
+    std::sync::Mutex<Vec<(String, PathBuf)>>,
+> = std::sync::LazyLock::new(|| std::sync::Mutex::new(Vec::new()));
 
 /// The connection command surface: one Tauri command per verb, serde structs
 /// in and out, and one closed failure enum whose `Display` is a fixed
@@ -81,6 +87,10 @@ pub enum CommandFailure {
     RouteRefused,
     /// The Codex CLI login file is missing, unsafe, or incomplete.
     CodexLoginRequired,
+    /// The Codex CLI executable is missing.
+    CodexCliNotFound,
+    /// The live Codex login belongs to another account than the record.
+    CodexOtherAccount,
     PlanCap,
     Paused,
     /// The provider refused a candidate credential before any local state was
@@ -95,7 +105,7 @@ impl CommandFailure {
     /// Every variant, for the redaction test that formats them all. The
     /// product itself never needs the list.
     #[cfg(test)]
-    pub const ALL: [CommandFailure; 21] = [
+    pub const ALL: [CommandFailure; 23] = [
         CommandFailure::InvalidInput,
         CommandFailure::NotFound,
         CommandFailure::Full,
@@ -113,6 +123,8 @@ impl CommandFailure {
         CommandFailure::NotJson,
         CommandFailure::RouteRefused,
         CommandFailure::CodexLoginRequired,
+        CommandFailure::CodexCliNotFound,
+        CommandFailure::CodexOtherAccount,
         CommandFailure::PlanCap,
         CommandFailure::Paused,
         CommandFailure::Authentication,
@@ -148,6 +160,10 @@ impl fmt::Display for CommandFailure {
                 "this connection pairs a credential with a provider it does not belong to"
             }
             CommandFailure::CodexLoginRequired => "Codex needs a current login. Run codex login.",
+            CommandFailure::CodexCliNotFound => {
+                "Codex CLI not found. Put it on PATH, then check again."
+            }
+            CommandFailure::CodexOtherAccount => "This Codex login belongs to another account.",
             CommandFailure::PlanCap => {
                 "Pro unlocks more accounts. Free reads one account per provider"
             }
@@ -705,23 +721,259 @@ pub(crate) async fn replace_connection_secret_core<T: Transport>(
     })
 }
 
+/// The Codex CLI's own directory, decided the way the CLI decides it: a
+/// nonempty `CODEX_HOME`, else `.codex` under the home.
+fn codex_directory(codex_home: Option<PathBuf>, home: Option<PathBuf>) -> Option<PathBuf> {
+    codex_home.or_else(|| home.map(|home| home.join(".codex")))
+}
+
+/// That directory on this machine, for the connect and repair boundaries.
+fn codex_login_directory() -> Option<PathBuf> {
+    codex_directory(crate::state::non_empty("CODEX_HOME"), crate::state::home())
+}
+
 /// The real connect boundary. Codex ignores any webview supplied secret and
-/// imports both fields from the bounded vendor login file instead, then sends
-/// each field to its own persistent store.
+/// imports both fields from the bounded vendor login file in the CLI's own
+/// directory instead, then sends each field to its own persistent store.
 pub(crate) fn connect_from_home_core(
     connections: &ConnectionsStore,
     secrets: &impl SecretStore,
     input: ConnectProviderInput,
-    home: Option<&Path>,
+    codex_directory: Option<&Path>,
 ) -> Result<ConnectionRecord, CommandFailure> {
-    connect_from_home_core_for_plan(connections, secrets, input, home, false)
+    connect_from_home_core_for_plan(connections, secrets, input, codex_directory, false)
+}
+
+/// Repair a refused Codex record in place from the live login, proven before
+/// anything is committed. The login in the CLI's directory must name this
+/// record's account, and the app server started on that very directory must
+/// read it for that account. Only then does its token replace the stored
+/// copy under the same record (id, alias, plan slot and grandfathered status
+/// kept: never a remove and add again, which would purge the record's rows
+/// and could spend legacy rights), and its reading fills the cache. Any
+/// failure before that leaves the prior credential and the record as they
+/// were. File and keyring work runs off the async runtime.
+///
+/// The proof is a read the person asked for, like a replacement key's own
+/// validation, so it does not wait on the collector's request gate: after
+/// the detected path reads the same live login, that gate holds the account
+/// for minutes, and a repair waiting on it would refuse a working login.
+pub(crate) async fn repair_codex_core<R: tauri::Runtime, S: SecretStore + 'static>(
+    app: &tauri::AppHandle<R>,
+    connection_id: String,
+    codex_directory: Option<PathBuf>,
+) -> Result<crate::collector::CollectionOutcome, CommandFailure> {
+    use tauri::Manager;
+    let handle = app.clone();
+    let staged = tauri::async_runtime::spawn_blocking(move || {
+        let codex = crate::provider_detection::DetectedProviderId::Codex;
+        if !handle.state::<DetectionStore>().switches.enabled(codex) {
+            return Err(CommandFailure::Paused);
+        }
+        stage_codex_repair(
+            &handle.state::<ConnectionsStore>(),
+            &connection_id,
+            codex_directory.as_deref(),
+        )
+    })
+    .await
+    .map_err(|_| CommandFailure::Storage)??;
+    let snapshots = verify_staged_codex_login(&staged).await?;
+    let handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        commit_codex_repair(
+            &handle.state::<ConnectionsStore>(),
+            &*handle.state::<S>(),
+            &handle.state::<Arc<CacheWriter>>(),
+            staged,
+            snapshots,
+        )
+    })
+    .await
+    .map_err(|_| CommandFailure::Storage)?
+}
+
+/// A Codex repair between reading the live login and committing it: the
+/// record as it stood, that login, the directory it came from, and the
+/// executable that will read it.
+struct StagedCodexRepair {
+    before: ConnectionRecord,
+    login: crate::credentials::CodexCliSession,
+    directory: PathBuf,
+    executable: PathBuf,
+}
+
+fn codex_account(provider_account_id: &str) -> String {
+    crate::provider_detection::opaque_account_id(
+        crate::provider_detection::DetectedProviderId::Codex,
+        provider_account_id,
+    )
+}
+
+/// The first step, file reads only: an active Codex record, the live login
+/// in the CLI's directory naming the record's account, and a Codex CLI.
+fn stage_codex_repair(
+    connections: &ConnectionsStore,
+    connection_id: &str,
+    codex_directory: Option<&Path>,
+) -> Result<StagedCodexRepair, CommandFailure> {
+    capped_connection_id(connection_id)?;
+    let before = connections.get(connection_id)?;
+    if before.provider_id != ProviderId::Codex
+        || before.credential_kind != CredentialKind::CodexSession
+    {
+        return Err(CommandFailure::InvalidInput);
+    }
+    if !before.is_active() {
+        return Err(CommandFailure::Paused);
+    }
+    let account_id = before
+        .codex_account_id
+        .as_deref()
+        .ok_or(CommandFailure::Protocol)?;
+    let directory = codex_directory.ok_or(CommandFailure::CodexLoginRequired)?;
+    let login = read_codex_cli_secret_in(directory)?;
+    validate_secret_shape(
+        CredentialKind::CodexSession,
+        &login.access_token,
+        Some(login.account_id.as_str()),
+    )?;
+    if codex_account(&login.account_id) != codex_account(account_id) {
+        return Err(CommandFailure::CodexOtherAccount);
+    }
+    let executable = match codex_runtime(&before.id, account_id) {
+        crate::provider_detection::CodexRuntimeOutcome::Found(executable, _) => executable,
+        crate::provider_detection::CodexRuntimeOutcome::MissingExecutable => {
+            return Err(CommandFailure::CodexCliNotFound)
+        }
+        crate::provider_detection::CodexRuntimeOutcome::NoMatchingLogin => {
+            return Err(CommandFailure::CodexLoginRequired)
+        }
+    };
+    Ok(StagedCodexRepair {
+        before,
+        login,
+        directory: directory.to_path_buf(),
+        executable,
+    })
+}
+
+/// The proof: one app server read of exactly the staged login, started on
+/// the directory its token came from, answering for the record's account
+/// with a reading the Codex reader accepts. Nothing local changes here.
+async fn verify_staged_codex_login(
+    staged: &StagedCodexRepair,
+) -> Result<Vec<crate::native_snapshot::Snapshot>, CommandFailure> {
+    let payload = codex_app_server_read(
+        &staged.before.id,
+        staged.executable.clone(),
+        staged.directory.clone(),
+        &staged.login.account_id,
+    )
+    .await?
+    .map_err(|failure| match failure {
+        AppServerFailure::NeedsSignIn => CommandFailure::CodexLoginRequired,
+        AppServerFailure::IdentityMismatch => CommandFailure::CodexOtherAccount,
+        AppServerFailure::MissingExecutable => CommandFailure::CodexCliNotFound,
+        AppServerFailure::RateLimited(_) => CommandFailure::TooSoon,
+        AppServerFailure::Timeout => CommandFailure::Timeout,
+        AppServerFailure::Unavailable => CommandFailure::Connect,
+        AppServerFailure::Protocol => CommandFailure::Protocol,
+    })?;
+    parse_body(
+        ReaderId::CodexUsage,
+        &payload.body,
+        now_epoch_ms(),
+        &staged.before.id,
+    )
+    .ok_or(CommandFailure::Protocol)
+}
+
+/// The commit, file and keyring work only, under the record's lock and only
+/// while the record is still the one staged. The verified reading goes to
+/// the cache first, so a refusal there changes nothing else; then the
+/// verified token replaces the stored copy and the record resumes as
+/// connected. A failed write puts the prior token back.
+fn commit_codex_repair(
+    connections: &ConnectionsStore,
+    secrets: &impl SecretStore,
+    writer: &CacheWriter,
+    staged: StagedCodexRepair,
+    snapshots: Vec<crate::native_snapshot::Snapshot>,
+) -> Result<crate::collector::CollectionOutcome, CommandFailure> {
+    use crate::collector::{CollectionOutcome, CollectorFailure};
+    let StagedCodexRepair { before, login, .. } = staged;
+    let id = before.id.clone();
+    let now = now_epoch_ms();
+    let mut after = before.clone();
+    after.attempt_generation = after
+        .attempt_generation
+        .saturating_add(1)
+        .min(MAX_ATTEMPT_GENERATION);
+    after.last_attempt_at = Some(now);
+    after.body_delivered_generation = None;
+    after.last_completion_at = Some(now);
+    after.last_success_at = Some(now);
+    after.ever_connected = true;
+    after.consecutive_failures = 0;
+    after.next_refresh_at = None;
+    after.status = STATUS_COMPLETED.to_string();
+    let outcome = connections.with_locked_connection(&id, |transaction| {
+        if transaction.current() != &before {
+            return Err(CommandFailure::StaleGeneration);
+        }
+        if crate::native_snapshot::write_report(
+            writer,
+            before.provider_id.code(),
+            Some(&id),
+            crate::native_snapshot::CacheReport::Success(snapshots),
+        )
+        .is_err()
+        {
+            return Ok(CollectionOutcome::Failed {
+                connection_id: id.clone(),
+                reason: CollectorFailure::Cache,
+                status: None,
+                retry_after_seconds: None,
+            });
+        }
+        let prior = match secrets.read_secret(&id) {
+            Ok(prior) => Some(prior),
+            Err(CredentialError::NotFound) => None,
+            Err(error) => return Err(error.into()),
+        };
+        let restore = |error: CommandFailure| {
+            let restored = match &prior {
+                Some(prior) => secrets.store_secret(&id, prior).is_ok(),
+                None => !matches!(secrets.delete_secret(&id), Err(CredentialError::Store)),
+            };
+            if restored {
+                error
+            } else {
+                CommandFailure::CompensationFailed
+            }
+        };
+        secrets
+            .store_secret(&id, &login.access_token)
+            .map_err(|error| restore(error.into()))?;
+        transaction
+            .save(after)
+            .map_err(|error| restore(error.into()))?;
+        Ok(CollectionOutcome::CacheCommitted {
+            connection_id: id.clone(),
+        })
+    })?;
+    if outcome.failure().is_none() {
+        crate::collector_schedule::schedule_after(connections, &id, true, false, None)?;
+    }
+    Ok(outcome)
 }
 
 fn connect_from_home_core_for_plan(
     connections: &ConnectionsStore,
     secrets: &impl SecretStore,
     input: ConnectProviderInput,
-    home: Option<&Path>,
+    codex_directory: Option<&Path>,
     multi_account: bool,
 ) -> Result<ConnectionRecord, CommandFailure> {
     if input.provider_id != ProviderId::Codex
@@ -736,8 +988,8 @@ fn connect_from_home_core_for_plan(
         secret,
     } = input;
     let _discarded_webview_secret = Zeroizing::new(secret);
-    let home = home.ok_or(CommandFailure::CodexLoginRequired)?;
-    let imported = read_codex_cli_secret_in_home(home)?;
+    let directory = codex_directory.ok_or(CommandFailure::CodexLoginRequired)?;
+    let imported = read_codex_cli_secret_in(directory)?;
     connect_with_secret(
         connections,
         secrets,
@@ -892,6 +1144,69 @@ fn settle_request(
     Ok(())
 }
 
+/// Where a Codex read starts: the executable, and the login home detection
+/// finds for this account. A test puts its own in their place.
+fn codex_runtime(
+    record_id: &str,
+    provider_account_id: &str,
+) -> crate::provider_detection::CodexRuntimeOutcome {
+    #[cfg(test)]
+    let runtime = CODEX_RUNTIME_TEST_RESPONSES
+        .lock()
+        .ok()
+        .and_then(|mut responses| responses.remove(record_id))
+        .map(|runtime| match runtime {
+            TestCodexRuntime::Resolved(runtime) => runtime,
+            TestCodexRuntime::StoredHome(home) => {
+                crate::provider_detection::codex_runtime_for_test_home(provider_account_id, &home)
+            }
+        })
+        .unwrap_or(crate::provider_detection::CodexRuntimeOutcome::MissingExecutable);
+    #[cfg(not(test))]
+    let runtime = {
+        let _ = record_id;
+        crate::provider_detection::current_codex_runtime(provider_account_id)
+    };
+    runtime
+}
+
+/// One app server read of a Codex login home, answering for the expected
+/// account. A test scripts the answer and sees which home was asked.
+async fn codex_app_server_read(
+    record_id: &str,
+    executable: PathBuf,
+    codex_home: PathBuf,
+    provider_account_id: &str,
+) -> Result<Result<crate::codex_app_server::RateLimitsPayload, AppServerFailure>, CommandFailure> {
+    #[cfg(test)]
+    let injected = {
+        if let Ok(mut homes) = CODEX_APP_SERVER_TEST_HOMES.lock() {
+            homes.push((record_id.to_string(), codex_home.clone()));
+        }
+        CODEX_APP_SERVER_TEST_RESPONSES
+            .lock()
+            .ok()
+            .and_then(|mut responses| responses.remove(record_id))
+    };
+    #[cfg(not(test))]
+    let injected: Option<Result<String, AppServerFailure>> = {
+        let _ = record_id;
+        None
+    };
+    if let Some(injected) = injected {
+        return Ok(injected.map(|body| crate::codex_app_server::RateLimitsPayload { body }));
+    }
+    let expected_account_id = crate::provider_detection::opaque_account_id(
+        crate::provider_detection::DetectedProviderId::Codex,
+        provider_account_id,
+    );
+    tauri::async_runtime::spawn_blocking(move || {
+        read_rate_limits_for_home(&executable, &codex_home, &expected_account_id)
+    })
+    .await
+    .map_err(|_| CommandFailure::Storage)
+}
+
 pub(crate) async fn probe_core<T: Transport>(
     connections: &ConnectionsStore,
     secrets: &impl SecretStore,
@@ -919,46 +1234,19 @@ pub(crate) async fn probe_core<T: Transport>(
             .codex_account_id
             .as_deref()
             .ok_or(CommandFailure::Protocol)?;
-        #[cfg(test)]
-        let runtime = CODEX_RUNTIME_TEST_RESPONSES
-            .lock()
-            .ok()
-            .and_then(|mut responses| responses.remove(&record.id))
-            .and_then(|runtime| match runtime {
-                TestCodexRuntime::Resolved(runtime) => runtime,
-                TestCodexRuntime::StoredHome(home) => {
-                    crate::provider_detection::codex_runtime_for_test_home(
-                        provider_account_id,
-                        &home,
-                    )
-                }
-            });
-        #[cfg(not(test))]
-        let runtime = crate::provider_detection::current_codex_runtime(provider_account_id);
-        let Some((executable, codex_home)) = runtime else {
-            settle_request(connections, &record.id, None, false, attempt_generation)?;
-            return Err(CommandFailure::CodexLoginRequired);
+        let (executable, codex_home) = match codex_runtime(&record.id, provider_account_id) {
+            crate::provider_detection::CodexRuntimeOutcome::Found(exe, home) => (exe, home),
+            crate::provider_detection::CodexRuntimeOutcome::MissingExecutable => {
+                settle_request(connections, &record.id, None, false, attempt_generation)?;
+                return Err(CommandFailure::CodexCliNotFound);
+            }
+            crate::provider_detection::CodexRuntimeOutcome::NoMatchingLogin => {
+                settle_request(connections, &record.id, None, false, attempt_generation)?;
+                return Err(CommandFailure::CodexLoginRequired);
+            }
         };
-        #[cfg(test)]
-        let injected = CODEX_APP_SERVER_TEST_RESPONSES
-            .lock()
-            .ok()
-            .and_then(|mut responses| responses.remove(&record.id));
-        #[cfg(not(test))]
-        let injected: Option<Result<String, AppServerFailure>> = None;
-        let response = if let Some(injected) = injected {
-            injected.map(|body| crate::codex_app_server::RateLimitsPayload { body })
-        } else {
-            let expected_account_id = crate::provider_detection::opaque_account_id(
-                crate::provider_detection::DetectedProviderId::Codex,
-                provider_account_id,
-            );
-            tauri::async_runtime::spawn_blocking(move || {
-                read_rate_limits_for_home(&executable, &codex_home, &expected_account_id)
-            })
-            .await
-            .map_err(|_| CommandFailure::Storage)?
-        };
+        let response =
+            codex_app_server_read(&record.id, executable, codex_home, provider_account_id).await?;
         return match response {
             Ok(payload) => {
                 settle_request(
@@ -1013,7 +1301,7 @@ pub(crate) async fn probe_core<T: Transport>(
             }
             Err(AppServerFailure::MissingExecutable) => {
                 settle_request(connections, &record.id, None, false, attempt_generation)?;
-                Err(CommandFailure::CodexLoginRequired)
+                Err(CommandFailure::CodexCliNotFound)
             }
             Err(AppServerFailure::RateLimited(retry_after_seconds)) => {
                 settle_request(
@@ -1294,15 +1582,32 @@ pub async fn connect_provider(
     secrets: State<'_, KeyringStore>,
     input: ConnectProviderInput,
 ) -> Result<ConnectionRecord, CommandFailure> {
-    let home = crate::state::home();
+    let codex_directory = codex_login_directory();
     let multi_account = crate::pro::multi_account_enabled(&*secrets);
     connect_from_home_core_for_plan(
         &connections,
         &*secrets,
         input,
-        home.as_deref(),
+        codex_directory.as_deref(),
         multi_account,
     )
+}
+
+/// Connect for a Codex record the provider refused: repaired in place from
+/// the live login, which one read proves before anything changes
+/// (`repair_codex_core`). The window sends `{ input: { connection_id } }`.
+#[tauri::command]
+pub async fn repair_codex_connection<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    input: ProbeInput,
+) -> Result<crate::collector::CollectionOutcome, CommandFailure> {
+    use tauri::Manager;
+    let outcome =
+        repair_codex_core::<R, KeyringStore>(&app, input.connection_id, codex_login_directory())
+            .await?;
+    app.state::<crate::collector_runtime::CollectorRuntime>()
+        .record_pass(outcome.failure(), true);
+    Ok(outcome)
 }
 
 #[tauri::command]
@@ -1506,9 +1811,11 @@ pub fn set_connection_paused(
     )
 }
 
-#[tauri::command]
-pub fn detect_local_tools() -> LocalToolDetection {
-    claude_detect::detect()
+#[tauri::command(async)]
+pub async fn detect_local_tools() -> Result<LocalToolDetection, String> {
+    tauri::async_runtime::spawn_blocking(claude_detect::detect)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1850,10 +2157,10 @@ mod tests {
             .expect("test runtime registry")
             .insert(
                 connection_id.to_string(),
-                TestCodexRuntime::Resolved(Some((
+                TestCodexRuntime::Resolved(crate::provider_detection::CodexRuntimeOutcome::Found(
                     "synthetic-codex".into(),
                     "synthetic-codex-home".into(),
-                ))),
+                )),
             );
         CODEX_APP_SERVER_TEST_RESPONSES
             .lock()
@@ -2031,7 +2338,7 @@ mod tests {
             account_alias: "personal".to_string(),
             secret: WEBVIEW.to_string(),
         };
-        let record = connect_from_home_core(&connections, &secrets, input, Some(dir.path()))
+        let record = connect_from_home_core(&connections, &secrets, input, Some(&codex))
             .expect("connect");
         let stored = secrets.read_secret(&record.id).expect("stored token");
         assert_eq!(stored.as_str(), TOKEN);
@@ -2075,7 +2382,7 @@ mod tests {
             account_alias: "personal".to_string(),
             secret: "ignored".to_string(),
         };
-        let record = connect_from_home_core(&connections, &secrets, input, Some(dir.path()))
+        let record = connect_from_home_core(&connections, &secrets, input, Some(&codex))
             .expect("the token only write fits");
         assert_eq!(
             secrets.read_secret(&record.id).expect("stored").as_str(),
@@ -2097,7 +2404,8 @@ mod tests {
             account_alias: "personal".to_string(),
             secret: SECRET_MARKER.to_string(),
         };
-        let failure = connect_from_home_core(&connections, &secrets, input, Some(dir.path()))
+        let codex = dir.path().join(".codex");
+        let failure = connect_from_home_core(&connections, &secrets, input, Some(&codex))
             .expect_err("login absent");
         assert_eq!(failure, CommandFailure::CodexLoginRequired);
         assert_eq!(
@@ -2106,6 +2414,389 @@ mod tests {
         );
         assert!(!failure.to_string().contains(SECRET_MARKER));
         assert_eq!(secrets.stored_count(), 0);
+    }
+
+    fn codex_login(directory: &Path, token: &str, account: &str) {
+        fs::create_dir_all(directory).expect("Codex directory");
+        fs::write(
+            directory.join("auth.json"),
+            format!(r#"{{"tokens":{{"access_token":"{token}","account_id":"{account}"}}}}"#),
+        )
+        .expect("Codex login");
+    }
+
+    fn codex_connect_input() -> ConnectProviderInput {
+        ConnectProviderInput {
+            provider_id: ProviderId::Codex,
+            credential_kind: CredentialKind::CodexSession,
+            account_alias: "personal".to_string(),
+            secret: "imported from the codex login file".to_string(),
+        }
+    }
+
+    #[test]
+    fn the_codex_directory_is_codex_home_when_set_else_dot_codex_under_the_home() {
+        let home = PathBuf::from("home");
+        let custom = PathBuf::from("custom-codex-home");
+        assert_eq!(codex_directory(Some(custom.clone()), Some(home.clone())), Some(custom));
+        assert_eq!(codex_directory(None, Some(home.clone())), Some(home.join(".codex")));
+        assert_eq!(codex_directory(None, None), None);
+    }
+
+    #[test]
+    fn a_codex_login_kept_only_under_codex_home_connects() {
+        const TOKEN: &str = "codex-home-token-canary-123456789";
+        const ACCOUNT: &str = "codex-home-account-canary-987654321";
+        let dir = TempDir::new();
+        let custom = dir.path().join("custom-codex-home");
+        codex_login(&custom, TOKEN, ACCOUNT);
+        let (connections, secrets) = stores(&dir);
+        let home = Some(dir.path().to_path_buf());
+        // Without CODEX_HOME this machine has no login under ~/.codex to import.
+        let fallback = codex_directory(None, home.clone());
+        assert_eq!(
+            connect_from_home_core(&connections, &secrets, codex_connect_input(), fallback.as_deref())
+                .map(|_| ()),
+            Err(CommandFailure::CodexLoginRequired)
+        );
+        let directory = codex_directory(Some(custom), home);
+        let record =
+            connect_from_home_core(&connections, &secrets, codex_connect_input(), directory.as_deref())
+                .expect("connect from CODEX_HOME");
+        assert_eq!(secrets.read_secret(&record.id).expect("stored").as_str(), TOKEN);
+        assert_eq!(record.codex_account_id.as_deref(), Some(ACCOUNT));
+    }
+
+    const REPAIR_ACCOUNT: &str = "codex-account-repair";
+    const TOKEN_BEFORE_REPAIR: &str = "codex-token-before-repair";
+    const TOKEN_AFTER_REPAIR: &str = "codex-token-after-repair";
+
+    /// What the app server answers for a working Codex login.
+    fn codex_reading() -> String {
+        let resets = now_epoch_ms() / 1_000 + 3_600;
+        serde_json::json!({ "rateLimits": {
+            "limitId": "codex",
+            "primary": { "usedPercent": 23.5, "windowDurationMins": 300, "resetsAt": resets },
+            "secondary": { "usedPercent": 41.2, "windowDurationMins": 10_080, "resetsAt": resets }
+        } })
+        .to_string()
+    }
+
+    /// An app holding the stores a repair reaches for, `secrets` standing in
+    /// for the system credential store, with the repair command registered.
+    fn repair_app<S: SecretStore + 'static>(
+        dir: &TempDir,
+        secrets: S,
+    ) -> tauri::App<tauri::test::MockRuntime> {
+        let state = Some(dir.path().to_path_buf());
+        tauri::test::mock_builder()
+            .manage(ConnectionsStore::at(state.clone()))
+            .manage(secrets)
+            .manage(Arc::new(CacheWriter::at(state)))
+            .manage(DetectionStore::for_test_home(dir.path(), now_epoch_ms()))
+            .manage(crate::collector_runtime::CollectorRuntime::default())
+            .invoke_handler(tauri::generate_handler![repair_codex_connection])
+            .build(tauri::generate_context!(test = true))
+            .expect("mock app")
+    }
+
+    /// A Codex record the provider refused, connected from the login in
+    /// `login`, which still holds the token the record was connected with.
+    async fn refused_codex_record<S: SecretStore + 'static>(
+        app: &tauri::App<tauri::test::MockRuntime>,
+        login: &Path,
+    ) -> ConnectionRecord {
+        use tauri::Manager;
+        codex_login(login, TOKEN_BEFORE_REPAIR, REPAIR_ACCOUNT);
+        let connections = app.state::<ConnectionsStore>();
+        let secrets = app.state::<S>();
+        let record =
+            connect_from_home_core(&connections, &*secrets, codex_connect_input(), Some(login))
+                .expect("connect");
+        codex_app_server_reply(&record.id, Err(AppServerFailure::NeedsSignIn));
+        test_core(
+            &connections,
+            &*secrets,
+            &RecordingTransport::replying(401, Vec::new(), None),
+            probe(&record.id),
+        )
+        .await
+        .expect("refused probe");
+        let refused = connections.get(&record.id).expect("refused record");
+        assert_eq!(refused.status, STATUS_NEEDS_AUTH);
+        refused
+    }
+
+    /// The login homes this record's app server reads were started on.
+    fn read_homes(record_id: &str) -> Vec<PathBuf> {
+        CODEX_APP_SERVER_TEST_HOMES
+            .lock()
+            .expect("test home record")
+            .iter()
+            .filter(|(id, _)| id == record_id)
+            .map(|(_, home)| home.clone())
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn repair_proves_the_live_login_and_then_takes_it_into_the_refused_record() {
+        use tauri::Manager;
+        let dir = TempDir::new();
+        let app = repair_app(&dir, InMemorySecrets::new());
+        let login = dir.path().join("codex-home");
+        let refused = refused_codex_record::<InMemorySecrets>(&app, &login).await;
+        // The same account signed in again.
+        codex_login(&login, TOKEN_AFTER_REPAIR, REPAIR_ACCOUNT);
+        codex_app_server_reply(&refused.id, Ok(&codex_reading()));
+        let outcome = repair_codex_core::<_, InMemorySecrets>(
+            app.handle(),
+            refused.id.clone(),
+            Some(login.clone()),
+        )
+        .await
+        .expect("repaired");
+        assert_eq!(
+            outcome,
+            crate::collector::CollectionOutcome::CacheCommitted {
+                connection_id: refused.id.clone()
+            }
+        );
+        // The proof read that very login, not a home detection picked.
+        assert_eq!(read_homes(&refused.id).last(), Some(&login));
+        assert_eq!(
+            app.state::<InMemorySecrets>()
+                .read_secret(&refused.id)
+                .expect("replaced")
+                .as_str(),
+            TOKEN_AFTER_REPAIR
+        );
+        let records = app.state::<ConnectionsStore>().list().expect("records");
+        assert_eq!(records.len(), 1, "never removed and added again");
+        let repaired = &records[0];
+        assert_eq!(repaired.status, STATUS_COMPLETED);
+        assert_eq!(
+            (
+                &repaired.id,
+                &repaired.account_alias,
+                repaired.created_at,
+                repaired.legacy_grandfathered,
+                &repaired.codex_account_id
+            ),
+            (
+                &refused.id,
+                &refused.account_alias,
+                refused.created_at,
+                refused.legacy_grandfathered,
+                &refused.codex_account_id
+            )
+        );
+        let cache = cached_document(&dir).to_string();
+        assert!(cache.contains(&refused.id), "the proven reading filled the cache");
+        assert!(!cache.contains("codex-token"), "no token reaches the cache");
+    }
+
+    #[tokio::test]
+    async fn a_repair_that_cannot_prove_the_live_login_keeps_the_prior_credential_and_record() {
+        use tauri::Manager;
+        let dir = TempDir::new();
+        let app = repair_app(&dir, InMemorySecrets::new());
+        let login = dir.path().join("codex-home");
+        let refused = refused_codex_record::<InMemorySecrets>(&app, &login).await;
+        let repair = || {
+            repair_codex_core::<_, InMemorySecrets>(
+                app.handle(),
+                refused.id.clone(),
+                Some(login.clone()),
+            )
+        };
+        let unchanged = |case: &str| {
+            assert_eq!(
+                app.state::<InMemorySecrets>()
+                    .read_secret(&refused.id)
+                    .expect("kept")
+                    .as_str(),
+                TOKEN_BEFORE_REPAIR,
+                "{case}"
+            );
+            let record = app.state::<ConnectionsStore>().get(&refused.id).expect("kept");
+            assert!(record == refused, "{case}");
+            assert!(
+                !dir.path().join(crate::cache_write::CACHE_FILE_NAME).exists(),
+                "{case}"
+            );
+        };
+        codex_login(&login, TOKEN_AFTER_REPAIR, REPAIR_ACCOUNT);
+        for (read, expected) in [
+            (Err(AppServerFailure::NeedsSignIn), CommandFailure::CodexLoginRequired),
+            (Err(AppServerFailure::IdentityMismatch), CommandFailure::CodexOtherAccount),
+            (Err(AppServerFailure::MissingExecutable), CommandFailure::CodexCliNotFound),
+            (Err(AppServerFailure::RateLimited(Some(60))), CommandFailure::TooSoon),
+            (Err(AppServerFailure::Timeout), CommandFailure::Timeout),
+            (Err(AppServerFailure::Unavailable), CommandFailure::Connect),
+            (Ok("{}"), CommandFailure::Protocol),
+        ] {
+            codex_app_server_reply(&refused.id, read);
+            assert_eq!(repair().await, Err(expected));
+            unchanged(&format!("{expected:?}"));
+        }
+        // No Codex CLI on this machine: nothing is read at all.
+        let reads = read_homes(&refused.id).len();
+        CODEX_RUNTIME_TEST_RESPONSES
+            .lock()
+            .expect("test runtime registry")
+            .insert(
+                refused.id.clone(),
+                TestCodexRuntime::Resolved(
+                    crate::provider_detection::CodexRuntimeOutcome::MissingExecutable,
+                ),
+            );
+        assert_eq!(repair().await, Err(CommandFailure::CodexCliNotFound));
+        // A login for another account is refused before it is read.
+        codex_login(&login, "codex-token-other-account", "codex-account-other");
+        assert_eq!(repair().await, Err(CommandFailure::CodexOtherAccount));
+        assert_eq!(read_homes(&refused.id).len(), reads, "nothing was read");
+        unchanged("no CLI, then another account");
+    }
+
+    #[tokio::test]
+    async fn a_repair_whose_commit_fails_puts_the_prior_credential_back() {
+        use tauri::Manager;
+        let dir = TempDir::new();
+        let app = repair_app(&dir, FailNextWriteSecrets::new());
+        let login = dir.path().join("codex-home");
+        let refused = refused_codex_record::<FailNextWriteSecrets>(&app, &login).await;
+        codex_login(&login, TOKEN_AFTER_REPAIR, REPAIR_ACCOUNT);
+        let kept = |case: &str| {
+            assert_eq!(
+                app.state::<FailNextWriteSecrets>()
+                    .read_secret(&refused.id)
+                    .expect("kept")
+                    .as_str(),
+                TOKEN_BEFORE_REPAIR,
+                "{case}"
+            );
+        };
+
+        // The record moved while its login was read: refused before any write.
+        codex_app_server_reply(&refused.id, Ok(&codex_reading()));
+        let connections = app.state::<ConnectionsStore>();
+        let staged =
+            stage_codex_repair(&connections, &refused.id, Some(&login)).expect("staged");
+        let snapshots = verify_staged_codex_login(&staged).await.expect("proven");
+        let moved = connections
+            .update(&refused.id, |record| {
+                record.account_alias = "renamed meanwhile".to_string();
+            })
+            .expect("moved");
+        assert_eq!(
+            commit_codex_repair(
+                &connections,
+                &*app.state::<FailNextWriteSecrets>(),
+                &app.state::<Arc<CacheWriter>>(),
+                staged,
+                snapshots,
+            ),
+            Err(CommandFailure::StaleGeneration)
+        );
+        kept("the record moved");
+        assert!(connections.get(&refused.id).expect("record") == moved);
+
+        // The credential store takes the new token, then reports a failure.
+        app.state::<FailNextWriteSecrets>().fail_next_write();
+        codex_app_server_reply(&refused.id, Ok(&codex_reading()));
+        assert_eq!(
+            repair_codex_core::<_, FailNextWriteSecrets>(
+                app.handle(),
+                refused.id.clone(),
+                Some(login.clone()),
+            )
+            .await,
+            Err(CommandFailure::CredentialStore)
+        );
+        kept("the store failed");
+        assert!(connections.get(&refused.id).expect("record") == moved);
+    }
+
+    #[test]
+    fn the_repair_command_is_registered_and_takes_exactly_what_the_window_sends() {
+        use tauri::{
+            ipc::{CallbackFn, InvokeBody},
+            test::{get_ipc_response, INVOKE_KEY},
+            webview::InvokeRequest,
+            Manager, WebviewWindowBuilder,
+        };
+        assert!(
+            include_str!("lib.rs").contains("commands::repair_codex_connection,"),
+            "lib.rs hands the command to Tauri"
+        );
+        let dir = TempDir::new();
+        let app = repair_app(&dir, KeyringStore);
+        // A paused Codex record: the command finds it and stops before any
+        // login file or credential store is touched.
+        let record = {
+            let connections = app.state::<ConnectionsStore>();
+            let login = dir.path().join("codex-home");
+            codex_login(&login, TOKEN_BEFORE_REPAIR, REPAIR_ACCOUNT);
+            let record = connect_from_home_core(
+                &connections,
+                &InMemorySecrets::new(),
+                codex_connect_input(),
+                Some(&login),
+            )
+            .expect("connect");
+            connections
+                .set_user_paused(&record.id, true, false)
+                .expect("paused")
+        };
+        let window = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .expect("window");
+        let invoke = |body: serde_json::Value| {
+            get_ipc_response(
+                &window,
+                InvokeRequest {
+                    cmd: "repair_codex_connection".into(),
+                    callback: CallbackFn(0),
+                    error: CallbackFn(1),
+                    url: if cfg!(any(windows, target_os = "android")) {
+                        "http://tauri.localhost"
+                    } else {
+                        "tauri://localhost"
+                    }
+                    .parse()
+                    .expect("origin"),
+                    body: InvokeBody::Json(body),
+                    headers: Default::default(),
+                    invoke_key: INVOKE_KEY.into(),
+                },
+            )
+            .map(|response| response.deserialize::<serde_json::Value>().expect("JSON"))
+        };
+        // The shape backend.js sends (connections-route.test.mjs pins it).
+        assert_eq!(
+            invoke(serde_json::json!({ "input": { "connection_id": record.id } })),
+            Err(serde_json::json!({ "kind": "paused" }))
+        );
+        assert_eq!(
+            invoke(serde_json::json!({ "input": { "connection_id": "no-such-record" } })),
+            Err(serde_json::json!({ "kind": "not_found" }))
+        );
+        // Any other shape never reaches the command.
+        for body in [
+            serde_json::json!({ "input": { "connectionId": record.id } }),
+            serde_json::json!({ "connection_id": record.id }),
+        ] {
+            let refused = invoke(body).expect_err("refused at the boundary");
+            assert!(refused.is_string(), "{refused}");
+        }
+        // The success the window reads back, as connections-route.test.mjs answers it.
+        assert_eq!(
+            serde_json::to_value(crate::collector::CollectionOutcome::CacheCommitted {
+                connection_id: "cx-1".to_string()
+            })
+            .expect("serializable"),
+            serde_json::json!({ "kind": "cache_committed", "connection_id": "cx-1" })
+        );
     }
 
     #[test]

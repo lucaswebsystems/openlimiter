@@ -6,6 +6,9 @@
     "saveFailed": "Die Einstellung für den Tab am Bildschirmrand konnte nicht gespeichert werden. Versuche es erneut."
   },
   "desktopReadings": {
+    "pasteOpenRouterKey": "Fügen Sie Ihren OpenRouter Schlüssel unten in die Liste der API Schlüssel ein.",
+    "checkingSignIn": "Ihre Anmeldung wird geprüft...",
+    "cliNotFound": "{name} CLI nicht gefunden. Nehmen Sie sie in PATH auf und prüfen Sie dann erneut.",
     "limits": "Limits",
     "agents": "Agenten",
     "used": "Genutzt",

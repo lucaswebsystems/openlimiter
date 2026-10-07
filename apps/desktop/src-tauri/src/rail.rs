@@ -28,6 +28,7 @@ struct RailState {
     inner: Mutex<Inner>,
     running: AtomicBool,
     snapshot_state_root: Mutex<Option<PathBuf>>,
+    waker: Mutex<Option<std::sync::mpsc::SyncSender<()>>>,
 }
 
 struct Inner {
@@ -141,48 +142,52 @@ pub struct RailSnapshot {
     pub window: WindowSnapshot,
 }
 
-#[tauri::command]
-fn rail_snapshot<R: Runtime>(
+#[tauri::command(async)]
+async fn rail_snapshot<R: Runtime>(
     app: tauri::AppHandle<R>,
-    state: tauri::State<'_, RailState>,
 ) -> Result<RailSnapshot, String> {
-    let now = chrono::Utc::now().timestamp_millis();
-    let sessions =
-        crate::activity::display_sessions(&app).map(|records| snapshot::sessions(records, now));
-    let projection = crate::data_rules::for_app(
-        &app,
-        crate::native_snapshot::display_snapshots(read_snapshot_cache(&state).as_deref()),
-        now,
-    );
-    let accounts = snapshot::accounts(projection.snapshots, now);
-    let inner = state.inner.lock().map_err(|_| "Rail state unavailable")?;
-    let p = &inner.preferences;
-    let id = placement::select(&inner.monitors, &p.monitor_id)
-        .map(|m| m.id.as_str())
-        .unwrap_or(&p.monitor_id);
-    Ok(RailSnapshot {
-        accounts,
-        flags: projection.flags,
-        sessions,
-        window: WindowSnapshot {
-            available: inner.available,
-            preview: false,
-            visible: p.visible,
-            keep_open: p.keep_open,
-            unfolded: inner.behavior.unfolded,
-            suppressed: inner.behavior.suppressed,
-            card_open: inner.behavior.card_anchor.is_some(),
-            card_anchor: inner.behavior.card_anchor,
-            monitor_id: id.into(),
-            offset: placement::select(&inner.monitors, id)
-                .map(|m| {
-                    (placement::place(m, placement::Edge::Left, 0.0, false).y - m.work.y) as f64
-                        / m.scale
-                })
-                .unwrap_or_default(),
-            edge: p.edge,
-        },
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<RailState>();
+        let now = chrono::Utc::now().timestamp_millis();
+        let sessions =
+            crate::activity::display_sessions(&app).map(|records| snapshot::sessions(records, now));
+        let projection = crate::data_rules::for_app(
+            &app,
+            crate::native_snapshot::display_snapshots(read_snapshot_cache(&state).as_deref()),
+            now,
+        );
+        let accounts = snapshot::accounts(projection.snapshots, now);
+        let inner = state.inner.lock().map_err(|_| "Rail state unavailable")?;
+        let p = &inner.preferences;
+        let id = placement::select(&inner.monitors, &p.monitor_id)
+            .map(|m| m.id.as_str())
+            .unwrap_or(&p.monitor_id);
+        Ok(RailSnapshot {
+            accounts,
+            flags: projection.flags,
+            sessions,
+            window: WindowSnapshot {
+                available: inner.available,
+                preview: false,
+                visible: p.visible,
+                keep_open: p.keep_open,
+                unfolded: inner.behavior.unfolded,
+                suppressed: inner.behavior.suppressed,
+                card_open: inner.behavior.card_anchor.is_some(),
+                card_anchor: inner.behavior.card_anchor,
+                monitor_id: id.into(),
+                offset: placement::select(&inner.monitors, id)
+                    .map(|m| {
+                        (placement::place(m, placement::Edge::Left, 0.0, false).y - m.work.y) as f64
+                            / m.scale
+                    })
+                    .unwrap_or_default(),
+                edge: p.edge,
+            },
+        })
     })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 fn set_visible<R: Runtime>(app: &tauri::AppHandle<R>, visible: bool) -> Result<(), String> {
@@ -196,6 +201,13 @@ fn set_visible<R: Runtime>(app: &tauri::AppHandle<R>, visible: bool) -> Result<(
     }
     drop(inner);
     update_menu(app, visible);
+    if visible {
+        if let Ok(waker) = app.state::<RailState>().waker.lock() {
+            if let Some(tx) = waker.as_ref() {
+                let _ = tx.try_send(());
+            }
+        }
+    }
     Ok(())
 }
 
@@ -334,6 +346,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
                 }),
                 running: AtomicBool::new(false),
                 snapshot_state_root: Mutex::new(None),
+                waker: Mutex::new(None),
             });
             app.manage(RailMenu::<R>(Mutex::new(None)));
             Ok(())
@@ -414,4 +427,23 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             rail_card_close
         ])
         .build()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn switching_the_tab_on_wakes_the_hidden_runtime() {
+        let app = tauri::test::mock_builder()
+            .plugin(init())
+            .build(tauri::generate_context!(test = true))
+            .expect("mock app");
+        let (wake, woken) = std::sync::mpsc::sync_channel(1);
+        *app.state::<RailState>().waker.lock().expect("waker") = Some(wake);
+        set_visible(app.handle(), false).expect("switched off");
+        assert!(woken.try_recv().is_err(), "switching off wakes nothing");
+        set_visible(app.handle(), true).expect("switched on");
+        assert!(woken.try_recv().is_ok(), "switching on wakes the runtime at once");
+    }
 }

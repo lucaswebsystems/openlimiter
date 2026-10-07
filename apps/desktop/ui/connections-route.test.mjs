@@ -11,11 +11,15 @@ import { fakeDocument } from "./test-dom.mjs";
 const calls = [];
 const opened = [];
 let records = [];
+// Commands the next calls reject, with the failure kind native code sends.
+const refusing = new Map();
 const storage = new Map();
 globalThis.window = {
   __TAURI__: { core: { invoke: async (command, args) => {
     calls.push([command, args]);
+    if (refusing.has(command)) throw { kind: refusing.get(command) };
     if (command === "list_detected_providers") return { providers: [] };
+    if (command === "repair_codex_connection") return { kind: "cache_committed", connection_id: args.input.connection_id };
     if (command === "list_connections") return records;
     if (command === "disabled_providers") return [];
     if (command === "connect_provider") {
@@ -54,6 +58,37 @@ test("Connect for Codex imports its own login in one press and proves it reads",
   assert.deepEqual([connect.provider_id, connect.credential_kind, connect.account_alias], ["codex", "codex_session", "default"]);
   assert.ok(commands().includes("test_provider"));
   assert.deepEqual(opened, []);
+});
+
+test("Connect for a refused Codex record repairs that record in place, never adding or removing one", async () => {
+  records = [{ id: "cx-1", provider_id: "codex", status: "NEEDS_AUTH" }];
+  await initConnections({ onMetersChanged: () => { meters += 1; }, hasFreshLocalClaude: () => false });
+  await settle();
+  try {
+    calls.length = 0;
+    const before = meters;
+    assert.equal(await connectTool("CODEX"), true);
+    assert.deepEqual(calls.find(([command]) => command === "repair_codex_connection")[1], { input: { connection_id: "cx-1" } });
+    assert.ok(!commands().some((command) => command === "connect_provider" || command === "disconnect_provider"));
+    assert.ok(meters > before, "the screen rereads");
+    // Another account's login is refused with its own sentence, shown in the row.
+    refusing.set("repair_codex_connection", "codex_other_account");
+    assert.match(await connectTool("CODEX"), /^This Codex login belongs to another account\./u);
+  } finally {
+    refusing.clear();
+    records = [];
+    await initConnections({ onMetersChanged: () => { meters += 1; }, hasFreshLocalClaude: () => false });
+    await settle();
+  }
+});
+
+test("a Connect that did not work says why in its own words", async () => {
+  refusing.set("connect_provider", "codex_cli_not_found");
+  try {
+    assert.match(await connectTool("CODEX"), /^Codex CLI not found\. Put it on PATH, then check again\./u);
+  } finally {
+    refusing.clear();
+  }
 });
 
 test("Connect for Claude Code, Antigravity and OpenCode opens that tool's setup under the list, one at a time", async () => {

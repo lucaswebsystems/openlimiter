@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use crate::provider_detection::{opaque_account_id, DetectedProviderId};
 
 const MAX_STDIO_BYTES: usize = 1_048_576;
-pub const TIMEOUT: Duration = Duration::from_secs(5);
+pub const TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AppServerFailure {
@@ -176,7 +176,11 @@ fn read_rate_limits_with(
                 mpsc::RecvTimeoutError::Timeout => AppServerFailure::Timeout,
                 mpsc::RecvTimeoutError::Disconnected => AppServerFailure::Unavailable,
             })??;
-        let message: Value = serde_json::from_str(&line).map_err(|_| AppServerFailure::Protocol)?;
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let message: Value = serde_json::from_str(line).map_err(|_| AppServerFailure::Protocol)?;
         if message.get("id").and_then(Value::as_i64) == Some(0) {
             if message.get("error").is_some()
                 || !message.get("result").is_some_and(Value::is_object)
@@ -261,6 +265,13 @@ mod tests {
     #[test]
     fn fixture_speaks_the_documented_exchange() {
         let result = fixture_read("success", Duration::from_secs(2)).expect("documented response");
+        assert!(result.body.contains("rateLimitsByLimitId"));
+    }
+
+    /// Blank stdout lines are skipped, as the TypeScript reader skips them.
+    #[test]
+    fn blank_stdout_lines_are_skipped_like_typescript() {
+        let result = fixture_read("empty-line", Duration::from_secs(2)).expect("documented response");
         assert!(result.body.contains("rateLimitsByLimitId"));
     }
 

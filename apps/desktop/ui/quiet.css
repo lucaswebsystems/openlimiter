@@ -113,6 +113,11 @@ button.q-btn {
   cursor: pointer;
 }
 
+button.q-btn[aria-busy="true"] {
+  opacity: 0.6;
+  cursor: wait;
+}
+
 button.q-btn:hover {
   transform: none;
 }
@@ -566,11 +571,11 @@ button.q-show {
   min-height: 1.875rem;
 }
 
-.q-tnote {
+.q-tools .q-tnote {
   margin-left: auto;
   color: var(--ol-muted);
   font-size: var(--ol-text-caption);
-  white-space: nowrap;
+  text-align: right;
 }
 
 .q-tact {

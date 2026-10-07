@@ -89,6 +89,17 @@ pub fn foreground(exclude: &[HWND]) -> Option<Rect> {
     }
 }
 
+/// The foreground window's bounds unless this process owns it. Safe off the
+/// main thread: it reads window state and touches no window of ours.
+pub fn foreign_foreground() -> Option<Rect> {
+    let mut process = 0;
+    unsafe { GetWindowThreadProcessId(GetForegroundWindow(), &mut process) };
+    if process == std::process::id() {
+        return None;
+    }
+    foreground(&[])
+}
+
 pub fn escape_down() -> bool {
     unsafe { GetAsyncKeyState(0x1b) < 0 }
 }

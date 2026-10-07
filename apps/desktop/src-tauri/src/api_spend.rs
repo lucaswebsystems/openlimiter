@@ -2005,11 +2005,10 @@ pub fn spawn_polling(app: AppHandle) {
     });
 }
 
+/// No gate: the read is bounded and handle first, and every writer replaces
+/// the file atomically, so a refresh in flight never holds the window back.
 #[tauri::command]
-pub async fn api_spend_status(
-    state: State<'_, ApiSpendState>,
-) -> Result<ApiSpendSnapshot, ApiSpendFailure> {
-    let _guard = state.gate.lock().await;
+pub async fn api_spend_status() -> Result<ApiSpendSnapshot, ApiSpendFailure> {
     let document = load_at(&state_path()?)?;
     snapshot(&document, now_seconds()?)
 }
@@ -2083,6 +2082,60 @@ mod tests {
             last_counter_at: None,
             counter_gap: false,
         }
+    }
+
+    /// A refresh holds the gate across its network round trip. The status
+    /// read, invoked through its registered command like the window does,
+    /// answers while that gate is held.
+    #[test]
+    fn status_answers_through_its_command_while_a_refresh_holds_the_gate() {
+        use tauri::{
+            ipc::{CallbackFn, InvokeBody},
+            test::{get_ipc_response, mock_builder, INVOKE_KEY},
+            webview::InvokeRequest,
+            WebviewWindowBuilder,
+        };
+        let app = mock_builder()
+            .manage(ApiSpendState::default())
+            .invoke_handler(tauri::generate_handler![api_spend_status])
+            .build(tauri::generate_context!(test = true))
+            .expect("mock app");
+        let window = WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .expect("window");
+        let state = app.state::<ApiSpendState>();
+        let refresh = state.gate.blocking_lock();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let response = get_ipc_response(
+                &window,
+                InvokeRequest {
+                    cmd: "api_spend_status".into(),
+                    callback: CallbackFn(0),
+                    error: CallbackFn(1),
+                    url: if cfg!(any(windows, target_os = "android")) {
+                        "http://tauri.localhost"
+                    } else {
+                        "tauri://localhost"
+                    }
+                    .parse()
+                    .expect("origin"),
+                    body: InvokeBody::default(),
+                    headers: Default::default(),
+                    invoke_key: INVOKE_KEY.into(),
+                },
+            );
+            let _ = sender.send(response.map(|body| body.deserialize::<Value>()));
+        });
+        let snapshot = receiver
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the status read waited for the refresh")
+            .expect("the status command succeeded")
+            .expect("a snapshot");
+        drop(refresh);
+        assert_eq!(snapshot["version"], STATE_VERSION);
+        assert_eq!(snapshot["localDisplayIsFree"], true);
+        assert!(snapshot["sources"].is_array() && snapshot["samples"].is_array());
     }
 
     #[test]

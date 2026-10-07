@@ -50,14 +50,18 @@ export function startEdge(doc, invoke, schedule = globalThis.setTimeout, cancel 
     if (stopped || pending) return;
     cancel(timer);
     pending = true;
+    let interval = 1000;
     try {
       const snapshot = await invoke("plugin:rail|rail_snapshot", {});
       if (!stopped) renderEdge(doc, snapshot);
+      if (snapshot && snapshot.window && snapshot.window.visible === false) {
+        interval = 10000;
+      }
     } catch {
       // Keep the last state; the next poll tries again.
     } finally {
       pending = false;
-      if (!stopped) timer = schedule(refresh, 1000);
+      if (!stopped) timer = schedule(refresh, interval);
     }
   }
   const shown = () => { if (doc.visibilityState !== "hidden") void refresh(); };

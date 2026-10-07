@@ -47,6 +47,7 @@ input.on("line", (line) => {
     return;
   }
   if (scenario === "timeout") return;
+  if (scenario === "empty-line") process.stdout.write("\n\n\r\n\n");
   if (scenario === "signed-out" || scenario === "signed-out-codex") {
     send({
       id: message.id,

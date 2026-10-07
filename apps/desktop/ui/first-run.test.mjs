@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import vm from "node:vm";
 
 import {
   CODEX_SIGN_IN_TIMEOUT_MILLISECONDS,
@@ -51,13 +52,19 @@ function firstRunDom(existingInstall = false) {
   const doc = fakeDocument();
   const make = doc.createElement;
   const decorate = (node) => {
-    node.classList = {
-      add: (...names) => {
-        const classes = new Set(node.className.split(/\s+/u).filter(Boolean));
-        for (const name of names) classes.add(name);
-        node.className = [...classes].join(" ");
-      },
-    };
+    if (!node.classList?.add) {
+      Object.defineProperty(node, "classList", {
+        value: {
+          add: (...names) => {
+            const classes = new Set(node.className.split(/\s+/u).filter(Boolean));
+            for (const name of names) classes.add(name);
+            node.className = [...classes].join(" ");
+          },
+        },
+        writable: true,
+        configurable: true
+      });
+    }
     const matches = (candidate, selector) => {
       if (selector.startsWith("#")) return candidate.id === selector.slice(1);
       if (selector.startsWith(".")) return candidate.className.split(/\s+/u).includes(selector.slice(1));
@@ -79,6 +86,9 @@ function firstRunDom(existingInstall = false) {
   };
   const screen = register("first-run", "section");
   const account = register("first-run-account");
+  const later = register("first-run-later", "button");
+  const way = register("first-run-way-status", "p");
+  account.append(later, way);
   const setup = register("first-run-setup");
   const heading = register("first-run-title", "h1");
   const providers = register("first-run-providers");
@@ -125,7 +135,7 @@ function firstRunDom(existingInstall = false) {
       for (const listener of listeners[event.type] ?? []) listener(event);
     },
   };
-  return { doc, screen, setup, status, consent, consentStatus, values, win };
+  return { doc, screen, account, way, setup, status, consent, consentStatus, values, win };
 }
 
 function installFirstRunGlobals(harness) {
@@ -1207,4 +1217,177 @@ test("colours and radii on the connect rows come from tokens", () => {
   for (const radius of block.matchAll(/border-radius: ([^;]+);/gu)) {
     assert.match(radius[1], /var\(--ol-radius-/u);
   }
+});
+
+/* The head script of index.html itself, run as the page runs it before any
+   module loads, against this harness's storage and root element. A data
+   attribute it sets lands in `dataset`, as it does in a browser. */
+function headProbe(harness) {
+  const html = read("index.html");
+  const start = html.indexOf("<script>") + "<script>".length;
+  const script = html.slice(start, html.indexOf("</script>", start));
+  const root = harness.doc.documentElement;
+  const documentElement = {
+    setAttribute(name, value) {
+      const data = /^data-(.+)$/u.exec(name);
+      if (data === null) root.setAttribute(name, value);
+      else root.dataset[data[1].replace(/-([a-z])/gu, (_, letter) => letter.toUpperCase())] = String(value);
+    },
+  };
+  vm.runInNewContext(script, { window: harness.win, document: { documentElement } });
+}
+
+const never = () => new Promise(() => {});
+
+test("the head script paints Home only for a finished install with tools", () => {
+  const painted = (values) => {
+    const harness = firstRunDom(false);
+    for (const [key, value] of Object.entries(values)) harness.values.set(key, value);
+    headProbe(harness);
+    return harness.doc.documentElement.dataset.firstRun;
+  };
+  const done = "openlimiter-first-run-complete-v1";
+  const tools = "openlimiter-configured-providers-v1";
+  assert.equal(painted({ [done]: "complete", [tools]: '["CODEX"]' }), "complete");
+  assert.equal(painted({}), "pending", "a new install");
+  assert.equal(painted({ [done]: "complete" }), "pending", "finished, but no tools were ever kept");
+  assert.equal(painted({ [done]: "complete", [tools]: "[]" }), "pending", "every tool removed");
+  assert.equal(painted({ [tools]: '["CODEX"]' }), "pending", "tools, first run never finished");
+  assert.equal(painted({ [done]: "complete", [tools]: "{" }), "pending", "unreadable tools");
+  assert.equal(painted({ [done]: "complete", [tools]: '{"length":1}' }), "pending", "not a list");
+  const refused = firstRunDom(false);
+  refused.win.localStorage.getItem = () => { throw new Error("storage refused"); };
+  headProbe(refused);
+  assert.equal(refused.doc.documentElement.dataset.firstRun, "pending", "storage refused");
+});
+
+test("a returning person with no tools left sees the account step at once while the account request stalls", async () => {
+  const returning = firstRunDom(false);
+  returning.values.set("openlimiter-first-run-complete-v1", "complete");
+  returning.values.set("openlimiter-configured-providers-v1", "[]");
+  installFirstRunGlobals(returning);
+  headProbe(returning);
+  initFirstRun({
+    accountStatus: never,
+    claudePollEnabled: async () => ({ state: "enabled", enabled: true }),
+    detectProviders: never,
+    platform: "Linux",
+  });
+  assert.equal(returning.doc.documentElement.dataset.firstRun, "pending");
+  assert.equal(returning.screen.dataset.step, "account", "a returning person was left on a blank screen");
+  assert.equal(returning.account.hidden, false);
+  assert.equal(returning.way.textContent, "Checking your sign in...");
+  for (let turn = 0; turn < 5; turn += 1) await nextTurn();
+  assert.equal(returning.screen.dataset.step, "account", "the stalled answer took the step away");
+  assert.equal(returning.account.hidden, false);
+});
+
+test("a finished first run stays painted while the account answer never comes", async () => {
+  const harness = firstRunDom(true);
+  installFirstRunGlobals(harness);
+  headProbe(harness);
+  let completions = 0;
+  initFirstRun({
+    accountStatus: never,
+    claudePollEnabled: async () => ({ state: "enabled", enabled: true }),
+    onContinue: () => { completions += 1; },
+    platform: "Linux",
+  });
+  assert.equal(harness.doc.documentElement.dataset.firstRun, "complete", "the head probe was overwritten");
+  assert.equal(harness.screen.dataset.step, undefined, "no step was asked of a finished install");
+  await waitFor(() => harness.screen.hidden === true, "first run did not get out of the way");
+  assert.equal(harness.doc.documentElement.dataset.firstRun, "complete");
+  assert.equal(completions, 0, "nothing was asked, so nothing continued");
+});
+
+test("a new person sees the account step at once, checking, while the account request stalls", () => {
+  const harness = firstRunDom(false);
+  installFirstRunGlobals(harness);
+  headProbe(harness);
+  initFirstRun({
+    accountStatus: never,
+    claudePollEnabled: never,
+    detectProviders: never,
+    platform: "Linux",
+  });
+  assert.equal(harness.doc.documentElement.dataset.firstRun, "pending");
+  assert.equal(harness.screen.dataset.step, "account");
+  assert.equal(harness.account.hidden, false);
+  assert.equal(harness.way.textContent, "Checking your sign in...");
+});
+
+test("the one time Claude consent shows pending over Home, then completes", async () => {
+  const harness = firstRunDom(true);
+  installFirstRunGlobals(harness);
+  headProbe(harness);
+  initFirstRun({
+    accountStatus: never,
+    claudePollEnabled: async () => ({ state: "missing", enabled: false }),
+    setClaudePoll: async (enabled) => ({ ok: true, value: enabled }),
+    platform: "Linux",
+  });
+  assert.equal(harness.doc.documentElement.dataset.firstRun, "complete", "Home paints first");
+  await waitFor(() => harness.consent.hidden === false, "the consent did not appear");
+  assert.equal(harness.doc.documentElement.dataset.firstRun, "pending", "the consent was hidden behind Home");
+  assert.equal(harness.screen.hidden, false);
+  await harness.doc.byId["claude-poll-consent-decline"].fire("click");
+  await waitFor(() => harness.screen.hidden === true, "the consent did not finish");
+  assert.equal(harness.doc.documentElement.dataset.firstRun, "complete");
+});
+
+test("a late signed out answer never sends a person back to Account after Create account later", async () => {
+  const harness = firstRunDom(false);
+  installFirstRunGlobals(harness);
+  headProbe(harness);
+  let answer;
+  initFirstRun({
+    accountStatus: () => new Promise((resolve) => { answer = resolve; }),
+    isSignedIn: () => false,
+    claudePollEnabled: async () => ({ state: "missing", enabled: false }),
+    detectProviders: async () => ({ ok: true, value: { providers: [] } }),
+    platform: "Linux",
+  });
+  assert.equal(harness.screen.dataset.step, "account");
+  await harness.doc.byId["first-run-later"].fire("click");
+  await waitFor(() => harness.screen.dataset.step === "connect", "Create account later did not move on");
+  answer({ ok: true, value: null });
+  for (let turn = 0; turn < 5; turn += 1) await nextTurn();
+  assert.equal(harness.screen.dataset.step, "connect", "the late answer restarted onboarding");
+  assert.equal(harness.account.hidden, true);
+});
+
+test("a signed in answer moves the account step still showing on to Connect", async () => {
+  const signedIn = firstRunDom(false);
+  installFirstRunGlobals(signedIn);
+  headProbe(signedIn);
+  let answer;
+  let session = false;
+  initFirstRun({
+    accountStatus: () => new Promise((resolve) => { answer = resolve; }),
+    isSignedIn: () => session,
+    claudePollEnabled: async () => ({ state: "missing", enabled: false }),
+    detectProviders: async () => ({ ok: true, value: { providers: [] } }),
+    platform: "Linux",
+  });
+  assert.equal(signedIn.way.textContent, "Checking your sign in...");
+  session = true;
+  answer({ ok: true, value: null });
+  await waitFor(() => signedIn.screen.dataset.step === "connect", "a signed in answer did not move on");
+  assert.equal(signedIn.way.textContent, "", "the checking line cleared");
+  for (let turn = 0; turn < 5; turn += 1) await nextTurn();
+});
+
+test("a returning person whose tools were all removed is asked again, never left on a blank screen", async () => {
+  const returning = firstRunDom(false);
+  returning.values.set("openlimiter-first-run-complete-v1", "complete");
+  installFirstRunGlobals(returning);
+  headProbe(returning);
+  initFirstRun({
+    accountStatus: async () => ({ ok: true, value: null }),
+    claudePollEnabled: async () => ({ state: "enabled", enabled: true }),
+    detectProviders: async () => ({ ok: true, value: { providers: [] } }),
+    platform: "Linux",
+  });
+  await waitFor(() => returning.screen.dataset.step === "account", "a returning person was left on a blank screen");
+  assert.equal(returning.doc.documentElement.dataset.firstRun, "pending");
 });

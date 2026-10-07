@@ -31,9 +31,15 @@
         } catch (error) {
           /* Storage refused. Dark is already the default. */
         }
+        var completed = false;
+        try {
+          var configured = JSON.parse(window.localStorage.getItem("openlimiter-configured-providers-v1") || "[]");
+          completed = window.localStorage.getItem("openlimiter-first-run-complete-v1") === "complete" &&
+            Array.isArray(configured) && configured.length > 0;
+        } catch (error) {}
         document.documentElement.setAttribute(
           "data-first-run",
-          "pending",
+          completed ? "complete" : "pending"
         );
       })();
     </script>

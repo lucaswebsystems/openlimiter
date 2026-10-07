@@ -3,7 +3,10 @@ use super::{
     RailState,
 };
 use std::{
-    sync::atomic::Ordering,
+    sync::{
+        atomic::Ordering,
+        mpsc::{Receiver, RecvTimeoutError},
+    },
     time::{Duration, Instant},
 };
 use tauri::{
@@ -62,51 +65,180 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     // Serialized work on the UI thread. At most one tick may be queued. Monitor
     // enumeration every second also repairs placement on resume, hotplug and DPI
     // changes even when the platform misses a window event while asleep.
+    let (wake_tx, wake_rx) = std::sync::mpsc::sync_channel(1);
+    if let Ok(mut waker) = handle.state::<RailState>().waker.lock() {
+        *waker = Some(wake_tx);
+    }
     std::thread::spawn(move || {
         let applied = std::sync::Arc::new(std::sync::Mutex::new(Applied::default()));
-        let mut last_monitors = Instant::now() - Duration::from_secs(2);
-        let mut last_topmost = Instant::now() - Duration::from_secs(4);
-        while handle.state::<RailState>().running.load(Ordering::Relaxed) {
-            let now = Instant::now();
-            let refresh = now.duration_since(last_monitors) >= Duration::from_secs(1);
-            let reassert = now.duration_since(last_topmost) >= Duration::from_secs(3);
-            if refresh {
-                last_monitors = now;
-            }
-            if reassert {
-                last_topmost = now;
+        let running = || handle.state::<RailState>().running.load(Ordering::Relaxed);
+        let main_thread_tick = |refresh: bool, reassert: bool| {
+            if !running() {
+                return None;
             }
             let app = handle.clone();
             let previous = applied.clone();
             let (sender, receiver) = std::sync::mpsc::sync_channel(1);
-            if handle
+            handle
                 .run_on_main_thread(move || {
+                    let mut is_visible = false;
                     if let Ok(mut applied) = previous.lock() {
-                        if let Err(error) = tick(&app, &mut applied, refresh, reassert) {
-                            eprintln!("Rail update: {error}");
+                        match tick(&app, &mut applied, refresh, reassert) {
+                            Ok(v) => is_visible = v,
+                            Err(error) => eprintln!("Rail update: {error}"),
                         }
                     }
-                    let _ = sender.send(());
+                    let _ = sender.send(is_visible);
                 })
-                .is_err()
-            {
-                break;
-            }
+                .ok()?;
             // Do not abandon the worker during sleep; timeouts just check exit.
             loop {
                 match receiver.recv_timeout(Duration::from_secs(1)) {
-                    Ok(()) => break,
-                    Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return,
-                    Err(_) if !handle.state::<RailState>().running.load(Ordering::Relaxed) => {
-                        return
-                    }
+                    Ok(shown) => return Some(shown),
+                    Err(RecvTimeoutError::Disconnected) => return None,
+                    Err(_) if !running() => return None,
                     Err(_) => {}
                 }
             }
-            std::thread::sleep(Duration::from_millis(100));
-        }
+        };
+        run(main_thread_tick, &wake_rx, || look(&handle));
     });
     Ok(())
+}
+
+/// The worker's loop, apart from the windows it drives: `tick(refresh,
+/// reassert)` runs one tick and says whether the tab is shown, or `None` once
+/// the runtime stopped. Shown, the tab ticks every 100 ms for the pointer.
+/// Hidden, it ticks once a second, and in between only a wake brings the next
+/// tick forward: the tab switched on, or a change the worker observes (a
+/// fullscreen window gone, the monitors changed). Any early tick enumerates
+/// the monitors again, so it never places the tab with the old layout.
+fn run(
+    mut tick: impl FnMut(bool, bool) -> Option<bool>,
+    wake: &Receiver<()>,
+    mut look: impl FnMut() -> Option<Look>,
+) {
+    let mut last_monitors: Option<Instant> = None;
+    let mut last_topmost: Option<Instant> = None;
+    let mut changed = false;
+    loop {
+        let now = Instant::now();
+        let due = |last: Option<Instant>, every: Duration| {
+            last.is_none_or(|at| now.duration_since(at) >= every)
+        };
+        let refresh = changed || due(last_monitors, Duration::from_secs(1));
+        let reassert = due(last_topmost, Duration::from_secs(3));
+        if refresh {
+            last_monitors = Some(now);
+        }
+        if reassert {
+            last_topmost = Some(now);
+        }
+        let Some(shown) = tick(refresh, reassert) else {
+            return;
+        };
+        changed = if shown {
+            woken(wake, Duration::from_millis(100));
+            false
+        } else {
+            wait_hidden(wake, &mut look)
+        };
+    }
+}
+
+/// A hidden tab's second, ended early by a wake or by a change the worker
+/// observes; true when it ended early.
+fn wait_hidden(wake: &Receiver<()>, look: &mut impl FnMut() -> Option<Look>) -> bool {
+    let deadline = Instant::now() + Duration::from_secs(1);
+    let seen = look();
+    while let Some(left) = deadline.checked_duration_since(Instant::now()) {
+        if woken(wake, left.min(Duration::from_millis(100)))
+            || seen
+                .as_ref()
+                .zip(look())
+                .is_some_and(|(before, now)| wakes(before, &now))
+        {
+            return true;
+        }
+    }
+    false
+}
+
+/// Whether a wake arrived within `limit`. A closed channel waits the whole
+/// limit, so the loop never spins.
+fn woken(wake: &Receiver<()>, limit: Duration) -> bool {
+    match wake.recv_timeout(limit) {
+        Ok(()) => true,
+        Err(RecvTimeoutError::Timeout) => false,
+        Err(RecvTimeoutError::Disconnected) => {
+            std::thread::sleep(limit);
+            false
+        }
+    }
+}
+
+/// What the worker observes between ticks: whether a window of another
+/// process covers the tab's monitor, and the monitor layout.
+struct Look {
+    fullscreen: bool,
+    monitors: Vec<placement::Monitor>,
+}
+
+/// Windows answers both off the main thread.
+#[cfg(windows)]
+fn look<R: Runtime>(_app: &AppHandle<R>) -> Option<Look> {
+    let monitors = super::windows::monitors();
+    let fullscreen = placement::select(&monitors, "").is_some_and(|monitor| {
+        placement::covers_monitor(super::windows::foreign_foreground(), monitor.bounds)
+    });
+    Some(Look {
+        fullscreen,
+        monitors,
+    })
+}
+
+/// Elsewhere the monitors and the foreground window are read on the main
+/// thread, so the worker asks it for exactly that and nothing more.
+#[cfg(not(windows))]
+fn look<R: Runtime>(app: &AppHandle<R>) -> Option<Look> {
+    let (send, receive) = std::sync::mpsc::sync_channel(1);
+    app.run_on_main_thread(move || {
+        let _ = send.send(main_thread_look());
+    })
+    .ok()?;
+    receive.recv_timeout(Duration::from_secs(1)).ok().flatten()
+}
+
+#[cfg(target_os = "macos")]
+fn main_thread_look() -> Option<Look> {
+    let monitors = macos::monitors();
+    let fullscreen =
+        placement::select(&monitors, "").is_some_and(|monitor| macos::observe(monitor).1);
+    Some(Look {
+        fullscreen,
+        monitors,
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn main_thread_look() -> Option<Look> {
+    let monitors = linux::monitors();
+    let fullscreen =
+        placement::select(&monitors, "").is_some_and(|monitor| linux::observe(monitor).1);
+    Some(Look {
+        fullscreen,
+        monitors,
+    })
+}
+
+#[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
+fn main_thread_look() -> Option<Look> {
+    None
+}
+
+/// A change the hidden tab answers at once rather than at its next tick.
+fn wakes(before: &Look, now: &Look) -> bool {
+    (before.fullscreen && !now.fullscreen) || before.monitors != now.monitors
 }
 
 fn create_windows<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
@@ -186,7 +318,7 @@ fn tick<R: Runtime>(
     applied: &mut Applied,
     refresh: bool,
     reassert: bool,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     let rail = app
         .get_webview_window("rail")
         .ok_or("Rail window missing")?;
@@ -216,7 +348,7 @@ fn tick<R: Runtime>(
         apply(&card, Rect::default(), false)?;
         applied.rail = None;
         announce(app, applied.card.take().map(|(_, shown)| shown), false);
-        return Ok(());
+        return Ok(false);
     };
     // Top/bottom geometry is tested but secondary edges remain disabled in this unit.
     let edge = Edge::Left;
@@ -282,7 +414,7 @@ fn tick<R: Runtime>(
         applied.card = Some((card_bounds, card_visible));
     }
     announce(app, was_shown, card_visible);
-    Ok(())
+    Ok(visible)
 }
 
 /// Tell the panel it was shown or hidden, only when that changed. Called on
@@ -731,5 +863,118 @@ mod linux {
             gdk_x11_display_error_trap_pop_ignored(gdk);
             (pointer, fullscreen, escape_down)
         }
+    }
+}
+
+#[cfg(test)]
+mod wake_tests {
+    use super::*;
+
+    fn seen(fullscreen: bool, width: i32) -> Look {
+        let bounds = Rect {
+            x: 0,
+            y: 0,
+            width,
+            height: 1080,
+        };
+        Look {
+            fullscreen,
+            monitors: vec![placement::Monitor {
+                id: "primary".into(),
+                bounds,
+                work: bounds,
+                scale: 1.0,
+                primary: true,
+            }],
+        }
+    }
+
+    #[test]
+    fn a_hidden_tab_wakes_when_fullscreen_ends_or_the_monitors_change() {
+        assert!(!wakes(&seen(false, 1920), &seen(false, 1920)), "nothing changed");
+        assert!(wakes(&seen(true, 1920), &seen(false, 1920)), "fullscreen ended");
+        assert!(
+            !wakes(&seen(false, 1920), &seen(true, 1920)),
+            "fullscreen began: the tab stays hidden"
+        );
+        assert!(wakes(&seen(false, 1920), &seen(false, 2560)), "the monitors changed");
+    }
+
+    /// The real loop with a hidden tab: `observed(n)` is what the nth look
+    /// sees. Each tick is recorded with when it came and whether it
+    /// enumerated the monitors.
+    fn hidden_ticks(
+        wake: &Receiver<()>,
+        mut observed: impl FnMut(usize) -> Look,
+        ticks: usize,
+    ) -> Vec<(Duration, bool)> {
+        let started = Instant::now();
+        let mut recorded = Vec::new();
+        let mut looks = 0;
+        run(
+            |refresh, _reassert| {
+                recorded.push((started.elapsed(), refresh));
+                (recorded.len() < ticks).then_some(false)
+            },
+            wake,
+            || {
+                looks += 1;
+                Some(observed(looks))
+            },
+        );
+        recorded
+    }
+
+    #[test]
+    fn a_monitor_change_while_hidden_ticks_at_once_with_the_new_layout() {
+        let (_wake, woken) = std::sync::mpsc::sync_channel(1);
+        // The layout changes on the third look, about 200 ms into the second.
+        let width = |look| if look < 3 { 1920 } else { 2560 };
+        let ticks = hidden_ticks(&woken, |look| seen(false, width(look)), 2);
+        assert!(ticks[1].0 < Duration::from_millis(900), "the change waited for the timer");
+        assert!(ticks[1].1, "the early tick placed the tab with the old monitors");
+    }
+
+    #[test]
+    fn fullscreen_ending_while_hidden_ticks_at_once() {
+        let (_wake, woken) = std::sync::mpsc::sync_channel(1);
+        let ticks = hidden_ticks(&woken, |look| seen(look < 3, 1920), 2);
+        assert!(ticks[1].0 < Duration::from_millis(900), "fullscreen exit waited");
+    }
+
+    #[test]
+    fn switching_the_tab_on_ends_the_hidden_second_at_once() {
+        let (wake, woken) = std::sync::mpsc::sync_channel(1);
+        // What `set_visible(true)` sends.
+        wake.send(()).expect("wake queued");
+        let ticks = hidden_ticks(&woken, |_| seen(false, 1920), 2);
+        assert!(ticks[1].0 < Duration::from_millis(500), "the wake waited for the timer");
+        assert!(ticks[1].1);
+    }
+
+    #[test]
+    fn a_quiet_hidden_tab_ticks_once_a_second() {
+        let (_wake, woken) = std::sync::mpsc::sync_channel(1);
+        let ticks = hidden_ticks(&woken, |_| seen(false, 1920), 2);
+        assert!(ticks[1].0 >= Duration::from_millis(950), "it ticked early for nothing");
+        assert!(ticks[1].1, "a second on, the timer enumerates the monitors");
+    }
+
+    #[test]
+    fn a_shown_tab_ticks_every_tenth_of_a_second_and_enumerates_once_a_second() {
+        let (_wake, woken) = std::sync::mpsc::sync_channel(1);
+        let started = Instant::now();
+        let mut ticks = Vec::new();
+        run(
+            |refresh, _reassert| {
+                ticks.push((started.elapsed(), refresh));
+                (ticks.len() < 3).then_some(true)
+            },
+            &woken,
+            || -> Option<Look> { panic!("a shown tab is observed by its own ticks") },
+        );
+        assert!(ticks[2].0 < Duration::from_millis(600));
+        let refreshed: Vec<bool> = ticks.iter().map(|tick| tick.1).collect();
+        assert_eq!(refreshed, [true, false, false]);
     }
 }
