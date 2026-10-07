@@ -19,6 +19,8 @@ function readTheme() {
 export const PRODUCT_SHOTS = {
   "desktop-app": { width: 2560, height: 1600, maxWidth: 1280 },
   "desktop-home": { width: 2000, height: 2410, maxWidth: 1000 },
+  "desktop-connect": { width: 2000, height: 1520, maxWidth: 1000 },
+  "desktop-settings": { width: 2000, height: 1520, maxWidth: 1000 },
   "edge-tab": { width: 1120, height: 1076, maxWidth: 560 },
   "edge-panel": { width: 1120, height: 1076, maxWidth: 560 },
   "terminal-statusline": { width: 2400, height: 600, maxWidth: 1200 },

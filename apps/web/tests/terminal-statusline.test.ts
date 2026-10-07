@@ -23,7 +23,7 @@ afterEach(() => {
 describe("live terminal status line", () => {
   it("keeps the three money cells and all four bands in the generated sample", () => {
     const text = sample.cells.flat().map((span) => span.text).join("");
-    for (const cell of ["or $12.34", "oa $8.20", "an $3.10"]) expect(text).toContain(cell);
+    for (const cell of ["or $12.54", "oa $8.20", "an $3.10"]) expect(text).toContain(cell);
     expect(new Set(sample.cells.flat().flatMap((span) => "band" in span ? [span.band] : []))).toEqual(
       new Set(["green", "yellow", "orange", "red"]),
     );

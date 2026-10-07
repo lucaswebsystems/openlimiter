@@ -63,7 +63,7 @@ describe("synthetic screenshot pipeline", () => {
       for (const band of ["green", "yellow", "orange", "red"]) expect(dom.window.document.querySelector(`.band-${band}`)?.textContent).toBeTruthy();
       const line = dom.window.document.querySelector("pre")?.textContent ?? "";
       for (const percentage of [42, 64, 84, 94]) expect(line).toContain(`${percentage}%`);
-      for (const money of ["or $12.34", "oa $8.20", "an $3.10"]) expect(line).toContain(money);
+      for (const money of ["or $12.54", "oa $8.20", "an $3.10"]) expect(line).toContain(money);
       // Limits and money only, so the line keeps one row on a wide screen.
       expect(line).toMatch(/^5h \[/u);
       expect(line).not.toContain("[?]");

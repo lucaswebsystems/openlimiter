@@ -515,10 +515,10 @@
         "unfoldedAlt": "Das echte Panel von OpenLimiter, geöffnet neben dem Reiter, mit synthetischen Daten: Claude Code braucht dich und bietet App anzeigen an, Codex arbeitet und Gemini CLI ist fertig, darunter Limits für Codex, Claude Code und OpenRouter mit Balken und Zeiten bis zum Zurücksetzen sowie ein Link App öffnen."
       },
       "agents": {
-        "title": "Beschäftigt, wartend oder fertig. Du weißt, wann du zurückkehren musst.",
-        "lead": "Die Agentenliste der Home zeigt die Aktivität unterstützter Agentenintegrationen. Ein wartender Agent braucht Eingaben. Ein fertiger Agent hat den Abschluss gemeldet. Kostenlose lokale Benachrichtigungen holen dich zurück, wenn etwas zu tun ist.",
-        "note": "App anzeigen bringt dich zur zuständigen Anwendung, wenn das Betriebssystem es erlaubt. Eine bestimmte Registerkarte im Terminal wird nicht versprochen. Unknown Aktivität wird nie als Erfolg angezeigt.",
-        "alt": "OpenLimiter Desktop Home mit synthetischen Daten: Limits für Codex, Claude Code und OpenRouter, darunter die Agentenliste mit Claude Code im Wartezustand, Codex beschäftigt und Gemini CLI fertig."
+        "title": "Drei Desktop Tabs. Ein Panel beim Darüberfahren.",
+        "lead": "Usage, Connect Tools und Settings halten den Desktop übersichtlich. Das Hover Panel zeigt Limits und Agentenaktivität neben dir, wenn das Hauptfenster nicht im Blick ist.",
+        "note": "Usage enthält die Balken, Connect Tools die Anbietereinrichtung und Settings die Optionen für den Desktop. Fahre über den Randreiter, um zuerst den Agenten zu sehen, der dich braucht.",
+        "alt": "OpenLimiter Desktop mit den drei Tabs Usage, Connect Tools und Settings, synthetischen Limits für Codex, Claude Code und OpenRouter und einem Hover Panel mit Agentenaktivität."
       },
       "terminal": {
         "title": "Deine Limits neben deinem Prompt.",
@@ -527,11 +527,11 @@
         "alt": "Echte OpenLimiter CLI Ausgabe für die Statuszeile von Claude Code: Modell, Aufwand und Kontextfenster, dann Nutzungszellen mit grünen, gelben, orangen und roten Bändern, Prozentangaben und Reset Zeiten."
       },
       "phone": {
-        "title": "Melde dich auf deinem Handy an. Sieh die Messungen deines Computers.",
-        "lead": "Melde dich auf deinem Computer und deinem Handy mit demselben OpenLimiter Konto an. Die Web App zeigt die neuesten synchronisierten Messungen einschließlich des Zeitpunkts ihrer Erfassung. Der kostenlose Kontozugriff funktioniert auch nach dem Ende eines Pro Tests weiter.",
-        "note": "Dein Computer muss neue Messungen sammeln und synchronisieren. Ein Handy macht einen offline Computer nicht aktuell, und Anbieterzugangsdaten bleiben auf dem Gerät, das sie liest.",
-        "cta": "In der Web App anmelden",
-        "alt": "Die angemeldete OpenLimiter Web App im Handyformat mit synthetischen, von einem Computer synchronisierten Messungen."
+        "title": "Vom Desktop koppeln. Deine Balken auf dem Startbildschirm.",
+        "lead": "Kopple dein Handy vom Desktop aus und öffne danach die Web App über den Startbildschirm. Sie zeigt die neuesten Messungen deines Computers und den Zeitpunkt ihrer Erfassung.",
+        "note": "Das Handy folgt seinem hellen oder dunklen Design und behält die letzten Messungen offline. Dein Computer sammelt weiterhin neue Messungen, und Anbieterzugangsdaten bleiben dort.",
+        "cta": "Telefon App öffnen",
+        "alt": "Die OpenLimiter Telefon App mit synthetischen, vom Desktop gekoppelten Messungen in den Ansichten Usage und Pro."
       },
       "captureNote": "Echte Anwendungsbildschirme mit synthetischen Daten. Kein persönliches Konto und keine Nutzungsdaten."
     },
@@ -542,34 +542,30 @@
     }
   },
   "deviceFrame": {
-    "title": "Dein Coding Tag an einem Ort",
-    "lead": "Lokale Nutzungsmeter und die Agentenliste teilen sich die Desktop Home. Sieh, wie aktuell eine Messung ist, wann ihr Fenster zurückgesetzt wird und welcher unterstützte Agent deine Aufmerksamkeit braucht.",
+    "title": "Usage, Tools und Settings in einem Fenster",
+    "lead": "Der Desktop hat drei Tabs: Usage für die Balken, Connect Tools für die Anbietereinrichtung und Settings für die Optionen der App. Das Hover Panel hält Limits und Agenten in der Nähe, wenn das Fenster nicht da ist.",
     "screenshot": {
-      "alt": "Das OpenLimiter Fenster auf einem Desktop, mit synthetischen Nutzungswerten für Codex, Claude Code und OpenRouter, und Antigravity bereit zum Öffnen."
+      "alt": "Das OpenLimiter Desktop Fenster mit den Tabs Usage, Connect Tools und Settings, synthetischen Nutzungswerten für Codex, Claude Code und OpenRouter und dem Hover Panel zum Öffnen."
     },
-    "caption": "Die echte Desktop Oberfläche ohne grafische Oberfläche gerendert, mit synthetischen Fixtures. Kein persönliches Konto, keine Zugangsdaten und kein echter Nutzungswert erscheinen darin."
+    "caption": "Die echte Desktop Oberfläche mit drei Tabs und Hover Panel, ohne grafische Oberfläche mit synthetischen Fixtures gerendert. Kein persönliches Konto, keine Zugangsdaten und kein echter Nutzungswert erscheinen darin."
   },
   "phonePanels": {
     "shots": {
-      "meters": {
-        "label": "Meter",
-        "alt": "Die Web App auf einem Handy mit einer einheitlichen, neu anordenbaren Karte je Anbieter, samt Balken, Verbrauch und Rücksetzzeiten."
-      },
-      "agentContext": {
-        "label": "Agent context",
-        "alt": "Die Web App auf einem Handy, mit dem begrenzten Block an Budgetstatus, den ein Coding Agent erhält, eingezäunt in einer Grenze für nicht vertrauenswürdige Daten."
-      },
-      "connect": {
-        "label": "Tools verbinden",
-        "alt": "Die Web App auf einem Handy im Verbindungsschritt der Ersteinrichtung, mit dem auszuführenden Befehl und der Liste der verfügbaren Tools."
-      },
-      "pair": {
-        "label": "Handy koppeln",
-        "alt": "Die Web App auf einem Handy wartet auf die Freigabe durch den Computer, mit einem synthetischen Code aus acht Zeichen und einem Countdown bis zum Ablauf."
+      "usage": {
+        "label": "Usage",
+        "alt": "Die gekoppelte OpenLimiter Telefon App mit den Balken jedes verbundenen Anbieters."
       },
       "pro": {
-        "label": "Pro, 30 Tage kostenlos",
-        "alt": "Die Web App auf einem Telefon bei der Pro Karte: Verlauf, Benachrichtigungen, zusätzliche Konten und Cloud Messung sowie eine Schaltfläche, die die kostenlose 30 Tage Pro Testphase ohne Karte startet."
+        "label": "Pro",
+        "alt": "Die gekoppelte OpenLimiter Telefon App mit dem Pro Tab und seinen Test und Bezahlfunktionen."
+      },
+      "install": {
+        "label": "Installieren",
+        "alt": "Die OpenLimiter Telefon App mit dem iOS Installationsblatt in Safari."
+      },
+      "pair": {
+        "label": "Koppeln",
+        "alt": "Die OpenLimiter Telefon App wartet mit einem synthetischen Code auf die Freigabe durch den Desktop."
       }
     }
   },
@@ -971,7 +967,7 @@
     },
     "preview": {
       "title": "OpenLimiter Desktop Anwendung",
-      "alt": "OpenLimiter Home auf dem Desktop mit Anbieterlimits und Agentenaktivität"
+      "alt": "Der OpenLimiter Usage Tab auf dem Desktop mit Anbieterlimits und Agentenaktivität"
     },
     "versionLine": "Version {version}",
     "releaseNotes": "Release Notes",
@@ -991,13 +987,13 @@
       "linux": "Wähle deb für Debian oder Ubuntu, rpm für Fedora oder openSUSE, oder AppImage für eine portable Installation."
     },
     "phone": {
-      "iphoneGuide": "Öffne die Web App in Safari, tippe auf Teilen und wähle Zum Home Bildschirm. Melde dich an, damit deine synchronisierten Werte bleiben.",
-      "androidGuide": "Öffne die Web App in Chrome, öffne das Menü und wähle App installieren oder Zum Startbildschirm. Melde dich an, um fortzufahren.",
+      "iphoneGuide": "Öffne die gekoppelte Web App in Safari, tippe auf Teilen und wähle Zum Home Bildschirm.",
+      "androidGuide": "Öffne die gekoppelte Web App in Chrome, öffne das Menü und wähle App installieren oder Zum Startbildschirm.",
       "openApp": "Web App öffnen",
       "title": "Auf deinem Handy",
       "lead": "Das installiert die Web App auf deinen Startbildschirm. Keine native iOS oder Android Anwendung ist gebaut.",
       "qrAlt": "QR Code, der zu {url} führt",
-      "scan": "Scann das mit der Kamera deines Handys. Die Web App öffnet sich, und du installierst sie von dort auf den Startbildschirm."
+      "scan": "Scanne den vom Desktop angezeigten Code mit der Kamera deines Handys. Die Web App öffnet sich, und du installierst sie von dort auf den Startbildschirm."
     },
     "building": {
       "title": "Kommt bald",
@@ -2522,7 +2518,7 @@
         },
         "noCode": {
           "title": "Dieser Link enthält keinen Kopplungscode",
-          "body": "Die Desktop Anwendung erzeugt einen Kopplungscode, der zwei Minuten gültig ist. Öffnen Sie OpenLimiter auf Ihrem Computer, gehen Sie zu Geräte, wählen Sie Telefon koppeln und scannen Sie den angezeigten Code."
+          "body": "Die Desktop Anwendung erzeugt einen Kopplungscode, der zwei Minuten gültig ist. Öffne OpenLimiter auf deinem Computer, wähle Handy koppeln und scanne den angezeigten Code."
         },
         "waiting": {
           "title": "Warten auf Bestätigung",

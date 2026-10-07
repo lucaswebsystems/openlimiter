@@ -708,15 +708,26 @@ describe("the read route: reads the token cookie, never a body", () => {
   });
 
   it("answers the rows on a 200", async () => {
+    const rows = [{
+      account_id: "demo",
+      provider: "CLAUDE",
+      code: "five_hour",
+      percent: 41,
+      amount: null,
+      currency: null,
+      resets_at: "2027-01-08T00:00:00.000Z",
+      observed_at: "2027-01-07T23:00:00.000Z",
+      stale: false,
+    }];
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response(JSON.stringify({ rows: [{ percent: 41 }] }), { status: 200 })),
+      vi.fn(async () => new Response(JSON.stringify({ rows }), { status: 200 })),
     );
     const response = await readPost(
       jsonRequest("https://openlimiter.com/app/pair/api/read", undefined, `${PHONE_TOKEN_COOKIE}=read.token`),
     );
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ body: { rows: [{ percent: 41 }] } });
+    expect(await response.json()).toEqual({ body: { rows } });
   });
 
   it("forwards the upstream unpaired 401 as this route's own no_pair 401, never revoked or unavailable", async () => {

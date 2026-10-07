@@ -209,14 +209,14 @@ export function DownloadChoice({
           <picture>
             <source
               type="image/webp"
-              srcSet="/screenshots/desktop-home@1x.webp 1x, /screenshots/desktop-home@2x.webp 2x"
+              srcSet="/screenshots/desktop-app@1x.webp 1x, /screenshots/desktop-app@2x.webp 2x"
               sizes="(min-width: 1024px) 900px, calc(100vw - 2rem)"
             />
             <img
-              src="/screenshots/desktop-home.png"
+              src="/screenshots/desktop-app.png"
               alt={previewAlt}
-              width={2000}
-              height={2410}
+              width={2560}
+              height={1600}
               loading="lazy"
               sizes="(min-width: 1024px) 900px, calc(100vw - 2rem)"
               className="h-auto w-full"

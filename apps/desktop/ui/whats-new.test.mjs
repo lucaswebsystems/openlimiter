@@ -10,6 +10,12 @@ const whatsNewForVersion = (version) => selectRelease(version, WHATS_NEW_EN);
 
 /* What each recent release says, word for word; the current version is one of them. */
 const NOTES = {
+  "2.1.0": [
+    { key: "claude", text: "Claude now shows one number per bar, with the Claude bucket allowlist, clear status line captions and the Pro captions preset. Setup upgrades the runtime when needed." },
+    { key: "desktop", text: "The desktop opens faster, its buttons work, and Codex was found and repaired. Usage, Connect Tools and Settings now share a responsive window." },
+    { key: "phone", text: "The phone app can install to the Home Screen, follow its light or dark theme, keep working offline and show the Pro tab. OpenRouter now accepts a management key." },
+    { key: "status", text: "The terminal line keeps the new captions, including 5h, 7d, fable7d, cx7d, ag5h and or $12.54." },
+  ],
   "2.0.4": [
     { key: "codex", text: "Codex limits now use OpenAI's documented source. Your Codex sign in stays on your device." },
     { key: "claude", text: "Claude now shows Current session, Weekly, all models, Weekly, Fable and extra usage. Fable and extra usage are on after one notice, with switches in Settings and the terminal." },

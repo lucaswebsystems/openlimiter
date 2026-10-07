@@ -4,10 +4,10 @@ import { ProductFigure } from "./device-frame";
 export function PhonePanels() {
   const t = useTranslations("phonePanels");
   const shots = [
-    { name: "phone-1", copy: "meters" },
-    { name: "phone-2", copy: "connect" },
-    { name: "phone-3", copy: "pair" },
-    { name: "phone-4", copy: "pro" },
+    { name: "phone-1", copy: "usage" },
+    { name: "phone-2", copy: "pro" },
+    { name: "phone-3", copy: "install" },
+    { name: "phone-4", copy: "pair" },
   ] as const;
   return (
     <div className="grid w-full grid-cols-1 items-start gap-[var(--ol-space-5)] sm:grid-cols-2 lg:grid-cols-4">

@@ -3,6 +3,13 @@
   "versionLabel": "Version {version}",
   "dismiss": "Got it",
   "releases": {
+    "2.1.0": {
+      "heading": "One number per bar",
+      "claude": "Claude now shows one number per bar, with the Claude bucket allowlist, clear status line captions and the Pro captions preset. Setup upgrades the runtime when needed.",
+      "desktop": "The desktop opens faster, its buttons work, and Codex was found and repaired. Usage, Connect Tools and Settings now share a responsive window.",
+      "phone": "The phone app can install to the Home Screen, follow its light or dark theme, keep working offline and show the Pro tab. OpenRouter now accepts a management key.",
+      "status": "The terminal line keeps the new captions, including 5h, 7d, fable7d, cx7d, ag5h and or $12.54."
+    },
     "2.0.4": {
       "heading": "More accurate limits",
       "codex": "Codex limits now use OpenAI's documented source. Your Codex sign in stays on your device.",

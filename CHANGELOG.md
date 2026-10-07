@@ -2,6 +2,20 @@
 
 All notable project changes appear in this file.
 
+## [2.1.0]
+
+Claude now shows one number per bar on the desktop, in the terminal and on the phone. The Claude bucket allowlist keeps only supported windows, including Current session, Weekly all models and Weekly Fable.
+
+Status line captions now have the short preset and the Pro tagged preset. Setup upgrades an older terminal runtime when the release needs it.
+
+The desktop paints its first screen faster. Its working buttons now find and repair Codex when the local setup needs it.
+
+Usage, Connect Tools and Settings are three responsive desktop tabs. The window grows and shrinks with the visible surface.
+
+The phone app installs to a Home Screen, follows the phone light or dark theme, keeps the last readings offline and includes a Pro tab.
+
+OpenRouter management keys can now be added from Connect Tools.
+
 ## [2.0.4]
 
 ### Providers

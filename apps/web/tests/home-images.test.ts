@@ -70,16 +70,16 @@ describe("home product image delivery", () => {
     const images = rendered.map((figure) => figure.querySelector("img")?.getAttribute("src"));
     expect(images).toEqual(phones.map((name) => `/screenshots/${name}.png`));
     expect(rendered.map((figure) => figure.querySelector("img")?.alt)).toEqual([
-      "shots.meters.alt",
-      "shots.connect.alt",
-      "shots.pair.alt",
+      "shots.usage.alt",
       "shots.pro.alt",
+      "shots.install.alt",
+      "shots.pair.alt",
     ]);
     expect(rendered.map((figure) => figure.querySelector("figcaption p")?.textContent)).toEqual([
-      "shots.meters.label",
-      "shots.connect.label",
-      "shots.pair.label",
+      "shots.usage.label",
       "shots.pro.label",
+      "shots.install.label",
+      "shots.pair.label",
     ]);
   });
 
@@ -97,7 +97,7 @@ describe("home product image delivery", () => {
       for (const theme of ["", "-light"]) {
         // Real file paths: under jsdom, import.meta.url is not a file URL.
         const base = path.join(path.dirname(fileURLToPath(import.meta.url)), "../public/screenshots", `${name}${theme}`);
-        if (name === "phone-4" && !existsSync(`${base}.png`)) continue;
+        if (["phone-4", "desktop-connect", "desktop-settings"].includes(name) && !existsSync(`${base}.png`)) continue;
         const png = readFileSync(`${base}.png`);
         expect(png.readUInt32BE(16)).toBe(shot.width);
         expect(png.readUInt32BE(20)).toBe(shot.height);

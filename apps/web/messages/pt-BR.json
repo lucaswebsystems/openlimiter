@@ -515,10 +515,10 @@
         "unfoldedAlt": "O painel real do OpenLimiter aberto ao lado da aba, com dados sintéticos: Claude Code precisa de você e oferece Mostrar app, Codex está ocupado e Gemini CLI terminou; abaixo, os limites de Codex, Claude Code e OpenRouter com barras e o tempo até cada reinício, e um link Abrir app."
       },
       "agents": {
-        "title": "Ocupado, aguardando ou concluído. Saiba quando voltar.",
-        "lead": "A lista de agentes da Home mostra a atividade das integrações de agentes compatíveis. Um agente aguardando precisa de entrada. Um agente concluído informou que terminou. As notificações locais gratuitas trazem você de volta quando há algo para fazer.",
-        "note": "Mostrar app leva você ao aplicativo responsável quando o sistema operacional permite. Isso não promete uma aba específica do terminal. Atividade unknown nunca aparece como sucesso.",
-        "alt": "A Home do desktop do OpenLimiter com dados sintéticos: limites de Codex, Claude Code e OpenRouter e, abaixo, a lista de agentes com Claude Code aguardando, Codex ocupado e Gemini CLI concluído."
+        "title": "Três abas no desktop. Um painel ao passar o mouse.",
+        "lead": "Usage, Connect Tools e Settings mantêm o desktop claro. O painel mostra limites e atividade dos agentes quando a janela principal não está por perto.",
+        "note": "Usage reúne as barras, Connect Tools reúne a configuração dos provedores e Settings reúne as opções do desktop. Passe o mouse sobre a aba na borda para ver primeiro o agente que precisa de você.",
+        "alt": "Desktop do OpenLimiter com três abas chamadas Usage, Connect Tools e Settings, limites sintéticos de Codex, Claude Code e OpenRouter e um painel com atividade dos agentes."
       },
       "terminal": {
         "title": "Seus limites ao lado do seu prompt.",
@@ -527,11 +527,11 @@
         "alt": "Saída real da CLI do OpenLimiter para a linha de status do Claude Code: o modelo, o esforço e a janela de contexto, depois células de uso com faixas verdes, amarelas, laranjas e vermelhas, percentuais e horários de reset."
       },
       "phone": {
-        "title": "Entre no celular. Veja as leituras do seu computador.",
-        "lead": "Entre na mesma conta do OpenLimiter no computador e no celular. O web app mostra as leituras sincronizadas mais recentes, incluindo quando foram observadas. O acesso à conta gratuita continua funcionando depois que o teste do Pro termina.",
-        "note": "Seu computador precisa coletar e sincronizar novas leituras. Um celular não atualiza um computador offline, e as credenciais dos provedores permanecem no dispositivo que faz a leitura.",
-        "cta": "Entrar no web app",
-        "alt": "O web app do OpenLimiter com sessão iniciada em tamanho de celular, mostrando leituras sintéticas sincronizadas de um computador."
+        "title": "Pareie pelo desktop. Suas barras na tela inicial.",
+        "lead": "Pareie seu celular pelo desktop e depois abra o web app pela tela inicial. Ele mostra as leituras mais recentes do computador, incluindo quando foram observadas.",
+        "note": "O celular acompanha o tema claro ou escuro e mantém as últimas leituras offline. O computador continua coletando leituras novas, e as credenciais ficam nele.",
+        "cta": "Abrir o app do celular",
+        "alt": "O app de celular do OpenLimiter com leituras sintéticas pareadas pelo desktop, nas telas Usage e Pro."
       },
       "captureNote": "Telas reais do aplicativo com dados sintéticos. Nenhuma conta pessoal ou dado de uso."
     },
@@ -542,34 +542,30 @@
     }
   },
   "deviceFrame": {
-    "title": "Seu dia de codificação em um só lugar",
-    "lead": "Os meters de uso locais e a lista de agentes compartilham a Home do desktop. Veja quão recente é uma leitura, quando a janela reinicia e qual agente compatível precisa da sua atenção.",
+    "title": "Usage, ferramentas e configurações em uma janela",
+    "lead": "O desktop tem três abas: Usage para as barras, Connect Tools para configurar provedores e Settings para as opções do app. O painel mantém limites e agentes por perto quando a janela está distante.",
     "screenshot": {
-      "alt": "A janela do OpenLimiter em uma área de trabalho, com leituras de uso sintéticas do Codex, Claude Code e OpenRouter, e o Antigravity pronto para abrir."
+      "alt": "A janela do OpenLimiter com as abas Usage, Connect Tools e Settings, leituras sintéticas de Codex, Claude Code e OpenRouter e o painel pronto para abrir."
     },
-    "caption": "A interface real do desktop renderizada sem interface gráfica, com fixtures sintéticos. Nenhuma conta pessoal, credencial ou cifra real de uso aparece nela."
+    "caption": "A interface real do desktop com três abas e painel, renderizada sem interface gráfica com fixtures sintéticos. Nenhuma conta pessoal, credencial ou cifra real de uso aparece nela."
   },
   "phonePanels": {
     "shots": {
-      "meters": {
-        "label": "Meters",
-        "alt": "O web app num celular, com um cartão uniforme e reorganizável por provedor, mostrando barras, uso e horários de reinício."
-      },
-      "agentContext": {
-        "label": "Agent context",
-        "alt": "O web app num celular, mostrando o bloco limitado de estado de orçamento que um agente de codificação recebe, cercado por um limite explícito de dados não confiáveis."
-      },
-      "connect": {
-        "label": "Conectar ferramentas",
-        "alt": "O web app em um celular na etapa de conexão da configuração inicial, mostrando o comando a executar e a lista de ferramentas disponíveis para conectar."
-      },
-      "pair": {
-        "label": "Parear celular",
-        "alt": "O web app em um celular aguardando o computador aprovar o pareamento, com um código sintético de oito caracteres e uma contagem regressiva até ele expirar."
+      "usage": {
+        "label": "Usage",
+        "alt": "O app de celular pareado do OpenLimiter mostrando as barras de todos os provedores conectados."
       },
       "pro": {
-        "label": "Pro, 30 dias grátis",
-        "alt": "O web app em um celular no cartão Pro: histórico, alertas, contas extras e medição na nuvem, e um botão que inicia o teste grátis de 30 dias do Pro sem cartão."
+        "label": "Pro",
+        "alt": "O app de celular pareado do OpenLimiter mostrando a aba Pro com seus recursos de teste e pagos."
+      },
+      "install": {
+        "label": "Instalar",
+        "alt": "O app de celular do OpenLimiter mostrando a folha de instalação do iOS no Safari."
+      },
+      "pair": {
+        "label": "Parear",
+        "alt": "O app de celular do OpenLimiter aguardando a aprovação do desktop com um código sintético."
       }
     }
   },
@@ -971,7 +967,7 @@
     },
     "preview": {
       "title": "Aplicativo de desktop OpenLimiter",
-      "alt": "Home do OpenLimiter no desktop mostrando limites dos provedores e atividade dos agentes"
+      "alt": "A aba Usage do OpenLimiter no desktop mostrando limites dos provedores e atividade dos agentes"
     },
     "versionLine": "Versão {version}",
     "releaseNotes": "Notas de lançamento",
@@ -991,13 +987,13 @@
       "linux": "Escolha deb para Debian ou Ubuntu, rpm para Fedora ou openSUSE, ou AppImage para uma instalação portátil."
     },
     "phone": {
-      "iphoneGuide": "Abra o web app no Safari, toque em Compartilhar e escolha Adicionar à Tela de Início. Entre para manter suas leituras sincronizadas por perto.",
-      "androidGuide": "Abra o web app no Chrome, abra o menu e escolha Instalar aplicativo ou Adicionar à tela inicial. Entre para continuar.",
+      "iphoneGuide": "Abra o web app pareado no Safari, toque em Compartilhar e escolha Adicionar à Tela de Início.",
+      "androidGuide": "Abra o web app pareado no Chrome, abra o menu e escolha Instalar aplicativo ou Adicionar à tela inicial.",
       "openApp": "Abrir o web app",
       "title": "No seu celular",
-      "lead": "Isso instala o web app na sua tela de início. Nenhum aplicativo nativo para iOS ou Android foi construído.",
+      "lead": "Pareie seu celular pelo desktop e depois instale o web app na tela de início. Nenhum aplicativo nativo para iOS ou Android foi construído.",
       "qrAlt": "Código QR apontando para {url}",
-      "scan": "Escaneie com a câmera do seu celular. O web app abre, e você o instala na tela de início a partir dali."
+      "scan": "Escaneie com seu celular o código mostrado pelo desktop. O web app abre, e você o instala na tela de início a partir dali."
     },
     "building": {
       "title": "Em breve",
@@ -2522,7 +2518,7 @@
         },
         "noCode": {
           "title": "Este link não tem código de pareamento",
-          "body": "O aplicativo de desktop gera um código de pareamento que dura dois minutos. Abra o OpenLimiter no computador, vá até Dispositivos, escolha Parear um celular e escaneie o código exibido."
+          "body": "O aplicativo de desktop gera um código de pareamento que dura dois minutos. Abra o OpenLimiter no computador, escolha Parear seu celular e escaneie o código exibido."
         },
         "waiting": {
           "title": "Aguardando aprovação",

@@ -20,7 +20,11 @@ export async function ReleaseOverview() {
       </section>
       <section id="agents" {...reveal}>
         <SectionHeading title={t("agents.title")} lead={t("agents.lead")} />
-        <ProductFigure name="desktop-home" alt={t("agents.alt")} caption={t("agents.note")} />
+        <div className="grid gap-6 md:grid-cols-3">
+          {(["desktop-home", "desktop-connect", "desktop-settings"] as const).map((shot) => (
+            <ProductFigure key={shot} name={shot} alt={t("agents.alt")} caption={t("agents.note")} />
+          ))}
+        </div>
       </section>
       <section id="terminal" {...reveal}>
         <SectionHeading title={t("terminal.title")} lead={t("terminal.lead")} />

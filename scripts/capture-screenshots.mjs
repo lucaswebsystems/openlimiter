@@ -471,7 +471,7 @@ function statuslineSnapshots(snapshots) {
   });
   const openrouter = snapshots.find((row) => row.provider === "OPENROUTER");
   if (openrouter === undefined) throw new Error("The OpenRouter fixture has no balance row.");
-  return [...rows, { ...openrouter, unit: "CREDITS", value: 12.34, usedAmount: undefined, limitAmount: undefined }];
+  return [...rows, { ...openrouter, unit: "CREDITS", value: 12.54, usedAmount: undefined, limitAmount: undefined }];
 }
 
 function statuslineApiSpend(now) {
@@ -483,7 +483,7 @@ function statuslineApiSpend(now) {
       { id: "capture-anthropic", provider: "anthropic", enabled: true },
     ],
     samples: [
-      { sourceId: "capture-openrouter", sequence: 1, month, spendUsd: null, balanceUsd: "12.34", observedAt: now, currencySource: "provider_usd" },
+      { sourceId: "capture-openrouter", sequence: 1, month, spendUsd: null, balanceUsd: "12.54", observedAt: now, currencySource: "provider_usd" },
       { sourceId: "capture-openai", sequence: 1, month, spendUsd: "8.20", balanceUsd: null, observedAt: now, currencySource: "provider_usd" },
       { sourceId: "capture-anthropic", sequence: 1, month, spendUsd: "3.10", balanceUsd: null, observedAt: now, currencySource: "provider_usd" },
     ],
@@ -557,8 +557,8 @@ async function captureProductDetails(browser, theme, port) {
   };
   try {
     await page.goto(`${origin}/window-${theme}`, { waitUntil: "networkidle" });
-    await closeWhatsNew(page);
     await page.locator('#usage-rows [data-provider-card]').nth(2).waitFor({ state: "attached" });
+    await closeWhatsNew(page);
     await page.getByRole('tab', { name: 'Connect Tools', exact: true }).click();
     await page.locator('#key-rows [data-key-row]').first().waitFor({ state: "attached" });
     await page.getByRole('tab', { name: 'Usage', exact: true }).click();
@@ -569,6 +569,12 @@ async function captureProductDetails(browser, theme, port) {
     await page.setViewportSize({ width: 1000, height: homeHeight });
     await shoot("desktop-home");
     await page.setViewportSize({ width: 1000, height: 760 });
+    await page.getByRole('tab', { name: 'Connect Tools', exact: true }).click();
+    await page.locator('#key-rows [data-key-row]').first().waitFor({ state: "attached" });
+    await shoot("desktop-connect");
+    await page.getByRole('tab', { name: 'Settings', exact: true }).click();
+    await page.locator('#tab-panel-settings #settings-appearance').waitFor({ state: "attached" });
+    await shoot("desktop-settings");
     /* The panel reports the height its content needs, and native code sizes
        the window to it; the pictures place both windows the same way. */
     await page.goto(`${origin}/edge-panel-${theme}`, { waitUntil: "networkidle" });
@@ -795,10 +801,10 @@ const STANDALONE = [
 
 /* Each view names both the real screen it opens and where that screen starts. */
 const PHONE_VIEWS = [
-  { file: "phone-1", screen: "dashboard", from: "top" },
-  { file: "phone-2", screen: "onboarding", from: "top" },
-  { file: "phone-3", screen: "pair", from: "top" },
-  { file: "phone-4", screen: "dashboard", from: "end" },
+  { file: "phone-1", screen: "paired", tab: "usage", from: "top" },
+  { file: "phone-2", screen: "paired", tab: "pro", from: "top" },
+  { file: "phone-3", screen: "install", tab: "usage", from: "top" },
+  { file: "phone-4", screen: "pair", from: "top" },
 ];
 
 const CAPTURE_PAIR_CODE = "ABCD2345";
@@ -859,6 +865,18 @@ async function capturePhone(browser, theme, snapshots, now) {
   // Build the local site with NEXT_PUBLIC_SUPABASE_URL=https://capture.openlimiter.invalid
   // and NEXT_PUBLIC_SUPABASE_ANON_KEY=capture-only. No real service is contacted.
   const api = "https://capture.openlimiter.invalid";
+  const siteOrigin = new URL(SITE).origin;
+  const phoneRows = snapshots.map((row) => ({
+    account_id: "demo",
+    provider: row.provider,
+    code: row.meter,
+    percent: row.unit === "PERCENT" ? Math.round(row.value) : null,
+    amount: row.unit === "CREDITS" ? row.value : null,
+    currency: row.currency ?? null,
+    resets_at: row.resetAt,
+    observed_at: row.observedAt ?? now,
+    stale: false,
+  }));
   const written = [];
   for (const view of PHONE_VIEWS) {
     const context = await browser.newContext({
@@ -868,8 +886,11 @@ async function capturePhone(browser, theme, snapshots, now) {
       isMobile: true,
       hasTouch: true,
       serviceWorkers: "block",
+      userAgent: view.screen === "install"
+        ? "Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/19.0 Mobile/15E148 Safari/604.1"
+        : undefined,
     });
-    const onboarded = view.screen !== "onboarding";
+    const onboarded = true;
     const user = { id: "00000000-0000-4000-8000-000000000001", aud: "authenticated", role: "authenticated",
       user_metadata: { full_name: "Demo", openlimiter_onboarded: onboarded }, app_metadata: { provider: "github" }, created_at: now };
     const session = { access_token: "capture-only", refresh_token: "capture-only", token_type: "bearer", expires_in: 86400,
@@ -878,9 +899,25 @@ async function capturePhone(browser, theme, snapshots, now) {
     let pairClaims = 0;
     let pairPolls = 0;
     let pairRejected = 0;
+    let phoneReads = 0;
+    let phoneRenewals = 0;
     const pairExpiresAt = new Date(Date.now() + 120_000).toISOString();
+    const phoneExpiresAt = Math.floor(Date.now() / 1_000) + 86_400;
     await context.route("**/*", async (route) => {
       const url = new URL(route.request().url());
+      if (url.origin === siteOrigin && view.screen !== "pair") {
+        if (url.pathname === "/app/pair/api/read") {
+          phoneReads++;
+          await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ body: { rows: phoneRows } }) });
+          return;
+        }
+        if (url.pathname === "/app/pair/api/renew") {
+          phoneRenewals++;
+          await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ expires_at: phoneExpiresAt }) });
+          return;
+        }
+        return route.continue();
+      }
       if (url.origin === api) {
         const action = route.request().postDataJSON()?.action;
         if (view.screen === "pair" && url.pathname === "/functions/v1/pair-device") {
@@ -909,47 +946,39 @@ async function capturePhone(browser, theme, snapshots, now) {
         else body = { rows: [], keys: [] };
         return route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
       }
-      if (url.origin === new URL(SITE).origin) return route.continue();
+      if (url.origin === siteOrigin) return route.continue();
       return route.abort();
     });
     await context.addInitScript(
-      ([kind, auth, includeSession, freshOnboarding]) => {
+      ([kind, auth, includeSession, seedPairMeta]) => {
         window.localStorage.setItem("openlimiter-theme", kind);
-        window.localStorage.setItem("openlimiter-app-mode", "live");
-        window.localStorage.setItem("openlimiter-app-view", "grid");
-        if (freshOnboarding) window.localStorage.removeItem("openlimiter-onboarded-00000000-0000-4000-8000-000000000001");
+        if (seedPairMeta) window.localStorage.setItem("openlimiter-phone-pair-meta", JSON.stringify({ label: "Demo phone", expiresAt: Math.floor(Date.now() / 1_000) + 1 }));
         if (includeSession) window.localStorage.setItem("sb-capture-auth-token", auth);
       },
-      [theme, JSON.stringify(session), view.screen !== "pair", view.screen === "onboarding"],
+      [theme, JSON.stringify(session), view.screen !== "pair", view.screen !== "pair"],
     );
     const page = await context.newPage();
     try {
       const route = view.screen === "pair" ? `/app/pair#code=${CAPTURE_PAIR_CODE}` : "/app";
       await page.goto(SITE + route, { waitUntil: "domcontentloaded" });
-      await page.addStyleTag({ content: STANDALONE });
+      if (view.screen !== "install") await page.addStyleTag({ content: STANDALONE });
 
-      if (view.screen === "dashboard") {
-        /* The launch splash clears at 760ms, the busy floor is 240ms, and then
-           the panel must actually contain its proof text before the shutter. */
-        await page.waitForTimeout(1600);
-        /* Provider rows render inside shadow roots, which document text never
-           reaches; Playwright locators pierce them. */
-        for (const name of ["Claude", "Codex"]) {
-          await page.getByText(name, { exact: true }).first().waitFor({ timeout: 20000 });
-        }
+      if (view.screen === "paired" || view.screen === "install") {
+        await page.locator("#ol-phone-panel-usage openlimiter-provider-row").first().waitFor({ timeout: 20000 });
         const firstCard = page.locator("openlimiter-provider-row article.row").first();
         await firstCard.waitFor();
         for (const selector of [".window-name", ".window-percent", ".window-reset"]) {
           await firstCard.locator(selector).first().waitFor({ state: "attached" });
         }
-        if (!syncedReads) throw new Error("Phone capture requires a signed in fixture API read. Rebuild with the documented synthetic API configuration.");
-      } else if (view.screen === "onboarding") {
-        const profile = page.locator('.ol-onboarding-card[data-step="profile"]');
-        await profile.waitFor({ timeout: 20000 });
-        await profile.locator(".ol-onboarding-actions button").first().click();
-        const connect = page.locator('.ol-onboarding-card[data-step="connect"]');
-        await connect.waitFor();
-        await connect.locator(".ol-connect-row").first().waitFor();
+        if (!phoneReads || !phoneRenewals) throw new Error("Phone capture requires the paired read and renewal routes to answer.");
+        if (view.tab === "pro") {
+          await page.getByRole("tab", { name: "Pro", exact: true }).click();
+          await page.locator("#ol-phone-panel-pro:not([hidden])").waitFor();
+        } else if (view.screen === "install") {
+          await page.getByRole("button", { name: "Install app", exact: true }).click();
+          await page.locator('[role="dialog"]').waitFor();
+          await page.getByText("Add OpenLimiter to your Home Screen", { exact: true }).waitFor();
+        }
       } else {
         /* The readout's paragraph also holds a screen reader prefix, so the
            code is a substring of its text, never the whole of it. */
@@ -1013,6 +1042,7 @@ async function captureDesk(browser, theme, port) {
     waitUntil: "networkidle",
   });
   const home = page.frameLocator("iframe");
+  await home.locator('#usage-rows [data-provider-card]').nth(2).waitFor({ state: "attached" });
   await closeWhatsNew(home);
   await home.getByRole('tab', { name: 'Connect Tools', exact: true }).click();
   await home.locator('#key-rows [data-key-row]').first().waitFor({ state: "attached" });

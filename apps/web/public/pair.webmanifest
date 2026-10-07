@@ -21,7 +21,7 @@
   "screenshots": [
     { "src": "/screenshots/phone-1.png", "sizes": "1170x2532", "type": "image/png", "form_factor": "narrow", "label": "Usage bars from every connected provider" },
     { "src": "/screenshots/phone-2.png", "sizes": "1170x2532", "type": "image/png", "form_factor": "narrow", "label": "Pro features and the free trial" },
-    { "src": "/screenshots/phone-3.png", "sizes": "1170x2532", "type": "image/png", "form_factor": "narrow", "label": "Guided Home Screen installation" },
-    { "src": "/screenshots/phone-4.png", "sizes": "1170x2532", "type": "image/png", "form_factor": "narrow", "label": "Waiting for pairing approval" }
+    { "src": "/screenshots/phone-3.png", "sizes": "1170x2532", "type": "image/png", "form_factor": "narrow", "label": "Install the phone app from Safari" },
+    { "src": "/screenshots/desktop-app.png", "sizes": "2560x1600", "type": "image/png", "form_factor": "wide", "label": "Desktop usage, tools and settings" }
   ]
 }
