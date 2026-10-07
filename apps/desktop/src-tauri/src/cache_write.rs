@@ -710,13 +710,14 @@ mod tests {
         let writer = writer(&dir);
         let begun = writer.begin().expect("begin");
         /* The merge stalls past the stale window. A CLI writer's watchdog
-        reclaims the lock, takes it, writes the cache, and releases. POSIX
-        lets the unlink happen under our open handle, which is exactly why
-        commit must re prove possession through that handle. */
-        fs::remove_file(lock_path(&dir)).expect("watchdog reclaim");
-        fs::write(lock_path(&dir), "{\"at\":9999999999999,\"pid\":424242}").expect("foreign lock");
+        reclaims the lock directory, takes it with its own stamp, writes the
+        cache, and releases. Nothing stops that on POSIX, which is exactly why
+        commit must re prove possession through the token in owner.json. */
+        fs::remove_dir_all(lock_path(&dir)).expect("watchdog reclaim");
+        fs::create_dir(lock_path(&dir)).expect("foreign lock");
+        fs::write(lock_path(&dir).join("owner.json"), "{\"pid\":424242,\"started_at\":9999999999999,\"token\":\"foreign\"}").expect("foreign stamp");
         fs::write(cache_path(&dir), "{\"foreign\":true}").expect("foreign write");
-        fs::remove_file(lock_path(&dir)).expect("foreign release");
+        fs::remove_dir_all(lock_path(&dir)).expect("foreign release");
         /* The stalled merge now tries to land. It must be refused, and the
         foreign write must survive untouched. */
         let outcome = writer.commit("{\"stalled\":true}", begun.generation);
@@ -740,10 +741,11 @@ mod tests {
         let lock = lock_path(&dir);
         let cache = cache_path(&dir);
         let outcome = writer.commit_with_gap("{\"stalled\":true}", begun.generation, || {
-            fs::remove_file(&lock).expect("watchdog reclaim");
-            fs::write(&lock, "{\"at\":9999999999999,\"pid\":424242}").expect("foreign lock");
+            fs::remove_dir_all(&lock).expect("watchdog reclaim");
+            fs::create_dir(&lock).expect("foreign lock");
+            fs::write(lock.join("owner.json"), "{\"pid\":424242,\"started_at\":9999999999999,\"token\":\"foreign\"}").expect("foreign stamp");
             fs::write(&cache, "{\"foreign\":true}").expect("foreign write");
-            fs::remove_file(&lock).expect("foreign release");
+            fs::remove_dir_all(&lock).expect("foreign release");
         });
         assert_eq!(outcome, Err(CacheWriteError::StaleGeneration));
         assert_eq!(
