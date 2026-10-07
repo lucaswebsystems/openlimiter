@@ -32,7 +32,7 @@
     "adapters/claude-code.ts": "781a03a27d96d34d",
     "ui/provider-connect.ts": "ac27de48b19b41e8",
     "ui/provider-row.ts": "8690d466f525ee4a",
-    "ui/tokens.css": "11c79e1125538355",
+    "ui/tokens.css": "599a9a60688ef647",
     "provider_specs/provider-specs.json": "40fa3017bad7a42b"
   }
 }

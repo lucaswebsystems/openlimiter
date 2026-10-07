@@ -40,15 +40,14 @@
   --ol-accent: var(--ol-brand);
   --ol-accent-hover: #a5d2ff;
   --ol-accent-subtle: rgb(47 129 247 / 0.14);
-  --ol-accent-solid: var(--ol-accent);
-  --ol-accent-solid-hover: #58a6ff;
-  --ol-on-accent: #ffffff;
+  --ol-accent-solid: var(--ol-primary);
+  --ol-accent-solid-hover: var(--ol-primary-hover);
+  --ol-on-accent: var(--ol-on-primary);
   --ol-solid: #fafafa;
   --ol-solid-hover: #e4e4e7;
   --ol-on-solid: #09090b;
-  /* The mark blue, for a primary button. White on the brand blue measures
-     3.75:1, short of the 4.5:1 a label needs; white on this blue measures
-     4.8:1 and on its hover 6.2:1, in either theme. */
+  /* The brand blue for every filled primary button. White on this blue
+     measures 4.8:1 and on its hover 6.2:1, in either theme. */
   --ol-primary: #0866ff;
   --ol-primary-hover: #0757d9;
   --ol-on-primary: #ffffff;
