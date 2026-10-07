@@ -12,7 +12,7 @@ Status line captions now have the short preset and the Pro tagged preset. Setup 
 
 The desktop paints its first screen faster. Its buttons now work.
 
-Codex is found and repaired when the local setup needs it.
+Connect repairs a Codex connection that stopped reading.
 
 Usage, Connect Tools and Settings are three responsive desktop tabs. The layout adapts as you resize the window.
 

@@ -12,9 +12,9 @@ const whatsNewForVersion = (version) => selectRelease(version, WHATS_NEW_EN);
 const NOTES = {
   "2.1.0": [
     { key: "claude", text: "Claude now shows one number per bar, with the Claude bucket allowlist, clear status line captions and the Pro captions preset. Setup upgrades the runtime when needed." },
-    { key: "desktop", text: "The desktop opens faster, its buttons work, and Codex setup can be found and repaired when needed. Usage, Connect Tools and Settings now share a responsive window." },
-    { key: "phone", text: "The phone app can install to the Home Screen, follow its light or dark theme, keep the last bars when offline and show the Pro tab. OpenRouter now accepts a management key." },
-    { key: "status", text: "The terminal line keeps the new captions, including 5h, 7d, fable7d, cx7d and ag5h. Money cells such as or $ keep their amounts." },
+    { key: "desktop", text: "The desktop opens faster and its buttons work. Connect repairs a Codex connection that stopped reading. Usage, Connect Tools and Settings share a responsive window." },
+    { key: "phone", text: "The phone app can install to the Home Screen, follow its light or dark theme, keep the last bars when offline and show the Pro tab." },
+    { key: "status", text: "The terminal line uses short captions such as 5h, 7d, fable7d, cx7d and ag5h. Money cells such as or $ keep their amounts, and an OpenRouter management key adds your balance." },
   ],
   "2.0.4": [
     { key: "codex", text: "Codex limits now use OpenAI's documented source. Your Codex sign in stays on your device." },
