@@ -11,6 +11,7 @@ import {
 } from "@/lib/device-session";
 import {
   amountRows,
+  DEVICE_FRESH_MILLISECONDS,
   formatAmount,
   meterRowOf,
   meterRowsOf,
@@ -149,9 +150,8 @@ describe("meter contract v2", () => {
     const snapshot = snapshotFromMeterRow(meterRowOf(percentRow)!)!;
     expect(snapshot.provider).toBe("CLAUDE");
     expect(snapshot.value).toBe(82.5);
-    expect(Date.parse(snapshot.expiresAt as string)).toBeGreaterThan(
-      Date.parse(snapshot.observedAt as string),
-    );
+    expect(Date.parse(snapshot.expiresAt as string) - Date.parse(snapshot.observedAt as string))
+      .toBe(DEVICE_FRESH_MILLISECONDS);
   });
 
   it("expires a stale row at its own observation, which selects the stale state", () => {

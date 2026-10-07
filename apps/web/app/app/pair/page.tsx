@@ -33,14 +33,29 @@ export default function PairPage() {
     /* `ol-product-shell` is the dashboard's own surface: theme.css drops the
        site header, its footer and the announcement around it, in a tab and
        installed, so this page reads as the app with one logo. */
-    <main id="main" className="ol-product-shell ol-shell mx-auto w-full max-w-md px-4">
-      <div className="mb-8 flex items-center gap-3">
+    <>
+      <div className="ol-splash" aria-hidden="true">
         <BrandLockup
-          markClassName="h-7 w-7 flex-none text-brand"
-          wordClassName="ol-product-wordmark text-lg"
+          markClassName="ol-splash-mark h-12 w-12 flex-none text-brand"
+          wordClassName="text-3xl"
         />
       </div>
-      <PairFlow />
-    </main>
+      <main id="main" className="ol-product-shell ol-phone-shell ol-shell mx-auto w-full max-w-md">
+        <div className="ol-pair-lockup">
+          <BrandLockup
+            markClassName="h-7 w-7 flex-none text-brand"
+            wordClassName="ol-product-wordmark text-lg"
+          />
+        </div>
+        <PairFlow
+          lockup={
+            <BrandLockup
+              markClassName="h-7 w-7 flex-none text-brand"
+              wordClassName="ol-product-wordmark text-lg"
+            />
+          }
+        />
+      </main>
+    </>
   );
 }

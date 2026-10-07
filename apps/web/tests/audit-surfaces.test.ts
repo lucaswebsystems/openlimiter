@@ -22,7 +22,14 @@ describe("published audit surfaces", () => {
     const manifest = JSON.parse(read(`public${manifestPath}`));
     expect(manifest.start_url).toBe("/app/pair");
     expect(manifest.id).toBe("/app/pair");
+    expect(manifest.scope).toBe("/app");
     expect(manifest.start_url.startsWith(manifest.scope)).toBe(true);
+    const hub = JSON.parse(read("public/manifest.webmanifest"));
+    expect(hub.icons).toEqual(manifest.icons);
+    expect(read("app/app/layout.tsx")).toContain('manifest: "/pair.webmanifest"');
+    expect(manifest.icons.map((icon: { purpose: string }) => icon.purpose)).toEqual([
+      "any", "any", "maskable", "monochrome",
+    ]);
   });
 
   it("rejects prose dashes and only exempts catalog listed technical prose", () => {

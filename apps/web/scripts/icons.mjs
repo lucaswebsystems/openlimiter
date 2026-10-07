@@ -3,9 +3,8 @@
  *
  *   node apps/web/scripts/icons.mjs
  *
- * The favicon and the Apple touch icon are generated on request by app/icon.tsx
- * and app/apple-icon.tsx. A web application manifest, by contrast, asks for
- * icons by file name, so those three PNGs are rendered here and committed.
+ * The favicon is generated on request by app/icon.tsx. Launcher and Apple
+ * touch icons are static files, rendered here and committed.
  *
  * Nothing here draws the mark. app/app/engine/icons.mjs owns the only
  * rasteriser in the repository and it is used unchanged, then repainted: see
@@ -35,6 +34,8 @@ const OUT = path.resolve(HERE, "..", "public", "icons");
    there, change it here in the same pass. */
 export const BRAND = BRAND_RGB;
 export const CANVAS = [0x0d, 0x0d, 0x0f];
+export const LAUNCHER_BLUE = [0x08, 0x66, 0xff];
+export const WHITE = [0xff, 0xff, 0xff];
 
 /**
  * The scale that puts the mark's own edge on the edge of its square.
@@ -53,10 +54,10 @@ const SAFE_AREA = 0.8;
  * icon a browser paints beside a name takes this, and app/icon.tsx says why.
  */
 export const MARK = {
-  cornerRatio: 0,
-  markRatio: EDGE_TO_EDGE,
-  ground: null,
-  ink: BRAND,
+  cornerRatio: 0.2237,
+  markRatio: 0.78,
+  ground: LAUNCHER_BLUE,
+  ink: WHITE,
 };
 
 /**
@@ -70,9 +71,23 @@ export const MARK = {
  */
 export const MASKABLE = {
   cornerRatio: 0,
-  markRatio: EDGE_TO_EDGE * SAFE_AREA,
-  ground: CANVAS,
-  ink: BRAND,
+  markRatio: SAFE_AREA,
+  ground: LAUNCHER_BLUE,
+  ink: WHITE,
+};
+
+export const APPLE = {
+  cornerRatio: 0,
+  markRatio: 0.78,
+  ground: LAUNCHER_BLUE,
+  ink: WHITE,
+};
+
+export const MONOCHROME = {
+  cornerRatio: 0,
+  markRatio: SAFE_AREA,
+  ground: null,
+  ink: WHITE,
 };
 
 /**
@@ -92,7 +107,7 @@ export const APP_ICON = {
 };
 
 /** Compatibility alias for the desktop generator. */
-export const GAUGE = MARK;
+export const GAUGE = APP_ICON;
 
 /**
  * Repaint a tile the shared rasteriser produced, in place.
@@ -143,11 +158,14 @@ if (process.argv[1] !== undefined && pathToFileURL(process.argv[1]).href === imp
     ["openlimiter-192.png", 192, MARK],
     ["openlimiter-512.png", 512, MARK],
     ["openlimiter-maskable-512.png", 512, MASKABLE],
+    ["openlimiter-monochrome-512.png", 512, MONOCHROME],
   ];
   for (const [name, size, treatment] of files) {
     writeFileSync(path.join(OUT, name), renderPng(size, treatment));
     process.stdout.write("Wrote " + name + " at " + String(size) + " pixels.\n");
   }
+  writeFileSync(path.resolve(HERE, "..", "app", "apple-icon.png"), renderPng(180, APPLE));
+  process.stdout.write("Wrote apple-icon.png at 180 pixels.\n");
   const canonical = readFileSync(
     path.resolve(HERE, "..", "..", "..", "assets", "brand", "openlimiter-lockup.svg"),
   );

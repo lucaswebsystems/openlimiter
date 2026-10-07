@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { setRequestLocale } from "next-intl/server";
 import type { ReactNode } from "react";
 import { RegisterServiceWorker } from "./register-service-worker";
+import { FollowSystemTheme } from "@/components/follow-system-theme";
 import { SiteHtml } from "@/components/site-html";
 import { DEFAULT_LOCALE } from "@/i18n/locales";
 import { imagePalette } from "@/lib/image-palette";
@@ -20,7 +21,7 @@ import "./theme.css";
  * The three pieces that decide what an installed copy looks like before any of
  * this route's own code runs:
  *
- *   `manifest` points at public/manifest.webmanifest, which declares the
+ *   `manifest` points at public/pair.webmanifest, which declares the
  *   standalone display and the background colour the platform paints during
  *   launch. That colour is the dark canvas, so the first frame of a launch is
  *   already the product rather than a white sheet.
@@ -28,7 +29,7 @@ import "./theme.css";
  *   `appleWebApp` is what iOS reads instead. Capable gives it the standalone
  *   window; the translucent status bar lets the canvas run under the clock,
  *   which is what makes it look like an application rather than a page. The
- *   home screen icon itself comes from app/apple-icon.tsx, which Next links on
+ *   home screen icon itself comes from app/apple-icon.png, which Next links on
  *   every route.
  *
  *   `viewportFit: cover` is what makes `env(safe-area-inset-*)` report real
@@ -63,11 +64,11 @@ export const metadata: Metadata = {
   description,
   applicationName: "OpenLimiter",
   alternates: { canonical: "/app" },
-  manifest: "/manifest.webmanifest",
+  manifest: "/pair.webmanifest",
   appleWebApp: {
     capable: true,
     title: "OpenLimiter",
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
   },
   /*
     The older Safari spelling, added by hand.
@@ -140,6 +141,7 @@ export default function AppLayout({ children }: Readonly<{ children: ReactNode }
       namespaces={["common", "nav", "announce", "signIn", "hub"]}
     >
       <RegisterServiceWorker />
+      <FollowSystemTheme />
       {children}
     </SiteHtml>
   );
