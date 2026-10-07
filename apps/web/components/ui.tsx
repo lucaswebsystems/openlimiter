@@ -99,7 +99,7 @@ const buttonBase =
   "lift-sm focus-ring inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60";
 
 const buttonTone = {
-  primary: "border-transparent bg-primary text-on-primary hover:bg-primary-hover",
+  primary: "border-transparent bg-solid text-on-solid hover:bg-solid-hover",
   /* The edge is the boundary token, not the strong hairline: a ghost button
      has nothing but its edge to be found by, and the hairline measured under
      the 3:1 WCAG 1.4.11 asks of it. */

@@ -119,6 +119,16 @@ html.opaque .p-card {
   padding: 0;
 }
 
+.p-agents .q-agent {
+  grid-template-columns: 1rem minmax(0, 1fr) auto;
+  padding-left: 0.25rem;
+}
+
+.p-agents .q-agent .q-mark {
+  width: 1rem;
+  height: 1rem;
+}
+
 .p-agents .q-note {
   margin: 0.25rem 0.375rem 0.25rem;
 }

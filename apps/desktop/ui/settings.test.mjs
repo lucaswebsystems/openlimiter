@@ -8,6 +8,8 @@ const settings = readFileSync(new URL("./settings.js", import.meta.url), "utf8")
 const surfaces = readFileSync(new URL("./surfaces.css", import.meta.url), "utf8");
 const appCss = readFileSync(new URL("./app.css", import.meta.url), "utf8");
 const tokens = readFileSync(new URL("../../../packages/ui/src/tokens.css", import.meta.url), "utf8");
+const webUi = readFileSync(new URL("../../web/components/ui.tsx", import.meta.url), "utf8");
+const hero = readFileSync(new URL("../../web/components/hero.tsx", import.meta.url), "utf8");
 
 test("Settings mounts its account hooks and gates captions by the feature entitlement", () => {
   for (const id of ["menu-account-email", "menu-signed-in", "devices-mount", "pro-mount", "plan-cap-mount", "menu-logout"]) assert.match(html, new RegExp(`id=\"${id}\"`, "u"));
@@ -27,6 +29,11 @@ test("Settings mounts its account hooks and gates captions by the feature entitl
 
 test("Settings aligns caption tiles and keeps filled controls on the shared brand token", () => {
   assert.match(surfaces, /\.terminal-captions \.preset \{\s*text-align: center;/u);
-  assert.match(appCss, /\.app-menu #theme \{\s*padding-right: 0;/u);
-  assert.match(tokens, /--ol-primary: #0866ff;/u);
+  assert.match(surfaces, /\.terminal-captions \.menu-lock \{\s*justify-self: center;/u);
+  assert.match(appCss, /#settings-appearance #theme \{\s*padding-right: 0;/u);
+  assert.doesNotMatch(appCss, /\.app-menu #theme/u);
+  assert.match(tokens, /:root \{[\s\S]*?--ol-primary-fill: #0866FF;[\s\S]*?--ol-on-primary-fill: #ffffff;/u);
+  assert.match(tokens, /:root\[data-theme="light"\] \{[\s\S]*?--ol-primary-fill: #0866FF;[\s\S]*?--ol-on-primary-fill: #ffffff;/u);
+  assert.doesNotMatch(webUi, /ol-primary-fill/u);
+  assert.doesNotMatch(hero, /ol-primary-fill/u);
 });

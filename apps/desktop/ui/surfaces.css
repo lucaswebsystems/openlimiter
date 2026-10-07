@@ -162,14 +162,15 @@
 }
 
 button.primary {
-  border-color: var(--accent-subtle);
-  background: var(--accent-subtle);
-  color: var(--accent);
+  border-color: var(--ol-primary-fill);
+  background: var(--ol-primary-fill);
+  color: var(--ol-on-primary-fill);
 }
 
 button.primary:hover {
-  border-color: var(--accent);
-  background: var(--accent-subtle);
+  border-color: color-mix(in srgb, var(--ol-primary-fill) 88%, black);
+  background: color-mix(in srgb, var(--ol-primary-fill) 88%, black);
+  color: var(--ol-on-primary-fill);
 }
 
 button.small {
@@ -580,6 +581,10 @@ select.field:focus-visible {
 
 .terminal-captions .preset {
   text-align: center;
+}
+
+.terminal-captions .menu-lock {
+  justify-self: center;
 }
 
 .preset[aria-pressed="true"] {
@@ -1597,14 +1602,6 @@ body > .tabs {
 
 .chrome .actions {
   margin-right: calc(-1 * var(--ol-space-2));
-}
-
-:root[data-theme="light"] button.primary {
-  border-color: var(--hairline-strong);
-}
-
-:root[data-theme="light"] button.primary:hover {
-  border-color: var(--accent);
 }
 
 body > .strip {

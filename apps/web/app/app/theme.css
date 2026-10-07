@@ -544,7 +544,6 @@
 
 /* Phone application shell */
 .ol-phone-shell {
-  padding-top: max(var(--ol-space-2), env(safe-area-inset-top));
   padding-bottom: calc(5rem + env(safe-area-inset-bottom));
 }
 
@@ -1907,6 +1906,20 @@ body:has(.ol-product-shell) .page-overlap {
 .ol-control-primary:hover {
   border-color: var(--ol-accent-solid-hover);
   background: var(--ol-accent-solid-hover);
+}
+
+body:has(.ol-phone-shell) .ol-sheet .ol-install-done.ol-control-primary,
+body:has(.ol-phone-shell) .ol-phone-pro .ol-control-primary {
+  border-color: var(--ol-primary-fill);
+  background: var(--ol-primary-fill);
+  color: var(--ol-on-primary-fill);
+}
+
+body:has(.ol-phone-shell) .ol-sheet .ol-install-done.ol-control-primary:hover,
+body:has(.ol-phone-shell) .ol-phone-pro .ol-control-primary:hover {
+  border-color: color-mix(in srgb, var(--ol-primary-fill) 88%, black);
+  background: color-mix(in srgb, var(--ol-primary-fill) 88%, black);
+  color: var(--ol-on-primary-fill);
 }
 
 .ol-control-ghost {

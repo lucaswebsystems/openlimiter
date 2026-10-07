@@ -20,6 +20,9 @@ test("built desktop CSS carries the responsive tab shell and narrow rows", () =>
   assert.doesNotMatch(quiet, /\.chrome \.strip-top,\s*\.chrome \.tabs/su);
   assert.match(surfaces, /\.chrome \.tabs\s*\{[^}]*width:\s*auto[^}]*max-width:\s*none[^}]*margin-inline:\s*0/su);
   assert.match(quiet, /\.settings \.q-card\s*\{[^}]*display:\s*grid[^}]*gap:\s*var\(--ol-space-3\)/su);
+  assert.match(quiet, /\.settings \.q-card\s*>\s*button\s*\{[^}]*justify-self:\s*start/su);
+  assert.match(quiet, /\.settings \.q-card:has\(> #menu-update\)\s*\{[^}]*grid-template-columns:\s*max-content\s+1fr/su);
+  assert.match(quiet, /\.settings \.q-card:has\(> #menu-update\)\s*>\s*:not\(#menu-update, #menu-whats-new\)\s*\{[^}]*grid-column:\s*1 \/ -1/su);
   assert.doesNotMatch(quiet, /\.settings \.q-card\s*\{[^}]*max-width:\s*36rem/su);
   assert.match(quiet, /\.q-row\s*>\s*\.q-val\s*\{[^}]*grid-column:\s*3/su);
   assert.match(quiet, /\.q-row\s*>\s*\.q-rst\s*\{[^}]*grid-column:\s*4/su);
