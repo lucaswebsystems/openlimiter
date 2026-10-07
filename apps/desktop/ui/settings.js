@@ -343,7 +343,8 @@ export function presetMarkup(entitled, chosen) {
         (locked ? " disabled" : "") +
         '><span class="preset-swatches" aria-hidden="true">' +
         preset.swatches.map((swatch) => '<span class="preset-swatch" style="background:' + swatch + '"></span>').join("") +
-        '</span><span class="preset-name">' + (locked ? '<span class="menu-lock" aria-hidden="true">' + LOCK + "</span>" : "") + escapeText(preset.name) + "</span></button>";
+        '</span>' + (locked ? '<span class="menu-lock" aria-hidden="true">' + LOCK + "</span>" : "") +
+        '<span class="preset-name">' + escapeText(preset.name) + "</span></button>";
     }
   ).join("");
 }

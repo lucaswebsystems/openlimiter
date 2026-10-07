@@ -1599,6 +1599,10 @@ body > .tabs {
   border-color: var(--hairline-strong);
 }
 
+:root[data-theme="light"] button.primary:hover {
+  border-color: var(--accent);
+}
+
 body > .strip {
   border-bottom: 0;
   background: transparent;

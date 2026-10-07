@@ -2962,7 +2962,7 @@ button.first-run-quiet-button {
   text-decoration: underline;
 }
 
-.app-menu #trademark-note {
+.settings .q-card #trademark-note {
   margin: 0;
   padding-top: 0;
   border-top: 0;

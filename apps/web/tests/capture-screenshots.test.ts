@@ -8,7 +8,7 @@ import { ansiHtml, assertCaptureSafe, demoSessions } from "../../../scripts/capt
 import { initialPairState, pairStateAfterClaim, pairStateAfterPoll } from "@/lib/pairing";
 import { meterRowOf } from "@/lib/device-snapshots";
 // @ts-expect-error Capture scripts run directly in Node.
-import { demoSnapshots, edgeLayout, edgePage, edgeScene, edgeTabLayout, pairingCaptureResponse, terminalPage, windowPage } from "../../../scripts/capture-screenshots.mjs";
+import { DEMO_SHARED_METERS, demoSnapshots, edgeLayout, edgePage, edgeScene, edgeTabLayout, pairingCaptureResponse, statuslineSnapshots, terminalPage, windowPage } from "../../../scripts/capture-screenshots.mjs";
 
 const now = "2026-09-28T12:00:00.000Z";
 
@@ -117,8 +117,31 @@ describe("synthetic screenshot pipeline", () => {
         expect(styles).toContain(".band-red{color:#cf222e}");
       }
       const styles = dom.window.document.querySelector("style")?.textContent ?? "";
-      expect(styles).toContain(".cell{display:inline-block;white-space:nowrap}");
+      expect(styles).toContain(".cell{display:inline-block;white-space:pre}");
       dom.window.close();
+    }
+  });
+
+  it("keeps shared demo meters identical across terminal, desktop and phone sources", async () => {
+    const snapshots = await demoSnapshots(now);
+    const phoneRows: CapturePhoneRow[] = snapshots.map((row: CaptureSnapshot) => ({
+      provider: row.provider,
+      amount: row.unit === "CREDITS" ? row.value : null,
+      currency: row.unit === "CREDITS" ? row.currency ?? null : null,
+      percent: row.unit === "PERCENT" ? Math.round(row.value) : null,
+    }));
+    const terminalRows = new Map(statuslineSnapshots(snapshots).map((row: CaptureSnapshot) => [`${row.provider}:${row.meter}`, row.value]));
+    for (const [key, value] of [
+      ["CODEX:SEVEN_DAY", DEMO_SHARED_METERS.CODEX_SEVEN_DAY],
+      ["ANTIGRAVITY:FIVE_HOUR", DEMO_SHARED_METERS.ANTIGRAVITY_FIVE_HOUR],
+      ["OPENROUTER:ACCOUNT_BALANCE", DEMO_SHARED_METERS.OPENROUTER_ACCOUNT_BALANCE],
+    ] as const) {
+      const [provider, meter] = key.split(":");
+      const desktop = snapshots.find((row: CaptureSnapshot) => row.provider === provider && row.meter === meter);
+      const phone = phoneRows.find((row) => row.provider === provider);
+      expect(terminalRows.get(key)).toBe(value);
+      expect(desktop?.value).toBe(value);
+      expect(phone?.percent ?? phone?.amount).toBe(value);
     }
   });
 

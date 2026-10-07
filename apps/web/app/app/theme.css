@@ -94,10 +94,6 @@
     display: none;
   }
 
-  .ol-shell {
-    padding-top: max(var(--ol-space-2), env(safe-area-inset-top));
-  }
-
   .ol-account-gate form,
   .ol-account-gate button[aria-controls],
   .ol-account-gate [class~="mt-6"] > button:nth-child(3),
@@ -1280,10 +1276,6 @@ body:has(.ol-product-shell) > footer {
 
 body:has(.ol-product-shell) .page-overlap {
   min-height: 100svh;
-}
-
-body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
-  padding-top: max(var(--ol-space-5), env(safe-area-inset-top));
 }
 
 .ol-product-shell {

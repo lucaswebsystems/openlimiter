@@ -221,6 +221,14 @@ export async function demoSnapshots(now) {
       observedAt: now,
       expiresAt: futureExpiry,
     };
+    if (snapshot.provider === "CODEX" && snapshot.meter === "SEVEN_DAY") stamped.value = DEMO_SHARED_METERS.CODEX_SEVEN_DAY;
+    if (snapshot.provider === "ANTIGRAVITY" && snapshot.meter === "FIVE_HOUR") stamped.value = DEMO_SHARED_METERS.ANTIGRAVITY_FIVE_HOUR;
+    if (snapshot.provider === "OPENROUTER" && snapshot.meter === "ACCOUNT_BALANCE") {
+      stamped.unit = "CREDITS";
+      stamped.value = DEMO_SHARED_METERS.OPENROUTER_ACCOUNT_BALANCE;
+      stamped.usedAmount = undefined;
+      stamped.limitAmount = undefined;
+    }
     if (snapshot.provider === "CLAUDE" && snapshot.source === "native_payload") {
       stamped.provenance = {
         sourceKind: "statusline_payload",
@@ -473,16 +481,22 @@ async function wallpaperPage() {
     <body style="margin:0;height:100vh;background:url(${wallpaper}) center / cover no-repeat"></body></html>`;
 }
 
-const SAMPLE_VALUES = [
+export const DEMO_SHARED_METERS = Object.freeze({
+  CODEX_SEVEN_DAY: 84,
+  ANTIGRAVITY_FIVE_HOUR: 94,
+  OPENROUTER_ACCOUNT_BALANCE: 12.54,
+});
+
+export const SAMPLE_VALUES = [
   { provider: "CLAUDE", meter: "FIVE_HOUR", value: 42 },
   { provider: "CLAUDE", meter: "SEVEN_DAY", value: 64 },
   { provider: "CLAUDE", meter: "SEVEN_DAY_FABLE", value: 69 },
   /* The line's one orange reading: the terminal shot must show all four bands. */
-  { provider: "CODEX", meter: "SEVEN_DAY", value: 84 },
-  { provider: "ANTIGRAVITY", value: 94 },
+  { provider: "CODEX", meter: "SEVEN_DAY", value: DEMO_SHARED_METERS.CODEX_SEVEN_DAY },
+  { provider: "ANTIGRAVITY", meter: "FIVE_HOUR", value: DEMO_SHARED_METERS.ANTIGRAVITY_FIVE_HOUR },
 ];
 
-function statuslineSnapshots(snapshots) {
+export function statuslineSnapshots(snapshots) {
   const rows = SAMPLE_VALUES.map((wanted) => {
     const row = snapshots.find((candidate) => candidate.provider === wanted.provider &&
       (wanted.meter === undefined || candidate.meter === wanted.meter) && candidate.unit === "PERCENT");
@@ -491,7 +505,13 @@ function statuslineSnapshots(snapshots) {
   });
   const openrouter = snapshots.find((row) => row.provider === "OPENROUTER");
   if (openrouter === undefined) throw new Error("The OpenRouter fixture has no balance row.");
-  return [...rows, { ...openrouter, unit: "CREDITS", value: 12.54, usedAmount: undefined, limitAmount: undefined }];
+  return [...rows, {
+    ...openrouter,
+    unit: "CREDITS",
+    value: DEMO_SHARED_METERS.OPENROUTER_ACCOUNT_BALANCE,
+    usedAmount: undefined,
+    limitAmount: undefined,
+  }];
 }
 
 function statuslineApiSpend(now) {
@@ -562,7 +582,7 @@ export async function terminalPage(theme, snapshots, now, { wrap = true } = {}) 
   return `<!doctype html><html lang="en" data-theme="${theme}"><head><meta charset="utf-8">
     <link rel="stylesheet" href="engine/ui/tokens.css"><style>
       *{box-sizing:border-box}body{margin:0;padding:44px;background:var(--ol-canvas);color:var(--ol-body);font-family:var(--ol-font-sans)}
-      p{font-size:16px;color:var(--ol-muted)}pre{margin-top:34px;font:19px/2 ui-monospace,monospace;white-space:${wrap ? "pre-wrap" : "pre"};${wrap ? "" : "display:table;width:max-content;max-width:none;"}}.cell{display:${wrap ? "inline-block" : "inline"};white-space:nowrap}
+      p{font-size:16px;color:var(--ol-muted)}pre{margin-top:34px;font:19px/2 ui-monospace,monospace;white-space:${wrap ? "pre-wrap" : "pre"};${wrap ? "" : "display:table;width:max-content;max-width:none;"}}.cell{display:${wrap ? "inline-block" : "inline"};white-space:pre}
       ${["green", "yellow", "orange", "red"].map(b => `.band-${b}{color:var(--ol-band-${b}-label)}`).join("")}${lightBandColors}
 </style></head><body><p>openlimiter statusline</p><pre>${body}</pre></body></html>`;
 }
@@ -841,11 +861,6 @@ const STANDALONE = [
   ".ol-appmark-small { display: none !important; }",
   ".ol-appmark-full { display: flex !important; }",
   "nextjs-portal { display: none !important; }",
-  /* The safe area, which a headless browser reports as zero and a phone with an
-     island reports as about 59 pixels. Keep the app header responsible for the
-     inset so its background covers the whole top band. */
-  ".ol-shell { padding-top: 0 !important; }",
-  ".ol-phone-header { padding-top: 52px !important; background: var(--ol-canvas) !important; }",
 ].join("\n");
 
 /* Each view names both the real screen it opens and where that screen starts. */
