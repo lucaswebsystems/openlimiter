@@ -201,7 +201,7 @@ async function inspectTab(page, id, width, height, shots) {
     await setup.waitFor({ state: "visible" });
     await setup.scrollIntoViewIfNeeded();
     const setupBox = await setup.boundingBox();
-    const rowBox = await page.locator('#tab-panel-tools [data-provider="ANTIGRAVITY"]').boundingBox();
+    const rowBox = await page.locator('#tab-panel-tools [data-provider-card][data-provider="ANTIGRAVITY"]').boundingBox();
     if (!setupBox || setupBox.top < -1 || setupBox.bottom > height + 1) throw new Error("Antigravity setup is not in the viewport");
     if (!rowBox || setupBox.top < rowBox.bottom - 1) throw new Error("Antigravity setup is not under its row");
   }
