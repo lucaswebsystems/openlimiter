@@ -2003,6 +2003,9 @@ body:has(.ol-phone-shell) .ol-phone-pro .ol-control-primary:hover {
 .ol-provider-mark[data-provider="KIMI"] {
   color: var(--ol-provider-kimi);
 }
+.ol-provider-mark[data-provider="DEEPSEEK"] {
+  color: var(--ol-provider-deepseek);
+}
 .ol-provider-mark[data-provider="MANUAL"] {
   color: var(--ol-provider-manual);
 }
