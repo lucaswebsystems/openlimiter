@@ -136,7 +136,16 @@ async function dismissModal(page) {
     await page.locator("#first-run-later").click();
     await firstRun.waitFor({ state: "hidden" });
   }
+  /* What's New is a native dialog, not a role=dialog surface, and it opens
+     once per version over Home; close it through its own button like the
+     capture script does, or every tab click waits on the overlay. */
+  const whatsNew = page.locator("dialog.whats-new[open]");
+  if (await whatsNew.count()) {
+    await whatsNew.locator("button").click();
+    await whatsNew.waitFor({ state: "detached" });
+  }
   if (await page.locator("[role=dialog][aria-modal=true]:visible").count()) return ["a modal remains visible"];
+  if (await page.locator("dialog[open]").count()) return ["a dialog remains open"];
   return [];
 }
 
