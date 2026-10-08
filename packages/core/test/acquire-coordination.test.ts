@@ -1,5 +1,6 @@
 import {
   mkdtemp,
+  readdir,
   readFile,
   realpath,
   rm,
@@ -15,6 +16,7 @@ import {
   REFRESH_LOCK_HEARTBEAT_MILLISECONDS,
   REFRESH_LOCK_NAME,
   REFRESH_LOCK_STALE_MILLISECONDS,
+  REFRESH_START_INTERVAL_MILLISECONDS,
   acquireRefreshLock,
   clearRefreshSpawnFailure,
   readRefreshSpawnFailure,
@@ -373,6 +375,68 @@ describe("starting a refresh behind a render", () => {
     })).toEqual({ spawned: false, reason: "already_running" });
     expect(spawned).toBe(0);
     if (held.ok) await held.release();
+  });
+
+  it("starts one refresh per interval at most, even when the child never takes the lock", async () => {
+    const directory = await temporaryDirectory();
+    let spawned = 0;
+    /* The stub never takes the lock, which is exactly what a frozen child does. */
+    const startAt = (offsetMilliseconds: number) => spawnDetachedRefresh({
+      snapshots: [],
+      now: new Date(Date.parse(NOW) + offsetMilliseconds).toISOString(),
+      stateDirectory: directory,
+      ...spawnOptions,
+      spawn: () => {
+        spawned += 1;
+      }
+    });
+    expect(await startAt(0)).toEqual({ spawned: true });
+    expect(await startAt(REFRESH_START_INTERVAL_MILLISECONDS - 1)).toEqual({
+      spawned: false,
+      reason: "already_running"
+    });
+    expect(spawned).toBe(1);
+    expect(await startAt(REFRESH_START_INTERVAL_MILLISECONDS)).toEqual({ spawned: true });
+    /* A clock set back behind the recorded start is not held off forever. */
+    expect(await startAt(-60_000)).toEqual({ spawned: true });
+    expect(spawned).toBe(3);
+  });
+
+  it("lets exactly one of many simultaneous renders start a refresh", async () => {
+    const directory = await temporaryDirectory();
+    let spawned = 0;
+    /* Every render sees the same empty state at the same instant, so only an
+       exclusive create can pick one of them; a read then write picked all. */
+    const results = await Promise.all(Array.from({ length: 20 }, () => spawnDetachedRefresh({
+      snapshots: [],
+      now: NOW,
+      stateDirectory: directory,
+      ...spawnOptions,
+      spawn: () => {
+        spawned += 1;
+      }
+    })));
+    expect(spawned).toBe(1);
+    expect(results.filter((result) => result.spawned)).toHaveLength(1);
+  });
+
+  it("removes start tokens more than two windows old as a start passes", async () => {
+    const directory = await temporaryDirectory();
+    const window = Math.floor(Date.parse(NOW) / REFRESH_START_INTERVAL_MILLISECONDS);
+    const token = (at: number): string => `openlimiter-refresh-start-${at}.token`;
+    for (const at of [window - 4, window - 3, window - 2, window - 1]) {
+      await writeFile(path.join(directory, token(at)), "");
+    }
+    expect(await spawnDetachedRefresh({
+      snapshots: [],
+      now: NOW,
+      stateDirectory: directory,
+      ...spawnOptions,
+      spawn: () => undefined
+    })).toEqual({ spawned: true });
+    expect((await readdir(directory)).sort()).toEqual(
+      [window - 2, window - 1, window].map(token).sort()
+    );
   });
 
   it("reports rather than throws when the spawn itself fails", async () => {

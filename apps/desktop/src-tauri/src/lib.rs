@@ -322,6 +322,8 @@ pub fn run() {
             api_spend::spawn_polling(app.handle().clone());
             account::spawn_sync();
             pro::spawn_silent_refresh();
+            #[cfg(windows)]
+            cli_config::spawn_runtime_sweep();
             let initial = tray::view(Vec::new()).expect("an empty tray view is valid");
             let menu = tray::menu(app.handle(), &initial)?;
             let icon = tray::icon(&initial)?;

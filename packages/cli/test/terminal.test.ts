@@ -1,4 +1,4 @@
-import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -536,6 +536,31 @@ describe("openlimiter terminal (CLI dispatch)", () => {
     expect(uninstalled.exitCode).toBe(0);
     const statusAfter = await runCli(["terminal", "status"], { homeDirectory: home });
     expect(statusAfter.stdout).toContain("Claude: " + STATUS_NOT_WIRED);
+  });
+
+  it("the desktop's two Claude commands, in order, wire the status line and the prompt hook", async () => {
+    const home = await temporaryDirectory("openlimiter-terminal-");
+    /* The hook installer pins the node, script and agent it writes into the
+       hook, so each is a real file under the home it checks. */
+    const node = path.join(home, "node.exe");
+    const script = path.join(home, "openlimiter.js");
+    const claude = path.join(home, "claude.exe");
+    for (const file of [node, script, claude]) await writeFile(file, "fixture", "utf8");
+    const pinned = await stat(claude);
+    const dependencies = {
+      homeDirectory: home,
+      environment: {},
+      nodeExecutable: node,
+      openLimiterScript: script,
+      detectedAgentInstallations: {
+        claude: { version: "2.1.257", executable: claude, fileSize: pinned.size, mtimeMilliseconds: pinned.mtimeMs }
+      }
+    };
+    expect((await runCli(["terminal", "install", "claude"], dependencies)).exitCode).toBe(0);
+    expect((await runCli(["hooks", "install", "claude"], dependencies)).exitCode).toBe(0);
+    const settings = JSON.parse(await readFile(path.join(home, ".claude", "settings.json"), "utf8"));
+    expect(settings.statusLine.command).toContain("statusline --host claude");
+    expect(JSON.stringify(settings.hooks.UserPromptSubmit)).toContain('"hook","--agent","claude"');
   });
 
   it("refuses an unknown host with a usage exit code", async () => {

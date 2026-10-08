@@ -113,6 +113,7 @@ import {
   catalogueModel,
   checkTool,
   chooseTool,
+  claudeRuntimeNotice,
   claudeState,
   connectTool,
   initConnections,
@@ -872,10 +873,15 @@ function paintTools(snapshots, now) {
   /* Redrawn only when something on it changed, so a step in flight keeps
      its button and its line. */
   const { usage, tools } = splitInventory(model);
-  const usageKey = limitsKey(usage);
+  /* Under Claude's bars while the terminal runtime is older than this app. */
+  const runtimeNotice = claudeRuntimeNotice();
+  const usageKey = limitsKey(usage) + (runtimeNotice === null ? "" : "runtime notice");
   if (usageKey !== drawnUsage) {
     drawnUsage = usageKey;
     renderLimits(document, elements.usageRows, usage);
+    if (runtimeNotice !== null) {
+      elements.usageRows.querySelector('[data-provider-card][data-provider="CLAUDE"]')?.append(runtimeNotice);
+    }
   } else {
     patchLimits(elements.usageRows, usage);
   }

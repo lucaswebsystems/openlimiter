@@ -3,6 +3,12 @@
   "versionLabel": "Version {version}",
   "dismiss": "Got it",
   "releases": {
+    "2.1.1": {
+      "heading": "Sign in and weekly limits fixed",
+      "signin": "Google, GitHub and email sign in finish in the app again, and a refused sign in names its error code.",
+      "weekly": "When an older terminal runtime is installed, the Usage tab shows the one command that updates it, so weekly limits stay visible.",
+      "commands": "Every command the app shows is pinned to this version, stuck background refreshes no longer pile up on Windows, and DeepSeek shows its official mark."
+    },
     "2.1.0": {
       "heading": "One number per bar",
       "claude": "Claude now shows one number per bar, with the Claude bucket allowlist, clear status line captions and the Pro captions preset. Setup upgrades the runtime when needed.",

@@ -194,8 +194,24 @@ pub fn set_terminal_captions(captions: String, app: tauri::AppHandle) -> Result<
 
 #[tauri::command]
 pub fn terminal_runtime_status() -> Result<Value, String> {
-    let directory = crate::state::state_directory().ok_or_else(|| "config_refused".to_string())?;
-    let stamp = directory.join("terminal-runtime").join(".openlimiter-runtime.json");
+    let home = runtime_home().ok_or_else(|| "config_refused".to_string())?;
+    terminal_runtime_status_in(&home, env!("CARGO_PKG_VERSION"))
+}
+
+/// The profile the terminal runtime is installed under: Node's home directory.
+pub(crate) fn runtime_home() -> Option<PathBuf> {
+    if cfg!(target_os = "windows") {
+        crate::state::non_empty("USERPROFILE").or_else(|| crate::state::non_empty("HOME"))
+    } else { crate::state::home() }
+}
+
+/// Whether the pinned installer left a readable runtime stamp in this profile.
+pub(crate) fn terminal_runtime_installed(home: &Path) -> bool {
+    terminal_runtime_status_in(home, env!("CARGO_PKG_VERSION")).is_ok_and(|status| status["version"].is_string())
+}
+
+fn terminal_runtime_status_in(home: &Path, app_version: &str) -> Result<Value, String> {
+    let stamp = home.join(".openlimiter").join("terminal-runtime").join(".openlimiter-runtime.json");
     let version = match crate::fsx::bounded_read_result(&stamp, crate::fsx::MAX_STATE_FILE_BYTES) {
         Err(crate::fsx::ReadFailure::Missing) => None,
         Err(_) => return Err("config_refused".to_string()),
@@ -204,7 +220,93 @@ pub fn terminal_runtime_status() -> Result<Value, String> {
             value.get("version").and_then(Value::as_str).map(str::to_owned)
         }
     };
-    Ok(serde_json::json!({ "version": version, "app_version": env!("CARGO_PKG_VERSION") }))
+    Ok(serde_json::json!({ "version": version, "app_version": app_version }))
+}
+
+/// The terminal runtime's node only draws status lines (milliseconds) and
+/// runs detached refreshes (a few minutes at the slowest), so one older than
+/// this, with room to spare for a slow but healthy refresh, is stuck.
+#[cfg(any(windows, test))]
+const STUCK_RUNTIME_AGE: Duration = Duration::from_secs(15 * 60);
+
+/// Whether a process is this profile's terminal runtime node and has outlived
+/// any real work. Only the exact image path counts, so a reused pid, which
+/// belongs to another image, never matches.
+#[cfg(any(windows, test))]
+fn stuck_runtime_node(image: &str, home: &Path, age: Duration) -> bool {
+    let normal = |path: &str| path.strip_prefix(r"\\?\").unwrap_or(path).replace('/', r"\").to_lowercase();
+    let runtime = home.join(".openlimiter").join("terminal-runtime").join("node.exe");
+    age > STUCK_RUNTIME_AGE && normal(image) == normal(&runtime.to_string_lossy())
+}
+
+/// End stuck terminal runtime nodes at startup and every ten minutes.
+#[cfg(windows)]
+pub fn spawn_runtime_sweep() {
+    thread::spawn(|| loop {
+        let ended = end_stuck_runtime_nodes();
+        if ended > 0 {
+            eprintln!("OpenLimiter ended {ended} stuck terminal runtime processes");
+        }
+        thread::sleep(Duration::from_secs(10 * 60));
+    });
+}
+
+/// Each process is judged and ended through the one handle that read its
+/// image path and start time, so the process ended is the process judged.
+#[cfg(windows)]
+fn end_stuck_runtime_nodes() -> usize {
+    use windows_sys::Win32::{
+        Foundation::{CloseHandle, FILETIME, INVALID_HANDLE_VALUE},
+        System::{
+            Diagnostics::ToolHelp::{
+                CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
+                TH32CS_SNAPPROCESS,
+            },
+            Threading::{
+                GetProcessTimes, OpenProcess, QueryFullProcessImageNameW, TerminateProcess,
+                PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_TERMINATE,
+            },
+        },
+    };
+    let Some(home) = crate::state::non_empty("USERPROFILE") else { return 0 };
+    let mut ended = 0;
+    unsafe {
+        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if snapshot == INVALID_HANDLE_VALUE {
+            return 0;
+        }
+        let mut entry = PROCESSENTRY32W { dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32, ..Default::default() };
+        let mut more = Process32FirstW(snapshot, &mut entry);
+        while more != 0 {
+            let name = &entry.szExeFile[..entry.szExeFile.iter().position(|&unit| unit == 0).unwrap_or(entry.szExeFile.len())];
+            // Nothing but a node.exe is ever opened.
+            let process = if String::from_utf16_lossy(name).eq_ignore_ascii_case("node.exe") {
+                OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE, 0, entry.th32ProcessID)
+            } else {
+                std::ptr::null_mut()
+            };
+            if !process.is_null() {
+                let mut image = [0u16; 1024];
+                let mut length = image.len() as u32;
+                let [mut created, mut exited, mut kernel, mut user] = [FILETIME::default(); 4];
+                if QueryFullProcessImageNameW(process, PROCESS_NAME_WIN32, image.as_mut_ptr(), &mut length) != 0
+                    && GetProcessTimes(process, &mut created, &mut exited, &mut kernel, &mut user) != 0
+                {
+                    let ticks = (u64::from(created.dwHighDateTime) << 32) | u64::from(created.dwLowDateTime);
+                    let started_ms = (ticks / 10_000).saturating_sub(11_644_473_600_000);
+                    let age = Duration::from_millis(crate::connections::now_epoch_ms().saturating_sub(started_ms));
+                    let image = String::from_utf16_lossy(&image[..length as usize]);
+                    if stuck_runtime_node(&image, &home, age) && TerminateProcess(process, 1) != 0 {
+                        ended += 1;
+                    }
+                }
+                CloseHandle(process);
+            }
+            more = Process32NextW(snapshot, &mut entry);
+        }
+        CloseHandle(snapshot);
+    }
+    ended
 }
 
 #[cfg(test)]
@@ -248,6 +350,46 @@ mod tests {
         let saved: Value = serde_json::from_str(&fs::read_to_string(config_path(dir.path())).unwrap()).unwrap();
         assert_eq!(saved["providers"]["claude"]["poll"], true);
         assert!(saved["statusline"]["captions"] == "short" || saved["statusline"]["captions"] == "tagged");
+    }
+
+    #[test]
+    fn terminal_runtime_status_reads_the_profile_runtime_stamp() {
+        let home = TempDir::new();
+        let runtime = home.path().join(".openlimiter").join("terminal-runtime");
+        assert!(!terminal_runtime_installed(home.path()));
+        fs::create_dir_all(&runtime).unwrap();
+        fs::write(runtime.join(".openlimiter-runtime.json"), "not a stamp").unwrap();
+        assert!(!terminal_runtime_installed(home.path()));
+        fs::write(runtime.join(".openlimiter-runtime.json"), r#"{"version":"2.0.3","files":{}}"#).unwrap();
+        assert!(terminal_runtime_installed(home.path()));
+        assert_eq!(
+            terminal_runtime_status_in(home.path(), "2.1.1").unwrap(),
+            serde_json::json!({"version":"2.0.3","app_version":"2.1.1"})
+        );
+    }
+
+    #[test]
+    fn only_this_profiles_runtime_node_past_fifteen_minutes_is_stuck() {
+        let home = Path::new(r"C:\Users\Person");
+        let old = Duration::from_secs(15 * 60 + 1);
+        assert!(stuck_runtime_node(r"C:\Users\Person\.openlimiter\terminal-runtime\node.exe", home, old));
+        assert!(stuck_runtime_node(r"\\?\c:/users/PERSON/.OpenLimiter/Terminal-Runtime/NODE.EXE", home, old));
+        // A render or a refresh still inside its time is never touched, and a
+        // slow but healthy refresh of ten minutes is still inside it.
+        for young in [Duration::from_secs(10 * 60), STUCK_RUNTIME_AGE] {
+            assert!(!stuck_runtime_node(r"C:\Users\Person\.openlimiter\terminal-runtime\node.exe", home, young));
+        }
+        // A reused pid runs another image, which never matches.
+        for other in [
+            r"C:\Program Files\nodejs\node.exe",
+            r"C:\Users\Other\.openlimiter\terminal-runtime\node.exe",
+            r"C:\Users\Person\.openlimiter\terminal-runtime\sub\node.exe",
+            r"C:\Users\Person\.openlimiter\terminal-runtime\node.exe.old",
+            r"D:\Users\Person\.openlimiter\terminal-runtime\node.exe",
+            "",
+        ] {
+            assert!(!stuck_runtime_node(other, home, old), "{other}");
+        }
     }
 
     #[test]

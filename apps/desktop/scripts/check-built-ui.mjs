@@ -88,6 +88,7 @@ function installCaptureStub() {
       if (name === "detect_local_tools") return { providers: [{ provider_id: "claude", state: "present" }, { provider_id: "antigravity", state: "present" }] };
       if (name === "claude_connect_preflight") return { kind: "ready", cli_path: "openlimiter" };
       if (name === "claude_poll_enabled") return false;
+      if (name === "terminal_runtime_status") return { version: "2.0.3", app_version: "2.1.0" };
       if (name === "list_detected_providers") return { providers: [] };
       if (["list_connections", "disabled_providers", "notification_events"].includes(name)) return [];
       return null;
@@ -206,6 +207,24 @@ async function inspectTab(page, id, width, height, shots) {
     const rowBox = await page.locator('#tab-panel-tools [data-provider-card][data-provider="ANTIGRAVITY"]').boundingBox();
     if (!setupBox || setupBox.top < -1 || setupBox.bottom > height + 1) throw new Error("Antigravity setup is not in the viewport");
     if (!rowBox || setupBox.top < rowBox.bottom - 1) throw new Error("Antigravity setup is not under its row");
+    const setupGeometry = await setup.evaluate((panel) => {
+      const intersects = (left, right) => left.left < right.right && left.right > right.left && left.top < right.bottom && left.bottom > right.top;
+      const panelBox = panel.getBoundingClientRect();
+      const closeBox = panel.querySelector("[data-setup-close]").getBoundingClientRect();
+      const commandBoxes = [...panel.querySelectorAll(".q-command-box")];
+      return {
+        closeIntersections: commandBoxes.filter((box) => intersects(closeBox, box.getBoundingClientRect())).length,
+        copyEdgeGaps: commandBoxes.map((box) => panelBox.right - box.querySelector("button").getBoundingClientRect().right),
+      };
+    });
+    if (setupGeometry.closeIntersections !== 0) throw new Error("Antigravity close button intersects a command box");
+    if (setupGeometry.copyEdgeGaps.some((gap) => gap < 8)) throw new Error("Antigravity Copy button is less than 8 px from the panel edge");
+  }
+  if (id === "usage") {
+    /* The stub's terminal runtime 2.0.3 is older than this build, and the
+       command names this build, never the 2.1.0 the stamp read reports. */
+    const update = page.locator('#tab-panel-usage [data-provider-card][data-provider="CLAUDE"] .q-runtime-notice pre');
+    if (await update.textContent() !== `npx -y openlimiter@${config.version} terminal install claude`) throw new Error("the Usage tab's Claude card does not offer the runtime update");
   }
   const findings = await page.evaluate(({ panelId, tabId }) => {
     const panel = document.querySelector(panelId);

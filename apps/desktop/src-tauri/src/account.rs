@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::path::Path;
 use std::sync::OnceLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -32,6 +33,23 @@ const MAX_REQUEST_BYTES: usize = 8_192;
 const NETWORK_TIMEOUT_SECONDS: u64 = 15;
 const OAUTH_TIMEOUT_SECONDS: u64 = 180;
 const OAUTH_CONNECTION_TIMEOUT_SECONDS: u64 = 3;
+const AUTH_DIAGNOSTICS_FILE: &str = "auth-diagnostics.log";
+const AUTH_DIAGNOSTICS_LINES: usize = 50;
+/// The Supabase Auth error codes a diagnostics line or a sentence may name.
+/// Any other code is `other`, and no server text is ever kept at all.
+const NAMED_AUTH_ERROR_CODES: [&str; 11] = [
+    "flow_state_not_found",
+    "flow_state_expired",
+    "bad_code_verifier",
+    "email_not_confirmed",
+    "user_banned",
+    "signup_disabled",
+    "provider_disabled",
+    "validation_failed",
+    "invalid_credentials",
+    "over_request_rate_limit",
+    "unexpected_failure",
+];
 
 /// The contract version the hosted sync surface accepts, and nothing else.
 const SYNC_SCHEMA_VERSION: u8 = 2;
@@ -63,17 +81,23 @@ fn configured_key() -> &'static str {
     option_env!("OPENLIMITER_SUPABASE_ANON_KEY").unwrap_or("").trim()
 }
 
-#[derive(Clone, Copy, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AccountFailure {
     Unconfigured,
     InvalidInput,
-    Authentication,
+    Authentication {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        error_code: Option<&'static str>,
+    },
     Network,
     Storage,
     OauthBusy,
     OauthTimeout,
     OauthRejected,
+    OauthFlowExpired,
+    UserBanned,
+    SignupDisabled,
     /// The service has not switched this provider on. Answered before a
     /// browser tab is opened, so the window can say so in its own words.
     ProviderDisabled,
@@ -82,6 +106,12 @@ pub enum AccountFailure {
     /// refused for that reason alone, so the window says which reason it was
     /// instead of showing a sync that quietly never happens.
     DeviceCapReached,
+}
+
+impl AccountFailure {
+    pub(crate) fn authentication() -> Self {
+        Self::Authentication { error_code: None }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -108,6 +138,45 @@ struct AuthResponse {
     refresh_token: Option<String>,
     expires_in: Option<i64>,
     user: Option<AuthUser>,
+}
+
+#[derive(Debug)]
+struct AuthPostFailure {
+    failure: AccountFailure,
+    status: Option<u16>,
+    error_code: Option<&'static str>,
+}
+
+impl AuthPostFailure {
+    fn plain(failure: AccountFailure) -> Self {
+        Self {
+            failure,
+            status: None,
+            error_code: None,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct SaveSessionFailure {
+    failure: AccountFailure,
+    refused_field: Option<&'static str>,
+}
+
+impl SaveSessionFailure {
+    fn refused(field: &'static str) -> Self {
+        Self {
+            failure: AccountFailure::authentication(),
+            refused_field: Some(field),
+        }
+    }
+
+    fn plain(failure: AccountFailure) -> Self {
+        Self {
+            failure,
+            refused_field: None,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -197,6 +266,132 @@ fn configured() -> bool {
         && configured_key().starts_with("sb_publishable_")
 }
 
+/// Supabase's error code from an error body of either shape it sends,
+/// `{"error_code": ...}` or `{"error": ...}`, as a named code or `other`.
+/// Message text (`msg`, `error_description`) is never read.
+fn auth_error_code(body: &[u8]) -> Option<&'static str> {
+    let value = serde_json::from_slice::<serde_json::Value>(body).ok()?;
+    let code = ["error_code", "error"]
+        .into_iter()
+        .find_map(|key| value.get(key).and_then(serde_json::Value::as_str))?;
+    Some(
+        NAMED_AUTH_ERROR_CODES
+            .into_iter()
+            .find(|named| *named == code)
+            .unwrap_or("other"),
+    )
+}
+
+fn auth_failure_from_code(error_code: Option<&'static str>) -> AccountFailure {
+    match error_code {
+        Some("flow_state_not_found" | "flow_state_expired") => AccountFailure::OauthFlowExpired,
+        Some("bad_code_verifier") => AccountFailure::OauthRejected,
+        Some("email_not_confirmed") => AccountFailure::EmailConfirmationRequired,
+        Some("user_banned") => AccountFailure::UserBanned,
+        Some("signup_disabled") => AccountFailure::SignupDisabled,
+        Some("other") | None => AccountFailure::authentication(),
+        Some(error_code) => AccountFailure::Authentication {
+            error_code: Some(error_code),
+        },
+    }
+}
+
+fn auth_diagnostic_lock() -> &'static std::sync::Mutex<()> {
+    static LOCK: OnceLock<std::sync::Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| std::sync::Mutex::new(()))
+}
+
+/// One line per failed sign in step, made of fixed words only: the UTC time,
+/// provider, stage, HTTP status, a named error code or `other`, and the field
+/// `save_session` refused. Nothing the server or the person sent is written.
+fn write_auth_diagnostic(
+    directory: &Path,
+    provider: &'static str,
+    stage: &'static str,
+    status: Option<u16>,
+    error_code: Option<&'static str>,
+    refused_field: Option<&'static str>,
+) -> Result<(), ()> {
+    crate::fsx::ensure_private_dir(directory).map_err(|_| ())?;
+    let path = directory.join(AUTH_DIAGNOSTICS_FILE);
+    let existing = match crate::fsx::bounded_read_result(&path, crate::fsx::MAX_STATE_FILE_BYTES) {
+        Ok(text) => text,
+        Err(crate::fsx::ReadFailure::Missing) => String::new(),
+        Err(_) => return Err(()),
+    };
+    let timestamp = time::OffsetDateTime::now_utc()
+        .format(&time::format_description::well_known::Rfc3339)
+        .map_err(|_| ())?;
+    let mut entry = serde_json::json!({
+        "time": timestamp,
+        "provider": provider,
+        "stage": stage,
+    });
+    let fields = entry.as_object_mut().ok_or(())?;
+    if let Some(status) = status {
+        fields.insert("http_status".to_string(), serde_json::json!(status));
+    }
+    if let Some(error_code) = error_code {
+        fields.insert("error_code".to_string(), serde_json::json!(error_code));
+    }
+    if let Some(refused_field) = refused_field {
+        fields.insert("refused_field".to_string(), serde_json::json!(refused_field));
+    }
+    let line = serde_json::to_string(&entry).map_err(|_| ())?;
+    let mut lines = existing
+        .lines()
+        .rev()
+        .take(AUTH_DIAGNOSTICS_LINES - 1)
+        .collect::<Vec<_>>();
+    lines.reverse();
+    lines.push(&line);
+    let contents = lines.join("\n") + "\n";
+    crate::fsx::atomic_write(&path, &contents).map_err(|_| ())
+}
+
+fn record_auth_diagnostic(
+    provider: &'static str,
+    stage: &'static str,
+    status: Option<u16>,
+    error_code: Option<&'static str>,
+    refused_field: Option<&'static str>,
+) {
+    let Some(directory) = crate::state::state_directory() else {
+        return;
+    };
+    let Ok(_held) = auth_diagnostic_lock().lock() else {
+        return;
+    };
+    let _ = write_auth_diagnostic(&directory, provider, stage, status, error_code, refused_field);
+}
+
+fn record_auth_post_failure(
+    provider: &'static str,
+    stage: &'static str,
+    error: AuthPostFailure,
+) -> AccountFailure {
+    record_auth_diagnostic(provider, stage, error.status, error.error_code, None);
+    error.failure
+}
+
+fn record_save_failure(
+    provider: &'static str,
+    stage: &'static str,
+    error: SaveSessionFailure,
+) -> AccountFailure {
+    record_auth_diagnostic(provider, stage, None, None, error.refused_field);
+    error.failure
+}
+
+fn record_plain_failure(
+    provider: &'static str,
+    stage: &'static str,
+    failure: AccountFailure,
+) -> AccountFailure {
+    record_auth_diagnostic(provider, stage, None, None, None);
+    failure
+}
+
 fn sync_enabled_from(store: &dyn SecretStore) -> bool {
     match store.read_secret(SYNC_SETTING_CREDENTIAL_ID) {
         Ok(value) => value.as_str() != "false",
@@ -271,7 +466,7 @@ fn stored_session(store: &dyn SecretStore) -> Result<StoredSession, AccountFailu
     let raw = store
         .read_secret(ACCOUNT_CREDENTIAL_ID)
         .map_err(|error| match error {
-            CredentialError::NotFound => AccountFailure::Authentication,
+            CredentialError::NotFound => AccountFailure::authentication(),
             CredentialError::Store => AccountFailure::Storage,
         })?;
     let mut session: StoredSession =
@@ -291,7 +486,7 @@ fn stored_session(store: &dyn SecretStore) -> Result<StoredSession, AccountFailu
         || !valid_email(&session.email)
         || session.access_token.len() < 20
         || session.access_token.len() > 32_768
-        || session.refresh_token.len() < 20
+        || session.refresh_token.len() < 12
         || session.refresh_token.len() > 32_768
     {
         return Err(AccountFailure::Storage);
@@ -311,14 +506,14 @@ fn save_session(
     store: &dyn SecretStore,
     response: AuthResponse,
     previous: Option<&StoredSession>,
-) -> Result<StoredSession, AccountFailure> {
+) -> Result<StoredSession, SaveSessionFailure> {
     let access_token = response
         .access_token
-        .ok_or(AccountFailure::Authentication)?;
+        .ok_or_else(|| SaveSessionFailure::refused("access_token"))?;
     let refresh_token = response
         .refresh_token
         .or_else(|| previous.map(|value| value.refresh_token.clone()))
-        .ok_or(AccountFailure::Authentication)?;
+        .ok_or_else(|| SaveSessionFailure::refused("refresh_token"))?;
     let account_id = response
         .user
         .as_ref()
@@ -326,19 +521,19 @@ fn save_session(
         .or_else(|| jwt_subject(&access_token))
         .or_else(|| previous.map(|value| value.account_id.clone()))
         .filter(|value| uuid::Uuid::parse_str(value).is_ok())
-        .ok_or(AccountFailure::Authentication)?;
+        .ok_or_else(|| SaveSessionFailure::refused("account_id"))?;
     let email = response
         .user
         .and_then(|user| user.email)
         .or_else(|| previous.map(|value| value.email.clone()))
         .filter(|value| valid_email(value))
-        .ok_or(AccountFailure::Authentication)?;
+        .ok_or_else(|| SaveSessionFailure::refused("email"))?;
     if access_token.len() < 20
         || access_token.len() > 32_768
-        || refresh_token.len() < 20
+        || refresh_token.len() < 12
         || refresh_token.len() > 32_768
     {
-        return Err(AccountFailure::Authentication);
+        return Err(SaveSessionFailure::refused("token_length"));
     }
     let session = StoredSession {
         version: 2,
@@ -349,9 +544,10 @@ fn save_session(
         expires_at: now_seconds() + response.expires_in.unwrap_or(3_600).clamp(60, 86_400),
     };
     if previous.is_some_and(|value| value.account_id != session.account_id) {
-        crate::pro::clear_local_authorization(store).map_err(|_| AccountFailure::Storage)?;
+        crate::pro::clear_local_authorization(store)
+            .map_err(|_| SaveSessionFailure::plain(AccountFailure::Storage))?;
     }
-    persist_session(store, &session)?;
+    persist_session(store, &session).map_err(SaveSessionFailure::plain)?;
     Ok(session)
 }
 
@@ -364,13 +560,15 @@ fn client() -> Result<reqwest::Client, AccountFailure> {
         .map_err(|_| AccountFailure::Network)
 }
 
-async fn auth_post(path: &str, body: serde_json::Value) -> Result<AuthResponse, AccountFailure> {
+async fn auth_post(path: &str, body: serde_json::Value) -> Result<AuthResponse, AuthPostFailure> {
     if !configured() {
-        return Err(AccountFailure::Unconfigured);
+        return Err(AuthPostFailure::plain(AccountFailure::Unconfigured));
     }
     let endpoint = format!("{}{}", configured_url().trim_end_matches('/'), path);
-    let payload = serde_json::to_vec(&body).map_err(|_| AccountFailure::InvalidInput)?;
-    let mut response = client()?
+    let payload = serde_json::to_vec(&body)
+        .map_err(|_| AuthPostFailure::plain(AccountFailure::InvalidInput))?;
+    let mut response = client()
+        .map_err(AuthPostFailure::plain)?
         .post(endpoint)
         .header("apikey", configured_key())
         .header(ACCEPT, "application/json")
@@ -378,25 +576,43 @@ async fn auth_post(path: &str, body: serde_json::Value) -> Result<AuthResponse, 
         .body(payload)
         .send()
         .await
-        .map_err(|_| AccountFailure::Network)?;
-    if !response.status().is_success() {
-        return Err(AccountFailure::Authentication);
-    }
+        .map_err(|_| AuthPostFailure::plain(AccountFailure::Network))?;
+    let status = response.status();
     let mut bytes = Vec::new();
     while let Some(chunk) = response
         .chunk()
         .await
-        .map_err(|_| AccountFailure::Network)?
+        .map_err(|_| AuthPostFailure {
+            failure: AccountFailure::Network,
+            status: Some(status.as_u16()),
+            error_code: None,
+        })?
     {
         if bytes.len() + chunk.len() > MAX_RESPONSE_BYTES {
-            return Err(AccountFailure::Authentication);
+            return Err(AuthPostFailure {
+                failure: AccountFailure::authentication(),
+                status: Some(status.as_u16()),
+                error_code: None,
+            });
         }
         bytes.extend_from_slice(&chunk);
     }
-    serde_json::from_slice(&bytes).map_err(|_| AccountFailure::Authentication)
+    if !status.is_success() {
+        let error_code = auth_error_code(&bytes);
+        return Err(AuthPostFailure {
+            failure: auth_failure_from_code(error_code),
+            status: Some(status.as_u16()),
+            error_code,
+        });
+    }
+    serde_json::from_slice(&bytes).map_err(|_| AuthPostFailure {
+        failure: AccountFailure::authentication(),
+        status: Some(status.as_u16()),
+        error_code: None,
+    })
 }
 
-async fn refresh_session(session: &StoredSession) -> Result<AuthResponse, AccountFailure> {
+async fn refresh_session(session: &StoredSession) -> Result<AuthResponse, AuthPostFailure> {
     auth_post(
         "/auth/v1/token?grant_type=refresh_token",
         serde_json::json!({ "refresh_token": session.refresh_token }),
@@ -415,8 +631,11 @@ pub(crate) async fn current_access_token(
     let _held = session_refresh_lock().lock().await;
     let mut session = stored_session(store)?;
     if session.expires_at <= now_seconds() + 120 {
-        let response = refresh_session(&session).await?;
-        session = save_session(store, response, Some(&session))?;
+        let response = refresh_session(&session)
+            .await
+            .map_err(|error| record_auth_post_failure("account", "refresh", error))?;
+        session = save_session(store, response, Some(&session))
+            .map_err(|error| record_save_failure("account", "refresh", error))?;
     }
     Ok(Zeroizing::new(session.access_token))
 }
@@ -1245,7 +1464,8 @@ pub async fn account_email(
         path,
         serde_json::json!({ "email": email, "password": input.password }),
     )
-    .await?;
+    .await
+    .map_err(|error| record_auth_post_failure("email", "exchange", error))?;
     if input.create
         && response.access_token.is_none()
         && response
@@ -1257,7 +1477,8 @@ pub async fn account_email(
         return Err(AccountFailure::EmailConfirmationRequired);
     }
     let previous = stored_session(store.inner()).ok();
-    save_session(store.inner(), response, previous.as_ref())?;
+    save_session(store.inner(), response, previous.as_ref())
+        .map_err(|error| record_save_failure("email", "save", error))?;
     Ok(status_for(store.inner(), true))
 }
 
@@ -1484,7 +1705,15 @@ pub async fn account_oauth(
     /* The address is kept for the length of this one attempt, so the window
     can open the browser to it again, and cleared however the attempt ends. */
     set_pending_authorize(Some(authorize.to_string()));
-    let outcome = complete_oauth(&app, store.inner(), authorize, listener, verifier).await;
+    let outcome = complete_oauth(
+        &app,
+        store.inner(),
+        input.provider,
+        authorize,
+        listener,
+        verifier,
+    )
+    .await;
     set_pending_authorize(None);
     outcome
 }
@@ -1492,23 +1721,39 @@ pub async fn account_oauth(
 async fn complete_oauth(
     app: &AppHandle,
     store: &KeyringStore,
+    provider: OauthProvider,
     authorize: Url,
     listener: TcpListener,
     verifier: String,
 ) -> Result<AccountStatus, AccountFailure> {
     app.opener()
         .open_url(authorize.as_str(), None::<&str>)
-        .map_err(|_| AccountFailure::OauthRejected)?;
+        .map_err(|_| {
+            record_plain_failure(
+                provider.as_str(),
+                "callback",
+                AccountFailure::OauthRejected,
+            )
+        })?;
     let (code, _state) = tauri::async_runtime::spawn_blocking(move || oauth_request(&listener))
         .await
-        .map_err(|_| AccountFailure::OauthRejected)??;
+        .map_err(|_| {
+            record_plain_failure(
+                provider.as_str(),
+                "callback",
+                AccountFailure::OauthRejected,
+            )
+        })?
+        .map_err(|failure| record_plain_failure(provider.as_str(), "callback", failure))?;
     let response = auth_post(
         "/auth/v1/token?grant_type=pkce",
         serde_json::json!({ "auth_code": code, "code_verifier": verifier }),
     )
-    .await?;
+    .await
+    .map_err(|error| record_auth_post_failure(provider.as_str(), "exchange", error))?;
     let previous = stored_session(store).ok();
-    save_session(store, response, previous.as_ref())?;
+    save_session(store, response, previous.as_ref())
+        .map_err(|error| record_save_failure(provider.as_str(), "save", error))?;
     Ok(status_for(store, true))
 }
 
@@ -1624,6 +1869,151 @@ mod tests {
             serde_json::to_value(AccountFailure::Network).expect("failure"),
             serde_json::json!({ "kind": "network" })
         );
+    }
+
+    #[test]
+    fn supabase_error_bodies_yield_only_named_codes() {
+        assert_eq!(
+            auth_error_code(br#"{"code":404,"error_code":"flow_state_not_found","msg":"invalid flow state"}"#),
+            Some("flow_state_not_found")
+        );
+        assert_eq!(
+            auth_error_code(br#"{"error":"bad_code_verifier","error_description":"The verifier was refused."}"#),
+            Some("bad_code_verifier")
+        );
+        assert_eq!(
+            auth_error_code(br#"{"error":"invalid_grant","error_description":"Invalid Refresh Token"}"#),
+            Some("other")
+        );
+        assert_eq!(auth_error_code(br#"{"msg":"no code at all"}"#), None);
+        assert_eq!(auth_error_code(b"not json"), None);
+    }
+
+    #[test]
+    fn a_diagnostics_line_carries_no_server_text() {
+        let secrets = [
+            "123456",
+            "abcd1234",
+            "quoted0token0value",
+            "verifier0value0abcdef",
+            "person@example.com",
+            "\u{e9}l\u{e8}ve@exemple.fr",
+        ];
+        let body = serde_json::json!({
+            "code": 400,
+            "error_code": "abcd1234",
+            "msg": "Invalid auth code 123456 for \u{e9}l\u{e8}ve@exemple.fr",
+            "error_description": "\"access_token\":\"quoted0token0value\" code_verifier=verifier0value0abcdef person@example.com",
+        })
+        .to_string();
+        let error_code = auth_error_code(body.as_bytes());
+        assert_eq!(error_code, Some("other"));
+        let directory = crate::test_support::TempDir::new();
+        write_auth_diagnostic(directory.path(), "google", "exchange", Some(400), error_code, None)
+            .expect("diagnostic line");
+        let text = std::fs::read_to_string(directory.path().join(AUTH_DIAGNOSTICS_FILE))
+            .expect("diagnostics");
+        for secret in secrets {
+            assert!(!text.contains(secret), "{secret} reached the log");
+        }
+        let line: serde_json::Value = serde_json::from_str(text.trim()).expect("one line");
+        let mut keys = line.as_object().expect("object").keys().cloned().collect::<Vec<_>>();
+        keys.sort();
+        assert_eq!(keys, ["error_code", "http_status", "provider", "stage", "time"]);
+        assert_eq!(line["error_code"], "other");
+    }
+
+    #[test]
+    fn supabase_error_codes_map_to_closed_account_failures() {
+        let failure = |error_code: &'static str| auth_failure_from_code(Some(error_code));
+        assert_eq!(
+            serde_json::to_value(failure("other")).expect("unnamed failure"),
+            serde_json::json!({ "kind": "authentication" })
+        );
+        for code in ["flow_state_not_found", "flow_state_expired"] {
+            assert_eq!(
+                serde_json::to_value(failure(code)).expect("flow failure"),
+                serde_json::json!({ "kind": "oauth_flow_expired" })
+            );
+        }
+        assert_eq!(
+            serde_json::to_value(failure("bad_code_verifier")).expect("verifier failure"),
+            serde_json::json!({ "kind": "oauth_rejected" })
+        );
+        assert_eq!(
+            serde_json::to_value(failure("email_not_confirmed")).expect("confirmation failure"),
+            serde_json::json!({ "kind": "email_confirmation_required" })
+        );
+        assert_eq!(
+            serde_json::to_value(failure("user_banned")).expect("banned failure"),
+            serde_json::json!({ "kind": "user_banned" })
+        );
+        assert_eq!(
+            serde_json::to_value(failure("signup_disabled")).expect("signup failure"),
+            serde_json::json!({ "kind": "signup_disabled" })
+        );
+        assert_eq!(
+            serde_json::to_value(failure("unexpected_failure")).expect("coded failure"),
+            serde_json::json!({
+                "kind": "authentication",
+                "error_code": "unexpected_failure",
+            })
+        );
+    }
+
+    #[test]
+    fn auth_diagnostics_are_private_bounded_and_contain_only_safe_fields() {
+        let directory = crate::test_support::TempDir::new();
+        for index in 0..=AUTH_DIAGNOSTICS_LINES {
+            write_auth_diagnostic(
+                directory.path(),
+                "google",
+                "exchange",
+                Some(400 + index as u16),
+                Some("unexpected_failure"),
+                None,
+            )
+            .expect("diagnostic line");
+        }
+        let path = directory.path().join(AUTH_DIAGNOSTICS_FILE);
+        let text = std::fs::read_to_string(&path).expect("diagnostics");
+        let lines = text.lines().collect::<Vec<_>>();
+        assert_eq!(lines.len(), AUTH_DIAGNOSTICS_LINES);
+        let first: serde_json::Value = serde_json::from_str(lines[0]).expect("first line");
+        let last: serde_json::Value = serde_json::from_str(lines[49]).expect("last line");
+        assert_eq!(first["http_status"], 401);
+        assert_eq!(last["http_status"], 450);
+        assert_eq!(last["error_code"], "unexpected_failure");
+        assert_eq!(last["provider"], "google");
+        assert_eq!(last["stage"], "exchange");
+        assert!(last.get("auth_code").is_none());
+        assert!(last.get("code_verifier").is_none());
+        assert!(last.get("access_token").is_none());
+        assert!(last.get("refresh_token").is_none());
+        assert!(last.get("email").is_none());
+        assert!(last.get("account_id").is_none());
+
+        let save_directory = crate::test_support::TempDir::new();
+        write_auth_diagnostic(save_directory.path(), "github", "save", None, None, Some("refresh_token"))
+            .expect("save diagnostic");
+        let saved = std::fs::read_to_string(save_directory.path().join(AUTH_DIAGNOSTICS_FILE))
+            .expect("saved diagnostic");
+        let saved: serde_json::Value = serde_json::from_str(saved.trim()).expect("saved line");
+        assert_eq!(saved["provider"], "github");
+        assert_eq!(saved["stage"], "save");
+        assert_eq!(saved["refused_field"], "refresh_token");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                std::fs::metadata(path)
+                    .expect("diagnostic metadata")
+                    .permissions()
+                    .mode()
+                    & 0o777,
+                0o600
+            );
+        }
     }
 
     #[tokio::test]
@@ -2089,6 +2479,52 @@ mod tests {
     }
 
     #[test]
+    fn a_supabase_v1_refresh_token_saves_and_loads() {
+        let store = InMemorySecrets::new();
+        let account_id = "00000000-0000-4000-8000-000000000001";
+        let claims = URL_SAFE_NO_PAD.encode(format!("{{\"sub\":\"{account_id}\"}}"));
+        let access_token = format!("header.{claims}.signature");
+        let refresh_token = "A1b2C3d4E5f6";
+        let saved = save_session(
+            &store,
+            AuthResponse {
+                access_token: Some(access_token.clone()),
+                refresh_token: Some(refresh_token.to_string()),
+                expires_in: Some(3_600),
+                user: Some(AuthUser {
+                    id: Some(account_id.to_string()),
+                    email: Some("person@example.com".to_string()),
+                }),
+            },
+            None,
+        )
+        .expect("Supabase session");
+        assert_eq!(saved.access_token, access_token);
+        assert_eq!(saved.refresh_token, refresh_token);
+        assert_eq!(stored_session(&store).expect("stored session").refresh_token, refresh_token);
+    }
+
+    #[test]
+    fn stored_refresh_tokens_shorter_than_supabase_v1_are_refused() {
+        let store = InMemorySecrets::new();
+        let session = StoredSession {
+            version: 2,
+            account_id: "00000000-0000-4000-8000-000000000001".to_string(),
+            email: "person@example.com".to_string(),
+            access_token: "an-access-token-at-least-twenty".to_string(),
+            refresh_token: "A1b2C3d4E5f".to_string(),
+            expires_at: now_seconds() + 3_600,
+        };
+        store
+            .store_secret(
+                ACCOUNT_CREDENTIAL_ID,
+                &serde_json::to_string(&session).expect("session"),
+            )
+            .expect("stored record");
+        assert!(matches!(stored_session(&store), Err(AccountFailure::Storage)));
+    }
+
+    #[test]
     fn a_renewal_keeps_the_refresh_token_the_service_did_not_reissue() {
         /* Supabase rotates a refresh token on some renewals and not others.
         Dropping the previous one when none came back would end the session at
@@ -2137,7 +2573,13 @@ mod tests {
             },
             None,
         );
-        assert!(matches!(outcome, Err(AccountFailure::Authentication)));
+        assert!(matches!(
+            outcome,
+            Err(SaveSessionFailure {
+                failure: AccountFailure::Authentication { .. },
+                refused_field: Some("token_length"),
+            })
+        ));
         assert_eq!(store.stored_count(), 0);
     }
 

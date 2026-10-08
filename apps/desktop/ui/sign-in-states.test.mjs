@@ -63,6 +63,9 @@ test("every failure kind a sign in can produce has its own sentence", () => {
     "oauth_timeout",
     "oauth_busy",
     "oauth_rejected",
+    "oauth_flow_expired",
+    "user_banned",
+    "signup_disabled",
     "authentication",
     "invalid_input",
     "email_confirmation_required",
@@ -82,6 +85,64 @@ test("every failure kind a sign in can produce has its own sentence", () => {
     "That email and password were not accepted.",
   );
   assert.match(signInFailureSentence({ ok: false, kind: "authentication" }, "github"), /GitHub/u);
+});
+
+test("actionable authentication refusals use their promised sentences", () => {
+  assert.equal(
+    signInFailureSentence({ ok: false, kind: "oauth_flow_expired" }, "google"),
+    "The sign in took too long or was already used. Try again.",
+  );
+  assert.equal(
+    signInFailureSentence({ ok: false, kind: "oauth_rejected" }, "google"),
+    "The sign in answer could not be verified. Try again.",
+  );
+  assert.equal(
+    signInFailureSentence({ ok: false, kind: "email_confirmation_required" }, "google"),
+    "Check your email to confirm the account, then sign in.",
+  );
+  assert.equal(
+    signInFailureSentence({ ok: false, kind: "user_banned" }, "google"),
+    "This account cannot sign in. Contact support.",
+  );
+  assert.equal(
+    signInFailureSentence({ ok: false, kind: "signup_disabled" }, "google"),
+    "New sign ups are closed right now.",
+  );
+  assert.equal(
+    signInFailureSentence(
+      { ok: false, kind: "authentication", errorCode: "unexpected_failure" },
+      "google",
+    ),
+    "That Google sign in was not accepted. Try again. (code: unexpected_failure)",
+  );
+});
+
+test("the account broker keeps a bounded Supabase error code for the sign in table", async () => {
+  const previous = globalThis.window;
+  globalThis.window = {
+    localStorage: { getItem: () => null, setItem() {} },
+    dispatchEvent() {},
+    __TAURI__: {
+      core: {
+        async invoke() {
+          throw { kind: "authentication", error_code: "unexpected_failure" };
+        },
+      },
+    },
+  };
+  try {
+    const backend = await import("./backend.js?auth-failure-contract");
+    assert.deepEqual(await backend.accountOauth("google"), {
+      ok: false,
+      reason: "command_failed",
+      command: "account_oauth",
+      kind: "authentication",
+      message: "The account details were not accepted. (authentication)",
+      errorCode: "unexpected_failure",
+    });
+  } finally {
+    globalThis.window = previous;
+  }
 });
 
 test("an unknown kind falls back to the broker's words, then to one plain sentence", () => {

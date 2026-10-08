@@ -112,10 +112,21 @@ export function signInFailureSentence(result, provider) {
       return "Another sign in is already open. Finish that one first.";
     case "oauth_rejected":
       return "The sign in answer could not be verified. Try again.";
-    case "authentication":
-      return provider === undefined || provider === null
+    case "oauth_flow_expired":
+      return "The sign in took too long or was already used. Try again.";
+    case "user_banned":
+      return "This account cannot sign in. Contact support.";
+    case "signup_disabled":
+      return "New sign ups are closed right now.";
+    case "authentication": {
+      const sentence = provider === undefined || provider === null
         ? "That email and password were not accepted."
         : "That " + providerName(provider) + " sign in was not accepted. Try again.";
+      const errorCode = result?.errorCode;
+      return typeof errorCode === "string" && errorCode !== ""
+        ? sentence + " (code: " + errorCode + ")"
+        : sentence;
+    }
     case "invalid_input":
       return "Enter a valid email address and a password of at least 8 characters.";
     case "email_confirmation_required":
