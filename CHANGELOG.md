@@ -2,6 +2,10 @@
 
 All notable project changes appear in this file.
 
+## [2.1.2]
+
+The desktop no longer repeats the "usage window reset" alert every second. Two sources of the same Claude session window could report its end a few seconds apart, and each difference counted as a new window; a reset now needs the window end to move forward by at least fifteen minutes.
+
 ## [2.1.1]
 
 Desktop sign in works again. The app no longer refuses the twelve character refresh tokens Supabase issues, so Google, GitHub and email sign in finish in the app, and a refused sign in now shows its error code.

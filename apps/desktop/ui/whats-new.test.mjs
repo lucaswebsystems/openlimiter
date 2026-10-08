@@ -10,6 +10,9 @@ const whatsNewForVersion = (version) => selectRelease(version, WHATS_NEW_EN);
 
 /* What each recent release says, word for word; the current version is one of them. */
 const NOTES = {
+  "2.1.2": [
+    { key: "alerts", text: "Reset alerts fire once per real reset again, instead of every second while Claude Code is open." },
+  ],
   "2.1.1": [
     { key: "signin", text: "Google, GitHub and email sign in finish in the app again, and a refused sign in names its error code." },
     { key: "weekly", text: "When an older terminal runtime is installed, the Usage tab shows the one command that updates it, so weekly limits stay visible." },
