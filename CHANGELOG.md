@@ -4,7 +4,7 @@ All notable project changes appear in this file.
 
 ## [2.1.2]
 
-The desktop no longer repeats the "usage window reset" alert every second. Two sources of the same Claude session window could report its end a few seconds apart, and each difference counted as a new window; a reset now needs the window end to move forward by at least fifteen minutes.
+The desktop no longer repeats the "usage window reset" alert every second. Two sources of the same Claude session window could report its end a few seconds apart, and each difference counted as a new window; a reset now needs the window end to move forward by at least a minute, and a source still reporting an earlier window end is ignored.
 
 ## [2.1.1]
 

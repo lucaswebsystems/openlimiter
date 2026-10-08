@@ -21,8 +21,10 @@ const MAX_SAMPLES: usize = 256;
 const LOW_RESET_PERCENT: f64 = 10.0;
 const RESET_DROP_PERCENT: f64 = 40.0;
 const RESET_HIGH_PERCENT: f64 = 60.0;
-/// The smallest forward move of a window end that counts as a new window.
-const MIN_WINDOW_ADVANCE_SECONDS: i64 = 15 * 60;
+/// The smallest forward move of a window end that counts as a new window:
+/// above the seconds two writers of one window disagree by, below the five
+/// minutes of the shortest real window (Kimi).
+const MIN_WINDOW_ADVANCE_SECONDS: i64 = 60;
 const RESET_CONFIRM_SECONDS: i64 = 5 * 60;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -686,7 +688,18 @@ fn evaluate_document(
             previous.peak_value = previous.peak_value.max(sample.value);
         }
         previous.window_name = sample.window_name;
-        previous.window_id = sample.window_id;
+        /* An authoritative window end only moves forward. A second writer
+        still reporting an earlier end (a stale source, the window before) is
+        ignored, so ends that alternate can never raise a reset each time. */
+        let moves_back = previous.window_is_authoritative
+            && sample.window_is_authoritative
+            && matches!(
+                (parse_observed_at(&previous.window_id), parse_observed_at(&sample.window_id)),
+                (Some(old), Some(new)) if new < old
+            );
+        if !moves_back {
+            previous.window_id = sample.window_id;
+        }
         previous.window_is_authoritative = sample.window_is_authoritative;
         previous.last_observed_at = observed_at;
         previous.last_value = sample.value;
@@ -895,6 +908,14 @@ mod tests {
         assert_eq!(created, 0, "seconds of drift are the same window");
         let next = evaluate_document(&mut document, vec![at(2.0, "2026-10-08T18:00:00Z", "2026-10-08T13:00:10Z")], "UTC", 1_791_471_610).unwrap();
         assert_eq!(next.created.iter().filter(|event| event.kind == "reset").count(), 1, "a five hour advance is one reset");
+        let mut flips = 0;
+        for (index, window) in ["2026-10-08T13:00:00Z", "2026-10-08T18:00:00Z", "2026-10-08T13:00:00Z", "2026-10-08T18:00:00Z"].iter().enumerate() {
+            let observed = format!("2026-10-08T13:01:{:02}Z", index);
+            flips += evaluate_document(&mut document, vec![at(2.0, window, &observed)], "UTC", 1_791_471_670 + index as i64).unwrap().created.len();
+        }
+        assert_eq!(flips, 0, "a writer reporting the earlier window never raises another reset");
+        let kimi = evaluate_document(&mut document, vec![at(1.0, "2026-10-08T18:05:00Z", "2026-10-08T18:00:30Z")], "UTC", 1_791_489_630).unwrap();
+        assert_eq!(kimi.created.iter().filter(|event| event.kind == "reset").count(), 1, "a five minute window advance still counts");
     }
 
     #[test]
