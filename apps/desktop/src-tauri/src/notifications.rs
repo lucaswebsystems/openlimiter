@@ -697,10 +697,15 @@ fn evaluate_document(
                 (parse_observed_at(&previous.window_id), parse_observed_at(&sample.window_id)),
                 (Some(old), Some(new)) if new < old
             );
-        if !moves_back {
+        /* A reading without an end (Codex may omit `resetsAt`) never erases
+        the last authoritative end, or ends alternating around it would raise
+        resets again. */
+        let drops_end = previous.window_is_authoritative && !sample.window_is_authoritative;
+        if !moves_back && !drops_end {
             previous.window_id = sample.window_id;
         }
-        previous.window_is_authoritative = sample.window_is_authoritative;
+        let sample_is_authoritative = sample.window_is_authoritative;
+        previous.window_is_authoritative = sample_is_authoritative || previous.window_is_authoritative;
         previous.last_observed_at = observed_at;
         previous.last_value = sample.value;
         document.meters.insert(key, previous);
@@ -916,6 +921,23 @@ mod tests {
         assert_eq!(flips, 0, "a writer reporting the earlier window never raises another reset");
         let kimi = evaluate_document(&mut document, vec![at(1.0, "2026-10-08T18:05:00Z", "2026-10-08T18:00:30Z")], "UTC", 1_791_489_630).unwrap();
         assert_eq!(kimi.created.iter().filter(|event| event.kind == "reset").count(), 1, "a five minute window advance still counts");
+    }
+
+    #[test]
+    fn a_reading_without_an_end_never_reopens_an_older_window() {
+        let mut document = NotificationDocument::default();
+        let at = |window: Option<&str>, observed: &str| NotificationSample {
+            window_id: window.unwrap_or("meter:WEEKLY").to_string(),
+            window_is_authoritative: window.is_some(),
+            ..sample(5.0, observed)
+        };
+        let mut resets = 0;
+        let sequence = [Some("2026-10-08T13:00:00Z"), Some("2026-10-08T18:00:00Z"), None, Some("2026-10-08T13:00:00Z"), Some("2026-10-08T18:00:00Z"), None, Some("2026-10-08T13:00:00Z")];
+        for (index, window) in sequence.iter().enumerate() {
+            let observed = format!("2026-10-08T12:{:02}:00Z", index);
+            resets += evaluate_document(&mut document, vec![at(*window, &observed)], "UTC", 1_791_460_800 + index as i64 * 60).unwrap().created.iter().filter(|event| event.kind == "reset").count();
+        }
+        assert_eq!(resets, 1, "only the one real advance from 13:00 to 18:00");
     }
 
     #[test]
