@@ -1,8 +1,11 @@
+import { execFile, type ExecFileOptionsWithBufferEncoding } from "node:child_process";
 import { lstat, readFile, mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
+import { promisify } from "node:util";
 import { connectors } from "@openlimiter/connectors";
 import {
   type CredentialCommandRunner,
+  trustedHelperWorkingDirectory,
   windowsPathTool,
   windowsSystemTool,
   writeFileAtomically
@@ -66,6 +69,8 @@ export interface TerminalHostContext {
   shellRunner?: CredentialCommandRunner;
   /** Keep the saved command alongside OpenLimiter only when explicitly chosen. */
   wrap?: boolean;
+  /** The 8.3 short form of a Windows path, injectable so tests never run cmd. */
+  windowsShortPath?: (longPath: string) => Promise<string | null>;
 }
 
 export interface TerminalOperationResult {
@@ -240,6 +245,53 @@ async function durableCommand(context: TerminalHostContext, shell: "posix" | "cm
   return await fallbackLauncherCommand(runtime, shell, original, fallbackLauncherOptions(context));
 }
 
+/** From the start of a path through its last part holding a character cmd splits on or interprets. */
+const CMD_UNSAFE_PREFIX = /^.*[\s&|<>^()%!"][^\\/]*/;
+
+/** cmd's own 8.3 name for a path. Verbatim arguments, because Node's default
+ * quoting turns the quotes into \" and cmd cannot read that; delayed expansion
+ * off, so a ! in the path stays a ! whatever the registry says; /u, so the
+ * answer comes back as utf16le instead of the console code page, which would
+ * turn an accented folder cmd leaves long into a replacement character. */
+export async function windowsShortPath(
+  longPath: string,
+  run: (file: string, args: string[], options: ExecFileOptionsWithBufferEncoding) => Promise<{ stdout: Buffer }> = promisify(execFile)
+): Promise<string | null> {
+  try {
+    const { stdout } = await run(
+      windowsSystemTool("cmd.exe"),
+      ["/u", "/d", "/v:off", "/s", "/c", `"for %I in ("${longPath}") do @echo %~sI"`],
+      { cwd: trustedHelperWorkingDirectory(), encoding: "buffer", timeout: 5_000, windowsHide: true, windowsVerbatimArguments: true }
+    );
+    return stdout.toString("utf16le").trim() || null;
+  } catch { return null; }
+}
+
+/**
+ * Antigravity runs its status line through cmd /c with Go's argument
+ * escaping, which turns every quote into \" so cmd cannot find the program.
+ * Its Windows command therefore carries no quotes. The launcher command quotes
+ * exactly its two paths, which never hold a quote; each is written bare, the
+ * part cmd would misread replaced by its 8.3 short name and the rest, ending
+ * in openlimiter.ps1, kept so every reader still knows the line as ours.
+ * `null` when no short name makes a path safe.
+ */
+async function quoteFreeCommand(
+  command: string,
+  shortPath: (longPath: string) => Promise<string | null>
+): Promise<string | null> {
+  const parts = command.split('"');
+  for (let index = 1; index < parts.length; index += 2) {
+    const part = parts[index]!;
+    const unsafe = CMD_UNSAFE_PREFIX.exec(part)?.[0];
+    if (unsafe === undefined) continue;
+    const short = (await shortPath(unsafe)) || unsafe;
+    if (CMD_UNSAFE_PREFIX.test(short)) return null;
+    parts[index] = short + part.slice(unsafe.length);
+  }
+  return parts.join("");
+}
+
 function ownedMarker(text: string, json: boolean): boolean {
   return json ? JSON.parse(text)["openlimiter managed"] === true
     : text.split(/\r?\n/).some(line => line.trim() === "# openlimiter managed");
@@ -378,9 +430,15 @@ async function changeConfigHost(host: ConfigHost, context: TerminalHostContext, 
 
     // Build updated content from current text so the host's edits are preserved.
     let updated: string;
+    let warning = "";
     if (spec.json) {
       const data = JSON.parse(text) as Record<string, unknown>;
-      const base = await durableCommand(context, context.platform === "win32" ? "cmd" : "posix", userCommand);
+      let base = await durableCommand(context, context.platform === "win32" ? "cmd" : "posix", userCommand);
+      if (host === "antigravity" && context.platform === "win32") {
+        const bare = await quoteFreeCommand(base, context.windowsShortPath ?? windowsShortPath);
+        if (bare === null) warning = "\nAntigravity cannot run a status line from a path with spaces on this volume.";
+        else base = bare;
+      }
       const command = `${base} statusline --host ${host}` +
         (!context.wrap || userCommand === null ? "" : ` --wrap ${encodeWrappedStatuslineCommand(userCommand)}`);
       data["openlimiter managed"] = true;
@@ -412,7 +470,7 @@ async function changeConfigHost(host: ConfigHost, context: TerminalHostContext, 
       // guard so a concurrent change is detected and refused.
       await writeOwned(file, original, updated);
     }
-    return { ok: true, message };
+    return { ok: true, message: message + warning };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     return { ok: false, message: `Could not ${install ? "write" : "update"} ${file}: ${msg}` };
@@ -427,6 +485,19 @@ export const installGrok = (context: TerminalHostContext): Promise<TerminalOpera
 export const uninstallGrok = (context: TerminalHostContext): Promise<TerminalOperationResult> => changeConfigHost("grok", context, false);
 export const installCodex = (context: TerminalHostContext): Promise<TerminalOperationResult> => changeConfigHost("codex", context, true);
 export const uninstallCodex = (context: TerminalHostContext): Promise<TerminalOperationResult> => changeConfigHost("codex", context, false);
+
+/**
+ * Setup's repair for the quoted command 2.1.2 wrote for Antigravity on
+ * Windows, which Antigravity never could run: installed again with the same
+ * wrap state, which writes it quote free wherever a short name allows.
+ * `null` when there is nothing to repair.
+ */
+export async function repairAntigravityCommand(context: TerminalHostContext): Promise<TerminalOperationResult | null> {
+  const settings = context.platform === "win32" ? await readJsonFile(antigravitySettingsPath(context)) : null;
+  const command = settings === null ? null : claudeLikeStatusLineCommand(settings["statusLine"]);
+  if (command === null || !command.includes('"') || !isOpenLimiterStatuslineCommand(command)) return null;
+  return await installAntigravity({ ...context, wrap: TRAILING_WRAP.test(command) });
+}
 
 function shellSnippets(posixCommand: string, powerShellCommand: string): { starship: string; tmux: string; ohMyPosh: string } {
   const command = posixCommand + " statusline --host shell";
@@ -658,9 +729,13 @@ function isOpenLimiterStatuslineCommand(command: string): boolean {
     /\bstatusline\s+--host\s+[A-Za-z0-9_-]+\b/i.test(command);
 }
 
+/** Our `--wrap <encoded>`, which install always appends last, after
+ * `statusline --host <host>`; a folder in the launcher path can hold the same words. */
+const TRAILING_WRAP = /\sstatusline\s+--host\s+[A-Za-z0-9_-]+\s+--wrap\s+([A-Za-z0-9_-]+)\s*$/i;
+
 function unwrapOpenLimiterStatuslineCommand(command: string): string | null {
   if (!isOpenLimiterStatuslineCommand(command)) return command;
-  const encoded = /\s--wrap\s+([A-Za-z0-9_-]+)/i.exec(command)?.[1];
+  const encoded = TRAILING_WRAP.exec(command)?.[1];
   return encoded === undefined ? null : decodeWrappedStatuslineCommand(encoded);
 }
 

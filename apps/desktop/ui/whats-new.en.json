@@ -3,6 +3,10 @@
   "versionLabel": "Version {version}",
   "dismiss": "Got it",
   "releases": {
+    "2.1.3": {
+      "heading": "Antigravity on Windows",
+      "antigravity": "Antigravity shows its bars on Windows. Run the status line setup once more from Connect Tools."
+    },
     "2.1.2": {
       "heading": "Quiet reset alerts",
       "alerts": "Reset alerts fire once per real reset again, instead of every second while Claude Code is open."

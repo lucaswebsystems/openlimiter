@@ -166,6 +166,7 @@ import { readApiSpend } from "./api-spend.js";
 import {
   TERMINAL_HOST_NAMES,
   installHost,
+  repairAntigravityCommand,
   terminalHide,
   terminalShow,
   terminalStatusTable,
@@ -2081,7 +2082,7 @@ async function terminalCommand(
       for (const host of TERMINAL_HOST_NAMES) {
         const result = await installHost(host, context);
         if (!result.ok) allOk = false;
-        lines.push(host + ": " + (result.message.split("\n")[0] ?? result.message));
+        lines.push(host + ": " + result.message);
       }
       return allOk ? succeed(lines.join("\n")) : fail(EXIT_FAILURE, lines.join("\n"));
     }
@@ -2513,7 +2514,8 @@ async function setupShowBarsStep(dependencies: CliDependencies): Promise<string[
   for (const host of TERMINAL_HOST_NAMES) {
     if (host !== "codex" && await hostStatus(host, context) === "Wired") {
       await installLauncher(context.stateDirectory ?? path.join(context.homeDirectory, ".openlimiter"));
-      const line = host + ": already wired, status line runtime updated.";
+      const repaired = host === "antigravity" ? await repairAntigravityCommand(context) : null;
+      const line = host + ": " + (repaired?.message ?? "already wired, status line runtime updated.");
       lines.push(line);
       dependencies.emit(line);
       continue;
