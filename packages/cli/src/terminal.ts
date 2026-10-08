@@ -496,7 +496,7 @@ export async function repairAntigravityCommand(context: TerminalHostContext): Pr
   const settings = context.platform === "win32" ? await readJsonFile(antigravitySettingsPath(context)) : null;
   const command = settings === null ? null : claudeLikeStatusLineCommand(settings["statusLine"]);
   if (command === null || !command.includes('"') || !isOpenLimiterStatuslineCommand(command)) return null;
-  return await installAntigravity({ ...context, wrap: /\s--wrap\s/i.test(command) });
+  return await installAntigravity({ ...context, wrap: TRAILING_WRAP.test(command) });
 }
 
 function shellSnippets(posixCommand: string, powerShellCommand: string): { starship: string; tmux: string; ohMyPosh: string } {
@@ -729,9 +729,13 @@ function isOpenLimiterStatuslineCommand(command: string): boolean {
     /\bstatusline\s+--host\s+[A-Za-z0-9_-]+\b/i.test(command);
 }
 
+/** Our `--wrap <encoded>`, which install always appends last, after
+ * `statusline --host <host>`; a folder in the launcher path can hold the same words. */
+const TRAILING_WRAP = /\sstatusline\s+--host\s+[A-Za-z0-9_-]+\s+--wrap\s+([A-Za-z0-9_-]+)\s*$/i;
+
 function unwrapOpenLimiterStatuslineCommand(command: string): string | null {
   if (!isOpenLimiterStatuslineCommand(command)) return command;
-  const encoded = /\s--wrap\s+([A-Za-z0-9_-]+)/i.exec(command)?.[1];
+  const encoded = TRAILING_WRAP.exec(command)?.[1];
   return encoded === undefined ? null : decodeWrappedStatuslineCommand(encoded);
 }
 

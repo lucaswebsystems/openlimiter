@@ -40,6 +40,7 @@ import {
   UNSUPPORTED_HOST_ALTERNATIVE,
   hostStatus,
   installHost,
+  repairAntigravityCommand,
   terminalHide,
   terminalShow,
   terminalStatusTable,
@@ -446,6 +447,33 @@ describe("terminal host installers", () => {
     expect(await antigravityCommand(home)).toBe(quoted.replaceAll('"', ""));
     expect((await runCli(["terminal", "uninstall", "antigravity"], dependencies)).exitCode).toBe(0);
     expect(await readFile(settingsFile, "utf8")).toBe(original);
+  });
+
+  it.each([
+    { folder: "Alice --wrap Bob", wrap: false, saved: true },
+    { folder: "Alice --wrap Bob", wrap: true, saved: true },
+    // Without a backup install reads our own command, where this decodable value once passed for a saved original.
+    { folder: `Alice --wrap ${encodeWrappedStatuslineCommand("echo pwned")}`, wrap: false, saved: false }
+  ])("repair reads only the trailing --wrap of a 2.1.2 command whose path holds $folder, wrap $wrap", async ({ folder, wrap, saved }) => {
+    const home = path.join(await temporaryDirectory("openlimiter-terminal-"), folder);
+    const stateDirectory = path.join(home, "state");
+    const settingsFile = path.join(home, ".gemini", "antigravity-cli", "settings.json");
+    const own = saved ? "their-own-line" : null;
+    const encoded = encodeWrappedStatuslineCommand("their-own-line");
+    const base = await fallbackLauncherCommand(await installLauncher(stateDirectory), "cmd", own);
+    const quoted = `${base} statusline --host antigravity` + (wrap ? ` --wrap ${encoded}` : "");
+    const installed = JSON.stringify({ statusLine: { type: "command", command: quoted }, "openlimiter managed": true }, null, 2) + "\n";
+    await mkdir(path.dirname(settingsFile), { recursive: true });
+    await writeFile(settingsFile, installed);
+    const original = JSON.stringify({ statusLine: { type: "command", command: "their-own-line" } });
+    if (saved) await writeFile(`${settingsFile}.openlimiter-backup.json`, JSON.stringify({ version: 1, original, installed }));
+    const ctx = { ...await context(home), stateDirectory, windowsShortPath: async (longPath: string) => longPath.replace(folder, "ALICEW~1") };
+
+    expect(await repairAntigravityCommand(ctx)).toEqual({ ok: true, message: "Wired Antigravity CLI status line." });
+    const command = await antigravityCommand(home);
+    expect(command).not.toContain('"');
+    expect(command.endsWith(wrap ? ` statusline --host antigravity --wrap ${encoded}` : " statusline --host antigravity"), command).toBe(true);
+    expect(command.split("--wrap")).toHaveLength(wrap ? 2 : 1);
   });
 
   it("round trips Grok's [ui.status_line] table, including wrap and restore", async () => {
