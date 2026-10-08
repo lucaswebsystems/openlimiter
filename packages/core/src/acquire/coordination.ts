@@ -13,7 +13,7 @@
  * never waits for the network; the next render shows what the refresh found.
  */
 import { randomUUID } from "node:crypto";
-import { lstat, open, readFile, unlink, utimes } from "node:fs/promises";
+import { lstat, open, readdir, readFile, unlink, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   prepareStateDirectory,
@@ -340,18 +340,32 @@ export async function readRefreshSpawnFailure(
   return readRecordedAt(directory, REFRESH_SPAWN_FAILURE_NAME);
 }
 
-/** The file that remembers when a render last started a refresh. */
-export const REFRESH_STARTED_NAME = "openlimiter-refresh-started.json";
-
 /**
  * How long one start holds off the next.
  *
  * A child left suspended (its parent killed mid spawn on Windows) never runs,
  * so it never takes the refresh lock, and the lock alone would let every
- * render start one more. This bound makes it one start per interval at most,
+ * render start one more. This bound makes it one start per window at most,
  * whatever became of the child.
  */
 export const REFRESH_START_INTERVAL_MILLISECONDS = 120_000;
+
+/** The empty file whose exclusive creation reserves one start window. */
+function startTokenName(window: number): string {
+  return `openlimiter-refresh-start-${window}.token`;
+}
+
+/* Tokens of windows more than two behind hold nothing back. A token only two
+   behind stays, so a render whose clock runs slightly late cannot create it
+   again after a faster clock has moved on. */
+async function removeOldStartTokens(directory: string, window: number): Promise<void> {
+  for (const name of await readdir(directory).catch(() => [] as string[])) {
+    const match = /^openlimiter-refresh-start-(\d+)\.token$/u.exec(name);
+    if (match !== null && window - Number(match[1]) > 2) {
+      await unlink(path.join(directory, name)).catch(() => undefined);
+    }
+  }
+}
 
 /** Forget it, which a refresh that actually ran is the proof of. */
 export async function clearRefreshSpawnFailure(
@@ -398,8 +412,8 @@ export type SpawnRefreshResult =
 /**
  * Start a refresh behind the caller, and never wait for it.
  *
- * Everything expensive happens in the child. This function creates one lock
- * file and hands the operating system a detached process, so the render that
+ * Everything expensive happens in the child. This function creates one start
+ * token and hands the operating system a detached process, so the render that
  * called it returns in the time a file create takes. A failure to spawn is
  * reported and never thrown: a status line that cannot start a refresh still
  * has to draw the bars it already has.
@@ -423,22 +437,20 @@ export async function spawnDetachedRefresh(
   if (await refreshLockHeld(directory)) {
     return { spawned: false, reason: "already_running" };
   }
-  /* A start stamped ahead of this clock is a clock disagreement and holds
-     nothing back, the same reading writerHoldsCache gives a future row. */
-  const sinceStart =
-    Date.parse(options.now) -
-    Date.parse((await readRecordedAt(directory, REFRESH_STARTED_NAME)) ?? "");
-  if (sinceStart >= 0 && sinceStart < REFRESH_START_INTERVAL_MILLISECONDS) {
-    return { spawned: false, reason: "already_running" };
-  }
+  const window = Math.floor(Date.parse(options.now) / REFRESH_START_INTERVAL_MILLISECONDS);
   try {
     await prepareStateDirectory(directory);
-    /* Written before the spawn and never best effort: a start that could
-       not be recorded is not made, so no child escapes the bound. */
-    await writeFileAtomically(
-      path.join(directory, REFRESH_STARTED_NAME),
-      canonicalJson({ at: options.now, version: 1 })
-    );
+    /* Exclusive creation is the decision: the operating system lets exactly
+       one render, across every process, create this window's token, and only
+       that render spawns. Never best effort, so a start that could not be
+       reserved is not made and no child escapes the bound. */
+    try {
+      await writeFile(path.join(directory, startTokenName(window)), "", { flag: "wx", mode: 0o600 });
+    } catch (error) {
+      if (errorCode(error) === "EEXIST") return { spawned: false, reason: "already_running" };
+      throw error;
+    }
+    await removeOldStartTokens(directory, window);
     options.spawn(
       options.nodeExecutable,
       [options.openLimiterScript, "refresh", "--detached"],

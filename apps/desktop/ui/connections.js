@@ -11,7 +11,7 @@
  * Two kinds of step, the two a row's button can carry:
  *
  *   connect, for a tool this window can set up itself: Claude Code's install
- *   command, Codex's login import, a session token for Antigravity or OpenCode,
+ *   commands, Codex's login import, a session token for Antigravity or OpenCode,
  *   and OpenRouter's key (whose field is in the key rows, owned by app.js);
  *
  *   check, for a sign in that lives in the tool itself: the person signs in
@@ -27,6 +27,10 @@ import { PROVIDER_SPECS } from "./provider-specs.generated.js";
 import { configureProvider, readRemovedProviders } from "./configured-providers.js";
 import * as backend from "./backend.js";
 import { providerCode, providerName, say } from "./names.js";
+/* This build's own version, written by build-ui.mjs from the same source as
+   the Settings version line. Every pinned command names it, never the
+   runtime stamp, so a stamp that cannot be read never takes a command away. */
+import { version as APP_VERSION } from "./whats-new-data.js";
 
 /** The event Rust emits after a native collection pass changes observable state. */
 const COLLECTOR_UPDATED_EVENT = "collector-updated";
@@ -35,7 +39,8 @@ const KNOWN_STATES = new Set(CONNECTION_STATES);
 
 // English catalog for the setup panels. L7 owns translations.
 export const SETUP_EN = Object.freeze({
-  ready: "Run this command, then Verify.",
+  ready: "Run these two commands in order, then Verify.",
+  replacesStatusLine: "Your own status line will be replaced. The installer keeps a backup of it.",
   cliMissing: "Install the OpenLimiter command first.",
   cliNotWorking: "The OpenLimiter command did not answer.",
   runtimeMissing: say("runtimeMissing"),
@@ -160,11 +165,10 @@ function normalizePreflight(value) {
   const kind = pick(value, ["kind"]);
   if (typeof kind !== "string" || !VERDICTS.has(kind)) return null;
   const cliPath = pick(value, ["cli_path", "cliPath"]);
-  const installCommand = pick(value, ["install_command", "installCommand"]);
   return {
     kind,
     cliPath: typeof cliPath === "string" ? cliPath : null,
-    installCommand: typeof installCommand === "string" ? installCommand : null,
+    foreignStatusLine: pick(value, ["foreign_status_line", "foreignStatusLine"]) === true,
   };
 }
 
@@ -252,14 +256,17 @@ function compareRuntimeVersions(left, right) {
 function runtimeState(runtime) {
   if (runtime === null) return null;
   if (!runtime.version) return "missing";
-  const comparison = compareRuntimeVersions(runtime.version, runtime.appVersion);
+  const comparison = compareRuntimeVersions(runtime.version, APP_VERSION);
   return comparison === null || comparison === 0 ? "current" : comparison < 0 ? "older" : "newer";
 }
 
 function runtimeInstallCommand(host) {
-  const version = session.runtime?.appVersion;
-  return version ? say("runtimeInstall", { host, version }) : null;
+  return say("runtimeInstall", { host, version: APP_VERSION });
 }
+
+/* The terminal installer wires Claude Code's status line only. The prompt hook
+   has its own installer, so the setup shows both commands, in this order. */
+const CLAUDE_HOOK_INSTALL_COMMAND = `npx -y openlimiter@${APP_VERSION} hooks install claude`;
 
 async function copyCommand(command, note, block) {
   try {
@@ -284,43 +291,47 @@ function commandBox(command, note) {
   return box;
 }
 
-function appendRuntimeGuidance(body, host, note) {
+/* The runtime's version and state. Each panel draws the install command
+   itself, once, right after this. */
+function appendRuntimeGuidance(body) {
   const runtime = session.runtime;
   if (runtime?.version) body.append(element("p", "q-setup-line", say("runtimeInstalled", { version: runtime.version })));
   const state = runtimeState(runtime);
   if (state === "older" || state === "missing") {
-    const command = runtimeInstallCommand(host);
     body.append(element("p", "q-setup-line", state === "older" ? SETUP_EN.runtimeOutdated : SETUP_EN.runtimeMissing));
-    if (command) body.append(commandBox(command, note));
   } else if (state === "newer") {
     body.append(element("p", "q-setup-line", say("runtimeNewer")));
   }
 }
 
-/* The Claude setup panel: one short line, the installer command, which writes
-   the settings with the runtime launcher itself, and its controls. */
+/* The Claude setup panel: one short line, the warning when the preflight found
+   a status line of the person's own, the two installer commands, which write
+   the settings with the runtime launcher themselves, and its controls. */
 function renderClaude() {
   const body = document.getElementById("claude-body");
   const note = document.getElementById("claude-note");
   if (!body) return;
   body.textContent = "";
   const verdict = session.claudeVerdict;
-  const command = runtimeInstallCommand("claude") ?? verdict?.installCommand ?? null;
+  const commands = () => [
+    ...(verdict?.foreignStatusLine ? [element("p", "q-setup-line", SETUP_EN.replacesStatusLine)] : []),
+    commandBox(runtimeInstallCommand("claude"), note),
+    commandBox(CLAUDE_HOOK_INSTALL_COMMAND, note),
+  ];
   const recheck = button(SETUP_EN.checkAgain, () => void verifyClaude());
   const verify = button(SETUP_EN.verify, () => void verifyClaude(), "q-btn q-btn-primary");
   const actions = element("div", "q-setup-actions");
-  appendRuntimeGuidance(body, "claude", note);
+  appendRuntimeGuidance(body);
   if (verdict?.kind === "cli_missing" || verdict?.kind === "cli_not_working") {
     const missing = verdict.kind === "cli_missing";
     body.append(element("p", "q-setup-line", missing ? SETUP_EN.cliMissing : SETUP_EN.cliNotWorking));
     if (!missing) body.append(element("pre", "q-snippet mono", verdict.cliPath ?? ""));
-    else if (command) body.append(commandBox(command, note));
+    else body.append(...commands());
     actions.append(recheck);
     body.append(actions);
     return;
   }
-  body.append(element("p", "q-setup-line", SETUP_EN.ready));
-  if (command) body.append(commandBox(command, note));
+  body.append(element("p", "q-setup-line", SETUP_EN.ready), ...commands());
   actions.append(verify);
   body.append(actions);
 }
@@ -346,10 +357,8 @@ function renderAntigravity() {
   const note = document.getElementById("antigravity-note");
   if (!body) return;
   body.textContent = "";
-  appendRuntimeGuidance(body, "antigravity", note);
-  const command = runtimeInstallCommand("antigravity");
-  body.append(element("p", "q-setup-line", say("antigravitySetupNote")));
-  if (command) body.append(commandBox(command, note));
+  appendRuntimeGuidance(body);
+  body.append(element("p", "q-setup-line", say("antigravitySetupNote")), commandBox(runtimeInstallCommand("antigravity"), note));
 }
 
 /* ------------------------------------------------------------------ render */
@@ -586,7 +595,7 @@ async function bootstrap() {
 async function refreshRuntime() {
   const runtime = await backend.terminalRuntimeStatus();
   session.runtime = runtime.ok && runtime.value && typeof runtime.value === "object"
-    ? { version: typeof runtime.value.version === "string" ? runtime.value.version : null, appVersion: typeof runtime.value.app_version === "string" ? runtime.value.app_version : null }
+    ? { version: typeof runtime.value.version === "string" ? runtime.value.version : null }
     : null;
 }
 

@@ -12,7 +12,12 @@ const calls = [];
 const opened = [];
 const copied = [];
 let records = [];
-let runtimeVersion = "2.1.4";
+// This build's version, the one Settings shows and every pinned command names.
+const { version: BUILD } = await import("./dist/whats-new-data.js");
+const OLDER = "1.0.0";
+const NEWER = "99.0.0";
+const CLAUDE_COMMANDS = [`npx -y openlimiter@${BUILD} terminal install claude`, `npx -y openlimiter@${BUILD} hooks install claude`];
+let runtimeVersion = OLDER;
 let preflight = { kind: "ready", cli_path: "openlimiter" };
 // Commands the next calls reject, with the failure kind native code sends.
 const refusing = new Map();
@@ -25,7 +30,8 @@ globalThis.window = {
     if (command === "list_detected_providers") return { providers: [] };
     if (command === "repair_codex_connection") return { kind: "cache_committed", connection_id: args.input.connection_id };
     if (command === "list_connections") return records;
-    if (command === "terminal_runtime_status") return { version: runtimeVersion, app_version: "2.1.5" };
+    // The stamp read's own app version, which no command may name.
+    if (command === "terminal_runtime_status") return { version: runtimeVersion, app_version: "9.9.9" };
     if (command === "disabled_providers") return [];
     if (command === "connect_provider") {
       records = [...records, { id: "c-" + String(records.length + 1), provider_id: args.input.provider_id, status: "READY_TO_ENABLE" }];
@@ -55,6 +61,17 @@ initConnections({ onMetersChanged: () => { meters += 1; }, hasFreshLocalClaude: 
 await settle();
 
 const commands = () => calls.map(([command]) => command);
+const shownCommands = (node) => node.all((child) => child.classList?.contains("q-command-box"))
+  .map((box) => box.all((child) => child.localName === "pre")[0].textContent);
+// Press every Copy in a panel; each must copy exactly the command beside it.
+async function copiedCommands(node) {
+  copied.length = 0;
+  for (const box of node.all((child) => child.classList?.contains("q-command-box"))) {
+    await box.all((child) => child.localName === "button")[0].fire("click");
+    assert.equal(copied.at(-1), box.all((child) => child.localName === "pre")[0].textContent);
+  }
+  return [...copied];
+}
 
 test("Connect for Codex imports its own login in one press and proves it reads", async () => {
   calls.length = 0;
@@ -105,46 +122,69 @@ test("Connect for Claude Code, Antigravity and OpenCode opens that tool's setup 
   }
   await connectTool("ANTIGRAVITY");
   const antigravityBody = document.getElementById("antigravity-body");
-  assert.match(antigravityBody.textContent, /npx -y openlimiter@2\.1\.5 terminal install antigravity/u);
-  assert.match(antigravityBody.textContent, /Installed terminal runtime 2\.1\.4\./u);
-  const antigravityCommands = antigravityBody.all((node) => node.classList?.contains("q-command-box"));
-  assert.equal(antigravityCommands.length, 2);
-  copied.length = 0;
-  for (const command of antigravityCommands) {
-    const shown = command.all((node) => node.localName === "pre")[0].textContent;
-    await command.all((node) => node.localName === "button")[0].fire("click");
-    assert.equal(copied.at(-1), shown);
-  }
+  assert.ok(antigravityBody.textContent.includes(`Installed terminal runtime ${OLDER}.`));
+  assert.deepEqual(await copiedCommands(antigravityBody), [`npx -y openlimiter@${BUILD} terminal install antigravity`]);
   assert.equal(calls.some(([command, input]) => command === "connect_provider" && input?.input?.provider_id === "antigravity"), false);
-  // Claude Code's setup reads the preflight and shows the installer command with Copy and Verify.
+  // Claude Code's setup shows what wires both the status line and the prompt hook:
+  // the two pinned commands in order, each with its own Copy, then Verify.
   await connectTool("CLAUDE");
   const body = document.getElementById("claude-body");
-  assert.match(body.textContent, /Run this command, then Verify\./u);
-  assert.doesNotMatch(body.textContent, /openlimiter (?:statusline|hook)|npm install/u);
+  assert.match(body.textContent, /Run these two commands in order, then Verify\./u);
+  assert.doesNotMatch(body.textContent, /openlimiter (?:statusline|hook)|npm install|will be replaced/u);
   assert.deepEqual(body.all((node) => node.localName === "button").map((button) => button.textContent), ["Copy", "Copy", "Verify"]);
-  copied.length = 0;
-  for (const command of body.all((node) => node.classList?.contains("q-command-box"))) {
-    await command.all((node) => node.localName === "button")[0].fire("click");
-  }
-  assert.deepEqual(copied, ["npx -y openlimiter@2.1.5 terminal install claude", "npx -y openlimiter@2.1.5 terminal install claude"]);
-  // Without a global command the panel offers the same installer, never a bare one.
+  assert.deepEqual(await copiedCommands(body), CLAUDE_COMMANDS);
+  // Without a global command or a runtime the panel offers the same two, never a bare one.
   preflight = { kind: "cli_missing" };
   try {
     await connectTool("CLAUDE");
     assert.match(body.textContent, /Install the OpenLimiter command first\./u);
     assert.doesNotMatch(body.textContent, /npm install/u);
-    assert.equal(body.all((node) => node.localName === "pre").at(-1).textContent, "npx -y openlimiter@2.1.5 terminal install claude");
+    assert.deepEqual(shownCommands(body), CLAUDE_COMMANDS);
   } finally {
     preflight = { kind: "ready", cli_path: "openlimiter" };
     await connectTool("CLAUDE");
   }
   const runtimeReads = calls.filter(([command]) => command === "terminal_runtime_status").length;
-  runtimeVersion = "2.1.6";
+  runtimeVersion = NEWER;
   await body.all((node) => node.localName === "button" && node.textContent === "Verify")[0].fire("click");
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(calls.filter(([command]) => command === "terminal_runtime_status").length, runtimeReads + 1);
-  assert.match(document.getElementById("claude-body").textContent, /Installed terminal runtime 2\.1\.6\./u);
+  assert.ok(document.getElementById("claude-body").textContent.includes(`Installed terminal runtime ${NEWER}.`));
   assert.match(document.getElementById("claude-body").textContent, /newer than OpenLimiter/u);
+  runtimeVersion = OLDER;
+});
+
+test("a status line of the person's own is named as replaced, above the commands", async () => {
+  const warning = "Your own status line will be replaced. The installer keeps a backup of it.";
+  const body = document.getElementById("claude-body");
+  for (const kind of ["guided_manual", "cli_missing"]) {
+    preflight = { kind, foreign_status_line: true };
+    try {
+      await connectTool("CLAUDE");
+      const order = body.children.map((node) => node.className === "q-command-box" ? "command" : node.textContent);
+      assert.deepEqual(order.slice(order.indexOf(warning), order.indexOf(warning) + 3), [warning, "command", "command"], kind);
+    } finally {
+      preflight = { kind: "ready", cli_path: "openlimiter" };
+      await connectTool("CLAUDE");
+    }
+  }
+  assert.ok(!body.textContent.includes(warning), "no warning without a status line of the person's own");
+});
+
+test("every pinned command names this build even when the runtime stamp cannot be read", async () => {
+  refusing.set("terminal_runtime_status", "config_refused");
+  try {
+    await initConnections({ onMetersChanged: () => { meters += 1; }, hasFreshLocalClaude: () => false });
+    await settle();
+    await connectTool("ANTIGRAVITY");
+    assert.deepEqual(shownCommands(document.getElementById("antigravity-body")), [`npx -y openlimiter@${BUILD} terminal install antigravity`]);
+    await connectTool("CLAUDE");
+    assert.deepEqual(shownCommands(document.getElementById("claude-body")), CLAUDE_COMMANDS);
+  } finally {
+    refusing.clear();
+    await initConnections({ onMetersChanged: () => { meters += 1; }, hasFreshLocalClaude: () => false });
+    await settle();
+  }
 });
 
 test("the Usage tab's Claude card asks for the runtime update only while the runtime is older than the app", async () => {
@@ -155,18 +195,14 @@ test("the Usage tab's Claude card asks for the runtime update only while the run
     return claudeRuntimeNotice();
   };
   try {
-    const older = await noticeWith("2.1.4");
+    const older = await noticeWith(OLDER);
     assert.match(older.textContent, /^Weekly limits need your terminal status line updated\./u);
-    const box = older.all((node) => node.classList?.contains("q-command-box"))[0];
-    assert.equal(box.all((node) => node.localName === "pre")[0].textContent, "npx -y openlimiter@2.1.5 terminal install claude");
-    copied.length = 0;
-    await box.all((node) => node.localName === "button")[0].fire("click");
-    assert.deepEqual(copied, ["npx -y openlimiter@2.1.5 terminal install claude"]);
-    assert.equal(await noticeWith("2.1.5"), null, "the same version shows nothing");
+    assert.deepEqual(await copiedCommands(older), [`npx -y openlimiter@${BUILD} terminal install claude`]);
+    assert.equal(await noticeWith(BUILD), null, "the same version shows nothing");
     assert.equal(await noticeWith(null), null, "no runtime installed shows nothing");
-    assert.equal(await noticeWith("2.1.6"), null, "a newer runtime shows nothing");
+    assert.equal(await noticeWith(NEWER), null, "a newer runtime shows nothing");
   } finally {
-    runtimeVersion = "2.1.4";
+    runtimeVersion = OLDER;
   }
 });
 

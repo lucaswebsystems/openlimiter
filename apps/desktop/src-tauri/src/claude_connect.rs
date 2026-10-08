@@ -2,8 +2,10 @@ use std::collections::HashSet;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::LazyLock;
 use std::time::{Duration, Instant};
 
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 #[cfg(test)]
 use sha2::{Digest as _, Sha256};
@@ -114,6 +116,9 @@ impl fmt::Display for ClaudeConnectError {
 trait CliRuntime {
     fn resolve(&self, configured: Option<&str>) -> Option<PathBuf>;
     fn probe(&self, path: &Path) -> bool;
+    /// Whether the pinned installer's private terminal runtime is in place,
+    /// which is what its status line runs, with no global command at all.
+    fn terminal_runtime_installed(&self) -> bool;
 }
 
 struct SystemCliRuntime;
@@ -321,6 +326,11 @@ impl CliRuntime for SystemCliRuntime {
             }
         }
     }
+
+    fn terminal_runtime_installed(&self) -> bool {
+        crate::cli_config::runtime_home()
+            .is_some_and(|home| crate::cli_config::terminal_runtime_installed(&home))
+    }
 }
 
 struct SettingsRead {
@@ -445,6 +455,24 @@ fn exact_command_object(value: &serde_json::Value, verb: &str, cli_path: &Path) 
         .is_some_and(|command| owned_command(command, verb, cli_path))
 }
 
+/// The status line `openlimiter terminal install claude` writes: a launcher
+/// named openlimiter run with `statusline --host`. Read by the same two
+/// patterns the installer uses to tell its own line from one it replaces.
+static INSTALLER_STATUS_LINE: LazyLock<[Regex; 2]> = LazyLock::new(|| {
+    [
+        r#"(?i)(?:^|[\\/"'\s])openlimiter(?:\.cjs|\.cmd|\.exe|\.sh|\.ps1)?(?:$|[\\/"'\s])"#,
+        r"(?i)\bstatusline\s+--host\s+[A-Za-z0-9_-]+\b",
+    ]
+    .map(|pattern| Regex::new(pattern).expect("constant status line pattern"))
+});
+
+fn installer_status_line(value: &serde_json::Value) -> bool {
+    value
+        .get("command")
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|command| INSTALLER_STATUS_LINE.iter().all(|pattern| pattern.is_match(command)))
+}
+
 fn exact_hook_entry(value: &serde_json::Value, cli_path: &Path) -> bool {
     let Some(object) = value.as_object() else {
         return false;
@@ -501,9 +529,9 @@ fn analyze_settings(text: &str, cli_path: &Path) -> SettingsAnalysis {
             wrappable_status_line_command: None,
         };
     };
-    let foreign_status_line = root
-        .get("statusLine")
-        .is_some_and(|value| !exact_command_object(value, "statusline", cli_path));
+    let foreign_status_line = root.get("statusLine").is_some_and(|value| {
+        !exact_command_object(value, "statusline", cli_path) && !installer_status_line(value)
+    });
     let wrappable_status_line_command = root
         .get("statusLine")
         .and_then(|value| wrappable_status_line_command(value, cli_path));
@@ -582,10 +610,12 @@ fn prepare_preflight(
             foreign_user_prompt_submit_hooks: false,
             wrappable_status_line_command: None,
         });
-    let kind = if cli_path.is_none() {
-        ClaudePreflightKind::CliMissing
-    } else if !cli_working {
-        ClaudePreflightKind::CliNotWorking
+    let kind = if !cli_working && !runtime.terminal_runtime_installed() {
+        if cli_path.is_none() {
+            ClaudePreflightKind::CliMissing
+        } else {
+            ClaudePreflightKind::CliNotWorking
+        }
     } else if !analysis.shape_known {
         ClaudePreflightKind::SettingsUnknown
     } else if analysis.foreign_user_prompt_submit_hooks {
@@ -1413,6 +1443,7 @@ mod tests {
     struct FakeRuntime {
         path: Option<PathBuf>,
         works: bool,
+        terminal_runtime: bool,
     }
 
     impl FakeRuntime {
@@ -1420,6 +1451,7 @@ mod tests {
             Self {
                 path: Some(path),
                 works: true,
+                terminal_runtime: false,
             }
         }
     }
@@ -1431,6 +1463,10 @@ mod tests {
 
         fn probe(&self, path: &Path) -> bool {
             self.works && self.path.as_deref() == Some(path)
+        }
+
+        fn terminal_runtime_installed(&self) -> bool {
+            self.terminal_runtime
         }
     }
 
@@ -1632,6 +1668,7 @@ mod tests {
         let runtime = FakeRuntime {
             path: None,
             works: false,
+            terminal_runtime: false,
         };
         let verdict = prepare_preflight(Some(dir.path()), None, &runtime, false).verdict;
         assert_eq!(verdict.kind, ClaudePreflightKind::CliMissing);
@@ -1641,6 +1678,51 @@ mod tests {
             verdict.install_command,
             format!("npx -y openlimiter@{} terminal install claude", env!("CARGO_PKG_VERSION"))
         );
+    }
+
+    #[test]
+    fn an_installed_terminal_runtime_is_installed_without_a_global_command() {
+        let dir = TempDir::new();
+        write_settings(&dir, "{}");
+        // The pinned installer leaves no global command, or an old one that no longer answers.
+        for path in [None, Some(absolute_cli(&dir))] {
+            let runtime = FakeRuntime {
+                path,
+                works: false,
+                terminal_runtime: true,
+            };
+            let verdict = prepare_preflight(Some(dir.path()), None, &runtime, false).verdict;
+            assert_eq!(verdict.kind, ClaudePreflightKind::Ready);
+        }
+    }
+
+    #[test]
+    fn only_a_status_line_the_installer_did_not_write_is_foreign() {
+        let dir = TempDir::new();
+        let runtime = FakeRuntime {
+            path: None,
+            works: false,
+            terminal_runtime: true,
+        };
+        for (command, foreign) in [
+            (
+                r#""C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "C:\Users\Person\.openlimiter\terminal-launchers\abc\openlimiter.ps1" statusline --host claude"#,
+                false,
+            ),
+            (
+                "/bin/sh '/home/person/.openlimiter/terminal-launchers/abc/openlimiter.sh' statusline --host claude",
+                false,
+            ),
+            ("/home/person/bin/my-meter --compact", true),
+        ] {
+            // The installer keeps the keys of the line it replaced, padding included.
+            let settings = serde_json::json!({
+                "statusLine": { "type": "command", "command": command, "padding": 0 }
+            });
+            write_settings(&dir, &settings.to_string());
+            let verdict = prepare_preflight(Some(dir.path()), None, &runtime, false).verdict;
+            assert_eq!(verdict.foreign_status_line, foreign, "{command}");
+        }
     }
 
     #[test]

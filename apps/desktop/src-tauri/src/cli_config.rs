@@ -194,10 +194,20 @@ pub fn set_terminal_captions(captions: String, app: tauri::AppHandle) -> Result<
 
 #[tauri::command]
 pub fn terminal_runtime_status() -> Result<Value, String> {
-    let home = if cfg!(target_os = "windows") {
-        crate::state::non_empty("USERPROFILE").or_else(|| crate::state::non_empty("HOME"))
-    } else { crate::state::home() }.ok_or_else(|| "config_refused".to_string())?;
+    let home = runtime_home().ok_or_else(|| "config_refused".to_string())?;
     terminal_runtime_status_in(&home, env!("CARGO_PKG_VERSION"))
+}
+
+/// The profile the terminal runtime is installed under: Node's home directory.
+pub(crate) fn runtime_home() -> Option<PathBuf> {
+    if cfg!(target_os = "windows") {
+        crate::state::non_empty("USERPROFILE").or_else(|| crate::state::non_empty("HOME"))
+    } else { crate::state::home() }
+}
+
+/// Whether the pinned installer left a readable runtime stamp in this profile.
+pub(crate) fn terminal_runtime_installed(home: &Path) -> bool {
+    terminal_runtime_status_in(home, env!("CARGO_PKG_VERSION")).is_ok_and(|status| status["version"].is_string())
 }
 
 fn terminal_runtime_status_in(home: &Path, app_version: &str) -> Result<Value, String> {
@@ -214,9 +224,10 @@ fn terminal_runtime_status_in(home: &Path, app_version: &str) -> Result<Value, S
 }
 
 /// The terminal runtime's node only draws status lines (milliseconds) and
-/// runs detached refreshes (under a minute), so one older than this is stuck.
+/// runs detached refreshes (a few minutes at the slowest), so one older than
+/// this, with room to spare for a slow but healthy refresh, is stuck.
 #[cfg(any(windows, test))]
-const STUCK_RUNTIME_AGE: Duration = Duration::from_secs(5 * 60);
+const STUCK_RUNTIME_AGE: Duration = Duration::from_secs(15 * 60);
 
 /// Whether a process is this profile's terminal runtime node and has outlived
 /// any real work. Only the exact image path counts, so a reused pid, which
@@ -345,8 +356,12 @@ mod tests {
     fn terminal_runtime_status_reads_the_profile_runtime_stamp() {
         let home = TempDir::new();
         let runtime = home.path().join(".openlimiter").join("terminal-runtime");
+        assert!(!terminal_runtime_installed(home.path()));
         fs::create_dir_all(&runtime).unwrap();
+        fs::write(runtime.join(".openlimiter-runtime.json"), "not a stamp").unwrap();
+        assert!(!terminal_runtime_installed(home.path()));
         fs::write(runtime.join(".openlimiter-runtime.json"), r#"{"version":"2.0.3","files":{}}"#).unwrap();
+        assert!(terminal_runtime_installed(home.path()));
         assert_eq!(
             terminal_runtime_status_in(home.path(), "2.1.1").unwrap(),
             serde_json::json!({"version":"2.0.3","app_version":"2.1.1"})
@@ -354,13 +369,16 @@ mod tests {
     }
 
     #[test]
-    fn only_this_profiles_runtime_node_past_five_minutes_is_stuck() {
+    fn only_this_profiles_runtime_node_past_fifteen_minutes_is_stuck() {
         let home = Path::new(r"C:\Users\Person");
-        let old = STUCK_RUNTIME_AGE + Duration::from_secs(1);
+        let old = Duration::from_secs(15 * 60 + 1);
         assert!(stuck_runtime_node(r"C:\Users\Person\.openlimiter\terminal-runtime\node.exe", home, old));
         assert!(stuck_runtime_node(r"\\?\c:/users/PERSON/.OpenLimiter/Terminal-Runtime/NODE.EXE", home, old));
-        // A render or a refresh still inside its time is never touched.
-        assert!(!stuck_runtime_node(r"C:\Users\Person\.openlimiter\terminal-runtime\node.exe", home, STUCK_RUNTIME_AGE));
+        // A render or a refresh still inside its time is never touched, and a
+        // slow but healthy refresh of ten minutes is still inside it.
+        for young in [Duration::from_secs(10 * 60), STUCK_RUNTIME_AGE] {
+            assert!(!stuck_runtime_node(r"C:\Users\Person\.openlimiter\terminal-runtime\node.exe", home, young));
+        }
         // A reused pid runs another image, which never matches.
         for other in [
             r"C:\Program Files\nodejs\node.exe",
