@@ -1,8 +1,11 @@
+import { execFile } from "node:child_process";
 import { lstat, readFile, mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
+import { promisify } from "node:util";
 import { connectors } from "@openlimiter/connectors";
 import {
   type CredentialCommandRunner,
+  trustedHelperWorkingDirectory,
   windowsPathTool,
   windowsSystemTool,
   writeFileAtomically
@@ -66,6 +69,8 @@ export interface TerminalHostContext {
   shellRunner?: CredentialCommandRunner;
   /** Keep the saved command alongside OpenLimiter only when explicitly chosen. */
   wrap?: boolean;
+  /** The 8.3 short form of a Windows path, injectable so tests never run cmd. */
+  windowsShortPath?: (longPath: string) => Promise<string | null>;
 }
 
 export interface TerminalOperationResult {
@@ -240,6 +245,48 @@ async function durableCommand(context: TerminalHostContext, shell: "posix" | "cm
   return await fallbackLauncherCommand(runtime, shell, original, fallbackLauncherOptions(context));
 }
 
+/** From the start of a path through its last part holding a character cmd splits on or interprets. */
+const CMD_UNSAFE_PREFIX = /^.*[\s&|<>^()%!"][^\\/]*/;
+
+/** cmd's own 8.3 name for a path. Verbatim arguments, because Node's default
+ * quoting turns the quotes into \" and cmd cannot read that; delayed expansion
+ * off, so a ! in the path stays a ! whatever the registry says. */
+export async function windowsShortPath(longPath: string): Promise<string | null> {
+  try {
+    const { stdout } = await promisify(execFile)(
+      windowsSystemTool("cmd.exe"),
+      ["/d", "/v:off", "/s", "/c", `"for %I in ("${longPath}") do @echo %~sI"`],
+      { cwd: trustedHelperWorkingDirectory(), timeout: 5_000, windowsHide: true, windowsVerbatimArguments: true }
+    );
+    return stdout.trim() || null;
+  } catch { return null; }
+}
+
+/**
+ * Antigravity runs its status line through cmd /c with Go's argument
+ * escaping, which turns every quote into \" so cmd cannot find the program.
+ * Its Windows command therefore carries no quotes. The launcher command quotes
+ * exactly its two paths, which never hold a quote; each is written bare, the
+ * part cmd would misread replaced by its 8.3 short name and the rest, ending
+ * in openlimiter.ps1, kept so every reader still knows the line as ours.
+ * `null` when no short name makes a path safe.
+ */
+async function quoteFreeCommand(
+  command: string,
+  shortPath: (longPath: string) => Promise<string | null>
+): Promise<string | null> {
+  const parts = command.split('"');
+  for (let index = 1; index < parts.length; index += 2) {
+    const part = parts[index]!;
+    const unsafe = CMD_UNSAFE_PREFIX.exec(part)?.[0];
+    if (unsafe === undefined) continue;
+    const short = (await shortPath(unsafe)) || unsafe;
+    if (CMD_UNSAFE_PREFIX.test(short)) return null;
+    parts[index] = short + part.slice(unsafe.length);
+  }
+  return parts.join("");
+}
+
 function ownedMarker(text: string, json: boolean): boolean {
   return json ? JSON.parse(text)["openlimiter managed"] === true
     : text.split(/\r?\n/).some(line => line.trim() === "# openlimiter managed");
@@ -378,9 +425,15 @@ async function changeConfigHost(host: ConfigHost, context: TerminalHostContext, 
 
     // Build updated content from current text so the host's edits are preserved.
     let updated: string;
+    let warning = "";
     if (spec.json) {
       const data = JSON.parse(text) as Record<string, unknown>;
-      const base = await durableCommand(context, context.platform === "win32" ? "cmd" : "posix", userCommand);
+      let base = await durableCommand(context, context.platform === "win32" ? "cmd" : "posix", userCommand);
+      if (host === "antigravity" && context.platform === "win32") {
+        const bare = await quoteFreeCommand(base, context.windowsShortPath ?? windowsShortPath);
+        if (bare === null) warning = "\nAntigravity cannot run a status line from a path with spaces on this volume.";
+        else base = bare;
+      }
       const command = `${base} statusline --host ${host}` +
         (!context.wrap || userCommand === null ? "" : ` --wrap ${encodeWrappedStatuslineCommand(userCommand)}`);
       data["openlimiter managed"] = true;
@@ -412,7 +465,7 @@ async function changeConfigHost(host: ConfigHost, context: TerminalHostContext, 
       // guard so a concurrent change is detected and refused.
       await writeOwned(file, original, updated);
     }
-    return { ok: true, message };
+    return { ok: true, message: message + warning };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     return { ok: false, message: `Could not ${install ? "write" : "update"} ${file}: ${msg}` };

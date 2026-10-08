@@ -1,4 +1,4 @@
-import { cp, mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -43,6 +43,7 @@ import {
   terminalStatusTable,
   uninstallHost,
   validateToml,
+  windowsShortPath,
   type TerminalHostContext
 } from "../src/terminal.js";
 import { CONFIG_FILE_NAME, runCli } from "../src/index.js";
@@ -196,7 +197,7 @@ describe("terminal host installers", () => {
       statusLine: { type: string; command: string };
     };
     expect(wrapped.statusLine.type).toBe("command");
-    expect(wrapped.statusLine.command).toContain('openlimiter.ps1" statusline --host antigravity --wrap ');
+    expect(wrapped.statusLine.command).toContain("openlimiter.ps1 statusline --host antigravity --wrap ");
 
     await installHost("antigravity", ctx);
     const wrappedAgain = JSON.parse(await readFile(settingsFile, "utf8")) as {
@@ -225,7 +226,8 @@ describe("terminal host installers", () => {
     };
     const shell = process.platform === "win32" ? "cmd" : "posix";
     const base = await fallbackLauncherCommand(runtime, shell, null);
-    expect(settings.statusLine.command).toBe(`${base} statusline --host antigravity`);
+    // Antigravity's Windows command drops the quotes; this temporary home needs no short name.
+    expect(settings.statusLine.command).toBe(`${base.replaceAll('"', "")} statusline --host antigravity`);
     const local = path.join(home, "local");
     const roaming = path.join(home, "roaming");
     const temp = path.join(home, "temp");
@@ -317,6 +319,94 @@ describe("terminal host installers", () => {
       stack_with_default: true
     });
     expect(typeof installed.statusLine["command"]).toBe("string");
+  });
+
+  /* Antigravity runs its status line through cmd /c with Go's escaping, which
+     turns every quote into \" and cmd then cannot find the program. */
+  async function antigravityCommand(home: string): Promise<string> {
+    const settingsFile = path.join(home, ".gemini", "antigravity-cli", "settings.json");
+    return (JSON.parse(await readFile(settingsFile, "utf8")) as { statusLine: { command: string } }).statusLine.command;
+  }
+
+  it("writes Antigravity's Windows command with no quote characters", async () => {
+    const home = await temporaryDirectory("openlimiter-terminal-");
+    const asked: string[] = [];
+    const ctx = { ...await context(home), windowsShortPath: async (longPath: string) => { asked.push(longPath); return null; } };
+    expect(await installHost("antigravity", ctx)).toEqual({ ok: true, message: "Wired Antigravity CLI status line." });
+    const launchers = path.join(home, ".openlimiter", "terminal-launchers");
+    const launcher = path.join(launchers, (await readdir(launchers))[0]!, "openlimiter.ps1");
+    expect((await stat(launcher)).isFile()).toBe(true);
+    expect(await antigravityCommand(home)).toBe(
+      `${windowsSystemTool("WindowsPowerShell", "v1.0", "powershell.exe")} -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ${launcher} statusline --host antigravity`
+    );
+    expect(asked).toEqual([]);
+    expect(await hostStatus("antigravity", ctx)).toBe(STATUS_WIRED);
+  });
+
+  it("gives a Windows home with a space its 8.3 short name in Antigravity's command", async () => {
+    const home = path.join(await temporaryDirectory("openlimiter-terminal-"), "John Smith");
+    await mkdir(home);
+    const asked: string[] = [];
+    const ctx = {
+      ...await context(home),
+      windowsShortPath: async (longPath: string) => { asked.push(longPath); return longPath.replace("John Smith", "JOHNSM~1"); }
+    };
+    expect(await installHost("antigravity", ctx)).toEqual({ ok: true, message: "Wired Antigravity CLI status line." });
+    expect(asked).toEqual([home]);
+    const command = await antigravityCommand(home);
+    expect(command).not.toContain('"');
+    expect(command).toContain(` -File ${path.join(path.dirname(home), "JOHNSM~1", ".openlimiter", "terminal-launchers")}`);
+    expect(command).toMatch(/openlimiter\.ps1 statusline --host antigravity$/);
+    expect(await hostStatus("antigravity", ctx)).toBe(STATUS_WIRED);
+  });
+
+  it("keeps the quoted Antigravity command and warns when the short name cmd gives back is still unsafe", async () => {
+    // No 8.3 names on the volume, or a short name that keeps a cmd special character.
+    for (const [name, shortName] of [["John Smith", "John Smith"], ["Tom & Jerry", "TOM&JE~1"]] as const) {
+      const home = path.join(await temporaryDirectory("openlimiter-terminal-"), name);
+      await mkdir(home);
+      const ctx = { ...await context(home), windowsShortPath: async (longPath: string) => longPath.replace(name, shortName) };
+      expect(await installHost("antigravity", ctx)).toEqual({
+        ok: true,
+        message: "Wired Antigravity CLI status line.\nAntigravity cannot run a status line from a path with spaces on this volume."
+      });
+      const command = await antigravityCommand(home);
+      expect(command).toContain(` -File "${path.join(home, ".openlimiter", "terminal-launchers")}`);
+      expect(command).toMatch(/openlimiter\.ps1" statusline --host antigravity$/);
+    }
+  });
+
+  it("restores Antigravity's settings after its quoted and its quote free command, both read as ours", async () => {
+    const home = path.join(await temporaryDirectory("openlimiter-terminal-"), "John Smith");
+    const settingsFile = path.join(home, ".gemini", "antigravity-cli", "settings.json");
+    await mkdir(path.dirname(settingsFile), { recursive: true });
+    const original = JSON.stringify({ theme: "dark", statusLine: { type: "command", command: "their-own-line" } }, null, 4);
+    await writeFile(settingsFile, original, "utf8");
+    const base = await context(home);
+
+    await installHost("antigravity", { ...base, windowsShortPath: async (longPath) => longPath });
+    expect(await antigravityCommand(home)).toContain('"');
+    expect(await hostStatus("antigravity", base)).toBe(STATUS_WIRED);
+
+    const ctx = { ...base, windowsShortPath: async (longPath: string) => longPath.replace("John Smith", "JOHNSM~1") };
+    expect(await installHost("antigravity", ctx)).toEqual({ ok: true, message: "Wired Antigravity CLI status line." });
+    const quoteFree = await antigravityCommand(home);
+    expect(quoteFree).not.toContain('"');
+    expect(await hostStatus("antigravity", ctx)).toBe(STATUS_WIRED);
+    expect((await installHost("antigravity", ctx)).ok).toBe(true);
+    expect(await antigravityCommand(home)).toBe(quoteFree);
+
+    expect(await uninstallHost("antigravity", ctx)).toEqual({ ok: true, message: "Uninstalled Antigravity status line." });
+    expect(await readFile(settingsFile, "utf8")).toBe(original);
+  });
+
+  it.runIf(process.platform === "win32")("asks cmd itself for a Windows path's 8.3 name", async () => {
+    // A volume without 8.3 names answers with the long path, which resolves the same.
+    const directory = path.join(await temporaryDirectory("openlimiter-terminal-"), "Tom & Jerry (x)");
+    await mkdir(directory);
+    const short = await windowsShortPath(directory);
+    expect(short).not.toBeNull();
+    expect(await realpath(short!)).toBe(await realpath(directory));
   });
 
   it("round trips Grok's [ui.status_line] table, including wrap and restore", async () => {
