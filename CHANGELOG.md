@@ -4,7 +4,7 @@ All notable project changes appear in this file.
 
 ## [2.1.3]
 
-Antigravity shows its bars on Windows. Its CLI runs the status line command through cmd with escaped quotes, so the quoted command the installer wrote was never found; the installer now writes a quote free command, using a short path when a folder name has a space.
+Antigravity shows its bars on Windows. Its CLI runs the status line command through cmd with escaped quotes, so the quoted command the installer wrote was never found; the installer now writes a quote free command, using a short path when a folder name has a space, and setup repairs an existing Antigravity setup.
 
 ## [2.1.2]
 

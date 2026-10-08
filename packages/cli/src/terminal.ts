@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, type ExecFileOptionsWithBufferEncoding } from "node:child_process";
 import { lstat, readFile, mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -250,15 +250,20 @@ const CMD_UNSAFE_PREFIX = /^.*[\s&|<>^()%!"][^\\/]*/;
 
 /** cmd's own 8.3 name for a path. Verbatim arguments, because Node's default
  * quoting turns the quotes into \" and cmd cannot read that; delayed expansion
- * off, so a ! in the path stays a ! whatever the registry says. */
-export async function windowsShortPath(longPath: string): Promise<string | null> {
+ * off, so a ! in the path stays a ! whatever the registry says; /u, so the
+ * answer comes back as utf16le instead of the console code page, which would
+ * turn an accented folder cmd leaves long into a replacement character. */
+export async function windowsShortPath(
+  longPath: string,
+  run: (file: string, args: string[], options: ExecFileOptionsWithBufferEncoding) => Promise<{ stdout: Buffer }> = promisify(execFile)
+): Promise<string | null> {
   try {
-    const { stdout } = await promisify(execFile)(
+    const { stdout } = await run(
       windowsSystemTool("cmd.exe"),
-      ["/d", "/v:off", "/s", "/c", `"for %I in ("${longPath}") do @echo %~sI"`],
-      { cwd: trustedHelperWorkingDirectory(), timeout: 5_000, windowsHide: true, windowsVerbatimArguments: true }
+      ["/u", "/d", "/v:off", "/s", "/c", `"for %I in ("${longPath}") do @echo %~sI"`],
+      { cwd: trustedHelperWorkingDirectory(), encoding: "buffer", timeout: 5_000, windowsHide: true, windowsVerbatimArguments: true }
     );
-    return stdout.trim() || null;
+    return stdout.toString("utf16le").trim() || null;
   } catch { return null; }
 }
 
@@ -480,6 +485,19 @@ export const installGrok = (context: TerminalHostContext): Promise<TerminalOpera
 export const uninstallGrok = (context: TerminalHostContext): Promise<TerminalOperationResult> => changeConfigHost("grok", context, false);
 export const installCodex = (context: TerminalHostContext): Promise<TerminalOperationResult> => changeConfigHost("codex", context, true);
 export const uninstallCodex = (context: TerminalHostContext): Promise<TerminalOperationResult> => changeConfigHost("codex", context, false);
+
+/**
+ * Setup's repair for the quoted command 2.1.2 wrote for Antigravity on
+ * Windows, which Antigravity never could run: installed again with the same
+ * wrap state, which writes it quote free wherever a short name allows.
+ * `null` when there is nothing to repair.
+ */
+export async function repairAntigravityCommand(context: TerminalHostContext): Promise<TerminalOperationResult | null> {
+  const settings = context.platform === "win32" ? await readJsonFile(antigravitySettingsPath(context)) : null;
+  const command = settings === null ? null : claudeLikeStatusLineCommand(settings["statusLine"]);
+  if (command === null || !command.includes('"') || !isOpenLimiterStatuslineCommand(command)) return null;
+  return await installAntigravity({ ...context, wrap: /\s--wrap\s/i.test(command) });
+}
 
 function shellSnippets(posixCommand: string, powerShellCommand: string): { starship: string; tmux: string; ohMyPosh: string } {
   const command = posixCommand + " statusline --host shell";
