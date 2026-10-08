@@ -29,7 +29,7 @@ describe("2.0 site release", () => {
     const { softwareApplicationSchema, jsonLdText } = await import("../lib/jsonld");
     const schema = JSON.parse(jsonLdText(await softwareApplicationSchema("en")));
     expect(schema.softwareVersion).toBe("2.1.2");
-    expect(schema.dateModified).toBe("2026-10-07");
+    expect(schema.dateModified).toBe("2026-10-08");
     expect(schema.offers.map((offer: { price: string }) => offer.price)).toEqual(["0", "5", "50"]);
   });
 
