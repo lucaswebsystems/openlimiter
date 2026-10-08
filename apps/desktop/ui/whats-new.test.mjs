@@ -10,6 +10,9 @@ const whatsNewForVersion = (version) => selectRelease(version, WHATS_NEW_EN);
 
 /* What each recent release says, word for word; the current version is one of them. */
 const NOTES = {
+  "2.1.3": [
+    { key: "antigravity", text: "Antigravity shows its bars on Windows. Run the status line setup once more from Connect Tools." },
+  ],
   "2.1.2": [
     { key: "alerts", text: "Reset alerts fire once per real reset again, instead of every second while Claude Code is open." },
   ],

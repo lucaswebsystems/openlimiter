@@ -2,6 +2,10 @@
 
 All notable project changes appear in this file.
 
+## [2.1.3]
+
+Antigravity shows its bars on Windows. Its CLI runs the status line command through cmd with escaped quotes, so the quoted command the installer wrote was never found; the installer now writes a quote free command, using a short path when a folder name has a space.
+
 ## [2.1.2]
 
 The desktop no longer repeats the "usage window reset" alert every second. Two sources of the same Claude session window could report its end a few seconds apart, and each difference counted as a new window; a reset now needs the window end to move forward by at least a minute, and a source still reporting an earlier window end is ignored.
