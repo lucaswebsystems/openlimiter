@@ -3,6 +3,10 @@
   "versionLabel": "Version {version}",
   "dismiss": "Got it",
   "releases": {
+    "2.1.2": {
+      "heading": "Quiet reset alerts",
+      "alerts": "Reset alerts fire once per real reset again, instead of every second while Claude Code is open."
+    },
     "2.1.1": {
       "heading": "Sign in and weekly limits fixed",
       "signin": "Google, GitHub and email sign in finish in the app again, and a refused sign in names its error code.",
