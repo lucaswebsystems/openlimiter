@@ -75,17 +75,21 @@ function claudeStatusline(row: Snapshot): boolean {
 }
 
 /**
- * Freshness is not visibility, for Claude status line rows only.
+ * Freshness is not visibility. Rust twin: data_rules::held_reason.
  *
- * Claude Code writes them only while it runs, so an idle session would lose
- * its card after two minutes. A stale row stays displayable (its age shows)
- * until its window resets; after that the honest answer is waiting for Claude
- * Code, never a number nobody measured.
+ * A source that went quiet (Antigravity with its CLI closed, a Claude poll
+ * that is waiting) keeps its last reading on screen, stale: flat grey, no band,
+ * its age shown, for as long as the cache retains it (seven days after it was
+ * observed). Claude status line rows keep their own rule: held until their
+ * window resets, then the honest answer is waiting for Claude Code, never a
+ * number nobody measured.
  */
 function heldReason(row: Snapshot, reason: string | null, now: string): string | null {
   const current = Date.parse(now);
-  if (reason !== "stale" || !claudeStatusline(row) || !(Date.parse(row.observedAt) <= current)) return reason;
-  return current < Date.parse(row.resetAt ?? "") ? null : "awaiting_statusline";
+  const observed = Date.parse(row.observedAt);
+  if (reason !== "stale" || !(observed <= current)) return reason;
+  if (claudeStatusline(row)) return current < Date.parse(row.resetAt ?? "") ? null : "awaiting_statusline";
+  return current - observed <= RETENTION_MILLISECONDS ? null : reason;
 }
 
 /** Active identities come from credentials or connections, never observation age. */

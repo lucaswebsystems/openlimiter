@@ -144,16 +144,18 @@ async fn set_tray_status(
 ) -> Result<(), String> {
     let _ = providers;
     tauri::async_runtime::spawn_blocking(move || {
+        let now = chrono::Utc::now().timestamp_millis();
         let projection = data_rules::for_app(
             &app,
             native_snapshot::display_snapshots(state::read_cache().as_deref()),
-            chrono::Utc::now().timestamp_millis(),
+            now,
         );
         let mut values = std::collections::BTreeMap::<String, f64>::new();
+        // A stale reading draws flat grey everywhere, so it never colours the tray.
         for row in projection
             .snapshots
             .into_iter()
-            .filter(|row| row.unit == "PERCENT")
+            .filter(|row| row.unit == "PERCENT" && data_rules::reason(row, now) != Some("stale"))
         {
             values
                 .entry(row.provider)

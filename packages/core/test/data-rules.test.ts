@@ -105,6 +105,22 @@ it("measured zero survives while placeholders, stale rows and availability becom
   expect(projected.flags.map(flag => flag.fixKind)).toEqual(["open_app", "unsupported", "open_app"]);
 });
 
+it("a quiet Antigravity card stays, stale with its age, for seven days instead of vanishing", () => {
+  // The founder's case: the status line wrote yesterday and Antigravity CLI is closed.
+  const row = snapshot({
+    provider: "ANTIGRAVITY", accountId: "antigravity-account", observedAt: now, expiresAt: "2026-09-29T12:13:00.000Z",
+    provenance: { sourceKind: "statusline_payload", observedVia: "antigravity_cli_statusline" }
+  });
+  const dayLater = new Date(at + 86_400_000).toISOString();
+  const shown = projectSnapshots([row], dayLater);
+  expect(shown.flags).toEqual([]);
+  expect(shown.snapshots.map(held => [held.value, freshness(held.observedAt, held.expiresAt, dayLater)])).toEqual([[row.value, "stale"]]);
+  expect(projectSnapshots([row], new Date(at + RETENTION_MILLISECONDS).toISOString()).snapshots).toHaveLength(1);
+  const gone = projectSnapshots([row], new Date(at + RETENTION_MILLISECONDS + 1).toISOString());
+  expect(gone.snapshots).toEqual([]);
+  expect(gone.flags.map(flag => flag.reason)).toEqual(["stale"]);
+});
+
 it("extra usage past its cap is still a reading, never a placeholder", () => {
   // Claude's extra usage has no billing cadence; $25 spent of a $20 cap is real.
   const spend = { ...measured("fixture"), meter: "EXTRA_USAGE", window: { kind: "unknown" as const }, kind: "spend" as const,
@@ -176,15 +192,18 @@ describe("Claude status line rows: freshness is not visibility", () => {
     expect(unknownReset.flags[0]?.reason).toBe("awaiting_statusline");
   });
 
-  it("only Claude status line rows are held: every other source keeps its own expiry", () => {
+  it("every other source is held stale past its window, until the cache lets go of it at seven days", () => {
     const others = [
       anonymous({ provider: "CODEX" }),
       statusline({ provenance: { sourceKind: "remote_api", observedVia: "local_event" }, source: "internal_payload" }),
       anonymous({ provider: "ANTIGRAVITY", provenance: { sourceKind: "statusline_payload", observedVia: "local_command" } })
     ];
-    const projection = projectSnapshots(others, later(45), active);
-    expect(projection.snapshots).toEqual([]);
-    expect(projection.flags.map(flag => flag.reason)).toEqual(["stale", "stale", "stale"]);
+    const held = projectSnapshots(others, later(121), active);
+    expect(held.flags).toEqual([]);
+    expect(held.snapshots.map(row => freshness(row.observedAt, row.expiresAt, later(121)))).toEqual(["stale", "stale", "stale"]);
+    const gone = projectSnapshots(others, new Date(at + RETENTION_MILLISECONDS + 1).toISOString(), active);
+    expect(gone.snapshots).toEqual([]);
+    expect(gone.flags.map(flag => flag.reason)).toEqual(["stale", "stale", "stale"]);
   });
 
   it("an anonymous Claude status line row is never shown and asks to sign in again", () => {

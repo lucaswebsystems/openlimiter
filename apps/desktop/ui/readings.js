@@ -78,6 +78,26 @@ export function projectReadings(cacheText, manualText, now) {
   return { snapshots: projected.snapshots, flags: [...flags, ...readFlags(projected.flags)], failures: dedupeFailures(failures) };
 }
 
+/**
+ * The alert samples for the rows on screen: percentages, and fresh ones only.
+ * A stale reading draws flat grey with its age, so it never raises an alert.
+ */
+export function alertSamples(snapshots, now) {
+  return snapshots
+    .filter((snapshot) => snapshot.unit === "PERCENT" && Number.isFinite(snapshot.value) &&
+      freshness(snapshot.observedAt, snapshot.expiresAt, now) === "fresh")
+    .map((snapshot) => ({
+      accountId: snapshot.accountId ?? "default",
+      provider: snapshot.provider,
+      meter: "provider_usage_percent",
+      windowName: snapshot.meter,
+      windowId: snapshot.resetAt ?? `meter:${snapshot.meter}`,
+      windowIsAuthoritative: snapshot.resetAt !== null && snapshot.resetAt !== undefined,
+      value: snapshot.value,
+      observedAt: snapshot.observedAt,
+    }));
+}
+
 /** Providers a person switched off: native flags them, the window may remember more. */
 export function switchedOff(flags, removed = []) {
   return new Set([...removed.map(providerCode), ...flags.filter((flag) => flag.fixKind === "switch_on").map((flag) => flag.provider)]);
@@ -85,8 +105,8 @@ export function switchedOff(flags, removed = []) {
 
 /**
  * What is still displayable of rows already on screen, at `now`. When a read
- * fails the window keeps only these, so expired rows leave by the one
- * freshness policy instead of freezing where they were.
+ * fails the window keeps only these: fresh rows, and stale rows the data rules
+ * still hold, drawn grey with their age rather than frozen as if current.
  */
 export function holdReadings(snapshots, now) {
   return projectSnapshots(snapshots, now).snapshots;
@@ -203,7 +223,8 @@ function orderedWindows(provider, windows) {
 export function limitsModel(snapshots, now) {
   const providers = new Map();
   /* The one projection decides what is still drawable at `now`: fresh rows,
-     and a Claude status line row held, stale, until its window resets. */
+     and stale rows it holds (a quiet source for seven days, a Claude status
+     line row until its window resets). */
   for (const row of projectSnapshots(snapshots, now).snapshots) {
     const code = providerCode(row.provider);
     const accounts = providers.get(code) ?? new Map();

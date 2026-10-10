@@ -151,7 +151,7 @@ describe("Lucas reference layout", () => {
     expect(render([])).toBe("OpenLimiter UNKNOWN");
     const config = { ...DEFAULT_STATUSLINE, visibility: { codex: true } };
     expect(render([], { config, color: true })).toBe("OpenLimiter UNKNOWN");
-    expect(render([row({ provider: "CODEX", observedAt: "2025-12-30T23:59:59Z" })], { config })).toBe("OpenLimiter UNKNOWN");
+    expect(render([row({ provider: "CODEX", observedAt: "2025-12-24T23:59:59Z" })], { config })).toBe("OpenLimiter UNKNOWN");
     expect(render([row({ provider: "CODEX", meter: "ACQUISITION", availability: "access_denied" })], { config })).toBe("OpenLimiter UNKNOWN");
   });
 

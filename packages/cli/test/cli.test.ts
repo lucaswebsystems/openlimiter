@@ -517,7 +517,7 @@ describe("CLI", () => {
     });
     expect(result.exitCode).toBe(0);
     /* Host defaults to claude, so Claude's own windows carry no tag. */
-    expect(result.stdout).toContain("7d poll off");
+    expect(result.stdout).toContain("7d off");
         expect(result.stdout).toContain("42%");
     const cache = JSON.parse(
       await readFile(path.join(directory, CACHE_FILE_NAME), "utf8")
@@ -529,7 +529,7 @@ describe("CLI", () => {
       stateDirectory: directory,
       now: () => FIXTURE_NOW
     });
-        expect(rendered.stdout).toContain("7d poll off");
+        expect(rendered.stdout).toContain("7d off");
     expect(rendered.stdout).toContain("42%");
   });
 

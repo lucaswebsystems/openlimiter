@@ -1,5 +1,7 @@
+import path from "node:path";
 import {
   PROVIDER_CODES,
+  RETENTION_MILLISECONDS,
   claudeMeterPresentation,
   floorFixed,
   freshness,
@@ -7,6 +9,8 @@ import {
   providerMeterRank,
   providerMeterVisible,
   isSnapshotDisplayEligible,
+  readAcquisitionSchedule,
+  readJsonFileSafely,
   type Advice,
   type ProviderCode,
   type Snapshot,
@@ -277,21 +281,24 @@ function readingsFor(
     }
   }
   // Dormant accounts remain in the cache, but cannot displace an active account.
+  // A provider whose every account went quiet keeps its newest one, marked
+  // stale, for as long as the data rules hold a stale reading.
+  const newest = Math.max(0, ...latestAccount.values());
+  const shownAccount = (accountId: string | undefined): boolean => {
+    const age = Date.parse(now) - (latestAccount.get(accountId) ?? 0);
+    return age <= ONE_DAY * 1000 ||
+      (latestAccount.get(accountId) === newest && age <= RETENTION_MILLISECONDS);
+  };
   const readings = providerRows
     .filter((snapshot) => (snapshot.unit === "PERCENT" ||
       isBalanceSnapshot(snapshot) ||
       isAvailabilitySnapshot(snapshot)) &&
-      Date.parse(now) - (latestAccount.get(snapshot.accountId) ?? 0) <= ONE_DAY * 1000)
+      shownAccount(snapshot.accountId))
     .map((snapshot) => ({
       snapshot,
       state: freshness(snapshot.observedAt, snapshot.expiresAt, now)
     }))
-    .filter((reading): reading is Reading =>
-      reading.state !== "unknown" &&
-      !(reading.snapshot.provider === "CLAUDE" &&
-        reading.snapshot.meter.startsWith("SEVEN_DAY") &&
-        reading.state !== "fresh")
-    )
+    .filter((reading): reading is Reading => reading.state !== "unknown")
     .sort((left, right) => {
       const presentationRank = (providerMeterRank(provider, left.snapshot.meter) ?? 90) -
         (providerMeterRank(provider, right.snapshot.meter) ?? 90);
@@ -447,6 +454,55 @@ export function renderPlainStatusline(
     : " UNKNOWN " + advice.unknownProviders.join(",");
   return "OpenLimiter " + advice.reason + " " + cells.map((cell) => cell.plain).join(" ") +
     recommendation + unknown + (pollHint === undefined ? "" : " " + pollHint);
+}
+
+/* -------------------------------------------------------- the weekly cell */
+
+function field(value: unknown, key: string): unknown {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)[key]
+    : undefined;
+}
+
+/**
+ * Whether a poll refusal is recorded for a Claude login on this line: by the
+ * desktop, per account, in `request-policy.json`, or by this tool's own poll
+ * in its schedule. A refusal whose wait is over is no longer one.
+ */
+async function claudeRefused(snapshots: readonly Snapshot[], now: string, directory: string): Promise<boolean> {
+  const at = Date.parse(now);
+  const own = (await readAcquisitionSchedule(directory))["CLAUDE"];
+  if (own?.refusalRevision !== undefined && Date.parse(own.nextAttemptAt) > at) return true;
+  const policy = await readJsonFileSafely(path.join(directory, "request-policy.json"));
+  const claude = policy.ok ? field(field(policy.value, "providers"), "claude") : undefined;
+  return snapshots.some((snapshot) => snapshot.provider === "CLAUDE" && snapshot.accountId !== undefined &&
+    typeof field(field(claude, "refusal_revisions"), snapshot.accountId) === "string" &&
+    Number(field(field(claude, "accounts"), snapshot.accountId)) > at);
+}
+
+/**
+ * The cell that says why the Claude weekly bar is missing, or nothing.
+ *
+ * It appears while Claude has a reading on this line and no weekly, fresh or
+ * stale. Both consents count, this tool's `providers.claude.poll` and the
+ * desktop's `claude-poll.json`: off on both says so, a recorded refusal says
+ * refused, and otherwise the weekly is waiting for its next poll.
+ */
+export async function claudeWeeklyHint(
+  snapshots: readonly Snapshot[],
+  now: string,
+  cliPoll: boolean,
+  directory: string
+): Promise<string | undefined> {
+  if (!snapshots.some((snapshot) => snapshot.provider === "CLAUDE") ||
+      readingsFor(snapshots, "CLAUDE", now).some(({ snapshot }) =>
+        snapshot.meter.startsWith("SEVEN_DAY") && !isAvailabilitySnapshot(snapshot))) {
+    return undefined;
+  }
+  const desktop = await readJsonFileSafely(path.join(directory, "claude-poll.json"));
+  const desktopPoll = desktop.ok && field(desktop.value, "version") === 1 && field(desktop.value, "enabled") === true;
+  if (!cliPoll && !desktopPoll) return "7d off";
+  return await claudeRefused(snapshots, now, directory) ? "7d refused" : "7d waiting";
 }
 
 /* ------------------------------------------------------------------ layout */

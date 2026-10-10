@@ -92,9 +92,17 @@ describe("account and freshness status line goldens", () => {
       row({ accountId, observedAt: ago(240), expiresAt: ago(120), value: 42 })
     ])).toBe("5h " + tenBlockBar(42) + " ~42%");
   });
-  it("omits a provider whose only account is more than 24 hours old", () => {
+  it("keeps a quiet provider's only account, stale, for seven days and then leaves it out", () => {
     expect(render([row({ value: 16 }), row({ provider: "CODEX", observedAt: ago(86401) })]))
+      .toBe("5h [█░░░░░░░░░] 16% | cx5h [████░░░░░░] ~42%");
+    expect(render([row({ value: 16 }), row({ provider: "CODEX", observedAt: ago(7 * 86400 + 1) })]))
       .toBe("5h [█░░░░░░░░░] 16%");
+  });
+  it("draws a stale Claude weekly with its marker instead of hiding it", () => {
+    const weekly = row({ meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604800 }, value: 26,
+      source: "internal_payload", provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
+      observedAt: ago(7200), expiresAt: ago(6060) });
+    expect(render([row({ value: 16 }), weekly])).toBe("5h [█░░░░░░░░░] 16% | 7d [██░░░░░░░░] ~26%");
   });
   it("measures last seen per account, rather than discarding every older meter", () => {
     expect(render([row({ accountId: "active", value: 16 }), row({ accountId: "active", meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604800 }, observedAt: ago(90000), value: 26 })]))

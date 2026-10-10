@@ -242,6 +242,19 @@ describe("live synced usage", () => {
       .toBe(false);
   });
 
+  it("keeps a quiet provider's last reading on the phone, stale, for seven days instead of dropping its card", () => {
+    // The founder's phone: Antigravity's status line wrote a day ago and its CLI is closed since.
+    const quiet = (observedAt: string) => provider("ANTIGRAVITY", "antigravity-account", [
+      { windowName: "FIVE_HOUR", percentage: 40, resetAt: "2026-09-30T15:00:00.000Z", observedAt, stale: true },
+    ]);
+    const day = snapshotsFromSyncedUsage([quiet("2026-09-30T12:00:00.000Z")], NOW);
+    expect(day.map((row) => [row.provider, row.meter, row.value])).toEqual([["ANTIGRAVITY", "FIVE_HOUR", 40]]);
+    const rows = buildProviderAccountRows(day, NOW, [], { updatedLabel: () => "Updated 1 d ago" });
+    expect(rows[0]?.windows.map((window) => [window.state, window.readout, window.updatedLabel]))
+      .toEqual([["stale", "40%", "Updated 1 d ago"]]);
+    expect(snapshotsFromSyncedUsage([quiet("2026-09-24T11:59:59.000Z")], NOW)).toEqual([]);
+  });
+
   it("uses safe carried labels and stable translated ordinal fallbacks for several accounts", () => {
     const readings = [
       provider("CLAUDE", "claude-b", [{ windowName: "SEVEN_DAY", percentage: 20, resetAt: "2026-10-02T12:00:00.000Z", observedAt: NOW, stale: false }], "person@example.test"),

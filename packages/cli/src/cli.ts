@@ -152,6 +152,7 @@ import {
   supportsColor
 } from "./render.js";
 import {
+  claudeWeeklyHint,
   isStatuslineHost,
   HOST_PROVIDER,
   renderPlainStatusline,
@@ -1520,13 +1521,8 @@ async function statuslineCommand(
   const advice = buildAdvice(snapshots, now, PROVIDER_CODES);
   const config = await readStatuslineConfig(dependencies.stateDirectory);
   const providers = await readProvidersConfig(dependencies.stateDirectory);
-  const weeklyFresh = snapshots.some((snapshot) =>
-    snapshot.provider === "CLAUDE" && snapshot.meter.startsWith("SEVEN_DAY") &&
-    freshness(snapshot.observedAt, snapshot.expiresAt, now) === "fresh"
-  );
-  const hasClaudeReading = snapshots.some((snapshot) => snapshot.provider === "CLAUDE");
-  const pollHint = host === "claude" && hasClaudeReading && !weeklyFresh
-    ? providers.claude.poll ? "7d poll pending" : "7d poll off"
+  const pollHint = host === "claude"
+    ? await claudeWeeklyHint(snapshots, now, providers.claude.poll, dependencies.stateDirectory ?? resolveStateDirectory())
     : undefined;
   if (!config.bars) {
     return succeed(renderPlainStatusline(

@@ -171,6 +171,9 @@ impl RequestPolicy {
                 state.accounts.remove(account_id);
                 state.refusal_revisions.remove(account_id);
                 state.attempts.remove(account_id);
+                /* The spacing the refused request left belongs to the refused
+                credential too, so the new one is asked at once. */
+                state.next_request_at = None;
             }
         }
         if let Some(state) = document.providers.get(&provider) {
