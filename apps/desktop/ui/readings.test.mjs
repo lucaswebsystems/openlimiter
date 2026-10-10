@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { normalizeMetersReport, projectSnapshots } from "../../../packages/core/dist/index.js";
+import { freshness, normalizeMetersReport, projectSnapshots } from "../../../packages/core/dist/index.js";
 import { parseClaudePayload } from "../../../packages/connectors/dist/index.js";
 import { messyFixtures, ACCOUNTS } from "./messy-fixtures.mjs";
 import { agentName, meterLabel, providerCode, providerName, READINGS_COPY, say } from "./names.js";
 import { fakeDocument, leaks, spoken } from "./test-dom.mjs";
 // readings.js reaches the compiled engine, which only exists in the build.
 import {
-  attentionFlags, fixWords, holdReadings, inventoryModel, limitsKey, limitsModel, officialMark, patchLimits, projectReadings,
+  alertSamples, attentionFlags, fixWords, holdReadings, inventoryModel, limitsKey, limitsModel, officialMark, patchLimits, projectReadings,
   renderLimits, splitInventory, timeLeft, updatedLabel,
 } from "./dist/readings.js";
 
@@ -175,13 +175,49 @@ test("the list holds what is measured, detected, keyed or flagged, never a switc
   assert.deepEqual(leaks(spoken(mount)), []);
 });
 
-test("rows already on screen are held to the one freshness policy when a read fails", () => {
+test("rows already on screen stay when a read fails, fresh or held stale by the one projection", () => {
   const rows = fixtures.projected.snapshots;
   assert.equal(holdReadings(rows, now).length, rows.length);
-  // Seven minutes on, the desktop Codex row expired; the status line Claude rows have not.
+  // Seven minutes on, the desktop Codex row expired: it stays, stale, beside the rest.
   const later = new Date(NOW + 7 * 60_000).toISOString();
-  assert.deepEqual([...new Set(holdReadings(rows, later).map((row) => row.provider))], ["CLAUDE", "OPENROUTER"]);
-  assert.deepEqual(holdReadings(rows, new Date(NOW + 30 * 60_000).toISOString()), []);
+  const held = holdReadings(rows, later);
+  assert.equal(held.length, rows.length);
+  assert.deepEqual(held.filter((row) => freshness(row.observedAt, row.expiresAt, later) === "stale").map((row) => row.provider), ["CODEX"]);
+  // A week on, the cache has let go of every one of them.
+  assert.deepEqual(holdReadings(rows, new Date(NOW + 7 * 86_400_000).toISOString()), []);
+});
+
+test("alerts read fresh percentages only: a stale reading never raises one", () => {
+  // The window samples what the projection drew, with the policy expiry it stamped.
+  const rows = fixtures.projected.snapshots;
+  assert.deepEqual(alertSamples(holdReadings(rows, now), now).map((sample) => sample.provider), rows.map((row) => row.provider));
+  const later = new Date(NOW + 7 * 60_000).toISOString();
+  const drawn = holdReadings(rows, later);
+  assert.ok(drawn.some((row) => row.provider === "CODEX"), "the expired Codex row is still drawn, stale");
+  assert.deepEqual([...new Set(alertSamples(drawn, later).map((sample) => sample.provider))], ["CLAUDE", "OPENROUTER"]);
+});
+
+test("a quiet Antigravity card with a day old reading stays, flat grey with its age, instead of vanishing", () => {
+  // The founder's machine: Antigravity's status line wrote yesterday and its CLI is closed since.
+  const observed = NOW - 24 * 3_600_000;
+  const row = {
+    provider: "ANTIGRAVITY", meter: "FIVE_HOUR", value: 40, unit: "PERCENT", kind: "quota_percent",
+    window: { kind: "rolling", durationSeconds: 18_000 }, resetAt: new Date(observed + 3 * 3_600_000).toISOString(),
+    source: "native_payload", precision: "exact", observedAt: new Date(observed).toISOString(),
+    expiresAt: new Date(observed + 132_000).toISOString(), accountId: ACCOUNTS.antigravity,
+    provenance: { sourceKind: "statusline_payload", observedVia: "antigravity_cli_statusline" },
+    labels: { credentialOrigin: "official-local-tool", dataInterfaceStatus: "native-statusline-payload", automationRisk: "low", verification: "UNVERIFIED" },
+  };
+  const readings = projectReadings(JSON.stringify({ version: 2, snapshots: [row], flags: [] }), null, now);
+  const model = limitsModel(readings.snapshots, now);
+  assert.deepEqual(model.map((provider) => [provider.code, provider.age]), [["ANTIGRAVITY", "Updated 1 d ago"]]);
+  assert.deepEqual(model[0].windows.map((window) => [window.value, window.band]), [["40%", "stale"]]);
+  const doc = fakeDocument();
+  const mount = doc.createElement("div");
+  renderLimits(doc, mount, model);
+  assert.equal(mount.all((node) => node.className === "q-row")[0].dataset.band, "stale");
+  assert.ok(spoken(mount).includes("Updated 1 d ago"));
+  assert.deepEqual(leaks(spoken(mount)), []);
 });
 
 test("Home's model: tightest provider first, with Claude in its own meter order", () => {
@@ -225,9 +261,12 @@ test("Home's model: tightest provider first, with Claude in its own meter order"
   const raw = limitsModel(projectReadings(JSON.stringify(fixtures.raw), null, now).snapshots, now);
   assert.deepEqual(raw.map((provider) => provider.code), ["CODEX", "CLAUDE", "OPENROUTER"]);
   assert.ok(raw[1].windows.some((window) => window.label === "Weekly, all models, account\u00a02"));
-  // Rows that went stale since the projection are not drawn.
+  // Rows that went stale since the projection stay, flat grey with their age.
   const later = new Date(NOW + 3_600_000).toISOString();
-  assert.equal(limitsModel(fixtures.projected.snapshots, later).length, 0);
+  const stale = limitsModel(fixtures.projected.snapshots, later);
+  assert.deepEqual(stale.map((provider) => [provider.code, provider.age]),
+    [["CODEX", "Updated 1 h ago"], ["CLAUDE", "Updated 1 h ago"], ["OPENROUTER", "Updated 1 h ago"]]);
+  assert.ok(stale.every((provider) => provider.windows.every((window) => window.band === "stale")));
 });
 
 test("desktop values state their meaning once for balances and Kimi percentages", () => {

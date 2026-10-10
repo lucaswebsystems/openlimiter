@@ -755,6 +755,7 @@ async fn fallback_report(writer: Arc<CacheWriter>, account_id: &str, drift: bool
     let _ = commit_report(writer, account_id.to_string(), report).await;
 }
 
+#[cfg(test)]
 async fn collect_with_secret<T: Transport>(
     runtime: &ClaudeOauthRuntime,
     transport: &T,
@@ -762,6 +763,32 @@ async fn collect_with_secret<T: Transport>(
     account_id: &str,
     secret: &DetectedSecret,
     now_ms: u64,
+) -> ClaudeOauthOutcome {
+    collect_with_reread(
+        runtime,
+        &RequestPolicy::at(None),
+        transport,
+        writer,
+        account_id,
+        secret,
+        now_ms,
+        || None,
+    )
+    .await
+}
+
+/// One read with `secret`. `reread` reads Claude Code's store again, for the
+/// one moment a 401 needs it. `policy` is told which login every request
+/// carries, so a refusal is recorded against the one actually refused.
+async fn collect_with_reread<T: Transport>(
+    runtime: &ClaudeOauthRuntime,
+    policy: &RequestPolicy,
+    transport: &T,
+    writer: Arc<CacheWriter>,
+    account_id: &str,
+    secret: &DetectedSecret,
+    now_ms: u64,
+    reread: impl Fn() -> Option<DetectedSecret>,
 ) -> ClaudeOauthOutcome {
     runtime.observe_revision(account_id, &secret.credential_revision);
     if crate::poll_identity::credential_expired(&secret.access_token, now_ms) {
@@ -781,24 +808,44 @@ async fn collect_with_secret<T: Transport>(
                 .unwrap_or_else(|| "1970-01-01T00:00:00.000Z".to_string()),
         };
     }
-    let response = match fetch_endpoint(
-        transport,
-        ProviderEndpoint::ClaudeOauthUsage,
-        AuthApplication::ClaudeOauthBearer,
-        &secret.access_token,
-        None,
-    )
-    .await
-    {
-        Ok(response) => response,
-        Err(error) => {
-            runtime.retry(account_id, now_ms, None);
-            return ClaudeOauthOutcome::Failed {
-                account_id: account_id.to_string(),
-                reason: net_failure(error),
-            };
+    let mut rotated: Option<DetectedSecret> = None;
+    let response = loop {
+        let current = rotated.as_ref().unwrap_or(secret);
+        policy.carrying_revision(&current.credential_revision);
+        let response = match fetch_endpoint(
+            transport,
+            ProviderEndpoint::ClaudeOauthUsage,
+            AuthApplication::ClaudeOauthBearer,
+            &current.access_token,
+            None,
+        )
+        .await
+        {
+            Ok(response) => response,
+            Err(error) => {
+                runtime.retry(account_id, now_ms, None);
+                return ClaudeOauthOutcome::Failed {
+                    account_id: account_id.to_string(),
+                    reason: net_failure(error),
+                };
+            }
+        };
+        /* A 401 can race Claude Code refreshing its own login: the token sent
+        lapsed a moment before the new one reached the store. When the store
+        now holds a different credential, it is asked once, before anything is
+        recorded against the old one. */
+        if response.status == 401 && rotated.is_none() {
+            rotated = reread().filter(|fresh| {
+                fresh.credential_revision != secret.credential_revision
+                    && !crate::poll_identity::credential_expired(&fresh.access_token, now_ms)
+            });
+            if rotated.is_some() {
+                continue;
+            }
         }
+        break response;
     };
+    let secret = rotated.as_ref().unwrap_or(secret);
     match response.status {
         200..=299 => {
             if let Ok(mut attempts) = runtime.attempts.lock() {
@@ -894,33 +941,16 @@ fn credential_failure(account_id: &str, error: DetectedCredentialError) -> Claud
 pub async fn collect_account<T: Transport>(
     detection: &DetectionStore,
     runtime: &ClaudeOauthRuntime,
+    policy: &RequestPolicy,
     transport: &T,
     writer: Arc<CacheWriter>,
     account_id: String,
     now_ms: u64,
 ) -> ClaudeOauthOutcome {
-    // Refresh the inventory so expiry metadata belongs to the current stored token.
-    let expired = detection
-        .report()
-        .providers
-        .iter()
-        .filter(|provider| provider.provider_id == DetectedProviderId::Claude)
-        .flat_map(|provider| &provider.accounts)
-        .filter(|account| account.account_id == account_id)
-        .filter_map(|account| account.expires_at.as_deref())
-        .filter_map(|expiry| chrono::DateTime::parse_from_rfc3339(expiry).ok())
-        .any(|expiry| expiry.timestamp_millis() <= now_ms as i64);
-    if expired {
-        let _ = writer.record_availability(
-            "CLAUDE",
-            Some(&account_id),
-            "expired_credentials",
-            None,
-            now_ms,
-        );
-        detection.mark_stale(DetectedProviderId::Claude, &account_id);
-        return ClaudeOauthOutcome::reopen(&account_id);
-    }
+    /* The expiry is checked against the store as it is now, never against the
+    last scan: a scan up to five minutes old still holds the expiry of a token
+    Claude Code has since replaced, and refusing on it recorded a day long
+    refusal against the new token. */
     let secret = match detection.read_credential(DetectedProviderId::Claude, &account_id) {
         Ok(secret) => secret,
         Err(error) => {
@@ -937,8 +967,21 @@ pub async fn collect_account<T: Transport>(
             return credential_failure(&account_id, error);
         }
     };
-    let outcome =
-        collect_with_secret(runtime, transport, writer, &account_id, &secret, now_ms).await;
+    let outcome = collect_with_reread(
+        runtime,
+        policy,
+        transport,
+        writer,
+        &account_id,
+        &secret,
+        now_ms,
+        || {
+            detection
+                .read_credential(DetectedProviderId::Claude, &account_id)
+                .ok()
+        },
+    )
+    .await;
     match &outcome {
         ClaudeOauthOutcome::CacheCommitted { .. } => {
             detection.mark_ready(DetectedProviderId::Claude, &account_id)
@@ -999,6 +1042,7 @@ pub async fn collect_account_guarded<T: Transport>(
     let outcome = collect_account(
         detection,
         runtime,
+        policy,
         transport,
         writer,
         account_id.clone(),
@@ -1704,6 +1748,249 @@ mod tests {
                 "{changed:?}"
             );
             assert_eq!(transport.recorded_urls().len(), 2);
+        }
+    }
+
+    /// An expiry far enough ahead for the real clock `read_credential` uses.
+    const LATER: u64 = 4_000_000_000_000;
+
+    /// Claude Code's store, written the way Claude Code writes it.
+    fn claude_store(dir: &TempDir, token: &str, expires_at: u64) -> String {
+        let path = dir.path().join(".claude/.credentials.json");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let text = serde_json::json!({"claudeAiOauth": {
+            "accessToken": token, "expiresAt": expires_at, "accountId": "synthetic-account"
+        }})
+        .to_string();
+        fs::write(path, &text).unwrap();
+        text
+    }
+
+    async fn guarded(
+        dir: &TempDir,
+        detection: &DetectionStore,
+        runtime: &ClaudeOauthRuntime,
+        transport: &impl Transport,
+        now: u64,
+    ) -> ClaudeOauthOutcome {
+        let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
+        let account = detection
+            .account_ids(DetectedProviderId::Claude)
+            .pop()
+            .unwrap();
+        collect_account_guarded(
+            detection,
+            runtime,
+            &policy,
+            transport,
+            writer(dir),
+            account,
+            now,
+        )
+        .await
+        .0
+    }
+
+    /// The founder's morning: the old token was refused by the endpoint, or had
+    /// already lapsed in the store, and Claude Code then wrote a new one while
+    /// the last scan still held the old expiry. The new login is asked a minute
+    /// later, with no day long wait; the provider spacing still holds.
+    #[tokio::test]
+    async fn a_refusal_ends_the_moment_claude_code_rotates_its_login() {
+        for (old_expiry, script, refused_requests) in [
+            (
+                LATER,
+                vec![(401, Vec::new(), None), (200, valid_body(), None)],
+                1,
+            ),
+            (NOW - 60_000, vec![(200, valid_body(), None)], 0),
+        ] {
+            let dir = TempDir::new();
+            claude_store(&dir, "synthetic-old-token", old_expiry);
+            let detection = DetectionStore::for_test_home(dir.path(), NOW);
+            let runtime = ClaudeOauthRuntime::default();
+            let transport = RecordingTransport::scripted(script);
+            let refused = guarded(&dir, &detection, &runtime, &transport, NOW).await;
+            assert!(
+                matches!(refused, ClaudeOauthOutcome::ReopenCli { .. }),
+                "{refused:?}"
+            );
+            assert_eq!(transport.recorded_urls().len(), refused_requests);
+
+            claude_store(&dir, "synthetic-new-token", LATER);
+            let rotated = guarded(&dir, &detection, &runtime, &transport, NOW + 60_000).await;
+            assert!(
+                matches!(rotated, ClaudeOauthOutcome::CacheCommitted { .. }),
+                "{rotated:?}"
+            );
+            assert_eq!(
+                transport.recorded_secrets().last().map(String::as_str),
+                Some("synthetic-new-token")
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn a_refusal_with_the_same_credential_keeps_its_day() {
+        let dir = TempDir::new();
+        claude_store(&dir, "synthetic-token", LATER);
+        let detection = DetectionStore::for_test_home(dir.path(), NOW);
+        let runtime = ClaudeOauthRuntime::default();
+        let transport = RecordingTransport::replying(401, Vec::new(), None);
+        let refused = guarded(&dir, &detection, &runtime, &transport, NOW).await;
+        assert!(
+            matches!(refused, ClaudeOauthOutcome::ReopenCli { .. }),
+            "{refused:?}"
+        );
+        for at in [NOW + 1_000, NOW + 3_600_000, NOW + 86_399_999] {
+            let outcome = guarded(&dir, &detection, &runtime, &transport, at).await;
+            assert!(
+                matches!(outcome, ClaudeOauthOutcome::Cached { .. }),
+                "{outcome:?}"
+            );
+        }
+        assert_eq!(transport.recorded_urls().len(), 1);
+    }
+
+    /// Claude Code refreshing its login while a request is in flight: the
+    /// endpoint answers 401, and by then the store holds the new token.
+    struct RotatingTransport {
+        inner: RecordingTransport,
+        store: std::path::PathBuf,
+        rotated: String,
+    }
+
+    impl Transport for RotatingTransport {
+        async fn send(
+            &self,
+            request: &crate::net::EndpointRequest<'_>,
+            secret: &str,
+        ) -> Result<crate::net::TransportReply, crate::net::TransportFailure> {
+            let reply = self.inner.send(request, secret).await;
+            if reply.as_ref().is_ok_and(|reply| reply.status == 401) {
+                fs::write(&self.store, &self.rotated).unwrap();
+            }
+            reply
+        }
+    }
+
+    #[tokio::test]
+    async fn a_401_that_races_a_rotation_reads_once_more_and_records_no_refusal() {
+        let dir = TempDir::new();
+        claude_store(&dir, "synthetic-old-token", LATER);
+        let detection = DetectionStore::for_test_home(dir.path(), NOW);
+        let rotated = {
+            let scratch = TempDir::new();
+            claude_store(&scratch, "synthetic-new-token", LATER)
+        };
+        let transport = RotatingTransport {
+            inner: RecordingTransport::scripted(vec![
+                (401, Vec::new(), None),
+                (200, valid_body(), None),
+            ]),
+            store: dir.path().join(".claude/.credentials.json"),
+            rotated,
+        };
+        let outcome = guarded(
+            &dir,
+            &detection,
+            &ClaudeOauthRuntime::default(),
+            &transport,
+            NOW,
+        )
+        .await;
+
+        assert!(
+            matches!(outcome, ClaudeOauthOutcome::CacheCommitted { .. }),
+            "{outcome:?}"
+        );
+        assert_eq!(
+            transport.inner.recorded_secrets(),
+            ["synthetic-old-token", "synthetic-new-token"]
+        );
+        let policy: serde_json::Value = serde_json::from_str(
+            &fs::read_to_string(
+                dir.path()
+                    .join(crate::request_policy::REQUEST_POLICY_FILE_NAME),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(policy["providers"]["claude"]["refusal_revisions"]
+            .as_object()
+            .is_none_or(|refusals| refusals.is_empty()));
+        let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).unwrap();
+        assert!(cache.contains("FIVE_HOUR"));
+        assert!(!cache.contains("expired_credentials"));
+    }
+
+    /// The retry with the rotated login is refused too. The durable refusal
+    /// names the login that retry carried, so neither the next poll nor a
+    /// restart mistakes the unchanged refused login for another rotation.
+    #[tokio::test]
+    async fn a_refused_retry_records_the_rotated_login_and_keeps_its_day() {
+        for retry_status in [401, 403] {
+            let dir = TempDir::new();
+            claude_store(&dir, "synthetic-old-token", LATER);
+            let detection = DetectionStore::for_test_home(dir.path(), NOW);
+            let rotated = {
+                let scratch = TempDir::new();
+                claude_store(&scratch, "synthetic-new-token", LATER)
+            };
+            let transport = RotatingTransport {
+                inner: RecordingTransport::scripted(vec![
+                    (401, Vec::new(), None),
+                    (retry_status, Vec::new(), None),
+                ]),
+                store: dir.path().join(".claude/.credentials.json"),
+                rotated,
+            };
+            let runtime = ClaudeOauthRuntime::default();
+            let refused = guarded(&dir, &detection, &runtime, &transport, NOW).await;
+            assert!(
+                matches!(
+                    refused,
+                    ClaudeOauthOutcome::ReopenCli { .. }
+                        | ClaudeOauthOutcome::Fallback {
+                            reason: ClaudeOauthFailure::ProviderBlocked,
+                            ..
+                        }
+                ),
+                "{refused:?}"
+            );
+            assert_eq!(
+                transport.inner.recorded_secrets(),
+                ["synthetic-old-token", "synthetic-new-token"]
+            );
+            let account = detection
+                .account_ids(DetectedProviderId::Claude)
+                .pop()
+                .unwrap();
+            let sent = detection
+                .read_credential(DetectedProviderId::Claude, &account)
+                .unwrap()
+                .credential_revision;
+            let policy: serde_json::Value = serde_json::from_str(
+                &fs::read_to_string(
+                    dir.path()
+                        .join(crate::request_policy::REQUEST_POLICY_FILE_NAME),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            assert_eq!(
+                policy["providers"]["claude"]["refusal_revisions"][&account],
+                sent.as_str()
+            );
+            let restarted = ClaudeOauthRuntime::default();
+            for (at, runtime) in [(NOW + 60_000, &runtime), (NOW + 120_000, &restarted)] {
+                let outcome = guarded(&dir, &detection, runtime, &transport, at).await;
+                assert!(
+                    matches!(outcome, ClaudeOauthOutcome::Cached { .. }),
+                    "{outcome:?}"
+                );
+            }
+            assert_eq!(transport.inner.recorded_urls().len(), 2);
         }
     }
 

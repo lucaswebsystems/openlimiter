@@ -1,5 +1,6 @@
 import {
   PROVIDER_CODES,
+  RETENTION_MILLISECONDS,
   antigravityMeterPresentation,
   antigravityMeterRank,
   buildAdvice,
@@ -103,6 +104,7 @@ export type {
 
 export {
   PROVIDER_CODES,
+  RETENTION_MILLISECONDS,
   buildAgentContext,
   /* The connection state machine's two human tables, so the Connections tab
      renders the same sentence and next action every other surface does, plus

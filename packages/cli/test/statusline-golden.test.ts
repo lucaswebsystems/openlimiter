@@ -1,9 +1,13 @@
 import { readFileSync } from "node:fs";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildAdvice, type Snapshot } from "@openlimiter/core";
 import { DEFAULT_STATUSLINE } from "../src/config.js";
-import { renderStatuslineLayout, STATUSLINE_HOSTS, tenBlockBar } from "../src/statusline.js";
+import {
+  claudeWeeklyHint, renderPlainStatusline, renderStatuslineLayout, STATUSLINE_HOSTS, tenBlockBar
+} from "../src/statusline.js";
 import { GOLDEN_NOW, GOLDEN_SNAPSHOTS } from "./fixtures/statusline-snapshots.js";
 
 /**
@@ -92,9 +96,60 @@ describe("account and freshness status line goldens", () => {
       row({ accountId, observedAt: ago(240), expiresAt: ago(120), value: 42 })
     ])).toBe("5h " + tenBlockBar(42) + " ~42%");
   });
-  it("omits a provider whose only account is more than 24 hours old", () => {
+  it("keeps a quiet provider's only account, stale, for seven days and then leaves it out", () => {
     expect(render([row({ value: 16 }), row({ provider: "CODEX", observedAt: ago(86401) })]))
+      .toBe("5h [█░░░░░░░░░] 16% | cx5h [████░░░░░░] ~42%");
+    expect(render([row({ value: 16 }), row({ provider: "CODEX", observedAt: ago(7 * 86400 + 1) })]))
       .toBe("5h [█░░░░░░░░░] 16%");
+  });
+  it("draws a stale Claude weekly with its marker instead of hiding it", () => {
+    const weekly = row({ meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604800 }, value: 26,
+      source: "internal_payload", provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
+      observedAt: ago(7200), expiresAt: ago(6060) });
+    expect(render([row({ value: 16 }), weekly])).toBe("5h [█░░░░░░░░░] 16% | 7d [██░░░░░░░░] ~26%");
+  });
+  it("drops a weekly past its seven days beside a current session, and says the weekly is missing", async () => {
+    // Seven days and an hour old, expired nineteen minutes after it was read.
+    const weekly = row({ meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604800 }, value: 26,
+      source: "internal_payload", provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
+      observedAt: ago(7 * 86400 + 3600), expiresAt: ago(7 * 86400 + 2460) });
+    const rows = [row({ value: 16 }), weekly];
+    expect(render(rows)).toBe("5h [█░░░░░░░░░] 16%");
+    const directory = await mkdtemp(path.join(await realpath(tmpdir()), "openlimiter-golden-"));
+    try {
+      expect(await claudeWeeklyHint(rows, GOLDEN_NOW, false, directory)).toBe("7d off");
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+  it("draws a retained two day old reading with its marker in every style", () => {
+    const snapshots = [row({ observedAt: ago(2 * 86400), expiresAt: ago(2 * 86400 - 1140) })];
+    const advice = buildAdvice(snapshots, GOLDEN_NOW);
+    const layout = (style: "bar" | "cells") => renderStatuslineLayout({
+      advice, snapshots, now: GOLDEN_NOW, color: false, host: "claude",
+      config: { ...DEFAULT_STATUSLINE, style, width: 1000, rows: 2 }
+    });
+    for (const line of [
+      layout("bar"),
+      layout("cells"),
+      renderPlainStatusline(advice, snapshots, GOLDEN_NOW, ["CLAUDE"], "all", undefined, "CLAUDE")
+    ]) {
+      expect(line).toContain("~42%");
+    }
+  });
+  it("leads with a fresh reading over a fuller stale one, and draws the stale one when it is alone", () => {
+    const weekly = (accountId: string, value: number, observedAt: string, expiresAt: string) => row({
+      accountId, meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604800 }, value,
+      source: "internal_payload", provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
+      observedAt, expiresAt });
+    const fresh = weekly("account-a", 10, GOLDEN_NOW, ago(-1140));
+    const stale = weekly("account-b", 99, ago(7200), ago(6060));
+    const worst = (snapshots: Snapshot[]) => renderStatuslineLayout({
+      advice: buildAdvice(snapshots, GOLDEN_NOW), snapshots, now: GOLDEN_NOW, color: false, host: "codex",
+      config: { ...DEFAULT_STATUSLINE, style: "bar", meters: "worst", width: 1000, rows: 2 }
+    });
+    expect(worst([fresh, stale])).toBe("cl7d " + tenBlockBar(10) + " 10%");
+    expect(worst([stale])).toBe("cl7d " + tenBlockBar(99) + " ~99%");
   });
   it("measures last seen per account, rather than discarding every older meter", () => {
     expect(render([row({ accountId: "active", value: 16 }), row({ accountId: "active", meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604800 }, observedAt: ago(90000), value: 26 })]))

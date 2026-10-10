@@ -2,6 +2,14 @@
 
 All notable project changes appear in this file.
 
+## [2.1.4]
+
+Bars no longer vanish. A Claude usage poll refused right after Claude Code rotated its login no longer blocks polling for a day: a refusal applies only to the login it refused, and a 401 re reads the login and retries once.
+
+Every provider you set up keeps its last reading as a grey stale bar for up to seven days, in the window, the hover panel, the status line and the phone, instead of disappearing when its source goes quiet. Alerts, the tray colour and agent advice use fresh readings only.
+
+The status line says why the Claude weekly is missing: 7d off, 7d refused or 7d waiting.
+
 ## [2.1.3]
 
 Antigravity shows its bars on Windows. Its CLI runs the status line command through cmd with escaped quotes, so the quoted command the installer wrote was never found; the installer now writes a quote free command, using a short path when a folder name has a space, and setup repairs an existing Antigravity setup.

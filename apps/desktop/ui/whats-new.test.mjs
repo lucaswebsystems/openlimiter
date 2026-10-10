@@ -10,6 +10,11 @@ const whatsNewForVersion = (version) => selectRelease(version, WHATS_NEW_EN);
 
 /* What each recent release says, word for word; the current version is one of them. */
 const NOTES = {
+  "2.1.4": [
+    { key: "claude", text: "A Claude poll refused right after Claude Code rotated its login no longer hides your Claude bars for a day." },
+    { key: "stale", text: "Every tool you set up keeps its last reading as a grey stale bar for up to seven days instead of vanishing." },
+    { key: "status", text: "The status line says why the Claude weekly is missing: 7d off, 7d refused or 7d waiting." },
+  ],
   "2.1.3": [
     { key: "antigravity", text: "Antigravity shows its bars on Windows. Run the status line setup once more from Connect Tools." },
   ],

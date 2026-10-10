@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildProviderAccountRows } from "../app/app/engine";
+import { buildProviderAccountRows, freshness } from "../app/app/engine";
 import { normalizeMeters } from "../app/app/engine/generated/core";
 import {
   parseClaudePayload,
@@ -187,25 +187,31 @@ describe("live synced usage", () => {
     });
   });
 
-  it("reproduces the owner screen and keeps only current real quota meters", () => {
+  it("reproduces the owner screen with every login's real quota meters from the last seven days", () => {
     const snapshots = snapshotsFromSyncedUsage(OWNER_SCREEN, NOW, (count) => `Account ${count}`);
     expect(snapshots.map((row) => [row.provider, row.accountId, row.meter, row.value])).toEqual([
       ["CLAUDE", IDENTIFIED_CLAUDE, "FIVE_HOUR", 11],
       ["CLAUDE", IDENTIFIED_CLAUDE, "SEVEN_DAY", 84],
+      ["CLAUDE", IDENTIFIED_CLAUDE, "SEVEN_DAY_FABLE", 57],
       ["CODEX", IDENTIFIED_CODEX, "SEVEN_DAY", 36],
+      ["CODEX", "legacy-hero", "SEVEN_DAY", 97],
     ]);
     expect(snapshots.some((row) => row.accountId === "default")).toBe(false);
     expect(snapshots.some((row) => row.meter === "ACQUISITION")).toBe(false);
-    expect(Math.max(...snapshots.map((row) => row.value))).toBe(84);
+    // The quiet 97 is drawn stale; the highest current reading is still 84.
+    expect(Math.max(...snapshots
+      .filter((row) => freshness(row.observedAt, row.expiresAt, NOW) === "fresh")
+      .map((row) => row.value))).toBe(84);
 
     const rows = buildProviderAccountRows(snapshots, NOW);
-    expect(rows).toHaveLength(2);
-    expect(rows.every((row) => row.showAccountLabel === false)).toBe(true);
-    expect(rows.map((row) => row.accountLabel)).not.toContain(IDENTIFIED_CODEX);
-    expect(rows.map((row) => row.accountLabel)).not.toContain(IDENTIFIED_CLAUDE);
+    expect(rows.map((row) => [row.provider, row.showAccountLabel]))
+      .toEqual([["CODEX", true], ["CODEX", true], ["CLAUDE", false]]);
+    for (const id of [IDENTIFIED_CODEX, IDENTIFIED_CLAUDE, "legacy-hero"]) {
+      expect(rows.map((row) => row.accountLabel)).not.toContain(id);
+    }
   });
 
-  it("keeps a model weekly meter only inside its current window", () => {
+  it("keeps a model weekly meter fresh inside its refresh horizon and stale after it", () => {
     const current = provider("CLAUDE", IDENTIFIED_CLAUDE, [{
       windowName: "SEVEN_DAY_FABLE",
       percentage: 57,
@@ -213,13 +219,14 @@ describe("live synced usage", () => {
       observedAt: "2026-10-01T11:50:00.000Z",
       stale: false,
     }]);
-    expect(snapshotsFromSyncedUsage([current], NOW, (count) => `Account ${count}`))
-      .toHaveLength(1);
+    expect(snapshotsFromSyncedUsage([current], NOW, (count) => `Account ${count}`)
+      .map((row) => freshness(row.observedAt, row.expiresAt, NOW))).toEqual(["fresh"]);
     expect(snapshotsFromSyncedUsage(OWNER_SCREEN, NOW, (count) => `Account ${count}`)
-      .some((row) => row.meter === "SEVEN_DAY_FABLE")).toBe(false);
+      .filter((row) => row.meter === "SEVEN_DAY_FABLE")
+      .map((row) => freshness(row.observedAt, row.expiresAt, NOW))).toEqual(["stale"]);
   });
 
-  it("uses the reset boundary when present and the provider refresh horizon otherwise", () => {
+  it("uses the provider refresh horizon, never the reset, and keeps an expired reading stale", () => {
     const rows = snapshotsFromSyncedUsage([
       provider("CODEX", "codex-account", [
         { windowName: "SEVEN_DAY", percentage: 44, resetAt: "2026-10-01T12:01:00.000Z", observedAt: "2026-09-30T12:00:00.000Z", stale: true },
@@ -238,8 +245,55 @@ describe("live synced usage", () => {
     const expired = rows.map((row) => row.provider === "CODEX" && row.meter === "FIVE_HOUR"
       ? { ...row, observedAt: "2026-10-01T11:52:59.000Z", expiresAt: "2026-10-01T11:59:59.000Z" }
       : row);
-    expect(visibleQuotaSnapshots(expired, NOW).some((row) => row.provider === "CODEX" && row.meter === "FIVE_HOUR"))
-      .toBe(false);
+    expect(visibleQuotaSnapshots(expired, NOW)
+      .filter((row) => row.provider === "CODEX" && row.meter === "FIVE_HOUR")
+      .map((row) => freshness(row.observedAt, row.expiresAt, NOW))).toEqual(["stale"]);
+  });
+
+  it("keeps a quiet provider's last reading on the phone, stale, for seven days instead of dropping its card", () => {
+    // The founder's phone: Antigravity's status line wrote a day ago and its CLI is closed since.
+    const quiet = (observedAt: string) => provider("ANTIGRAVITY", "antigravity-account", [
+      { windowName: "FIVE_HOUR", percentage: 40, resetAt: "2026-09-30T15:00:00.000Z", observedAt, stale: true },
+    ]);
+    const day = snapshotsFromSyncedUsage([quiet("2026-09-30T12:00:00.000Z")], NOW);
+    expect(day.map((row) => [row.provider, row.meter, row.value])).toEqual([["ANTIGRAVITY", "FIVE_HOUR", 40]]);
+    const rows = buildProviderAccountRows(day, NOW, [], { updatedLabel: () => "Updated 1 d ago" });
+    expect(rows[0]?.windows.map((window) => [window.state, window.readout, window.updatedLabel]))
+      .toEqual([["stale", "40%", "Updated 1 d ago"]]);
+    expect(snapshotsFromSyncedUsage([quiet("2026-09-24T11:59:59.000Z")], NOW)).toEqual([]);
+  });
+
+  it("keeps a stale session beside a current weekly, as the shared stale rule does", () => {
+    const rows = snapshotsFromSyncedUsage([provider("CLAUDE", IDENTIFIED_CLAUDE, [
+      // The session went quiet half an hour ago; the weekly was read a minute ago.
+      { windowName: "FIVE_HOUR", percentage: 30, resetAt: null, observedAt: "2026-10-01T11:30:00.000Z", stale: true },
+      { windowName: "SEVEN_DAY", percentage: 40, resetAt: "2026-10-05T12:00:00.000Z", observedAt: "2026-10-01T11:59:00.000Z", stale: false },
+    ])], NOW);
+    expect(rows.map((row) => [row.meter, freshness(row.observedAt, row.expiresAt, NOW)]))
+      .toEqual([["FIVE_HOUR", "stale"], ["SEVEN_DAY", "fresh"]]);
+  });
+
+  it("shows a quiet second account, stale, beside a current newer one", () => {
+    const rows = snapshotsFromSyncedUsage([
+      provider("CLAUDE", "claude-a", [
+        { windowName: "SEVEN_DAY", percentage: 10, resetAt: null, observedAt: "2026-10-01T11:59:00.000Z", stale: false },
+      ]),
+      // Refused two hours ago and quiet since.
+      provider("CLAUDE", "claude-b", [
+        { windowName: "SEVEN_DAY", percentage: 20, resetAt: null, observedAt: "2026-10-01T10:00:00.000Z", stale: true },
+      ]),
+    ], NOW);
+    expect(rows.map((row) => [row.accountId, freshness(row.observedAt, row.expiresAt, NOW)]))
+      .toEqual([["claude-a", "fresh"], ["claude-b", "stale"]]);
+  });
+
+  it("never counts a reset still ahead as freshness", () => {
+    // Read a day ago, its reset four days ahead: stale, never fresh.
+    const rows = snapshotsFromSyncedUsage([provider("CODEX", IDENTIFIED_CODEX, [
+      { windowName: "SEVEN_DAY", percentage: 36, resetAt: "2026-10-05T12:00:00.000Z", observedAt: "2026-09-30T12:00:00.000Z", stale: true },
+    ])], NOW);
+    expect(rows.map((row) => [row.meter, freshness(row.observedAt, row.expiresAt, NOW)]))
+      .toEqual([["SEVEN_DAY", "stale"]]);
   });
 
   it("uses safe carried labels and stable translated ordinal fallbacks for several accounts", () => {

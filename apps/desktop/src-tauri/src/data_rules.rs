@@ -140,19 +140,26 @@ fn display_availability(row: &Snapshot) -> bool {
     )
 }
 
-/// Freshness is not visibility, for Claude status line rows only.
+/// Freshness is not visibility. TypeScript twin: `heldReason`.
 ///
-/// Claude Code writes them only while it runs, so an idle session would lose
-/// its card after two minutes. A stale row stays displayable (its age shows)
-/// until its window resets; after that the honest answer is waiting for Claude
-/// Code, never a number nobody measured. TypeScript twin: `heldReason`.
+/// A source that went quiet (Antigravity with its CLI closed, a Claude poll
+/// that is waiting) keeps its last reading on screen, stale: flat grey, no
+/// band, its age shown, for as long as the cache retains it (seven days after
+/// it was observed). Claude status line rows keep their own rule: held until
+/// their window resets, then the honest answer is waiting for Claude Code,
+/// never a number nobody measured.
 fn held_reason<'a>(row: &Snapshot, reason: Option<&'a str>, now: i64) -> Option<&'a str> {
-    let observed = crate::native_time::epoch_ms_from_rfc3339(&row.observed_at);
-    if reason != Some("stale")
-        || !claude_statusline(row)
-        || !observed.is_some_and(|at| at as i64 <= now)
-    {
+    let Some(observed) = crate::native_time::epoch_ms_from_rfc3339(&row.observed_at)
+        .map(|at| at as i64)
+        .filter(|at| *at <= now)
+    else {
         return reason;
+    };
+    if reason != Some("stale") {
+        return reason;
+    }
+    if !claude_statusline(row) {
+        return (now - observed > RETENTION_MS as i64).then_some("stale");
     }
     let reset = row
         .reset_at
@@ -601,7 +608,8 @@ mod tests {
             project(vec![unknown_reset], minutes(5), &active, &BTreeSet::new()).flags[0].reason,
             "awaiting_statusline"
         );
-        /* Every other source keeps its own expiry. */
+        /* Every other source is held stale past its window, until the cache
+        lets go of it seven days after it was observed. */
         let mut codex = statusline(None);
         codex.provider = "CODEX".into();
         let mut polled = statusline(Some("fixture-a"));
@@ -610,10 +618,68 @@ mod tests {
         let mut antigravity = statusline(None);
         antigravity.provider = "ANTIGRAVITY".into();
         antigravity.provenance = Some(serde_json::json!({ "sourceKind": "statusline_payload", "observedVia": "local_command" }));
-        let others = project(vec![codex, polled, antigravity], minutes(45), &active, &BTreeSet::new());
-        assert!(others.snapshots.is_empty());
-        assert!(others.flags.iter().all(|flag| flag.reason == "stale"));
-        assert_eq!(others.flags.len(), 3);
+        let others = vec![codex, polled, antigravity];
+        let held = project(others.clone(), minutes(121), &active, &BTreeSet::new());
+        assert!(held.flags.is_empty());
+        assert_eq!(held.snapshots.len(), 3);
+        assert!(held
+            .snapshots
+            .iter()
+            .all(|row| reason(row, minutes(121)) == Some("stale")));
+        let gone = project(
+            others,
+            observed + RETENTION_MS as i64 + 1,
+            &active,
+            &BTreeSet::new(),
+        );
+        assert!(gone.snapshots.is_empty());
+        assert!(gone.flags.iter().all(|flag| flag.reason == "stale"));
+        assert_eq!(gone.flags.len(), 3);
+    }
+
+    /// The founder's Antigravity card: its status line wrote yesterday and its
+    /// CLI is closed. The card stays, stale, instead of vanishing, and leaves
+    /// seven days after the reading.
+    #[test]
+    fn a_quiet_antigravity_card_stays_stale_for_seven_days_then_leaves() {
+        let observed =
+            crate::native_time::epoch_ms_from_rfc3339("2026-09-29T12:00:00.000Z").unwrap() as i64;
+        let mut row = measured(Some("antigravity-account"));
+        row.provider = "ANTIGRAVITY".into();
+        row.provenance = Some(serde_json::json!({
+            "sourceKind": "statusline_payload",
+            "observedVia": "antigravity_cli_statusline"
+        }));
+        let day_later = observed + 86_400_000;
+        let shown = project(
+            vec![row.clone()],
+            day_later,
+            &BTreeMap::new(),
+            &BTreeSet::new(),
+        );
+        assert!(shown.flags.is_empty());
+        assert_eq!(shown.snapshots.len(), 1);
+        assert_eq!(reason(&shown.snapshots[0], day_later), Some("stale"));
+        let week_later = observed + RETENTION_MS as i64;
+        assert_eq!(
+            project(
+                vec![row.clone()],
+                week_later,
+                &BTreeMap::new(),
+                &BTreeSet::new()
+            )
+            .snapshots
+            .len(),
+            1
+        );
+        let gone = project(
+            vec![row],
+            week_later + 1,
+            &BTreeMap::new(),
+            &BTreeSet::new(),
+        );
+        assert!(gone.snapshots.is_empty());
+        assert_eq!(gone.flags[0].reason, "stale");
     }
 
     #[test]

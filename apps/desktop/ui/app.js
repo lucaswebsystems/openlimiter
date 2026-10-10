@@ -28,6 +28,7 @@ import {
 /* The one projection, names and drawing Home shares with the edge panel. */
 import {
   ALWAYS_LISTED,
+  alertSamples,
   fixWords,
   holdReadings,
   inventoryModel,
@@ -760,8 +761,8 @@ async function repaintHome() {
     const connections = connectionResult.ok ? normalizeConnectionList(connectionResult.value) : [];
     adoptDetectedProviders(detections);
     const removed = readRemovedProviders();
-    /* Displayable rows only: the active account, fresh by the one freshness
-       policy, measured. A provider a person removed stays off Home even if a
+    /* Displayable rows only: the active account, measured, fresh or held stale
+       by the data rules. A provider a person removed stays off Home even if a
        writer still reports it. */
     const visible = collected.snapshots.filter((snapshot) => !removed.includes(snapshot.provider));
     const configuredProviders = homeProviders(readConfiguredProviders(), detections, connections, visible, removed);
@@ -788,21 +789,7 @@ async function repaintHome() {
     if (elements.refreshStatus?.textContent === say("cacheUnreadable")) elements.refreshStatus.textContent = "";
     paintFailures(visibleFailures);
 
-    const notificationSamples = visible
-      .filter(
-        (snapshot) =>
-          snapshot.unit === "PERCENT" && Number.isFinite(snapshot.value)
-      )
-      .map((snapshot) => ({
-        accountId: snapshot.accountId ?? "default",
-        provider: snapshot.provider,
-        meter: "provider_usage_percent",
-        windowName: snapshot.meter,
-        windowId: snapshot.resetAt ?? `meter:${snapshot.meter}`,
-        windowIsAuthoritative: snapshot.resetAt !== null && snapshot.resetAt !== undefined,
-        value: snapshot.value,
-        observedAt: snapshot.observedAt,
-      }));
+    const notificationSamples = alertSamples(visible, now);
     if (notificationSamples.length > 0) await evaluateNotifications(notificationSamples);
 
     await setTrayStatus({
@@ -813,8 +800,8 @@ async function repaintHome() {
     noteMetersRefreshed();
     return true;
   } catch (error) {
-    /* A failed read keeps only what is still fresh of the rows already on
-       screen, by the same freshness policy, and says why in one sentence. */
+    /* A failed read keeps what the data rules still draw of the rows already
+       on screen (fresh, or stale with its age), and says why in one sentence. */
     const now = new Date().toISOString();
     heldSnapshots = holdReadings(heldSnapshots, now);
     paintTools(heldSnapshots, now);

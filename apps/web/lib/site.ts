@@ -89,8 +89,8 @@ export const HERO_BACKDROP_ENABLED: boolean = true;
  * This constant drives the version shown on the download page. Installer links
  * use stable aliases on the latest published release, independent of this value.
  */
-export const CURRENT_VERSION = "2.1.3";
-export const SITE_CONTENT_UPDATED = "2026-10-08";
+export const CURRENT_VERSION = "2.1.4";
+export const SITE_CONTENT_UPDATED = "2026-10-10";
 
 /**
  * What actually ships today, in one place, so no surface can quietly promote a

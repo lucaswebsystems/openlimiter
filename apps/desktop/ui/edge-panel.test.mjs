@@ -89,10 +89,11 @@ test("honest states: loading, nothing measurable yet, and unavailable", async ()
   broken.stop();
 });
 
-test("a failed read keeps the still fresh rows it drew, and only an empty hand reads as unavailable", async () => {
+test("a failed read keeps the rows it drew, stale once they expire, and only an empty hand reads as unavailable", async () => {
   const { view, scheduled, source, stop } = panel();
   await flush();
   const providers = () => view("panel-limits").all((node) => "providerCard" in node.dataset).map((card) => card.dataset.provider);
+  const bands = () => view("panel-limits").all((node) => node.className === "q-row").map((row) => row.dataset.band);
   assert.deepEqual(providers(), ["CODEX", "CLAUDE", "OPENROUTER"]);
   // Native code rejects a cache it cannot read or parse (a sharing violation mid replace).
   source.cache = "fail";
@@ -100,12 +101,14 @@ test("a failed read keeps the still fresh rows it drew, and only an empty hand r
   assert.deepEqual(providers(), ["CODEX", "CLAUDE", "OPENROUTER"], "nothing drawn is dropped while it is still fresh");
   assert.equal(view("panel-limits").hidden, false);
   assert.equal(view("panel-state").hidden, true);
-  // Seven minutes on the desktop Codex row has expired by the one freshness policy.
+  // Seven minutes on the desktop Codex row has expired: it stays, flat grey, beside the fresh rows.
   source.at = NOW + 7 * 60_000;
   await scheduled.at(-1)();
-  assert.deepEqual(providers(), ["CLAUDE", "OPENROUTER"]);
-  // Half an hour on nothing held is fresh, and the panel says it cannot read.
-  source.at = NOW + 30 * 60_000;
+  assert.deepEqual(providers(), ["CODEX", "CLAUDE", "OPENROUTER"]);
+  assert.equal(bands()[0], "stale");
+  assert.ok(bands().slice(1).every((band) => band !== "stale"));
+  // A week on the cache has let go of every row, and the panel says it cannot read.
+  source.at = NOW + 7 * 86_400_000;
   await scheduled.at(-1)();
   assert.equal(view("panel-limits").hidden, true);
   assert.equal(view("panel-state-title").textContent, "Your limits are unavailable right now.");
