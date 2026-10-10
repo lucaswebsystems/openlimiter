@@ -2,7 +2,7 @@ import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
-import { writeSnapshotCache, type Advice, type Snapshot } from "@openlimiter/core";
+import { buildAdvice, writeSnapshotCache, type Advice, type Snapshot } from "@openlimiter/core";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   agentContextFromCache,
@@ -197,6 +197,45 @@ describe("Claude adapter", () => {
     const elapsed = performance.now() - start;
     expect(context).toContain("provider=CLAUDE");
     expect(elapsed).toBeLessThan(100);
+  });
+
+  it("builds the advice and the context file from fresh readings only", async () => {
+    const directory = await mkdtemp(path.join(await scratchRoot(), "openlimiter-adapter-test-"));
+    created.push(directory);
+    const now = "2026-01-08T00:00:00.000Z";
+    const reading = (meter: string, value: number, observedAt: string, expiresAt: string): Snapshot => ({
+      provider: "CLAUDE",
+      meter,
+      value,
+      unit: "PERCENT",
+      window: { kind: "rolling", durationSeconds: meter === "FIVE_HOUR" ? 18_000 : 604_800 },
+      resetAt: null,
+      source: "native_payload",
+      precision: "exact",
+      observedAt,
+      expiresAt,
+      labels: {
+        credentialOrigin: "official-local-tool",
+        dataInterfaceStatus: "native-statusline-payload",
+        automationRisk: "low",
+        verification: "UNVERIFIED"
+      }
+    });
+    // A weekly seven days old at 99 percent beside a session a minute old at 5.
+    const rows = [
+      reading("SEVEN_DAY", 99, "2026-01-01T00:00:00.000Z", "2026-01-01T00:05:00.000Z"),
+      reading("FIVE_HOUR", 5, "2026-01-07T23:59:00.000Z", "2026-01-08T00:04:00.000Z")
+    ];
+    expect(buildAdvice(rows, now, ["CLAUDE"])).toMatchObject({
+      reason: "HEALTHY",
+      providers: [{ provider: "CLAUDE", meter: "FIVE_HOUR", state: "fresh", usagePercent: 5 }]
+    });
+    await writeSnapshotCache(rows, directory);
+    await writeAgentContextSnapshot(rows, directory, now, ["CLAUDE"]);
+    const context = await agentContextFromCache(directory, now, ["CLAUDE"]);
+    expect(context).toContain("reason=HEALTHY");
+    expect(context).toContain("provider=CLAUDE meter=FIVE_HOUR state=fresh usage_percent=5");
+    expect(context).not.toContain("SEVEN_DAY");
   });
 
   it("rejects an edited shared snapshot rather than injecting it", async () => {

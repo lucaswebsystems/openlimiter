@@ -1,6 +1,5 @@
 import {
   RETENTION_MILLISECONDS,
-  freshness,
   freshnessPolicy,
   providerMeterPresentation,
   providerMeterVisible,
@@ -51,53 +50,26 @@ function providerExpiry(snapshot: Snapshot, now: string): string {
   }).expiresAt;
 }
 
-function liveExpiry(snapshot: Snapshot, now: string): string | null {
-  const current = Date.parse(now);
-  const observed = Date.parse(snapshot.observedAt);
-  if (!Number.isFinite(current) || !Number.isFinite(observed) || observed > current) return null;
-  if (snapshot.resetAt !== null) {
-    const reset = Date.parse(snapshot.resetAt);
-    return Number.isFinite(reset) && reset > current && reset >= observed
-      ? new Date(reset).toISOString()
-      : null;
-  }
-  const expiresAt = providerExpiry(snapshot, now);
-  return freshness(snapshot.observedAt, expiresAt, now) === "fresh" ? expiresAt : null;
-}
-
 /**
- * A provider with nothing current keeps its newest account's last readings,
- * drawn stale (flat grey with their age), for the seven days the data rules
- * hold a stale reading, instead of vanishing. Its other accounts stay out, so
- * an old login never reappears beside a current one.
+ * The shared stale rule, one reading at a time: fresh for its provider's
+ * refresh horizon, never for a reset still ahead, then stale (flat grey with
+ * its age) for the seven days the data rules hold a stale reading, then gone.
  */
-function quietReadings(eligible: readonly Snapshot[], live: readonly Snapshot[], now: string): Snapshot[] {
-  const current = Date.parse(now);
-  const recent = eligible.filter((snapshot) => {
-    const age = current - Date.parse(snapshot.observedAt);
-    return age >= 0 && age <= RETENTION_MILLISECONDS && !live.some((row) => row.provider === snapshot.provider);
-  });
-  const newest = new Map<ProviderCode, Snapshot>();
-  for (const snapshot of recent) {
-    const held = newest.get(snapshot.provider);
-    if (held === undefined || Date.parse(snapshot.observedAt) > Date.parse(held.observedAt)) {
-      newest.set(snapshot.provider, snapshot);
-    }
-  }
-  return recent
-    .filter((snapshot) => snapshot.accountId === newest.get(snapshot.provider)?.accountId)
-    .map((snapshot) => ({ ...snapshot, expiresAt: snapshot.observedAt }));
+function heldExpiry(snapshot: Snapshot, now: string): string | null {
+  const age = Date.parse(now) - Date.parse(snapshot.observedAt);
+  return age >= 0 && age <= RETENTION_MILLISECONDS ? providerExpiry(snapshot, now) : null;
 }
 
 /**
  * The readings the web app may draw.
  *
- * A reset instant is the authoritative boundary for a measured window. A row
- * without one uses the existing provider poll policy: Codex is seven minutes,
+ * Every reading follows the shared stale rule by `heldExpiry`, with the
+ * provider poll policy as its refresh horizon: Codex is seven minutes,
  * Antigravity thirteen minutes, Claude and the conservative fallback nineteen
- * minutes. Legacy default identities lose whenever an identified account for
- * the same provider exists. A provider with nothing current keeps its last
- * readings, stale, by `quietReadings`.
+ * minutes. Every account with a reading in those seven days shows, as on the
+ * desktop, so a quiet second login stays beside a current one, stale. Legacy
+ * default identities lose whenever an identified account for the same
+ * provider exists.
  */
 export function visibleQuotaSnapshots(
   snapshots: readonly Snapshot[],
@@ -111,11 +83,10 @@ export function visibleQuotaSnapshots(
   );
   const eligible = snapshots.filter((snapshot) => isKnownQuotaMeter(snapshot) &&
     !(snapshot.accountId === "default" && identified.has(snapshot.provider)));
-  const current = eligible.flatMap((snapshot) => {
-    const expiresAt = liveExpiry(snapshot, now);
+  const live = eligible.flatMap((snapshot) => {
+    const expiresAt = heldExpiry(snapshot, now);
     return expiresAt === null ? [] : [{ ...snapshot, expiresAt }];
   });
-  const live = [...current, ...quietReadings(eligible, current, now)];
 
   const accounts = new Map<ProviderCode, string[]>();
   for (const snapshot of live) {

@@ -160,20 +160,18 @@ impl RequestPolicy {
             }
         };
         prune_expired(&mut document, now_ms);
-        let mut changed_refusal = false;
+        /* A rotated login ends its refusal's own deadline and nothing else:
+        provider spacing and every rate limit, of any account, stay. */
+        let mut refusal_deadline = None;
         if let Some(state) = document.providers.get_mut(&provider) {
             if state
                 .refusal_revisions
                 .get(account_id)
                 .is_some_and(|previous| revision.is_some_and(|current| current != previous))
             {
-                changed_refusal = true;
-                state.accounts.remove(account_id);
+                refusal_deadline = state.accounts.remove(account_id);
                 state.refusal_revisions.remove(account_id);
                 state.attempts.remove(account_id);
-                /* The spacing the refused request left belongs to the refused
-                credential too, so the new one is asked at once. */
-                state.next_request_at = None;
             }
         }
         if let Some(state) = document.providers.get(&provider) {
@@ -219,7 +217,7 @@ impl RequestPolicy {
             shared_provider,
             Some(account_id),
             now_ms,
-            changed_refusal,
+            refusal_deadline,
         ) {
             Ok(lease) => lease,
             Err(rejection) => {
@@ -266,6 +264,15 @@ impl RequestPolicy {
             policy: self,
             provider,
         })
+    }
+
+    /// The credential the request about to be sent carries. Begin holds the
+    /// one read before the request; a retry after a 401 may carry a rotated
+    /// one, and a refusal must name the login that was actually refused.
+    pub(crate) fn carrying_revision(&self, revision: &str) {
+        if let Ok(mut inner) = self.inner.lock() {
+            inner.credential_revision = Some(revision.to_string());
+        }
     }
 
     pub fn complete_after(
@@ -651,7 +658,7 @@ impl MachineLease {
         account: Option<&str>,
         now: u64,
     ) -> Result<Self, GateRejection> {
-        Self::acquire_account_with_refusal_change(directory, provider, account, now, false)
+        Self::acquire_account_with_refusal_change(directory, provider, account, now, None)
     }
 
     fn acquire_account_with_refusal_change(
@@ -659,7 +666,7 @@ impl MachineLease {
         provider: &str,
         account: Option<&str>,
         now: u64,
-        changed_refusal: bool,
+        refusal_deadline: Option<u64>,
     ) -> Result<Self, GateRejection> {
         let file = directory.join(format!("acquisition-{provider}.json"));
         let token = uuid::Uuid::new_v4().to_string();
@@ -678,7 +685,9 @@ impl MachineLease {
                 state.last_account.is_none() || account == state.last_account.as_deref();
             // Only the local refusal revision can release its shared deadline.
             // The CLI computes its revision from different source metadata.
-            if same_account && changed_refusal {
+            // A deadline written since the refusal, such as the CLI's rate
+            // limit, is no longer the refusal's own and stays.
+            if same_account && refusal_deadline == Some(state.next_allowed_at) {
                 state.next_allowed_at = 0;
                 state.attempts = 0;
             }
@@ -955,6 +964,82 @@ mod tests {
                     .is_ok());
             }
         }
+    }
+
+    /// A rotated login ends its refusal's own deadline and nothing else: the
+    /// rate limit another account was given stays on the provider row, and a
+    /// rate limit the CLI left in the shared lease, which names no account and
+    /// so binds this one too, stays as well.
+    #[test]
+    fn a_rotation_keeps_every_rate_limit_deadline() {
+        let refused = |dir: &TempDir| {
+            let policy = policy(dir);
+            let lease = policy
+                .begin_with_revision(
+                    DetectedProviderId::Claude,
+                    "account-a",
+                    NOW,
+                    Some("revision-one"),
+                )
+                .unwrap();
+            policy.refuse_account(DetectedProviderId::Claude, "account-a", NOW, false);
+            drop(lease);
+            policy
+        };
+
+        let dir = TempDir::new();
+        let policy = refused(&dir);
+        let at = NOW + 60_000;
+        let lease = policy
+            .begin(DetectedProviderId::Claude, "account-b", at)
+            .unwrap();
+        policy.rate_limit_account(DetectedProviderId::Claude, "account-b", at, Some(3_600));
+        drop(lease);
+        let held = Some(GateRejection::Deferred {
+            retry_at: at + 3_600_000,
+        });
+        let later = at + 60_000;
+        assert_eq!(
+            policy
+                .begin_with_revision(
+                    DetectedProviderId::Claude,
+                    "account-a",
+                    later,
+                    Some("revision-two")
+                )
+                .err(),
+            held
+        );
+        assert_eq!(
+            policy
+                .begin(DetectedProviderId::Claude, "account-b", later)
+                .err(),
+            held
+        );
+
+        let dir = TempDir::new();
+        let policy = refused(&dir);
+        let cli_deadline = NOW + 3_600_000;
+        std::fs::write(
+            dir.path().join("acquisition-claude.json"),
+            serde_json::json!({"lastAccount": null, "owner": null, "expiresAt": 0, "token": "",
+                "nextAllowedAt": cli_deadline, "attempts": 1})
+            .to_string(),
+        )
+        .unwrap();
+        assert_eq!(
+            policy
+                .begin_with_revision(
+                    DetectedProviderId::Claude,
+                    "account-a",
+                    NOW + 60_000,
+                    Some("revision-two")
+                )
+                .err(),
+            Some(GateRejection::Deferred {
+                retry_at: cli_deadline
+            })
+        );
     }
 
     #[test]

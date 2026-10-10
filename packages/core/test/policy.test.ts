@@ -108,7 +108,7 @@ describe("policy", () => {
     ], now, ["CLAUDE"]).recommendation).toEqual({
       code: "NONE",
       provider: null,
-      reason: "NO_FRESH_DATA"
+      reason: "NO_KNOWN_PROVIDER"
     });
   });
 

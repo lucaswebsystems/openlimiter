@@ -68,9 +68,11 @@ export function buildAdvice(
         snapshot,
         state: freshness(snapshot.observedAt, snapshot.expiresAt, now)
       }))
+      /* A stale reading is drawn, flat grey, but it is never advice: it sets
+         no level and names no meter, so a week old 99 never reads NEAR_CAP. */
       .filter(
-        (entry): entry is { snapshot: Snapshot; state: "fresh" | "stale" } =>
-          entry.state !== "unknown"
+        (entry): entry is { snapshot: Snapshot; state: "fresh" } =>
+          entry.state === "fresh"
       )
       .sort((left, right) => right.snapshot.value - left.snapshot.value);
     const worst = candidates[0];

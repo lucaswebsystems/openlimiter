@@ -766,6 +766,7 @@ async fn collect_with_secret<T: Transport>(
 ) -> ClaudeOauthOutcome {
     collect_with_reread(
         runtime,
+        &RequestPolicy::at(None),
         transport,
         writer,
         account_id,
@@ -777,9 +778,11 @@ async fn collect_with_secret<T: Transport>(
 }
 
 /// One read with `secret`. `reread` reads Claude Code's store again, for the
-/// one moment a 401 needs it.
+/// one moment a 401 needs it. `policy` is told which login every request
+/// carries, so a refusal is recorded against the one actually refused.
 async fn collect_with_reread<T: Transport>(
     runtime: &ClaudeOauthRuntime,
+    policy: &RequestPolicy,
     transport: &T,
     writer: Arc<CacheWriter>,
     account_id: &str,
@@ -808,6 +811,7 @@ async fn collect_with_reread<T: Transport>(
     let mut rotated: Option<DetectedSecret> = None;
     let response = loop {
         let current = rotated.as_ref().unwrap_or(secret);
+        policy.carrying_revision(&current.credential_revision);
         let response = match fetch_endpoint(
             transport,
             ProviderEndpoint::ClaudeOauthUsage,
@@ -937,6 +941,7 @@ fn credential_failure(account_id: &str, error: DetectedCredentialError) -> Claud
 pub async fn collect_account<T: Transport>(
     detection: &DetectionStore,
     runtime: &ClaudeOauthRuntime,
+    policy: &RequestPolicy,
     transport: &T,
     writer: Arc<CacheWriter>,
     account_id: String,
@@ -964,6 +969,7 @@ pub async fn collect_account<T: Transport>(
     };
     let outcome = collect_with_reread(
         runtime,
+        policy,
         transport,
         writer,
         &account_id,
@@ -1036,6 +1042,7 @@ pub async fn collect_account_guarded<T: Transport>(
     let outcome = collect_account(
         detection,
         runtime,
+        policy,
         transport,
         writer,
         account_id.clone(),
@@ -1786,8 +1793,8 @@ mod tests {
 
     /// The founder's morning: the old token was refused by the endpoint, or had
     /// already lapsed in the store, and Claude Code then wrote a new one while
-    /// the last scan still held the old expiry. The new login is asked one
-    /// second later, with no day long wait and no spacing left from the refusal.
+    /// the last scan still held the old expiry. The new login is asked a minute
+    /// later, with no day long wait; the provider spacing still holds.
     #[tokio::test]
     async fn a_refusal_ends_the_moment_claude_code_rotates_its_login() {
         for (old_expiry, script, refused_requests) in [
@@ -1811,7 +1818,7 @@ mod tests {
             assert_eq!(transport.recorded_urls().len(), refused_requests);
 
             claude_store(&dir, "synthetic-new-token", LATER);
-            let rotated = guarded(&dir, &detection, &runtime, &transport, NOW + 1_000).await;
+            let rotated = guarded(&dir, &detection, &runtime, &transport, NOW + 60_000).await;
             assert!(
                 matches!(rotated, ClaudeOauthOutcome::CacheCommitted { .. }),
                 "{rotated:?}"
@@ -1915,6 +1922,76 @@ mod tests {
         let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).unwrap();
         assert!(cache.contains("FIVE_HOUR"));
         assert!(!cache.contains("expired_credentials"));
+    }
+
+    /// The retry with the rotated login is refused too. The durable refusal
+    /// names the login that retry carried, so neither the next poll nor a
+    /// restart mistakes the unchanged refused login for another rotation.
+    #[tokio::test]
+    async fn a_refused_retry_records_the_rotated_login_and_keeps_its_day() {
+        for retry_status in [401, 403] {
+            let dir = TempDir::new();
+            claude_store(&dir, "synthetic-old-token", LATER);
+            let detection = DetectionStore::for_test_home(dir.path(), NOW);
+            let rotated = {
+                let scratch = TempDir::new();
+                claude_store(&scratch, "synthetic-new-token", LATER)
+            };
+            let transport = RotatingTransport {
+                inner: RecordingTransport::scripted(vec![
+                    (401, Vec::new(), None),
+                    (retry_status, Vec::new(), None),
+                ]),
+                store: dir.path().join(".claude/.credentials.json"),
+                rotated,
+            };
+            let runtime = ClaudeOauthRuntime::default();
+            let refused = guarded(&dir, &detection, &runtime, &transport, NOW).await;
+            assert!(
+                matches!(
+                    refused,
+                    ClaudeOauthOutcome::ReopenCli { .. }
+                        | ClaudeOauthOutcome::Fallback {
+                            reason: ClaudeOauthFailure::ProviderBlocked,
+                            ..
+                        }
+                ),
+                "{refused:?}"
+            );
+            assert_eq!(
+                transport.inner.recorded_secrets(),
+                ["synthetic-old-token", "synthetic-new-token"]
+            );
+            let account = detection
+                .account_ids(DetectedProviderId::Claude)
+                .pop()
+                .unwrap();
+            let sent = detection
+                .read_credential(DetectedProviderId::Claude, &account)
+                .unwrap()
+                .credential_revision;
+            let policy: serde_json::Value = serde_json::from_str(
+                &fs::read_to_string(
+                    dir.path()
+                        .join(crate::request_policy::REQUEST_POLICY_FILE_NAME),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            assert_eq!(
+                policy["providers"]["claude"]["refusal_revisions"][&account],
+                sent.as_str()
+            );
+            let restarted = ClaudeOauthRuntime::default();
+            for (at, runtime) in [(NOW + 60_000, &runtime), (NOW + 120_000, &restarted)] {
+                let outcome = guarded(&dir, &detection, runtime, &transport, at).await;
+                assert!(
+                    matches!(outcome, ClaudeOauthOutcome::Cached { .. }),
+                    "{outcome:?}"
+                );
+            }
+            assert_eq!(transport.inner.recorded_urls().len(), 2);
+        }
     }
 
     /* --------------------------------------------------- every bucket sent */

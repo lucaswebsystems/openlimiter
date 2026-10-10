@@ -1,9 +1,11 @@
 import { readFileSync } from "node:fs";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildAdvice, type Snapshot } from "@openlimiter/core";
 import { DEFAULT_STATUSLINE } from "../src/config.js";
-import { renderStatuslineLayout, STATUSLINE_HOSTS, tenBlockBar } from "../src/statusline.js";
+import { claudeWeeklyHint, renderStatuslineLayout, STATUSLINE_HOSTS, tenBlockBar } from "../src/statusline.js";
 import { GOLDEN_NOW, GOLDEN_SNAPSHOTS } from "./fixtures/statusline-snapshots.js";
 
 /**
@@ -103,6 +105,20 @@ describe("account and freshness status line goldens", () => {
       source: "internal_payload", provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
       observedAt: ago(7200), expiresAt: ago(6060) });
     expect(render([row({ value: 16 }), weekly])).toBe("5h [█░░░░░░░░░] 16% | 7d [██░░░░░░░░] ~26%");
+  });
+  it("drops a weekly past its seven days beside a current session, and says the weekly is missing", async () => {
+    // Seven days and an hour old, expired nineteen minutes after it was read.
+    const weekly = row({ meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604800 }, value: 26,
+      source: "internal_payload", provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
+      observedAt: ago(7 * 86400 + 3600), expiresAt: ago(7 * 86400 + 2460) });
+    const rows = [row({ value: 16 }), weekly];
+    expect(render(rows)).toBe("5h [█░░░░░░░░░] 16%");
+    const directory = await mkdtemp(path.join(await realpath(tmpdir()), "openlimiter-golden-"));
+    try {
+      expect(await claudeWeeklyHint(rows, GOLDEN_NOW, false, directory)).toBe("7d off");
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
   it("measures last seen per account, rather than discarding every older meter", () => {
     expect(render([row({ accountId: "active", value: 16 }), row({ accountId: "active", meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604800 }, observedAt: ago(90000), value: 26 })]))

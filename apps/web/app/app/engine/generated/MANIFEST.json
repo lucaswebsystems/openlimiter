@@ -10,7 +10,7 @@
     "core/freshness.ts": "ac39aeaff84f6eda",
     "core/merge.ts": "99ce971bdbf811e7",
     "core/normalizer.ts": "651d84c067002a43",
-    "core/policy.ts": "74cce299586a6247",
+    "core/policy.ts": "9fb7d5c474c5c9ac",
     "core/provider-presentation.ts": "2ce546dce95d154b",
     "core/contracts/claude-presentation.json": "154e17d99423f11c",
     "core/schedule.ts": "8c4afef8c2109573",

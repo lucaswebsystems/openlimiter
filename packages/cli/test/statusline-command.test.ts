@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -108,6 +108,35 @@ describe("statusline command reference layout", () => {
     expect(await render("true", false, false)).toMatch(/ \| 7d waiting$/u);
     expect(await render("false", true, false)).toMatch(/ \| 7d waiting$/u);
     expect(await render("false", true, true)).toMatch(/ \| 7d refused$/u);
+  });
+
+  it("reads a malformed or unreadable desktop policy as no refusal, never as a broken line", async () => {
+    const account = opaqueAccountId("CLAUDE", "refused-fixture");
+    const policy = (claude: unknown) => JSON.stringify({ version: 1, providers: { claude } });
+    const refusal = (deadline: unknown) => policy({ refusal_revisions: { [account]: "a".repeat(64) }, attempts: {}, accounts: { [account]: deadline } });
+    for (const document of [
+      refusal({ toString: 0 }),
+      refusal(String(Date.parse(NOW) + 86_400_000)),
+      refusal([Date.parse(NOW) + 86_400_000]),
+      policy(5),
+      "null",
+      "[]",
+      "{",
+      null // a folder where the file belongs: present but unreadable
+    ]) {
+      const stateDirectory = await seeded();
+      await rm(path.join(stateDirectory, AUTHORITATIVE_CACHE_FILE_NAME));
+      await writeFile(path.join(stateDirectory, "claude-poll.json"), JSON.stringify({ version: 1, enabled: true }));
+      await recordAcquisitionAvailability("CLAUDE", "expired_credentials", NOW, undefined, stateDirectory, account);
+      const file = path.join(stateDirectory, "request-policy.json");
+      if (document === null) await mkdir(file);
+      else await writeFile(file, document);
+      const result = await runCli(["statusline", "--host", "claude"], {
+        stateDirectory, now: () => NOW, environment: { NO_COLOR: "" },
+        readStandardInput: async () => JSON.stringify(payload())
+      });
+      expect(result.stdout, String(document)).toMatch(/ \| 7d waiting$/u);
+    }
   });
 
   it("draws a payload's own 37 over an older poll reading of the same account", async () => {

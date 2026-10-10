@@ -289,11 +289,13 @@ function readingsFor(
     return age <= ONE_DAY * 1000 ||
       (latestAccount.get(accountId) === newest && age <= RETENTION_MILLISECONDS);
   };
+  // Each reading keeps its own seven days, however recent its account is.
   const readings = providerRows
     .filter((snapshot) => (snapshot.unit === "PERCENT" ||
       isBalanceSnapshot(snapshot) ||
       isAvailabilitySnapshot(snapshot)) &&
-      shownAccount(snapshot.accountId))
+      shownAccount(snapshot.accountId) &&
+      Date.parse(now) - Date.parse(snapshot.observedAt) <= RETENTION_MILLISECONDS)
     .map((snapshot) => ({
       snapshot,
       state: freshness(snapshot.observedAt, snapshot.expiresAt, now)
@@ -475,9 +477,13 @@ async function claudeRefused(snapshots: readonly Snapshot[], now: string, direct
   if (own?.refusalRevision !== undefined && Date.parse(own.nextAttemptAt) > at) return true;
   const policy = await readJsonFileSafely(path.join(directory, "request-policy.json"));
   const claude = policy.ok ? field(field(policy.value, "providers"), "claude") : undefined;
-  return snapshots.some((snapshot) => snapshot.provider === "CLAUDE" && snapshot.accountId !== undefined &&
-    typeof field(field(claude, "refusal_revisions"), snapshot.accountId) === "string" &&
-    Number(field(field(claude, "accounts"), snapshot.accountId)) > at);
+  return snapshots.some((snapshot) => {
+    if (snapshot.provider !== "CLAUDE" || snapshot.accountId === undefined) return false;
+    // Only a finite number is a deadline. Any other shape is no refusal, never a broken line.
+    const until = field(field(claude, "accounts"), snapshot.accountId);
+    return typeof field(field(claude, "refusal_revisions"), snapshot.accountId) === "string" &&
+      typeof until === "number" && Number.isFinite(until) && until > at;
+  });
 }
 
 /**
