@@ -227,7 +227,8 @@ function buildCell(
   wide?: boolean,
   bars = true
 ): StatuslineCell {
-  const percent = Math.round(snapshot.value) + "%";
+  // A stale reading carries the same marker the bar style draws.
+  const percent = (state === "stale" ? "~" : "") + Math.round(snapshot.value) + "%";
   if (!bars) {
     const text = label + " " + percent;
     return { plain: text, painted: text, percent: snapshot.value };
@@ -348,7 +349,10 @@ function claudeFamilyCodesFor(
     .map((candidate) => candidate.meter);
 }
 
-function tightest(readings: readonly Reading[]): Reading | undefined {
+function tightest(all: readonly Reading[]): Reading | undefined {
+  // A fresh reading leads; a stale one stands in only when nothing is fresh.
+  const fresh = all.filter((reading) => reading.state === "fresh");
+  const readings = fresh.length > 0 ? fresh : all;
   let worst = readings[0];
   for (const reading of readings.slice(1)) {
     if (worst === undefined || reading.snapshot.value > worst.snapshot.value) worst = reading;
@@ -445,7 +449,7 @@ export function renderPlainStatusline(
   pollHint?: string,
   hostProvider: ProviderCode | null = null,
 ): string {
-  if (!advice.inject || advice.reason === "UNKNOWN") return "OpenLimiter UNKNOWN";
+  // Readings decide whether there is a line; advice, fresh rows only, only heads it.
   const cells = statuslineCells(snapshots, now, order, meters, false, undefined, false, hostProvider);
   if (cells.length === 0) return "OpenLimiter UNKNOWN";
   const recommendation = advice.recommendation.code === "PREFER"
@@ -970,7 +974,6 @@ export const STATUSLINE_UNKNOWN = "OpenLimiter UNKNOWN";
 export function renderStatuslineLayout(input: StatuslineLayoutInput): string {
   const { advice, config } = input;
   if (config.style === "cells") {
-    if (!advice.inject || advice.reason === "UNKNOWN") return STATUSLINE_UNKNOWN;
     const cells = statuslineCells(
       input.snapshots.filter((snapshot) => windowVisible(snapshot, config.visibility ?? {})),
       input.now,
