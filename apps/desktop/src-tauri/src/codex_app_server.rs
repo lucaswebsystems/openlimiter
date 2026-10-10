@@ -247,6 +247,10 @@ mod tests {
             .join("../../../packages/core/test/fixtures/fake-codex-app-server.mjs")
     }
 
+    /// The exchanges below get the production budget, `TIMEOUT`: the budget
+    /// runs while node is still starting, and on a loaded Windows runner that
+    /// cold start alone overran two seconds. The deadline itself is pinned by
+    /// `silent_server_is_killed_at_the_deadline`.
     fn fixture_read(
         scenario: &str,
         timeout: Duration,
@@ -264,31 +268,28 @@ mod tests {
 
     #[test]
     fn fixture_speaks_the_documented_exchange() {
-        let result = fixture_read("success", Duration::from_secs(2)).expect("documented response");
+        let result = fixture_read("success", TIMEOUT).expect("documented response");
         assert!(result.body.contains("rateLimitsByLimitId"));
     }
 
     /// Blank stdout lines are skipped, as the TypeScript reader skips them.
     #[test]
     fn blank_stdout_lines_are_skipped_like_typescript() {
-        let result = fixture_read("empty-line", Duration::from_secs(2)).expect("documented response");
+        let result = fixture_read("empty-line", TIMEOUT).expect("documented response");
         assert!(result.body.contains("rateLimitsByLimitId"));
     }
 
     #[test]
     fn missing_or_null_response_identity_uses_the_resolved_home_identity() {
         for scenario in ["missing-identity", "null-identity"] {
-            assert!(
-                fixture_read(scenario, Duration::from_secs(2)).is_ok(),
-                "{scenario}"
-            );
+            assert!(fixture_read(scenario, TIMEOUT).is_ok(), "{scenario}");
         }
     }
 
     #[test]
     fn response_identity_mismatch_is_refused() {
         assert_eq!(
-            fixture_read("identity-mismatch", Duration::from_secs(2)).unwrap_err(),
+            fixture_read("identity-mismatch", TIMEOUT).unwrap_err(),
             AppServerFailure::IdentityMismatch
         );
     }
@@ -297,7 +298,7 @@ mod tests {
     fn documented_signed_out_errors_are_needs_sign_in() {
         for scenario in ["signed-out", "signed-out-codex"] {
             assert_eq!(
-                fixture_read(scenario, Duration::from_secs(2)).unwrap_err(),
+                fixture_read(scenario, TIMEOUT).unwrap_err(),
                 AppServerFailure::NeedsSignIn,
                 "{scenario}"
             );
@@ -307,7 +308,7 @@ mod tests {
     #[test]
     fn output_without_a_newline_is_bounded_before_line_assembly() {
         assert_eq!(
-            fixture_read("oversized-no-newline", Duration::from_secs(2)).unwrap_err(),
+            fixture_read("oversized-no-newline", TIMEOUT).unwrap_err(),
             AppServerFailure::Protocol
         );
     }
@@ -336,7 +337,7 @@ mod tests {
     #[test]
     fn protocol_errors_are_distinct_from_signed_out() {
         assert_eq!(
-            fixture_read("protocol-error", Duration::from_secs(2)).unwrap_err(),
+            fixture_read("protocol-error", TIMEOUT).unwrap_err(),
             AppServerFailure::Protocol
         );
     }
