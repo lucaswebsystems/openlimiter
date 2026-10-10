@@ -18,7 +18,7 @@
 import { createHash } from "node:crypto";
 import type { ProviderCode } from "../types.js";
 
-export const ACQUISITION_CLIENT_VERSION = "2.1.3";
+export const ACQUISITION_CLIENT_VERSION = "2.1.4";
 
 /** The only user agent any acquisition request may carry. */
 export const OPENLIMITER_USER_AGENT =
