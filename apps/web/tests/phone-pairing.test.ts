@@ -1245,6 +1245,10 @@ describe("the pair page", () => {
   });
 
   it("shows the bars for a returning visit whose pairing is still good", async () => {
+    /* The page clock reads the same instant the row was observed at, as on a
+       real phone; the reset rule (hotfix 2.1.5) never shows a reading the
+       clock has not reached. */
+    vi.useFakeTimers({ now: NOW });
     vi.stubGlobal(
       "fetch",
       fetchRoutedTo({
@@ -1421,6 +1425,61 @@ describe("the pair page", () => {
       .join("\n");
     expect(stored).not.toContain("read.token");
     expect(stored).not.toContain("credential.one");
+  });
+
+  /* Hotfix 2.1.5 fix 1: the paired phone applies the same reset rule as every
+     other surface, at its own clock, even when the read after the reset fails. */
+  it("withdraws a weekly at its reset on the paired phone, also when the next read fails", async () => {
+    vi.useFakeTimers({ now: NOW });
+    window.localStorage.setItem(
+      PHONE_PAIR_META_KEY,
+      JSON.stringify({ label: "Test phone", expiresAt: NOW / 1_000 + 80_000 }),
+    );
+    let reads = 0;
+    vi.stubGlobal(
+      "fetch",
+      fetchRoutedTo({
+        "/app/pair/api/read": () => {
+          reads += 1;
+          if (reads > 1) return new Response(JSON.stringify({ error: "unavailable" }), { status: 503 });
+          return new Response(
+            JSON.stringify({
+              body: {
+                rows: [{
+                  account_id: "work",
+                  provider: "CLAUDE",
+                  code: "SEVEN_DAY",
+                  percent: 75,
+                  amount: null,
+                  currency: null,
+                  resets_at: new Date(NOW + 30_000).toISOString(),
+                  observed_at: new Date(NOW - 60_000).toISOString(),
+                  stale: false,
+                }],
+              },
+            }),
+            { status: 200 },
+          );
+        },
+      }),
+    );
+    mounted = render(createElement(PairFlow));
+    await flush(6);
+    const bars = () => mounted?.container.querySelectorAll("openlimiter-provider-row").length ?? 0;
+    expect(bars()).toBe(1);
+    await mounted.run(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    expect(bars()).toBe(1);
+    // The phone clock reaches the reset itself: the reading leaves with no new read.
+    await mounted.run(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+    expect(bars()).toBe(0);
+    // The read after the reset fails; the old window's number never comes back.
+    await mounted.run(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    await flush(4);
+    expect(reads).toBeGreaterThan(1);
+    expect(mounted.container.querySelector("[data-stale-mark]")).not.toBeNull();
+    expect(bars()).toBe(0);
+    expect(mounted.container.textContent).not.toContain("75%");
+    vi.useRealTimers();
   });
 
   it("keeps the last bars with the stale mark when a renewed read fails", async () => {

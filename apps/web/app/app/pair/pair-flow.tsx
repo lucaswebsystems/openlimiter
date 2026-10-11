@@ -35,6 +35,7 @@ import { createPhoneSessionRuntime } from "@/lib/session-runtime";
 import { serialPoll } from "@/lib/serial-poll";
 import { claimPairingCode, pollPairingClaim } from "@/lib/pro-device";
 import { PROVIDER_CODES, buildProviderAccountRows, parseQuotaText } from "../engine";
+import { visibleQuotaSnapshots } from "../live-usage";
 import { DollarRow, ProviderRows, SkeletonRows, observationAgeMinutes } from "../pieces";
 import { claudeMeterOverride, meterName, type ClaudeMeterCopy } from "../language";
 import { useClaudeMeterCopy } from "../use-claude-meter-copy";
@@ -215,9 +216,20 @@ function PhoneBars({ body, stale, locale, staleLabel, now, freshLabel, staleStat
     // Lane A eligibility hook: the shared engine result becomes the only filter when that rule lands.
     return parsed.ok ? parsed.snapshots : [];
   }, [rows]);
+  /* The filter the dashboard and the device view apply, at this phone's own
+     clock, so a reading leaves at its window's reset even when no new read
+     arrives. A reading the phone already holds as stale (the last good one,
+     when the service did not answer) stays stale. */
+  const shown = useMemo(() => {
+    const held = new Map(snapshots.map((row) => [`${row.provider} ${row.meter} ${row.accountId ?? ""}`, row.expiresAt]));
+    return visibleQuotaSnapshots(snapshots, now, accountLabel).map((row) => {
+      const expiresAt = held.get(`${row.provider} ${row.meter} ${row.accountId ?? ""}`);
+      return expiresAt !== undefined && Date.parse(expiresAt) < Date.parse(row.expiresAt) ? { ...row, expiresAt } : row;
+    });
+  }, [snapshots, now, accountLabel]);
   const money = useMemo(() => amountRows(rows, ENGINE_PROVIDERS), [rows]);
   const providerRows = useMemo(
-    () => buildProviderAccountRows(snapshots, now, [], {
+    () => buildProviderAccountRows(shown, now, [], {
       accountLabel: (_accountId, count) => accountLabel(count),
       meterLabel: (code, provider) => claudeMeterOverride(code, provider, claudeMeterCopy),
       updatedLabel: (observedAt) => {
@@ -225,13 +237,13 @@ function PhoneBars({ body, stale, locale, staleLabel, now, freshLabel, staleStat
         return age !== null && age >= 5 ? ageLabel(age) : null;
       },
     }),
-    [accountLabel, ageLabel, claudeMeterCopy, now, snapshots],
+    [accountLabel, ageLabel, claudeMeterCopy, now, shown],
   );
 
   return (
     <section className="space-y-3" data-stale={stale ? "" : undefined} aria-label={stale ? staleLabel : undefined}>
       <div className="space-y-3">
-        {snapshots.length > 0 && (
+        {shown.length > 0 && (
           <ProviderRows
             rows={providerRows}
             orderScope={{ kind: "paired", id: "current-device" }}
