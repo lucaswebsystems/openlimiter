@@ -954,8 +954,8 @@ function renderBarStatusline(input: StatuslineLayoutInput): string {
   if (config.visibility?.["dir"] === true && session.dir) parts.push(session.dir);
   if (shown("ctx") && session.ctx !== undefined) parts.push("ctx " + Math.round(session.ctx) + "%");
   parts.push(...cells.map((cell) => cell.painted));
-  parts.push(...apiMoney.map((cell) => input.color && cell.band !== null
-    ? cell.prefix + paintBand(cell.amount, cell.band, "fresh")
+  parts.push(...apiMoney.map((cell) => input.color && (cell.stale || cell.band !== null)
+    ? cell.prefix + paintBand(cell.amount, cell.band ?? 0, cell.stale ? "stale" : "fresh")
     : cell.plain));
   if (shown("style") && session.style) parts.push(session.style);
   if (input.pollHint && shown("7d")) parts.push(input.pollHint);
