@@ -7,6 +7,7 @@ import { acquireMachineLease, freshnessPolicy, leasePolicy, retryPolicy, readSna
 import { claudeUsageRequest, retryAfterSeconds } from "../src/acquire/transport.js";
 import { runAcquisition, type AcquisitionSpec } from "../src/acquire/runner.js";
 import { readAcquisitionSchedule, writeAcquisitionSchedule } from "../src/acquire/cadence.js";
+import { credentialRevision } from "../src/acquire/identity.js";
 
 type Vector<T> = { id: string; input: T; expected: unknown };
 const vectors = JSON.parse(readFileSync(path.resolve("packages/core/src/contracts/policy-vectors.json"), "utf8")).vectors as {
@@ -169,7 +170,9 @@ for (const refusal of [401, 403, "not_signed_in"] as const) {
   });
 }
 
-it("a changed credential file modification time releases only its refusal deadline", async () => {
+/* Hotfix 2.1.5: the refusal names the token that was sent, the same digest the
+   desktop records, so a rewrite that keeps the token keeps the refusal. */
+it("a rewritten credential file releases its refusal only when the token changed", async () => {
   const dir = await directory();
   let calls = 0;
   try {
@@ -185,6 +188,140 @@ it("a changed credential file modification time releases only its refusal deadli
     expect(calls).toBe(1);
     await utimes(file, new Date(now), new Date(now));
     await runAcquisition([spec], { ...options, schedule: result.schedule });
+    expect(calls).toBe(1);
+    await writeFile(file, JSON.stringify({ claudeAiOauth: { accessToken: "fixture-token-rotated" } }));
+    await runAcquisition([spec], { ...options, schedule: result.schedule });
     expect(calls).toBe(2);
   } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+/*
+ * Hotfix 2.1.5, change B. A refusal names the token actually sent, a 401 that
+ * raced a rotation asks once more with the new login, and the shared lease
+ * carries the refusal so each process releases a refusal the other recorded.
+ */
+describe("refusal interoperability", () => {
+  const pollVectors = JSON.parse(readFileSync(path.resolve("packages/core/src/contracts/claude-poll-vectors.json"), "utf8")) as {
+    revision: { vectors: { id: string; token: string; expected: string }[] };
+  };
+  const revision = (token: string) => pollVectors.revision.vectors.find((vector) => vector.token === token)!.expected;
+  const OLD = "synthetic-old-token";
+  const NEW = "synthetic-new-token";
+  const reading = { provider: "CLAUDE", meter: "FIVE_HOUR", value: 5, unit: "PERCENT", window: { kind: "rolling", durationSeconds: 18_000 }, resetAt: "2026-08-07T15:00:00.000Z", source: "internal_payload", precision: "exact", observedAt: new Date(now).toISOString(), expiresAt: new Date(now + 60_000).toISOString(), labels: { credentialOrigin: "official-local-tool", dataInterfaceStatus: "internal-endpoint", automationRisk: "high", verification: "UNVERIFIED" } } as const;
+  const claude: AcquisitionSpec = { provider: "CLAUDE", credentialProvider: "CLAUDE", steps: [({ credential }) => claudeUsageRequest(credential.secret)], parse: () => [reading], disclosure: null };
+  const harness = (statuses: number[], rotateOnFirst = false) => {
+    let token = OLD;
+    const sent: string[] = [];
+    return {
+      sent,
+      rotate: (next: string) => { token = next; },
+      readCredential: async () => ({ ok: true as const, credential: { secret: token, accountId: null, expiresAtMilliseconds: null, origin: "vendor_store" as const } }),
+      transport: async (request: { headers?: Record<string, string> }) => {
+        sent.push((request.headers?.["authorization"] ?? "").replace("Bearer ", ""));
+        if (rotateOnFirst && sent.length === 1) token = NEW;
+        const status = statuses[sent.length - 1] ?? 200;
+        return { status, body: status === 200 ? "{}" : "", retryAfterSeconds: null };
+      }
+    };
+  };
+  const leaseFile = (dir: string) => JSON.parse(readFileSync(path.join(dir, "acquisition-claude.json"), "utf8")) as Record<string, unknown>;
+  const round = (dir: string, machine: ReturnType<typeof harness>, at: number, schedule = {}) =>
+    runAcquisition([claude], { stateDirectory: dir, now: new Date(at).toISOString(), schedule, readCredential: machine.readCredential, transport: machine.transport as never });
+
+  it("the shared revision is the SHA-256 of the token, in both languages", () => {
+    for (const vector of pollVectors.revision.vectors) expect(credentialRevision(vector.token)).toBe(vector.expected);
+  });
+
+  it("a 401 that raced a rotation asks once more with the new login and records no refusal", async () => {
+    const dir = await directory();
+    try {
+      const machine = harness([401, 200], true);
+      const result = await round(dir, machine, now);
+      expect(machine.sent).toEqual([OLD, NEW]);
+      expect(result.rows[0]?.status).toBe("read");
+      expect(result.schedule["CLAUDE"]?.refusalRevision).toBeUndefined();
+      expect(leaseFile(dir)["refusalRevision"]).toBeNull();
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  });
+
+  for (const retried of [401, 403]) {
+    it("a refused retry " + retried + " records the rotated login it sent and keeps its day", async () => {
+      const dir = await directory();
+      try {
+        const machine = harness([401, retried], true);
+        const first = await round(dir, machine, now);
+        expect(machine.sent).toEqual([OLD, NEW]);
+        expect(first.schedule["CLAUDE"]?.refusalRevision).toBe(revision(NEW));
+        expect(leaseFile(dir)["refusalRevision"]).toBe(revision(NEW));
+        const later = await round(dir, machine, now + 60_000, first.schedule);
+        expect(later.rows[0]?.status).toBe("waiting");
+        expect(machine.sent).toHaveLength(2);
+      } finally { await rm(dir, { recursive: true, force: true }); }
+    });
+  }
+
+  it("an unchanged refusal keeps its day and a rotation releases it", async () => {
+    const dir = await directory();
+    try {
+      const machine = harness([401, 200]);
+      const first = await round(dir, machine, now);
+      expect(machine.sent).toEqual([OLD]);
+      expect(first.schedule["CLAUDE"]?.refusalRevision).toBe(revision(OLD));
+      await round(dir, machine, now + 3_600_000, first.schedule);
+      expect(machine.sent).toEqual([OLD]);
+      machine.rotate(NEW);
+      const rotated = await round(dir, machine, now + 3_600_000, first.schedule);
+      expect(machine.sent).toEqual([OLD, NEW]);
+      expect(rotated.rows[0]?.status).toBe("read");
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  });
+
+  it("releases a refusal the desktop recorded once the login rotates, and only then", async () => {
+    const dir = await directory();
+    try {
+      const deadline = now + 86_400_000;
+      await writeFile(path.join(dir, "acquisition-claude.json"), JSON.stringify({ lastAccount: "claude-account", owner: null, expiresAt: 0, token: "", nextAllowedAt: deadline, attempts: 0, refusalRevision: revision(OLD) }));
+      const machine = harness([200]);
+      const same = await round(dir, machine, now + 60_000);
+      expect(same.rows[0]?.status).toBe("waiting");
+      expect(machine.sent).toEqual([]);
+      machine.rotate(NEW);
+      const rotated = await round(dir, machine, now + 60_000);
+      expect(machine.sent).toEqual([NEW]);
+      expect(rotated.rows[0]?.status).toBe("read");
+      const lease = leaseFile(dir);
+      expect(lease["refusalRevision"]).toBeNull();
+      expect(lease["nextAllowedAt"]).toBeLessThan(deadline);
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  });
+
+  it("keeps a rate limit deadline through a rotation", async () => {
+    const dir = await directory();
+    try {
+      const deadline = now + 7_200_000;
+      await writeFile(path.join(dir, "acquisition-claude.json"), JSON.stringify({ lastAccount: null, owner: null, expiresAt: 0, token: "", nextAllowedAt: deadline, attempts: 1, refusalRevision: null }));
+      const machine = harness([200]);
+      machine.rotate(NEW);
+      const result = await round(dir, machine, now + 60_000);
+      expect(result.rows[0]?.status).toBe("waiting");
+      expect(machine.sent).toEqual([]);
+      expect(leaseFile(dir)["nextAllowedAt"]).toBe(deadline);
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  });
+
+  it("a poll that lost its lease mid request never overwrites its successor", async () => {
+    const dir = await directory();
+    try {
+      const file = path.join(dir, "acquisition-claude.json");
+      const successor = { lastAccount: "claude-account", owner: "desktop", expiresAt: now + 120_000, token: "desktop-successor", nextAllowedAt: now + 360_000, attempts: 0, refusalRevision: null };
+      const machine = harness([]);
+      const transport = async () => {
+        /* The request outlived its lease and the desktop took the provider over. */
+        await writeFile(file, JSON.stringify(successor));
+        return { status: 401, body: "", retryAfterSeconds: null };
+      };
+      await runAcquisition([claude], { stateDirectory: dir, now: new Date(now).toISOString(), schedule: {}, readCredential: machine.readCredential, transport: transport as never });
+      expect(leaseFile(dir)).toEqual(successor);
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  });
 });

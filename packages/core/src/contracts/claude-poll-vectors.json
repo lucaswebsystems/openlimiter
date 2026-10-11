@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "scope": "Claude poll rules the desktop (Rust) and the command line tool (TypeScript) must apply identically. Both suites read this file.",
+  "revision": {
+    "rule": "A refusal names the credential that was actually sent: the lowercase hexadecimal SHA-256 of the access token. The shared lease file carries it as refusalRevision so either process releases the other's refusal after a rotation.",
+    "vectors": [
+      {
+        "id": "old-token",
+        "token": "synthetic-old-token",
+        "expected": "d953861809fb8f5a74ae8f546b7072db71433eb9df7005af6f0f3e142789db51"
+      },
+      {
+        "id": "new-token",
+        "token": "synthetic-new-token",
+        "expected": "495a82f2796e30291a1aa6e186d6759392e54f2b44afd1bbccffbbe8b89412dd"
+      }
+    ]
+  }
+}

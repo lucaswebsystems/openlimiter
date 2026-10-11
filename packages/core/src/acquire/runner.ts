@@ -12,8 +12,6 @@
  * per provider saying why, because the surfaces above are a status line and a
  * doctor command, and both of them owe a person an answer rather than a stack.
  */
-import { createHash } from "node:crypto";
-import { lstat } from "node:fs/promises";
 import type {
   CollectionFailureReason,
   CollectionReport
@@ -31,7 +29,6 @@ import {
 } from "./cadence.js";
 import {
   CREDENTIAL_FAILURE_SENTENCE,
-  credentialCandidatePaths,
   readAcquisitionCredential,
   type AcquiredCredential,
   type AcquisitionProvider,
@@ -44,7 +41,7 @@ import {
   type AcquisitionRequest,
   type AcquisitionTransport
 } from "./transport.js";
-import { acquisitionAccountId } from "./identity.js";
+import { acquisitionAccountId, credentialRevision } from "./identity.js";
 
 export interface AcquisitionStepContext {
   readonly credential: AcquiredCredential;
@@ -307,13 +304,11 @@ export async function runAcquisition(
         now: options.now
       }));
   const readCredential = credentialReader;
-  const revisionFor = async (spec: AcquisitionSpec): Promise<string> => {
+  /* The login on disk right now, named the way a refusal names the login it
+     refused. A login that cannot be read releases nothing. */
+  const revisionNow = async (spec: AcquisitionSpec): Promise<string | undefined> => {
     const credential = await readCredential(spec.credentialProvider);
-    const files = options.readCredential && !options.lookup ? [] : credentialCandidatePaths(spec.credentialProvider, options.lookup);
-    const mtimes = await Promise.all(files.map(async (file) => {
-      try { return [file, (await lstat(file)).mtimeMs]; } catch { return [file, null]; }
-    }));
-    return createHash("sha256").update(JSON.stringify([credential, mtimes])).digest("hex");
+    return credential.ok ? credentialRevision(credential.credential.secret) : undefined;
   };
   /* Where the provider being read is right now, for the outer catch. */
   let phase: AcquisitionPhase = "credential";
@@ -348,7 +343,10 @@ export async function runAcquisition(
       });
       return;
     }
-    const changedRefusal = existing?.refusalRevision !== undefined && refused(existing.outcome) && existing.refusalRevision !== await revisionFor(spec);
+    const current = existing?.refusalRevision !== undefined && refused(existing.outcome)
+      ? await revisionNow(spec)
+      : undefined;
+    const changedRefusal = current !== undefined && current !== existing?.refusalRevision;
     if (!isProviderDue(existing, options.now) && !changedRefusal) {
       rows.push({
         provider: spec.provider,
@@ -387,13 +385,32 @@ export async function runAcquisition(
       rows.push({ provider: spec.provider, detected: true, status: "stale", accountId: acquisitionAccountId(spec.provider, held), availability: "expired_credentials", reason: CREDENTIAL_FAILURE_SENTENCE.expired, nextAttemptAt: null, disclosure: spec.disclosure });
       return;
     }
-    const accountId = spec.accountIdFor?.(held) ?? acquisitionAccountId(spec.provider, held);
-    const accountLabel = spec.accountLabelFor?.(held) ?? null;
-    const disclosure = spec.disclosureFor?.(held) ?? spec.disclosure;
     const sentence = (outcome: AcquisitionOutcome): string =>
       spec.outcomeSentence?.[outcome] ?? ACQUISITION_OUTCOME_SENTENCE[outcome];
     phase = "request";
-    const result = await attempt(spec, held, options);
+    /* The login every request of this read actually carried. */
+    let sent = held;
+    let result = await attempt(spec, sent, options);
+    /*
+     * A 401 can race the vendor's own tool refreshing its login: the token
+     * sent lapsed a moment before the new one reached the store. When the
+     * store now holds another login, it is asked once more before anything is
+     * recorded against the old one. Rust twin: claude_oauth.rs,
+     * collect_with_reread.
+     */
+    if (result.outcome === "unauthorized" && result.expiredCredentials !== true && result.missingCredential !== true) {
+      phase = "credential";
+      const reread = await readCredential(spec.credentialProvider);
+      phase = "request";
+      if (reread.ok && reread.credential.secret !== sent.secret &&
+          !credentialExpired(reread.credential, Date.parse(options.now))) {
+        sent = reread.credential;
+        result = await attempt(spec, sent, options);
+      }
+    }
+    const accountId = spec.accountIdFor?.(sent) ?? acquisitionAccountId(spec.provider, sent);
+    const accountLabel = spec.accountLabelFor?.(sent) ?? null;
+    const disclosure = spec.disclosureFor?.(sent) ?? spec.disclosure;
     if (result.missingCredential === true) {
       delete schedule[spec.provider];
       rows.push({
@@ -408,7 +425,7 @@ export async function runAcquisition(
     }
     if (result.expiredCredentials) {
       delete schedule[spec.provider];
-      rows.push({ provider: spec.provider, detected: true, status: "stale", accountId: acquisitionAccountId(spec.provider, held), availability: "expired_credentials", reason: CREDENTIAL_FAILURE_SENTENCE.expired, nextAttemptAt: null, disclosure });
+      rows.push({ provider: spec.provider, detected: true, status: "stale", accountId: acquisitionAccountId(spec.provider, sent), availability: "expired_credentials", reason: CREDENTIAL_FAILURE_SENTENCE.expired, nextAttemptAt: null, disclosure });
       return;
     }
     const nextAttemptAt = nextAttemptInstant(
@@ -427,8 +444,8 @@ export async function runAcquisition(
     const snapshots: readonly Snapshot[] = result.outcome === "ok"
       ? normalizeMeters(
           accountId === null
-            ? stamp(result.meters, held)
-            : stamp(result.meters, held).map((entry) => ({
+            ? stamp(result.meters, sent)
+            : stamp(result.meters, sent).map((entry) => ({
                 ...entry,
                 accountId,
                 /* A surface that would otherwise print the identifier gets a
@@ -464,7 +481,9 @@ export async function runAcquisition(
       : result.outcome;
     schedule[spec.provider] = {
       attempts: (existing?.attempts ?? options.lease?.attempts ?? 0) + 1,
-      ...(refused(outcome) ? { refusalRevision: await revisionFor(spec) } : {}),
+      /* The refusal names the login that was refused, never one that reached
+         the store after the request went out. */
+      ...(refused(outcome) ? { refusalRevision: credentialRevision(sent.secret) } : {}),
       lastAttemptAt: options.now,
       nextAttemptAt: nextAttemptAt ?? options.now,
       outcome,
@@ -487,7 +506,7 @@ export async function runAcquisition(
     try {
       if (options.stateDirectory !== undefined && spec.enabled !== false) {
         phase = "lease";
-        lease = await acquireMachineLease(spec.provider, options.stateDirectory, options.clock?.() ?? Date.parse(options.now), await revisionFor(spec));
+        lease = await acquireMachineLease(spec.provider, options.stateDirectory, options.clock?.() ?? Date.parse(options.now), await revisionNow(spec));
         if (lease === null) {
           rows.push({ provider: spec.provider, detected: true, status: "waiting", reason: "another acquisition owns this provider or its retry deadline is pending", nextAttemptAt: null, disclosure: spec.disclosure });
           continue;

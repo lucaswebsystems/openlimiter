@@ -33,6 +33,17 @@ export function opaqueAccountId(provider: ProviderCode, material: string): strin
 
 export const PROVIDER_SINGLETON_MATERIAL = "one-active-account-without-stable-identity";
 
+/**
+ * The identity a refusal records: the SHA-256 of the token that was sent.
+ *
+ * Mirrors provider_detection::token_digest, so the desktop and this tool name
+ * the same login the same way and each can release a refusal the other
+ * recorded once the login rotates.
+ */
+export function credentialRevision(secret: string): string {
+  return createHash("sha256").update(secret).digest("hex");
+}
+
 function object(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown> : {};

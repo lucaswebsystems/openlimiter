@@ -122,9 +122,14 @@ export async function acquireMachineLease(provider: string, directory = resolveS
   const state = await withCacheLock(directory, async () => {
     const current = await read();
     const decision = leasePolicy({ now: new Date(now).toISOString(), requester: "cli", owner: current.owner, expiresAt: new Date(current.expiresAt).toISOString(), leaseSeconds: 60 });
+    /* A refusal names the token it refused (identity.ts credentialRevision, the
+       digest the desktop records too). Another token ends that refusal and its
+       own deadline, and nothing else: a deadline with no refusal named is a
+       rate limit and stays. Rust twin: request_policy.rs MachineLease. */
     const changedRefusal = typeof current.refusalRevision === "string" && credentialRevision !== undefined && current.refusalRevision !== credentialRevision;
     if (!decision.acquired || (now < current.nextAllowedAt && !changedRefusal)) return null;
-    const next = { ...current, lastAccount: null, owner: "cli", expiresAt: now + 60_000, token: randomUUID() };
+    const released = changedRefusal ? { nextAllowedAt: 0, attempts: 0, refusalRevision: null } : {};
+    const next = { ...current, ...released, lastAccount: null, owner: "cli", expiresAt: now + 60_000, token: randomUUID() };
     await writeFileAtomically(file, canonicalJson(next));
     return next;
   });

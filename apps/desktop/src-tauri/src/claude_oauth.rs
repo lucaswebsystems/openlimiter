@@ -1994,6 +1994,78 @@ mod tests {
         }
     }
 
+    /// The refusal revisions both languages share, from one vectors file.
+    fn shared_revisions() -> Vec<(String, String)> {
+        let document: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../packages/core/src/contracts/claude-poll-vectors.json"
+        ))
+        .unwrap();
+        document["revision"]["vectors"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|vector| {
+                (
+                    vector["token"].as_str().unwrap().to_string(),
+                    vector["expected"].as_str().unwrap().to_string(),
+                )
+            })
+            .collect()
+    }
+
+    /// Hotfix 2.1.5, change B: the desktop names a Claude login exactly the
+    /// way the command line tool does, so either releases the other.
+    #[test]
+    fn the_claude_login_revision_is_the_shared_digest() {
+        for (token, expected) in shared_revisions() {
+            let dir = TempDir::new();
+            claude_store(&dir, &token, LATER);
+            let detection = DetectionStore::for_test_home(dir.path(), NOW);
+            let account = detection
+                .account_ids(DetectedProviderId::Claude)
+                .pop()
+                .unwrap();
+            let secret = detection
+                .read_credential(DetectedProviderId::Claude, &account)
+                .unwrap();
+            assert_eq!(secret.credential_revision, expected);
+        }
+    }
+
+    /// A refusal the command line tool recorded in the shared lease holds the
+    /// desktop off the same login, and ends the moment Claude Code rotates it.
+    #[tokio::test]
+    async fn a_refusal_the_cli_recorded_ends_the_moment_the_login_rotates() {
+        let revisions = shared_revisions();
+        let old = &revisions
+            .iter()
+            .find(|(token, _)| token == "synthetic-old-token")
+            .unwrap()
+            .1;
+        let dir = TempDir::new();
+        claude_store(&dir, "synthetic-old-token", LATER);
+        fs::write(
+            dir.path().join("acquisition-claude.json"),
+            serde_json::json!({"lastAccount": null, "owner": null, "expiresAt": 0, "token": "",
+                "nextAllowedAt": NOW + 86_400_000, "attempts": 1, "refusalRevision": old})
+            .to_string(),
+        )
+        .unwrap();
+        let detection = DetectionStore::for_test_home(dir.path(), NOW);
+        let runtime = ClaudeOauthRuntime::default();
+        let transport = RecordingTransport::replying(200, valid_body(), None);
+        let held = guarded(&dir, &detection, &runtime, &transport, NOW + 60_000).await;
+        assert!(matches!(held, ClaudeOauthOutcome::Cached { .. }), "{held:?}");
+        assert!(transport.recorded_urls().is_empty());
+        claude_store(&dir, "synthetic-new-token", LATER);
+        let rotated = guarded(&dir, &detection, &runtime, &transport, NOW + 120_000).await;
+        assert!(
+            matches!(rotated, ClaudeOauthOutcome::CacheCommitted { .. }),
+            "{rotated:?}"
+        );
+        assert_eq!(transport.recorded_secrets(), ["synthetic-new-token"]);
+    }
+
     /* --------------------------------------------------- every bucket sent */
 
     /// One capture of the Claude Code 2.1.261 `api/oauth/usage` response.
