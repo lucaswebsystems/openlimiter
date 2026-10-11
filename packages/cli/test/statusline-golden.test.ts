@@ -26,10 +26,13 @@ const LEGACY_CELLS_ADVICE = buildAdvice(LEGACY_CELLS_SNAPSHOTS, GOLDEN_NOW);
 describe("account and freshness status line goldens", () => {
   const row = (overrides: Partial<Snapshot> = {}): Snapshot => ({ ...GOLDEN_SNAPSHOTS[0]!, resetAt: null, ...overrides });
   const ago = (seconds: number): string => new Date(Date.parse(GOLDEN_NOW) - seconds * 1000).toISOString();
-  const render = (snapshots: Snapshot[], show: string[] = []) => renderStatuslineLayout({
+  const render = (snapshots: Snapshot[], show: string[] = [], color = false) => renderStatuslineLayout({
     advice: buildAdvice(snapshots, GOLDEN_NOW), snapshots, now: GOLDEN_NOW,
-    config: { ...DEFAULT_STATUSLINE, style: "bar", width: 1000, rows: 2, show }, color: false, host: "claude"
+    config: { ...DEFAULT_STATUSLINE, style: "bar", width: 1000, rows: 2, show }, color, host: "claude"
   });
+  /* Hotfix 2.1.5: a reading that could not be refreshed is grey, and the tilde
+     marks an estimate only, so age alone never marks a reading. */
+  const grey = (text: string) => "\x1b[90m" + text + "\x1b[0m";
   it("omits dormant accounts while preserving their cached rows", () => {
     const rows = [row({ accountId: "active", value: 16 }), row({ accountId: "old", observedAt: ago(86401), value: 99 })];
     const before = JSON.stringify(rows);
@@ -40,22 +43,25 @@ describe("account and freshness status line goldens", () => {
     const rows = [row({ value: 16 }),
       row({ provider: "CODEX", accountId: "old", meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604800 }, observedAt: ago(19 * 86400), value: 99 }),
       row({ provider: "CODEX", accountId: "active", meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604800 }, observedAt: ago(840), value: 26 })];
-    expect(render(rows)).toBe("5h [█░░░░░░░░░] 16% | cx7d [██░░░░░░░░] ~26%");
+    expect(render(rows)).toBe("5h [█░░░░░░░░░] 16% | cx7d [██░░░░░░░░] 26%");
     expect(render([...rows].reverse())).toBe(render(rows));
   });
-  it.each([180, 900, 7200, 86400])("marks the last value as stale at %s seconds", (seconds) => {
-    expect(render([row({ observedAt: ago(seconds), expiresAt: ago(seconds - 60) })]))
-      .toBe("5h [████░░░░░░] ~42%");
+  it.each([180, 900, 7200, 86400])("greys the last value once it is stale at %s seconds", (seconds) => {
+    const stale = [row({ observedAt: ago(seconds), expiresAt: ago(seconds - 60) })];
+    expect(render(stale, [], true)).toBe("5h " + grey("[████░░░░░░]") + " " + grey("42%"));
+    expect(render(stale)).toBe("5h [████░░░░░░] 42%");
   });
   it("leaves explicitly selected providers without readings out", () => {
     expect(render([row({ value: 16 })], ["claude", "codex", "antigravity", "gemini_cli", "openrouter"]))
       .toBe("5h [█░░░░░░░░░] 16%");
   });
-  it("marks stale spend and unknown window readings", () => {
+  it("marks spend and unknown window readings by freshness, never by age", () => {
     expect(render([row({ provider: "GROK", meter: "SPEND", usedAmount: 12.5, currency: "USD", observedAt: ago(900) })]))
-      .toBe("gk5h spend ~$12.50");
+      .toBe("gk5h spend $12.50");
     expect(render([row({ provider: "GROK", meter: "UNSPECIFIED", window: { kind: "unknown" }, observedAt: ago(900) })]))
-      .toBe("gk [████░░░░░░] ~42%");
+      .toBe("gk [████░░░░░░] 42%");
+    expect(render([row({ provider: "GROK", meter: "SPEND", usedAmount: 12.5, currency: "USD", observedAt: ago(900), expiresAt: ago(840) })], [], true))
+      .toBe("gk5h spend " + grey("$12.50"));
   });
   it.each([
     ["missing_credentials", null],
@@ -94,19 +100,20 @@ describe("account and freshness status line goldens", () => {
         expiresAt: ago(120)
       }),
       row({ accountId, observedAt: ago(240), expiresAt: ago(120), value: 42 })
-    ])).toBe("5h " + tenBlockBar(42) + " ~42%");
+    ])).toBe("5h " + tenBlockBar(42) + " 42%");
   });
   it("keeps a quiet provider's only account, stale, for seven days and then leaves it out", () => {
     expect(render([row({ value: 16 }), row({ provider: "CODEX", observedAt: ago(86401) })]))
-      .toBe("5h [█░░░░░░░░░] 16% | cx5h [████░░░░░░] ~42%");
+      .toBe("5h [█░░░░░░░░░] 16% | cx5h [████░░░░░░] 42%");
     expect(render([row({ value: 16 }), row({ provider: "CODEX", observedAt: ago(7 * 86400 + 1) })]))
       .toBe("5h [█░░░░░░░░░] 16%");
   });
-  it("draws a stale Claude weekly with its marker instead of hiding it", () => {
+  it("draws a stale Claude weekly, grey, instead of hiding it", () => {
     const weekly = row({ meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604800 }, value: 26,
       source: "internal_payload", provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
       observedAt: ago(7200), expiresAt: ago(6060) });
-    expect(render([row({ value: 16 }), weekly])).toBe("5h [█░░░░░░░░░] 16% | 7d [██░░░░░░░░] ~26%");
+    expect(render([row({ value: 16 }), weekly])).toBe("5h [█░░░░░░░░░] 16% | 7d [██░░░░░░░░] 26%");
+    expect(render([row({ value: 16 }), weekly], [], true)).toContain("7d " + grey("[██░░░░░░░░]") + " " + grey("26%"));
   });
   it("drops a weekly past its seven days beside a current session, and says the weekly is missing", async () => {
     // Seven days and an hour old, expired nineteen minutes after it was read.
@@ -122,19 +129,21 @@ describe("account and freshness status line goldens", () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
-  it("draws a retained two day old reading with its marker in every style", () => {
+  it("draws a retained two day old reading grey in every coloured style, with no tilde", () => {
     const snapshots = [row({ observedAt: ago(2 * 86400), expiresAt: ago(2 * 86400 - 1140) })];
     const advice = buildAdvice(snapshots, GOLDEN_NOW);
-    const layout = (style: "bar" | "cells") => renderStatuslineLayout({
-      advice, snapshots, now: GOLDEN_NOW, color: false, host: "claude",
+    const layout = (style: "bar" | "cells", color: boolean) => renderStatuslineLayout({
+      advice, snapshots, now: GOLDEN_NOW, color, host: "claude",
       config: { ...DEFAULT_STATUSLINE, style, width: 1000, rows: 2 }
     });
+    for (const style of ["bar", "cells"] as const) expect(layout(style, true)).toContain(grey("42%"));
     for (const line of [
-      layout("bar"),
-      layout("cells"),
+      layout("bar", false),
+      layout("cells", false),
       renderPlainStatusline(advice, snapshots, GOLDEN_NOW, ["CLAUDE"], "all", undefined, "CLAUDE")
     ]) {
-      expect(line).toContain("~42%");
+      expect(line).toContain("42%");
+      expect(line).not.toContain("~");
     }
   });
   it("leads with a fresh reading over a fuller stale one, and draws the stale one when it is alone", () => {
@@ -149,11 +158,11 @@ describe("account and freshness status line goldens", () => {
       config: { ...DEFAULT_STATUSLINE, style: "bar", meters: "worst", width: 1000, rows: 2 }
     });
     expect(worst([fresh, stale])).toBe("cl7d " + tenBlockBar(10) + " 10%");
-    expect(worst([stale])).toBe("cl7d " + tenBlockBar(99) + " ~99%");
+    expect(worst([stale])).toBe("cl7d " + tenBlockBar(99) + " 99%");
   });
   it("measures last seen per account, rather than discarding every older meter", () => {
     expect(render([row({ accountId: "active", value: 16 }), row({ accountId: "active", meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604800 }, observedAt: ago(90000), value: 26 })]))
-      .toBe("5h [█░░░░░░░░░] 16% | 7d [██░░░░░░░░] ~26%");
+      .toBe("5h [█░░░░░░░░░] 16% | 7d [██░░░░░░░░] 26%");
   });
 });
 

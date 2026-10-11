@@ -228,8 +228,9 @@ function buildCell(
   wide?: boolean,
   bars = true
 ): StatuslineCell {
-  // A stale reading carries the same marker the bar style draws.
-  const percent = (state === "stale" ? "~" : "") + Math.round(snapshot.value) + "%";
+  // The legacy styles keep their bytes and draw no tilde; a reading that
+  // could not be refreshed is grey here as in the bars.
+  const percent = Math.round(snapshot.value) + "%";
   if (!bars) {
     const text = label + " " + percent;
     return { plain: text, painted: text, percent: snapshot.value };
@@ -242,7 +243,7 @@ function buildCell(
   };
 }
 
-function balanceCell(label: string, snapshot: Snapshot, stale: boolean): StatuslineCell {
+function balanceCell(label: string, snapshot: Snapshot, mark: string, stale: boolean, color: boolean): StatuslineCell {
   let value: string;
   if (
     snapshot.currency === "USD" &&
@@ -258,8 +259,9 @@ function balanceCell(label: string, snapshot: Snapshot, stale: boolean): Statusl
   } else {
     value = floorFixed(snapshot.value, 2) + " credits";
   }
-  const text = label + " " + (stale ? "~" : "") + value;
-  return { plain: text, painted: text, percent: Number.NEGATIVE_INFINITY };
+  const amount = mark + value;
+  const text = label + " " + amount;
+  return { plain: text, painted: color && stale ? label + " " + paintBand(amount, 0, "stale") : text, percent: Number.NEGATIVE_INFINITY };
 }
 
 interface Reading {
@@ -412,7 +414,7 @@ export function statuslineCells(
         }
         const meterTag = captionFor(reading.snapshot, hostProvider, captions, claudeFamilyCodesFor(reading.snapshot, snapshots));
         if (providerMeterPresentation(provider, reading.snapshot.meter)?.valueSemantics === "balance") {
-          cells.push(balanceCell(meterTag, reading.snapshot, reading.state === "stale"));
+          cells.push(balanceCell(meterTag, reading.snapshot, "", reading.state === "stale", color));
           continue;
         }
         cells.push(buildCell(
@@ -433,7 +435,7 @@ export function statuslineCells(
         continue;
       }
       if (providerMeterPresentation(provider, worst.snapshot.meter)?.valueSemantics === "balance") {
-        cells.push(balanceCell(label, worst.snapshot, worst.state === "stale"));
+        cells.push(balanceCell(label, worst.snapshot, "", worst.state === "stale", color));
         continue;
       }
       cells.push(buildCell(label, worst.snapshot, worst.state, color, wide, bars));
@@ -771,9 +773,12 @@ export function formatResetTime(resetAt: string | null | undefined, now: string)
 export function paintBand(
   text: string,
   value: number,
-  _state: "fresh" | "stale",
+  state: "fresh" | "stale",
   _wide = false
 ): string {
+  /* A reading that could not be refreshed never paints as live: it is grey,
+     whatever band its old value sat in. */
+  if (state === "stale") return "\x1b[90m" + text + "\x1b[0m";
   if (value >= 90) return "\x1b[31m" + text + "\x1b[0m";
   if (value >= 80) return "\x1b[38;5;208m" + text + "\x1b[0m";
   if (value >= 60) return "\x1b[33m" + text + "\x1b[0m";
@@ -824,8 +829,10 @@ export function barStyleCells(
 
     for (const reading of selectedReadings) {
       const { snapshot, state } = reading;
-      const ageSeconds = Math.max(0, Math.floor((Date.parse(now) - Date.parse(snapshot.observedAt)) / 1000));
-      const stale = state === "stale" || ageSeconds >= 180 || snapshot.precision === "estimated";
+      /* The tilde marks an estimate and nothing else. A reading that could not
+         be refreshed is grey instead, so one taken a minute ago never looks old. */
+      const mark = snapshot.precision === "estimated" ? "~" : "";
+      const grey = (text: string): string => color && state === "stale" ? paintBand(text, snapshot.value, "stale") : text;
 
       if (isAvailabilitySnapshot(snapshot)) {
         const tag = captionFor(snapshot, hostProvider, inputCaptions, claudeFamilyCodesFor(snapshot, snapshots));
@@ -839,42 +846,41 @@ export function barStyleCells(
       }
 
       if (isBalanceSnapshot(snapshot)) {
-        cells.push(balanceCell(captionFor(snapshot, hostProvider, inputCaptions, claudeFamilyCodesFor(snapshot, snapshots)), snapshot, stale));
+        cells.push(balanceCell(captionFor(snapshot, hostProvider, inputCaptions, claudeFamilyCodesFor(snapshot, snapshots)), snapshot, mark, state === "stale", color));
         continue;
       }
 
       if (provider === "OPENROUTER" && snapshot.meter === "KEY_LIMIT" &&
           snapshot.usedAmount !== undefined && snapshot.limitAmount !== undefined &&
           snapshot.currency === "USD") {
-        const amount = (stale ? "~" : "") + "$" + snapshot.usedAmount.toFixed(2) +
+        const amount = mark + "$" + snapshot.usedAmount.toFixed(2) +
           "/$" + snapshot.limitAmount.toFixed(2);
-        const plain = captionFor(snapshot, hostProvider, inputCaptions, claudeFamilyCodesFor(snapshot, snapshots)) + " " + amount;
-        cells.push({ plain, painted: plain, percent: snapshot.value });
+        const caption = captionFor(snapshot, hostProvider, inputCaptions, claudeFamilyCodesFor(snapshot, snapshots));
+        cells.push({ plain: caption + " " + amount, painted: caption + " " + grey(amount), percent: snapshot.value });
         continue;
       }
 
       if (snapshot.provider === "CLAUDE" && snapshot.meter === "EXTRA_USAGE" &&
           snapshot.usedAmount !== undefined && snapshot.limitAmount !== undefined &&
           snapshot.currency === "USD") {
-        const amount = (stale ? "~" : "") + "$" + snapshot.usedAmount.toFixed(2) +
+        const amount = mark + "$" + snapshot.usedAmount.toFixed(2) +
           "/$" + snapshot.limitAmount.toFixed(2);
         const tag = captionFor(snapshot, hostProvider, inputCaptions, claudeFamilyCodesFor(snapshot, snapshots));
-        const plain = tag + " " + amount;
-        cells.push({ plain, painted: plain, percent: snapshot.value });
+        cells.push({ plain: tag + " " + amount, painted: tag + " " + grey(amount), percent: snapshot.value });
         continue;
       }
 
       if (snapshot.usedAmount !== undefined && snapshot.currency === "USD") {
         const tag = captionFor(snapshot, hostProvider, inputCaptions, claudeFamilyCodesFor(snapshot, snapshots));
-        const plain = tag + " spend " + (stale ? "~" : "") + "$" + snapshot.usedAmount.toFixed(2);
-        cells.push({ plain, painted: plain, percent: snapshot.value });
+        const amount = mark + "$" + snapshot.usedAmount.toFixed(2);
+        cells.push({ plain: tag + " spend " + amount, painted: tag + " spend " + grey(amount), percent: snapshot.value });
         continue;
       }
 
       const tag = captionFor(snapshot, hostProvider, inputCaptions, claudeFamilyCodesFor(snapshot, snapshots));
 
       const bar = tenBlockBar(snapshot.value, unicode);
-      const percentStr = (stale ? "~" : "") + Math.round(snapshot.value) + "%";
+      const percentStr = mark + Math.round(snapshot.value) + "%";
       const resetStr = formatResetTime(snapshot.resetAt, now).replace("·", unicode ? "·" : ".");
 
       const label = tag;
@@ -884,8 +890,8 @@ export function barStyleCells(
 
       let painted = plain;
       if (color) {
-        const paintedBar = paintBand(bar, snapshot.value, stale ? "stale" : "fresh", wide);
-        const paintedPct = paintBand(percentStr, snapshot.value, stale ? "stale" : "fresh", wide);
+        const paintedBar = paintBand(bar, snapshot.value, state, wide);
+        const paintedPct = paintBand(percentStr, snapshot.value, state, wide);
         painted = resetStr !== ""
           ? label + " " + paintedBar + " " + paintedPct + " " + resetStr
           : label + " " + paintedBar + " " + paintedPct;
