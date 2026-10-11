@@ -3,6 +3,13 @@
   "versionLabel": "Version {version}",
   "dismiss": "Got it",
   "releases": {
+    "2.1.5": {
+      "heading": "Bars that stay current",
+      "weekly": "Claude weekly bars refresh every five minutes and keep refreshing while Claude Code is open.",
+      "reset": "A reading from before a weekly reset is never shown, even when the next refresh fails.",
+      "status": "A reading that could not be refreshed turns grey in the status line, and the tilde now marks estimates only.",
+      "login": "The command line recovers from a rotated Claude login the way the app does, and a weekly Anthropic stops reporting disappears."
+    },
     "2.1.4": {
       "heading": "Bars that stay",
       "claude": "A Claude poll refused right after Claude Code rotated its login no longer hides your Claude bars for a day.",
