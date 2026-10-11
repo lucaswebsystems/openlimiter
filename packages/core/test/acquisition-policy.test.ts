@@ -428,3 +428,39 @@ it("drops a response that arrives after another process took the lease", async (
     expect(JSON.parse(readFileSync(file, "utf8"))).toMatchObject({ owner: "desktop", token: "desktop-took-over", nextAllowedAt: now + 300_000 });
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+/*
+ * Hotfix 2.1.5 round 2 fix 2. Losing the lease is a cancellation, never a
+ * backoff: the round leaves no local deadline and publishes nothing, so the
+ * shared document keeps the deadline the new owner set and the next refresh
+ * polls at it. Rust twins: request_policy.rs,
+ * a_holder_that_lost_its_lease_records_no_backoff_and_stays_open, and
+ * claude_oauth.rs, a_takeover_cancels_the_read_and_the_next_one_polls_at_the_successor_deadline.
+ */
+it("polls at the successor's deadline after a takeover, with no backoff of its own", async () => {
+  const dir = await directory();
+  try {
+    const file = path.join(dir, "acquisition-claude.json");
+    const successor = now + 300_000;
+    const spec: AcquisitionSpec = { provider: "CLAUDE", credentialProvider: "CLAUDE", steps: [({ credential }) => claudeUsageRequest(credential.secret)], disclosure: null,
+      parse: (_payload, observedAt) => [{ provider: "CLAUDE", meter: "SEVEN_DAY", value: 40, unit: "PERCENT", window: { kind: "rolling", durationSeconds: 604_800 },
+        resetAt: new Date(now + 4 * 86_400_000).toISOString(), source: "internal_payload", precision: "exact", observedAt,
+        expiresAt: new Date(Date.parse(observedAt) + 465_000).toISOString(),
+        labels: { credentialOrigin: "official-local-tool", dataInterfaceStatus: "internal-endpoint", automationRisk: "high", verification: "UNVERIFIED" } }] };
+    const readCredential = async () => ({ ok: true as const, credential: { secret: "fixture", accountId: null, expiresAtMilliseconds: null, origin: "vendor_store" as const } });
+    const first = await runAcquisition([spec], { stateDirectory: dir, now: new Date(now).toISOString(), clock: () => now, schedule: {}, readCredential,
+      transport: async () => {
+        await writeFile(file, JSON.stringify({ owner: "desktop", expiresAt: now + 120_000, token: "desktop-took-over", nextAllowedAt: successor, attempts: 0, lastAccount: null, refusalRevision: null }));
+        return { status: 200, body: "{}", retryAfterSeconds: null };
+      } });
+    expect(first.schedule["CLAUDE"]).toBeUndefined();
+    expect(first.rows.map((row) => row.status)).toEqual(["waiting"]);
+    expect(JSON.parse(readFileSync(file, "utf8"))).toMatchObject({ token: "desktop-took-over", nextAllowedAt: successor });
+    const at = successor + 1_000;
+    const sent: string[] = [];
+    const second = await runAcquisition([spec], { stateDirectory: dir, now: new Date(at).toISOString(), clock: () => at, schedule: first.schedule, readCredential,
+      transport: async (request) => { sent.push(request.endpoint); return { status: 200, body: "{}", retryAfterSeconds: null }; } });
+    expect(sent).toEqual(["claude_usage"]);
+    expect(second.reports.filter((report) => report.ok)).toHaveLength(1);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});

@@ -525,14 +525,22 @@ export async function runAcquisition(
     });
   };
 
+  const roundStarted = Date.now();
   for (const spec of specs) {
     let lease: MachineLease | null = null;
+    const waiting: AcquisitionRow = { provider: spec.provider, detected: true, status: "waiting", reason: "another acquisition owns this provider or its retry deadline is pending", nextAttemptAt: null, disclosure: spec.disclosure };
+    /* Losing the lease is a cancellation, never a failure: the round leaves
+       no local deadline, publishes nothing and reports nothing, and the
+       deadline the new owner set stands (hotfix 2.1.5 round 2 fix 2). Rust
+       twin: request_policy.rs complete_shared. */
+    const lost = async (): Promise<boolean> => lease !== null &&
+      await lease.stillOwned(options.clock?.() ?? Date.parse(options.now) + Date.now() - roundStarted).then((owned) => !owned, () => false);
     try {
       if (options.stateDirectory !== undefined && spec.enabled !== false) {
         phase = "lease";
         lease = await acquireMachineLease(spec.provider, options.stateDirectory, options.clock?.() ?? Date.parse(options.now), await revisionNow(spec));
         if (lease === null) {
-          rows.push({ provider: spec.provider, detected: true, status: "waiting", reason: "another acquisition owns this provider or its retry deadline is pending", nextAttemptAt: null, disclosure: spec.disclosure });
+          rows.push(waiting);
           continue;
         }
         // Read and persist each provider while its shared machine lease is held.
@@ -540,15 +548,18 @@ export async function runAcquisition(
         const previous = schedule[spec.provider];
         const localSchedule = previous ? { ...schedule, [spec.provider]: { ...previous, attempts: Math.max(previous.attempts ?? 0, lease.attempts) } } : schedule;
         const single = await runAcquisition([spec], { ...localOptions, readCredential, now: options.clock ? new Date(options.clock()).toISOString() : options.now, schedule: localSchedule, lease });
-        rows.push(...single.rows);
-        const updated = single.schedule[spec.provider];
-        if (updated) schedule[spec.provider] = updated;
-        else delete schedule[spec.provider];
         phase = "persist";
-        const entry = schedule[spec.provider];
+        if (await lost()) {
+          rows.push(waiting);
+          continue;
+        }
+        const entry = single.schedule[spec.provider];
         if (entry) await lease.complete(Date.parse(entry.nextAttemptAt), entry.attempts ?? 0, entry.refusalRevision);
-        /* Completing checked the lease is still ours, so only now may a
-           report leave the round for the caller to write. */
+        /* Completing checked the lease is still ours, so only now may the
+           round keep its schedule and hand a report to the caller to write. */
+        rows.push(...single.rows);
+        if (entry) schedule[spec.provider] = entry;
+        else delete schedule[spec.provider];
         reports.push(...single.reports);
         for (const row of single.rows) {
           if (row.availability) await recordAcquisitionAvailability(spec.provider, row.availability, options.now, row.retryAt, options.stateDirectory, row.accountId);
@@ -557,6 +568,10 @@ export async function runAcquisition(
         await readOne(spec);
       }
     } catch (error) {
+      if (await lost()) {
+        rows.push(waiting);
+        continue;
+      }
       /*
        * The last line of defence. A provider that threw where nothing was
        * supposed to throw is that provider's drift, recorded on the ordinary

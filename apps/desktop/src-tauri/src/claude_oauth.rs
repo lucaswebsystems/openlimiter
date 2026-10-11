@@ -872,15 +872,28 @@ async fn collect_with_reread<T: Transport>(
     let response = loop {
         let current = rotated.as_ref().unwrap_or(secret);
         policy.carrying_revision(&current.credential_revision);
-        let response = match fetch_endpoint(
+        let fetched = fetch_endpoint(
             transport,
             ProviderEndpoint::ClaudeOauthUsage,
             AuthApplication::ClaudeOauthBearer,
             &current.access_token,
             None,
         )
-        .await
-        {
+        .await;
+        /* A response that comes back after another process took the shared
+        lease is that process's read now. Losing ownership is a cancellation,
+        never a failure: whatever came back is not classified, written or
+        scheduled, and the lease and deadline the other process holds are left
+        alone (hotfix 2.1.5 fix 5 and round 2 fix 2). TypeScript twin:
+        runner.ts attempt and the lease loop. */
+        if !policy.still_owns_shared() {
+            return ClaudeOauthOutcome::Cached {
+                account_id: account_id.to_string(),
+                retry_at: iso_from_epoch_ms(now_ms)
+                    .unwrap_or_else(|| "1970-01-01T00:00:00.000Z".to_string()),
+            };
+        }
+        let response = match fetched {
             Ok(response) => response,
             Err(error) => {
                 runtime.retry(account_id, now_ms, None);
@@ -915,17 +928,6 @@ async fn collect_with_reread<T: Transport>(
                 fallback_report(writer, account_id, true, now_ms).await;
                 return ClaudeOauthOutcome::fallback(account_id, ClaudeOauthFailure::Drift, None);
             };
-            /* A response that comes back after another process took the
-            shared lease is that process's read now: it is dropped unwritten,
-            and the lease the other process holds is left alone (hotfix 2.1.5
-            fix 5). TypeScript twin: runner.ts attempt. */
-            if !policy.still_owns_shared() {
-                return ClaudeOauthOutcome::Cached {
-                    account_id: account_id.to_string(),
-                    retry_at: iso_from_epoch_ms(now_ms)
-                        .unwrap_or_else(|| "1970-01-01T00:00:00.000Z".to_string()),
-                };
-            }
             let read = read_usage(&body, now_ms, account_id);
             let Some(snapshots) = read.rows else {
                 fallback_report(writer, account_id, true, now_ms).await;
@@ -1989,6 +1991,41 @@ mod tests {
         assert_eq!(state["owner"], "cli");
         assert_eq!(state["token"], "cli-took-over");
         assert_eq!(state["nextAllowedAt"], NOW + 300_000);
+    }
+
+    /// Hotfix 2.1.5 round 2 fix 2. A takeover during a request cancels the
+    /// read whatever the endpoint answers: nothing is classified, written or
+    /// scheduled, the policy stays open, the successor's deadline stays, and
+    /// the next collection polls at it. TypeScript twin:
+    /// acquisition-policy.test.ts, "polls at the successor's deadline after a
+    /// takeover, with no backoff of its own".
+    #[tokio::test]
+    async fn a_takeover_cancels_the_read_and_the_next_one_polls_at_the_successor_deadline() {
+        for status in [200, 401, 429, 500] {
+            let dir = TempDir::new();
+            claude_store(&dir, "synthetic-token", LATER);
+            let detection = DetectionStore::for_test_home(dir.path(), NOW);
+            let account = detection.account_ids(DetectedProviderId::Claude).pop().unwrap();
+            let runtime = ClaudeOauthRuntime::default();
+            let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
+            let lease = dir.path().join("acquisition-claude.json");
+            let takeover = TakeoverTransport {
+                inner: RecordingTransport::replying(status, valid_body(), None),
+                lease: lease.clone(),
+            };
+            let (first, _) =
+                collect_account_guarded(&detection, &runtime, &policy, &takeover, writer(&dir), account.clone(), NOW).await;
+            assert!(matches!(first, ClaudeOauthOutcome::Cached { .. }), "{status}: {first:?}");
+            assert!(!dir.path().join(crate::cache_write::AUTHORITATIVE_CACHE_FILE_NAME).exists(), "{status}");
+            let state: Value = serde_json::from_str(&fs::read_to_string(&lease).unwrap()).unwrap();
+            assert_eq!(state["token"], "cli-took-over", "{status}");
+            assert_eq!(state["nextAllowedAt"], NOW + 300_000, "{status}");
+            let next = RecordingTransport::replying(200, valid_body(), None);
+            let (second, _) =
+                collect_account_guarded(&detection, &runtime, &policy, &next, writer(&dir), account, NOW + 300_000).await;
+            assert!(matches!(second, ClaudeOauthOutcome::CacheCommitted { .. }), "{status}: {second:?}");
+            assert_eq!(next.recorded_urls().len(), 1, "{status}");
+        }
     }
 
     /// Claude Code refreshing its login while a request is in flight: the

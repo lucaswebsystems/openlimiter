@@ -285,7 +285,9 @@ impl RequestPolicy {
     ) {
         let now_ms = self.clock.map_or(now_ms, |clock| clock().max(now_ms));
         let delay = jittered_account_delay(provider, account_id, minimum_seconds.max(1));
-        self.complete_shared(now_ms.saturating_add(delay.saturating_mul(1000)), 0, None);
+        if !self.complete_shared(now_ms.saturating_add(delay.saturating_mul(1000)), 0, None) {
+            return;
+        }
         self.mutate_durable(|document| {
             document
                 .providers
@@ -336,7 +338,9 @@ impl RequestPolicy {
             .and_then(|inner| inner.credential_revision.clone());
         /* The shared lease names the refused login too, so the command line
         tool releases this refusal once the login rotates. */
-        self.complete_shared(next, 0, revision.as_deref());
+        if !self.complete_shared(next, 0, revision.as_deref()) {
+            return;
+        }
         self.mutate_durable(|document| {
             let state = document.providers.entry(provider).or_default();
             state.attempts.remove(account_id);
@@ -367,7 +371,9 @@ impl RequestPolicy {
         let now_ms = self.clock.map_or(now_ms, |clock| clock().max(now_ms));
         let delay = minimum_seconds.max(BLOCKED_PROVIDER_SECONDS);
         let blocked_until = now_ms.saturating_add(delay.saturating_mul(1_000));
-        self.complete_shared(blocked_until, 0, None);
+        if !self.complete_shared(blocked_until, 0, None) {
+            return;
+        }
         self.mutate_durable(|document| {
             let state = document.providers.entry(provider).or_default();
             state.blocked_until = Some(
@@ -428,7 +434,9 @@ impl RequestPolicy {
             MAX_SERVER_DELAY_SECONDS,
         );
         let retry_at = decision.next_allowed_at.min(MAX_TIMESTAMP_EPOCH_MS);
-        self.complete_shared(retry_at, attempts.saturating_add(1), None);
+        if !self.complete_shared(retry_at, attempts.saturating_add(1), None) {
+            return;
+        }
         if let Some(directory) = self.directory.as_ref().filter(|_| rate_limited) {
             let writer = crate::cache_write::CacheWriter::at(Some(directory.clone()));
             let _ = writer.record_availability(
@@ -468,14 +476,27 @@ impl RequestPolicy {
         })
     }
 
-    fn complete_shared(&self, next: u64, attempts: u32, refusal: Option<&str>) {
-        if let Ok(mut inner) = self.inner.lock() {
-            if let Some(lease) = inner.active_shared.as_ref() {
-                if lease.complete(next, attempts, refusal).is_err() {
-                    inner.healthy = false;
-                }
-            }
+    /// Completes the shared lease. False when another process took it over:
+    /// losing ownership is a cancellation, never a backoff, so the caller
+    /// records no local deadline, this process's gate stays open and the
+    /// successor's deadline stands (hotfix 2.1.5 round 2 fix 2). A lease still
+    /// ours that cannot be written closes the gate, as before. TypeScript twin:
+    /// runner.ts, the lease loop.
+    fn complete_shared(&self, next: u64, attempts: u32, refusal: Option<&str>) -> bool {
+        let Ok(mut inner) = self.inner.lock() else {
+            return true;
+        };
+        let Some(lease) = inner.active_shared.as_ref() else {
+            return true;
+        };
+        if lease.complete(next, attempts, refusal).is_ok() {
+            return true;
         }
+        if lease.lost() {
+            return false;
+        }
+        inner.healthy = false;
+        true
     }
 
     fn mutate_durable(&self, mutate: impl FnOnce(&mut RequestPolicyDocument)) {
@@ -809,6 +830,11 @@ impl MachineLease {
             fsx::atomic_write(&self.file, &serde_json::to_string(&state).map_err(|_| ())?)
                 .map_err(|_| ())
         })
+    }
+
+    /// Another process took this lease over: the file names another token.
+    fn lost(&self) -> bool {
+        Self::read(&self.file).is_ok_and(|state| state.token != self.token)
     }
 
     fn complete(&self, next: u64, attempts: u32, refusal: Option<&str>) -> Result<(), ()> {
@@ -1368,6 +1394,40 @@ mod tests {
         assert_eq!(state.refusal_revision, None);
         assert_eq!(state.next_allowed_at, 0);
         drop(successor);
+    }
+
+    /// Hotfix 2.1.5 round 2 fix 2. Losing the shared lease is a cancellation,
+    /// never a backoff: a holder that completes after a takeover records no
+    /// local deadline, leaves the successor's deadline as it was, and keeps
+    /// this process's gate open for the next read at that deadline.
+    /// TypeScript twin: acquisition-policy.test.ts, "polls at the successor's
+    /// deadline after a takeover, with no backoff of its own".
+    #[test]
+    fn a_holder_that_lost_its_lease_records_no_backoff_and_stays_open() {
+        let dir = TempDir::new();
+        let file = dir.path().join("acquisition-claude.json");
+        let gate = policy(&dir);
+        let lease = gate
+            .begin_with_revision(DetectedProviderId::Claude, "account-one", NOW, Some("revision"))
+            .unwrap();
+        let mut taken = MachineLease::read(&file).unwrap();
+        taken.owner = Some("cli".to_string());
+        taken.token = "cli-took-over".to_string();
+        taken.expires_at = NOW + 120_000;
+        taken.next_allowed_at = NOW + 300_000;
+        std::fs::write(&file, serde_json::to_string(&taken).unwrap()).unwrap();
+        gate.retry_account(DetectedProviderId::Claude, "account-one", NOW + 15_000, None, false);
+        drop(lease);
+        let state = MachineLease::read(&file).unwrap();
+        assert_eq!(state.token, "cli-took-over");
+        assert_eq!(state.next_allowed_at, NOW + 300_000);
+        let document = load_document(Some(&dir.path().to_path_buf())).unwrap();
+        assert_eq!(
+            document.providers[&DetectedProviderId::Claude].accounts["account-one"],
+            NOW + PROVISIONAL_REQUEST_SECONDS * 1_000
+        );
+        let next = gate.begin_with_revision(DetectedProviderId::Claude, "account-one", NOW + 300_000, Some("revision"));
+        assert!(next.is_ok(), "{:?}", next.err());
     }
 
     /// Hotfix 2.1.5, change C: Claude failures keep their backoff, read from
