@@ -38,6 +38,15 @@ pub(crate) fn display_eligible(row: &Snapshot) -> bool {
         || row.meter == "EXTRA_USAGE"
 }
 
+/// Whether the window a reading measured has already turned over.
+/// TypeScript twin: `resetPassed`.
+pub(crate) fn reset_passed(row: &Snapshot, now: i64) -> bool {
+    row.reset_at
+        .as_deref()
+        .and_then(crate::native_time::epoch_ms_from_rfc3339)
+        .is_some_and(|reset| now >= reset as i64)
+}
+
 pub(crate) fn retained(row: &Snapshot, now: u64) -> bool {
     crate::native_time::epoch_ms_from_rfc3339(&row.observed_at)
         .is_some_and(|at| at >= now.saturating_sub(RETENTION_MS))
@@ -255,6 +264,17 @@ pub fn project(
             None
         } else {
             held_reason(&row, reason(&row, now), now)
+        };
+        /* A reading from before its window reset describes no window on
+        screen, fresh or stale, even when the next read failed. Nothing
+        replaces it. TypeScript twin: `projectSnapshots`. */
+        let rejected = match rejected {
+            None if reset_passed(&row, now) => Some(if claude_statusline(&row) {
+                "awaiting_statusline"
+            } else {
+                "stale"
+            }),
+            other => other,
         };
         if let Some(reason) = rejected {
             let flag = ConnectionFlag {
@@ -618,7 +638,15 @@ mod tests {
         let mut antigravity = statusline(None);
         antigravity.provider = "ANTIGRAVITY".into();
         antigravity.provenance = Some(serde_json::json!({ "sourceKind": "statusline_payload", "observedVia": "local_command" }));
-        let others = vec![codex, polled, antigravity];
+        /* Their windows reset later than these checks, so only freshness and
+        retention are under test here (a reset that passed is its own rule). */
+        let others: Vec<Snapshot> = vec![codex, polled, antigravity]
+            .into_iter()
+            .map(|mut row| {
+                row.reset_at = Some("2026-10-29T12:00:00.000Z".into());
+                row
+            })
+            .collect();
         let held = project(others.clone(), minutes(121), &active, &BTreeSet::new());
         assert!(held.flags.is_empty());
         assert_eq!(held.snapshots.len(), 3);
@@ -635,6 +663,53 @@ mod tests {
         assert!(gone.snapshots.is_empty());
         assert!(gone.flags.iter().all(|flag| flag.reason == "stale"));
         assert_eq!(gone.flags.len(), 3);
+    }
+
+    /// Hotfix 2.1.5, change D. A reading from before its window reset is never
+    /// shown, fresh or stale, and nothing replaces it. TypeScript twin:
+    /// data-rules.test.ts, "a reading from before its reset is never shown".
+    #[test]
+    fn a_reading_from_before_its_reset_is_never_shown() {
+        let reset = "2026-09-29T14:00:00.000Z";
+        let at = |iso: &str| crate::native_time::epoch_ms_from_rfc3339(iso).unwrap() as i64;
+        let mut weekly = measured(Some("fixture-a"));
+        weekly.meter = "SEVEN_DAY".into();
+        weekly.value = 75.0;
+        weekly.window.duration_seconds = Some(604_800);
+        weekly.observed_at = "2026-09-29T13:59:00.000Z".into();
+        weekly.reset_at = Some(reset.into());
+        weekly.provenance = Some(serde_json::json!({ "sourceKind": "remote_api", "observedVia": "remote_http" }));
+        let active = BTreeMap::from([("CLAUDE".into(), BTreeSet::from(["fixture-a".into()]))]);
+        let shown = project(vec![weekly.clone()], at("2026-09-29T13:59:59.999Z"), &active, &BTreeSet::new());
+        assert_eq!(shown.snapshots.len(), 1);
+        assert!(!reset_passed(&weekly, at(reset) - 1));
+        for now in [reset, "2026-09-29T14:00:00.001Z", "2026-10-02T00:00:00.000Z"] {
+            assert!(reset_passed(&weekly, at(now)));
+            let projected = project(vec![weekly.clone()], at(now), &active, &BTreeSet::new());
+            assert!(projected.snapshots.is_empty(), "{now}");
+            assert_eq!(projected.flags.len(), 1);
+            assert_eq!(projected.flags[0].reason, "stale");
+            assert_eq!(projected.flags[0].fix_kind, "open_app");
+        }
+        let mut unknown = weekly.clone();
+        unknown.reset_at = None;
+        assert!(!reset_passed(&unknown, at("2026-10-02T00:00:00.000Z")));
+        /* A Claude status line reading past its reset waits for Claude Code,
+        even while its own freshness has not run out. */
+        let mut payload = statusline(Some("fixture-a"));
+        payload.observed_at = "2026-09-29T13:59:30.000Z".into();
+        payload.reset_at = Some(reset.into());
+        assert_eq!(
+            project(vec![payload.clone()], at("2026-09-29T13:59:59.000Z"), &active, &BTreeSet::new())
+                .snapshots
+                .len(),
+            1
+        );
+        assert_eq!(
+            project(vec![payload], at("2026-09-29T14:00:10.000Z"), &active, &BTreeSet::new()).flags[0]
+                .reason,
+            "awaiting_statusline"
+        );
     }
 
     /// The founder's Antigravity card: its status line wrote yesterday and its

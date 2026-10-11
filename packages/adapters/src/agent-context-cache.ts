@@ -386,10 +386,12 @@ async function writeDocument(
   if (process.platform !== "win32") await chmod(file, 0o600);
 }
 
+/* The context expires with the first reading it describes, and at the first
+   reset ahead: advice from before a reset describes no window after it. */
 function futureExpiry(snapshots: readonly Snapshot[], generated: number): number {
   const ceiling = generated + AGENT_CONTEXT_MAX_AGE_MILLISECONDS;
   const expiries = snapshots
-    .map((snapshot) => Date.parse(snapshot.expiresAt))
+    .flatMap((snapshot) => [Date.parse(snapshot.expiresAt), Date.parse(snapshot.resetAt ?? "")])
     .filter((value) => Number.isFinite(value) && value > generated);
   return Math.min(ceiling, ...(expiries.length === 0 ? [ceiling] : expiries));
 }

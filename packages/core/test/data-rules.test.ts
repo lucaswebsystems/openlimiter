@@ -6,8 +6,9 @@ import { describe, expect, it } from "vitest";
 import { opaqueAccountId, credentialIdentityMaterial, acquisitionAccountId } from "../src/acquire/identity.js";
 import { readCredentialDocument, type AcquisitionProvider } from "../src/acquire/credentials.js";
 import { applyCollectionReport } from "../src/collection.js";
-import { freshnessPolicy, projectSnapshots, retainSnapshots, RETENTION_MILLISECONDS } from "../src/data-rules.js";
-import { mergeSnapshotCache, mergeAcquiredSnapshots, readSnapshotCache } from "../src/cache.js";
+import { freshnessPolicy, projectSnapshots, resetPassed, retainSnapshots, RETENTION_MILLISECONDS } from "../src/data-rules.js";
+import { mergeAuthoritativeSnapshotCache, mergeSnapshotCache, mergeAcquiredSnapshots, readSnapshotCache } from "../src/cache.js";
+import { buildAdvice } from "../src/policy.js";
 import type { ProviderCode, Snapshot } from "../src/types.js";
 import { freshness } from "../src/freshness.js";
 import { snapshot } from "./helpers.js";
@@ -18,7 +19,9 @@ describe("Rust and TS account identity parity", () => {
 });
 const now = "2026-09-29T12:00:00.000Z";
 const at = Date.parse(now);
-const measured = (accountId?: string) => snapshot({ observedAt: now, expiresAt: "2026-09-29T12:20:00.000Z", kind: "quota_percent", ...(accountId ? { accountId } : {}) });
+/* No reset stated: these rows test freshness and identity, and since hotfix
+   2.1.5 a reset that already passed withdraws a reading on its own. */
+const measured = (accountId?: string) => snapshot({ observedAt: now, expiresAt: "2026-09-29T12:20:00.000Z", resetAt: null, kind: "quota_percent", ...(accountId ? { accountId } : {}) });
 
 it("hides the unverified legacy Cursor bars from every projected surface", () => {
   const rows = ["AUTO", "API", "INCLUDED"].map((meter) => snapshot({
@@ -108,7 +111,7 @@ it("measured zero survives while placeholders, stale rows and availability becom
 it("a quiet Antigravity card stays, stale with its age, for seven days instead of vanishing", () => {
   // The founder's case: the status line wrote yesterday and Antigravity CLI is closed.
   const row = snapshot({
-    provider: "ANTIGRAVITY", accountId: "antigravity-account", observedAt: now, expiresAt: "2026-09-29T12:13:00.000Z",
+    provider: "ANTIGRAVITY", accountId: "antigravity-account", observedAt: now, expiresAt: "2026-09-29T12:13:00.000Z", resetAt: null,
     provenance: { sourceKind: "statusline_payload", observedVia: "antigravity_cli_statusline" }
   });
   const dayLater = new Date(at + 86_400_000).toISOString();
@@ -193,10 +196,13 @@ describe("Claude status line rows: freshness is not visibility", () => {
   });
 
   it("every other source is held stale past its window, until the cache lets go of it at seven days", () => {
+    /* Their windows reset later than these checks, so only freshness and
+       retention are under test here (a reset that passed is its own rule). */
+    const laterReset = "2026-10-29T12:00:00.000Z";
     const others = [
-      anonymous({ provider: "CODEX" }),
-      statusline({ provenance: { sourceKind: "remote_api", observedVia: "local_event" }, source: "internal_payload" }),
-      anonymous({ provider: "ANTIGRAVITY", provenance: { sourceKind: "statusline_payload", observedVia: "local_command" } })
+      anonymous({ provider: "CODEX", resetAt: laterReset }),
+      statusline({ provenance: { sourceKind: "remote_api", observedVia: "local_event" }, source: "internal_payload", resetAt: laterReset }),
+      anonymous({ provider: "ANTIGRAVITY", provenance: { sourceKind: "statusline_payload", observedVia: "local_command" }, resetAt: laterReset })
     ];
     const held = projectSnapshots(others, later(121), active);
     expect(held.flags).toEqual([]);
@@ -222,5 +228,70 @@ describe("Claude status line rows: freshness is not visibility", () => {
     const pro = projectSnapshots(rows, now, new Map([["CLAUDE", new Set([account, b])]]));
     expect(pro.snapshots.map(row => row.accountId)).toEqual([account, b]);
     expect(pro.flags.map(flag => flag.reason)).toEqual(["account_unresolved"]);
+  });
+});
+
+/*
+ * Hotfix 2.1.5, change D. A reading from before its window reset no longer
+ * describes the window, so no surface shows it, fresh or stale, even when the
+ * next read fails. Nothing is invented in its place, and storage still keeps
+ * it for seven days from its observation. Rust twin: data_rules.rs.
+ */
+describe("a reading from before its reset is never shown", () => {
+  const resetAt = "2026-09-29T14:00:00.000Z";
+  const weekly = (overrides: Partial<Snapshot> = {}): Snapshot => snapshot({
+    provider: "CLAUDE", meter: "SEVEN_DAY", value: 75, observedAt: "2026-09-29T13:59:00.000Z",
+    expiresAt: "2026-09-29T14:18:00.000Z", resetAt, window: { kind: "rolling", durationSeconds: 604_800 },
+    source: "internal_payload", provenance: { sourceKind: "remote_api", observedVia: "remote_http" }, ...overrides
+  });
+
+  it("shows the reading just before its reset", () => {
+    expect(resetPassed(weekly(), "2026-09-29T13:59:59.999Z")).toBe(false);
+    expect(projectSnapshots([weekly()], "2026-09-29T13:59:59.999Z").snapshots.map((row) => row.value)).toEqual([75]);
+  });
+
+  it("withdraws it exactly at the reset and after, inventing nothing in its place", () => {
+    for (const at of [resetAt, "2026-09-29T14:00:00.001Z", "2026-10-02T00:00:00.000Z"]) {
+      expect(resetPassed(weekly(), at)).toBe(true);
+      const projected = projectSnapshots([weekly()], at);
+      expect(projected.snapshots).toEqual([]);
+      expect(projected.flags).toEqual([{ provider: "CLAUDE", reason: "stale", fixKind: "open_app" }]);
+    }
+  });
+
+  it("keeps an unknown reset and a stale reading whose reset is still ahead", () => {
+    expect(resetPassed(weekly({ resetAt: null }), "2026-10-02T00:00:00.000Z")).toBe(false);
+    const quiet = weekly({ observedAt: "2026-09-29T10:00:00.000Z", expiresAt: "2026-09-29T10:19:00.000Z" });
+    const held = projectSnapshots([quiet], "2026-09-29T13:59:00.000Z");
+    expect(held.snapshots.map((row) => [row.value, freshness(row.observedAt, row.expiresAt, "2026-09-29T13:59:00.000Z")]))
+      .toEqual([[75, "stale"]]);
+  });
+
+  it("a Claude status line reading past its reset waits for Claude Code even while fresh", () => {
+    const payload = snapshot({
+      provider: "CLAUDE", meter: "FIVE_HOUR", value: 37, source: "native_payload", observedAt: "2026-09-29T13:59:30.000Z",
+      expiresAt: "2026-09-29T14:00:30.000Z", resetAt,
+      provenance: { sourceKind: "statusline_payload", observedVia: "claude_code_statusline" }
+    });
+    expect(projectSnapshots([payload], "2026-09-29T13:59:59.000Z").snapshots).toHaveLength(1);
+    expect(projectSnapshots([payload], "2026-09-29T14:00:10.000Z").flags.map((flag) => flag.reason)).toEqual(["awaiting_statusline"]);
+  });
+
+  it("a poll that fails after the reset leaves the reading stored for seven days and never on screen", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "d-reset-"));
+    try {
+      await mergeAuthoritativeSnapshotCache([weekly()], root, "2026-09-29T13:59:00.000Z");
+      const after = "2026-09-29T14:05:00.000Z";
+      const stored = await readSnapshotCache(root);
+      expect(stored.ok && stored.snapshots.map((row) => row.value)).toEqual([75]);
+      expect(retainSnapshots(stored.ok ? stored.snapshots : [], Date.parse(after))).toHaveLength(1);
+      expect(projectSnapshots(stored.ok ? stored.snapshots : [], after).snapshots).toEqual([]);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it("never lets a reading whose window reset drive advice, even while fresh", () => {
+    const fresh = weekly({ value: 99, observedAt: "2026-09-29T13:59:30.000Z" });
+    expect(buildAdvice([fresh], "2026-09-29T13:59:59.000Z", ["CLAUDE"]).reason).toBe("NEAR_CAP");
+    expect(buildAdvice([fresh], "2026-09-29T14:00:10.000Z", ["CLAUDE"])).toMatchObject({ reason: "UNKNOWN", providers: [] });
   });
 });

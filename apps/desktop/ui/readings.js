@@ -17,6 +17,7 @@ import {
   normalizeMetersReport,
   projectSnapshots,
   readSuppressions,
+  resetPassed,
   visibleSnapshots,
 } from "./engine/core/index.js";
 import { parseManualPayload } from "./engine/connectors/manual.js";
@@ -80,12 +81,13 @@ export function projectReadings(cacheText, manualText, now) {
 
 /**
  * The alert samples for the rows on screen: percentages, and fresh ones only.
- * A stale reading draws flat grey with its age, so it never raises an alert.
+ * A stale reading draws flat grey with its age, so it never raises an alert,
+ * and a reading whose window already reset raises none either.
  */
 export function alertSamples(snapshots, now) {
   return snapshots
     .filter((snapshot) => snapshot.unit === "PERCENT" && Number.isFinite(snapshot.value) &&
-      freshness(snapshot.observedAt, snapshot.expiresAt, now) === "fresh")
+      freshness(snapshot.observedAt, snapshot.expiresAt, now) === "fresh" && !resetPassed(snapshot, now))
     .map((snapshot) => ({
       accountId: snapshot.accountId ?? "default",
       provider: snapshot.provider,

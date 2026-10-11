@@ -257,7 +257,16 @@ describe("terminal host installers", () => {
       XDG_DATA_HOME: xdgData,
       XDG_RUNTIME_DIR: xdgRuntime
     };
-    const input = await readFile(path.resolve("packages/connectors/fixtures/antigravity.quota.json"), "utf8");
+    /* The installed command reads the real clock, and since hotfix 2.1.5 a
+       reading whose window already reset is never drawn, so the fixture's
+       windows are moved ahead of now; this case is about the command. */
+    const fixture = JSON.parse(await readFile(path.resolve("packages/connectors/fixtures/antigravity.quota.json"), "utf8")) as {
+      quota: Record<string, { reset_time: string }>;
+    };
+    const ahead = (hours: number) => new Date(Date.now() + hours * 3_600_000).toISOString();
+    fixture.quota["gemini-5h"]!.reset_time = ahead(4);
+    fixture.quota["gemini-weekly"]!.reset_time = ahead(96);
+    const input = JSON.stringify(fixture);
     let invoked: Awaited<ReturnType<typeof invokeThroughCmd>>;
     try {
       invoked = await invokeThroughCmd(settings.statusLine.command, input, environment);

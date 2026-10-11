@@ -37,6 +37,15 @@ export function freshnessPolicy(input: { sourceClass: string; observedAt: string
     ? "unavailable" : now < deadline ? "fresh" : "stale" };
 }
 
+/**
+ * Whether the window a reading measured has already turned over.
+ * Rust twin: data_rules::reset_passed.
+ */
+export function resetPassed(row: Pick<Snapshot, "resetAt">, now: string): boolean {
+  const reset = Date.parse(row.resetAt ?? "");
+  return Number.isFinite(reset) && Date.parse(now) >= reset;
+}
+
 export function retainSnapshots(rows: readonly Snapshot[], now: number): Snapshot[] {
   return rows.filter(row => Date.parse(row.observedAt) >= now - RETENTION_MILLISECONDS);
 }
@@ -114,9 +123,14 @@ export function projectSnapshots(rows: readonly Snapshot[], now: string, active?
           : displayReason(row, now),
         now,
       ));
-    if (reason === null) snapshots.push({ ...row, expiresAt: freshnessPolicy({ ...row, sourceClass: row.source, now }).expiresAt });
-    else flags.set([row.provider, row.accountId, reason].join(":"), {
-      provider: row.provider, ...(row.accountId ? { accountId: row.accountId } : {}), reason, fixKind: fixKind(reason)
+    /* A reading from before its window reset describes no window on screen,
+       fresh or stale, even when the next read failed. Nothing replaces it. */
+    const shown = reason === null && resetPassed(row, now)
+      ? (claudeStatusline(row) ? "awaiting_statusline" : "stale")
+      : reason;
+    if (shown === null) snapshots.push({ ...row, expiresAt: freshnessPolicy({ ...row, sourceClass: row.source, now }).expiresAt });
+    else flags.set([row.provider, row.accountId, shown].join(":"), {
+      provider: row.provider, ...(row.accountId ? { accountId: row.accountId } : {}), reason: shown, fixKind: fixKind(shown)
     });
   }
   return { snapshots, flags: [...flags.values()] };

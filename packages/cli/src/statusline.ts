@@ -10,6 +10,7 @@ import {
   providerMeterVisible,
   isSnapshotDisplayEligible,
   readAcquisitionSchedule,
+  resetPassed,
   readJsonFileSafely,
   type Advice,
   type ProviderCode,
@@ -290,13 +291,15 @@ function readingsFor(
     return age <= ONE_DAY * 1000 ||
       (latestAccount.get(accountId) === newest && age <= RETENTION_MILLISECONDS);
   };
-  // Each reading keeps its own seven days, however recent its account is.
+  // Each reading keeps its own seven days, however recent its account is,
+  // and none outlives its window's reset, even when the next read failed.
   const readings = providerRows
     .filter((snapshot) => (snapshot.unit === "PERCENT" ||
       isBalanceSnapshot(snapshot) ||
       isAvailabilitySnapshot(snapshot)) &&
       shownAccount(snapshot.accountId) &&
-      Date.parse(now) - Date.parse(snapshot.observedAt) <= RETENTION_MILLISECONDS)
+      Date.parse(now) - Date.parse(snapshot.observedAt) <= RETENTION_MILLISECONDS &&
+      !resetPassed(snapshot, now))
     .map((snapshot) => ({
       snapshot,
       state: freshness(snapshot.observedAt, snapshot.expiresAt, now)

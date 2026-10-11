@@ -238,6 +238,38 @@ describe("Claude adapter", () => {
     expect(context).not.toContain("SEVEN_DAY");
   });
 
+  /* Hotfix 2.1.5, change D: a reading whose window reset never drives advice,
+     and a context written before a reset expires at that reset. */
+  it("never advises from a reading whose window reset and expires the context at the next reset", async () => {
+    const directory = await mkdtemp(path.join(await scratchRoot(), "openlimiter-adapter-reset-"));
+    created.push(directory);
+    const reading = (resetAt: string, value: number): Snapshot => ({
+      provider: "CLAUDE",
+      meter: "FIVE_HOUR",
+      value,
+      unit: "PERCENT",
+      window: { kind: "rolling", durationSeconds: 18_000 },
+      resetAt,
+      source: "native_payload",
+      precision: "exact",
+      observedAt: "2026-01-01T00:00:00.000Z",
+      expiresAt: "2026-01-01T00:05:00.000Z",
+      labels: {
+        credentialOrigin: "official-local-tool",
+        dataInterfaceStatus: "native-statusline-payload",
+        automationRisk: "low",
+        verification: "UNVERIFIED"
+      }
+    });
+    expect(buildAdvice([reading("2026-01-01T00:00:59.000Z", 99)], "2026-01-01T00:01:00.000Z", ["CLAUDE"]).reason)
+      .toBe("UNKNOWN");
+    const rows = [reading("2026-01-01T00:03:00.000Z", 40)];
+    await writeSnapshotCache(rows, directory);
+    await writeAgentContextSnapshot(rows, directory, "2026-01-01T00:01:00.000Z", ["CLAUDE"]);
+    const written = JSON.parse(await readFile(path.join(directory, "openlimiter-agent-context.json"), "utf8")) as { expires_at: string };
+    expect(written.expires_at).toBe("2026-01-01T00:03:00.000Z");
+  });
+
   it("rejects an edited shared snapshot rather than injecting it", async () => {
     const directory = await mkdtemp(path.join(await scratchRoot(), "openlimiter-adapter-test-"));
     created.push(directory);

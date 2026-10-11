@@ -10,6 +10,7 @@ import {
   OPENLIMITER_USER_AGENT,
   REFRESH_LOCK_NAME,
   acquireRefreshLock,
+  mergeAuthoritativeSnapshotCache,
   readSnapshotCache,
   writeSnapshotCache,
   type AcquisitionRequest,
@@ -631,6 +632,53 @@ describe("the Claude poll switch", () => {
     });
     expect(render.exitCode).toBe(0);
     expect(started).toEqual([["/usr/bin/node", "/opt/openlimiter/bin.js", "refresh", "--detached"]]);
+  });
+
+  /* Hotfix 2.1.5, change D: the reading from before a weekly reset leaves the
+     status line at the reset even when the poll after it fails, and storage
+     keeps it. */
+  it("withdraws a weekly at its reset when the poll after it fails, and keeps it stored", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    await runCli(["config", "set", "providers.claude.poll", "true"], dependencies(state, home, recordingTransport().transport));
+    const weekly: Snapshot = {
+      provider: "CLAUDE",
+      accountId: opaqueAccountId("CLAUDE", "one-active-account-without-stable-identity"),
+      meter: "SEVEN_DAY",
+      value: 75,
+      unit: "PERCENT",
+      window: { kind: "rolling", durationSeconds: 604_800 },
+      resetAt: "2026-01-01T00:10:00.000Z",
+      source: "internal_payload",
+      precision: "exact",
+      observedAt: NOW,
+      expiresAt: "2026-01-01T00:19:00.000Z",
+      labels: {
+        credentialOrigin: "official-local-tool",
+        dataInterfaceStatus: "internal-endpoint",
+        automationRisk: "high",
+        verification: "UNVERIFIED"
+      },
+      provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
+      writer: "cli"
+    };
+    await mergeAuthoritativeSnapshotCache([weekly], state, NOW);
+    const render = async (at: string) => (await runCli(["statusline"], {
+      ...dependencies(state, home, recordingTransport().transport, at),
+      readStandardInput: async () => JSON.stringify({
+        rate_limits: { five_hour: { used_percentage: 9, resets_at: Date.parse("2026-01-01T04:00:00.000Z") / 1000 } }
+      })
+    })).stdout;
+    expect(await render("2026-01-01T00:09:59.000Z")).toContain("75%");
+    const after = "2026-01-01T00:10:30.000Z";
+    const failing: AcquisitionTransport = async () => ({ status: 503, body: "", retryAfterSeconds: null });
+    await runCli(["refresh"], dependencies(state, home, failing, after));
+    const line = await render(after);
+    expect(line).not.toContain("75%");
+    expect(line).not.toContain("0%");
+    expect(line).toContain("7d waiting");
+    const stored = await readSnapshotCache(state);
+    expect(stored.ok && stored.snapshots.filter((row) => row.meter === "SEVEN_DAY").map((row) => row.value)).toEqual([75]);
   });
 
   it("refuses a value that is not a switch", async () => {
