@@ -30,8 +30,10 @@ describe("account and freshness status line goldens", () => {
     advice: buildAdvice(snapshots, GOLDEN_NOW), snapshots, now: GOLDEN_NOW,
     config: { ...DEFAULT_STATUSLINE, style: "bar", width: 1000, rows: 2, show }, color, host: "claude"
   });
-  /* Hotfix 2.1.5: a reading that could not be refreshed is grey, and the tilde
-     marks an estimate only, so age alone never marks a reading. */
+  /* Hotfix 2.1.5: with colour, a reading that could not be refreshed is grey
+     and the tilde marks an estimate only; without colour, grey cannot say it,
+     so a stale reading keeps the tilde 2.1.4 drew (fix 6). Age alone never
+     marks a reading. */
   const grey = (text: string) => "\x1b[90m" + text + "\x1b[0m";
   it("omits dormant accounts while preserving their cached rows", () => {
     const rows = [row({ accountId: "active", value: 16 }), row({ accountId: "old", observedAt: ago(86401), value: 99 })];
@@ -49,7 +51,7 @@ describe("account and freshness status line goldens", () => {
   it.each([180, 900, 7200, 86400])("greys the last value once it is stale at %s seconds", (seconds) => {
     const stale = [row({ observedAt: ago(seconds), expiresAt: ago(seconds - 60) })];
     expect(render(stale, [], true)).toBe("5h " + grey("[████░░░░░░]") + " " + grey("42%"));
-    expect(render(stale)).toBe("5h [████░░░░░░] 42%");
+    expect(render(stale)).toBe("5h [████░░░░░░] ~42%");
   });
   it("leaves explicitly selected providers without readings out", () => {
     expect(render([row({ value: 16 })], ["claude", "codex", "antigravity", "gemini_cli", "openrouter"]))
@@ -100,7 +102,7 @@ describe("account and freshness status line goldens", () => {
         expiresAt: ago(120)
       }),
       row({ accountId, observedAt: ago(240), expiresAt: ago(120), value: 42 })
-    ])).toBe("5h " + tenBlockBar(42) + " 42%");
+    ])).toBe("5h " + tenBlockBar(42) + " ~42%");
   });
   it("keeps a quiet provider's only account, stale, for seven days and then leaves it out", () => {
     expect(render([row({ value: 16 }), row({ provider: "CODEX", observedAt: ago(86401) })]))
@@ -112,7 +114,7 @@ describe("account and freshness status line goldens", () => {
     const weekly = row({ meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604800 }, value: 26,
       source: "internal_payload", provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
       observedAt: ago(7200), expiresAt: ago(6060) });
-    expect(render([row({ value: 16 }), weekly])).toBe("5h [█░░░░░░░░░] 16% | 7d [██░░░░░░░░] 26%");
+    expect(render([row({ value: 16 }), weekly])).toBe("5h [█░░░░░░░░░] 16% | 7d [██░░░░░░░░] ~26%");
     expect(render([row({ value: 16 }), weekly], [], true)).toContain("7d " + grey("[██░░░░░░░░]") + " " + grey("26%"));
   });
   it("drops a weekly past its seven days beside a current session, and says the weekly is missing", async () => {
@@ -129,22 +131,27 @@ describe("account and freshness status line goldens", () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
-  it("draws a retained two day old reading grey in every coloured style, with no tilde", () => {
-    const snapshots = [row({ observedAt: ago(2 * 86400), expiresAt: ago(2 * 86400 - 1140) })];
-    const advice = buildAdvice(snapshots, GOLDEN_NOW);
-    const layout = (style: "bar" | "cells", color: boolean) => renderStatuslineLayout({
-      advice, snapshots, now: GOLDEN_NOW, color, host: "claude",
+  it("draws a retained two day old reading grey with colour and with its 2.1.4 tilde without", () => {
+    const stale = [row({ observedAt: ago(2 * 86400), expiresAt: ago(2 * 86400 - 1140) })];
+    const fresh = [row({ observedAt: ago(60), expiresAt: ago(-600) })];
+    const layout = (snapshots: Snapshot[], style: "bar" | "cells", color: boolean) => renderStatuslineLayout({
+      advice: buildAdvice(snapshots, GOLDEN_NOW), snapshots, now: GOLDEN_NOW, color, host: "claude",
       config: { ...DEFAULT_STATUSLINE, style, width: 1000, rows: 2 }
     });
-    for (const style of ["bar", "cells"] as const) expect(layout(style, true)).toContain(grey("42%"));
-    for (const line of [
-      layout("bar", false),
-      layout("cells", false),
-      renderPlainStatusline(advice, snapshots, GOLDEN_NOW, ["CLAUDE"], "all", undefined, "CLAUDE")
-    ]) {
-      expect(line).toContain("42%");
-      expect(line).not.toContain("~");
+    const plain = (snapshots: Snapshot[]) =>
+      renderPlainStatusline(buildAdvice(snapshots, GOLDEN_NOW), snapshots, GOLDEN_NOW, ["CLAUDE"], "all", undefined, "CLAUDE");
+    for (const style of ["bar", "cells"] as const) {
+      expect(layout(stale, style, true)).toContain(grey("42%"));
+      expect(layout(stale, style, true)).not.toContain("~");
+      expect(layout(stale, style, false)).toContain(" ~42%");
+      expect(layout(fresh, style, false)).not.toContain("~");
     }
+    // The plain style never paints, so fresh and stale differ by the tilde.
+    expect(plain(fresh)).toContain(" 5h 42% ");
+    expect(plain(stale)).toContain(" 5h ~42% ");
+    expect(plain(fresh)).not.toContain("~");
+    // An estimate keeps its tilde with colour as well.
+    expect(layout([row({ observedAt: ago(60), expiresAt: ago(-600), precision: "estimated" })], "bar", true)).toContain("~42%");
   });
   it("leads with a fresh reading over a fuller stale one, and draws the stale one when it is alone", () => {
     const weekly = (accountId: string, value: number, observedAt: string, expiresAt: string) => row({
@@ -158,7 +165,7 @@ describe("account and freshness status line goldens", () => {
       config: { ...DEFAULT_STATUSLINE, style: "bar", meters: "worst", width: 1000, rows: 2 }
     });
     expect(worst([fresh, stale])).toBe("cl7d " + tenBlockBar(10) + " 10%");
-    expect(worst([stale])).toBe("cl7d " + tenBlockBar(99) + " 99%");
+    expect(worst([stale])).toBe("cl7d " + tenBlockBar(99) + " ~99%");
   });
   it("measures last seen per account, rather than discarding every older meter", () => {
     expect(render([row({ accountId: "active", value: 16 }), row({ accountId: "active", meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604800 }, observedAt: ago(90000), value: 26 })]))

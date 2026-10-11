@@ -220,6 +220,16 @@ export interface StatuslineCell {
 /** Two spaces between cells, so a reader can tell one cell from the next. */
 export const CELL_GAP = "  ";
 
+/**
+ * The tilde in front of a value. An estimate always carries it. A reading
+ * that could not be refreshed carries it only where the line draws without
+ * colour, exactly as 2.1.4 drew it, because grey cannot say it there; with
+ * colour it is grey instead (hotfix 2.1.5 fix 6).
+ */
+function staleTilde(estimated: boolean, stale: boolean, color: boolean): string {
+  return estimated || (stale && !color) ? "~" : "";
+}
+
 function buildCell(
   label: string,
   snapshot: Snapshot,
@@ -228,9 +238,9 @@ function buildCell(
   wide?: boolean,
   bars = true
 ): StatuslineCell {
-  // The legacy styles keep their bytes and draw no tilde; a reading that
-  // could not be refreshed is grey here as in the bars.
-  const percent = Math.round(snapshot.value) + "%";
+  // The legacy styles mark no estimate. A reading that could not be refreshed
+  // is grey here as in the bars, or keeps its tilde where nothing is painted.
+  const percent = staleTilde(false, state === "stale", color && bars) + Math.round(snapshot.value) + "%";
   if (!bars) {
     const text = label + " " + percent;
     return { plain: text, painted: text, percent: snapshot.value };
@@ -414,7 +424,7 @@ export function statuslineCells(
         }
         const meterTag = captionFor(reading.snapshot, hostProvider, captions, claudeFamilyCodesFor(reading.snapshot, snapshots));
         if (providerMeterPresentation(provider, reading.snapshot.meter)?.valueSemantics === "balance") {
-          cells.push(balanceCell(meterTag, reading.snapshot, "", reading.state === "stale", color));
+          cells.push(balanceCell(meterTag, reading.snapshot, staleTilde(false, reading.state === "stale", color), reading.state === "stale", color));
           continue;
         }
         cells.push(buildCell(
@@ -435,7 +445,7 @@ export function statuslineCells(
         continue;
       }
       if (providerMeterPresentation(provider, worst.snapshot.meter)?.valueSemantics === "balance") {
-        cells.push(balanceCell(label, worst.snapshot, "", worst.state === "stale", color));
+        cells.push(balanceCell(label, worst.snapshot, staleTilde(false, worst.state === "stale", color), worst.state === "stale", color));
         continue;
       }
       cells.push(buildCell(label, worst.snapshot, worst.state, color, wide, bars));
@@ -829,9 +839,9 @@ export function barStyleCells(
 
     for (const reading of selectedReadings) {
       const { snapshot, state } = reading;
-      /* The tilde marks an estimate and nothing else. A reading that could not
-         be refreshed is grey instead, so one taken a minute ago never looks old. */
-      const mark = snapshot.precision === "estimated" ? "~" : "";
+      /* Age alone marks nothing. A reading that could not be refreshed is grey
+         with colour and keeps its tilde without; an estimate keeps its tilde. */
+      const mark = staleTilde(snapshot.precision === "estimated", state === "stale", color);
       const grey = (text: string): string => color && state === "stale" ? paintBand(text, snapshot.value, "stale") : text;
 
       if (isAvailabilitySnapshot(snapshot)) {

@@ -244,7 +244,7 @@ describe("terminal visibility persistence", () => {
  * were. The tilde marks an estimate and nothing else, so a reading taken a
  * few minutes ago no longer looks old.
  */
-describe("a stale reading is grey and the tilde marks estimates only", () => {
+describe("a stale reading is grey with colour, keeps its tilde without, and the tilde marks estimates", () => {
   const grey = (text: string) => "\x1b[90m" + text + "\x1b[0m";
 
   it("paints every stale band grey and leaves fresh bands as they were", () => {
@@ -259,10 +259,10 @@ describe("a stale reading is grey and the tilde marks estimates only", () => {
     expect(render([recent])).toBe("5h [███░░░░░░░] 30% ·3h20m");
   });
 
-  it("greys a reading that could not be refreshed, with no tilde", () => {
+  it("greys a reading that could not be refreshed, and keeps its 2.1.4 tilde without colour", () => {
     const stale = row({ value: 85, observedAt: "2025-12-31T23:45:00.000Z", expiresAt: "2025-12-31T23:46:00.000Z" });
     expect(render([stale], { color: true })).toBe("5h " + grey("[████████░░]") + " " + grey("85%") + " ·3h20m");
-    expect(render([stale])).toBe("5h [████████░░] 85% ·3h20m");
+    expect(render([stale])).toBe("5h [████████░░] ~85% ·3h20m");
   });
 
   it("keeps the tilde for an estimate, fresh or stale", () => {
@@ -271,11 +271,11 @@ describe("a stale reading is grey and the tilde marks estimates only", () => {
     expect(render([staleEstimate], { color: true })).toBe("5h " + grey("[████████░░]") + " " + grey("~85%") + " ·3h20m");
   });
 
-  it("greys a stale balance instead of marking it with a tilde", () => {
+  it("greys a stale balance with colour and marks it with the 2.1.4 tilde without", () => {
     const balance = row({ provider: "OPENROUTER", meter: "ACCOUNT_BALANCE", value: 38.3, window: { kind: "lifetime" },
       usedAmount: 7.66, limitAmount: 20, currency: "USD", resetAt: null,
       observedAt: "2025-12-31T23:30:00.000Z", expiresAt: "2025-12-31T23:31:00.000Z" });
-    expect(render([balance])).toBe("or $12.34");
+    expect(render([balance])).toBe("or ~$12.34");
     expect(render([balance], { color: true })).toBe("or " + grey("$12.34"));
   });
 });
