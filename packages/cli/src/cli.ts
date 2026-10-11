@@ -23,7 +23,6 @@ import {
   freshness,
   geminiCliSpec,
   grokSpec,
-  isClaudeWeeklyPoll,
   isProviderDue,
   kimiSpec,
   mergeSnapshotCache,
@@ -960,12 +959,12 @@ async function refreshCommand(
   try {
     const providers = await readProvidersConfig(dependencies.stateDirectory);
     const settled = await readSnapshotCache(dependencies.stateDirectory);
-    /* A desktop row from Claude's session window is not a desktop poll, so only
-       a desktop weekly poll row stands this tool down for Claude. The shared
-       machine lease keeps the two processes from asking twice either way. */
-    const polledBy = (provider: ProviderCode): Snapshot[] => (settled.ok ? settled.snapshots : [])
-      .filter((row) => row.provider === provider && (provider !== "CLAUDE" || isClaudeWeeklyPoll(row)));
-    const specs = acquisitionSpecs(providers).filter((spec) => !desktopHoldsCache(polledBy(spec.provider), now));
+    /* No desktop row stands this tool down for Claude: the shared lease and its
+       persisted deadline, which both processes honour, decide who asks and
+       when, so a desktop that exited is taken over at its deadline. */
+    const specs = acquisitionSpecs(providers).filter((spec) => spec.provider === "CLAUDE" || !desktopHoldsCache(
+      settled.ok ? settled.snapshots.filter((row) => row.provider === spec.provider) : [], now
+    ));
     if (specs.length === 0) {
       await triggerSyncAfterRefresh(dependencies, now);
       return succeed([

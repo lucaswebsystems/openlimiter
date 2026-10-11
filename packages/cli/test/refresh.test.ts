@@ -583,6 +583,64 @@ describe("the Claude poll switch", () => {
     expect(meters).toEqual(["FIVE_HOUR", "SEVEN_DAY"]);
   });
 
+  /* Hotfix 2.1.5 fix 3: when the desktop polled and then exited, the shared
+     lease and its persisted deadline decide when this tool asks Claude, never
+     the age of the desktop's rows. Checked at the cadence and at a reset. */
+  it.each([
+    ["the cadence", 330_000, null],
+    ["a reset", 120_000, 120_000]
+  ] as const)("takes Claude over from an exited desktop at %s", async (_boundary, deadlineIn, resetIn) => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    await runCli(["config", "set", "providers.claude.poll", "true"], dependencies(state, home, recordingTransport().transport));
+    const polledAt = Date.parse(NOW);
+    const account = opaqueAccountId("CLAUDE", "one-active-account-without-stable-identity");
+    // What the desktop leaves behind after one read: its rows and the shared deadline.
+    await writeFile(path.join(state, "acquisition-claude.json"), JSON.stringify({
+      lastAccount: account, owner: null, expiresAt: 0, token: "desktop-instance",
+      nextAllowedAt: polledAt + deadlineIn, attempts: 0, refusalRevision: null
+    }), "utf8");
+    const desktopWeekly: Snapshot = {
+      provider: "CLAUDE",
+      accountId: account,
+      meter: "SEVEN_DAY",
+      value: 41,
+      unit: "PERCENT",
+      window: { kind: "rolling", durationSeconds: 604_800 },
+      resetAt: new Date(polledAt + (resetIn ?? 4 * 86_400_000)).toISOString(),
+      source: "internal_payload",
+      precision: "exact",
+      observedAt: NOW,
+      expiresAt: new Date(polledAt + 435_000).toISOString(),
+      labels: {
+        credentialOrigin: "official-local-tool",
+        dataInterfaceStatus: "internal-endpoint",
+        automationRisk: "high",
+        verification: "UNVERIFIED"
+      },
+      provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
+      writer: "desktop"
+    };
+    await mergeAuthoritativeSnapshotCache([desktopWeekly], state, NOW);
+    const at = new Date(polledAt + deadlineIn + 10_000).toISOString();
+    const started: string[][] = [];
+    await runCli(["statusline"], {
+      ...dependencies(state, home, recordingTransport().transport, at),
+      readStandardInput: async () => JSON.stringify({
+        rate_limits: { five_hour: { used_percentage: 9, resets_at: Date.parse("2026-01-01T04:00:00.000Z") / 1000 } }
+      }),
+      spawnDetached: (executable: string, argumentsList: readonly string[]) => {
+        started.push([executable, ...argumentsList]);
+      },
+      nodeExecutable: "/usr/bin/node",
+      openLimiterScript: "/opt/openlimiter/bin.js"
+    });
+    expect(started).toHaveLength(1);
+    const recorder = recordingTransport(at);
+    await runCli(["refresh"], dependencies(state, home, recorder.transport, at));
+    expect(recorder.sent.some((request) => request.endpoint === "claude_usage")).toBe(true);
+  });
+
   /* Hotfix 2.1.5, change A: a desktop row from its session window is not a
      desktop poll, so it never stands this tool down for the weeklies. */
   it("polls Claude beside a recent desktop session row that no weekly poll backs", async () => {

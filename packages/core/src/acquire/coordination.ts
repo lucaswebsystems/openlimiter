@@ -166,7 +166,9 @@ export function isClaudeWeeklyPoll(row: Snapshot): boolean {
  * Four inputs and no side effects, so the whole policy is one testable
  * function rather than a condition spread across two commands. When this tool
  * polls Claude, Claude is due by its last weekly poll alone: a session row
- * the status line keeps fresh must never hold the weeklies back.
+ * the status line keeps fresh must never hold the weeklies back, and no
+ * desktop row vetoes it either, because the shared lease and its persisted
+ * deadline, which both processes honour, decide who asks and when.
  */
 export function shouldStartRefresh(
   snapshots: readonly Snapshot[],
@@ -178,8 +180,9 @@ export function shouldStartRefresh(
   if (providers.length === 0) return { refresh: true };
   const decisions = providers.map((provider) => {
     const all = snapshots.filter((row) => row.provider === provider);
-    const rows = provider === "CLAUDE" && claudePoll ? all.filter(isClaudeWeeklyPoll) : all;
-    if (desktopHoldsCache(rows, now)) return "desktop_running";
+    const leased = provider === "CLAUDE" && claudePoll;
+    const rows = leased ? all.filter(isClaudeWeeklyPoll) : all;
+    if (!leased && desktopHoldsCache(rows, now)) return "desktop_running";
     const age = cacheAgeSeconds(rows, now);
     return age !== null && age >= 0 && age <= staleSeconds ? "fresh" : "due";
   });

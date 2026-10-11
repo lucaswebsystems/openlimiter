@@ -3,7 +3,8 @@ import { mkdtemp, realpath, rm, writeFile, mkdir, utimes } from "node:fs/promise
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { acquireMachineLease, freshnessPolicy, leasePolicy, retryPolicy, readSnapshotCache, recordAcquisitionAvailability } from "../src/cache.js";
+import { acquireMachineLease, freshnessPolicy, leasePolicy, mergeAuthoritativeSnapshotCache, retryPolicy, readSnapshotCache, recordAcquisitionAvailability } from "../src/cache.js";
+import { shouldStartRefresh } from "../src/acquire/coordination.js";
 import { claudeUsageRequest, retryAfterSeconds } from "../src/acquire/transport.js";
 import { runAcquisition, type AcquisitionSpec } from "../src/acquire/runner.js";
 import { readAcquisitionSchedule, writeAcquisitionSchedule } from "../src/acquire/cadence.js";
@@ -343,4 +344,59 @@ it("schedules the next Claude read at the next reset when it comes before five m
       expect(JSON.parse(readFileSync(path.join(dir, "acquisition-claude.json"), "utf8")).nextAllowedAt).toBe(now + dueIn);
     } finally { await rm(dir, { recursive: true, force: true }); }
   }
+});
+
+/*
+ * Hotfix 2.1.5 fix 3. With no desktop row veto for Claude, the shared lease
+ * and its persisted deadline alone keep the desktop and this tool from both
+ * asking. An hour of a desktop on schedule (a read whenever its sixty second
+ * tick finds the deadline passed, then the deadline five minutes and a jitter
+ * on) beside a status line rendering every ten seconds, with one detached
+ * refresh per two minute window, never puts two Claude reads inside one
+ * cadence window.
+ */
+it("a desktop on schedule and a status line every ten seconds read Claude at most once per cadence window", async () => {
+  const dir = await directory();
+  try {
+    const file = path.join(dir, "acquisition-claude.json");
+    const calls: { at: number; by: string }[] = [];
+    const weekly = (at: number, writer: "desktop" | "cli") => ({
+      provider: "CLAUDE" as const, accountId: "claude-account", meter: "SEVEN_DAY", value: 40, unit: "PERCENT" as const,
+      window: { kind: "rolling" as const, durationSeconds: 604_800 }, resetAt: new Date(now + 4 * 86_400_000).toISOString(),
+      source: "internal_payload" as const, precision: "exact" as const, observedAt: new Date(at).toISOString(),
+      expiresAt: new Date(at + 435_000).toISOString(), writer,
+      labels: { credentialOrigin: "official-local-tool" as const, dataInterfaceStatus: "internal-endpoint" as const, automationRisk: "high" as const, verification: "UNVERIFIED" as const },
+      provenance: { sourceKind: "remote_api" as const, observedVia: "remote_http" as const }
+    });
+    // One desktop read, the way request_policy.rs takes and completes the shared lease.
+    const desktopTick = async (at: number, jitter: number) => {
+      let state = { owner: null as string | null, expiresAt: 0, token: "", nextAllowedAt: 0, attempts: 0, lastAccount: "claude-account", refusalRevision: null as string | null };
+      try { state = JSON.parse(readFileSync(file, "utf8")) as typeof state; } catch { /* first read */ }
+      if ((state.owner !== null && at < state.expiresAt) || at < state.nextAllowedAt) return;
+      calls.push({ at, by: "desktop" });
+      await writeFile(file, JSON.stringify({ ...state, owner: null, expiresAt: 0, token: "desktop-" + at, nextAllowedAt: Math.max(state.nextAllowedAt, at + 300_000 + jitter), attempts: 0, refusalRevision: null }));
+      await mergeAuthoritativeSnapshotCache([weekly(at, "desktop")], dir, new Date(at).toISOString());
+    };
+    const spec: AcquisitionSpec = { provider: "CLAUDE", credentialProvider: "CLAUDE", steps: [({ credential }) => claudeUsageRequest(credential.secret)], disclosure: null,
+      parse: (_payload, observedAt) => [{ ...weekly(Date.parse(observedAt), "cli") }] };
+    let schedule = {};
+    const windows = new Set<number>();
+    for (let at = now; at <= now + 3_600_000; at += 10_000) {
+      if ((at - now) % 60_000 === 0) await desktopTick(at, ((at - now) / 60_000 % 7) * 9_000);
+      const cached = await readSnapshotCache(dir);
+      const decision = shouldStartRefresh(cached.ok ? cached.snapshots : [], new Date(at).toISOString(), 60, true);
+      const window = Math.floor(at / 120_000);
+      if (!decision.refresh || windows.has(window)) continue;
+      windows.add(window);
+      const round = await runAcquisition([spec], { stateDirectory: dir, now: new Date(at).toISOString(), schedule,
+        readCredential: async () => ({ ok: true as const, credential: { secret: "fixture", accountId: null, expiresAtMilliseconds: null, origin: "vendor_store" as const } }),
+        transport: async () => { calls.push({ at, by: "cli" }); return { status: 200, body: "{}", retryAfterSeconds: null }; } });
+      schedule = round.schedule;
+      for (const report of round.reports) if (report.ok) await mergeAuthoritativeSnapshotCache(report.snapshots, dir, new Date(at).toISOString());
+    }
+    const times = calls.map((call) => call.at).sort((left, right) => left - right);
+    expect(times.length).toBeGreaterThanOrEqual(8);
+    for (let index = 1; index < times.length; index += 1) expect(times[index]! - times[index - 1]!).toBeGreaterThanOrEqual(300_000);
+    expect(calls.some((call) => call.by === "desktop")).toBe(true);
+  } finally { await rm(dir, { recursive: true, force: true }); }
 });
