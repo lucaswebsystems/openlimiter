@@ -18,6 +18,7 @@ import {
   type Snapshot
 } from "@openlimiter/core";
 import { runCli, runtimeDependencies } from "../src/index.js";
+import { writeSession } from "../src/session.js";
 import {
   SYNTHETIC_CODEX_ACCOUNT,
   SYNTHETIC_GROK_USER,
@@ -703,6 +704,35 @@ describe("the Claude poll switch", () => {
     expect(line).toContain("7d waiting");
     const stored = await readSnapshotCache(state);
     expect(stored.ok && stored.snapshots.filter((row) => row.meter === "SEVEN_DAY").map((row) => row.value)).toEqual([75]);
+  });
+
+  /* Hotfix 2.1.5, change G: the round that read the weeklies uploads them to
+     the hub before it ends, so the phone does not wait for another sync. */
+  it("uploads the weeklies a successful Claude poll read in the same round", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    await runCli(["config", "set", "providers.claude.poll", "true"], dependencies(state, home, recordingTransport().transport));
+    await writeSession({
+      version: 1,
+      token: "t".repeat(32),
+      expiresAt: "2026-01-01T06:00:00.000Z",
+      refreshCredential: "r".repeat(32),
+      refreshExpiresAt: "2026-02-01T00:00:00.000Z",
+      deviceId: "device-1234",
+      accountLabel: "person@example.com"
+    }, { directory: state, platform: "linux" });
+    const uploads: string[] = [];
+    const base = dependencies(state, home, recordingTransport().transport);
+    const result = await runCli(["refresh"], {
+      ...base,
+      environment: { ...base?.environment, OPENLIMITER_SUPABASE_ANON_KEY: "sb_publishable_test_key" },
+      hubTransport: async (request) => {
+        uploads.push(request.body);
+        return { status: 200, body: JSON.stringify({ accepted: true, sequence: 1, tier: "free" }) };
+      }
+    });
+    expect(result.exitCode).toBe(0);
+    expect(uploads.some((body) => body.includes("SEVEN_DAY_FABLE"))).toBe(true);
   });
 
   it("refuses a value that is not a switch", async () => {
