@@ -212,11 +212,12 @@ describe("live synced usage", () => {
   });
 
   it("keeps a model weekly meter fresh inside its refresh horizon and stale after it", () => {
+    // Seven minutes old: inside the Claude horizon of 435 seconds (hotfix 2.1.5 fix 2).
     const current = provider("CLAUDE", IDENTIFIED_CLAUDE, [{
       windowName: "SEVEN_DAY_FABLE",
       percentage: 57,
       resetAt: null,
-      observedAt: "2026-10-01T11:50:00.000Z",
+      observedAt: "2026-10-01T11:53:00.000Z",
       stale: false,
     }]);
     expect(snapshotsFromSyncedUsage([current], NOW, (count) => `Account ${count}`)

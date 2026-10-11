@@ -6,7 +6,9 @@ import { describe, expect, it } from "vitest";
 import { opaqueAccountId, credentialIdentityMaterial, acquisitionAccountId } from "../src/acquire/identity.js";
 import { readCredentialDocument, type AcquisitionProvider } from "../src/acquire/credentials.js";
 import { applyCollectionReport } from "../src/collection.js";
-import { freshnessPolicy, projectSnapshots, resetPassed, retainSnapshots, RETENTION_MILLISECONDS } from "../src/data-rules.js";
+import { CLAUDE_FRESHNESS_SECONDS, freshnessPolicy, projectSnapshots, resetPassed, retainSnapshots, RETENTION_MILLISECONDS } from "../src/data-rules.js";
+import { CLAUDE_ACQUISITION_INTERVAL_SECONDS } from "../src/acquire/cadence.js";
+import { ACQUISITION_TIMEOUT_MILLISECONDS } from "../src/acquire/transport.js";
 import { mergeAuthoritativeSnapshotCache, mergeSnapshotCache, mergeAcquiredSnapshots, readSnapshotCache } from "../src/cache.js";
 import { buildAdvice } from "../src/policy.js";
 import type { ProviderCode, Snapshot } from "../src/types.js";
@@ -35,9 +37,10 @@ it("hides the unverified legacy Cursor bars from every projected surface", () =>
 
 it("desktop freshness mirrors every provider cadence and CLI keeps its longer cadence", () => {
   for (const provider of ["CLAUDE", "CODEX", "GEMINI_CLI", "ANTIGRAVITY", "GROK", "KIMI", "CURSOR", "OPENROUTER", "OPENCODE"]) {
-    const ttlSeconds = ["CLAUDE", "GEMINI_CLI"].includes(provider) ? 1140 : provider === "ANTIGRAVITY" ? 780 : 420;
+    /* Claude, from either writer, follows its own five minute cadence (fix 2). */
+    const ttlSeconds = provider === "CLAUDE" ? 435 : provider === "GEMINI_CLI" ? 1140 : provider === "ANTIGRAVITY" ? 780 : 420;
     expect(freshnessPolicy({ provider, writer: "desktop", sourceClass: "internal_payload", observedAt: now, now }).ttlSeconds).toBe(ttlSeconds);
-    expect(freshnessPolicy({ provider, writer: "cli", sourceClass: "internal_payload", observedAt: now, now }).ttlSeconds).toBe(1140);
+    expect(freshnessPolicy({ provider, writer: "cli", sourceClass: "internal_payload", observedAt: now, now }).ttlSeconds).toBe(provider === "CLAUDE" ? 435 : 1140);
   }
 });
 
@@ -136,7 +139,8 @@ it("projects only the poll owned Claude weeklies", () => {
     meter: "SEVEN_DAY",
     value: 13,
     observedAt: now,
-    expiresAt: "2026-09-29T12:19:00.000Z",
+    // The Claude horizon, 435 seconds (hotfix 2.1.5 fix 2).
+    expiresAt: "2026-09-29T12:07:15.000Z",
     resetAt: "2026-10-06T12:00:00.000Z",
     window: { kind: "rolling", durationSeconds: 604_800 },
     source: "internal_payload",
@@ -293,5 +297,29 @@ describe("a reading from before its reset is never shown", () => {
     const fresh = weekly({ value: 99, observedAt: "2026-09-29T13:59:30.000Z" });
     expect(buildAdvice([fresh], "2026-09-29T13:59:59.000Z", ["CLAUDE"]).reason).toBe("NEAR_CAP");
     expect(buildAdvice([fresh], "2026-09-29T14:00:10.000Z", ["CLAUDE"])).toMatchObject({ reason: "UNKNOWN", providers: [] });
+  });
+});
+
+/*
+ * Hotfix 2.1.5 fix 2. A Claude poll reading is fresh for its own cadence plus
+ * the worst healthy delay, from either writer; every other horizon stays.
+ * Rust twin: data_rules.rs, every_shared_claude_freshness_vector.
+ */
+describe("the Claude freshness horizon shared with the desktop", () => {
+  const pollVectors = JSON.parse(readFileSync(path.resolve("packages/core/src/contracts/claude-poll-vectors.json"), "utf8")) as {
+    freshness: { vectors: { id: string; provider: string; writer: string; sourceClass: string; observedAt: string; now: string; expected: unknown }[] };
+  };
+  for (const vector of pollVectors.freshness.vectors) {
+    it(vector.id, () => {
+      expect(freshnessPolicy({
+        sourceClass: vector.sourceClass, observedAt: vector.observedAt, now: vector.now, provider: vector.provider,
+        ...(vector.writer === "" ? {} : { writer: vector.writer })
+      })).toEqual(vector.expected);
+    });
+  }
+
+  it("is the cadence, the widest jitter, one late tick and one request", () => {
+    expect(CLAUDE_FRESHNESS_SECONDS).toBe(CLAUDE_ACQUISITION_INTERVAL_SECONDS + CLAUDE_ACQUISITION_INTERVAL_SECONDS / 5 + 60 +
+      ACQUISITION_TIMEOUT_MILLISECONDS / 1_000);
   });
 });

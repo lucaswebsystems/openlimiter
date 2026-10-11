@@ -5,6 +5,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use tauri::Manager;
 
 pub const RETENTION_MS: u64 = 7 * 86_400_000;
+/// How long a Claude reading a poll wrote stays fresh, from either writer: the
+/// five minute cadence (claude_oauth.rs REFRESH_SECONDS), the jitter of up to a
+/// fifth of it (request_policy.rs jittered_account_delay), one collector tick
+/// of sixty seconds that comes late, and one request timeout
+/// (net.rs NETWORK_TIMEOUT_SECONDS). TypeScript twin: `CLAUDE_FRESHNESS_SECONDS`.
+pub(crate) const CLAUDE_FRESHNESS_SECONDS: u64 = 300 + 300 / 5 + 60 + 15;
 const CLAUDE_WEEK_SECONDS: u64 = 604_800;
 
 pub(crate) fn display_eligible(row: &Snapshot) -> bool {
@@ -75,7 +81,11 @@ pub(crate) fn freshness_for(
     } else {
         900
     };
-    let ttl = interval * 120 / 100 + 60;
+    let ttl = if provider == "CLAUDE" && source != "native_payload" {
+        CLAUDE_FRESHNESS_SECONDS as i64
+    } else {
+        interval * 120 / 100 + 60
+    };
     let expires = observed.saturating_add(ttl * 1000);
     (
         ttl as u64,
@@ -808,6 +818,33 @@ mod tests {
         assert_eq!(visible.snapshots[0].availability.as_deref(), Some("missing_credentials"));
     }
 
+    /// Hotfix 2.1.5 fix 2: the Claude horizon both languages read from one
+    /// vectors file. TypeScript twin: data-rules.test.ts, "the Claude
+    /// freshness horizon shared with the desktop".
+    #[test]
+    fn every_shared_claude_freshness_vector() {
+        let document: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../packages/core/src/contracts/claude-poll-vectors.json"
+        ))
+        .unwrap();
+        let millis = |value: &serde_json::Value| {
+            crate::native_time::epoch_ms_from_rfc3339(value.as_str().unwrap()).unwrap() as i64
+        };
+        for vector in document["freshness"]["vectors"].as_array().unwrap() {
+            let (ttl, expires, availability) = freshness_for(
+                vector["provider"].as_str().unwrap(),
+                vector["writer"].as_str().unwrap(),
+                vector["sourceClass"].as_str().unwrap(),
+                millis(&vector["observedAt"]),
+                millis(&vector["now"]),
+            );
+            let expected = &vector["expected"];
+            assert_eq!(ttl, expected["ttlSeconds"].as_u64().unwrap(), "{}", vector["id"]);
+            assert_eq!(expires, millis(&expected["expiresAt"]), "{}", vector["id"]);
+            assert_eq!(availability, expected["availability"].as_str().unwrap(), "{}", vector["id"]);
+        }
+    }
+
     #[test]
     fn all_provider_cadences_match_typescript() {
         for provider in [
@@ -821,8 +858,10 @@ mod tests {
             "OPENROUTER",
             "OPENCODE",
         ] {
+            /* Claude, from either writer, follows its own cadence (fix 2). */
             let ttl = match provider {
-                "CLAUDE" | "GEMINI_CLI" => 1140,
+                "CLAUDE" => 435,
+                "GEMINI_CLI" => 1140,
                 "ANTIGRAVITY" => 780,
                 _ => 420,
             };
@@ -832,7 +871,7 @@ mod tests {
             );
             assert_eq!(
                 freshness_for(provider, "cli", "internal_payload", 0, 0).0,
-                1140
+                if provider == "CLAUDE" { 435 } else { 1140 }
             );
         }
     }

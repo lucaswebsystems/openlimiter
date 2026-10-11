@@ -16,12 +16,23 @@ export function isSnapshotDisplayEligible(row: Snapshot): boolean {
   return (row.window.durationSeconds ?? CLAUDE_WEEK_SECONDS) === CLAUDE_WEEK_SECONDS;
 }
 
+/**
+ * How long a Claude reading a poll wrote stays fresh, from either writer: the
+ * five minute cadence (cadence.ts), the desktop jitter of up to a fifth of it
+ * (request_policy.rs jittered_account_delay), one collector tick of sixty
+ * seconds that comes late, and one fifteen second request timeout.
+ * Rust twin: data_rules::CLAUDE_FRESHNESS_SECONDS.
+ */
+export const CLAUDE_FRESHNESS_SECONDS = 300 + 300 / 5 + 60 + 15;
+
 /** Rust twin: data_rules::freshness_policy. Poll jitter plus bounded request latency. */
 export function freshnessPolicy(input: { sourceClass: string; observedAt: string; now: string; provider?: string; writer?: string }) {
   const desktopIntervals: Readonly<Record<string, number>> = { CLAUDE: 900, GEMINI_CLI: 900, ANTIGRAVITY: 600, CODEX: 300, CURSOR: 300, GROK: 300, KIMI: 300, OPENROUTER: 300, OPENCODE: 300 };
   const interval = input.sourceClass === "native_payload" ? 60
     : input.writer === "desktop" ? desktopIntervals[input.provider ?? ""] ?? 900 : 900;
-  const ttlSeconds = interval * 1.2 + 60;
+  const ttlSeconds = input.provider === "CLAUDE" && input.sourceClass !== "native_payload"
+    ? CLAUDE_FRESHNESS_SECONDS
+    : interval * 1.2 + 60;
   const observed = Date.parse(input.observedAt);
   const now = Date.parse(input.now);
   const deadline = observed + ttlSeconds * 1000;

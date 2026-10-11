@@ -68,9 +68,10 @@ function heldExpiry(snapshot: Snapshot, now: string): string | null {
  * The readings the web app may draw.
  *
  * Every reading follows the shared stale rule by `heldExpiry`, with the
- * provider poll policy as its refresh horizon: Codex is seven minutes,
- * Antigravity thirteen minutes, Claude and the conservative fallback nineteen
- * minutes. Every account with a reading in those seven days shows, as on the
+ * provider poll policy as its refresh horizon: Codex is seven minutes, Claude
+ * seven minutes and fifteen seconds, Antigravity thirteen minutes and the
+ * conservative fallback nineteen minutes. Every account with a reading in
+ * those seven days shows, as on the
  * desktop, so a quiet second login stays beside a current one, stale. Legacy
  * default identities lose whenever an identified account for the same
  * provider exists.

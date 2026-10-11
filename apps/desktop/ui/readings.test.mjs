@@ -178,8 +178,10 @@ test("the list holds what is measured, detected, keyed or flagged, never a switc
 test("rows already on screen stay when a read fails, fresh or held stale by the one projection", () => {
   const rows = fixtures.projected.snapshots;
   assert.equal(holdReadings(rows, now).length, rows.length);
-  // Seven minutes on, the desktop Codex row expired: it stays, stale, beside the rest.
-  const later = new Date(NOW + 7 * 60_000).toISOString();
+  // Seven minutes after the reads (the fixtures read two minutes ago), the
+  // desktop Codex row expired at its 420 seconds: it stays, stale, beside the
+  // rest; Claude rows keep their own 435 seconds (hotfix 2.1.5 fix 2).
+  const later = new Date(NOW + 5 * 60_000 + 1_000).toISOString();
   const held = holdReadings(rows, later);
   assert.equal(held.length, rows.length);
   assert.deepEqual(held.filter((row) => freshness(row.observedAt, row.expiresAt, later) === "stale").map((row) => row.provider), ["CODEX"]);
@@ -191,7 +193,7 @@ test("alerts read fresh percentages only: a stale reading never raises one", () 
   // The window samples what the projection drew, with the policy expiry it stamped.
   const rows = fixtures.projected.snapshots;
   assert.deepEqual(alertSamples(holdReadings(rows, now), now).map((sample) => sample.provider), rows.map((row) => row.provider));
-  const later = new Date(NOW + 7 * 60_000).toISOString();
+  const later = new Date(NOW + 5 * 60_000 + 1_000).toISOString();
   const drawn = holdReadings(rows, later);
   assert.ok(drawn.some((row) => row.provider === "CODEX"), "the expired Codex row is still drawn, stale");
   assert.deepEqual([...new Set(alertSamples(drawn, later).map((sample) => sample.provider))], ["CLAUDE", "OPENROUTER"]);

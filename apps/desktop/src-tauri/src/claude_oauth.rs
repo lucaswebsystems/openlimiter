@@ -25,7 +25,6 @@ pub const REFRESH_SECONDS: u64 = 300;
 const DRIFT_BACKOFF_SECONDS: u64 = 900;
 pub const RATE_LIMIT_BACKOFF_SECONDS: u64 = 60;
 pub const BLOCKED_BACKOFF_SECONDS: u64 = 86_400;
-const CACHE_FRESH_SECONDS: u64 = 1_200;
 const MAX_THROTTLE_ENTRIES: usize = 128;
 const CLOCK_SKEW_SECONDS: u64 = 3_600;
 
@@ -443,8 +442,10 @@ fn snapshot(
         source: "internal_payload".to_string(),
         precision: "exact".to_string(),
         observed_at: iso_from_epoch_ms(now_ms)?,
+        /* The status line reads this stored expiry as is, so it carries the
+        Claude horizon the shared data rules apply everywhere else. */
         expires_at: iso_from_epoch_ms(
-            now_ms.saturating_add(CACHE_FRESH_SECONDS.saturating_mul(1_000)),
+            now_ms.saturating_add(crate::data_rules::CLAUDE_FRESHNESS_SECONDS.saturating_mul(1_000)),
         )?,
         labels: labels(),
         used_amount: None,
@@ -2241,6 +2242,38 @@ mod tests {
                 "SEVEN_DAY_FABLE account-a 80.0",
                 "SEVEN_DAY_FABLE account-b 30.0"
             ]
+        );
+    }
+
+    /// Hotfix 2.1.5 fix 2: the horizon is built from this reader's own parts,
+    /// and a weekly the desktop stores carries it, so the status line, which
+    /// reads the stored expiry, greys a reading the desktop could not refresh.
+    #[tokio::test]
+    async fn a_stored_claude_reading_expires_on_the_claude_horizon() {
+        assert_eq!(
+            crate::data_rules::CLAUDE_FRESHNESS_SECONDS,
+            REFRESH_SECONDS + REFRESH_SECONDS / 5 + 60 + crate::net::NETWORK_TIMEOUT_SECONDS
+        );
+        let dir = TempDir::new();
+        let outcome = collect_with_secret(
+            &ClaudeOauthRuntime::default(),
+            &RecordingTransport::replying(200, valid_body(), None),
+            writer(&dir),
+            ACCOUNT,
+            &secret("horizon"),
+            NOW,
+        )
+        .await;
+        assert!(matches!(outcome, ClaudeOauthOutcome::CacheCommitted { .. }), "{outcome:?}");
+        let stored: Value = serde_json::from_str(
+            &fs::read_to_string(dir.path().join(crate::cache_write::AUTHORITATIVE_CACHE_FILE_NAME)).unwrap(),
+        )
+        .unwrap();
+        let weekly = &stored["snapshots"][0];
+        assert_eq!(weekly["meter"], "SEVEN_DAY");
+        assert_eq!(
+            weekly["expiresAt"].as_str(),
+            iso_from_epoch_ms(NOW + crate::data_rules::CLAUDE_FRESHNESS_SECONDS * 1_000).as_deref()
         );
     }
 

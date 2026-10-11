@@ -143,5 +143,127 @@
         "expected": "2026-10-12T10:00:00.000Z"
       }
     ]
+  },
+  "freshness": {
+    "rule": "A Claude reading a poll wrote, from the desktop or the command line, is fresh for 435 seconds: the five minute cadence, the desktop jitter of up to a fifth of it, one collector tick of sixty seconds that comes late, and one fifteen second request. Fresh while observedAt <= now < observedAt + 435 s. A status line payload and every other provider keep their own horizons.",
+    "vectors": [
+      {
+        "id": "desktop-worst-healthy-schedule",
+        "provider": "CLAUDE",
+        "writer": "desktop",
+        "sourceClass": "internal_payload",
+        "observedAt": "2026-10-11T10:00:00.000Z",
+        "now": "2026-10-11T10:07:14.999Z",
+        "expected": {
+          "ttlSeconds": 435,
+          "expiresAt": "2026-10-11T10:07:15.000Z",
+          "availability": "fresh"
+        }
+      },
+      {
+        "id": "desktop-one-horizon-old",
+        "provider": "CLAUDE",
+        "writer": "desktop",
+        "sourceClass": "internal_payload",
+        "observedAt": "2026-10-11T10:00:00.000Z",
+        "now": "2026-10-11T10:07:15.000Z",
+        "expected": {
+          "ttlSeconds": 435,
+          "expiresAt": "2026-10-11T10:07:15.000Z",
+          "availability": "stale"
+        }
+      },
+      {
+        "id": "cli-worst-healthy-schedule",
+        "provider": "CLAUDE",
+        "writer": "cli",
+        "sourceClass": "internal_payload",
+        "observedAt": "2026-10-11T10:00:00.000Z",
+        "now": "2026-10-11T10:07:14.999Z",
+        "expected": {
+          "ttlSeconds": 435,
+          "expiresAt": "2026-10-11T10:07:15.000Z",
+          "availability": "fresh"
+        }
+      },
+      {
+        "id": "cli-one-horizon-old",
+        "provider": "CLAUDE",
+        "writer": "cli",
+        "sourceClass": "internal_payload",
+        "observedAt": "2026-10-11T10:00:00.000Z",
+        "now": "2026-10-11T10:07:15.000Z",
+        "expected": {
+          "ttlSeconds": 435,
+          "expiresAt": "2026-10-11T10:07:15.000Z",
+          "availability": "stale"
+        }
+      },
+      {
+        "id": "unmarked-writer",
+        "provider": "CLAUDE",
+        "writer": "",
+        "sourceClass": "internal_payload",
+        "observedAt": "2026-10-11T10:00:00.000Z",
+        "now": "2026-10-11T10:07:14.999Z",
+        "expected": {
+          "ttlSeconds": 435,
+          "expiresAt": "2026-10-11T10:07:15.000Z",
+          "availability": "fresh"
+        }
+      },
+      {
+        "id": "eighteen-minutes-old",
+        "provider": "CLAUDE",
+        "writer": "desktop",
+        "sourceClass": "internal_payload",
+        "observedAt": "2026-10-11T10:00:00.000Z",
+        "now": "2026-10-11T10:18:00.000Z",
+        "expected": {
+          "ttlSeconds": 435,
+          "expiresAt": "2026-10-11T10:07:15.000Z",
+          "availability": "stale"
+        }
+      },
+      {
+        "id": "status-line-payload-unchanged",
+        "provider": "CLAUDE",
+        "writer": "",
+        "sourceClass": "native_payload",
+        "observedAt": "2026-10-11T10:00:00.000Z",
+        "now": "2026-10-11T10:02:11.999Z",
+        "expected": {
+          "ttlSeconds": 132,
+          "expiresAt": "2026-10-11T10:02:12.000Z",
+          "availability": "fresh"
+        }
+      },
+      {
+        "id": "codex-desktop-unchanged",
+        "provider": "CODEX",
+        "writer": "desktop",
+        "sourceClass": "internal_payload",
+        "observedAt": "2026-10-11T10:00:00.000Z",
+        "now": "2026-10-11T10:06:59.999Z",
+        "expected": {
+          "ttlSeconds": 420,
+          "expiresAt": "2026-10-11T10:07:00.000Z",
+          "availability": "fresh"
+        }
+      },
+      {
+        "id": "gemini-cli-unchanged",
+        "provider": "GEMINI_CLI",
+        "writer": "cli",
+        "sourceClass": "internal_payload",
+        "observedAt": "2026-10-11T10:00:00.000Z",
+        "now": "2026-10-11T10:18:59.999Z",
+        "expected": {
+          "ttlSeconds": 1140,
+          "expiresAt": "2026-10-11T10:19:00.000Z",
+          "availability": "fresh"
+        }
+      }
+    ]
   }
 }
