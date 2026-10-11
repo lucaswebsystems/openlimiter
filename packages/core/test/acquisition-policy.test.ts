@@ -400,3 +400,31 @@ it("a desktop on schedule and a status line every ten seconds read Claude at mos
     expect(calls.some((call) => call.by === "desktop")).toBe(true);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+/*
+ * Hotfix 2.1.5 fix 5. A response that comes back after the shared lease was
+ * taken over (a suspended machine, a stalled request) is dropped unwritten:
+ * ownership is checked again once the answer is in and before any report
+ * leaves the round. Rust twin: claude_oauth.rs,
+ * a_late_response_after_a_takeover_writes_nothing.
+ */
+it("drops a response that arrives after another process took the lease", async () => {
+  const dir = await directory();
+  try {
+    const file = path.join(dir, "acquisition-claude.json");
+    const takeover = { owner: "desktop", expiresAt: now + 120_000, token: "desktop-took-over", nextAllowedAt: now + 300_000, attempts: 0, lastAccount: null, refusalRevision: null };
+    const spec: AcquisitionSpec = { provider: "CLAUDE", credentialProvider: "CLAUDE", steps: [({ credential }) => claudeUsageRequest(credential.secret)], disclosure: null,
+      parse: () => [{ provider: "CLAUDE", meter: "SEVEN_DAY", value: 40, unit: "PERCENT", window: { kind: "rolling", durationSeconds: 604_800 },
+        resetAt: new Date(now + 4 * 86_400_000).toISOString(), source: "internal_payload", precision: "exact", observedAt: new Date(now).toISOString(),
+        expiresAt: new Date(now + 435_000).toISOString(),
+        labels: { credentialOrigin: "official-local-tool", dataInterfaceStatus: "internal-endpoint", automationRisk: "high", verification: "UNVERIFIED" } }] };
+    const round = await runAcquisition([spec], { stateDirectory: dir, now: new Date(now).toISOString(), clock: () => now, schedule: {},
+      readCredential: async () => ({ ok: true as const, credential: { secret: "fixture", accountId: null, expiresAtMilliseconds: null, origin: "vendor_store" as const } }),
+      transport: async () => {
+        await writeFile(file, JSON.stringify(takeover));
+        return { status: 200, body: "{}", retryAfterSeconds: null };
+      } });
+    expect(round.reports.filter((report) => report.ok)).toEqual([]);
+    expect(JSON.parse(readFileSync(file, "utf8"))).toMatchObject({ owner: "desktop", token: "desktop-took-over", nextAllowedAt: now + 300_000 });
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});

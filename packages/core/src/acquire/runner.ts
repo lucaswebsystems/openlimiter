@@ -250,6 +250,13 @@ async function attempt(
          anywhere near a row a person reads. */
       return { outcome: "transport", meters: [], retryAfterSeconds: null, phase: "request" };
     }
+    /* A response that comes back after another process took the shared lease
+       is that process's read now, so this one is dropped unwritten (hotfix
+       2.1.5 fix 5). Rust twin: claude_oauth.rs collect_with_reread. */
+    const answeredAt = options.clock?.() ?? Date.parse(options.now) + Date.now() - started;
+    if (options.lease && !(await options.lease.stillOwned(answeredAt))) {
+      return { outcome: "transport", meters: [], retryAfterSeconds: null, phase: "request" };
+    }
     retryAfter = reply.retryAfterSeconds;
     if (reply.missingCredential === true) {
       return { outcome: "transport", meters: [], retryAfterSeconds: null, phase: "request", missingCredential: true };
@@ -534,13 +541,15 @@ export async function runAcquisition(
         const localSchedule = previous ? { ...schedule, [spec.provider]: { ...previous, attempts: Math.max(previous.attempts ?? 0, lease.attempts) } } : schedule;
         const single = await runAcquisition([spec], { ...localOptions, readCredential, now: options.clock ? new Date(options.clock()).toISOString() : options.now, schedule: localSchedule, lease });
         rows.push(...single.rows);
-        reports.push(...single.reports);
         const updated = single.schedule[spec.provider];
         if (updated) schedule[spec.provider] = updated;
         else delete schedule[spec.provider];
         phase = "persist";
         const entry = schedule[spec.provider];
         if (entry) await lease.complete(Date.parse(entry.nextAttemptAt), entry.attempts ?? 0, entry.refusalRevision);
+        /* Completing checked the lease is still ours, so only now may a
+           report leave the round for the caller to write. */
+        reports.push(...single.reports);
         for (const row of single.rows) {
           if (row.availability) await recordAcquisitionAvailability(spec.provider, row.availability, options.now, row.retryAt, options.stateDirectory, row.accountId);
         }

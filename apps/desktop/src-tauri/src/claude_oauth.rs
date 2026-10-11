@@ -915,6 +915,17 @@ async fn collect_with_reread<T: Transport>(
                 fallback_report(writer, account_id, true, now_ms).await;
                 return ClaudeOauthOutcome::fallback(account_id, ClaudeOauthFailure::Drift, None);
             };
+            /* A response that comes back after another process took the
+            shared lease is that process's read now: it is dropped unwritten,
+            and the lease the other process holds is left alone (hotfix 2.1.5
+            fix 5). TypeScript twin: runner.ts attempt. */
+            if !policy.still_owns_shared() {
+                return ClaudeOauthOutcome::Cached {
+                    account_id: account_id.to_string(),
+                    retry_at: iso_from_epoch_ms(now_ms)
+                        .unwrap_or_else(|| "1970-01-01T00:00:00.000Z".to_string()),
+                };
+            }
             let read = read_usage(&body, now_ms, account_id);
             let Some(snapshots) = read.rows else {
                 fallback_report(writer, account_id, true, now_ms).await;
@@ -1931,6 +1942,53 @@ mod tests {
             );
         }
         assert_eq!(transport.recorded_urls().len(), 1);
+    }
+
+    /// The command line taking the shared lease over while this request is in
+    /// flight (a suspended machine, a stalled request).
+    struct TakeoverTransport {
+        inner: RecordingTransport,
+        lease: std::path::PathBuf,
+    }
+
+    impl Transport for TakeoverTransport {
+        async fn send(
+            &self,
+            request: &crate::net::EndpointRequest<'_>,
+            secret: &str,
+        ) -> Result<crate::net::TransportReply, crate::net::TransportFailure> {
+            let mut state: Value = serde_json::from_str(&fs::read_to_string(&self.lease).unwrap()).unwrap();
+            state["owner"] = "cli".into();
+            state["token"] = "cli-took-over".into();
+            state["expiresAt"] = (NOW + 120_000).into();
+            state["nextAllowedAt"] = (NOW + 300_000).into();
+            fs::write(&self.lease, state.to_string()).unwrap();
+            self.inner.send(request, secret).await
+        }
+    }
+
+    /// Hotfix 2.1.5 fix 5. A response that comes back after the shared lease
+    /// was taken over is dropped unwritten, and the new owner's lease is left
+    /// as it wrote it. TypeScript twin: acquisition-policy.test.ts, "drops a
+    /// response that arrives after another process took the lease".
+    #[tokio::test]
+    async fn a_late_response_after_a_takeover_writes_nothing() {
+        let dir = TempDir::new();
+        claude_store(&dir, "synthetic-token", LATER);
+        let detection = DetectionStore::for_test_home(dir.path(), NOW);
+        let lease = dir.path().join("acquisition-claude.json");
+        let transport = TakeoverTransport {
+            inner: RecordingTransport::replying(200, valid_body(), None),
+            lease: lease.clone(),
+        };
+        let outcome = guarded(&dir, &detection, &ClaudeOauthRuntime::default(), &transport, NOW).await;
+        assert!(!matches!(outcome, ClaudeOauthOutcome::CacheCommitted { .. }), "{outcome:?}");
+        assert_eq!(transport.inner.recorded_urls().len(), 1);
+        assert!(!dir.path().join(crate::cache_write::AUTHORITATIVE_CACHE_FILE_NAME).exists());
+        let state: Value = serde_json::from_str(&fs::read_to_string(&lease).unwrap()).unwrap();
+        assert_eq!(state["owner"], "cli");
+        assert_eq!(state["token"], "cli-took-over");
+        assert_eq!(state["nextAllowedAt"], NOW + 300_000);
     }
 
     /// Claude Code refreshing its login while a request is in flight: the

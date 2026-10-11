@@ -459,6 +459,15 @@ impl RequestPolicy {
         });
     }
 
+    /// Whether the shared machine lease this read took is still this
+    /// process's, checked after a response and before it is written (hotfix
+    /// 2.1.5 fix 5). True when no shared lease was taken.
+    pub(crate) fn still_owns_shared(&self) -> bool {
+        self.inner.lock().is_ok_and(|inner| {
+            inner.active_shared.as_ref().is_none_or(MachineLease::still_owned)
+        })
+    }
+
     fn complete_shared(&self, next: u64, attempts: u32, refusal: Option<&str>) {
         if let Ok(mut inner) = self.inner.lock() {
             if let Some(lease) = inner.active_shared.as_ref() {
@@ -638,6 +647,10 @@ struct MachineLease {
     token: String,
     attempts: u32,
     stop: std::sync::mpsc::Sender<()>,
+    /// The acquisition clock and when it was read, so ownership is judged at
+    /// the same instant the heartbeat uses.
+    acquired_at: u64,
+    started: Instant,
 }
 
 impl MachineLease {
@@ -770,6 +783,19 @@ impl MachineLease {
             token,
             attempts,
             stop,
+            acquired_at: now,
+            started,
+        })
+    }
+
+    /// Still this process's: the same token, the desktop as owner, and not
+    /// expired. TypeScript twin: `MachineLease.stillOwned`.
+    fn still_owned(&self) -> bool {
+        let at = self.acquired_at.saturating_add(self.started.elapsed().as_millis() as u64);
+        Self::read(&self.file).is_ok_and(|state| {
+            state.token == self.token
+                && state.owner.as_deref() == Some("desktop")
+                && at < state.expires_at
         })
     }
 
