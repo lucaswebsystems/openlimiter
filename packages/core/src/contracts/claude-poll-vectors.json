@@ -15,5 +15,133 @@
         "expected": "495a82f2796e30291a1aa6e186d6759392e54f2b44afd1bbccffbbe8b89412dd"
       }
     ]
+  },
+  "schedule": {
+    "rule": "After a successful Claude read the next read is due at the earlier of five minutes and the next reset still ahead of that read. A reset at or before the read, or an unknown one, is ignored. A failure keeps its own backoff: a rate limit doubles from sixty seconds to a fifteen minute cap and honours Retry-After up to seven days; a refusal waits a day whatever Retry-After says. The desktop adds its own small jitter after the success deadline.",
+    "success": [
+      {
+        "id": "cadence-when-no-reset-is-near",
+        "now": "2026-10-11T10:00:00.000Z",
+        "resetAts": [
+          "2026-10-11T14:00:00.000Z",
+          "2026-10-15T04:00:00.000Z"
+        ],
+        "expected": "2026-10-11T10:05:00.000Z"
+      },
+      {
+        "id": "reset-before-the-cadence",
+        "now": "2026-10-11T03:58:00.000Z",
+        "resetAts": [
+          "2026-10-15T04:00:00.000Z",
+          "2026-10-11T04:00:00.000Z"
+        ],
+        "expected": "2026-10-11T04:00:00.000Z"
+      },
+      {
+        "id": "reset-exactly-at-the-cadence",
+        "now": "2026-10-11T03:55:00.000Z",
+        "resetAts": [
+          "2026-10-11T04:00:00.000Z"
+        ],
+        "expected": "2026-10-11T04:00:00.000Z"
+      },
+      {
+        "id": "reset-just-after-the-cadence",
+        "now": "2026-10-11T03:55:00.000Z",
+        "resetAts": [
+          "2026-10-11T04:00:00.001Z"
+        ],
+        "expected": "2026-10-11T04:00:00.000Z"
+      },
+      {
+        "id": "reset-one-millisecond-ahead",
+        "now": "2026-10-11T03:59:59.999Z",
+        "resetAts": [
+          "2026-10-11T04:00:00.000Z"
+        ],
+        "expected": "2026-10-11T04:00:00.000Z"
+      },
+      {
+        "id": "a-reset-at-or-before-the-read-is-ignored",
+        "now": "2026-10-11T04:00:00.000Z",
+        "resetAts": [
+          "2026-10-11T03:59:59.999Z",
+          "2026-10-11T04:00:00.000Z"
+        ],
+        "expected": "2026-10-11T04:05:00.000Z"
+      },
+      {
+        "id": "no-reset-stated",
+        "now": "2026-10-11T04:00:00.000Z",
+        "resetAts": [],
+        "expected": "2026-10-11T04:05:00.000Z"
+      },
+      {
+        "id": "an-unknown-reset-is-ignored",
+        "now": "2026-10-11T04:00:00.000Z",
+        "resetAts": [
+          null
+        ],
+        "expected": "2026-10-11T04:05:00.000Z"
+      }
+    ],
+    "failure": [
+      {
+        "id": "rate-limit-first",
+        "now": "2026-10-11T10:00:00.000Z",
+        "status": 429,
+        "attempts": 0,
+        "retryAfterSeconds": null,
+        "expected": "2026-10-11T10:01:00.000Z"
+      },
+      {
+        "id": "rate-limit-third-in-a-row",
+        "now": "2026-10-11T10:00:00.000Z",
+        "status": 429,
+        "attempts": 2,
+        "retryAfterSeconds": null,
+        "expected": "2026-10-11T10:04:00.000Z"
+      },
+      {
+        "id": "rate-limit-capped-at-fifteen-minutes",
+        "now": "2026-10-11T10:00:00.000Z",
+        "status": 429,
+        "attempts": 9,
+        "retryAfterSeconds": null,
+        "expected": "2026-10-11T10:15:00.000Z"
+      },
+      {
+        "id": "rate-limit-honours-retry-after",
+        "now": "2026-10-11T10:00:00.000Z",
+        "status": 429,
+        "attempts": 0,
+        "retryAfterSeconds": 7200,
+        "expected": "2026-10-11T12:00:00.000Z"
+      },
+      {
+        "id": "rate-limit-retry-after-capped-at-seven-days",
+        "now": "2026-10-11T10:00:00.000Z",
+        "status": 429,
+        "attempts": 0,
+        "retryAfterSeconds": 999999,
+        "expected": "2026-10-18T10:00:00.000Z"
+      },
+      {
+        "id": "refusal-waits-a-day-despite-retry-after",
+        "now": "2026-10-11T10:00:00.000Z",
+        "status": 401,
+        "attempts": 0,
+        "retryAfterSeconds": 7200,
+        "expected": "2026-10-12T10:00:00.000Z"
+      },
+      {
+        "id": "forbidden-waits-a-day",
+        "now": "2026-10-11T10:00:00.000Z",
+        "status": 403,
+        "attempts": 3,
+        "retryAfterSeconds": null,
+        "expected": "2026-10-12T10:00:00.000Z"
+      }
+    ]
   }
 }

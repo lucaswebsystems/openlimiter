@@ -20,10 +20,18 @@ import {
   writeFileAtomically
 } from "../cache.js";
 import { canonicalJson } from "../normalizer.js";
+import type { ProviderCode } from "../types.js";
 import type { AcquisitionOutcome } from "./transport.js";
 
 /** The ordinary interval between two reads of one provider. */
 export const ACQUISITION_INTERVAL_SECONDS = 900;
+
+/**
+ * How often Claude is read after a success, and Claude alone: its weeklies
+ * move fast enough that fifteen minutes hid several points of a cap. Mirrors
+ * `claude_oauth.rs` REFRESH_SECONDS.
+ */
+export const CLAUDE_ACQUISITION_INTERVAL_SECONDS = 300;
 
 /** How long a rate limited provider is left alone. */
 export const ACQUISITION_RATE_LIMIT_BACKOFF_SECONDS = 60;
@@ -117,6 +125,26 @@ export function nextAttemptInstant(
     Math.min(MAX_POLICY_TIMESTAMP, current + backoffSecondsFor(outcome, retryAfterSeconds, attemptCount) * 1_000)
   );
   return Number.isFinite(instant.getTime()) ? instant.toISOString() : null;
+}
+
+/**
+ * When a successful read is next due.
+ *
+ * Claude is read again five minutes later, or at the next reset still ahead
+ * of this read when that comes first, so a window that turns over is read as
+ * it turns over. Every other provider keeps the ordinary interval. Failures
+ * never come through here, so their backoff is untouched. The desktop applies
+ * the same rule (`claude-poll-vectors.json`).
+ */
+export function nextSuccessInstant(
+  provider: ProviderCode,
+  now: string,
+  resetAts: readonly (string | null)[]
+): string | null {
+  const current = Date.parse(now);
+  if (provider !== "CLAUDE" || !Number.isFinite(current)) return nextAttemptInstant("ok", now);
+  const ahead = resetAts.map((resetAt) => Date.parse(resetAt ?? "")).filter((at) => at > current);
+  return new Date(Math.min(current + CLAUDE_ACQUISITION_INTERVAL_SECONDS * 1_000, ...ahead)).toISOString();
 }
 
 /**

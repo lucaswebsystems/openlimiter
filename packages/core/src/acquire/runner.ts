@@ -23,6 +23,7 @@ import {
   ACQUISITION_OUTCOME_SENTENCE,
   isProviderDue,
   nextAttemptInstant,
+  nextSuccessInstant,
   type AcquisitionPhase,
   type AcquisitionProviderSchedule,
   type AcquisitionSchedule
@@ -428,19 +429,6 @@ export async function runAcquisition(
       rows.push({ provider: spec.provider, detected: true, status: "stale", accountId: acquisitionAccountId(spec.provider, sent), availability: "expired_credentials", reason: CREDENTIAL_FAILURE_SENTENCE.expired, nextAttemptAt: null, disclosure });
       return;
     }
-    const nextAttemptAt = nextAttemptInstant(
-      result.outcome,
-      options.clock ? new Date(options.clock()).toISOString() : options.now,
-      result.retryAfterSeconds,
-      existing?.attempts ?? options.lease?.attempts ?? 0
-    );
-    schedule[spec.provider] = {
-      attempts: result.outcome === "ok" ? 0 : (existing?.attempts ?? options.lease?.attempts ?? 0) + 1,
-      lastAttemptAt: options.now,
-      nextAttemptAt: nextAttemptAt ?? options.now,
-      outcome: result.outcome,
-      ...failure(result.phase ?? "request", result.outcome)
-    };
     const snapshots: readonly Snapshot[] = result.outcome === "ok"
       ? normalizeMeters(
           accountId === null
@@ -457,6 +445,24 @@ export async function runAcquisition(
     /* A read that parsed and then lost every row to validation has produced no
        reading, and saying otherwise would put an empty success on the row. */
     const believed = result.outcome === "ok" && snapshots.length > 0;
+    const attemptedAt = options.clock ? new Date(options.clock()).toISOString() : options.now;
+    /* A believed read is next due by its provider's own rule, Claude's reset
+       aligned five minutes included; every failure keeps its backoff. */
+    const nextAttemptAt = believed
+      ? nextSuccessInstant(spec.provider, attemptedAt, snapshots.map((row) => row.resetAt))
+      : nextAttemptInstant(
+          result.outcome,
+          attemptedAt,
+          result.retryAfterSeconds,
+          existing?.attempts ?? options.lease?.attempts ?? 0
+        );
+    schedule[spec.provider] = {
+      attempts: result.outcome === "ok" ? 0 : (existing?.attempts ?? options.lease?.attempts ?? 0) + 1,
+      lastAttemptAt: options.now,
+      nextAttemptAt: nextAttemptAt ?? options.now,
+      outcome: result.outcome,
+      ...failure(result.phase ?? "request", result.outcome)
+    };
     if (believed) {
       rows.push({
         provider: spec.provider,

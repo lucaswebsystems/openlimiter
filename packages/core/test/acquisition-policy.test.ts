@@ -325,3 +325,22 @@ describe("refusal interoperability", () => {
     } finally { await rm(dir, { recursive: true, force: true }); }
   });
 });
+
+/* Hotfix 2.1.5, change C: a successful Claude read is next due at the earlier
+   of five minutes and the next reset, in the schedule and the shared lease. */
+it("schedules the next Claude read at the next reset when it comes before five minutes", async () => {
+  for (const [resetIn, dueIn] of [[120_000, 120_000], [3_600_000, 300_000]] as const) {
+    const dir = await directory();
+    try {
+      const resetAt = new Date(now + resetIn).toISOString();
+      const spec: AcquisitionSpec = { provider: "CLAUDE", credentialProvider: "CLAUDE", steps: [({ credential }) => claudeUsageRequest(credential.secret)], disclosure: null,
+        parse: () => [{ provider: "CLAUDE", meter: "FIVE_HOUR", value: 5, unit: "PERCENT", window: { kind: "rolling", durationSeconds: 18_000 }, resetAt, source: "internal_payload", precision: "exact", observedAt: new Date(now).toISOString(), expiresAt: new Date(now + 60_000).toISOString(), labels: { credentialOrigin: "official-local-tool", dataInterfaceStatus: "internal-endpoint", automationRisk: "high", verification: "UNVERIFIED" } }] };
+      const result = await runAcquisition([spec], { stateDirectory: dir, now: new Date(now).toISOString(), schedule: {},
+        readCredential: async () => ({ ok: true as const, credential: { secret: "fixture", accountId: null, expiresAtMilliseconds: null, origin: "vendor_store" as const } }),
+        transport: async () => ({ status: 200, body: "{}", retryAfterSeconds: null }) });
+      expect(result.rows[0]?.status).toBe("read");
+      expect(result.schedule["CLAUDE"]?.nextAttemptAt).toBe(new Date(now + dueIn).toISOString());
+      expect(JSON.parse(readFileSync(path.join(dir, "acquisition-claude.json"), "utf8")).nextAllowedAt).toBe(now + dueIn);
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  }
+});

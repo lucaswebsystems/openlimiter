@@ -17,12 +17,28 @@ use crate::provider_detection::{
 use crate::reader_registry::AuthApplication;
 use crate::request_policy::{GateRejection, RequestPolicy};
 
-pub const REFRESH_SECONDS: u64 = 900;
+/// How often Claude is read after a success: five minutes, Claude only.
+/// TypeScript twin: `CLAUDE_ACQUISITION_INTERVAL_SECONDS` in cadence.ts.
+pub const REFRESH_SECONDS: u64 = 300;
+/// A shape this build does not read waits the ordinary fifteen minutes, the
+/// failure backoff it always had. TypeScript twin: `backoffSecondsFor("drift")`.
+const DRIFT_BACKOFF_SECONDS: u64 = 900;
 pub const RATE_LIMIT_BACKOFF_SECONDS: u64 = 60;
 pub const BLOCKED_BACKOFF_SECONDS: u64 = 86_400;
 const CACHE_FRESH_SECONDS: u64 = 1_200;
 const MAX_THROTTLE_ENTRIES: usize = 128;
 const CLOCK_SKEW_SECONDS: u64 = 3_600;
+
+/// When the read after a success is due: five minutes on, or the next reset
+/// still ahead of this read when it comes first, so a window that turns over
+/// is read as it turns over. TypeScript twin: `nextSuccessInstant`, and both
+/// read `claude-poll-vectors.json`.
+pub(crate) fn success_deadline_ms(now_ms: u64, resets: impl IntoIterator<Item = u64>) -> u64 {
+    resets
+        .into_iter()
+        .filter(|reset| *reset > now_ms)
+        .fold(now_ms.saturating_add(REFRESH_SECONDS.saturating_mul(1_000)), u64::min)
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -50,6 +66,9 @@ pub enum ClaudeFallback {
 pub enum ClaudeOauthOutcome {
     CacheCommitted {
         account_id: String,
+        /// When the next read is due, by `success_deadline_ms`.
+        #[serde(skip)]
+        next_read_at: u64,
     },
     Cached {
         account_id: String,
@@ -859,6 +878,14 @@ async fn collect_with_reread<T: Transport>(
                 fallback_report(writer, account_id, true, now_ms).await;
                 return ClaudeOauthOutcome::fallback(account_id, ClaudeOauthFailure::Drift, None);
             };
+            let next_read_at = success_deadline_ms(
+                now_ms,
+                snapshots.iter().filter_map(|row| {
+                    row.reset_at
+                        .as_deref()
+                        .and_then(crate::native_time::epoch_ms_from_rfc3339)
+                }),
+            );
             if commit_report(
                 writer,
                 account_id.to_string(),
@@ -868,6 +895,7 @@ async fn collect_with_reread<T: Transport>(
             {
                 ClaudeOauthOutcome::CacheCommitted {
                     account_id: account_id.to_string(),
+                    next_read_at,
                 }
             } else {
                 ClaudeOauthOutcome::Failed {
@@ -1089,12 +1117,21 @@ fn complete_outcome(
             policy.retry_account(DetectedProviderId::Claude, &account_id, now_ms, None, false);
             false
         }
+        ClaudeOauthOutcome::CacheCommitted { next_read_at, .. } => {
+            policy.complete_after(
+                DetectedProviderId::Claude,
+                &account_id,
+                now_ms,
+                next_read_at.saturating_sub(now_ms).div_ceil(1_000),
+            );
+            false
+        }
         _ => {
             policy.complete_after(
                 DetectedProviderId::Claude,
                 &account_id,
                 now_ms,
-                REFRESH_SECONDS,
+                DRIFT_BACKOFF_SECONDS,
             );
             false
         }
@@ -1179,7 +1216,8 @@ mod tests {
     #[test]
     fn home_refresh_reports_a_committed_read_and_a_login_failure() {
         assert!(pass_read_succeeded(&ClaudeOauthOutcome::CacheCommitted {
-            account_id: "fixture".into()
+            account_id: "fixture".into(),
+            next_read_at: 0
         }));
         assert!(pass_read_succeeded(&ClaudeOauthOutcome::Cached {
             account_id: "fixture".into(),
@@ -2064,6 +2102,87 @@ mod tests {
             "{rotated:?}"
         );
         assert_eq!(transport.recorded_secrets(), ["synthetic-new-token"]);
+    }
+
+    /// Hotfix 2.1.5, change C: the success schedule both languages read from
+    /// one vectors file. Claude is next read after five minutes, or at the
+    /// next reset still ahead when it comes first.
+    #[test]
+    fn every_shared_claude_success_vector() {
+        let document: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../packages/core/src/contracts/claude-poll-vectors.json"
+        ))
+        .unwrap();
+        let millis = |value: &serde_json::Value| {
+            crate::native_time::epoch_ms_from_rfc3339(value.as_str().unwrap()).unwrap()
+        };
+        for vector in document["schedule"]["success"].as_array().unwrap() {
+            let resets = vector["resetAts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|value| !value.is_null())
+                .map(millis);
+            assert_eq!(
+                success_deadline_ms(millis(&vector["now"]), resets),
+                millis(&vector["expected"]),
+                "{}",
+                vector["id"]
+            );
+        }
+        assert_eq!(REFRESH_SECONDS, 300);
+    }
+
+    /// A read two minutes before the session window resets is next due at the
+    /// reset, durably, with only the desktop's small jitter after it; a read
+    /// with no reset near is next due after five minutes.
+    #[tokio::test]
+    async fn a_read_just_before_a_reset_is_next_due_at_the_reset() {
+        let reset = iso_from_epoch_ms(NOW + 120_000).unwrap();
+        for (body, due) in [
+            (
+                format!(r#"{{"five_hour":{{"utilization":40,"resets_at":"{reset}"}},"seven_day":{{"utilization":41.2,"resets_at":"2026-08-24T12:00:00Z"}}}}"#),
+                NOW + 120_000,
+            ),
+            (String::from_utf8(valid_body()).unwrap(), NOW + 300_000),
+        ] {
+            let dir = TempDir::new();
+            claude_store(&dir, "synthetic-token", LATER);
+            let detection = DetectionStore::for_test_home(dir.path(), NOW);
+            let transport = RecordingTransport::replying(200, body.into_bytes(), None);
+            let runtime = ClaudeOauthRuntime::default();
+            let outcome = guarded(&dir, &detection, &runtime, &transport, NOW).await;
+            assert!(
+                matches!(outcome, ClaudeOauthOutcome::CacheCommitted { .. }),
+                "{outcome:?}"
+            );
+            let account = detection
+                .account_ids(DetectedProviderId::Claude)
+                .pop()
+                .unwrap();
+            let policy: serde_json::Value = serde_json::from_str(
+                &fs::read_to_string(
+                    dir.path()
+                        .join(crate::request_policy::REQUEST_POLICY_FILE_NAME),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            let next = policy["providers"]["claude"]["accounts"][&account]
+                .as_u64()
+                .unwrap();
+            let delay = (due - NOW) / 1_000;
+            assert!(
+                next >= due && next <= due + (delay / 5 + 1) * 1_000,
+                "next {next} due {due}"
+            );
+            let restarted = guarded(&dir, &detection, &runtime, &transport, due - 1).await;
+            assert!(
+                matches!(restarted, ClaudeOauthOutcome::Cached { .. }),
+                "{restarted:?}"
+            );
+            assert_eq!(transport.recorded_urls().len(), 1);
+        }
     }
 
     /* --------------------------------------------------- every bucket sent */

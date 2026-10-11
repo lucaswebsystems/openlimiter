@@ -1344,6 +1344,47 @@ mod tests {
         drop(successor);
     }
 
+    /// Hotfix 2.1.5, change C: Claude failures keep their backoff, read from
+    /// the vectors the command line tool reads too.
+    #[test]
+    fn every_shared_claude_failure_vector() {
+        let document: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../packages/core/src/contracts/claude-poll-vectors.json"
+        ))
+        .unwrap();
+        for vector in document["schedule"]["failure"].as_array().unwrap() {
+            let now = millis(&vector["now"]);
+            let attempts = vector["attempts"].as_u64().unwrap() as u32;
+            let retry_after = vector["retryAfterSeconds"].as_u64();
+            let deadline = match vector["status"].as_u64().unwrap() {
+                429 => {
+                    retry_decision(
+                        attempts,
+                        retry_after.map(|seconds| now + seconds * 1_000),
+                        now,
+                        0,
+                        MAX_SERVER_DELAY_SECONDS,
+                    )
+                    .next_allowed_at
+                }
+                401 | 403 => {
+                    let dir = TempDir::new();
+                    let policy = policy(&dir);
+                    let lease = policy
+                        .begin(DetectedProviderId::Claude, "claude-account", now)
+                        .unwrap();
+                    policy.refuse_account(DetectedProviderId::Claude, "claude-account", now, false);
+                    drop(lease);
+                    load_document(Some(&dir.path().to_path_buf())).unwrap().providers
+                        [&DetectedProviderId::Claude]
+                        .accounts["claude-account"]
+                }
+                status => panic!("unexpected status {status}"),
+            };
+            assert_eq!(deadline, millis(&vector["expected"]), "{}", vector["id"]);
+        }
+    }
+
     fn policy(dir: &TempDir) -> RequestPolicy {
         RequestPolicy::at(Some(dir.path().to_path_buf()))
     }
