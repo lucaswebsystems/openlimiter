@@ -1,7 +1,7 @@
 # OpenLimiter 2.1.5
 
-Claude bars stay current. Claude weekly bars refresh every five minutes, and again as a window resets, and keep refreshing while Claude Code is open.
+Fresher Claude bars. Claude weekly bars are read every five minutes while the desktop app runs, and while Claude Code draws its status line with the command line poll on. Nothing is read while neither runs.
 
-A reading from before a weekly reset is never shown, even when the next refresh fails. A reading that could not be refreshed turns grey in the status line, and the tilde now marks estimates only.
+A reading from before its weekly reset is never shown, on any surface, the paired phone included. In the status line, a reading older than its refresh window turns grey, and keeps its tilde when colours are off; otherwise the tilde marks estimates.
 
-The command line recovers from a rotated Claude login the way the desktop does, and either one releases a refusal the other recorded once the login changes. A weekly Anthropic stops reporting disappears.
+The command line recovers from a rotated Claude login. A weekly Anthropic stops reporting disappears after a complete read.
