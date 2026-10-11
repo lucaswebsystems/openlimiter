@@ -20,10 +20,12 @@ export function isSnapshotDisplayEligible(row: Snapshot): boolean {
  * How long a Claude reading a poll wrote stays fresh, from either writer: the
  * five minute cadence (cadence.ts), the desktop jitter of up to a fifth of it
  * (request_policy.rs jittered_account_delay), one collector tick of sixty
- * seconds that comes late, and one fifteen second request timeout.
+ * seconds that comes late, two requests of the whole fifteen second timeout
+ * (a reading is stamped when its request starts, and the next deadline counts
+ * from completion), and a fifteen second margin: 465 seconds.
  * Rust twin: data_rules::CLAUDE_FRESHNESS_SECONDS.
  */
-export const CLAUDE_FRESHNESS_SECONDS = 300 + 300 / 5 + 60 + 15;
+export const CLAUDE_FRESHNESS_SECONDS = 300 + 300 / 5 + 60 + 2 * 15 + 15;
 
 /** Rust twin: data_rules::freshness_policy. Poll jitter plus bounded request latency. */
 export function freshnessPolicy(input: { sourceClass: string; observedAt: string; now: string; provider?: string; writer?: string }) {

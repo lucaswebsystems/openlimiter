@@ -102,7 +102,7 @@ test("a failed read keeps the rows it drew, stale once they expire, and only an 
   assert.equal(view("panel-limits").hidden, false);
   assert.equal(view("panel-state").hidden, true);
   // Seven minutes after the reads the desktop Codex row has expired at its 420
-  // seconds: it stays, flat grey, beside the fresh rows, Claude at 435 seconds.
+  // seconds: it stays, flat grey, beside the fresh rows, Claude at 465 seconds.
   source.at = NOW + 5 * 60_000 + 1_000;
   await scheduled.at(-1)();
   assert.deepEqual(providers(), ["CODEX", "CLAUDE", "OPENROUTER"]);

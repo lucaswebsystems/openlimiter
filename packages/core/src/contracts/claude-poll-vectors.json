@@ -145,7 +145,7 @@
     ]
   },
   "freshness": {
-    "rule": "A Claude reading a poll wrote, from the desktop or the command line, is fresh for 435 seconds: the five minute cadence, the desktop jitter of up to a fifth of it, one collector tick of sixty seconds that comes late, and one fifteen second request. Fresh while observedAt <= now < observedAt + 435 s. A status line payload and every other provider keep their own horizons.",
+    "rule": "A Claude reading a poll wrote, from the desktop or the command line, is fresh for 465 seconds: the five minute cadence, the desktop jitter of up to a fifth of it, one collector tick of sixty seconds that comes late, two requests of the whole fifteen second timeout (the reading is stamped when its request starts, and the next deadline counts from completion), and a fifteen second margin. Fresh while observedAt <= now < observedAt + 465 s. A status line payload and every other provider keep their own horizons.",
     "vectors": [
       {
         "id": "desktop-worst-healthy-schedule",
@@ -153,10 +153,10 @@
         "writer": "desktop",
         "sourceClass": "internal_payload",
         "observedAt": "2026-10-11T10:00:00.000Z",
-        "now": "2026-10-11T10:07:14.999Z",
+        "now": "2026-10-11T10:07:44.999Z",
         "expected": {
-          "ttlSeconds": 435,
-          "expiresAt": "2026-10-11T10:07:15.000Z",
+          "ttlSeconds": 465,
+          "expiresAt": "2026-10-11T10:07:45.000Z",
           "availability": "fresh"
         }
       },
@@ -166,10 +166,10 @@
         "writer": "desktop",
         "sourceClass": "internal_payload",
         "observedAt": "2026-10-11T10:00:00.000Z",
-        "now": "2026-10-11T10:07:15.000Z",
+        "now": "2026-10-11T10:07:45.000Z",
         "expected": {
-          "ttlSeconds": 435,
-          "expiresAt": "2026-10-11T10:07:15.000Z",
+          "ttlSeconds": 465,
+          "expiresAt": "2026-10-11T10:07:45.000Z",
           "availability": "stale"
         }
       },
@@ -179,10 +179,10 @@
         "writer": "cli",
         "sourceClass": "internal_payload",
         "observedAt": "2026-10-11T10:00:00.000Z",
-        "now": "2026-10-11T10:07:14.999Z",
+        "now": "2026-10-11T10:07:44.999Z",
         "expected": {
-          "ttlSeconds": 435,
-          "expiresAt": "2026-10-11T10:07:15.000Z",
+          "ttlSeconds": 465,
+          "expiresAt": "2026-10-11T10:07:45.000Z",
           "availability": "fresh"
         }
       },
@@ -192,10 +192,10 @@
         "writer": "cli",
         "sourceClass": "internal_payload",
         "observedAt": "2026-10-11T10:00:00.000Z",
-        "now": "2026-10-11T10:07:15.000Z",
+        "now": "2026-10-11T10:07:45.000Z",
         "expected": {
-          "ttlSeconds": 435,
-          "expiresAt": "2026-10-11T10:07:15.000Z",
+          "ttlSeconds": 465,
+          "expiresAt": "2026-10-11T10:07:45.000Z",
           "availability": "stale"
         }
       },
@@ -205,10 +205,10 @@
         "writer": "",
         "sourceClass": "internal_payload",
         "observedAt": "2026-10-11T10:00:00.000Z",
-        "now": "2026-10-11T10:07:14.999Z",
+        "now": "2026-10-11T10:07:44.999Z",
         "expected": {
-          "ttlSeconds": 435,
-          "expiresAt": "2026-10-11T10:07:15.000Z",
+          "ttlSeconds": 465,
+          "expiresAt": "2026-10-11T10:07:45.000Z",
           "availability": "fresh"
         }
       },
@@ -220,8 +220,8 @@
         "observedAt": "2026-10-11T10:00:00.000Z",
         "now": "2026-10-11T10:18:00.000Z",
         "expected": {
-          "ttlSeconds": 435,
-          "expiresAt": "2026-10-11T10:07:15.000Z",
+          "ttlSeconds": 465,
+          "expiresAt": "2026-10-11T10:07:45.000Z",
           "availability": "stale"
         }
       },

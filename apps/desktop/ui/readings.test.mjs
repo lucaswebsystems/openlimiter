@@ -180,7 +180,7 @@ test("rows already on screen stay when a read fails, fresh or held stale by the 
   assert.equal(holdReadings(rows, now).length, rows.length);
   // Seven minutes after the reads (the fixtures read two minutes ago), the
   // desktop Codex row expired at its 420 seconds: it stays, stale, beside the
-  // rest; Claude rows keep their own 435 seconds (hotfix 2.1.5 fix 2).
+  // rest; Claude rows keep their own 465 seconds (hotfix 2.1.5).
   const later = new Date(NOW + 5 * 60_000 + 1_000).toISOString();
   const held = holdReadings(rows, later);
   assert.equal(held.length, rows.length);

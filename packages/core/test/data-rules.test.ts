@@ -38,9 +38,9 @@ it("hides the unverified legacy Cursor bars from every projected surface", () =>
 it("desktop freshness mirrors every provider cadence and CLI keeps its longer cadence", () => {
   for (const provider of ["CLAUDE", "CODEX", "GEMINI_CLI", "ANTIGRAVITY", "GROK", "KIMI", "CURSOR", "OPENROUTER", "OPENCODE"]) {
     /* Claude, from either writer, follows its own five minute cadence (fix 2). */
-    const ttlSeconds = provider === "CLAUDE" ? 435 : provider === "GEMINI_CLI" ? 1140 : provider === "ANTIGRAVITY" ? 780 : 420;
+    const ttlSeconds = provider === "CLAUDE" ? 465 : provider === "GEMINI_CLI" ? 1140 : provider === "ANTIGRAVITY" ? 780 : 420;
     expect(freshnessPolicy({ provider, writer: "desktop", sourceClass: "internal_payload", observedAt: now, now }).ttlSeconds).toBe(ttlSeconds);
-    expect(freshnessPolicy({ provider, writer: "cli", sourceClass: "internal_payload", observedAt: now, now }).ttlSeconds).toBe(provider === "CLAUDE" ? 435 : 1140);
+    expect(freshnessPolicy({ provider, writer: "cli", sourceClass: "internal_payload", observedAt: now, now }).ttlSeconds).toBe(provider === "CLAUDE" ? 465 : 1140);
   }
 });
 
@@ -139,8 +139,8 @@ it("projects only the poll owned Claude weeklies", () => {
     meter: "SEVEN_DAY",
     value: 13,
     observedAt: now,
-    // The Claude horizon, 435 seconds (hotfix 2.1.5 fix 2).
-    expiresAt: "2026-09-29T12:07:15.000Z",
+    // The Claude horizon, 465 seconds (hotfix 2.1.5).
+    expiresAt: "2026-09-29T12:07:45.000Z",
     resetAt: "2026-10-06T12:00:00.000Z",
     window: { kind: "rolling", durationSeconds: 604_800 },
     source: "internal_payload",
@@ -318,8 +318,8 @@ describe("the Claude freshness horizon shared with the desktop", () => {
     });
   }
 
-  it("is the cadence, the widest jitter, one late tick and one request", () => {
+  it("is the cadence, the widest jitter, one late tick, two whole requests and a margin", () => {
     expect(CLAUDE_FRESHNESS_SECONDS).toBe(CLAUDE_ACQUISITION_INTERVAL_SECONDS + CLAUDE_ACQUISITION_INTERVAL_SECONDS / 5 + 60 +
-      ACQUISITION_TIMEOUT_MILLISECONDS / 1_000);
+      2 * ACQUISITION_TIMEOUT_MILLISECONDS / 1_000 + 15);
   });
 });

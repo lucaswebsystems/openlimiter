@@ -69,7 +69,7 @@ function heldExpiry(snapshot: Snapshot, now: string): string | null {
  *
  * Every reading follows the shared stale rule by `heldExpiry`, with the
  * provider poll policy as its refresh horizon: Codex is seven minutes, Claude
- * seven minutes and fifteen seconds, Antigravity thirteen minutes and the
+ * seven minutes and forty five seconds, Antigravity thirteen minutes and the
  * conservative fallback nineteen minutes. Every account with a reading in
  * those seven days shows, as on the
  * desktop, so a quiet second login stays beside a current one, stale. Legacy

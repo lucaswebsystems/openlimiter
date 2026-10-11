@@ -849,7 +849,7 @@ fn provider_spacing_seconds(provider: DetectedProviderId, account_id: &str) -> u
             % (PROVIDER_SPACING_SECONDS + 1)
 }
 
-fn jittered_account_delay(
+pub(crate) fn jittered_account_delay(
     provider: DetectedProviderId,
     account_id: &str,
     minimum_seconds: u64,

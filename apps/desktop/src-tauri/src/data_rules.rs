@@ -8,9 +8,13 @@ pub const RETENTION_MS: u64 = 7 * 86_400_000;
 /// How long a Claude reading a poll wrote stays fresh, from either writer: the
 /// five minute cadence (claude_oauth.rs REFRESH_SECONDS), the jitter of up to a
 /// fifth of it (request_policy.rs jittered_account_delay), one collector tick
-/// of sixty seconds that comes late, and one request timeout
-/// (net.rs NETWORK_TIMEOUT_SECONDS). TypeScript twin: `CLAUDE_FRESHNESS_SECONDS`.
-pub(crate) const CLAUDE_FRESHNESS_SECONDS: u64 = 300 + 300 / 5 + 60 + 15;
+/// that comes late (collector_runtime.rs COLLECTOR_INTERVAL_SECONDS), two
+/// requests of the whole timeout (net.rs NETWORK_TIMEOUT_SECONDS: a reading is
+/// stamped when its request starts, and the next deadline counts from
+/// completion), and a fifteen second margin: 465 seconds. Walked in
+/// claude_oauth.rs, a_healthy_reading_is_still_fresh_when_the_next_one_is_written.
+/// TypeScript twin: `CLAUDE_FRESHNESS_SECONDS`.
+pub(crate) const CLAUDE_FRESHNESS_SECONDS: u64 = 300 + 300 / 5 + 60 + 2 * 15 + 15;
 const CLAUDE_WEEK_SECONDS: u64 = 604_800;
 
 pub(crate) fn display_eligible(row: &Snapshot) -> bool {
@@ -860,7 +864,7 @@ mod tests {
         ] {
             /* Claude, from either writer, follows its own cadence (fix 2). */
             let ttl = match provider {
-                "CLAUDE" => 435,
+                "CLAUDE" => 465,
                 "GEMINI_CLI" => 1140,
                 "ANTIGRAVITY" => 780,
                 _ => 420,
@@ -871,7 +875,7 @@ mod tests {
             );
             assert_eq!(
                 freshness_for(provider, "cli", "internal_payload", 0, 0).0,
-                if provider == "CLAUDE" { 435 } else { 1140 }
+                if provider == "CLAUDE" { 465 } else { 1140 }
             );
         }
     }

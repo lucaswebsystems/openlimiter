@@ -2388,6 +2388,47 @@ mod tests {
         assert_eq!(rows, ["SEVEN_DAY 18.0", "SEVEN_DAY_FABLE 33.0"]);
     }
 
+    /// Hotfix 2.1.5 round 2 fix 1. The worst healthy desktop schedule, walked
+    /// with the real parts: the reading is stamped when its request starts,
+    /// that request takes the whole network timeout, the next deadline is set
+    /// from completion with the widest jitter the real rule gives, the
+    /// collector tick that would have caught it passed just before, and the
+    /// next request takes the whole timeout again. The old reading is still
+    /// fresh, with its margin, when the new one is written.
+    #[test]
+    fn a_healthy_reading_is_still_fresh_when_the_next_one_is_written() {
+        let jitter = |account: &String| {
+            crate::request_policy::jittered_account_delay(DetectedProviderId::Claude, account, REFRESH_SECONDS)
+        };
+        let account = (0..2_000).map(|index| format!("claude-jitter-{index}")).max_by_key(jitter).unwrap();
+        let timeout = crate::net::NETWORK_TIMEOUT_SECONDS * 1_000;
+        let observed = NOW;
+        let body = String::from_utf8(valid_body()).unwrap();
+        let old = parse_usage(&body, observed, &account).expect("usage");
+        let completed = observed + timeout;
+        let dir = TempDir::new();
+        let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
+        let lease = policy
+            .begin_with_revision(DetectedProviderId::Claude, &account, observed, Some("revision"))
+            .expect("lease");
+        // Production reads completion from its clock; here it is the argument.
+        policy.complete_after(DetectedProviderId::Claude, &account, completed, REFRESH_SECONDS);
+        drop(lease);
+        let shared: Value =
+            serde_json::from_str(&fs::read_to_string(dir.path().join("acquisition-claude.json")).unwrap()).unwrap();
+        let deadline = shared["nextAllowedAt"].as_u64().unwrap();
+        assert_eq!(deadline, completed + jitter(&account) * 1_000);
+        let next_request = deadline + crate::collector_runtime::COLLECTOR_INTERVAL_SECONDS * 1_000;
+        let written = next_request + timeout;
+        for row in &old {
+            let expires = crate::native_time::epoch_ms_from_rfc3339(&row.expires_at).unwrap();
+            assert!(expires >= written + 15_000, "{} expires at {expires}, written at {written}", row.meter);
+        }
+        let (_, _, availability) =
+            crate::data_rules::freshness_for("CLAUDE", "desktop", "internal_payload", observed as i64, written as i64);
+        assert_eq!(availability, "fresh");
+    }
+
     /// Hotfix 2.1.5 fix 2: the horizon is built from this reader's own parts,
     /// and a weekly the desktop stores carries it, so the status line, which
     /// reads the stored expiry, greys a reading the desktop could not refresh.
@@ -2395,7 +2436,11 @@ mod tests {
     async fn a_stored_claude_reading_expires_on_the_claude_horizon() {
         assert_eq!(
             crate::data_rules::CLAUDE_FRESHNESS_SECONDS,
-            REFRESH_SECONDS + REFRESH_SECONDS / 5 + 60 + crate::net::NETWORK_TIMEOUT_SECONDS
+            REFRESH_SECONDS
+                + REFRESH_SECONDS / 5
+                + crate::collector_runtime::COLLECTOR_INTERVAL_SECONDS
+                + 2 * crate::net::NETWORK_TIMEOUT_SECONDS
+                + 15
         );
         let dir = TempDir::new();
         let outcome = collect_with_secret(
