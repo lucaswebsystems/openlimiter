@@ -557,6 +557,82 @@ describe("the Claude poll switch", () => {
     expect(meters).toEqual(["FIVE_HOUR", "SEVEN_DAY"]);
   });
 
+  /* Hotfix 2.1.5, change A: a desktop row from its session window is not a
+     desktop poll, so it never stands this tool down for the weeklies. */
+  it("polls Claude beside a recent desktop session row that no weekly poll backs", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    await runCli(["config", "set", "providers.claude.poll", "true"], dependencies(state, home, recordingTransport().transport));
+    const desktopSession: Snapshot = {
+      provider: "CLAUDE",
+      accountId: opaqueAccountId("CLAUDE", "one-active-account-without-stable-identity"),
+      meter: "FIVE_HOUR",
+      value: 12,
+      unit: "PERCENT",
+      window: { kind: "rolling", durationSeconds: 18_000 },
+      resetAt: "2026-01-01T04:00:00.000Z",
+      source: "internal_payload",
+      precision: "exact",
+      observedAt: NOW,
+      expiresAt: "2026-01-01T00:19:00.000Z",
+      labels: {
+        credentialOrigin: "official-local-tool",
+        dataInterfaceStatus: "internal-endpoint",
+        automationRisk: "high",
+        verification: "UNVERIFIED"
+      },
+      provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
+      writer: "desktop"
+    };
+    await writeSnapshotCache([desktopSession], state);
+    const recorder = recordingTransport();
+    await runCli(["refresh"], dependencies(state, home, recorder.transport));
+    expect(recorder.sent.some((request) => request.endpoint === "claude_usage")).toBe(true);
+  });
+
+  it("starts a refresh from a render whose Claude session is fresh and whose weekly is not", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    await runCli(["config", "set", "providers.claude.poll", "true"], dependencies(state, home, recordingTransport().transport));
+    const weekly: Snapshot = {
+      provider: "CLAUDE",
+      accountId: opaqueAccountId("CLAUDE", "one-active-account-without-stable-identity"),
+      meter: "SEVEN_DAY",
+      value: 41,
+      unit: "PERCENT",
+      window: { kind: "rolling", durationSeconds: 604_800 },
+      resetAt: "2026-01-05T00:00:00.000Z",
+      source: "internal_payload",
+      precision: "exact",
+      observedAt: NOW,
+      expiresAt: "2026-01-01T00:19:00.000Z",
+      labels: {
+        credentialOrigin: "official-local-tool",
+        dataInterfaceStatus: "internal-endpoint",
+        automationRisk: "high",
+        verification: "UNVERIFIED"
+      },
+      provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
+      writer: "cli"
+    };
+    await writeSnapshotCache([weekly], state);
+    const started: string[][] = [];
+    const later = "2026-01-01T00:03:00.000Z";
+    const render = await runCli(["statusline"], {
+      ...dependencies(state, home, recordingTransport().transport, later),
+      readStandardInput: async () => JSON.stringify({
+        rate_limits: { five_hour: { used_percentage: 9, resets_at: Date.parse("2026-01-01T04:00:00.000Z") / 1000 } }
+      }),
+      spawnDetached: (executable: string, argumentsList: readonly string[]) => {
+        started.push([executable, ...argumentsList]);
+      },
+      nodeExecutable: "/usr/bin/node",
+      openLimiterScript: "/opt/openlimiter/bin.js"
+    });
+    expect(render.exitCode).toBe(0);
+    expect(started).toEqual([["/usr/bin/node", "/opt/openlimiter/bin.js", "refresh", "--detached"]]);
+  });
+
   it("refuses a value that is not a switch", async () => {
     const state = await temporaryDirectory("openlimiter-state-");
     const home = await machineWithLogins();

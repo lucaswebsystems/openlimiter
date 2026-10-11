@@ -25,6 +25,7 @@ import {
   readSnapshotCache,
   writeSnapshotCache,
   desktopHoldsCache,
+  isClaudeWeeklyPoll,
   refreshLockHeld,
   shouldStartRefresh,
   spawnDetachedRefresh,
@@ -486,5 +487,72 @@ describe("starting a refresh behind a render", () => {
     expect(recorded).toBe(NOW);
     await clearRefreshSpawnFailure(directory);
     expect(await readRefreshSpawnFailure(directory)).toBeNull();
+  });
+});
+
+/*
+ * Hotfix 2.1.5, change A. The status line rewrites Claude's session row on
+ * every render, so with this tool's Claude poll on, only the weekly rows a
+ * usage poll wrote can say whether a poll is due.
+ */
+describe("Claude weekly polling is decided by the last weekly poll", () => {
+  const session = (observedAt: string, writer?: "desktop"): Snapshot => ({
+    ...snapshot({
+      provider: "CLAUDE",
+      meter: "FIVE_HOUR",
+      observedAt,
+      expiresAt: "2026-01-01T01:00:00.000Z",
+      provenance: { sourceKind: "statusline_payload", observedVia: "claude_code_statusline" }
+    }),
+    ...(writer === undefined ? {} : { writer, source: "internal_payload" as const, provenance: { sourceKind: "remote_api" as const, observedVia: "remote_http" as const } })
+  });
+  const weekly = (observedAt: string, meter = "SEVEN_DAY"): Snapshot => snapshot({
+    provider: "CLAUDE",
+    meter,
+    observedAt,
+    expiresAt: "2026-01-01T01:00:00.000Z",
+    resetAt: "2026-01-05T00:00:00.000Z",
+    window: { kind: "rolling", durationSeconds: 604_800 },
+    source: "internal_payload",
+    provenance: { sourceKind: "remote_api", observedVia: "remote_http" }
+  });
+
+  it("starts a refresh for a fresh session beside an expired weekly", () => {
+    const rows = [session(NOW), weekly("2026-01-01T00:00:00.000Z"), weekly("2026-01-01T00:00:00.000Z", "SEVEN_DAY_FABLE")];
+    expect(shouldStartRefresh(rows, NOW, CACHE_REFRESH_STALE_SECONDS, true)).toEqual({ refresh: true });
+  });
+
+  it("starts a refresh for a fresh session with no weekly at all", () => {
+    expect(shouldStartRefresh([session(NOW)], NOW, CACHE_REFRESH_STALE_SECONDS, true)).toEqual({ refresh: true });
+  });
+
+  it("does not let an unrelated fresh provider hide a stale Claude weekly", () => {
+    const rows = [rowObservedAt(NOW), session(NOW), weekly("2026-01-01T00:02:00.000Z")];
+    expect(shouldStartRefresh(rows, NOW, CACHE_REFRESH_STALE_SECONDS, true)).toEqual({ refresh: true });
+  });
+
+  it("does not let a recent desktop session row stand in for a desktop poll", () => {
+    const rows = [session("2026-01-01T00:09:00.000Z", "desktop"), weekly("2026-01-01T00:00:00.000Z")];
+    expect(desktopHoldsCache(rows, NOW)).toBe(true);
+    expect(shouldStartRefresh(rows, NOW, CACHE_REFRESH_STALE_SECONDS, true)).toEqual({ refresh: true });
+  });
+
+  it("stays calm while the weekly poll is inside the minute", () => {
+    const rows = [session(NOW), weekly("2026-01-01T00:09:30.000Z")];
+    expect(shouldStartRefresh(rows, NOW, CACHE_REFRESH_STALE_SECONDS, true)).toEqual({ refresh: false, reason: "fresh" });
+  });
+
+  it("keeps the session row deciding when this tool does not poll Claude", () => {
+    expect(shouldStartRefresh([session(NOW)], NOW)).toEqual({ refresh: false, reason: "fresh" });
+    expect(shouldStartRefresh([session(NOW), weekly("2026-01-01T00:00:00.000Z")], NOW, CACHE_REFRESH_STALE_SECONDS, false))
+      .toEqual({ refresh: false, reason: "fresh" });
+  });
+
+  it("names the rows that count as a weekly poll", () => {
+    expect(isClaudeWeeklyPoll(weekly(NOW))).toBe(true);
+    expect(isClaudeWeeklyPoll(session(NOW))).toBe(false);
+    expect(isClaudeWeeklyPoll({ ...weekly(NOW), availability: "rate_limited" })).toBe(false);
+    expect(isClaudeWeeklyPoll({ ...weekly(NOW), provenance: { sourceKind: "statusline_payload", observedVia: "claude_code_statusline" } })).toBe(false);
+    expect(isClaudeWeeklyPoll({ ...weekly(NOW), provider: "CODEX" })).toBe(false);
   });
 });
