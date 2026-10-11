@@ -17,7 +17,7 @@
     "core/acquire/antigravity-meters.ts": "e6dc204897fd85ce",
     "connectors/shared.ts": "999163f50865ac4f",
     "connectors/antigravity.ts": "26c316e507acf997",
-    "connectors/claude.ts": "9cbe8028ff226121",
+    "connectors/claude.ts": "48d670bd08d3e341",
     "connectors/codex.ts": "448de6f8ad6b25b0",
     "connectors/cursor.ts": "4f48ea7b33669ff4",
     "connectors/contract-gate.ts": "0be97577d12a40b1",

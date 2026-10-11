@@ -81,6 +81,12 @@ export interface AcquisitionSpec {
   /** The connector parser for this provider's response, injected by the caller. */
   readonly parse: (payload: unknown, now: string) => readonly RawMeter[] | null;
   /**
+   * Whether a response stated its whole set (Claude: its weekly set). The ok
+   * report carries the answer, and only a complete read may remove a stored
+   * row it no longer reports (hotfix 2.1.5 fix 4).
+   */
+  readonly complete?: (payload: unknown, now: string) => boolean;
+  /**
    * The one sentence this provider's row always carries, or null.
    *
    * Used where the way we read a provider is itself something a person should
@@ -184,6 +190,8 @@ interface Attempt {
   readonly outcome: AcquisitionOutcome;
   readonly meters: readonly RawMeter[];
   readonly retryAfterSeconds: number | null;
+  /** What `spec.complete` said about the answer, when the spec asks. */
+  readonly complete?: boolean;
   /** Where a failed attempt stopped; asking, or reading the answer. */
   readonly phase?: "request" | "parse";
 }
@@ -268,15 +276,17 @@ async function attempt(
    * drift and nobody else's.
    */
   let meters: readonly RawMeter[] | null;
+  let complete: boolean | undefined;
   try {
     meters = spec.parse(payload, options.now);
+    complete = spec.complete?.(payload, options.now);
   } catch {
     return { outcome: "drift", meters: [], retryAfterSeconds: retryAfter, phase: "parse" };
   }
   if (meters === null || meters.length === 0) {
     return { outcome: "drift", meters: [], retryAfterSeconds: retryAfter, phase: "parse" };
   }
-  return { outcome: "ok", meters, retryAfterSeconds: retryAfter };
+  return { outcome: "ok", meters, retryAfterSeconds: retryAfter, ...(complete === undefined ? {} : { complete }) };
 }
 
 /**
@@ -478,7 +488,8 @@ export async function runAcquisition(
         provider: spec.provider,
         ...(accountId === null ? {} : { accountId }),
         observedAt: options.now,
-        snapshots
+        snapshots,
+        ...(result.complete === undefined ? {} : { complete: result.complete })
       });
       return;
     }

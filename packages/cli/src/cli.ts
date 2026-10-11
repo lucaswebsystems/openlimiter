@@ -67,6 +67,7 @@ import {
   opencodeFixture,
   openrouterFixture,
   parseAntigravityPayload,
+  claudeWeeklySetComplete,
   parseClaudePayload,
   parseCodexPayload,
   parseCursorPayload,
@@ -698,6 +699,7 @@ export function acquisitionSpecs(providers: ProvidersConfig): AcquisitionSpec[] 
   return [
     claudeSpec({
       parse: parseClaudePayload,
+      complete: claudeWeeklySetComplete,
       enabled: providers.claude.recorded && providers.claude.poll
     }),
     codexSpec(parseCodexPayload),
@@ -1005,11 +1007,13 @@ async function refreshCommand(
       try {
         const pollRows = report.snapshots.filter((row) =>
           row.provider === "CLAUDE" && row.meter.startsWith("SEVEN_DAY"));
-        /* A successful Claude poll read the account's whole weekly set, so a
-           weekly it no longer reports leaves the store too. */
+        /* A Claude poll that read the account's whole weekly set removes a
+           weekly it no longer reports; a partial read deletes nothing. */
         if (report.provider === "CLAUDE") {
           await mergeAuthoritativeSnapshotCache(pollRows, dependencies.stateDirectory, now,
-            { provider: "CLAUDE", accountId: report.accountId, observedAt: report.observedAt });
+            report.complete === true
+              ? { provider: "CLAUDE", accountId: report.accountId, observedAt: report.observedAt }
+              : undefined);
         }
         await mergeAcquiredSnapshots({
           ...report,

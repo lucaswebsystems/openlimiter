@@ -154,6 +154,8 @@ export interface ClaudeSpecOptions {
    * the hours Claude Code is closed.
    */
   readonly enabled: boolean;
+  /** Whether a usage document stated its whole weekly set. */
+  readonly complete?: (payload: unknown, now: string) => boolean;
 }
 
 export function claudeSpec(options: ClaudeSpecOptions): AcquisitionSpec {
@@ -162,6 +164,7 @@ export function claudeSpec(options: ClaudeSpecOptions): AcquisitionSpec {
     credentialProvider: "CLAUDE",
     steps: [({ credential }) => claudeUsageRequest(credential.secret)],
     parse: options.parse,
+    ...(options.complete === undefined ? {} : { complete: options.complete }),
     disclosure: ACQUISITION_DISCLOSURE.claude,
     enabled: options.enabled,
     disabledReason:

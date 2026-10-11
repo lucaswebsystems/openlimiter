@@ -567,6 +567,28 @@ describe("the Claude poll switch", () => {
     expect(await weeklies()).toEqual(["SEVEN_DAY"]);
   });
 
+  /* Hotfix 2.1.5 fix 4: a document that dropped a weekly bucket as malformed
+     adds the rows it did read and deletes nothing (shared corpus case). */
+  it("keeps the stored Fable when the next poll states a malformed Fable bucket", async () => {
+    const corpus = JSON.parse(await readFile(path.resolve("packages/connectors/fixtures/cases/claude/weekly-fable-malformed.json"), "utf8")) as { now: string; body: unknown };
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    await runCli(["config", "set", "providers.claude.poll", "true"], dependencies(state, home, recordingTransport().transport));
+    const first = new Date(Date.parse(corpus.now) - 6 * 60_000).toISOString();
+    await runCli(["refresh"], dependencies(state, home, recordingTransport(first).transport, first));
+    const weeklies = async () => {
+      const cached = await readSnapshotCache(state);
+      return (cached.ok ? cached.snapshots : []).filter((row) => row.provider === "CLAUDE" && row.meter.startsWith("SEVEN_DAY"))
+        .map((row) => row.meter + " " + row.value).sort();
+    };
+    const before = await weeklies();
+    expect(before.map((row) => row.split(" ")[0])).toEqual(["SEVEN_DAY", "SEVEN_DAY_FABLE"]);
+    const partial = recordingTransport(corpus.now, { claude_usage: corpus.body });
+    await runCli(["refresh"], dependencies(state, home, partial.transport, corpus.now));
+    expect(partial.sent.some((request) => request.endpoint === "claude_usage")).toBe(true);
+    expect(await weeklies()).toEqual(["SEVEN_DAY 18", before.find((row) => row.startsWith("SEVEN_DAY_FABLE"))]);
+  });
+
   it("polls successfully when the response has no model scoped results", async () => {
     const state = await temporaryDirectory("openlimiter-state-");
     const home = await machineWithLogins();

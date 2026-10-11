@@ -720,6 +720,20 @@ pub fn write_report(
     account_id: Option<&str>,
     report: CacheReport,
 ) -> Result<(), CacheWriteError> {
+    write_report_with(writer, provider, account_id, report, false)
+}
+
+/// `write_report` for a Claude poll that may replace the account weekly set:
+/// only when `weekly_complete`, the read stated that whole set (claude_oauth.rs
+/// read_usage). A partial read adds its rows and deletes nothing (hotfix 2.1.5
+/// fix 4).
+pub fn write_report_with(
+    writer: &CacheWriter,
+    provider: &str,
+    account_id: Option<&str>,
+    report: CacheReport,
+    weekly_complete: bool,
+) -> Result<(), CacheWriteError> {
     let authoritative = match &report {
         CacheReport::Success(rows) if provider == "CLAUDE" => rows
             .iter()
@@ -745,10 +759,10 @@ pub fn write_report(
         ),
         _ => report.clone(),
     };
-    /* A successful Claude poll read the account's whole weekly set, so a
-    weekly it no longer reports leaves the store (hotfix 2.1.5). */
+    /* A successful Claude poll that read the account's whole weekly set
+    removes a weekly it no longer reports (hotfix 2.1.5). */
     let weekly_set = match &report {
-        CacheReport::Success(rows) if provider == "CLAUDE" => rows
+        CacheReport::Success(rows) if provider == "CLAUDE" && weekly_complete => rows
             .iter()
             .filter(|row| {
                 row.provenance

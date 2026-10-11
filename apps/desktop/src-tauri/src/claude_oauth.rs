@@ -7,7 +7,7 @@ use tauri::{AppHandle, Manager};
 
 use crate::cache_write::CacheWriter;
 use crate::native_snapshot::{
-    future_rfc3339, iso_from_epoch_ms, write_report, CacheReport, ConnectorLabels, Snapshot,
+    future_rfc3339, iso_from_epoch_ms, write_report_with, CacheReport, ConnectorLabels, Snapshot,
     SnapshotWindow,
 };
 use crate::net::{fetch_endpoint, NetError, ProviderEndpoint, ReqwestTransport, Transport};
@@ -605,6 +605,33 @@ fn parse_extra_usage(
 /// and the UI already labels, and a display name that renames the same model
 /// would otherwise open a second bar for the same allowance.
 pub fn parse_usage(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
+    read_usage(body, now_ms, account_id).rows
+}
+
+/// One read of a usage document: its rows, and whether it stated its whole
+/// weekly set. Not complete when nothing was read, or when a weekly bucket it
+/// names (a weekly root key, or a weekly_scoped entry for a family this build
+/// knows) was there and failed validation; a null bucket, and anything
+/// outside the allowlist, does not count. Only a complete read may replace
+/// the stored weekly set (hotfix 2.1.5 fix 4). TypeScript twin: claude.ts
+/// claudeWeeklySetComplete.
+pub(crate) struct UsageRead {
+    pub(crate) rows: Option<Vec<Snapshot>>,
+    pub(crate) weekly_complete: bool,
+}
+
+pub(crate) fn read_usage(body: &str, now_ms: u64, account_id: &str) -> UsageRead {
+    let mut complete = true;
+    let rows = parse_document(body, now_ms, account_id, &mut complete);
+    UsageRead { weekly_complete: complete && rows.is_some(), rows }
+}
+
+fn parse_document(
+    body: &str,
+    now_ms: u64,
+    account_id: &str,
+    complete: &mut bool,
+) -> Option<Vec<Snapshot>> {
     let root: Value = serde_json::from_str(body).ok()?;
     let root = root.as_object()?;
     let mut rows: Vec<Snapshot> = Vec::new();
@@ -631,6 +658,7 @@ pub fn parse_usage(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snap
         });
         let Some(row) = parsed else {
             dropped("root window", meter);
+            *complete &= !meter.starts_with("SEVEN_DAY");
             continue;
         };
         if taken.insert(meter.to_string()) {
@@ -652,10 +680,15 @@ pub fn parse_usage(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snap
         if !weekly_root_key(&normalized_key) && normalized_key != "five_hour" {
             continue;
         }
+        /* A weekly bucket that is there and does not hold together makes the
+        weekly set incomplete; a null one is simply absent. */
+        let weekly = weekly_root_key(&normalized_key);
         let Some(bucket) = value.as_object() else {
+            *complete &= !weekly || value.is_null();
             continue;
         };
         if !bucket.contains_key("utilization") || !bucket.contains_key("resets_at") {
+            *complete &= !weekly;
             continue;
         }
         let Some(meter) = (if normalized_key == "five_hour" {
@@ -677,6 +710,7 @@ pub fn parse_usage(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snap
         let Some(row) = parse_reading(bucket, "utilization", &meter, window, now_ms, account_id)
         else {
             dropped("unnamed root window", &meter);
+            *complete &= !weekly;
             continue;
         };
         if taken.insert(meter) {
@@ -726,6 +760,7 @@ pub fn parse_usage(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snap
             account_id,
         ) else {
             dropped("model scoped", &meter);
+            *complete = false;
             continue;
         };
         taken.insert(meter);
@@ -755,9 +790,14 @@ fn net_failure(error: NetError) -> ClaudeOauthFailure {
     }
 }
 
-async fn commit_report(writer: Arc<CacheWriter>, account_id: String, report: CacheReport) -> bool {
+async fn commit_report(
+    writer: Arc<CacheWriter>,
+    account_id: String,
+    report: CacheReport,
+    weekly_complete: bool,
+) -> bool {
     tauri::async_runtime::spawn_blocking(move || {
-        write_report(&writer, "CLAUDE", Some(&account_id), report)
+        write_report_with(&writer, "CLAUDE", Some(&account_id), report, weekly_complete)
     })
     .await
     .is_ok_and(|result| result.is_ok())
@@ -772,7 +812,7 @@ async fn fallback_report(writer: Arc<CacheWriter>, account_id: &str, drift: bool
     } else {
         CacheReport::Unavailable
     };
-    let _ = commit_report(writer, account_id.to_string(), report).await;
+    let _ = commit_report(writer, account_id.to_string(), report, false).await;
 }
 
 #[cfg(test)]
@@ -875,7 +915,8 @@ async fn collect_with_reread<T: Transport>(
                 fallback_report(writer, account_id, true, now_ms).await;
                 return ClaudeOauthOutcome::fallback(account_id, ClaudeOauthFailure::Drift, None);
             };
-            let Some(snapshots) = parse_usage(&body, now_ms, account_id) else {
+            let read = read_usage(&body, now_ms, account_id);
+            let Some(snapshots) = read.rows else {
                 fallback_report(writer, account_id, true, now_ms).await;
                 return ClaudeOauthOutcome::fallback(account_id, ClaudeOauthFailure::Drift, None);
             };
@@ -891,6 +932,7 @@ async fn collect_with_reread<T: Transport>(
                 writer,
                 account_id.to_string(),
                 CacheReport::Success(snapshots),
+                read.weekly_complete,
             )
             .await
             {
@@ -2202,11 +2244,14 @@ mod tests {
                 format!(r#","seven_day_fable":{{"utilization":{value},"resets_at":"2026-08-24T12:00:00Z"}}"#)
             });
             let body = format!(r#"{{"seven_day":{{"utilization":{weekly},"resets_at":"2026-08-24T12:00:00Z"}}{fable}}}"#);
-            write_report(
+            let read = read_usage(&body, at, account);
+            assert!(read.weekly_complete, "{body}");
+            write_report_with(
                 &writer,
                 "CLAUDE",
                 Some(account),
-                CacheReport::Success(parse_usage(&body, at, account).expect("usage")),
+                CacheReport::Success(read.rows.expect("usage")),
+                read.weekly_complete,
             )
             .expect("committed");
         };
@@ -2243,6 +2288,46 @@ mod tests {
                 "SEVEN_DAY_FABLE account-b 30.0"
             ]
         );
+    }
+
+    /// Hotfix 2.1.5 fix 4. A poll whose document dropped a weekly bucket as
+    /// malformed adds the rows it read and deletes nothing; the document is the
+    /// shared corpus case weekly-fable-malformed. TypeScript twin:
+    /// refresh.test.ts, "keeps the stored Fable when the next poll states a
+    /// malformed Fable bucket".
+    #[tokio::test]
+    async fn a_partial_claude_poll_deletes_no_weekly() {
+        let case: Value = serde_json::from_str(include_str!(
+            "../../../../packages/connectors/fixtures/cases/claude/weekly-fable-malformed.json"
+        ))
+        .unwrap();
+        let now = crate::native_time::epoch_ms_from_rfc3339(case["now"].as_str().unwrap()).unwrap();
+        let complete = r#"{"seven_day":{"utilization":12,"resets_at":"2026-08-11T12:00:00.000Z"},"seven_day_fable":{"utilization":33,"resets_at":"2026-08-11T12:00:00.000Z"}}"#;
+        let dir = TempDir::new();
+        for (body, at) in [(complete.to_string(), now - 360_000), (case["body"].to_string(), now)] {
+            let outcome = collect_with_secret(
+                &ClaudeOauthRuntime::default(),
+                &RecordingTransport::replying(200, body.into_bytes(), None),
+                writer(&dir),
+                ACCOUNT,
+                &secret("partial"),
+                at,
+            )
+            .await;
+            assert!(matches!(outcome, ClaudeOauthOutcome::CacheCommitted { .. }), "{outcome:?}");
+        }
+        let stored: Value = serde_json::from_str(
+            &fs::read_to_string(dir.path().join(crate::cache_write::AUTHORITATIVE_CACHE_FILE_NAME)).unwrap(),
+        )
+        .unwrap();
+        let mut rows: Vec<String> = stored["snapshots"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| format!("{} {}", row["meter"].as_str().unwrap(), row["value"]))
+            .collect();
+        rows.sort();
+        assert_eq!(rows, ["SEVEN_DAY 18.0", "SEVEN_DAY_FABLE 33.0"]);
     }
 
     /// Hotfix 2.1.5 fix 2: the horizon is built from this reader's own parts,

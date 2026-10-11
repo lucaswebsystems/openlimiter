@@ -304,10 +304,16 @@ function orderedWindowKeys(table: Record<string, unknown>): string[] {
     .map(([, original]) => original)];
 }
 
+/** What one read of a usage document dropped, for the weekly set rule. */
+interface WeeklyTally {
+  dropped: boolean;
+}
+
 function parseWindowTable(
   table: Record<string, unknown>,
   now: string,
-  seen: Set<string>
+  seen: Set<string>,
+  tally: WeeklyTally = { dropped: false }
 ): MeterInput[] {
   const found: MeterInput[] = [];
   for (const key of orderedWindowKeys(table)) {
@@ -322,7 +328,12 @@ function parseWindowTable(
       meter,
       known?.durationSeconds ?? durationForKey(normalizedKey)
     );
-    if (parsed === null) continue;
+    if (parsed === null) {
+      /* A weekly bucket that is there and does not hold together makes the
+         document's weekly set incomplete; a null bucket is simply absent. */
+      if (claudeWeeklyKey(normalizedKey) && value !== null && value !== undefined) tally.dropped = true;
+      continue;
+    }
     seen.add(meter);
     found.push(parsed);
   }
@@ -340,7 +351,8 @@ function parseWindowTable(
 function parseScopedLimits(
   value: unknown,
   now: string,
-  seen: Set<string>
+  seen: Set<string>,
+  tally: WeeklyTally = { dropped: false }
 ): MeterInput[] {
   if (!Array.isArray(value)) return [];
   const found: MeterInput[] = [];
@@ -354,7 +366,10 @@ function parseScopedLimits(
     const meter = CLAUDE_MODEL_WEEKLY_PREFIX + name;
     if (seen.has(meter)) continue;
     const parsed = parseWindow(limit, now, meter, SEVEN_DAYS);
-    if (parsed === null) continue;
+    if (parsed === null) {
+      tally.dropped = true;
+      continue;
+    }
     seen.add(meter);
     found.push(parsed);
   }
@@ -523,6 +538,36 @@ function looksLikeUsageDocument(root: Record<string, unknown>): boolean {
  * one corrupt reset is not a reason to forget the whole session.
  */
 export function parseClaudePayload(payload: unknown, now: string): RawMeter[] | null {
+  return readClaudeDocument(payload, now).meters;
+}
+
+/**
+ * Whether a usage document stated its whole weekly set.
+ *
+ * False when the document could not be read, when it is a status line
+ * payload, or when a weekly bucket it names (a weekly root key, or a
+ * weekly_scoped entry for a model family this build knows) was there and
+ * failed validation. A null or absent bucket, and anything outside the
+ * allowlist, does not count. Only a complete document may replace the stored
+ * weekly set; an incomplete one adds its valid rows and deletes nothing.
+ * Rust twin: claude_oauth.rs read_usage.
+ */
+export function claudeWeeklySetComplete(payload: unknown, now: string): boolean {
+  const read = readClaudeDocument(payload, now);
+  return read.meters !== null && !read.statusline && !read.tally.dropped;
+}
+
+function readClaudeDocument(
+  payload: unknown,
+  now: string
+): { meters: RawMeter[] | null; statusline: boolean; tally: WeeklyTally } {
+  const tally: WeeklyTally = { dropped: false };
+  const meters = parseClaudeDocument(payload, now, tally);
+  const root = record(payload);
+  return { meters, statusline: root !== null && record(root["rate_limits"]) !== null, tally };
+}
+
+function parseClaudeDocument(payload: unknown, now: string, tally: WeeklyTally): RawMeter[] | null {
   const root = record(payload);
   if (root === null) return null;
   const rateLimits = record(root["rate_limits"]);
@@ -540,7 +585,7 @@ export function parseClaudePayload(payload: unknown, now: string): RawMeter[] | 
   const seen = new Set<string>();
   const inputs: MeterInput[] = statusline
     ? parseWindowTable({ five_hour: table["five_hour"] }, now, seen)
-    : parseWindowTable(table, now, seen).concat(parseScopedLimits(table["limits"], now, seen));
+    : parseWindowTable(table, now, seen, tally).concat(parseScopedLimits(table["limits"], now, seen, tally));
   if (!statusline) {
     const extra = parseExtraUsage(table["extra_usage"], now);
     if (extra !== null && !seen.has(extra.meter)) {
