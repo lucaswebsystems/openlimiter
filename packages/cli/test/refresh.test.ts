@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -569,6 +569,48 @@ describe("the Claude poll switch", () => {
 
   /* Hotfix 2.1.5 fix 4: a document that dropped a weekly bucket as malformed
      adds the rows it did read and deletes nothing (shared corpus case). */
+  /* Hotfix 2.1.5 round 2 fix 3: the Claude report is written while the Claude
+     lease is still held. A desktop read that lands after the lease is released,
+     while this round is still busy with other providers, removes Fable, and
+     nothing this round writes afterwards brings it back. */
+  it("never brings back a weekly that a later desktop read removed", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    await runCli(["config", "set", "providers.claude.poll", "true"], dependencies(state, home, recordingTransport().transport));
+    const earlier = new Date(Date.parse(NOW) - 6 * 60_000).toISOString();
+    await runCli(["refresh"], dependencies(state, home, recordingTransport(earlier).transport, earlier));
+    const weeklies = async () => {
+      const cached = await readSnapshotCache(state);
+      return (cached.ok ? cached.snapshots : []).filter((row) => row.provider === "CLAUDE" && row.meter.startsWith("SEVEN_DAY"));
+    };
+    const seen = await weeklies();
+    expect(seen.map((row) => row.meter).sort()).toEqual(["SEVEN_DAY", "SEVEN_DAY_FABLE"]);
+    // Every provider due again, so this round reads others after Claude.
+    for (const name of await readdir(state)) {
+      if (name.startsWith("acquisition") || name === ACQUISITION_STATE_FILE_NAME) await rm(path.join(state, name), { force: true });
+    }
+    const stored = seen.find((row) => row.meter === "SEVEN_DAY")!;
+    const inner = recordingTransport(NOW);
+    let landed = false;
+    const transport: AcquisitionTransport = async (request) => {
+      if (request.endpoint !== "claude_usage" && !landed) {
+        landed = true;
+        // The desktop reads once the Claude lease is free, and Fable is no longer reported.
+        const later = new Date(Date.parse(NOW) + 301_000).toISOString();
+        const desktop: Snapshot = { ...stored, value: 41, observedAt: later, expiresAt: new Date(Date.parse(later) + 465_000).toISOString(), writer: "desktop" };
+        await mergeAuthoritativeSnapshotCache([desktop], state, later, { provider: "CLAUDE", accountId: stored.accountId, observedAt: later });
+        const lease = path.join(state, "acquisition-claude.json");
+        const held = JSON.parse(await readFile(lease, "utf8")) as Record<string, unknown>;
+        await writeFile(lease, JSON.stringify({ ...held, owner: null, expiresAt: 0, token: "desktop-instance", nextAllowedAt: Date.parse(later) + 330_000 }));
+      }
+      return inner.transport(request);
+    };
+    await runCli(["refresh"], dependencies(state, home, transport, NOW));
+    expect(landed).toBe(true);
+    expect(inner.sent.some((request) => request.endpoint === "claude_usage")).toBe(true);
+    expect((await weeklies()).map((row) => row.meter + " " + row.value)).toEqual(["SEVEN_DAY 41"]);
+  });
+
   it("keeps the stored Fable when the next poll states a malformed Fable bucket", async () => {
     const corpus = JSON.parse(await readFile(path.resolve("packages/connectors/fixtures/cases/claude/weekly-fable-malformed.json"), "utf8")) as { now: string; body: unknown };
     const state = await temporaryDirectory("openlimiter-state-");

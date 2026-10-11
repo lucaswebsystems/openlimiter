@@ -47,6 +47,7 @@ import {
   type AcquisitionTransport,
   type AcquiredCredential,
   type CacheReadResult,
+  type CollectionReport,
   type CredentialCommandRunner,
   type CredentialResult,
   type DetachedSpawn,
@@ -977,33 +978,30 @@ async function refreshCommand(
     /* A round that got this far is proof a refresh can start on this machine. */
     await clearRefreshSpawnFailure(dependencies.stateDirectory);
     const schedule = await readAcquisitionSchedule(dependencies.stateDirectory);
-    const result = await runAcquisition(specs, {
-      stateDirectory: dependencies.stateDirectory ?? resolveStateDirectory(),
-      clock: () => Date.parse(dependencies.now()),
-      transport: dependencies.acquisitionTransport,
-      now,
-      schedule,
-      readCredential: credentialReader(dependencies),
-      stamp: acquisitionStamp
-    });
     /*
-     * Ownership is checked before every write, not once at the start. A round
-     * can outlive its lock if this machine was suspended mid refresh, and a
-     * round that lost its lock must not write over the round that took it.
+     * Each provider's report is written while that provider's shared lease is
+     * still held (hotfix 2.1.5 round 2 fix 3): written after the round, a
+     * Claude read slowed by the providers after it could land after the
+     * desktop's next read and bring back a weekly that read removed.
+     *
+     * Ownership of the refresh lock is checked before every write, not once
+     * at the start. A round can outlive its lock if this machine was suspended
+     * mid refresh, and a round that lost its lock must not write over the
+     * round that took it.
      *
      * Native payloads can arrive during acquisition. `mergeAcquiredSnapshots`
      * arbitrates observations per row,
      * inside the cache lock both processes do share, keeping whichever row is
      * newer and leaving a tie with the row already there.
      */
-    for (const report of result.reports) {
-      if (!(await lock.stillOwned())) {
-        return succeed([
-          ACQUISITION_HEADER,
-          "SKIPPED this refresh lost its lock before it could write"
-        ].join(NEWLINE));
+    let lostLock = false;
+    const persist = async (report: CollectionReport): Promise<void> => {
+      // A lock that cannot be checked is treated as lost: nothing is written.
+      if (lostLock || !(await lock.stillOwned().catch(() => false))) {
+        lostLock = true;
+        return;
       }
-      if (!report.ok) continue;
+      if (!report.ok) return;
       try {
         const pollRows = report.snapshots.filter((row) =>
           row.provider === "CLAUDE" && row.meter.startsWith("SEVEN_DAY"));
@@ -1023,8 +1021,18 @@ async function refreshCommand(
         /* One provider's write failing is that provider's problem. The rest of
            the round still has readings worth keeping. */
       }
-    }
-    if (!(await lock.stillOwned())) {
+    };
+    const result = await runAcquisition(specs, {
+      stateDirectory: dependencies.stateDirectory ?? resolveStateDirectory(),
+      clock: () => Date.parse(dependencies.now()),
+      transport: dependencies.acquisitionTransport,
+      now,
+      schedule,
+      readCredential: credentialReader(dependencies),
+      stamp: acquisitionStamp,
+      persist
+    });
+    if (lostLock || !(await lock.stillOwned())) {
       return succeed([
         ACQUISITION_HEADER,
         "SKIPPED this refresh lost its lock before it could write"

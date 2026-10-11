@@ -162,6 +162,13 @@ export interface AcquisitionRunOptions {
     meters: readonly RawMeter[],
     credential: AcquiredCredential
   ) => readonly RawMeter[];
+  /**
+   * Writes one provider's report while that provider's shared lease is still
+   * held, before it is released, so a round slowed by other providers never
+   * lands a write after a later read by another process (hotfix 2.1.5 round 2
+   * fix 3). Every report is still returned.
+   */
+  readonly persist?: (report: CollectionReport) => Promise<void>;
 }
 
 /**
@@ -544,7 +551,7 @@ export async function runAcquisition(
           continue;
         }
         // Read and persist each provider while its shared machine lease is held.
-        const { stateDirectory: _directory, ...localOptions } = options;
+        const { stateDirectory: _directory, persist: _persist, ...localOptions } = options;
         const previous = schedule[spec.provider];
         const localSchedule = previous ? { ...schedule, [spec.provider]: { ...previous, attempts: Math.max(previous.attempts ?? 0, lease.attempts) } } : schedule;
         const single = await runAcquisition([spec], { ...localOptions, readCredential, now: options.clock ? new Date(options.clock()).toISOString() : options.now, schedule: localSchedule, lease });
@@ -561,11 +568,14 @@ export async function runAcquisition(
         if (entry) schedule[spec.provider] = entry;
         else delete schedule[spec.provider];
         reports.push(...single.reports);
+        for (const report of single.reports) await options.persist?.(withFreshness(report));
         for (const row of single.rows) {
           if (row.availability) await recordAcquisitionAvailability(spec.provider, row.availability, options.now, row.retryAt, options.stateDirectory, row.accountId);
         }
       } else {
+        const before = reports.length;
         await readOne(spec);
+        for (const report of reports.slice(before)) await options.persist?.(withFreshness(report));
       }
     } catch (error) {
       if (await lost()) {
@@ -604,5 +614,9 @@ export async function runAcquisition(
       await lease?.release();
     }
   }
-  return { rows, reports: reports.map((report) => report.ok ? { ...report, snapshots: report.snapshots.map(withPolicyFreshness) } : report), schedule };
+  return { rows, reports: reports.map(withFreshness), schedule };
+}
+
+function withFreshness(report: CollectionReport): CollectionReport {
+  return report.ok ? { ...report, snapshots: report.snapshots.map(withPolicyFreshness) } : report;
 }
