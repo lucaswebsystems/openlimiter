@@ -734,17 +734,34 @@ export async function writeSnapshotCache(
   });
 }
 
+/** One account's weekly set a successful poll read in full, and when. */
+export interface WeeklySet {
+  readonly provider: ProviderCode;
+  readonly accountId: string | undefined;
+  readonly observedAt: string;
+}
+
 /** Poll owned rows live apart from the statusline cache so legacy runtimes can
- * never overwrite a weekly usage value. */
+ * never overwrite a weekly usage value.
+ *
+ * With a weekly set, the account's weeklies the poll did not report and
+ * observed no later than it are removed first, so a bucket the endpoint stops
+ * reporting leaves; another account and a newer observation stay. Rust twin:
+ * cache_write.rs replace_authoritative_rows. */
 export async function mergeAuthoritativeSnapshotCache(
   incoming: readonly Snapshot[],
   directory = resolveStateDirectory(),
   now?: string,
+  weeklySet?: WeeklySet,
 ): Promise<Snapshot[]> {
   rejectOutOfBounds(incoming);
   return withStateLock(directory, async () => {
     const cached = await readCacheState(directory, AUTHORITATIVE_CACHE_FILE_NAME);
-    const existing = cached.ok ? cached.state.snapshots : [];
+    const reported = new Set(incoming.map(snapshotIdentity));
+    const existing = (cached.ok ? cached.state.snapshots : []).filter((row) => weeklySet === undefined ||
+      !(row.provider === weeklySet.provider && row.accountId === weeklySet.accountId &&
+        row.meter.startsWith("SEVEN_DAY") && !reported.has(snapshotIdentity(row)) &&
+        Date.parse(row.observedAt) <= Date.parse(weeklySet.observedAt)));
     const byIdentity = new Map(existing.map((row) => [snapshotIdentity(row), row]));
     for (const row of incoming) {
       const previous = byIdentity.get(snapshotIdentity(row));

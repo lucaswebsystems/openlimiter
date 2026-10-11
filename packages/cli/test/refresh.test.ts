@@ -542,6 +542,30 @@ describe("the Claude poll switch", () => {
     expect(usage?.headers["anthropic-beta"]).toBe("oauth-2025-04-20");
   });
 
+  /* Hotfix 2.1.5, change E: a weekly Anthropic stops reporting disappears. */
+  it("drops a weekly the next successful poll no longer reports", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    await runCli(["config", "set", "providers.claude.poll", "true"], dependencies(state, home, recordingTransport().transport));
+    await runCli(["refresh"], dependencies(state, home, recordingTransport().transport));
+    const weeklies = async () => {
+      const cached = await readSnapshotCache(state);
+      return (cached.ok ? cached.snapshots : []).filter((row) => row.provider === "CLAUDE" && row.meter.startsWith("SEVEN_DAY"))
+        .map((row) => row.meter).sort();
+    };
+    expect(await weeklies()).toEqual(["SEVEN_DAY", "SEVEN_DAY_FABLE"]);
+    const later = "2026-01-01T00:06:00.000Z";
+    const withoutFable = recordingTransport(later, {
+      claude_usage: {
+        five_hour: { utilization: 23.5, resets_at: "2026-01-01T05:00:00.000Z" },
+        seven_day: { utilization: 41.2, resets_at: "2026-01-08T00:00:00.000Z" }
+      }
+    });
+    await runCli(["refresh"], dependencies(state, home, withoutFable.transport, later));
+    expect(withoutFable.sent.some((request) => request.endpoint === "claude_usage")).toBe(true);
+    expect(await weeklies()).toEqual(["SEVEN_DAY"]);
+  });
+
   it("polls successfully when the response has no model scoped results", async () => {
     const state = await temporaryDirectory("openlimiter-state-");
     const home = await machineWithLogins();

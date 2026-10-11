@@ -1006,8 +1006,11 @@ async function refreshCommand(
       try {
         const pollRows = report.snapshots.filter((row) =>
           row.provider === "CLAUDE" && row.meter.startsWith("SEVEN_DAY"));
-        if (pollRows.length > 0) {
-          await mergeAuthoritativeSnapshotCache(pollRows, dependencies.stateDirectory, now);
+        /* A successful Claude poll read the account's whole weekly set, so a
+           weekly it no longer reports leaves the store too. */
+        if (report.provider === "CLAUDE") {
+          await mergeAuthoritativeSnapshotCache(pollRows, dependencies.stateDirectory, now,
+            { provider: "CLAUDE", accountId: report.accountId, observedAt: report.observedAt });
         }
         await mergeAcquiredSnapshots({
           ...report,

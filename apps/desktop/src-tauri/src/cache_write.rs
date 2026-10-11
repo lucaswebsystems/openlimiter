@@ -121,8 +121,13 @@ struct PendingWrite {
     token: String,
 }
 
+/// One account's weekly set a successful poll read in full: the provider,
+/// the account and the instant the poll observed.
+pub(crate) type WeeklySet<'a> = (&'a str, Option<&'a str>, u64);
+
 enum AuthoritativeMutation<'a> {
     Rows(&'a [crate::native_snapshot::Snapshot], bool),
+    WeeklySet(&'a [crate::native_snapshot::Snapshot], WeeklySet<'a>),
     RemoveWeekly {
         provider: &'a str,
         account: Option<&'a str>,
@@ -287,9 +292,15 @@ fn release_session(lock_path: &Path, session: PendingWrite) {
 }
 
 impl CacheWriter {
+    /// Upsert `incoming`, newer or equal observation wins. With a weekly
+    /// set, the account's weeklies the poll did not report and observed no
+    /// later than it are removed first, so a bucket the endpoint stops
+    /// reporting leaves; another account and a newer observation stay.
+    /// TypeScript twin: `mergeAuthoritativeSnapshotCache`.
     fn replace_authoritative_rows(
         directory: &Path,
         incoming: &[crate::native_snapshot::Snapshot],
+        set: Option<WeeklySet<'_>>,
     ) -> Result<(), CacheWriteError> {
         let file = directory.join(AUTHORITATIVE_CACHE_FILE_NAME);
         fsx::reject_symlink(&file)?;
@@ -300,15 +311,34 @@ impl CacheWriter {
             .get_mut("snapshots")
             .and_then(serde_json::Value::as_array_mut)
             .ok_or(CacheWriteError::NotJson)?;
+        let identity = |row: &serde_json::Value| {
+            (
+                row.get("provider").and_then(serde_json::Value::as_str).unwrap_or("").to_owned(),
+                row.get("meter").and_then(serde_json::Value::as_str).unwrap_or("").to_owned(),
+                row.get("accountId").and_then(serde_json::Value::as_str).map(str::to_owned),
+            )
+        };
+        if let Some((provider, account, observed)) = set {
+            let reported = incoming
+                .iter()
+                .map(|row| (row.provider.clone(), row.meter.clone(), row.account_id.clone()))
+                .collect::<Vec<_>>();
+            rows.retain(|row| {
+                let (row_provider, meter, row_account) = identity(row);
+                let older = row
+                    .get("observedAt")
+                    .and_then(serde_json::Value::as_str)
+                    .and_then(crate::native_time::epoch_ms_from_rfc3339)
+                    .is_some_and(|at| at <= observed);
+                !(row_provider == provider
+                    && row_account.as_deref() == account
+                    && meter.starts_with("SEVEN_DAY")
+                    && older
+                    && !reported.contains(&(row_provider.clone(), meter.clone(), row_account.clone())))
+            });
+        }
         for snapshot in incoming {
             let value = serde_json::to_value(snapshot).map_err(|_| CacheWriteError::Io)?;
-            let identity = |row: &serde_json::Value| {
-                (
-                    row.get("provider").and_then(serde_json::Value::as_str).unwrap_or("").to_owned(),
-                    row.get("meter").and_then(serde_json::Value::as_str).unwrap_or("").to_owned(),
-                    row.get("accountId").and_then(serde_json::Value::as_str).map(str::to_owned),
-                )
-            };
             let key = identity(&value);
             if let Some(existing) = rows.iter_mut().find(|row| identity(row) == key) {
                 let old = existing.get("observedAt").and_then(serde_json::Value::as_str).unwrap_or("");
@@ -492,6 +522,22 @@ impl CacheWriter {
         )
     }
 
+    /// Commit a successful read and replace the account's weekly set.
+    pub(crate) fn commit_with_weekly_set(
+        &self,
+        text: &str,
+        authoritative: &[crate::native_snapshot::Snapshot],
+        set: WeeklySet<'_>,
+        generation: u64,
+    ) -> Result<(), CacheWriteError> {
+        self.commit_parts(
+            text,
+            generation,
+            Some(AuthoritativeMutation::WeeklySet(authoritative, set)),
+            || {},
+        )
+    }
+
     pub(crate) fn commit_with_authoritative_replacement(
         &self,
         text: &str,
@@ -594,8 +640,11 @@ impl CacheWriter {
                             let document = serde_json::json!({ "version": 3, "snapshots": rows });
                             fsx::atomic_write(&file, &document.to_string())?;
                         } else {
-                            Self::replace_authoritative_rows(directory, rows)?;
+                            Self::replace_authoritative_rows(directory, rows, None)?;
                         }
+                    }
+                    AuthoritativeMutation::WeeklySet(rows, set) => {
+                        Self::replace_authoritative_rows(directory, rows, Some(set))?;
                     }
                     AuthoritativeMutation::RemoveWeekly { provider, account } => {
                         let rows = Self::authoritative_rows_without(directory, provider, account)?;

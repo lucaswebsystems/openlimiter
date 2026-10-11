@@ -745,6 +745,23 @@ pub fn write_report(
         ),
         _ => report.clone(),
     };
+    /* A successful Claude poll read the account's whole weekly set, so a
+    weekly it no longer reports leaves the store (hotfix 2.1.5). */
+    let weekly_set = match &report {
+        CacheReport::Success(rows) if provider == "CLAUDE" => rows
+            .iter()
+            .filter(|row| {
+                row.provenance
+                    .as_ref()
+                    .and_then(|value| value.get("sourceKind"))
+                    .and_then(serde_json::Value::as_str)
+                    != Some("statusline_payload")
+            })
+            .filter_map(|row| epoch_ms_from_rfc3339(&row.observed_at))
+            .max()
+            .map(|observed| (provider, account_id, observed)),
+        _ => None,
+    };
     for round in 0..2 {
         let begun = writer.begin()?;
         let text = match fold(begun.text.as_deref(), provider, account_id, &main_report) {
@@ -754,7 +771,11 @@ pub fn write_report(
                 return Err(error);
             }
         };
-        match writer.commit_with_authoritative(&text, &authoritative, begun.generation) {
+        let committed = match weekly_set {
+            Some(set) => writer.commit_with_weekly_set(&text, &authoritative, set, begun.generation),
+            None => writer.commit_with_authoritative(&text, &authoritative, begun.generation),
+        };
+        match committed {
             Ok(()) => return Ok(()),
             Err(CacheWriteError::Busy | CacheWriteError::StaleGeneration) if round == 0 => {}
             Err(error) => return Err(error),
@@ -1165,6 +1186,64 @@ mod tests {
         assert_eq!(document["snapshots"].as_array().map(Vec::len), Some(0));
         assert_eq!(document["suppressions"].as_array().map(Vec::len), Some(1));
         assert!(!drifted.contains("\"value\":0"));
+    }
+
+    /// Hotfix 2.1.5, change E. A successful Claude poll replaces that
+    /// account's complete weekly set in the authoritative store: a weekly the
+    /// poll no longer reports leaves, while another account and a newer
+    /// observation stay. TypeScript twin: cache.test.ts, "a successful poll
+    /// replaces the account weekly set".
+    #[test]
+    fn a_successful_claude_poll_replaces_the_accounts_weekly_set() {
+        let dir = crate::test_support::TempDir::new();
+        let writer = CacheWriter::at(Some(dir.path().to_path_buf()));
+        let now = epoch_ms_from_rfc3339("2026-08-19T10:40:00.000Z").expect("fixture clock");
+        let poll = |account: &str, at: u64, weekly: u32, fable: Option<u32>| {
+            let fable = fable.map_or(String::new(), |value| {
+                format!(r#","seven_day_fable":{{"utilization":{value},"resets_at":"2026-08-24T12:00:00Z"}}"#)
+            });
+            let body = format!(r#"{{"seven_day":{{"utilization":{weekly},"resets_at":"2026-08-24T12:00:00Z"}}{fable}}}"#);
+            write_report(
+                &writer,
+                "CLAUDE",
+                Some(account),
+                CacheReport::Success(crate::claude_oauth::parse_usage(&body, at, account).expect("usage")),
+            )
+            .expect("committed");
+        };
+        let stored = || {
+            let text = std::fs::read_to_string(dir.path().join(crate::cache_write::AUTHORITATIVE_CACHE_FILE_NAME))
+                .expect("authoritative store");
+            let document: Value = serde_json::from_str(&text).expect("document");
+            let mut rows: Vec<String> = document["snapshots"]
+                .as_array()
+                .expect("rows")
+                .iter()
+                .map(|row| format!("{} {} {}", row["meter"].as_str().unwrap(), row["accountId"].as_str().unwrap(), row["value"]))
+                .collect();
+            rows.sort();
+            rows
+        };
+        poll("account-a", now, 41, Some(77));
+        poll("account-b", now, 12, Some(30));
+        poll("account-a", now + 300_000, 44, None);
+        assert_eq!(
+            stored(),
+            ["SEVEN_DAY account-a 44.0", "SEVEN_DAY account-b 12.0", "SEVEN_DAY_FABLE account-b 30.0"]
+        );
+        /* The other process read Fable again at ten minutes; a response this
+        process sent at nine and wrote late cannot remove or overwrite it. */
+        poll("account-a", now + 600_000, 50, Some(80));
+        poll("account-a", now + 540_000, 46, None);
+        assert_eq!(
+            stored(),
+            [
+                "SEVEN_DAY account-a 50.0",
+                "SEVEN_DAY account-b 12.0",
+                "SEVEN_DAY_FABLE account-a 80.0",
+                "SEVEN_DAY_FABLE account-b 30.0"
+            ]
+        );
     }
 
     /// Every row this process writes says so, and one line does it.
