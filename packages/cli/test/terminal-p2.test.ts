@@ -616,3 +616,87 @@ describe("P2 configuration overrides", () => {
     expect(await readFile(inactive, "utf8")).toBe(layouts[host].original);
   }, 20_000);
 });
+
+/*
+ * Claude Code reruns a status line on its own only when the statusLine object
+ * sets refreshInterval, in seconds; without it an idle window keeps its last
+ * render (2.1.6, D). 60 is the collector's own tick.
+ */
+describe("2.1.6 D an idle Claude Code keeps polling", () => {
+  async function claudeSettings(home: string, text: string): Promise<string> {
+    const file = path.join(home, ".claude", "settings.json");
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, text);
+    return file;
+  }
+  const statusLineOf = async (file: string) => JSON.parse(await readFile(file, "utf8")).statusLine;
+
+  it("install adds refreshInterval 60 when the status line has none, wrapped or not", async () => {
+    for (const wrap of [false, true]) {
+      const home = await scratch();
+      const file = await claudeSettings(home, '{"statusLine":{"type":"command","command":"echo hi","padding":2},"theme":"dark"}\n');
+      const result = await installHost("claude", { ...context(home), wrap });
+      expect(result.ok).toBe(true);
+      expect(result.message).not.toContain("seconds");
+      const statusLine = await statusLineOf(file);
+      expect(statusLine).toMatchObject({ type: "command", padding: 2, refreshInterval: 60 });
+      expect(statusLine.command.includes(" --wrap ")).toBe(wrap);
+    }
+    const empty = await scratch();
+    expect((await installHost("claude", context(empty))).ok).toBe(true);
+    expect((await statusLineOf(path.join(empty, ".claude", "settings.json"))).refreshInterval).toBe(60);
+  }, 30_000);
+
+  it("install keeps a person's own interval and says once when it is slower than a minute", async () => {
+    const home = await scratch(), file = await seed(home, "claude");
+    const fast = await installHost("claude", context(home));
+    expect((await statusLineOf(file)).refreshInterval).toBe(9);
+    expect(fast.message).not.toContain("seconds");
+    const slowHome = await scratch();
+    const slowFile = await claudeSettings(slowHome, '{"statusLine":{"type":"command","command":"echo hi","refreshInterval":600}}\n');
+    const slow = await installHost("claude", context(slowHome));
+    expect((await statusLineOf(slowFile)).refreshInterval).toBe(600);
+    expect(slow.message.split("\n").filter((line) => line.includes("600 seconds"))).toHaveLength(1);
+  }, 30_000);
+
+  it("only Claude gains the interval", async () => {
+    const home = await scratch(), file = await seed(home, "antigravity");
+    expect((await installHost("antigravity", context(home))).ok).toBe(true);
+    expect((await statusLineOf(file)).refreshInterval).toBeUndefined();
+  }, 20_000);
+
+  it("setup on a wired Claude adds the interval, leaves the command untouched, and uninstall still restores", async () => {
+    const home = await scratch();
+    const stateDirectory = path.join(home, "state");
+    const original = '{"statusLine":{"type":"command","command":"echo hi"},"theme":"dark"}\n';
+    const file = await claudeSettings(home, original);
+    const ctx = { ...context(home), stateDirectory };
+    expect((await installHost("claude", ctx)).ok).toBe(true);
+    /* What 2.1.5 left: the same wired line, no refreshInterval, and a backup
+       that still matches the file. */
+    const written = JSON.parse(await readFile(file, "utf8"));
+    delete written.statusLine.refreshInterval;
+    const before = JSON.stringify(written, null, 2) + "\n";
+    await writeFile(file, before);
+    const backupFile = file + ".openlimiter-backup.json";
+    await writeFile(backupFile, JSON.stringify({ ...JSON.parse(await readFile(backupFile, "utf8")), installed: before }));
+    const dependencies = { homeDirectory: home, stateDirectory, platform: process.platform, environment: { PATH: "", Path: "" } };
+
+    const setup = await runCli(["setup"], dependencies);
+    const after = await statusLineOf(file);
+    expect(after.command).toBe(written.statusLine.command);
+    expect(after.refreshInterval).toBe(60);
+    expect(setup.stdout).toContain("claude: already wired, status line runtime updated");
+    expect((await runCli(["setup"], dependencies)).stdout).not.toContain("seconds while idle");
+
+    /* A person's slower interval stays, and setup says so once. */
+    const slow = JSON.stringify({ ...JSON.parse(await readFile(file, "utf8")), statusLine: { ...after, refreshInterval: 600 } }, null, 2) + "\n";
+    await writeFile(file, slow);
+    const told = await runCli(["setup"], dependencies);
+    expect(told.stdout.split("\n").filter((line) => line.includes("600 seconds"))).toHaveLength(1);
+    expect(await readFile(file, "utf8")).toBe(slow);
+
+    expect((await uninstallHost("claude", ctx)).ok).toBe(true);
+    expect(JSON.parse(await readFile(file, "utf8"))).toEqual(JSON.parse(original));
+  }, 60_000);
+});

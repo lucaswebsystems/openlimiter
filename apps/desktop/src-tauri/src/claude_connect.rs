@@ -678,15 +678,15 @@ pub fn unavailable_preflight() -> ClaudePreflightVerdict {
 }
 
 #[derive(Clone)]
-#[cfg(test)]
 struct MemberSpan {
     key: String,
+    /* Read only by the test writer's member removal. */
+    #[cfg_attr(not(test), allow(dead_code))]
     key_start: usize,
     value_start: usize,
     value_end: usize,
 }
 
-#[cfg(test)]
 struct ObjectLayout {
     open: usize,
     members: Vec<MemberSpan>,
@@ -704,7 +704,6 @@ struct ArrayLayout {
     elements: Vec<ValueSpan>,
 }
 
-#[cfg(test)]
 fn skip_space(bytes: &[u8], mut at: usize) -> usize {
     while at < bytes.len() && bytes[at].is_ascii_whitespace() {
         at += 1;
@@ -712,7 +711,6 @@ fn skip_space(bytes: &[u8], mut at: usize) -> usize {
     at
 }
 
-#[cfg(test)]
 fn string_end(bytes: &[u8], start: usize) -> Option<usize> {
     if bytes.get(start) != Some(&b'"') {
         return None;
@@ -731,7 +729,6 @@ fn string_end(bytes: &[u8], start: usize) -> Option<usize> {
     None
 }
 
-#[cfg(test)]
 fn compound_end(bytes: &[u8], start: usize) -> Option<usize> {
     let expected = match bytes.get(start)? {
         b'{' => b'}',
@@ -766,7 +763,6 @@ fn compound_end(bytes: &[u8], start: usize) -> Option<usize> {
     None
 }
 
-#[cfg(test)]
 fn value_end(bytes: &[u8], start: usize) -> Option<usize> {
     match bytes.get(start)? {
         b'"' => string_end(bytes, start),
@@ -784,7 +780,6 @@ fn value_end(bytes: &[u8], start: usize) -> Option<usize> {
     }
 }
 
-#[cfg(test)]
 fn object_layout(text: &str, start: usize) -> Option<ObjectLayout> {
     let bytes = text.as_bytes();
     let open = skip_space(bytes, start);
@@ -849,7 +844,6 @@ fn array_layout(text: &str, start: usize) -> Option<ArrayLayout> {
     }
 }
 
-#[cfg(test)]
 fn set_object_member(text: &str, object_start: usize, key: &str, value: &str) -> Option<String> {
     let layout = object_layout(text, object_start)?;
     if let Some(member) = layout.members.iter().find(|member| member.key == key) {
@@ -1426,6 +1420,116 @@ fn disconnect_in(
     Ok(next.1)
 }
 
+/// What the startup migration did to Claude Code's settings (2.1.6).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RefreshMigration {
+    Added,
+    Unchanged,
+    Skipped,
+}
+
+pub(crate) fn add_refresh_interval_in_home(home: &Path) -> RefreshMigration {
+    add_refresh_interval_with(home, || {})
+}
+
+/// The installer's Claude line ends with its host, and with the `--wrap` it
+/// appends last; shell text that merely mentions OpenLimiter does not.
+static INSTALLER_CLAUDE_TAIL: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\sstatusline\s+--host\s+claude(?:\s+--wrap\s+[A-Za-z0-9_-]+)?\s*$")
+        .expect("constant status line pattern")
+});
+
+/// The quoted command form this desktop writes, wrapped or not.
+static DESKTOP_STATUS_LINE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"(?i)^"[^"]*[\\/]openlimiter(?:\.cjs|\.cmd|\.exe|\.sh|\.ps1)?" statusline(?: --wrap [A-Za-z0-9_-]+)?$"#,
+    )
+    .expect("constant status line pattern")
+});
+
+/// Whether Claude Code's status line is one OpenLimiter wrote, decided by the
+/// command forms it writes (the installer's launcher line, wrapped or not,
+/// this desktop's quoted form and the legacy words), whatever other keys the
+/// object holds.
+fn owned_status_line(value: &serde_json::Value) -> bool {
+    let Some(object) = value.as_object() else {
+        return false;
+    };
+    if object.get("type").and_then(serde_json::Value::as_str) != Some("command") {
+        return false;
+    }
+    let Some(command) = object.get("command").and_then(serde_json::Value::as_str) else {
+        return false;
+    };
+    (INSTALLER_STATUS_LINE[0].is_match(command) && INSTALLER_CLAUDE_TAIL.is_match(command))
+        || DESKTOP_STATUS_LINE.is_match(command)
+        || legacy_owned_command(command, "statusline")
+}
+
+/// The settings text with refreshInterval added to an owned status line that
+/// has none, every other byte unchanged, or nothing to do.
+fn with_refresh_interval(text: &str) -> Option<String> {
+    let settings: serde_json::Value = serde_json::from_str(text).ok()?;
+    let status_line = settings.get("statusLine")?;
+    if !owned_status_line(status_line)
+        || status_line
+            .get("refreshInterval")
+            .is_some_and(|value| !value.is_null())
+    {
+        return None;
+    }
+    let root = object_layout(text, 0)?;
+    let mut members = root.members.iter().filter(|member| member.key == "statusLine");
+    let member = members.next()?;
+    if members.next().is_some() {
+        return None;
+    }
+    let updated = set_object_member(
+        text,
+        member.value_start,
+        "refreshInterval",
+        &CLAUDE_REFRESH_INTERVAL_SECONDS.to_string(),
+    )?;
+    serde_json::from_str::<serde_json::Value>(&updated).ok()?;
+    Some(updated)
+}
+
+/// Claude Code reruns a status line on its own only with refreshInterval set,
+/// so an idle window keeps its last render without it. Sixty seconds is the
+/// collector's own tick.
+const CLAUDE_REFRESH_INTERVAL_SECONDS: u64 = 60;
+
+/// At startup (2.1.6): an OpenLimiter status line written before 2.1.6 gains
+/// refreshInterval. Read, edit, then read again just before the replace;
+/// bytes that changed meanwhile (Claude Code saving) start the edit again
+/// from the new bytes, three times at most, else nothing until the next
+/// start. A missing, unreadable, foreign or already set line is left alone.
+fn add_refresh_interval_with(home: &Path, mut before_replace: impl FnMut()) -> RefreshMigration {
+    let directory = home.join(".claude");
+    let file = directory.join("settings.json");
+    if fsx::reject_symlink(&directory).is_err() {
+        return RefreshMigration::Unchanged;
+    }
+    for _ in 0..3 {
+        let Some(text) = fsx::bounded_read(&file) else {
+            return RefreshMigration::Unchanged;
+        };
+        let Some(updated) = with_refresh_interval(&text) else {
+            return RefreshMigration::Unchanged;
+        };
+        before_replace();
+        if fsx::bounded_read(&file).as_deref() != Some(text.as_str()) {
+            continue;
+        }
+        return if fsx::atomic_write(&file, &updated).is_ok() {
+            RefreshMigration::Added
+        } else {
+            RefreshMigration::Skipped
+        };
+    }
+    RefreshMigration::Skipped
+}
+
 #[cfg(test)]
 pub fn disconnect() -> Result<ClaudeDisconnectOutcome, ClaudeConnectError> {
     let home = crate::state::home().ok_or(ClaudeConnectError::Storage)?;
@@ -1437,6 +1541,128 @@ pub fn disconnect() -> Result<ClaudeDisconnectOutcome, ClaudeConnectError> {
 mod tests {
     use super::*;
     use crate::test_support::TempDir;
+
+    const INSTALLED_WINDOWS: &str = r#""C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "C:\Users\a\.openlimiter\terminal-launchers\0a1b\openlimiter.ps1" statusline --host claude"#;
+    const INSTALLED_POSIX_WRAPPED: &str =
+        "/bin/sh '/home/a/.openlimiter/terminal-launchers/0a1b/openlimiter.sh' statusline --host claude --wrap ZWNobyBoaQ";
+
+    fn settings_with(status_line: serde_json::Value) -> String {
+        serde_json::to_string_pretty(&serde_json::json!({
+            "theme": "dark",
+            "statusLine": status_line,
+            "openlimiter managed": true,
+            "permissions": { "allow": ["Bash(ls:*)"] }
+        }))
+        .expect("settings")
+            + "\n"
+    }
+
+    fn migrated(text: &str) -> (RefreshMigration, String) {
+        let dir = TempDir::new();
+        let file = write_settings(&dir, text);
+        let outcome = add_refresh_interval_in_home(dir.path());
+        (outcome, std::fs::read_to_string(file).expect("settings"))
+    }
+
+    #[test]
+    fn an_owned_status_line_without_an_interval_gains_one_and_no_other_byte_changes() {
+        for command in [INSTALLED_WINDOWS, INSTALLED_POSIX_WRAPPED, "openlimiter statusline"] {
+            let before = settings_with(serde_json::json!({
+                "type": "command",
+                "command": command,
+                "padding": 0
+            }));
+            let (outcome, after) = migrated(&before);
+            assert_eq!(outcome, RefreshMigration::Added, "{command}");
+            let value: serde_json::Value = serde_json::from_str(&after).expect("still JSON");
+            assert_eq!(value["statusLine"]["refreshInterval"], 60, "{command}");
+            assert_eq!(after.replacen(",\"refreshInterval\":60", "", 1), before, "{command}");
+        }
+    }
+
+    #[test]
+    fn the_migration_is_idempotent_and_keeps_a_person_s_own_interval() {
+        let dir = TempDir::new();
+        let file = write_settings(
+            &dir,
+            &settings_with(serde_json::json!({ "type": "command", "command": INSTALLED_WINDOWS })),
+        );
+        assert_eq!(add_refresh_interval_in_home(dir.path()), RefreshMigration::Added);
+        let once = std::fs::read_to_string(&file).expect("once");
+        assert_eq!(add_refresh_interval_in_home(dir.path()), RefreshMigration::Unchanged);
+        assert_eq!(std::fs::read_to_string(&file).expect("twice"), once);
+        let own = settings_with(serde_json::json!({
+            "type": "command",
+            "command": INSTALLED_WINDOWS,
+            "refreshInterval": 600
+        }));
+        assert_eq!(migrated(&own), (RefreshMigration::Unchanged, own.clone()));
+    }
+
+    #[test]
+    fn a_status_line_that_is_not_ours_is_never_touched() {
+        for command in [
+            "my-own-statusline",
+            /* Shell text mentioning OpenLimiter is not an OpenLimiter line. */
+            "bash -c 'openlimiter statusline --host claude | tee /tmp/line'",
+            "openlimiter statusline --host antigravity",
+        ] {
+            let before = settings_with(serde_json::json!({ "type": "command", "command": command }));
+            assert_eq!(migrated(&before), (RefreshMigration::Unchanged, before.clone()), "{command}");
+        }
+        for text in ["{}", "not json", r#"{"statusLine":"openlimiter statusline"}"#] {
+            assert_eq!(migrated(text), (RefreshMigration::Unchanged, text.to_string()), "{text}");
+        }
+        let dir = TempDir::new();
+        assert_eq!(add_refresh_interval_in_home(dir.path()), RefreshMigration::Unchanged);
+        assert!(!dir.path().join(".claude").exists());
+    }
+
+    #[test]
+    fn a_concurrent_save_is_kept_and_the_edit_starts_again_from_its_bytes() {
+        let dir = TempDir::new();
+        let file = write_settings(
+            &dir,
+            &settings_with(serde_json::json!({ "type": "command", "command": INSTALLED_WINDOWS })),
+        );
+        /* Claude Code saves a setting between the read and the replace, once. */
+        let mut saves = 0;
+        let outcome = add_refresh_interval_with(dir.path(), || {
+            if saves == 0 {
+                let text = std::fs::read_to_string(&file).expect("read");
+                std::fs::write(&file, text.replacen("\"theme\": \"dark\"", "\"theme\": \"light\"", 1))
+                    .expect("save");
+            }
+            saves += 1;
+        });
+        assert_eq!(outcome, RefreshMigration::Added);
+        let value: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&file).expect("after")).expect("json");
+        assert_eq!(value["theme"], "light");
+        assert_eq!(value["statusLine"]["refreshInterval"], 60);
+        assert_eq!(saves, 2);
+    }
+
+    #[test]
+    fn a_file_that_keeps_changing_is_left_alone_after_three_tries() {
+        let dir = TempDir::new();
+        let file = write_settings(
+            &dir,
+            &settings_with(serde_json::json!({ "type": "command", "command": INSTALLED_WINDOWS })),
+        );
+        let mut saves = 0;
+        let outcome = add_refresh_interval_with(dir.path(), || {
+            saves += 1;
+            let text = std::fs::read_to_string(&file).expect("read");
+            std::fs::write(&file, text.replacen("\"dark", &format!("\"dark{saves}"), 1)).expect("save");
+        });
+        assert_eq!(outcome, RefreshMigration::Skipped);
+        assert_eq!(saves, 3);
+        let value: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&file).expect("after")).expect("json");
+        assert!(value["statusLine"].get("refreshInterval").is_none());
+        assert_eq!(value["theme"], "dark321");
+    }
 
     const SETTINGS_CANARY: &str = "settings-secret-canary-never-export-123456";
 

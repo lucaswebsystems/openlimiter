@@ -170,6 +170,7 @@ import { readApiSpend } from "./api-spend.js";
 import {
   TERMINAL_HOST_NAMES,
   installHost,
+  ensureClaudeRefreshInterval,
   repairAntigravityCommand,
   terminalHide,
   terminalShow,
@@ -2536,7 +2537,8 @@ async function setupShowBarsStep(dependencies: CliDependencies): Promise<string[
   for (const host of TERMINAL_HOST_NAMES) {
     if (host !== "codex" && await hostStatus(host, context) === "Wired") {
       await installLauncher(context.stateDirectory ?? path.join(context.homeDirectory, ".openlimiter"));
-      const repaired = host === "antigravity" ? await repairAntigravityCommand(context) : null;
+      const repaired = host === "antigravity" ? await repairAntigravityCommand(context)
+        : host === "claude" ? await ensureClaudeRefreshInterval(context) : null;
       const line = host + ": " + (repaired?.message ?? "already wired, status line runtime updated.");
       lines.push(line);
       dependencies.emit(line);

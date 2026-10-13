@@ -234,6 +234,31 @@ const HOST_CONFIG = {
 };
 const CODEX_ITEMS = ["five-hour-limit", "weekly-limit", "context-used", "model-with-reasoning", "current-dir"];
 
+/**
+ * Claude Code reruns a status line on its own only when the statusLine object
+ * sets refreshInterval, in seconds; without it an idle window keeps its last
+ * render until the next event. Sixty is the collector's own tick, inside the
+ * Claude freshness horizon. A person's own value is kept.
+ */
+export const CLAUDE_REFRESH_INTERVAL_SECONDS = 60;
+
+/** The one line install and setup print when a kept interval is slower. */
+function slowRefreshLine(statusLine: unknown): string {
+  const interval = statusLine !== null && typeof statusLine === "object"
+    ? (statusLine as Record<string, unknown>)["refreshInterval"]
+    : undefined;
+  return typeof interval === "number" && interval > CLAUDE_REFRESH_INTERVAL_SECONDS
+    ? `\nClaude Code reruns this status line every ${interval} seconds while idle, so an idle window can show an old number that long; ${CLAUDE_REFRESH_INTERVAL_SECONDS} or less keeps it current.`
+    : "";
+}
+
+/** The Claude statusLine with refreshInterval added when it has none. */
+function withClaudeRefresh(statusLine: Record<string, unknown>): Record<string, unknown> {
+  return statusLine["refreshInterval"] == null
+    ? { ...statusLine, refreshInterval: CLAUDE_REFRESH_INTERVAL_SECONDS }
+    : statusLine;
+}
+
 function fallbackLauncherOptions(context: TerminalHostContext): FallbackLauncherOptions {
   return context.launcherTimeoutMilliseconds === undefined
     ? {}
@@ -443,10 +468,12 @@ async function changeConfigHost(host: ConfigHost, context: TerminalHostContext, 
         (!context.wrap || userCommand === null ? "" : ` --wrap ${encodeWrappedStatuslineCommand(userCommand)}`);
       data["openlimiter managed"] = true;
       const previousLine = data["statusLine"];
-      data["statusLine"] = {
+      const statusLine = {
         ...(previousLine !== null && typeof previousLine === "object" && !Array.isArray(previousLine) ? previousLine : {}),
         type: "command", command
       };
+      data["statusLine"] = host === "claude" ? withClaudeRefresh(statusLine) : statusLine;
+      if (host === "claude") warning += slowRefreshLine(data["statusLine"]);
       updated = JSON.stringify(data, null, 2) + "\n";
       JSON.parse(updated);
     } else if (host === "codex") {
@@ -485,6 +512,39 @@ export const installGrok = (context: TerminalHostContext): Promise<TerminalOpera
 export const uninstallGrok = (context: TerminalHostContext): Promise<TerminalOperationResult> => changeConfigHost("grok", context, false);
 export const installCodex = (context: TerminalHostContext): Promise<TerminalOperationResult> => changeConfigHost("codex", context, true);
 export const uninstallCodex = (context: TerminalHostContext): Promise<TerminalOperationResult> => changeConfigHost("codex", context, false);
+
+/**
+ * Setup's step for a Claude Code status line that is already ours: adds
+ * refreshInterval when it has none, through the same owned write install
+ * uses, and changes nothing else, the command included. `null` when there is
+ * nothing to add and nothing to say.
+ */
+export async function ensureClaudeRefreshInterval(context: TerminalHostContext): Promise<TerminalOperationResult | null> {
+  const wired = "already wired, status line runtime updated";
+  let file: string;
+  try { file = await claudeSettingsPath(context); } catch { return null; }
+  try {
+    const original = await readOptional(file);
+    if (original === null || !statusLineIsOurs("claude", true, original)) return null;
+    const data = JSON.parse(original) as Record<string, unknown>;
+    const statusLine = data["statusLine"];
+    if (statusLine === null || typeof statusLine !== "object" || Array.isArray(statusLine)) return null;
+    const line = statusLine as Record<string, unknown>;
+    if (line["refreshInterval"] != null) {
+      const slow = slowRefreshLine(line);
+      return slow === "" ? null : { ok: true, message: wired + "." + slow };
+    }
+    data["statusLine"] = withClaudeRefresh(line);
+    const updated = JSON.stringify(data, null, 2) + "\n";
+    const ownership = await classifyInstallOwnership(file, original, ownedMarker(original, true), true);
+    if (ownership.kind === "replaced_by_other") return null;
+    if (ownership.kind === "drifted") await writeDriftedOwned(file, original, updated);
+    else await writeOwned(file, original, updated);
+    return { ok: true, message: `${wired}, and it now reruns every ${CLAUDE_REFRESH_INTERVAL_SECONDS} seconds while idle.` };
+  } catch (error) {
+    return { ok: false, message: `Could not update ${file}: ${error instanceof Error ? error.message : String(error)}` };
+  }
+}
 
 /**
  * Setup's repair for the quoted command 2.1.2 wrote for Antigravity on

@@ -352,6 +352,11 @@ pub fn run() {
                     use tauri::Emitter;
                     let _ = worker.emit(collector_runtime::COLLECTOR_UPDATED_EVENT, ());
                     startup_cleanup::run(&worker);
+                    /* An idle Claude Code reruns the status line only with
+                    refreshInterval set; one written before 2.1.6 gains it. */
+                    if let Some(home) = state::home() {
+                        let _ = claude_connect::add_refresh_interval_in_home(&home);
+                    }
                 })
                 .await;
                 collector_runtime::spawn_collector(startup.clone());
