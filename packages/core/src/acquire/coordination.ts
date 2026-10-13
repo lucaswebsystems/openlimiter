@@ -147,21 +147,42 @@ export type RefreshDecision =
   | { refresh: false; reason: "fresh" | "desktop_running" };
 
 /**
+ * Whether a row is a Claude weekly reading that a usage poll wrote.
+ *
+ * Claude Code rewrites the session row on every status line render, so that
+ * row says nothing about when the weeklies were last asked for. A weekly row
+ * a successful poll wrote is the only evidence of the last poll; a session
+ * payload weekly and an availability marker are not.
+ */
+export function isClaudeWeeklyPoll(row: Snapshot): boolean {
+  return row.provider === "CLAUDE" && row.meter.startsWith("SEVEN_DAY") &&
+    row.provenance?.sourceKind !== "statusline_payload" &&
+    row.availability === undefined;
+}
+
+/**
  * Whether this render should start a refresh behind itself.
  *
- * Three inputs and no side effects, so the whole policy is one testable
- * function rather than a condition spread across two commands.
+ * Four inputs and no side effects, so the whole policy is one testable
+ * function rather than a condition spread across two commands. When this tool
+ * polls Claude, Claude is due by its last weekly poll alone: a session row
+ * the status line keeps fresh must never hold the weeklies back, and no
+ * desktop row vetoes it either, because the shared lease and its persisted
+ * deadline, which both processes honour, decide who asks and when.
  */
 export function shouldStartRefresh(
   snapshots: readonly Snapshot[],
   now: string,
-  staleSeconds = CACHE_REFRESH_STALE_SECONDS
+  staleSeconds = CACHE_REFRESH_STALE_SECONDS,
+  claudePoll = false
 ): RefreshDecision {
   const providers = [...new Set(snapshots.map((row) => row.provider))];
   if (providers.length === 0) return { refresh: true };
   const decisions = providers.map((provider) => {
-    const rows = snapshots.filter((row) => row.provider === provider);
-    if (desktopHoldsCache(rows, now)) return "desktop_running";
+    const all = snapshots.filter((row) => row.provider === provider);
+    const leased = provider === "CLAUDE" && claudePoll;
+    const rows = leased ? all.filter(isClaudeWeeklyPoll) : all;
+    if (!leased && desktopHoldsCache(rows, now)) return "desktop_running";
     const age = cacheAgeSeconds(rows, now);
     return age !== null && age >= 0 && age <= staleSeconds ? "fresh" : "due";
   });
@@ -400,6 +421,8 @@ export interface SpawnRefreshOptions {
   readonly openLimiterScript: string;
   readonly spawn: DetachedSpawn;
   readonly staleSeconds?: number;
+  /** Whether this tool polls Claude, so Claude is due by its weekly poll. */
+  readonly claudePoll?: boolean;
 }
 
 export type SpawnRefreshResult =
@@ -424,7 +447,8 @@ export async function spawnDetachedRefresh(
   const decision = shouldStartRefresh(
     options.snapshots,
     options.now,
-    options.staleSeconds ?? CACHE_REFRESH_STALE_SECONDS
+    options.staleSeconds ?? CACHE_REFRESH_STALE_SECONDS,
+    options.claudePoll ?? false
   );
   if (!decision.refresh) return { spawned: false, reason: decision.reason };
   if (options.openLimiterScript === "") return { spawned: false, reason: "no_script" };

@@ -158,6 +158,15 @@ fn run_provider(provider: &str) {
             assert_eq!(row.labels.automation_risk, "low");
             assert_eq!(row.labels.verification, "VERIFIED_FIXTURES");
         }
+        /* Hotfix 2.1.5 fix 4: only a document that stated its whole weekly set
+        may replace the stored one. TypeScript twin: differential.test.ts. */
+        if provider == "claude" {
+            assert_eq!(
+                crate::claude_oauth::read_usage(&body, now, "synthetic-parity").weekly_complete,
+                answer["weeklyComplete"].as_bool().expect("weeklyComplete"),
+                "{id}: weekly set completeness"
+            );
+        }
         let actual = normalize(rows);
         assert!(divergences.trim().is_empty(), "{id}: stale divergence list");
         assert_json(&actual, &answer["expected"], &id);

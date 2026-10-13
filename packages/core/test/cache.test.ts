@@ -378,3 +378,45 @@ describe("snapshot cache", () => {
     await expect(writeSnapshotCache([snapshot()], directory)).rejects.toThrow();
   });
 });
+
+/*
+ * Hotfix 2.1.5, change E. A successful Claude poll replaces that account's
+ * complete weekly set in the authoritative store: a weekly the poll no longer
+ * reports leaves, while another account and a newer observation stay.
+ * Rust twin: native_snapshot.rs, a_successful_claude_poll_replaces_the_accounts_weekly_set.
+ */
+describe("a successful poll replaces the account weekly set", () => {
+  const T0 = "2026-01-01T00:00:00.000Z";
+  const T1 = "2026-01-01T00:05:00.000Z";
+  const T2 = "2026-01-01T00:10:00.000Z";
+  const weekly = (meter: string, accountId: string, observedAt: string, value = 40) => snapshot({
+    meter, accountId, value, observedAt, expiresAt: "2026-01-01T01:00:00.000Z", resetAt: "2026-01-05T00:00:00.000Z",
+    window: { kind: "rolling", durationSeconds: 604_800 }, source: "internal_payload",
+    provenance: { sourceKind: "remote_api", observedVia: "remote_http" }
+  });
+  const shape = (rows: readonly { meter: string; accountId?: string; value: number }[]) =>
+    rows.map((row) => [row.meter, row.accountId, row.value].join(" ")).sort();
+
+  it("drops a weekly the poll no longer reports, for that account only", async () => {
+    const directory = await temporaryDirectory();
+    await mergeAuthoritativeSnapshotCache([weekly("SEVEN_DAY", "a", T0), weekly("SEVEN_DAY_FABLE", "a", T0), weekly("SEVEN_DAY_FABLE", "b", T0)], directory, T0);
+    const rows = await mergeAuthoritativeSnapshotCache([weekly("SEVEN_DAY", "a", T1, 44)], directory, T1,
+      { provider: "CLAUDE", accountId: "a", observedAt: T1 });
+    expect(shape(rows)).toEqual(["SEVEN_DAY a 44", "SEVEN_DAY_FABLE b 40"]);
+  });
+
+  it("an empty weekly set clears the account's older weeklies", async () => {
+    const directory = await temporaryDirectory();
+    await mergeAuthoritativeSnapshotCache([weekly("SEVEN_DAY", "a", T0), weekly("SEVEN_DAY", "b", T0)], directory, T0);
+    const rows = await mergeAuthoritativeSnapshotCache([], directory, T1, { provider: "CLAUDE", accountId: "a", observedAt: T1 });
+    expect(shape(rows)).toEqual(["SEVEN_DAY b 40"]);
+  });
+
+  it("a late response keeps every newer observation", async () => {
+    const directory = await temporaryDirectory();
+    await mergeAuthoritativeSnapshotCache([weekly("SEVEN_DAY", "a", T2, 50), weekly("SEVEN_DAY_FABLE", "a", T2, 77)], directory, T2);
+    const rows = await mergeAuthoritativeSnapshotCache([weekly("SEVEN_DAY", "a", T1, 44)], directory, T2,
+      { provider: "CLAUDE", accountId: "a", observedAt: T1 });
+    expect(shape(rows)).toEqual(["SEVEN_DAY a 50", "SEVEN_DAY_FABLE a 77"]);
+  });
+});

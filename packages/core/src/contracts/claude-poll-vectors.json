@@ -1,0 +1,269 @@
+{
+  "version": 1,
+  "scope": "Claude poll rules the desktop (Rust) and the command line tool (TypeScript) must apply identically. Both suites read this file.",
+  "revision": {
+    "rule": "A refusal names the credential that was actually sent: the lowercase hexadecimal SHA-256 of the access token. The shared lease file carries it as refusalRevision so either process releases the other's refusal after a rotation.",
+    "vectors": [
+      {
+        "id": "old-token",
+        "token": "synthetic-old-token",
+        "expected": "d953861809fb8f5a74ae8f546b7072db71433eb9df7005af6f0f3e142789db51"
+      },
+      {
+        "id": "new-token",
+        "token": "synthetic-new-token",
+        "expected": "495a82f2796e30291a1aa6e186d6759392e54f2b44afd1bbccffbbe8b89412dd"
+      }
+    ]
+  },
+  "schedule": {
+    "rule": "After a successful Claude read the next read is due at the earlier of five minutes and the next reset still ahead of that read. A reset at or before the read, or an unknown one, is ignored. A failure keeps its own backoff: a rate limit doubles from sixty seconds to a fifteen minute cap and honours Retry-After up to seven days; a refusal waits a day whatever Retry-After says. The desktop adds its own small jitter after the success deadline.",
+    "success": [
+      {
+        "id": "cadence-when-no-reset-is-near",
+        "now": "2026-10-11T10:00:00.000Z",
+        "resetAts": [
+          "2026-10-11T14:00:00.000Z",
+          "2026-10-15T04:00:00.000Z"
+        ],
+        "expected": "2026-10-11T10:05:00.000Z"
+      },
+      {
+        "id": "reset-before-the-cadence",
+        "now": "2026-10-11T03:58:00.000Z",
+        "resetAts": [
+          "2026-10-15T04:00:00.000Z",
+          "2026-10-11T04:00:00.000Z"
+        ],
+        "expected": "2026-10-11T04:00:00.000Z"
+      },
+      {
+        "id": "reset-exactly-at-the-cadence",
+        "now": "2026-10-11T03:55:00.000Z",
+        "resetAts": [
+          "2026-10-11T04:00:00.000Z"
+        ],
+        "expected": "2026-10-11T04:00:00.000Z"
+      },
+      {
+        "id": "reset-just-after-the-cadence",
+        "now": "2026-10-11T03:55:00.000Z",
+        "resetAts": [
+          "2026-10-11T04:00:00.001Z"
+        ],
+        "expected": "2026-10-11T04:00:00.000Z"
+      },
+      {
+        "id": "reset-one-millisecond-ahead",
+        "now": "2026-10-11T03:59:59.999Z",
+        "resetAts": [
+          "2026-10-11T04:00:00.000Z"
+        ],
+        "expected": "2026-10-11T04:00:00.000Z"
+      },
+      {
+        "id": "a-reset-at-or-before-the-read-is-ignored",
+        "now": "2026-10-11T04:00:00.000Z",
+        "resetAts": [
+          "2026-10-11T03:59:59.999Z",
+          "2026-10-11T04:00:00.000Z"
+        ],
+        "expected": "2026-10-11T04:05:00.000Z"
+      },
+      {
+        "id": "no-reset-stated",
+        "now": "2026-10-11T04:00:00.000Z",
+        "resetAts": [],
+        "expected": "2026-10-11T04:05:00.000Z"
+      },
+      {
+        "id": "an-unknown-reset-is-ignored",
+        "now": "2026-10-11T04:00:00.000Z",
+        "resetAts": [
+          null
+        ],
+        "expected": "2026-10-11T04:05:00.000Z"
+      }
+    ],
+    "failure": [
+      {
+        "id": "rate-limit-first",
+        "now": "2026-10-11T10:00:00.000Z",
+        "status": 429,
+        "attempts": 0,
+        "retryAfterSeconds": null,
+        "expected": "2026-10-11T10:01:00.000Z"
+      },
+      {
+        "id": "rate-limit-third-in-a-row",
+        "now": "2026-10-11T10:00:00.000Z",
+        "status": 429,
+        "attempts": 2,
+        "retryAfterSeconds": null,
+        "expected": "2026-10-11T10:04:00.000Z"
+      },
+      {
+        "id": "rate-limit-capped-at-fifteen-minutes",
+        "now": "2026-10-11T10:00:00.000Z",
+        "status": 429,
+        "attempts": 9,
+        "retryAfterSeconds": null,
+        "expected": "2026-10-11T10:15:00.000Z"
+      },
+      {
+        "id": "rate-limit-honours-retry-after",
+        "now": "2026-10-11T10:00:00.000Z",
+        "status": 429,
+        "attempts": 0,
+        "retryAfterSeconds": 7200,
+        "expected": "2026-10-11T12:00:00.000Z"
+      },
+      {
+        "id": "rate-limit-retry-after-capped-at-seven-days",
+        "now": "2026-10-11T10:00:00.000Z",
+        "status": 429,
+        "attempts": 0,
+        "retryAfterSeconds": 999999,
+        "expected": "2026-10-18T10:00:00.000Z"
+      },
+      {
+        "id": "refusal-waits-a-day-despite-retry-after",
+        "now": "2026-10-11T10:00:00.000Z",
+        "status": 401,
+        "attempts": 0,
+        "retryAfterSeconds": 7200,
+        "expected": "2026-10-12T10:00:00.000Z"
+      },
+      {
+        "id": "forbidden-waits-a-day",
+        "now": "2026-10-11T10:00:00.000Z",
+        "status": 403,
+        "attempts": 3,
+        "retryAfterSeconds": null,
+        "expected": "2026-10-12T10:00:00.000Z"
+      }
+    ]
+  },
+  "freshness": {
+    "rule": "A Claude reading a poll wrote, from the desktop or the command line, is fresh for 465 seconds: the five minute cadence, the desktop jitter of up to a fifth of it, one collector tick of sixty seconds that comes late, two requests of the whole fifteen second timeout (the reading is stamped when its request starts, and the next deadline counts from completion), and a fifteen second margin. Fresh while observedAt <= now < observedAt + 465 s. A status line payload and every other provider keep their own horizons.",
+    "vectors": [
+      {
+        "id": "desktop-worst-healthy-schedule",
+        "provider": "CLAUDE",
+        "writer": "desktop",
+        "sourceClass": "internal_payload",
+        "observedAt": "2026-10-11T10:00:00.000Z",
+        "now": "2026-10-11T10:07:44.999Z",
+        "expected": {
+          "ttlSeconds": 465,
+          "expiresAt": "2026-10-11T10:07:45.000Z",
+          "availability": "fresh"
+        }
+      },
+      {
+        "id": "desktop-one-horizon-old",
+        "provider": "CLAUDE",
+        "writer": "desktop",
+        "sourceClass": "internal_payload",
+        "observedAt": "2026-10-11T10:00:00.000Z",
+        "now": "2026-10-11T10:07:45.000Z",
+        "expected": {
+          "ttlSeconds": 465,
+          "expiresAt": "2026-10-11T10:07:45.000Z",
+          "availability": "stale"
+        }
+      },
+      {
+        "id": "cli-worst-healthy-schedule",
+        "provider": "CLAUDE",
+        "writer": "cli",
+        "sourceClass": "internal_payload",
+        "observedAt": "2026-10-11T10:00:00.000Z",
+        "now": "2026-10-11T10:07:44.999Z",
+        "expected": {
+          "ttlSeconds": 465,
+          "expiresAt": "2026-10-11T10:07:45.000Z",
+          "availability": "fresh"
+        }
+      },
+      {
+        "id": "cli-one-horizon-old",
+        "provider": "CLAUDE",
+        "writer": "cli",
+        "sourceClass": "internal_payload",
+        "observedAt": "2026-10-11T10:00:00.000Z",
+        "now": "2026-10-11T10:07:45.000Z",
+        "expected": {
+          "ttlSeconds": 465,
+          "expiresAt": "2026-10-11T10:07:45.000Z",
+          "availability": "stale"
+        }
+      },
+      {
+        "id": "unmarked-writer",
+        "provider": "CLAUDE",
+        "writer": "",
+        "sourceClass": "internal_payload",
+        "observedAt": "2026-10-11T10:00:00.000Z",
+        "now": "2026-10-11T10:07:44.999Z",
+        "expected": {
+          "ttlSeconds": 465,
+          "expiresAt": "2026-10-11T10:07:45.000Z",
+          "availability": "fresh"
+        }
+      },
+      {
+        "id": "eighteen-minutes-old",
+        "provider": "CLAUDE",
+        "writer": "desktop",
+        "sourceClass": "internal_payload",
+        "observedAt": "2026-10-11T10:00:00.000Z",
+        "now": "2026-10-11T10:18:00.000Z",
+        "expected": {
+          "ttlSeconds": 465,
+          "expiresAt": "2026-10-11T10:07:45.000Z",
+          "availability": "stale"
+        }
+      },
+      {
+        "id": "status-line-payload-unchanged",
+        "provider": "CLAUDE",
+        "writer": "",
+        "sourceClass": "native_payload",
+        "observedAt": "2026-10-11T10:00:00.000Z",
+        "now": "2026-10-11T10:02:11.999Z",
+        "expected": {
+          "ttlSeconds": 132,
+          "expiresAt": "2026-10-11T10:02:12.000Z",
+          "availability": "fresh"
+        }
+      },
+      {
+        "id": "codex-desktop-unchanged",
+        "provider": "CODEX",
+        "writer": "desktop",
+        "sourceClass": "internal_payload",
+        "observedAt": "2026-10-11T10:00:00.000Z",
+        "now": "2026-10-11T10:06:59.999Z",
+        "expected": {
+          "ttlSeconds": 420,
+          "expiresAt": "2026-10-11T10:07:00.000Z",
+          "availability": "fresh"
+        }
+      },
+      {
+        "id": "gemini-cli-unchanged",
+        "provider": "GEMINI_CLI",
+        "writer": "cli",
+        "sourceClass": "internal_payload",
+        "observedAt": "2026-10-11T10:00:00.000Z",
+        "now": "2026-10-11T10:18:59.999Z",
+        "expected": {
+          "ttlSeconds": 1140,
+          "expiresAt": "2026-10-11T10:19:00.000Z",
+          "availability": "fresh"
+        }
+      }
+    ]
+  }
+}

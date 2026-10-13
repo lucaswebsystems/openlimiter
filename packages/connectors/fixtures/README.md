@@ -79,6 +79,10 @@ Each reading contains exactly these fields:
 | currency, usedAmount, limitAmount | Stated amounts, or null for each absent field |
 | observedAt | The fixed case clock, normalized to UTC ISO with milliseconds |
 
+Claude expected files also carry `weeklyComplete`: whether the document stated
+its whole weekly set, which both suites check against `claudeWeeklySetComplete`
+and `read_usage`. Only a complete read may replace the stored weekly set.
+
 Readings sort by meter identifier. JSON integers and floats compare numerically
 in Rust. Absent fields become null; the projection never infers durations,
 percentages, money, availability, or resets. This is a parser comparison, before

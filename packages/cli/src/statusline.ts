@@ -10,6 +10,7 @@ import {
   providerMeterVisible,
   isSnapshotDisplayEligible,
   readAcquisitionSchedule,
+  resetPassed,
   readJsonFileSafely,
   type Advice,
   type ProviderCode,
@@ -219,6 +220,16 @@ export interface StatuslineCell {
 /** Two spaces between cells, so a reader can tell one cell from the next. */
 export const CELL_GAP = "  ";
 
+/**
+ * The tilde in front of a value. An estimate always carries it. A reading
+ * that could not be refreshed carries it only where the line draws without
+ * colour, exactly as 2.1.4 drew it, because grey cannot say it there; with
+ * colour it is grey instead (hotfix 2.1.5 fix 6).
+ */
+function staleTilde(estimated: boolean, stale: boolean, color: boolean): string {
+  return estimated || (stale && !color) ? "~" : "";
+}
+
 function buildCell(
   label: string,
   snapshot: Snapshot,
@@ -227,8 +238,9 @@ function buildCell(
   wide?: boolean,
   bars = true
 ): StatuslineCell {
-  // A stale reading carries the same marker the bar style draws.
-  const percent = (state === "stale" ? "~" : "") + Math.round(snapshot.value) + "%";
+  // The legacy styles mark no estimate. A reading that could not be refreshed
+  // is grey here as in the bars, or keeps its tilde where nothing is painted.
+  const percent = staleTilde(false, state === "stale", color && bars) + Math.round(snapshot.value) + "%";
   if (!bars) {
     const text = label + " " + percent;
     return { plain: text, painted: text, percent: snapshot.value };
@@ -241,7 +253,7 @@ function buildCell(
   };
 }
 
-function balanceCell(label: string, snapshot: Snapshot, stale: boolean): StatuslineCell {
+function balanceCell(label: string, snapshot: Snapshot, mark: string, stale: boolean, color: boolean): StatuslineCell {
   let value: string;
   if (
     snapshot.currency === "USD" &&
@@ -257,8 +269,9 @@ function balanceCell(label: string, snapshot: Snapshot, stale: boolean): Statusl
   } else {
     value = floorFixed(snapshot.value, 2) + " credits";
   }
-  const text = label + " " + (stale ? "~" : "") + value;
-  return { plain: text, painted: text, percent: Number.NEGATIVE_INFINITY };
+  const amount = mark + value;
+  const text = label + " " + amount;
+  return { plain: text, painted: color && stale ? label + " " + paintBand(amount, 0, "stale") : text, percent: Number.NEGATIVE_INFINITY };
 }
 
 interface Reading {
@@ -290,13 +303,15 @@ function readingsFor(
     return age <= ONE_DAY * 1000 ||
       (latestAccount.get(accountId) === newest && age <= RETENTION_MILLISECONDS);
   };
-  // Each reading keeps its own seven days, however recent its account is.
+  // Each reading keeps its own seven days, however recent its account is,
+  // and none outlives its window's reset, even when the next read failed.
   const readings = providerRows
     .filter((snapshot) => (snapshot.unit === "PERCENT" ||
       isBalanceSnapshot(snapshot) ||
       isAvailabilitySnapshot(snapshot)) &&
       shownAccount(snapshot.accountId) &&
-      Date.parse(now) - Date.parse(snapshot.observedAt) <= RETENTION_MILLISECONDS)
+      Date.parse(now) - Date.parse(snapshot.observedAt) <= RETENTION_MILLISECONDS &&
+      !resetPassed(snapshot, now))
     .map((snapshot) => ({
       snapshot,
       state: freshness(snapshot.observedAt, snapshot.expiresAt, now)
@@ -409,7 +424,7 @@ export function statuslineCells(
         }
         const meterTag = captionFor(reading.snapshot, hostProvider, captions, claudeFamilyCodesFor(reading.snapshot, snapshots));
         if (providerMeterPresentation(provider, reading.snapshot.meter)?.valueSemantics === "balance") {
-          cells.push(balanceCell(meterTag, reading.snapshot, reading.state === "stale"));
+          cells.push(balanceCell(meterTag, reading.snapshot, staleTilde(false, reading.state === "stale", color), reading.state === "stale", color));
           continue;
         }
         cells.push(buildCell(
@@ -430,7 +445,7 @@ export function statuslineCells(
         continue;
       }
       if (providerMeterPresentation(provider, worst.snapshot.meter)?.valueSemantics === "balance") {
-        cells.push(balanceCell(label, worst.snapshot, worst.state === "stale"));
+        cells.push(balanceCell(label, worst.snapshot, staleTilde(false, worst.state === "stale", color), worst.state === "stale", color));
         continue;
       }
       cells.push(buildCell(label, worst.snapshot, worst.state, color, wide, bars));
@@ -768,9 +783,12 @@ export function formatResetTime(resetAt: string | null | undefined, now: string)
 export function paintBand(
   text: string,
   value: number,
-  _state: "fresh" | "stale",
+  state: "fresh" | "stale",
   _wide = false
 ): string {
+  /* A reading that could not be refreshed never paints as live: it is grey,
+     whatever band its old value sat in. */
+  if (state === "stale") return "\x1b[90m" + text + "\x1b[0m";
   if (value >= 90) return "\x1b[31m" + text + "\x1b[0m";
   if (value >= 80) return "\x1b[38;5;208m" + text + "\x1b[0m";
   if (value >= 60) return "\x1b[33m" + text + "\x1b[0m";
@@ -821,8 +839,10 @@ export function barStyleCells(
 
     for (const reading of selectedReadings) {
       const { snapshot, state } = reading;
-      const ageSeconds = Math.max(0, Math.floor((Date.parse(now) - Date.parse(snapshot.observedAt)) / 1000));
-      const stale = state === "stale" || ageSeconds >= 180 || snapshot.precision === "estimated";
+      /* Age alone marks nothing. A reading that could not be refreshed is grey
+         with colour and keeps its tilde without; an estimate keeps its tilde. */
+      const mark = staleTilde(snapshot.precision === "estimated", state === "stale", color);
+      const grey = (text: string): string => color && state === "stale" ? paintBand(text, snapshot.value, "stale") : text;
 
       if (isAvailabilitySnapshot(snapshot)) {
         const tag = captionFor(snapshot, hostProvider, inputCaptions, claudeFamilyCodesFor(snapshot, snapshots));
@@ -836,42 +856,41 @@ export function barStyleCells(
       }
 
       if (isBalanceSnapshot(snapshot)) {
-        cells.push(balanceCell(captionFor(snapshot, hostProvider, inputCaptions, claudeFamilyCodesFor(snapshot, snapshots)), snapshot, stale));
+        cells.push(balanceCell(captionFor(snapshot, hostProvider, inputCaptions, claudeFamilyCodesFor(snapshot, snapshots)), snapshot, mark, state === "stale", color));
         continue;
       }
 
       if (provider === "OPENROUTER" && snapshot.meter === "KEY_LIMIT" &&
           snapshot.usedAmount !== undefined && snapshot.limitAmount !== undefined &&
           snapshot.currency === "USD") {
-        const amount = (stale ? "~" : "") + "$" + snapshot.usedAmount.toFixed(2) +
+        const amount = mark + "$" + snapshot.usedAmount.toFixed(2) +
           "/$" + snapshot.limitAmount.toFixed(2);
-        const plain = captionFor(snapshot, hostProvider, inputCaptions, claudeFamilyCodesFor(snapshot, snapshots)) + " " + amount;
-        cells.push({ plain, painted: plain, percent: snapshot.value });
+        const caption = captionFor(snapshot, hostProvider, inputCaptions, claudeFamilyCodesFor(snapshot, snapshots));
+        cells.push({ plain: caption + " " + amount, painted: caption + " " + grey(amount), percent: snapshot.value });
         continue;
       }
 
       if (snapshot.provider === "CLAUDE" && snapshot.meter === "EXTRA_USAGE" &&
           snapshot.usedAmount !== undefined && snapshot.limitAmount !== undefined &&
           snapshot.currency === "USD") {
-        const amount = (stale ? "~" : "") + "$" + snapshot.usedAmount.toFixed(2) +
+        const amount = mark + "$" + snapshot.usedAmount.toFixed(2) +
           "/$" + snapshot.limitAmount.toFixed(2);
         const tag = captionFor(snapshot, hostProvider, inputCaptions, claudeFamilyCodesFor(snapshot, snapshots));
-        const plain = tag + " " + amount;
-        cells.push({ plain, painted: plain, percent: snapshot.value });
+        cells.push({ plain: tag + " " + amount, painted: tag + " " + grey(amount), percent: snapshot.value });
         continue;
       }
 
       if (snapshot.usedAmount !== undefined && snapshot.currency === "USD") {
         const tag = captionFor(snapshot, hostProvider, inputCaptions, claudeFamilyCodesFor(snapshot, snapshots));
-        const plain = tag + " spend " + (stale ? "~" : "") + "$" + snapshot.usedAmount.toFixed(2);
-        cells.push({ plain, painted: plain, percent: snapshot.value });
+        const amount = mark + "$" + snapshot.usedAmount.toFixed(2);
+        cells.push({ plain: tag + " spend " + amount, painted: tag + " spend " + grey(amount), percent: snapshot.value });
         continue;
       }
 
       const tag = captionFor(snapshot, hostProvider, inputCaptions, claudeFamilyCodesFor(snapshot, snapshots));
 
       const bar = tenBlockBar(snapshot.value, unicode);
-      const percentStr = (stale ? "~" : "") + Math.round(snapshot.value) + "%";
+      const percentStr = mark + Math.round(snapshot.value) + "%";
       const resetStr = formatResetTime(snapshot.resetAt, now).replace("·", unicode ? "·" : ".");
 
       const label = tag;
@@ -881,8 +900,8 @@ export function barStyleCells(
 
       let painted = plain;
       if (color) {
-        const paintedBar = paintBand(bar, snapshot.value, stale ? "stale" : "fresh", wide);
-        const paintedPct = paintBand(percentStr, snapshot.value, stale ? "stale" : "fresh", wide);
+        const paintedBar = paintBand(bar, snapshot.value, state, wide);
+        const paintedPct = paintBand(percentStr, snapshot.value, state, wide);
         painted = resetStr !== ""
           ? label + " " + paintedBar + " " + paintedPct + " " + resetStr
           : label + " " + paintedBar + " " + paintedPct;
@@ -935,8 +954,8 @@ function renderBarStatusline(input: StatuslineLayoutInput): string {
   if (config.visibility?.["dir"] === true && session.dir) parts.push(session.dir);
   if (shown("ctx") && session.ctx !== undefined) parts.push("ctx " + Math.round(session.ctx) + "%");
   parts.push(...cells.map((cell) => cell.painted));
-  parts.push(...apiMoney.map((cell) => input.color && cell.band !== null
-    ? cell.prefix + paintBand(cell.amount, cell.band, "fresh")
+  parts.push(...apiMoney.map((cell) => input.color && (cell.stale || cell.band !== null)
+    ? cell.prefix + paintBand(cell.amount, cell.band ?? 0, cell.stale ? "stale" : "fresh")
     : cell.plain));
   if (shown("style") && session.style) parts.push(session.style);
   if (input.pollHint && shown("7d")) parts.push(input.pollHint);

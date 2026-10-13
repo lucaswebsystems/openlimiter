@@ -1,6 +1,7 @@
 import {
   RETENTION_MILLISECONDS,
   freshnessPolicy,
+  resetPassed,
   providerMeterPresentation,
   providerMeterVisible,
   type ProviderCode,
@@ -54,19 +55,23 @@ function providerExpiry(snapshot: Snapshot, now: string): string {
  * The shared stale rule, one reading at a time: fresh for its provider's
  * refresh horizon, never for a reset still ahead, then stale (flat grey with
  * its age) for the seven days the data rules hold a stale reading, then gone.
+ * A reading whose window already reset is gone at the reset.
  */
 function heldExpiry(snapshot: Snapshot, now: string): string | null {
   const age = Date.parse(now) - Date.parse(snapshot.observedAt);
-  return age >= 0 && age <= RETENTION_MILLISECONDS ? providerExpiry(snapshot, now) : null;
+  return age >= 0 && age <= RETENTION_MILLISECONDS && !resetPassed(snapshot, now)
+    ? providerExpiry(snapshot, now)
+    : null;
 }
 
 /**
  * The readings the web app may draw.
  *
  * Every reading follows the shared stale rule by `heldExpiry`, with the
- * provider poll policy as its refresh horizon: Codex is seven minutes,
- * Antigravity thirteen minutes, Claude and the conservative fallback nineteen
- * minutes. Every account with a reading in those seven days shows, as on the
+ * provider poll policy as its refresh horizon: Codex is seven minutes, Claude
+ * seven minutes and forty five seconds, Antigravity thirteen minutes and the
+ * conservative fallback nineteen minutes. Every account with a reading in
+ * those seven days shows, as on the
  * desktop, so a quiet second login stays beside a current one, stale. Legacy
  * default identities lose whenever an identified account for the same
  * provider exists.

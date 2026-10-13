@@ -18,7 +18,7 @@ use crate::provider_detection::DetectedProviderId;
 use crate::request_policy::{provider_interval_seconds, RequestPolicy, BLOCKED_PROVIDER_SECONDS};
 
 pub const COLLECTOR_UPDATED_EVENT: &str = "collector-updated";
-const COLLECTOR_INTERVAL_SECONDS: u64 = 60;
+pub(crate) const COLLECTOR_INTERVAL_SECONDS: u64 = 60;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct CollectorStatus {

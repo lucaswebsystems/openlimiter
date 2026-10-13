@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { normalizeMeters, type RawMeter } from "@openlimiter/core";
-import { parseClaudePayload } from "../src/claude.js";
+import { claudeWeeklySetComplete, parseClaudePayload } from "../src/claude.js";
 import { parseCodexPayload } from "../src/codex.js";
 import { parseOpenrouterPayload } from "../src/openrouter.js";
 import { parseKimiPayload } from "../src/kimi.js";
@@ -24,6 +24,8 @@ interface Case {
 }
 interface Expected {
   expected: Answer;
+  /** Claude only: whether the document stated its whole weekly set. */
+  weeklyComplete?: boolean;
 }
 const parsers = {
   claude: parseClaudePayload,
@@ -112,6 +114,12 @@ describe("shared differential provider corpus", () => {
         }
         expect(divergenceList.trim()).toBe("");
         expect(actual).toEqual(answer.expected);
+        /* Hotfix 2.1.5 fix 4: only a document that stated its whole weekly set
+           may replace the stored one. Rust twin: differential_tests.rs. */
+        if (provider === "claude") {
+          expect(typeof answer.weeklyComplete).toBe("boolean");
+          expect(claudeWeeklySetComplete(body, spec.now)).toBe(answer.weeklyComplete);
+        }
         if (spec.status !== 200) expect(actual).toEqual({ outcome: "rejected", readings: [] });
         const text = JSON.stringify(body);
         expect(text).not.toMatch(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/u);

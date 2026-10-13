@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -10,6 +10,7 @@ import {
   OPENLIMITER_USER_AGENT,
   REFRESH_LOCK_NAME,
   acquireRefreshLock,
+  mergeAuthoritativeSnapshotCache,
   readSnapshotCache,
   writeSnapshotCache,
   type AcquisitionRequest,
@@ -17,6 +18,7 @@ import {
   type Snapshot
 } from "@openlimiter/core";
 import { runCli, runtimeDependencies } from "../src/index.js";
+import { writeSession } from "../src/session.js";
 import {
   SYNTHETIC_CODEX_ACCOUNT,
   SYNTHETIC_GROK_USER,
@@ -541,6 +543,94 @@ describe("the Claude poll switch", () => {
     expect(usage?.headers["anthropic-beta"]).toBe("oauth-2025-04-20");
   });
 
+  /* Hotfix 2.1.5, change E: a weekly Anthropic stops reporting disappears. */
+  it("drops a weekly the next successful poll no longer reports", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    await runCli(["config", "set", "providers.claude.poll", "true"], dependencies(state, home, recordingTransport().transport));
+    await runCli(["refresh"], dependencies(state, home, recordingTransport().transport));
+    const weeklies = async () => {
+      const cached = await readSnapshotCache(state);
+      return (cached.ok ? cached.snapshots : []).filter((row) => row.provider === "CLAUDE" && row.meter.startsWith("SEVEN_DAY"))
+        .map((row) => row.meter).sort();
+    };
+    expect(await weeklies()).toEqual(["SEVEN_DAY", "SEVEN_DAY_FABLE"]);
+    const later = "2026-01-01T00:06:00.000Z";
+    const withoutFable = recordingTransport(later, {
+      claude_usage: {
+        five_hour: { utilization: 23.5, resets_at: "2026-01-01T05:00:00.000Z" },
+        seven_day: { utilization: 41.2, resets_at: "2026-01-08T00:00:00.000Z" }
+      }
+    });
+    await runCli(["refresh"], dependencies(state, home, withoutFable.transport, later));
+    expect(withoutFable.sent.some((request) => request.endpoint === "claude_usage")).toBe(true);
+    expect(await weeklies()).toEqual(["SEVEN_DAY"]);
+  });
+
+  /* Hotfix 2.1.5 fix 4: a document that dropped a weekly bucket as malformed
+     adds the rows it did read and deletes nothing (shared corpus case). */
+  /* Hotfix 2.1.5 round 2 fix 3: the Claude report is written while the Claude
+     lease is still held. A desktop read that lands after the lease is released,
+     while this round is still busy with other providers, removes Fable, and
+     nothing this round writes afterwards brings it back. */
+  it("never brings back a weekly that a later desktop read removed", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    await runCli(["config", "set", "providers.claude.poll", "true"], dependencies(state, home, recordingTransport().transport));
+    const earlier = new Date(Date.parse(NOW) - 6 * 60_000).toISOString();
+    await runCli(["refresh"], dependencies(state, home, recordingTransport(earlier).transport, earlier));
+    const weeklies = async () => {
+      const cached = await readSnapshotCache(state);
+      return (cached.ok ? cached.snapshots : []).filter((row) => row.provider === "CLAUDE" && row.meter.startsWith("SEVEN_DAY"));
+    };
+    const seen = await weeklies();
+    expect(seen.map((row) => row.meter).sort()).toEqual(["SEVEN_DAY", "SEVEN_DAY_FABLE"]);
+    // Every provider due again, so this round reads others after Claude.
+    for (const name of await readdir(state)) {
+      if (name.startsWith("acquisition") || name === ACQUISITION_STATE_FILE_NAME) await rm(path.join(state, name), { force: true });
+    }
+    const stored = seen.find((row) => row.meter === "SEVEN_DAY")!;
+    const inner = recordingTransport(NOW);
+    let landed = false;
+    const transport: AcquisitionTransport = async (request) => {
+      if (request.endpoint !== "claude_usage" && !landed) {
+        landed = true;
+        // The desktop reads once the Claude lease is free, and Fable is no longer reported.
+        const later = new Date(Date.parse(NOW) + 301_000).toISOString();
+        const desktop: Snapshot = { ...stored, value: 41, observedAt: later, expiresAt: new Date(Date.parse(later) + 465_000).toISOString(), writer: "desktop" };
+        await mergeAuthoritativeSnapshotCache([desktop], state, later, { provider: "CLAUDE", accountId: stored.accountId, observedAt: later });
+        const lease = path.join(state, "acquisition-claude.json");
+        const held = JSON.parse(await readFile(lease, "utf8")) as Record<string, unknown>;
+        await writeFile(lease, JSON.stringify({ ...held, owner: null, expiresAt: 0, token: "desktop-instance", nextAllowedAt: Date.parse(later) + 330_000 }));
+      }
+      return inner.transport(request);
+    };
+    await runCli(["refresh"], dependencies(state, home, transport, NOW));
+    expect(landed).toBe(true);
+    expect(inner.sent.some((request) => request.endpoint === "claude_usage")).toBe(true);
+    expect((await weeklies()).map((row) => row.meter + " " + row.value)).toEqual(["SEVEN_DAY 41"]);
+  });
+
+  it("keeps the stored Fable when the next poll states a malformed Fable bucket", async () => {
+    const corpus = JSON.parse(await readFile(path.resolve("packages/connectors/fixtures/cases/claude/weekly-fable-malformed.json"), "utf8")) as { now: string; body: unknown };
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    await runCli(["config", "set", "providers.claude.poll", "true"], dependencies(state, home, recordingTransport().transport));
+    const first = new Date(Date.parse(corpus.now) - 6 * 60_000).toISOString();
+    await runCli(["refresh"], dependencies(state, home, recordingTransport(first).transport, first));
+    const weeklies = async () => {
+      const cached = await readSnapshotCache(state);
+      return (cached.ok ? cached.snapshots : []).filter((row) => row.provider === "CLAUDE" && row.meter.startsWith("SEVEN_DAY"))
+        .map((row) => row.meter + " " + row.value).sort();
+    };
+    const before = await weeklies();
+    expect(before.map((row) => row.split(" ")[0])).toEqual(["SEVEN_DAY", "SEVEN_DAY_FABLE"]);
+    const partial = recordingTransport(corpus.now, { claude_usage: corpus.body });
+    await runCli(["refresh"], dependencies(state, home, partial.transport, corpus.now));
+    expect(partial.sent.some((request) => request.endpoint === "claude_usage")).toBe(true);
+    expect(await weeklies()).toEqual(["SEVEN_DAY 18", before.find((row) => row.startsWith("SEVEN_DAY_FABLE"))]);
+  });
+
   it("polls successfully when the response has no model scoped results", async () => {
     const state = await temporaryDirectory("openlimiter-state-");
     const home = await machineWithLogins();
@@ -555,6 +645,216 @@ describe("the Claude poll switch", () => {
     const cached = await readSnapshotCache(state);
     const meters = cached.ok ? cached.snapshots.filter((row) => row.provider === "CLAUDE").map((row) => row.meter).sort() : [];
     expect(meters).toEqual(["FIVE_HOUR", "SEVEN_DAY"]);
+  });
+
+  /* Hotfix 2.1.5 fix 3: when the desktop polled and then exited, the shared
+     lease and its persisted deadline decide when this tool asks Claude, never
+     the age of the desktop's rows. Checked at the cadence and at a reset. */
+  it.each([
+    ["the cadence", 330_000, null],
+    ["a reset", 120_000, 120_000]
+  ] as const)("takes Claude over from an exited desktop at %s", async (_boundary, deadlineIn, resetIn) => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    await runCli(["config", "set", "providers.claude.poll", "true"], dependencies(state, home, recordingTransport().transport));
+    const polledAt = Date.parse(NOW);
+    const account = opaqueAccountId("CLAUDE", "one-active-account-without-stable-identity");
+    // What the desktop leaves behind after one read: its rows and the shared deadline.
+    await writeFile(path.join(state, "acquisition-claude.json"), JSON.stringify({
+      lastAccount: account, owner: null, expiresAt: 0, token: "desktop-instance",
+      nextAllowedAt: polledAt + deadlineIn, attempts: 0, refusalRevision: null
+    }), "utf8");
+    const desktopWeekly: Snapshot = {
+      provider: "CLAUDE",
+      accountId: account,
+      meter: "SEVEN_DAY",
+      value: 41,
+      unit: "PERCENT",
+      window: { kind: "rolling", durationSeconds: 604_800 },
+      resetAt: new Date(polledAt + (resetIn ?? 4 * 86_400_000)).toISOString(),
+      source: "internal_payload",
+      precision: "exact",
+      observedAt: NOW,
+      expiresAt: new Date(polledAt + 435_000).toISOString(),
+      labels: {
+        credentialOrigin: "official-local-tool",
+        dataInterfaceStatus: "internal-endpoint",
+        automationRisk: "high",
+        verification: "UNVERIFIED"
+      },
+      provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
+      writer: "desktop"
+    };
+    await mergeAuthoritativeSnapshotCache([desktopWeekly], state, NOW);
+    const at = new Date(polledAt + deadlineIn + 10_000).toISOString();
+    const started: string[][] = [];
+    await runCli(["statusline"], {
+      ...dependencies(state, home, recordingTransport().transport, at),
+      readStandardInput: async () => JSON.stringify({
+        rate_limits: { five_hour: { used_percentage: 9, resets_at: Date.parse("2026-01-01T04:00:00.000Z") / 1000 } }
+      }),
+      spawnDetached: (executable: string, argumentsList: readonly string[]) => {
+        started.push([executable, ...argumentsList]);
+      },
+      nodeExecutable: "/usr/bin/node",
+      openLimiterScript: "/opt/openlimiter/bin.js"
+    });
+    expect(started).toHaveLength(1);
+    const recorder = recordingTransport(at);
+    await runCli(["refresh"], dependencies(state, home, recorder.transport, at));
+    expect(recorder.sent.some((request) => request.endpoint === "claude_usage")).toBe(true);
+  });
+
+  /* Hotfix 2.1.5, change A: a desktop row from its session window is not a
+     desktop poll, so it never stands this tool down for the weeklies. */
+  it("polls Claude beside a recent desktop session row that no weekly poll backs", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    await runCli(["config", "set", "providers.claude.poll", "true"], dependencies(state, home, recordingTransport().transport));
+    const desktopSession: Snapshot = {
+      provider: "CLAUDE",
+      accountId: opaqueAccountId("CLAUDE", "one-active-account-without-stable-identity"),
+      meter: "FIVE_HOUR",
+      value: 12,
+      unit: "PERCENT",
+      window: { kind: "rolling", durationSeconds: 18_000 },
+      resetAt: "2026-01-01T04:00:00.000Z",
+      source: "internal_payload",
+      precision: "exact",
+      observedAt: NOW,
+      expiresAt: "2026-01-01T00:19:00.000Z",
+      labels: {
+        credentialOrigin: "official-local-tool",
+        dataInterfaceStatus: "internal-endpoint",
+        automationRisk: "high",
+        verification: "UNVERIFIED"
+      },
+      provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
+      writer: "desktop"
+    };
+    await writeSnapshotCache([desktopSession], state);
+    const recorder = recordingTransport();
+    await runCli(["refresh"], dependencies(state, home, recorder.transport));
+    expect(recorder.sent.some((request) => request.endpoint === "claude_usage")).toBe(true);
+  });
+
+  it("starts a refresh from a render whose Claude session is fresh and whose weekly is not", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    await runCli(["config", "set", "providers.claude.poll", "true"], dependencies(state, home, recordingTransport().transport));
+    const weekly: Snapshot = {
+      provider: "CLAUDE",
+      accountId: opaqueAccountId("CLAUDE", "one-active-account-without-stable-identity"),
+      meter: "SEVEN_DAY",
+      value: 41,
+      unit: "PERCENT",
+      window: { kind: "rolling", durationSeconds: 604_800 },
+      resetAt: "2026-01-05T00:00:00.000Z",
+      source: "internal_payload",
+      precision: "exact",
+      observedAt: NOW,
+      expiresAt: "2026-01-01T00:19:00.000Z",
+      labels: {
+        credentialOrigin: "official-local-tool",
+        dataInterfaceStatus: "internal-endpoint",
+        automationRisk: "high",
+        verification: "UNVERIFIED"
+      },
+      provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
+      writer: "cli"
+    };
+    await writeSnapshotCache([weekly], state);
+    const started: string[][] = [];
+    const later = "2026-01-01T00:03:00.000Z";
+    const render = await runCli(["statusline"], {
+      ...dependencies(state, home, recordingTransport().transport, later),
+      readStandardInput: async () => JSON.stringify({
+        rate_limits: { five_hour: { used_percentage: 9, resets_at: Date.parse("2026-01-01T04:00:00.000Z") / 1000 } }
+      }),
+      spawnDetached: (executable: string, argumentsList: readonly string[]) => {
+        started.push([executable, ...argumentsList]);
+      },
+      nodeExecutable: "/usr/bin/node",
+      openLimiterScript: "/opt/openlimiter/bin.js"
+    });
+    expect(render.exitCode).toBe(0);
+    expect(started).toEqual([["/usr/bin/node", "/opt/openlimiter/bin.js", "refresh", "--detached"]]);
+  });
+
+  /* Hotfix 2.1.5, change D: the reading from before a weekly reset leaves the
+     status line at the reset even when the poll after it fails, and storage
+     keeps it. */
+  it("withdraws a weekly at its reset when the poll after it fails, and keeps it stored", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    await runCli(["config", "set", "providers.claude.poll", "true"], dependencies(state, home, recordingTransport().transport));
+    const weekly: Snapshot = {
+      provider: "CLAUDE",
+      accountId: opaqueAccountId("CLAUDE", "one-active-account-without-stable-identity"),
+      meter: "SEVEN_DAY",
+      value: 75,
+      unit: "PERCENT",
+      window: { kind: "rolling", durationSeconds: 604_800 },
+      resetAt: "2026-01-01T00:10:00.000Z",
+      source: "internal_payload",
+      precision: "exact",
+      observedAt: NOW,
+      expiresAt: "2026-01-01T00:19:00.000Z",
+      labels: {
+        credentialOrigin: "official-local-tool",
+        dataInterfaceStatus: "internal-endpoint",
+        automationRisk: "high",
+        verification: "UNVERIFIED"
+      },
+      provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
+      writer: "cli"
+    };
+    await mergeAuthoritativeSnapshotCache([weekly], state, NOW);
+    const render = async (at: string) => (await runCli(["statusline"], {
+      ...dependencies(state, home, recordingTransport().transport, at),
+      readStandardInput: async () => JSON.stringify({
+        rate_limits: { five_hour: { used_percentage: 9, resets_at: Date.parse("2026-01-01T04:00:00.000Z") / 1000 } }
+      })
+    })).stdout;
+    expect(await render("2026-01-01T00:09:59.000Z")).toContain("75%");
+    const after = "2026-01-01T00:10:30.000Z";
+    const failing: AcquisitionTransport = async () => ({ status: 503, body: "", retryAfterSeconds: null });
+    await runCli(["refresh"], dependencies(state, home, failing, after));
+    const line = await render(after);
+    expect(line).not.toContain("75%");
+    expect(line).not.toContain("0%");
+    expect(line).toContain("7d waiting");
+    const stored = await readSnapshotCache(state);
+    expect(stored.ok && stored.snapshots.filter((row) => row.meter === "SEVEN_DAY").map((row) => row.value)).toEqual([75]);
+  });
+
+  /* Hotfix 2.1.5, change G: the round that read the weeklies uploads them to
+     the hub before it ends, so the phone does not wait for another sync. */
+  it("uploads the weeklies a successful Claude poll read in the same round", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    await runCli(["config", "set", "providers.claude.poll", "true"], dependencies(state, home, recordingTransport().transport));
+    await writeSession({
+      version: 1,
+      token: "t".repeat(32),
+      expiresAt: "2026-01-01T06:00:00.000Z",
+      refreshCredential: "r".repeat(32),
+      refreshExpiresAt: "2026-02-01T00:00:00.000Z",
+      deviceId: "device-1234",
+      accountLabel: "person@example.com"
+    }, { directory: state, platform: "linux" });
+    const uploads: string[] = [];
+    const base = dependencies(state, home, recordingTransport().transport);
+    const result = await runCli(["refresh"], {
+      ...base,
+      environment: { ...base?.environment, OPENLIMITER_SUPABASE_ANON_KEY: "sb_publishable_test_key" },
+      hubTransport: async (request) => {
+        uploads.push(request.body);
+        return { status: 200, body: JSON.stringify({ accepted: true, sequence: 1, tier: "free" }) };
+      }
+    });
+    expect(result.exitCode).toBe(0);
+    expect(uploads.some((body) => body.includes("SEVEN_DAY_FABLE"))).toBe(true);
   });
 
   it("refuses a value that is not a switch", async () => {

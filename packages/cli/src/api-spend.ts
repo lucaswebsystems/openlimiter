@@ -32,11 +32,15 @@ export async function readApiSpend(stateDirectory: string): Promise<unknown> {
 }
 
 export interface MoneyCell {
+  /** The cell without colour: a stale amount keeps its tilde here. */
   readonly plain: string;
   /** Band value for the shared colour rule, or null when the cell stays uncoloured. */
   readonly band: number | null;
   readonly prefix: string;
+  /** The amount alone, never marked: with colour a stale amount is grey instead. */
   readonly amount: string;
+  /** Past its freshness: grey with colour, a tilde without (hotfix 2.1.5 fix 8). */
+  readonly stale: boolean;
 }
 
 export interface MoneyOptions {
@@ -95,7 +99,8 @@ export function moneyCells(document: unknown, options: MoneyOptions): readonly M
       sourceClass: "internal_payload", observedAt: String(sample["observedAt"]), now: options.now, writer: "desktop"
     }).availability === "stale";
     const prefix = tag + " ";
-    const mark = stale ? "~" : "";
+    const cell = (amount: string, band: number | null): MoneyCell =>
+      ({ plain: prefix + (stale ? "~" : "") + amount, prefix, amount, band, stale });
     const usd = sample["currencySource"] === "provider_usd";
     /* Moonshot's available_balance and DeepSeek's balance are current balances,
        never spend for the current month. */
@@ -103,21 +108,18 @@ export function moneyCells(document: unknown, options: MoneyOptions): readonly M
       const balance = decimal(sample["balanceUsd"]);
       const tooLow = source["status"] === "too_low_for_api_calls";
       if (usd && balance !== null) {
-        const amount = mark + money(balance);
-        cells.push({ plain: prefix + amount, prefix, amount, band: tooLow ? 95 : balanceBand(balance) });
+        cells.push(cell(money(balance), tooLow ? 95 : balanceBand(balance)));
       } else if (provider === "deepseek" && sample["currencySource"] === "provider_cny" &&
           sample["balanceUsd"] == null && sample["spendUsd"] == null) {
         // Yuan is never converted, so the cell says the currency and no amount.
-        const amount = mark + "CNY";
-        cells.push({ plain: prefix + amount, prefix, amount, band: null });
+        cells.push(cell("CNY", null));
       }
       continue;
     }
     const spend = decimal(sample["spendUsd"]);
     // A spend from an earlier month is not this month's spend, so it is not shown.
     if (!usd || spend === null || sample["month"] !== month) continue;
-    const amount = mark + money(spend);
-    cells.push({ plain: prefix + amount, prefix, amount, band: budgetBand(spend, source["budgetUsd"]) });
+    cells.push(cell(money(spend), budgetBand(spend, source["budgetUsd"])));
   }
   return cells;
 }

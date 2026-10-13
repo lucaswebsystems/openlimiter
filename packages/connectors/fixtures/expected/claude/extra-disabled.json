@@ -2,5 +2,6 @@
   "expected": {
     "outcome": "rejected",
     "readings": []
-  }
+  },
+  "weeklyComplete": false
 }

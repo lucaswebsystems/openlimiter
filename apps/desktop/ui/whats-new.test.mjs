@@ -10,6 +10,12 @@ const whatsNewForVersion = (version) => selectRelease(version, WHATS_NEW_EN);
 
 /* What each recent release says, word for word; the current version is one of them. */
 const NOTES = {
+  "2.1.5": [
+    { key: "weekly", text: "Claude weekly bars are read every five minutes while the app runs, and while Claude Code draws its status line with the command line poll on. Nothing is read while neither runs." },
+    { key: "reset", text: "A reading from before its weekly reset is never shown, on any surface, the paired phone included." },
+    { key: "status", text: "In the status line, a reading older than its refresh window turns grey, and keeps its tilde when colours are off. Otherwise the tilde marks estimates." },
+    { key: "login", text: "The command line recovers from a rotated Claude login, and a weekly Anthropic stops reporting disappears after a complete read." },
+  ],
   "2.1.4": [
     { key: "claude", text: "A Claude poll refused right after Claude Code rotated its login no longer hides your Claude bars for a day." },
     { key: "stale", text: "Every tool you set up keeps its last reading as a grey stale bar for up to seven days instead of vanishing." },

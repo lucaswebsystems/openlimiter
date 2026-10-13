@@ -1,5 +1,5 @@
 import { freshness } from "./freshness.js";
-import { isSnapshotDisplayEligible } from "./data-rules.js";
+import { isSnapshotDisplayEligible, resetPassed } from "./data-rules.js";
 import { providerMeterPresentation } from "./provider-presentation.js";
 import {
   PROVIDER_CODES,
@@ -63,7 +63,9 @@ export function buildAdvice(
   const known: AdviceProvider[] = [];
   for (const provider of expectedProviders) {
     const candidates = snapshots
-      .filter((snapshot) => snapshot.provider === provider && isAdviceQuota(snapshot))
+      /* A reading whose window already reset is no advice, fresh or not. */
+      .filter((snapshot) => snapshot.provider === provider && isAdviceQuota(snapshot) &&
+        !resetPassed(snapshot, now))
       .map((snapshot) => ({
         snapshot,
         state: freshness(snapshot.observedAt, snapshot.expiresAt, now)

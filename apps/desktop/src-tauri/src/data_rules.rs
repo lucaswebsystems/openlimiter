@@ -5,6 +5,16 @@ use std::collections::{BTreeMap, BTreeSet};
 use tauri::Manager;
 
 pub const RETENTION_MS: u64 = 7 * 86_400_000;
+/// How long a Claude reading a poll wrote stays fresh, from either writer: the
+/// five minute cadence (claude_oauth.rs REFRESH_SECONDS), the jitter of up to a
+/// fifth of it (request_policy.rs jittered_account_delay), one collector tick
+/// that comes late (collector_runtime.rs COLLECTOR_INTERVAL_SECONDS), two
+/// requests of the whole timeout (net.rs NETWORK_TIMEOUT_SECONDS: a reading is
+/// stamped when its request starts, and the next deadline counts from
+/// completion), and a fifteen second margin: 465 seconds. Walked in
+/// claude_oauth.rs, a_healthy_reading_is_still_fresh_when_the_next_one_is_written.
+/// TypeScript twin: `CLAUDE_FRESHNESS_SECONDS`.
+pub(crate) const CLAUDE_FRESHNESS_SECONDS: u64 = 300 + 300 / 5 + 60 + 2 * 15 + 15;
 const CLAUDE_WEEK_SECONDS: u64 = 604_800;
 
 pub(crate) fn display_eligible(row: &Snapshot) -> bool {
@@ -38,6 +48,15 @@ pub(crate) fn display_eligible(row: &Snapshot) -> bool {
         || row.meter == "EXTRA_USAGE"
 }
 
+/// Whether the window a reading measured has already turned over.
+/// TypeScript twin: `resetPassed`.
+pub(crate) fn reset_passed(row: &Snapshot, now: i64) -> bool {
+    row.reset_at
+        .as_deref()
+        .and_then(crate::native_time::epoch_ms_from_rfc3339)
+        .is_some_and(|reset| now >= reset as i64)
+}
+
 pub(crate) fn retained(row: &Snapshot, now: u64) -> bool {
     crate::native_time::epoch_ms_from_rfc3339(&row.observed_at)
         .is_some_and(|at| at >= now.saturating_sub(RETENTION_MS))
@@ -66,7 +85,11 @@ pub(crate) fn freshness_for(
     } else {
         900
     };
-    let ttl = interval * 120 / 100 + 60;
+    let ttl = if provider == "CLAUDE" && source != "native_payload" {
+        CLAUDE_FRESHNESS_SECONDS as i64
+    } else {
+        interval * 120 / 100 + 60
+    };
     let expires = observed.saturating_add(ttl * 1000);
     (
         ttl as u64,
@@ -255,6 +278,17 @@ pub fn project(
             None
         } else {
             held_reason(&row, reason(&row, now), now)
+        };
+        /* A reading from before its window reset describes no window on
+        screen, fresh or stale, even when the next read failed. Nothing
+        replaces it. TypeScript twin: `projectSnapshots`. */
+        let rejected = match rejected {
+            None if reset_passed(&row, now) => Some(if claude_statusline(&row) {
+                "awaiting_statusline"
+            } else {
+                "stale"
+            }),
+            other => other,
         };
         if let Some(reason) = rejected {
             let flag = ConnectionFlag {
@@ -618,7 +652,15 @@ mod tests {
         let mut antigravity = statusline(None);
         antigravity.provider = "ANTIGRAVITY".into();
         antigravity.provenance = Some(serde_json::json!({ "sourceKind": "statusline_payload", "observedVia": "local_command" }));
-        let others = vec![codex, polled, antigravity];
+        /* Their windows reset later than these checks, so only freshness and
+        retention are under test here (a reset that passed is its own rule). */
+        let others: Vec<Snapshot> = vec![codex, polled, antigravity]
+            .into_iter()
+            .map(|mut row| {
+                row.reset_at = Some("2026-10-29T12:00:00.000Z".into());
+                row
+            })
+            .collect();
         let held = project(others.clone(), minutes(121), &active, &BTreeSet::new());
         assert!(held.flags.is_empty());
         assert_eq!(held.snapshots.len(), 3);
@@ -635,6 +677,53 @@ mod tests {
         assert!(gone.snapshots.is_empty());
         assert!(gone.flags.iter().all(|flag| flag.reason == "stale"));
         assert_eq!(gone.flags.len(), 3);
+    }
+
+    /// Hotfix 2.1.5, change D. A reading from before its window reset is never
+    /// shown, fresh or stale, and nothing replaces it. TypeScript twin:
+    /// data-rules.test.ts, "a reading from before its reset is never shown".
+    #[test]
+    fn a_reading_from_before_its_reset_is_never_shown() {
+        let reset = "2026-09-29T14:00:00.000Z";
+        let at = |iso: &str| crate::native_time::epoch_ms_from_rfc3339(iso).unwrap() as i64;
+        let mut weekly = measured(Some("fixture-a"));
+        weekly.meter = "SEVEN_DAY".into();
+        weekly.value = 75.0;
+        weekly.window.duration_seconds = Some(604_800);
+        weekly.observed_at = "2026-09-29T13:59:00.000Z".into();
+        weekly.reset_at = Some(reset.into());
+        weekly.provenance = Some(serde_json::json!({ "sourceKind": "remote_api", "observedVia": "remote_http" }));
+        let active = BTreeMap::from([("CLAUDE".into(), BTreeSet::from(["fixture-a".into()]))]);
+        let shown = project(vec![weekly.clone()], at("2026-09-29T13:59:59.999Z"), &active, &BTreeSet::new());
+        assert_eq!(shown.snapshots.len(), 1);
+        assert!(!reset_passed(&weekly, at(reset) - 1));
+        for now in [reset, "2026-09-29T14:00:00.001Z", "2026-10-02T00:00:00.000Z"] {
+            assert!(reset_passed(&weekly, at(now)));
+            let projected = project(vec![weekly.clone()], at(now), &active, &BTreeSet::new());
+            assert!(projected.snapshots.is_empty(), "{now}");
+            assert_eq!(projected.flags.len(), 1);
+            assert_eq!(projected.flags[0].reason, "stale");
+            assert_eq!(projected.flags[0].fix_kind, "open_app");
+        }
+        let mut unknown = weekly.clone();
+        unknown.reset_at = None;
+        assert!(!reset_passed(&unknown, at("2026-10-02T00:00:00.000Z")));
+        /* A Claude status line reading past its reset waits for Claude Code,
+        even while its own freshness has not run out. */
+        let mut payload = statusline(Some("fixture-a"));
+        payload.observed_at = "2026-09-29T13:59:30.000Z".into();
+        payload.reset_at = Some(reset.into());
+        assert_eq!(
+            project(vec![payload.clone()], at("2026-09-29T13:59:59.000Z"), &active, &BTreeSet::new())
+                .snapshots
+                .len(),
+            1
+        );
+        assert_eq!(
+            project(vec![payload], at("2026-09-29T14:00:10.000Z"), &active, &BTreeSet::new()).flags[0]
+                .reason,
+            "awaiting_statusline"
+        );
     }
 
     /// The founder's Antigravity card: its status line wrote yesterday and its
@@ -733,6 +822,33 @@ mod tests {
         assert_eq!(visible.snapshots[0].availability.as_deref(), Some("missing_credentials"));
     }
 
+    /// Hotfix 2.1.5 fix 2: the Claude horizon both languages read from one
+    /// vectors file. TypeScript twin: data-rules.test.ts, "the Claude
+    /// freshness horizon shared with the desktop".
+    #[test]
+    fn every_shared_claude_freshness_vector() {
+        let document: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../packages/core/src/contracts/claude-poll-vectors.json"
+        ))
+        .unwrap();
+        let millis = |value: &serde_json::Value| {
+            crate::native_time::epoch_ms_from_rfc3339(value.as_str().unwrap()).unwrap() as i64
+        };
+        for vector in document["freshness"]["vectors"].as_array().unwrap() {
+            let (ttl, expires, availability) = freshness_for(
+                vector["provider"].as_str().unwrap(),
+                vector["writer"].as_str().unwrap(),
+                vector["sourceClass"].as_str().unwrap(),
+                millis(&vector["observedAt"]),
+                millis(&vector["now"]),
+            );
+            let expected = &vector["expected"];
+            assert_eq!(ttl, expected["ttlSeconds"].as_u64().unwrap(), "{}", vector["id"]);
+            assert_eq!(expires, millis(&expected["expiresAt"]), "{}", vector["id"]);
+            assert_eq!(availability, expected["availability"].as_str().unwrap(), "{}", vector["id"]);
+        }
+    }
+
     #[test]
     fn all_provider_cadences_match_typescript() {
         for provider in [
@@ -746,8 +862,10 @@ mod tests {
             "OPENROUTER",
             "OPENCODE",
         ] {
+            /* Claude, from either writer, follows its own cadence (fix 2). */
             let ttl = match provider {
-                "CLAUDE" | "GEMINI_CLI" => 1140,
+                "CLAUDE" => 465,
+                "GEMINI_CLI" => 1140,
                 "ANTIGRAVITY" => 780,
                 _ => 420,
             };
@@ -757,7 +875,7 @@ mod tests {
             );
             assert_eq!(
                 freshness_for(provider, "cli", "internal_payload", 0, 0).0,
-                1140
+                if provider == "CLAUDE" { 465 } else { 1140 }
             );
         }
     }

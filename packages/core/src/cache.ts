@@ -122,9 +122,14 @@ export async function acquireMachineLease(provider: string, directory = resolveS
   const state = await withCacheLock(directory, async () => {
     const current = await read();
     const decision = leasePolicy({ now: new Date(now).toISOString(), requester: "cli", owner: current.owner, expiresAt: new Date(current.expiresAt).toISOString(), leaseSeconds: 60 });
+    /* A refusal names the token it refused (identity.ts credentialRevision, the
+       digest the desktop records too). Another token ends that refusal and its
+       own deadline, and nothing else: a deadline with no refusal named is a
+       rate limit and stays. Rust twin: request_policy.rs MachineLease. */
     const changedRefusal = typeof current.refusalRevision === "string" && credentialRevision !== undefined && current.refusalRevision !== credentialRevision;
     if (!decision.acquired || (now < current.nextAllowedAt && !changedRefusal)) return null;
-    const next = { ...current, lastAccount: null, owner: "cli", expiresAt: now + 60_000, token: randomUUID() };
+    const released = changedRefusal ? { nextAllowedAt: 0, attempts: 0, refusalRevision: null } : {};
+    const next = { ...current, ...released, lastAccount: null, owner: "cli", expiresAt: now + 60_000, token: randomUUID() };
     await writeFileAtomically(file, canonicalJson(next));
     return next;
   });
@@ -729,17 +734,34 @@ export async function writeSnapshotCache(
   });
 }
 
+/** One account's weekly set a successful poll read in full, and when. */
+export interface WeeklySet {
+  readonly provider: ProviderCode;
+  readonly accountId: string | undefined;
+  readonly observedAt: string;
+}
+
 /** Poll owned rows live apart from the statusline cache so legacy runtimes can
- * never overwrite a weekly usage value. */
+ * never overwrite a weekly usage value.
+ *
+ * With a weekly set, the account's weeklies the poll did not report and
+ * observed no later than it are removed first, so a bucket the endpoint stops
+ * reporting leaves; another account and a newer observation stay. Rust twin:
+ * cache_write.rs replace_authoritative_rows. */
 export async function mergeAuthoritativeSnapshotCache(
   incoming: readonly Snapshot[],
   directory = resolveStateDirectory(),
   now?: string,
+  weeklySet?: WeeklySet,
 ): Promise<Snapshot[]> {
   rejectOutOfBounds(incoming);
   return withStateLock(directory, async () => {
     const cached = await readCacheState(directory, AUTHORITATIVE_CACHE_FILE_NAME);
-    const existing = cached.ok ? cached.state.snapshots : [];
+    const reported = new Set(incoming.map(snapshotIdentity));
+    const existing = (cached.ok ? cached.state.snapshots : []).filter((row) => weeklySet === undefined ||
+      !(row.provider === weeklySet.provider && row.accountId === weeklySet.accountId &&
+        row.meter.startsWith("SEVEN_DAY") && !reported.has(snapshotIdentity(row)) &&
+        Date.parse(row.observedAt) <= Date.parse(weeklySet.observedAt)));
     const byIdentity = new Map(existing.map((row) => [snapshotIdentity(row), row]));
     for (const row of incoming) {
       const previous = byIdentity.get(snapshotIdentity(row));

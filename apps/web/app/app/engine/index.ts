@@ -14,6 +14,7 @@ import {
   floorFixed,
   freshness,
   freshnessPolicy,
+  resetPassed,
   mergeSnapshots,
   projectSnapshots,
   normalizeMeters,
@@ -122,6 +123,7 @@ export {
   floorFixed,
   freshness,
   freshnessPolicy,
+  resetPassed,
   PROVIDER_TABLE_HEADER_TAG,
   PROVIDER_ROW_TAG,
   /* The band scale itself, so this application never restates the thresholds.

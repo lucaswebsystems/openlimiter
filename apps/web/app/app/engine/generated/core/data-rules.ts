@@ -23,18 +23,40 @@ export function isSnapshotDisplayEligible(row: Snapshot): boolean {
   return (row.window.durationSeconds ?? CLAUDE_WEEK_SECONDS) === CLAUDE_WEEK_SECONDS;
 }
 
+/**
+ * How long a Claude reading a poll wrote stays fresh, from either writer: the
+ * five minute cadence (cadence.ts), the desktop jitter of up to a fifth of it
+ * (request_policy.rs jittered_account_delay), one collector tick of sixty
+ * seconds that comes late, two requests of the whole fifteen second timeout
+ * (a reading is stamped when its request starts, and the next deadline counts
+ * from completion), and a fifteen second margin: 465 seconds.
+ * Rust twin: data_rules::CLAUDE_FRESHNESS_SECONDS.
+ */
+export const CLAUDE_FRESHNESS_SECONDS = 300 + 300 / 5 + 60 + 2 * 15 + 15;
+
 /** Rust twin: data_rules::freshness_policy. Poll jitter plus bounded request latency. */
 export function freshnessPolicy(input: { sourceClass: string; observedAt: string; now: string; provider?: string; writer?: string }) {
   const desktopIntervals: Readonly<Record<string, number>> = { CLAUDE: 900, GEMINI_CLI: 900, ANTIGRAVITY: 600, CODEX: 300, CURSOR: 300, GROK: 300, KIMI: 300, OPENROUTER: 300, OPENCODE: 300 };
   const interval = input.sourceClass === "native_payload" ? 60
     : input.writer === "desktop" ? desktopIntervals[input.provider ?? ""] ?? 900 : 900;
-  const ttlSeconds = interval * 1.2 + 60;
+  const ttlSeconds = input.provider === "CLAUDE" && input.sourceClass !== "native_payload"
+    ? CLAUDE_FRESHNESS_SECONDS
+    : interval * 1.2 + 60;
   const observed = Date.parse(input.observedAt);
   const now = Date.parse(input.now);
   const deadline = observed + ttlSeconds * 1000;
   const expiresAt = Number.isFinite(deadline) ? new Date(deadline).toISOString() : input.observedAt;
   return { ttlSeconds, expiresAt, availability: !Number.isFinite(now) || !Number.isFinite(observed) || now < observed
     ? "unavailable" : now < deadline ? "fresh" : "stale" };
+}
+
+/**
+ * Whether the window a reading measured has already turned over.
+ * Rust twin: data_rules::reset_passed.
+ */
+export function resetPassed(row: Pick<Snapshot, "resetAt">, now: string): boolean {
+  const reset = Date.parse(row.resetAt ?? "");
+  return Number.isFinite(reset) && Date.parse(now) >= reset;
 }
 
 export function retainSnapshots(rows: readonly Snapshot[], now: number): Snapshot[] {
@@ -114,9 +136,14 @@ export function projectSnapshots(rows: readonly Snapshot[], now: string, active?
           : displayReason(row, now),
         now,
       ));
-    if (reason === null) snapshots.push({ ...row, expiresAt: freshnessPolicy({ ...row, sourceClass: row.source, now }).expiresAt });
-    else flags.set([row.provider, row.accountId, reason].join(":"), {
-      provider: row.provider, ...(row.accountId ? { accountId: row.accountId } : {}), reason, fixKind: fixKind(reason)
+    /* A reading from before its window reset describes no window on screen,
+       fresh or stale, even when the next read failed. Nothing replaces it. */
+    const shown = reason === null && resetPassed(row, now)
+      ? (claudeStatusline(row) ? "awaiting_statusline" : "stale")
+      : reason;
+    if (shown === null) snapshots.push({ ...row, expiresAt: freshnessPolicy({ ...row, sourceClass: row.source, now }).expiresAt });
+    else flags.set([row.provider, row.accountId, shown].join(":"), {
+      provider: row.provider, ...(row.accountId ? { accountId: row.accountId } : {}), reason: shown, fixKind: fixKind(shown)
     });
   }
   return { snapshots, flags: [...flags.values()] };

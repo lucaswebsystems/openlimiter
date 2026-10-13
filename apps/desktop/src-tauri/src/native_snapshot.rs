@@ -720,6 +720,20 @@ pub fn write_report(
     account_id: Option<&str>,
     report: CacheReport,
 ) -> Result<(), CacheWriteError> {
+    write_report_with(writer, provider, account_id, report, false)
+}
+
+/// `write_report` for a Claude poll that may replace the account weekly set:
+/// only when `weekly_complete`, the read stated that whole set (claude_oauth.rs
+/// read_usage). A partial read adds its rows and deletes nothing (hotfix 2.1.5
+/// fix 4).
+pub fn write_report_with(
+    writer: &CacheWriter,
+    provider: &str,
+    account_id: Option<&str>,
+    report: CacheReport,
+    weekly_complete: bool,
+) -> Result<(), CacheWriteError> {
     let authoritative = match &report {
         CacheReport::Success(rows) if provider == "CLAUDE" => rows
             .iter()
@@ -745,6 +759,23 @@ pub fn write_report(
         ),
         _ => report.clone(),
     };
+    /* A successful Claude poll that read the account's whole weekly set
+    removes a weekly it no longer reports (hotfix 2.1.5). */
+    let weekly_set = match &report {
+        CacheReport::Success(rows) if provider == "CLAUDE" && weekly_complete => rows
+            .iter()
+            .filter(|row| {
+                row.provenance
+                    .as_ref()
+                    .and_then(|value| value.get("sourceKind"))
+                    .and_then(serde_json::Value::as_str)
+                    != Some("statusline_payload")
+            })
+            .filter_map(|row| epoch_ms_from_rfc3339(&row.observed_at))
+            .max()
+            .map(|observed| (provider, account_id, observed)),
+        _ => None,
+    };
     for round in 0..2 {
         let begun = writer.begin()?;
         let text = match fold(begun.text.as_deref(), provider, account_id, &main_report) {
@@ -754,7 +785,11 @@ pub fn write_report(
                 return Err(error);
             }
         };
-        match writer.commit_with_authoritative(&text, &authoritative, begun.generation) {
+        let committed = match weekly_set {
+            Some(set) => writer.commit_with_weekly_set(&text, &authoritative, set, begun.generation),
+            None => writer.commit_with_authoritative(&text, &authoritative, begun.generation),
+        };
+        match committed {
             Ok(()) => return Ok(()),
             Err(CacheWriteError::Busy | CacheWriteError::StaleGeneration) if round == 0 => {}
             Err(error) => return Err(error),

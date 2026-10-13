@@ -218,6 +218,7 @@ impl RequestPolicy {
             Some(account_id),
             now_ms,
             refusal_deadline,
+            revision,
         ) {
             Ok(lease) => lease,
             Err(rejection) => {
@@ -284,7 +285,9 @@ impl RequestPolicy {
     ) {
         let now_ms = self.clock.map_or(now_ms, |clock| clock().max(now_ms));
         let delay = jittered_account_delay(provider, account_id, minimum_seconds.max(1));
-        self.complete_shared(now_ms.saturating_add(delay.saturating_mul(1000)), 0);
+        if !self.complete_shared(now_ms.saturating_add(delay.saturating_mul(1000)), 0, None) {
+            return;
+        }
         self.mutate_durable(|document| {
             document
                 .providers
@@ -333,7 +336,11 @@ impl RequestPolicy {
             .lock()
             .ok()
             .and_then(|inner| inner.credential_revision.clone());
-        self.complete_shared(next, 0);
+        /* The shared lease names the refused login too, so the command line
+        tool releases this refusal once the login rotates. */
+        if !self.complete_shared(next, 0, revision.as_deref()) {
+            return;
+        }
         self.mutate_durable(|document| {
             let state = document.providers.entry(provider).or_default();
             state.attempts.remove(account_id);
@@ -364,7 +371,9 @@ impl RequestPolicy {
         let now_ms = self.clock.map_or(now_ms, |clock| clock().max(now_ms));
         let delay = minimum_seconds.max(BLOCKED_PROVIDER_SECONDS);
         let blocked_until = now_ms.saturating_add(delay.saturating_mul(1_000));
-        self.complete_shared(blocked_until, 0);
+        if !self.complete_shared(blocked_until, 0, None) {
+            return;
+        }
         self.mutate_durable(|document| {
             let state = document.providers.entry(provider).or_default();
             state.blocked_until = Some(
@@ -425,7 +434,9 @@ impl RequestPolicy {
             MAX_SERVER_DELAY_SECONDS,
         );
         let retry_at = decision.next_allowed_at.min(MAX_TIMESTAMP_EPOCH_MS);
-        self.complete_shared(retry_at, attempts.saturating_add(1));
+        if !self.complete_shared(retry_at, attempts.saturating_add(1), None) {
+            return;
+        }
         if let Some(directory) = self.directory.as_ref().filter(|_| rate_limited) {
             let writer = crate::cache_write::CacheWriter::at(Some(directory.clone()));
             let _ = writer.record_availability(
@@ -456,14 +467,36 @@ impl RequestPolicy {
         });
     }
 
-    fn complete_shared(&self, next: u64, attempts: u32) {
-        if let Ok(mut inner) = self.inner.lock() {
-            if let Some(lease) = inner.active_shared.as_ref() {
-                if lease.complete(next, attempts).is_err() {
-                    inner.healthy = false;
-                }
-            }
+    /// Whether the shared machine lease this read took is still this
+    /// process's, checked after a response and before it is written (hotfix
+    /// 2.1.5 fix 5). True when no shared lease was taken.
+    pub(crate) fn still_owns_shared(&self) -> bool {
+        self.inner.lock().is_ok_and(|inner| {
+            inner.active_shared.as_ref().is_none_or(MachineLease::still_owned)
+        })
+    }
+
+    /// Completes the shared lease. False when another process took it over:
+    /// losing ownership is a cancellation, never a backoff, so the caller
+    /// records no local deadline, this process's gate stays open and the
+    /// successor's deadline stands (hotfix 2.1.5 round 2 fix 2). A lease still
+    /// ours that cannot be written closes the gate, as before. TypeScript twin:
+    /// runner.ts, the lease loop.
+    fn complete_shared(&self, next: u64, attempts: u32, refusal: Option<&str>) -> bool {
+        let Ok(mut inner) = self.inner.lock() else {
+            return true;
+        };
+        let Some(lease) = inner.active_shared.as_ref() else {
+            return true;
+        };
+        if lease.complete(next, attempts, refusal).is_ok() {
+            return true;
         }
+        if lease.lost() {
+            return false;
+        }
+        inner.healthy = false;
+        true
     }
 
     fn mutate_durable(&self, mutate: impl FnOnce(&mut RequestPolicyDocument)) {
@@ -625,6 +658,8 @@ struct MachineState {
     token: String,
     next_allowed_at: u64,
     attempts: u32,
+    #[serde(default)]
+    refusal_revision: Option<String>,
 }
 
 struct MachineLease {
@@ -633,6 +668,10 @@ struct MachineLease {
     token: String,
     attempts: u32,
     stop: std::sync::mpsc::Sender<()>,
+    /// The acquisition clock and when it was read, so ownership is judged at
+    /// the same instant the heartbeat uses.
+    acquired_at: u64,
+    started: Instant,
 }
 
 impl MachineLease {
@@ -658,15 +697,20 @@ impl MachineLease {
         account: Option<&str>,
         now: u64,
     ) -> Result<Self, GateRejection> {
-        Self::acquire_account_with_refusal_change(directory, provider, account, now, None)
+        Self::acquire_account_with_refusal_change(directory, provider, account, now, None, None)
     }
 
+    /// `revision` names the login about to be sent. A refusal recorded in
+    /// the shared lease by either process names the login it refused
+    /// (`claude-poll-vectors.json`), so another login ends that refusal and
+    /// its deadline, and nothing else. TypeScript twin: `acquireMachineLease`.
     fn acquire_account_with_refusal_change(
         directory: &std::path::Path,
         provider: &str,
         account: Option<&str>,
         now: u64,
         refusal_deadline: Option<u64>,
+        revision: Option<&str>,
     ) -> Result<Self, GateRejection> {
         let file = directory.join(format!("acquisition-{provider}.json"));
         let token = uuid::Uuid::new_v4().to_string();
@@ -683,13 +727,18 @@ impl MachineLease {
             }
             let same_account =
                 state.last_account.is_none() || account == state.last_account.as_deref();
-            // Only the local refusal revision can release its shared deadline.
-            // The CLI computes its revision from different source metadata.
-            // A deadline written since the refusal, such as the CLI's rate
-            // limit, is no longer the refusal's own and stays.
-            if same_account && refusal_deadline == Some(state.next_allowed_at) {
+            // A refusal ends its own shared deadline and nothing else: either
+            // the local record names this deadline, or the shared lease names
+            // a refused login this one is not. A deadline that names no
+            // refusal, such as a rate limit from either process, stays.
+            let rotated = state
+                .refusal_revision
+                .as_deref()
+                .is_some_and(|refused| revision.is_some_and(|current| current != refused));
+            if same_account && (refusal_deadline == Some(state.next_allowed_at) || rotated) {
                 state.next_allowed_at = 0;
                 state.attempts = 0;
+                state.refusal_revision = None;
             }
             attempts = if same_account { state.attempts } else { 0 };
             if now < state.next_allowed_at
@@ -709,6 +758,7 @@ impl MachineLease {
             if !same_account {
                 state.next_allowed_at = 0;
                 state.attempts = 0;
+                state.refusal_revision = None;
             }
             fsx::atomic_write(&file, &serde_json::to_string(&state).map_err(|_| ())?)
                 .map_err(|_| ())
@@ -754,6 +804,19 @@ impl MachineLease {
             token,
             attempts,
             stop,
+            acquired_at: now,
+            started,
+        })
+    }
+
+    /// Still this process's: the same token, the desktop as owner, and not
+    /// expired. TypeScript twin: `MachineLease.stillOwned`.
+    fn still_owned(&self) -> bool {
+        let at = self.acquired_at.saturating_add(self.started.elapsed().as_millis() as u64);
+        Self::read(&self.file).is_ok_and(|state| {
+            state.token == self.token
+                && state.owner.as_deref() == Some("desktop")
+                && at < state.expires_at
         })
     }
 
@@ -769,10 +832,16 @@ impl MachineLease {
         })
     }
 
-    fn complete(&self, next: u64, attempts: u32) -> Result<(), ()> {
+    /// Another process took this lease over: the file names another token.
+    fn lost(&self) -> bool {
+        Self::read(&self.file).is_ok_and(|state| state.token != self.token)
+    }
+
+    fn complete(&self, next: u64, attempts: u32, refusal: Option<&str>) -> Result<(), ()> {
         self.mutate(|state| {
             state.next_allowed_at = state.next_allowed_at.max(next);
             state.attempts = attempts;
+            state.refusal_revision = refusal.map(str::to_string);
         })
     }
 }
@@ -806,7 +875,7 @@ fn provider_spacing_seconds(provider: DetectedProviderId, account_id: &str) -> u
             % (PROVIDER_SPACING_SECONDS + 1)
 }
 
-fn jittered_account_delay(
+pub(crate) fn jittered_account_delay(
     provider: DetectedProviderId,
     account_id: &str,
     minimum_seconds: u64,
@@ -1193,15 +1262,213 @@ mod tests {
             Err(GateRejection::Busy)
         ));
         let second = MachineLease::acquire(dir.path(), "claude", NOW + 60_001).unwrap();
-        assert!(first.complete(NOW, 0).is_err());
+        assert!(first.complete(NOW, 0, None).is_err());
         drop(first);
         assert_eq!(MachineLease::read(&file).unwrap().token, second.token);
-        second.complete(NOW + 900_000, 3).unwrap();
+        second.complete(NOW + 900_000, 3, None).unwrap();
         drop(second);
         assert!(matches!(
             MachineLease::acquire(dir.path(), "claude", NOW + 100_000),
             Err(GateRejection::Deferred { .. })
         ));
+    }
+
+    /// The shared refusal revisions, read from the vectors both languages use.
+    fn shared_revision(token: &str) -> String {
+        let document: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../packages/core/src/contracts/claude-poll-vectors.json"
+        ))
+        .unwrap();
+        document["revision"]["vectors"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|vector| vector["token"] == token)
+            .and_then(|vector| vector["expected"].as_str())
+            .unwrap()
+            .to_string()
+    }
+
+    /// Hotfix 2.1.5, change B. The command line tool records its refusal in
+    /// the shared lease, named by the token it sent; the desktop keeps that
+    /// refusal for the same login and releases it once the login rotates.
+    #[test]
+    fn a_refusal_the_cli_recorded_ends_on_rotation_and_holds_otherwise() {
+        let old = shared_revision("synthetic-old-token");
+        let new = shared_revision("synthetic-new-token");
+        assert_eq!(crate::poll_identity::credential_revision("synthetic-old-token"), old);
+        let deadline = NOW + 86_400_000;
+        let dir = TempDir::new();
+        std::fs::write(
+            dir.path().join("acquisition-claude.json"),
+            serde_json::json!({"lastAccount": null, "owner": null, "expiresAt": 0, "token": "",
+                "nextAllowedAt": deadline, "attempts": 1, "refusalRevision": old})
+            .to_string(),
+        )
+        .unwrap();
+        let policy = policy(&dir);
+        assert_eq!(
+            policy
+                .begin_with_revision(DetectedProviderId::Claude, "account-a", NOW + 60_000, Some(&old))
+                .err(),
+            Some(GateRejection::Deferred { retry_at: deadline })
+        );
+        let lease = policy
+            .begin_with_revision(DetectedProviderId::Claude, "account-a", NOW + 60_000, Some(&new))
+            .expect("a rotated login ends the refusal the CLI recorded");
+        let shared = MachineLease::read(&dir.path().join("acquisition-claude.json")).unwrap();
+        assert_eq!(shared.next_allowed_at, 0);
+        assert_eq!(shared.refusal_revision, None);
+        drop(lease);
+    }
+
+    /// The other direction: a desktop refusal names the login it sent in the
+    /// shared lease, so the command line tool can release it after a rotation,
+    /// and a later success clears the name.
+    #[test]
+    fn a_desktop_refusal_names_the_sent_login_in_the_shared_lease() {
+        let old = shared_revision("synthetic-old-token");
+        let new = shared_revision("synthetic-new-token");
+        let dir = TempDir::new();
+        let file = dir.path().join("acquisition-claude.json");
+        let policy = policy(&dir);
+        let lease = policy
+            .begin_with_revision(DetectedProviderId::Claude, "account-a", NOW, Some(&old))
+            .unwrap();
+        policy.refuse_account(DetectedProviderId::Claude, "account-a", NOW, false);
+        drop(lease);
+        let refused: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+        assert_eq!(refused["refusalRevision"], old.as_str());
+        assert_eq!(refused["nextAllowedAt"], NOW + 86_400_000);
+        let at = NOW + 60_000;
+        let lease = policy
+            .begin_with_revision(DetectedProviderId::Claude, "account-a", at, Some(&new))
+            .unwrap();
+        policy.complete_after(DetectedProviderId::Claude, "account-a", at, 300);
+        drop(lease);
+        let cleared: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+        assert!(cleared["refusalRevision"].is_null());
+    }
+
+    /// A rate limit names no login, so a rotation never shortens it.
+    #[test]
+    fn a_shared_rate_limit_survives_a_rotation() {
+        let dir = TempDir::new();
+        let deadline = NOW + 7_200_000;
+        std::fs::write(
+            dir.path().join("acquisition-claude.json"),
+            serde_json::json!({"lastAccount": null, "owner": null, "expiresAt": 0, "token": "",
+                "nextAllowedAt": deadline, "attempts": 1, "refusalRevision": null})
+            .to_string(),
+        )
+        .unwrap();
+        assert_eq!(
+            policy(&dir)
+                .begin_with_revision(
+                    DetectedProviderId::Claude,
+                    "account-a",
+                    NOW + 60_000,
+                    Some(&shared_revision("synthetic-new-token"))
+                )
+                .err(),
+            Some(GateRejection::Deferred { retry_at: deadline })
+        );
+    }
+
+    /// A poll that outlived its lease cannot record its refusal over the
+    /// process that took the provider over.
+    #[test]
+    fn a_holder_that_lost_its_lease_cannot_record_a_refusal() {
+        let dir = TempDir::new();
+        let file = dir.path().join("acquisition-claude.json");
+        let slow = MachineLease::acquire(dir.path(), "claude", NOW).unwrap();
+        let successor = MachineLease::acquire(dir.path(), "claude", NOW + 60_000).unwrap();
+        assert!(slow
+            .complete(NOW + 86_400_000, 0, Some("refused-by-a-lost-holder"))
+            .is_err());
+        drop(slow);
+        let state = MachineLease::read(&file).unwrap();
+        assert_eq!(state.token, successor.token);
+        assert_eq!(state.refusal_revision, None);
+        assert_eq!(state.next_allowed_at, 0);
+        drop(successor);
+    }
+
+    /// Hotfix 2.1.5 round 2 fix 2. Losing the shared lease is a cancellation,
+    /// never a backoff: a holder that completes after a takeover records no
+    /// local deadline, leaves the successor's deadline as it was, and keeps
+    /// this process's gate open for the next read at that deadline.
+    /// TypeScript twin: acquisition-policy.test.ts, "polls at the successor's
+    /// deadline after a takeover, with no backoff of its own".
+    #[test]
+    fn a_holder_that_lost_its_lease_records_no_backoff_and_stays_open() {
+        let dir = TempDir::new();
+        let file = dir.path().join("acquisition-claude.json");
+        let gate = policy(&dir);
+        let lease = gate
+            .begin_with_revision(DetectedProviderId::Claude, "account-one", NOW, Some("revision"))
+            .unwrap();
+        let mut taken = MachineLease::read(&file).unwrap();
+        taken.owner = Some("cli".to_string());
+        taken.token = "cli-took-over".to_string();
+        taken.expires_at = NOW + 120_000;
+        taken.next_allowed_at = NOW + 300_000;
+        std::fs::write(&file, serde_json::to_string(&taken).unwrap()).unwrap();
+        gate.retry_account(DetectedProviderId::Claude, "account-one", NOW + 15_000, None, false);
+        drop(lease);
+        let state = MachineLease::read(&file).unwrap();
+        assert_eq!(state.token, "cli-took-over");
+        assert_eq!(state.next_allowed_at, NOW + 300_000);
+        let document = load_document(Some(&dir.path().to_path_buf())).unwrap();
+        assert_eq!(
+            document.providers[&DetectedProviderId::Claude].accounts["account-one"],
+            NOW + PROVISIONAL_REQUEST_SECONDS * 1_000
+        );
+        let next = gate.begin_with_revision(DetectedProviderId::Claude, "account-one", NOW + 300_000, Some("revision"));
+        assert!(next.is_ok(), "{:?}", next.err());
+    }
+
+    /// Hotfix 2.1.5, change C: Claude failures keep their backoff, read from
+    /// the vectors the command line tool reads too.
+    #[test]
+    fn every_shared_claude_failure_vector() {
+        let document: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../packages/core/src/contracts/claude-poll-vectors.json"
+        ))
+        .unwrap();
+        for vector in document["schedule"]["failure"].as_array().unwrap() {
+            let now = millis(&vector["now"]);
+            let attempts = vector["attempts"].as_u64().unwrap() as u32;
+            let retry_after = vector["retryAfterSeconds"].as_u64();
+            let deadline = match vector["status"].as_u64().unwrap() {
+                429 => {
+                    retry_decision(
+                        attempts,
+                        retry_after.map(|seconds| now + seconds * 1_000),
+                        now,
+                        0,
+                        MAX_SERVER_DELAY_SECONDS,
+                    )
+                    .next_allowed_at
+                }
+                401 | 403 => {
+                    let dir = TempDir::new();
+                    let policy = policy(&dir);
+                    let lease = policy
+                        .begin(DetectedProviderId::Claude, "claude-account", now)
+                        .unwrap();
+                    policy.refuse_account(DetectedProviderId::Claude, "claude-account", now, false);
+                    drop(lease);
+                    load_document(Some(&dir.path().to_path_buf())).unwrap().providers
+                        [&DetectedProviderId::Claude]
+                        .accounts["claude-account"]
+                }
+                status => panic!("unexpected status {status}"),
+            };
+            assert_eq!(deadline, millis(&vector["expected"]), "{}", vector["id"]);
+        }
     }
 
     fn policy(dir: &TempDir) -> RequestPolicy {

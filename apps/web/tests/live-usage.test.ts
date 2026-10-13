@@ -212,11 +212,12 @@ describe("live synced usage", () => {
   });
 
   it("keeps a model weekly meter fresh inside its refresh horizon and stale after it", () => {
+    // Seven minutes old: inside the Claude horizon of 465 seconds (hotfix 2.1.5).
     const current = provider("CLAUDE", IDENTIFIED_CLAUDE, [{
       windowName: "SEVEN_DAY_FABLE",
       percentage: 57,
       resetAt: null,
-      observedAt: "2026-10-01T11:50:00.000Z",
+      observedAt: "2026-10-01T11:53:00.000Z",
       stale: false,
     }]);
     expect(snapshotsFromSyncedUsage([current], NOW, (count) => `Account ${count}`)
@@ -252,8 +253,10 @@ describe("live synced usage", () => {
 
   it("keeps a quiet provider's last reading on the phone, stale, for seven days instead of dropping its card", () => {
     // The founder's phone: Antigravity's status line wrote a day ago and its CLI is closed since.
+    /* No reset stated: a reading whose reset passed is withdrawn on its own
+       (hotfix 2.1.5), and this case is about the seven day hold. */
     const quiet = (observedAt: string) => provider("ANTIGRAVITY", "antigravity-account", [
-      { windowName: "FIVE_HOUR", percentage: 40, resetAt: "2026-09-30T15:00:00.000Z", observedAt, stale: true },
+      { windowName: "FIVE_HOUR", percentage: 40, resetAt: null, observedAt, stale: true },
     ]);
     const day = snapshotsFromSyncedUsage([quiet("2026-09-30T12:00:00.000Z")], NOW);
     expect(day.map((row) => [row.provider, row.meter, row.value])).toEqual([["ANTIGRAVITY", "FIVE_HOUR", 40]]);
@@ -285,6 +288,17 @@ describe("live synced usage", () => {
     ], NOW);
     expect(rows.map((row) => [row.accountId, freshness(row.observedAt, row.expiresAt, NOW)]))
       .toEqual([["claude-a", "fresh"], ["claude-b", "stale"]]);
+  });
+
+  /* Hotfix 2.1.5, change D: a reading from before its window reset is
+     withdrawn on the phone at the reset, fresh or stale, and nothing replaces it. */
+  it("withdraws a reading at its reset and keeps it until then", () => {
+    const weekly = (resetAt: string) => provider("CLAUDE", IDENTIFIED_CLAUDE, [
+      { windowName: "SEVEN_DAY", percentage: 75, resetAt, observedAt: "2026-10-01T11:59:00.000Z", stale: false },
+    ]);
+    expect(snapshotsFromSyncedUsage([weekly("2026-10-01T12:00:00.001Z")], NOW).map((row) => row.value)).toEqual([75]);
+    expect(snapshotsFromSyncedUsage([weekly(NOW)], NOW)).toEqual([]);
+    expect(snapshotsFromSyncedUsage([weekly("2026-10-01T11:59:30.000Z")], NOW)).toEqual([]);
   });
 
   it("never counts a reset still ahead as freshness", () => {

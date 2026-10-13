@@ -178,8 +178,10 @@ test("the list holds what is measured, detected, keyed or flagged, never a switc
 test("rows already on screen stay when a read fails, fresh or held stale by the one projection", () => {
   const rows = fixtures.projected.snapshots;
   assert.equal(holdReadings(rows, now).length, rows.length);
-  // Seven minutes on, the desktop Codex row expired: it stays, stale, beside the rest.
-  const later = new Date(NOW + 7 * 60_000).toISOString();
+  // Seven minutes after the reads (the fixtures read two minutes ago), the
+  // desktop Codex row expired at its 420 seconds: it stays, stale, beside the
+  // rest; Claude rows keep their own 465 seconds (hotfix 2.1.5).
+  const later = new Date(NOW + 5 * 60_000 + 1_000).toISOString();
   const held = holdReadings(rows, later);
   assert.equal(held.length, rows.length);
   assert.deepEqual(held.filter((row) => freshness(row.observedAt, row.expiresAt, later) === "stale").map((row) => row.provider), ["CODEX"]);
@@ -191,24 +193,37 @@ test("alerts read fresh percentages only: a stale reading never raises one", () 
   // The window samples what the projection drew, with the policy expiry it stamped.
   const rows = fixtures.projected.snapshots;
   assert.deepEqual(alertSamples(holdReadings(rows, now), now).map((sample) => sample.provider), rows.map((row) => row.provider));
-  const later = new Date(NOW + 7 * 60_000).toISOString();
+  const later = new Date(NOW + 5 * 60_000 + 1_000).toISOString();
   const drawn = holdReadings(rows, later);
   assert.ok(drawn.some((row) => row.provider === "CODEX"), "the expired Codex row is still drawn, stale");
   assert.deepEqual([...new Set(alertSamples(drawn, later).map((sample) => sample.provider))], ["CLAUDE", "OPENROUTER"]);
+});
+
+test("a reading whose window reset never raises an alert or stays drawn, even while fresh", () => {
+  // Hotfix 2.1.5, change D: the number from before a reset describes no window on screen.
+  const row = fixtures.projected.snapshots.find((snapshot) => snapshot.unit === "PERCENT");
+  const reset = { ...row, resetAt: new Date(NOW - 1_000).toISOString() };
+  assert.equal(freshness(reset.observedAt, reset.expiresAt, now), "fresh");
+  assert.deepEqual(alertSamples([reset], now), []);
+  assert.equal(alertSamples([{ ...row, resetAt: new Date(NOW + 1_000).toISOString() }], now).length, 1);
+  assert.deepEqual(holdReadings([reset], now), []);
 });
 
 test("a quiet Antigravity card with a day old reading stays, flat grey with its age, instead of vanishing", () => {
   // The founder's machine: Antigravity's status line wrote yesterday and its CLI is closed since.
   const observed = NOW - 24 * 3_600_000;
   const row = {
-    provider: "ANTIGRAVITY", meter: "FIVE_HOUR", value: 40, unit: "PERCENT", kind: "quota_percent",
-    window: { kind: "rolling", durationSeconds: 18_000 }, resetAt: new Date(observed + 3 * 3_600_000).toISOString(),
+    provider: "ANTIGRAVITY", meter: "SEVEN_DAY", value: 40, unit: "PERCENT", kind: "quota_percent",
+    window: { kind: "rolling", durationSeconds: 604_800 }, resetAt: new Date(observed + 4 * 86_400_000).toISOString(),
     source: "native_payload", precision: "exact", observedAt: new Date(observed).toISOString(),
     expiresAt: new Date(observed + 132_000).toISOString(), accountId: ACCOUNTS.antigravity,
     provenance: { sourceKind: "statusline_payload", observedVia: "antigravity_cli_statusline" },
     labels: { credentialOrigin: "official-local-tool", dataInterfaceStatus: "native-statusline-payload", automationRisk: "low", verification: "UNVERIFIED" },
   };
-  const readings = projectReadings(JSON.stringify({ version: 2, snapshots: [row], flags: [] }), null, now);
+  // Its session window reset 21 hours ago, so that number describes nothing now (hotfix 2.1.5).
+  const session = { ...row, meter: "FIVE_HOUR", value: 70, window: { kind: "rolling", durationSeconds: 18_000 },
+    resetAt: new Date(observed + 3 * 3_600_000).toISOString() };
+  const readings = projectReadings(JSON.stringify({ version: 2, snapshots: [row, session], flags: [] }), null, now);
   const model = limitsModel(readings.snapshots, now);
   assert.deepEqual(model.map((provider) => [provider.code, provider.age]), [["ANTIGRAVITY", "Updated 1 d ago"]]);
   assert.deepEqual(model[0].windows.map((window) => [window.value, window.band]), [["40%", "stale"]]);

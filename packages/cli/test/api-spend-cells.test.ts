@@ -169,6 +169,22 @@ describe("api money cells in the bar status line", () => {
     expect(render(cny)).toBe("ds ~CNY");
   });
 
+  /* Hotfix 2.1.5 fix 8, the status line rule of fix 6: with colour a stale
+     amount is grey and carries no tilde, whatever its band; without colour it
+     keeps the tilde (the test above). */
+  it("greys a stale sample with colour instead of marking it", () => {
+    const grey = (text: string) => ESC + "[90m" + text + ESC + "[0m";
+    const old = "2026-09-07T10:00:00Z";
+    const doc = document([
+      [source("openai"), { spendUsd: "12.34", observedAt: old }],
+      [source("anthropic", { budgetUsd: "100" }), { spendUsd: "85", budgetUsd: "100", observedAt: old }],
+      [source("deepseek"), { balanceUsd: "0.80", observedAt: old }],
+      [source("deepseek"), { currencySource: "provider_cny", observedAt: old }]
+    ]);
+    expect(render(doc, [], true)).toBe("oa " + grey("$12.34") + " | an " + grey("$85.00") + " | ds " + grey("$0.80") + " | ds " + grey("CNY"));
+    expect(render(fullDocument(), [], true)).not.toContain(ESC + "[90m");
+  });
+
   it("draws no money cell for a source whose key was just replaced", async () => {
     /* The state the desktop writes when a key is replaced, pinned by api_spend.rs:
        the old key's samples left with it, so nothing is selected by its source id. */

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -9,10 +10,12 @@ import {
   ACQUISITION_OUTCOME_SENTENCE,
   ACQUISITION_RATE_LIMIT_BACKOFF_SECONDS,
   ACQUISITION_STATE_FILE_NAME,
+  CLAUDE_ACQUISITION_INTERVAL_SECONDS,
   DESKTOP_OWNERSHIP_SECONDS,
   backoffSecondsFor,
   isProviderDue,
   nextAttemptInstant,
+  nextSuccessInstant,
   outcomeForStatus,
   readAcquisitionSchedule,
   retryAfterSeconds,
@@ -190,5 +193,44 @@ describe("acquisition cadence", () => {
       expect(sentence).not.toMatch(/[-–—]/u);
       expect(sentence.length).toBeGreaterThan(0);
     }
+  });
+});
+
+/*
+ * Hotfix 2.1.5, change C. Claude is asked every five minutes after a success,
+ * or at the next reset still ahead when that comes first; failures keep their
+ * backoff. The desktop reads the same vectors (claude_oauth.rs).
+ */
+describe("Claude schedule shared with the desktop", () => {
+  const vectors = JSON.parse(readFileSync(path.resolve("packages/core/src/contracts/claude-poll-vectors.json"), "utf8")).schedule as {
+    success: { id: string; now: string; resetAts: (string | null)[]; expected: string }[];
+    failure: { id: string; now: string; status: number; attempts: number; retryAfterSeconds: number | null; expected: string }[];
+  };
+  for (const vector of vectors.success) {
+    it("success " + vector.id, () => {
+      expect(nextSuccessInstant("CLAUDE", vector.now, vector.resetAts)).toBe(vector.expected);
+    });
+  }
+  for (const vector of vectors.failure) {
+    it("failure " + vector.id, () => {
+      expect(nextAttemptInstant(outcomeForStatus(vector.status), vector.now, vector.retryAfterSeconds, vector.attempts))
+        .toBe(vector.expected);
+    });
+  }
+
+  it("asks Claude every five minutes and every other provider every fifteen", () => {
+    expect(CLAUDE_ACQUISITION_INTERVAL_SECONDS).toBe(300);
+    expect(nextSuccessInstant("CODEX", NOW, ["2026-01-01T00:01:00.000Z"])).toBe("2026-01-01T00:15:00.000Z");
+  });
+
+  it("keeps a reset aligned deadline across a restart", async () => {
+    const directory = await temporaryDirectory();
+    const vector = vectors.success.find((entry) => entry.id === "reset-before-the-cadence")!;
+    await writeAcquisitionSchedule({
+      CLAUDE: { lastAttemptAt: vector.now, nextAttemptAt: nextSuccessInstant("CLAUDE", vector.now, vector.resetAts)!, outcome: "ok" }
+    }, directory);
+    const restarted = (await readAcquisitionSchedule(directory))["CLAUDE"];
+    expect(isProviderDue(restarted, new Date(Date.parse(vector.expected) - 1).toISOString())).toBe(false);
+    expect(isProviderDue(restarted, vector.expected)).toBe(true);
   });
 });

@@ -3,6 +3,13 @@
   "versionLabel": "Version {version}",
   "dismiss": "Got it",
   "releases": {
+    "2.1.5": {
+      "heading": "Fresher Claude bars",
+      "weekly": "Claude weekly bars are read every five minutes while the app runs, and while Claude Code draws its status line with the command line poll on. Nothing is read while neither runs.",
+      "reset": "A reading from before its weekly reset is never shown, on any surface, the paired phone included.",
+      "status": "In the status line, a reading older than its refresh window turns grey, and keeps its tilde when colours are off. Otherwise the tilde marks estimates.",
+      "login": "The command line recovers from a rotated Claude login, and a weekly Anthropic stops reporting disappears after a complete read."
+    },
     "2.1.4": {
       "heading": "Bars that stay",
       "claude": "A Claude poll refused right after Claude Code rotated its login no longer hides your Claude bars for a day.",

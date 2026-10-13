@@ -55,6 +55,8 @@ export type CollectionReport =
       accountId?: string;
       observedAt: string;
       snapshots: readonly Snapshot[];
+      /** Whether the read stated its whole weekly set (hotfix 2.1.5 fix 4). */
+      complete?: boolean;
     }
   | {
       ok: false;

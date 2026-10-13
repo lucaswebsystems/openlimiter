@@ -7,7 +7,7 @@ use tauri::{AppHandle, Manager};
 
 use crate::cache_write::CacheWriter;
 use crate::native_snapshot::{
-    future_rfc3339, iso_from_epoch_ms, write_report, CacheReport, ConnectorLabels, Snapshot,
+    future_rfc3339, iso_from_epoch_ms, write_report_with, CacheReport, ConnectorLabels, Snapshot,
     SnapshotWindow,
 };
 use crate::net::{fetch_endpoint, NetError, ProviderEndpoint, ReqwestTransport, Transport};
@@ -17,12 +17,27 @@ use crate::provider_detection::{
 use crate::reader_registry::AuthApplication;
 use crate::request_policy::{GateRejection, RequestPolicy};
 
-pub const REFRESH_SECONDS: u64 = 900;
+/// How often Claude is read after a success: five minutes, Claude only.
+/// TypeScript twin: `CLAUDE_ACQUISITION_INTERVAL_SECONDS` in cadence.ts.
+pub const REFRESH_SECONDS: u64 = 300;
+/// A shape this build does not read waits the ordinary fifteen minutes, the
+/// failure backoff it always had. TypeScript twin: `backoffSecondsFor("drift")`.
+const DRIFT_BACKOFF_SECONDS: u64 = 900;
 pub const RATE_LIMIT_BACKOFF_SECONDS: u64 = 60;
 pub const BLOCKED_BACKOFF_SECONDS: u64 = 86_400;
-const CACHE_FRESH_SECONDS: u64 = 1_200;
 const MAX_THROTTLE_ENTRIES: usize = 128;
 const CLOCK_SKEW_SECONDS: u64 = 3_600;
+
+/// When the read after a success is due: five minutes on, or the next reset
+/// still ahead of this read when it comes first, so a window that turns over
+/// is read as it turns over. TypeScript twin: `nextSuccessInstant`, and both
+/// read `claude-poll-vectors.json`.
+pub(crate) fn success_deadline_ms(now_ms: u64, resets: impl IntoIterator<Item = u64>) -> u64 {
+    resets
+        .into_iter()
+        .filter(|reset| *reset > now_ms)
+        .fold(now_ms.saturating_add(REFRESH_SECONDS.saturating_mul(1_000)), u64::min)
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -50,6 +65,9 @@ pub enum ClaudeFallback {
 pub enum ClaudeOauthOutcome {
     CacheCommitted {
         account_id: String,
+        /// When the next read is due, by `success_deadline_ms`.
+        #[serde(skip)]
+        next_read_at: u64,
     },
     Cached {
         account_id: String,
@@ -424,8 +442,10 @@ fn snapshot(
         source: "internal_payload".to_string(),
         precision: "exact".to_string(),
         observed_at: iso_from_epoch_ms(now_ms)?,
+        /* The status line reads this stored expiry as is, so it carries the
+        Claude horizon the shared data rules apply everywhere else. */
         expires_at: iso_from_epoch_ms(
-            now_ms.saturating_add(CACHE_FRESH_SECONDS.saturating_mul(1_000)),
+            now_ms.saturating_add(crate::data_rules::CLAUDE_FRESHNESS_SECONDS.saturating_mul(1_000)),
         )?,
         labels: labels(),
         used_amount: None,
@@ -585,6 +605,33 @@ fn parse_extra_usage(
 /// and the UI already labels, and a display name that renames the same model
 /// would otherwise open a second bar for the same allowance.
 pub fn parse_usage(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
+    read_usage(body, now_ms, account_id).rows
+}
+
+/// One read of a usage document: its rows, and whether it stated its whole
+/// weekly set. Not complete when nothing was read, or when a weekly bucket it
+/// names (a weekly root key, or a weekly_scoped entry for a family this build
+/// knows) was there and failed validation; a null bucket, and anything
+/// outside the allowlist, does not count. Only a complete read may replace
+/// the stored weekly set (hotfix 2.1.5 fix 4). TypeScript twin: claude.ts
+/// claudeWeeklySetComplete.
+pub(crate) struct UsageRead {
+    pub(crate) rows: Option<Vec<Snapshot>>,
+    pub(crate) weekly_complete: bool,
+}
+
+pub(crate) fn read_usage(body: &str, now_ms: u64, account_id: &str) -> UsageRead {
+    let mut complete = true;
+    let rows = parse_document(body, now_ms, account_id, &mut complete);
+    UsageRead { weekly_complete: complete && rows.is_some(), rows }
+}
+
+fn parse_document(
+    body: &str,
+    now_ms: u64,
+    account_id: &str,
+    complete: &mut bool,
+) -> Option<Vec<Snapshot>> {
     let root: Value = serde_json::from_str(body).ok()?;
     let root = root.as_object()?;
     let mut rows: Vec<Snapshot> = Vec::new();
@@ -611,6 +658,7 @@ pub fn parse_usage(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snap
         });
         let Some(row) = parsed else {
             dropped("root window", meter);
+            *complete &= !meter.starts_with("SEVEN_DAY");
             continue;
         };
         if taken.insert(meter.to_string()) {
@@ -632,10 +680,15 @@ pub fn parse_usage(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snap
         if !weekly_root_key(&normalized_key) && normalized_key != "five_hour" {
             continue;
         }
+        /* A weekly bucket that is there and does not hold together makes the
+        weekly set incomplete; a null one is simply absent. */
+        let weekly = weekly_root_key(&normalized_key);
         let Some(bucket) = value.as_object() else {
+            *complete &= !weekly || value.is_null();
             continue;
         };
         if !bucket.contains_key("utilization") || !bucket.contains_key("resets_at") {
+            *complete &= !weekly;
             continue;
         }
         let Some(meter) = (if normalized_key == "five_hour" {
@@ -657,6 +710,7 @@ pub fn parse_usage(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snap
         let Some(row) = parse_reading(bucket, "utilization", &meter, window, now_ms, account_id)
         else {
             dropped("unnamed root window", &meter);
+            *complete &= !weekly;
             continue;
         };
         if taken.insert(meter) {
@@ -706,6 +760,7 @@ pub fn parse_usage(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snap
             account_id,
         ) else {
             dropped("model scoped", &meter);
+            *complete = false;
             continue;
         };
         taken.insert(meter);
@@ -735,9 +790,14 @@ fn net_failure(error: NetError) -> ClaudeOauthFailure {
     }
 }
 
-async fn commit_report(writer: Arc<CacheWriter>, account_id: String, report: CacheReport) -> bool {
+async fn commit_report(
+    writer: Arc<CacheWriter>,
+    account_id: String,
+    report: CacheReport,
+    weekly_complete: bool,
+) -> bool {
     tauri::async_runtime::spawn_blocking(move || {
-        write_report(&writer, "CLAUDE", Some(&account_id), report)
+        write_report_with(&writer, "CLAUDE", Some(&account_id), report, weekly_complete)
     })
     .await
     .is_ok_and(|result| result.is_ok())
@@ -752,7 +812,7 @@ async fn fallback_report(writer: Arc<CacheWriter>, account_id: &str, drift: bool
     } else {
         CacheReport::Unavailable
     };
-    let _ = commit_report(writer, account_id.to_string(), report).await;
+    let _ = commit_report(writer, account_id.to_string(), report, false).await;
 }
 
 #[cfg(test)]
@@ -812,15 +872,28 @@ async fn collect_with_reread<T: Transport>(
     let response = loop {
         let current = rotated.as_ref().unwrap_or(secret);
         policy.carrying_revision(&current.credential_revision);
-        let response = match fetch_endpoint(
+        let fetched = fetch_endpoint(
             transport,
             ProviderEndpoint::ClaudeOauthUsage,
             AuthApplication::ClaudeOauthBearer,
             &current.access_token,
             None,
         )
-        .await
-        {
+        .await;
+        /* A response that comes back after another process took the shared
+        lease is that process's read now. Losing ownership is a cancellation,
+        never a failure: whatever came back is not classified, written or
+        scheduled, and the lease and deadline the other process holds are left
+        alone (hotfix 2.1.5 fix 5 and round 2 fix 2). TypeScript twin:
+        runner.ts attempt and the lease loop. */
+        if !policy.still_owns_shared() {
+            return ClaudeOauthOutcome::Cached {
+                account_id: account_id.to_string(),
+                retry_at: iso_from_epoch_ms(now_ms)
+                    .unwrap_or_else(|| "1970-01-01T00:00:00.000Z".to_string()),
+            };
+        }
+        let response = match fetched {
             Ok(response) => response,
             Err(error) => {
                 runtime.retry(account_id, now_ms, None);
@@ -855,19 +928,30 @@ async fn collect_with_reread<T: Transport>(
                 fallback_report(writer, account_id, true, now_ms).await;
                 return ClaudeOauthOutcome::fallback(account_id, ClaudeOauthFailure::Drift, None);
             };
-            let Some(snapshots) = parse_usage(&body, now_ms, account_id) else {
+            let read = read_usage(&body, now_ms, account_id);
+            let Some(snapshots) = read.rows else {
                 fallback_report(writer, account_id, true, now_ms).await;
                 return ClaudeOauthOutcome::fallback(account_id, ClaudeOauthFailure::Drift, None);
             };
+            let next_read_at = success_deadline_ms(
+                now_ms,
+                snapshots.iter().filter_map(|row| {
+                    row.reset_at
+                        .as_deref()
+                        .and_then(crate::native_time::epoch_ms_from_rfc3339)
+                }),
+            );
             if commit_report(
                 writer,
                 account_id.to_string(),
                 CacheReport::Success(snapshots),
+                read.weekly_complete,
             )
             .await
             {
                 ClaudeOauthOutcome::CacheCommitted {
                     account_id: account_id.to_string(),
+                    next_read_at,
                 }
             } else {
                 ClaudeOauthOutcome::Failed {
@@ -1089,12 +1173,21 @@ fn complete_outcome(
             policy.retry_account(DetectedProviderId::Claude, &account_id, now_ms, None, false);
             false
         }
+        ClaudeOauthOutcome::CacheCommitted { next_read_at, .. } => {
+            policy.complete_after(
+                DetectedProviderId::Claude,
+                &account_id,
+                now_ms,
+                next_read_at.saturating_sub(now_ms).div_ceil(1_000),
+            );
+            false
+        }
         _ => {
             policy.complete_after(
                 DetectedProviderId::Claude,
                 &account_id,
                 now_ms,
-                REFRESH_SECONDS,
+                DRIFT_BACKOFF_SECONDS,
             );
             false
         }
@@ -1179,7 +1272,8 @@ mod tests {
     #[test]
     fn home_refresh_reports_a_committed_read_and_a_login_failure() {
         assert!(pass_read_succeeded(&ClaudeOauthOutcome::CacheCommitted {
-            account_id: "fixture".into()
+            account_id: "fixture".into(),
+            next_read_at: 0
         }));
         assert!(pass_read_succeeded(&ClaudeOauthOutcome::Cached {
             account_id: "fixture".into(),
@@ -1852,6 +1946,88 @@ mod tests {
         assert_eq!(transport.recorded_urls().len(), 1);
     }
 
+    /// The command line taking the shared lease over while this request is in
+    /// flight (a suspended machine, a stalled request).
+    struct TakeoverTransport {
+        inner: RecordingTransport,
+        lease: std::path::PathBuf,
+    }
+
+    impl Transport for TakeoverTransport {
+        async fn send(
+            &self,
+            request: &crate::net::EndpointRequest<'_>,
+            secret: &str,
+        ) -> Result<crate::net::TransportReply, crate::net::TransportFailure> {
+            let mut state: Value = serde_json::from_str(&fs::read_to_string(&self.lease).unwrap()).unwrap();
+            state["owner"] = "cli".into();
+            state["token"] = "cli-took-over".into();
+            state["expiresAt"] = (NOW + 120_000).into();
+            state["nextAllowedAt"] = (NOW + 300_000).into();
+            fs::write(&self.lease, state.to_string()).unwrap();
+            self.inner.send(request, secret).await
+        }
+    }
+
+    /// Hotfix 2.1.5 fix 5. A response that comes back after the shared lease
+    /// was taken over is dropped unwritten, and the new owner's lease is left
+    /// as it wrote it. TypeScript twin: acquisition-policy.test.ts, "drops a
+    /// response that arrives after another process took the lease".
+    #[tokio::test]
+    async fn a_late_response_after_a_takeover_writes_nothing() {
+        let dir = TempDir::new();
+        claude_store(&dir, "synthetic-token", LATER);
+        let detection = DetectionStore::for_test_home(dir.path(), NOW);
+        let lease = dir.path().join("acquisition-claude.json");
+        let transport = TakeoverTransport {
+            inner: RecordingTransport::replying(200, valid_body(), None),
+            lease: lease.clone(),
+        };
+        let outcome = guarded(&dir, &detection, &ClaudeOauthRuntime::default(), &transport, NOW).await;
+        assert!(!matches!(outcome, ClaudeOauthOutcome::CacheCommitted { .. }), "{outcome:?}");
+        assert_eq!(transport.inner.recorded_urls().len(), 1);
+        assert!(!dir.path().join(crate::cache_write::AUTHORITATIVE_CACHE_FILE_NAME).exists());
+        let state: Value = serde_json::from_str(&fs::read_to_string(&lease).unwrap()).unwrap();
+        assert_eq!(state["owner"], "cli");
+        assert_eq!(state["token"], "cli-took-over");
+        assert_eq!(state["nextAllowedAt"], NOW + 300_000);
+    }
+
+    /// Hotfix 2.1.5 round 2 fix 2. A takeover during a request cancels the
+    /// read whatever the endpoint answers: nothing is classified, written or
+    /// scheduled, the policy stays open, the successor's deadline stays, and
+    /// the next collection polls at it. TypeScript twin:
+    /// acquisition-policy.test.ts, "polls at the successor's deadline after a
+    /// takeover, with no backoff of its own".
+    #[tokio::test]
+    async fn a_takeover_cancels_the_read_and_the_next_one_polls_at_the_successor_deadline() {
+        for status in [200, 401, 429, 500] {
+            let dir = TempDir::new();
+            claude_store(&dir, "synthetic-token", LATER);
+            let detection = DetectionStore::for_test_home(dir.path(), NOW);
+            let account = detection.account_ids(DetectedProviderId::Claude).pop().unwrap();
+            let runtime = ClaudeOauthRuntime::default();
+            let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
+            let lease = dir.path().join("acquisition-claude.json");
+            let takeover = TakeoverTransport {
+                inner: RecordingTransport::replying(status, valid_body(), None),
+                lease: lease.clone(),
+            };
+            let (first, _) =
+                collect_account_guarded(&detection, &runtime, &policy, &takeover, writer(&dir), account.clone(), NOW).await;
+            assert!(matches!(first, ClaudeOauthOutcome::Cached { .. }), "{status}: {first:?}");
+            assert!(!dir.path().join(crate::cache_write::AUTHORITATIVE_CACHE_FILE_NAME).exists(), "{status}");
+            let state: Value = serde_json::from_str(&fs::read_to_string(&lease).unwrap()).unwrap();
+            assert_eq!(state["token"], "cli-took-over", "{status}");
+            assert_eq!(state["nextAllowedAt"], NOW + 300_000, "{status}");
+            let next = RecordingTransport::replying(200, valid_body(), None);
+            let (second, _) =
+                collect_account_guarded(&detection, &runtime, &policy, &next, writer(&dir), account, NOW + 300_000).await;
+            assert!(matches!(second, ClaudeOauthOutcome::CacheCommitted { .. }), "{status}: {second:?}");
+            assert_eq!(next.recorded_urls().len(), 1, "{status}");
+        }
+    }
+
     /// Claude Code refreshing its login while a request is in flight: the
     /// endpoint answers 401, and by then the store holds the new token.
     struct RotatingTransport {
@@ -1992,6 +2168,338 @@ mod tests {
             }
             assert_eq!(transport.inner.recorded_urls().len(), 2);
         }
+    }
+
+    /// The refusal revisions both languages share, from one vectors file.
+    fn shared_revisions() -> Vec<(String, String)> {
+        let document: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../packages/core/src/contracts/claude-poll-vectors.json"
+        ))
+        .unwrap();
+        document["revision"]["vectors"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|vector| {
+                (
+                    vector["token"].as_str().unwrap().to_string(),
+                    vector["expected"].as_str().unwrap().to_string(),
+                )
+            })
+            .collect()
+    }
+
+    /// Hotfix 2.1.5, change B: the desktop names a Claude login exactly the
+    /// way the command line tool does, so either releases the other.
+    #[test]
+    fn the_claude_login_revision_is_the_shared_digest() {
+        for (token, expected) in shared_revisions() {
+            let dir = TempDir::new();
+            claude_store(&dir, &token, LATER);
+            let detection = DetectionStore::for_test_home(dir.path(), NOW);
+            let account = detection
+                .account_ids(DetectedProviderId::Claude)
+                .pop()
+                .unwrap();
+            let secret = detection
+                .read_credential(DetectedProviderId::Claude, &account)
+                .unwrap();
+            assert_eq!(secret.credential_revision, expected);
+        }
+    }
+
+    /// A refusal the command line tool recorded in the shared lease holds the
+    /// desktop off the same login, and ends the moment Claude Code rotates it.
+    #[tokio::test]
+    async fn a_refusal_the_cli_recorded_ends_the_moment_the_login_rotates() {
+        let revisions = shared_revisions();
+        let old = &revisions
+            .iter()
+            .find(|(token, _)| token == "synthetic-old-token")
+            .unwrap()
+            .1;
+        let dir = TempDir::new();
+        claude_store(&dir, "synthetic-old-token", LATER);
+        fs::write(
+            dir.path().join("acquisition-claude.json"),
+            serde_json::json!({"lastAccount": null, "owner": null, "expiresAt": 0, "token": "",
+                "nextAllowedAt": NOW + 86_400_000, "attempts": 1, "refusalRevision": old})
+            .to_string(),
+        )
+        .unwrap();
+        let detection = DetectionStore::for_test_home(dir.path(), NOW);
+        let runtime = ClaudeOauthRuntime::default();
+        let transport = RecordingTransport::replying(200, valid_body(), None);
+        let held = guarded(&dir, &detection, &runtime, &transport, NOW + 60_000).await;
+        assert!(matches!(held, ClaudeOauthOutcome::Cached { .. }), "{held:?}");
+        assert!(transport.recorded_urls().is_empty());
+        claude_store(&dir, "synthetic-new-token", LATER);
+        let rotated = guarded(&dir, &detection, &runtime, &transport, NOW + 120_000).await;
+        assert!(
+            matches!(rotated, ClaudeOauthOutcome::CacheCommitted { .. }),
+            "{rotated:?}"
+        );
+        assert_eq!(transport.recorded_secrets(), ["synthetic-new-token"]);
+    }
+
+    /// Hotfix 2.1.5, change C: the success schedule both languages read from
+    /// one vectors file. Claude is next read after five minutes, or at the
+    /// next reset still ahead when it comes first.
+    #[test]
+    fn every_shared_claude_success_vector() {
+        let document: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../packages/core/src/contracts/claude-poll-vectors.json"
+        ))
+        .unwrap();
+        let millis = |value: &serde_json::Value| {
+            crate::native_time::epoch_ms_from_rfc3339(value.as_str().unwrap()).unwrap()
+        };
+        for vector in document["schedule"]["success"].as_array().unwrap() {
+            let resets = vector["resetAts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|value| !value.is_null())
+                .map(millis);
+            assert_eq!(
+                success_deadline_ms(millis(&vector["now"]), resets),
+                millis(&vector["expected"]),
+                "{}",
+                vector["id"]
+            );
+        }
+        assert_eq!(REFRESH_SECONDS, 300);
+    }
+
+    /// A read two minutes before the session window resets is next due at the
+    /// reset, durably, with only the desktop's small jitter after it; a read
+    /// with no reset near is next due after five minutes.
+    #[tokio::test]
+    async fn a_read_just_before_a_reset_is_next_due_at_the_reset() {
+        let reset = iso_from_epoch_ms(NOW + 120_000).unwrap();
+        for (body, due) in [
+            (
+                format!(r#"{{"five_hour":{{"utilization":40,"resets_at":"{reset}"}},"seven_day":{{"utilization":41.2,"resets_at":"2026-08-24T12:00:00Z"}}}}"#),
+                NOW + 120_000,
+            ),
+            (String::from_utf8(valid_body()).unwrap(), NOW + 300_000),
+        ] {
+            let dir = TempDir::new();
+            claude_store(&dir, "synthetic-token", LATER);
+            let detection = DetectionStore::for_test_home(dir.path(), NOW);
+            let transport = RecordingTransport::replying(200, body.into_bytes(), None);
+            let runtime = ClaudeOauthRuntime::default();
+            let outcome = guarded(&dir, &detection, &runtime, &transport, NOW).await;
+            assert!(
+                matches!(outcome, ClaudeOauthOutcome::CacheCommitted { .. }),
+                "{outcome:?}"
+            );
+            let account = detection
+                .account_ids(DetectedProviderId::Claude)
+                .pop()
+                .unwrap();
+            let policy: serde_json::Value = serde_json::from_str(
+                &fs::read_to_string(
+                    dir.path()
+                        .join(crate::request_policy::REQUEST_POLICY_FILE_NAME),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            let next = policy["providers"]["claude"]["accounts"][&account]
+                .as_u64()
+                .unwrap();
+            let delay = (due - NOW) / 1_000;
+            assert!(
+                next >= due && next <= due + (delay / 5 + 1) * 1_000,
+                "next {next} due {due}"
+            );
+            let restarted = guarded(&dir, &detection, &runtime, &transport, due - 1).await;
+            assert!(
+                matches!(restarted, ClaudeOauthOutcome::Cached { .. }),
+                "{restarted:?}"
+            );
+            assert_eq!(transport.recorded_urls().len(), 1);
+        }
+    }
+
+    /// Hotfix 2.1.5, change E. A successful Claude poll replaces that
+    /// account's complete weekly set in the authoritative store: a weekly the
+    /// poll no longer reports leaves, while another account and a newer
+    /// observation stay. TypeScript twin: cache.test.ts, "a successful poll
+    /// replaces the account weekly set". It lives here, beside `parse_usage`,
+    /// because the integration test crates compile native_snapshot.rs alone.
+    #[test]
+    fn a_successful_claude_poll_replaces_the_accounts_weekly_set() {
+        let dir = crate::test_support::TempDir::new();
+        let writer = CacheWriter::at(Some(dir.path().to_path_buf()));
+        let now = crate::native_time::epoch_ms_from_rfc3339("2026-08-19T10:40:00.000Z").expect("fixture clock");
+        let poll = |account: &str, at: u64, weekly: u32, fable: Option<u32>| {
+            let fable = fable.map_or(String::new(), |value| {
+                format!(r#","seven_day_fable":{{"utilization":{value},"resets_at":"2026-08-24T12:00:00Z"}}"#)
+            });
+            let body = format!(r#"{{"seven_day":{{"utilization":{weekly},"resets_at":"2026-08-24T12:00:00Z"}}{fable}}}"#);
+            let read = read_usage(&body, at, account);
+            assert!(read.weekly_complete, "{body}");
+            write_report_with(
+                &writer,
+                "CLAUDE",
+                Some(account),
+                CacheReport::Success(read.rows.expect("usage")),
+                read.weekly_complete,
+            )
+            .expect("committed");
+        };
+        let stored = || {
+            let text = std::fs::read_to_string(dir.path().join(crate::cache_write::AUTHORITATIVE_CACHE_FILE_NAME))
+                .expect("authoritative store");
+            let document: Value = serde_json::from_str(&text).expect("document");
+            let mut rows: Vec<String> = document["snapshots"]
+                .as_array()
+                .expect("rows")
+                .iter()
+                .map(|row| format!("{} {} {}", row["meter"].as_str().unwrap(), row["accountId"].as_str().unwrap(), row["value"]))
+                .collect();
+            rows.sort();
+            rows
+        };
+        poll("account-a", now, 41, Some(77));
+        poll("account-b", now, 12, Some(30));
+        poll("account-a", now + 300_000, 44, None);
+        assert_eq!(
+            stored(),
+            ["SEVEN_DAY account-a 44.0", "SEVEN_DAY account-b 12.0", "SEVEN_DAY_FABLE account-b 30.0"]
+        );
+        /* The other process read Fable again at ten minutes; a response this
+        process sent at nine and wrote late cannot remove or overwrite it. */
+        poll("account-a", now + 600_000, 50, Some(80));
+        poll("account-a", now + 540_000, 46, None);
+        assert_eq!(
+            stored(),
+            [
+                "SEVEN_DAY account-a 50.0",
+                "SEVEN_DAY account-b 12.0",
+                "SEVEN_DAY_FABLE account-a 80.0",
+                "SEVEN_DAY_FABLE account-b 30.0"
+            ]
+        );
+    }
+
+    /// Hotfix 2.1.5 fix 4. A poll whose document dropped a weekly bucket as
+    /// malformed adds the rows it read and deletes nothing; the document is the
+    /// shared corpus case weekly-fable-malformed. TypeScript twin:
+    /// refresh.test.ts, "keeps the stored Fable when the next poll states a
+    /// malformed Fable bucket".
+    #[tokio::test]
+    async fn a_partial_claude_poll_deletes_no_weekly() {
+        let case: Value = serde_json::from_str(include_str!(
+            "../../../../packages/connectors/fixtures/cases/claude/weekly-fable-malformed.json"
+        ))
+        .unwrap();
+        let now = crate::native_time::epoch_ms_from_rfc3339(case["now"].as_str().unwrap()).unwrap();
+        let complete = r#"{"seven_day":{"utilization":12,"resets_at":"2026-08-11T12:00:00.000Z"},"seven_day_fable":{"utilization":33,"resets_at":"2026-08-11T12:00:00.000Z"}}"#;
+        let dir = TempDir::new();
+        for (body, at) in [(complete.to_string(), now - 360_000), (case["body"].to_string(), now)] {
+            let outcome = collect_with_secret(
+                &ClaudeOauthRuntime::default(),
+                &RecordingTransport::replying(200, body.into_bytes(), None),
+                writer(&dir),
+                ACCOUNT,
+                &secret("partial"),
+                at,
+            )
+            .await;
+            assert!(matches!(outcome, ClaudeOauthOutcome::CacheCommitted { .. }), "{outcome:?}");
+        }
+        let stored: Value = serde_json::from_str(
+            &fs::read_to_string(dir.path().join(crate::cache_write::AUTHORITATIVE_CACHE_FILE_NAME)).unwrap(),
+        )
+        .unwrap();
+        let mut rows: Vec<String> = stored["snapshots"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| format!("{} {}", row["meter"].as_str().unwrap(), row["value"]))
+            .collect();
+        rows.sort();
+        assert_eq!(rows, ["SEVEN_DAY 18.0", "SEVEN_DAY_FABLE 33.0"]);
+    }
+
+    /// Hotfix 2.1.5 round 2 fix 1. The worst healthy desktop schedule, walked
+    /// with the real parts: the reading is stamped when its request starts,
+    /// that request takes the whole network timeout, the next deadline is set
+    /// from completion with the widest jitter the real rule gives, the
+    /// collector tick that would have caught it passed just before, and the
+    /// next request takes the whole timeout again. The old reading is still
+    /// fresh, with its margin, when the new one is written.
+    #[test]
+    fn a_healthy_reading_is_still_fresh_when_the_next_one_is_written() {
+        let jitter = |account: &String| {
+            crate::request_policy::jittered_account_delay(DetectedProviderId::Claude, account, REFRESH_SECONDS)
+        };
+        let account = (0..2_000).map(|index| format!("claude-jitter-{index}")).max_by_key(jitter).unwrap();
+        let timeout = crate::net::NETWORK_TIMEOUT_SECONDS * 1_000;
+        let observed = NOW;
+        let body = String::from_utf8(valid_body()).unwrap();
+        let old = parse_usage(&body, observed, &account).expect("usage");
+        let completed = observed + timeout;
+        let dir = TempDir::new();
+        let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
+        let lease = policy
+            .begin_with_revision(DetectedProviderId::Claude, &account, observed, Some("revision"))
+            .expect("lease");
+        // Production reads completion from its clock; here it is the argument.
+        policy.complete_after(DetectedProviderId::Claude, &account, completed, REFRESH_SECONDS);
+        drop(lease);
+        let shared: Value =
+            serde_json::from_str(&fs::read_to_string(dir.path().join("acquisition-claude.json")).unwrap()).unwrap();
+        let deadline = shared["nextAllowedAt"].as_u64().unwrap();
+        assert_eq!(deadline, completed + jitter(&account) * 1_000);
+        let next_request = deadline + crate::collector_runtime::COLLECTOR_INTERVAL_SECONDS * 1_000;
+        let written = next_request + timeout;
+        for row in &old {
+            let expires = crate::native_time::epoch_ms_from_rfc3339(&row.expires_at).unwrap();
+            assert!(expires >= written + 15_000, "{} expires at {expires}, written at {written}", row.meter);
+        }
+        let (_, _, availability) =
+            crate::data_rules::freshness_for("CLAUDE", "desktop", "internal_payload", observed as i64, written as i64);
+        assert_eq!(availability, "fresh");
+    }
+
+    /// Hotfix 2.1.5 fix 2: the horizon is built from this reader's own parts,
+    /// and a weekly the desktop stores carries it, so the status line, which
+    /// reads the stored expiry, greys a reading the desktop could not refresh.
+    #[tokio::test]
+    async fn a_stored_claude_reading_expires_on_the_claude_horizon() {
+        assert_eq!(
+            crate::data_rules::CLAUDE_FRESHNESS_SECONDS,
+            REFRESH_SECONDS
+                + REFRESH_SECONDS / 5
+                + crate::collector_runtime::COLLECTOR_INTERVAL_SECONDS
+                + 2 * crate::net::NETWORK_TIMEOUT_SECONDS
+                + 15
+        );
+        let dir = TempDir::new();
+        let outcome = collect_with_secret(
+            &ClaudeOauthRuntime::default(),
+            &RecordingTransport::replying(200, valid_body(), None),
+            writer(&dir),
+            ACCOUNT,
+            &secret("horizon"),
+            NOW,
+        )
+        .await;
+        assert!(matches!(outcome, ClaudeOauthOutcome::CacheCommitted { .. }), "{outcome:?}");
+        let stored: Value = serde_json::from_str(
+            &fs::read_to_string(dir.path().join(crate::cache_write::AUTHORITATIVE_CACHE_FILE_NAME)).unwrap(),
+        )
+        .unwrap();
+        let weekly = &stored["snapshots"][0];
+        assert_eq!(weekly["meter"], "SEVEN_DAY");
+        assert_eq!(
+            weekly["expiresAt"].as_str(),
+            iso_from_epoch_ms(NOW + crate::data_rules::CLAUDE_FRESHNESS_SECONDS * 1_000).as_deref()
+        );
     }
 
     /* --------------------------------------------------- every bucket sent */

@@ -24,12 +24,13 @@ const SYNTHETIC_TOKEN = "synthetic-access-token-0000";
 function credential(
   accountId: string | null = null,
   origin: "vendor_file" | "vendor_store" | "user_key" =
-    "vendor_file"
+    "vendor_file",
+  secret = SYNTHETIC_TOKEN
 ): CredentialResult {
   return {
     ok: true,
     credential: {
-      secret: SYNTHETIC_TOKEN,
+      secret,
       accountId,
       ...(accountId === null ? {} : {
         codexHome: "/synthetic/codex-home",
@@ -378,7 +379,8 @@ describe("one acquisition round", () => {
       },
       now: "2026-01-01T00:01:00.000Z",
       schedule: retired.schedule,
-      readCredential: async () => credential("user-2")
+      /* Another login carries another token, which is what a refusal names. */
+      readCredential: async () => credential("user-2", "vendor_file", SYNTHETIC_TOKEN + "-user-2")
     });
     expect(sent.map((request) => request.endpoint)).toEqual(["code_assist_load", "code_assist_quota"]);
     expect(replaced.rows[0]?.status).toBe("read");

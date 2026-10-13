@@ -68,13 +68,14 @@ describe("Lucas reference layout", () => {
     expect(parseStatuslineSession({ effort: { level: "hi\n\u001bgh" } }).effort).toBe("high");
   });
 
-  it.each([[0, "32"], [59, "32"], [60, "33"], [79, "33"], [80, "38;5;208"], [89, "38;5;208"], [90, "31"], [100, "31"]])("locks band %s for fresh and stale values", (value, code) => {
-    for (const state of ["fresh", "stale"] as const) expect(paintBand("value", Number(value), state, false)).toBe(`\x1b[${code}mvalue\x1b[0m`);
+  it.each([[0, "32"], [59, "32"], [60, "33"], [79, "33"], [80, "38;5;208"], [89, "38;5;208"], [90, "31"], [100, "31"]])("locks band %s for fresh values and greys a stale one", (value, code) => {
+    expect(paintBand("value", Number(value), "fresh", false)).toBe(`\x1b[${code}mvalue\x1b[0m`);
+    expect(paintBand("value", Number(value), "stale", false)).toBe("\x1b[90mvalue\x1b[0m");
   });
 
-  it("marks stale and estimated numbers without changing band or hiding the reset", () => {
+  it("greys a stale number, marks an estimate and keeps the reset", () => {
     const value = row({ value: 85, observedAt: "2025-12-31T23:45:00Z", expiresAt: "2025-12-31T23:46:00Z" });
-    expect(render([value], { color: true })).toBe("5h \x1b[38;5;208m[████████░░]\x1b[0m \x1b[38;5;208m~85%\x1b[0m ·3h20m");
+    expect(render([value], { color: true })).toBe("5h \x1b[90m[████████░░]\x1b[0m \x1b[90m85%\x1b[0m ·3h20m");
     expect(render([row({ value: 1, precision: "estimated" })])).toContain("~1%");
   });
 
@@ -234,5 +235,47 @@ describe("terminal visibility persistence", () => {
 
   it("validates stored visibility values", () => {
     expect(normalizeStatusline({ visibility: { model: false, effort: "yes", bogus: true, codex: true } }).visibility).toEqual({ model: false, codex: true });
+  });
+});
+
+/*
+ * Hotfix 2.1.5, change F. A reading that could not be refreshed never paints
+ * as live: it turns grey, bar and percent, and fresh colours stay as they
+ * were. The tilde marks an estimate and nothing else, so a reading taken a
+ * few minutes ago no longer looks old.
+ */
+describe("a stale reading is grey with colour, keeps its tilde without, and the tilde marks estimates", () => {
+  const grey = (text: string) => "\x1b[90m" + text + "\x1b[0m";
+
+  it("paints every stale band grey and leaves fresh bands as they were", () => {
+    for (const [value, code] of [[10, "32"], [65, "33"], [85, "38;5;208"], [95, "31"]] as const) {
+      expect(paintBand("value", value, "stale")).toBe(grey("value"));
+      expect(paintBand("value", value, "fresh")).toBe(`\x1b[${code}mvalue\x1b[0m`);
+    }
+  });
+
+  it("draws a reading taken four minutes ago with no tilde", () => {
+    const recent = row({ value: 30, observedAt: "2025-12-31T23:56:00.000Z", expiresAt: "2026-01-01T00:15:00.000Z" });
+    expect(render([recent])).toBe("5h [███░░░░░░░] 30% ·3h20m");
+  });
+
+  it("greys a reading that could not be refreshed, and keeps its 2.1.4 tilde without colour", () => {
+    const stale = row({ value: 85, observedAt: "2025-12-31T23:45:00.000Z", expiresAt: "2025-12-31T23:46:00.000Z" });
+    expect(render([stale], { color: true })).toBe("5h " + grey("[████████░░]") + " " + grey("85%") + " ·3h20m");
+    expect(render([stale])).toBe("5h [████████░░] ~85% ·3h20m");
+  });
+
+  it("keeps the tilde for an estimate, fresh or stale", () => {
+    expect(render([row({ value: 1, precision: "estimated" })])).toBe("5h [█░░░░░░░░░] ~1% ·3h20m");
+    const staleEstimate = row({ value: 85, precision: "estimated", observedAt: "2025-12-31T23:45:00.000Z", expiresAt: "2025-12-31T23:46:00.000Z" });
+    expect(render([staleEstimate], { color: true })).toBe("5h " + grey("[████████░░]") + " " + grey("~85%") + " ·3h20m");
+  });
+
+  it("greys a stale balance with colour and marks it with the 2.1.4 tilde without", () => {
+    const balance = row({ provider: "OPENROUTER", meter: "ACCOUNT_BALANCE", value: 38.3, window: { kind: "lifetime" },
+      usedAmount: 7.66, limitAmount: 20, currency: "USD", resetAt: null,
+      observedAt: "2025-12-31T23:30:00.000Z", expiresAt: "2025-12-31T23:31:00.000Z" });
+    expect(render([balance])).toBe("or ~$12.34");
+    expect(render([balance], { color: true })).toBe("or " + grey("$12.34"));
   });
 });

@@ -12,8 +12,6 @@
  * per provider saying why, because the surfaces above are a status line and a
  * doctor command, and both of them owe a person an answer rather than a stack.
  */
-import { createHash } from "node:crypto";
-import { lstat } from "node:fs/promises";
 import type {
   CollectionFailureReason,
   CollectionReport
@@ -25,13 +23,13 @@ import {
   ACQUISITION_OUTCOME_SENTENCE,
   isProviderDue,
   nextAttemptInstant,
+  nextSuccessInstant,
   type AcquisitionPhase,
   type AcquisitionProviderSchedule,
   type AcquisitionSchedule
 } from "./cadence.js";
 import {
   CREDENTIAL_FAILURE_SENTENCE,
-  credentialCandidatePaths,
   readAcquisitionCredential,
   type AcquiredCredential,
   type AcquisitionProvider,
@@ -44,7 +42,7 @@ import {
   type AcquisitionRequest,
   type AcquisitionTransport
 } from "./transport.js";
-import { acquisitionAccountId } from "./identity.js";
+import { acquisitionAccountId, credentialRevision } from "./identity.js";
 
 export interface AcquisitionStepContext {
   readonly credential: AcquiredCredential;
@@ -82,6 +80,12 @@ export interface AcquisitionSpec {
   readonly steps: readonly AcquisitionStep[];
   /** The connector parser for this provider's response, injected by the caller. */
   readonly parse: (payload: unknown, now: string) => readonly RawMeter[] | null;
+  /**
+   * Whether a response stated its whole set (Claude: its weekly set). The ok
+   * report carries the answer, and only a complete read may remove a stored
+   * row it no longer reports (hotfix 2.1.5 fix 4).
+   */
+  readonly complete?: (payload: unknown, now: string) => boolean;
   /**
    * The one sentence this provider's row always carries, or null.
    *
@@ -158,6 +162,13 @@ export interface AcquisitionRunOptions {
     meters: readonly RawMeter[],
     credential: AcquiredCredential
   ) => readonly RawMeter[];
+  /**
+   * Writes one provider's report while that provider's shared lease is still
+   * held, before it is released, so a round slowed by other providers never
+   * lands a write after a later read by another process (hotfix 2.1.5 round 2
+   * fix 3). Every report is still returned.
+   */
+  readonly persist?: (report: CollectionReport) => Promise<void>;
 }
 
 /**
@@ -186,6 +197,8 @@ interface Attempt {
   readonly outcome: AcquisitionOutcome;
   readonly meters: readonly RawMeter[];
   readonly retryAfterSeconds: number | null;
+  /** What `spec.complete` said about the answer, when the spec asks. */
+  readonly complete?: boolean;
   /** Where a failed attempt stopped; asking, or reading the answer. */
   readonly phase?: "request" | "parse";
 }
@@ -244,6 +257,13 @@ async function attempt(
          anywhere near a row a person reads. */
       return { outcome: "transport", meters: [], retryAfterSeconds: null, phase: "request" };
     }
+    /* A response that comes back after another process took the shared lease
+       is that process's read now, so this one is dropped unwritten (hotfix
+       2.1.5 fix 5). Rust twin: claude_oauth.rs collect_with_reread. */
+    const answeredAt = options.clock?.() ?? Date.parse(options.now) + Date.now() - started;
+    if (options.lease && !(await options.lease.stillOwned(answeredAt))) {
+      return { outcome: "transport", meters: [], retryAfterSeconds: null, phase: "request" };
+    }
     retryAfter = reply.retryAfterSeconds;
     if (reply.missingCredential === true) {
       return { outcome: "transport", meters: [], retryAfterSeconds: null, phase: "request", missingCredential: true };
@@ -270,15 +290,17 @@ async function attempt(
    * drift and nobody else's.
    */
   let meters: readonly RawMeter[] | null;
+  let complete: boolean | undefined;
   try {
     meters = spec.parse(payload, options.now);
+    complete = spec.complete?.(payload, options.now);
   } catch {
     return { outcome: "drift", meters: [], retryAfterSeconds: retryAfter, phase: "parse" };
   }
   if (meters === null || meters.length === 0) {
     return { outcome: "drift", meters: [], retryAfterSeconds: retryAfter, phase: "parse" };
   }
-  return { outcome: "ok", meters, retryAfterSeconds: retryAfter };
+  return { outcome: "ok", meters, retryAfterSeconds: retryAfter, ...(complete === undefined ? {} : { complete }) };
 }
 
 /**
@@ -307,13 +329,11 @@ export async function runAcquisition(
         now: options.now
       }));
   const readCredential = credentialReader;
-  const revisionFor = async (spec: AcquisitionSpec): Promise<string> => {
+  /* The login on disk right now, named the way a refusal names the login it
+     refused. A login that cannot be read releases nothing. */
+  const revisionNow = async (spec: AcquisitionSpec): Promise<string | undefined> => {
     const credential = await readCredential(spec.credentialProvider);
-    const files = options.readCredential && !options.lookup ? [] : credentialCandidatePaths(spec.credentialProvider, options.lookup);
-    const mtimes = await Promise.all(files.map(async (file) => {
-      try { return [file, (await lstat(file)).mtimeMs]; } catch { return [file, null]; }
-    }));
-    return createHash("sha256").update(JSON.stringify([credential, mtimes])).digest("hex");
+    return credential.ok ? credentialRevision(credential.credential.secret) : undefined;
   };
   /* Where the provider being read is right now, for the outer catch. */
   let phase: AcquisitionPhase = "credential";
@@ -348,7 +368,10 @@ export async function runAcquisition(
       });
       return;
     }
-    const changedRefusal = existing?.refusalRevision !== undefined && refused(existing.outcome) && existing.refusalRevision !== await revisionFor(spec);
+    const current = existing?.refusalRevision !== undefined && refused(existing.outcome)
+      ? await revisionNow(spec)
+      : undefined;
+    const changedRefusal = current !== undefined && current !== existing?.refusalRevision;
     if (!isProviderDue(existing, options.now) && !changedRefusal) {
       rows.push({
         provider: spec.provider,
@@ -387,13 +410,32 @@ export async function runAcquisition(
       rows.push({ provider: spec.provider, detected: true, status: "stale", accountId: acquisitionAccountId(spec.provider, held), availability: "expired_credentials", reason: CREDENTIAL_FAILURE_SENTENCE.expired, nextAttemptAt: null, disclosure: spec.disclosure });
       return;
     }
-    const accountId = spec.accountIdFor?.(held) ?? acquisitionAccountId(spec.provider, held);
-    const accountLabel = spec.accountLabelFor?.(held) ?? null;
-    const disclosure = spec.disclosureFor?.(held) ?? spec.disclosure;
     const sentence = (outcome: AcquisitionOutcome): string =>
       spec.outcomeSentence?.[outcome] ?? ACQUISITION_OUTCOME_SENTENCE[outcome];
     phase = "request";
-    const result = await attempt(spec, held, options);
+    /* The login every request of this read actually carried. */
+    let sent = held;
+    let result = await attempt(spec, sent, options);
+    /*
+     * A 401 can race the vendor's own tool refreshing its login: the token
+     * sent lapsed a moment before the new one reached the store. When the
+     * store now holds another login, it is asked once more before anything is
+     * recorded against the old one. Rust twin: claude_oauth.rs,
+     * collect_with_reread.
+     */
+    if (result.outcome === "unauthorized" && result.expiredCredentials !== true && result.missingCredential !== true) {
+      phase = "credential";
+      const reread = await readCredential(spec.credentialProvider);
+      phase = "request";
+      if (reread.ok && reread.credential.secret !== sent.secret &&
+          !credentialExpired(reread.credential, Date.parse(options.now))) {
+        sent = reread.credential;
+        result = await attempt(spec, sent, options);
+      }
+    }
+    const accountId = spec.accountIdFor?.(sent) ?? acquisitionAccountId(spec.provider, sent);
+    const accountLabel = spec.accountLabelFor?.(sent) ?? null;
+    const disclosure = spec.disclosureFor?.(sent) ?? spec.disclosure;
     if (result.missingCredential === true) {
       delete schedule[spec.provider];
       rows.push({
@@ -408,27 +450,14 @@ export async function runAcquisition(
     }
     if (result.expiredCredentials) {
       delete schedule[spec.provider];
-      rows.push({ provider: spec.provider, detected: true, status: "stale", accountId: acquisitionAccountId(spec.provider, held), availability: "expired_credentials", reason: CREDENTIAL_FAILURE_SENTENCE.expired, nextAttemptAt: null, disclosure });
+      rows.push({ provider: spec.provider, detected: true, status: "stale", accountId: acquisitionAccountId(spec.provider, sent), availability: "expired_credentials", reason: CREDENTIAL_FAILURE_SENTENCE.expired, nextAttemptAt: null, disclosure });
       return;
     }
-    const nextAttemptAt = nextAttemptInstant(
-      result.outcome,
-      options.clock ? new Date(options.clock()).toISOString() : options.now,
-      result.retryAfterSeconds,
-      existing?.attempts ?? options.lease?.attempts ?? 0
-    );
-    schedule[spec.provider] = {
-      attempts: result.outcome === "ok" ? 0 : (existing?.attempts ?? options.lease?.attempts ?? 0) + 1,
-      lastAttemptAt: options.now,
-      nextAttemptAt: nextAttemptAt ?? options.now,
-      outcome: result.outcome,
-      ...failure(result.phase ?? "request", result.outcome)
-    };
     const snapshots: readonly Snapshot[] = result.outcome === "ok"
       ? normalizeMeters(
           accountId === null
-            ? stamp(result.meters, held)
-            : stamp(result.meters, held).map((entry) => ({
+            ? stamp(result.meters, sent)
+            : stamp(result.meters, sent).map((entry) => ({
                 ...entry,
                 accountId,
                 /* A surface that would otherwise print the identifier gets a
@@ -440,6 +469,24 @@ export async function runAcquisition(
     /* A read that parsed and then lost every row to validation has produced no
        reading, and saying otherwise would put an empty success on the row. */
     const believed = result.outcome === "ok" && snapshots.length > 0;
+    const attemptedAt = options.clock ? new Date(options.clock()).toISOString() : options.now;
+    /* A believed read is next due by its provider's own rule, Claude's reset
+       aligned five minutes included; every failure keeps its backoff. */
+    const nextAttemptAt = believed
+      ? nextSuccessInstant(spec.provider, attemptedAt, snapshots.map((row) => row.resetAt))
+      : nextAttemptInstant(
+          result.outcome,
+          attemptedAt,
+          result.retryAfterSeconds,
+          existing?.attempts ?? options.lease?.attempts ?? 0
+        );
+    schedule[spec.provider] = {
+      attempts: result.outcome === "ok" ? 0 : (existing?.attempts ?? options.lease?.attempts ?? 0) + 1,
+      lastAttemptAt: options.now,
+      nextAttemptAt: nextAttemptAt ?? options.now,
+      outcome: result.outcome,
+      ...failure(result.phase ?? "request", result.outcome)
+    };
     if (believed) {
       rows.push({
         provider: spec.provider,
@@ -455,7 +502,8 @@ export async function runAcquisition(
         provider: spec.provider,
         ...(accountId === null ? {} : { accountId }),
         observedAt: options.now,
-        snapshots
+        snapshots,
+        ...(result.complete === undefined ? {} : { complete: result.complete })
       });
       return;
     }
@@ -464,7 +512,9 @@ export async function runAcquisition(
       : result.outcome;
     schedule[spec.provider] = {
       attempts: (existing?.attempts ?? options.lease?.attempts ?? 0) + 1,
-      ...(refused(outcome) ? { refusalRevision: await revisionFor(spec) } : {}),
+      /* The refusal names the login that was refused, never one that reached
+         the store after the request went out. */
+      ...(refused(outcome) ? { refusalRevision: credentialRevision(sent.secret) } : {}),
       lastAttemptAt: options.now,
       nextAttemptAt: nextAttemptAt ?? options.now,
       outcome,
@@ -482,36 +532,56 @@ export async function runAcquisition(
     });
   };
 
+  const roundStarted = Date.now();
   for (const spec of specs) {
     let lease: MachineLease | null = null;
+    const waiting: AcquisitionRow = { provider: spec.provider, detected: true, status: "waiting", reason: "another acquisition owns this provider or its retry deadline is pending", nextAttemptAt: null, disclosure: spec.disclosure };
+    /* Losing the lease is a cancellation, never a failure: the round leaves
+       no local deadline, publishes nothing and reports nothing, and the
+       deadline the new owner set stands (hotfix 2.1.5 round 2 fix 2). Rust
+       twin: request_policy.rs complete_shared. */
+    const lost = async (): Promise<boolean> => lease !== null &&
+      await lease.stillOwned(options.clock?.() ?? Date.parse(options.now) + Date.now() - roundStarted).then((owned) => !owned, () => false);
     try {
       if (options.stateDirectory !== undefined && spec.enabled !== false) {
         phase = "lease";
-        lease = await acquireMachineLease(spec.provider, options.stateDirectory, options.clock?.() ?? Date.parse(options.now), await revisionFor(spec));
+        lease = await acquireMachineLease(spec.provider, options.stateDirectory, options.clock?.() ?? Date.parse(options.now), await revisionNow(spec));
         if (lease === null) {
-          rows.push({ provider: spec.provider, detected: true, status: "waiting", reason: "another acquisition owns this provider or its retry deadline is pending", nextAttemptAt: null, disclosure: spec.disclosure });
+          rows.push(waiting);
           continue;
         }
         // Read and persist each provider while its shared machine lease is held.
-        const { stateDirectory: _directory, ...localOptions } = options;
+        const { stateDirectory: _directory, persist: _persist, ...localOptions } = options;
         const previous = schedule[spec.provider];
         const localSchedule = previous ? { ...schedule, [spec.provider]: { ...previous, attempts: Math.max(previous.attempts ?? 0, lease.attempts) } } : schedule;
         const single = await runAcquisition([spec], { ...localOptions, readCredential, now: options.clock ? new Date(options.clock()).toISOString() : options.now, schedule: localSchedule, lease });
-        rows.push(...single.rows);
-        reports.push(...single.reports);
-        const updated = single.schedule[spec.provider];
-        if (updated) schedule[spec.provider] = updated;
-        else delete schedule[spec.provider];
         phase = "persist";
-        const entry = schedule[spec.provider];
+        if (await lost()) {
+          rows.push(waiting);
+          continue;
+        }
+        const entry = single.schedule[spec.provider];
         if (entry) await lease.complete(Date.parse(entry.nextAttemptAt), entry.attempts ?? 0, entry.refusalRevision);
+        /* Completing checked the lease is still ours, so only now may the
+           round keep its schedule and hand a report to the caller to write. */
+        rows.push(...single.rows);
+        if (entry) schedule[spec.provider] = entry;
+        else delete schedule[spec.provider];
+        reports.push(...single.reports);
+        for (const report of single.reports) await options.persist?.(withFreshness(report));
         for (const row of single.rows) {
           if (row.availability) await recordAcquisitionAvailability(spec.provider, row.availability, options.now, row.retryAt, options.stateDirectory, row.accountId);
         }
       } else {
+        const before = reports.length;
         await readOne(spec);
+        for (const report of reports.slice(before)) await options.persist?.(withFreshness(report));
       }
     } catch (error) {
+      if (await lost()) {
+        rows.push(waiting);
+        continue;
+      }
       /*
        * The last line of defence. A provider that threw where nothing was
        * supposed to throw is that provider's drift, recorded on the ordinary
@@ -544,5 +614,9 @@ export async function runAcquisition(
       await lease?.release();
     }
   }
-  return { rows, reports: reports.map((report) => report.ok ? { ...report, snapshots: report.snapshots.map(withPolicyFreshness) } : report), schedule };
+  return { rows, reports: reports.map(withFreshness), schedule };
+}
+
+function withFreshness(report: CollectionReport): CollectionReport {
+  return report.ok ? { ...report, snapshots: report.snapshots.map(withPolicyFreshness) } : report;
 }
