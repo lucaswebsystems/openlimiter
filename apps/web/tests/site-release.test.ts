@@ -33,6 +33,16 @@ describe("2.0 site release", () => {
     expect(schema.offers.map((offer: { price: string }) => offer.price)).toEqual(["0", "5", "50"]);
   });
 
+  it("2.1.6 promises the idle minute only where the person kept the default", () => {
+    const changelog = readFileSync(new URL("../../../CHANGELOG.md", import.meta.url), "utf8");
+    const section = changelog.slice(changelog.indexOf("## [2.1.6]"), changelog.indexOf("## [2.1.5]"));
+    const notes = readFileSync(new URL("../../../RELEASE_NOTES_2.1.6.md", import.meta.url), "utf8");
+    for (const text of [section, notes]) {
+      expect(text).toContain("every minute while idle, unless you set a longer interval");
+      expect(text).not.toMatch(/[‐-―]| - /u);
+    }
+  });
+
   it("keeps the hero call and puts release sections after it", () => {
     const page = readFileSync(new URL("../app/[locale]/page.tsx", import.meta.url), "utf8");
     expect(page.match(/<Hero\s*\/>/g)).toHaveLength(1);
