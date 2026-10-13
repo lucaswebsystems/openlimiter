@@ -228,15 +228,6 @@ pub fn run() {
         .manage(updates::PendingUpdate::default())
         .manage(notifications::NotificationState::default())
         .manage(pairing::PairingRuntime::default())
-        /* Start at sign in (2.1.6): the entry starts the tray only. Driven
-        from Rust alone, so the webview gets no permission for it; the macOS
-        entry is the plugin's default LaunchAgent. */
-        .plugin(
-            tauri_plugin_autostart::Builder::new()
-                .app_name(autostart::APP_NAME)
-                .arg(autostart::LAUNCH_ARG)
-                .build(),
-        )
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
@@ -321,10 +312,8 @@ pub fn run() {
             that brings the window back. */
             let directory = state::state_directory();
             let after_update = autostart::take_update_mark(directory.as_deref());
-            let start = autostart::Autostart::new(
-                directory,
-                Box::new(autostart::OsLoginItem(app.handle().clone())),
-            );
+            /* Start at sign in (2.1.6): the OS entry starts the tray only. */
+            let start = autostart::Autostart::new(directory, autostart::os_login_item());
             let _ = start.at_launch();
             app.manage(start);
             let args: Vec<String> = std::env::args_os()

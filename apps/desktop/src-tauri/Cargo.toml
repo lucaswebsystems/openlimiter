@@ -76,11 +76,10 @@ unicode-normalization = "0.1"
 # fixed queries.
 rusqlite = { version = "=0.40.2", default-features = false, features = ["bundled"] }
 
-# Start at sign in and one running copy (2.1.6). Exact pins: the newest 2.x
-# of each at least 14 days old that builds against the tauri in Cargo.lock
-# (2.11.5); later 2.x releases require tauri 2.12.
+# One running copy (2.1.6). Exact pin: the newest 2.x at least 14 days old
+# that builds against the tauri in Cargo.lock (2.11.5); later 2.x releases
+# require tauri 2.12.
 [target.'cfg(any(windows, target_os = "macos", target_os = "linux"))'.dependencies]
-tauri-plugin-autostart = "=2.5.1"
 tauri-plugin-single-instance = "=2.4.5"
 
 [target.'cfg(windows)'.dependencies]
@@ -91,8 +90,8 @@ windows-native-keyring-store = "1.1.0"
 # Process tree and start times for pid reuse detection (ToolHelp, Threading),
 # foreground activation with the FlashWindowEx fallback and the non activating
 # tool window styles (WindowsAndMessaging), monitors and per monitor DPI (Gdi,
-# HiDpi), and whether the start at sign in Run value exists (Registry, read
-# only). 0.61.2 is the windows-sys that tokio, muda and tray-icon already
+# HiDpi), and the start at sign in Run value with Task Manager's switch for
+# it (Registry). 0.61.2 is the windows-sys that tokio, muda and tray-icon already
 # build, so this adds features to it rather than a second copy.
 windows-sys = { version = "=0.61.2", features = [
   "Win32_Foundation",
