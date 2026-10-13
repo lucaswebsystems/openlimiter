@@ -546,6 +546,43 @@ pub fn on_second_launch(args: &[String], show: impl FnOnce()) {
     }
 }
 
+/// A second launch can arrive before setup has the main window (on Linux
+/// the plugin listens first); it is kept and setup shows it. One lock holds
+/// both sides, so a launch is never lost between them.
+#[derive(Default)]
+pub struct SecondLaunch(Mutex<SecondLaunchState>);
+
+#[derive(Default)]
+struct SecondLaunchState {
+    ready: bool,
+    kept: bool,
+}
+
+impl SecondLaunch {
+    /// A second launch arrived: true when the window can be shown now.
+    pub fn arrive(&self) -> bool {
+        let Ok(mut state) = self.0.lock() else {
+            return true;
+        };
+        state.kept |= !state.ready;
+        state.ready
+    }
+
+    /// Setup has the window: whether a launch arrived before it.
+    pub fn open(&self) -> bool {
+        let Ok(mut state) = self.0.lock() else {
+            return false;
+        };
+        state.ready = true;
+        std::mem::take(&mut state.kept)
+    }
+}
+
+/// A Dock reopen on macOS shows the main window when none is visible.
+pub fn reopen_shows(has_visible_windows: bool) -> bool {
+    !has_visible_windows
+}
+
 /// Mark an update the window is about to install.
 pub fn mark_update(directory: Option<&Path>) -> bool {
     directory.is_some_and(|directory| {
@@ -1045,6 +1082,25 @@ mod tests {
             .expect("the single instance plugin is registered");
         let first = source.find(".plugin(").expect("plugins are registered");
         assert_eq!(single, first);
+    }
+
+    #[test]
+    fn a_second_launch_before_the_window_exists_is_kept_for_setup() {
+        let gate = SecondLaunch::default();
+        assert!(!gate.arrive(), "kept: the window does not exist yet");
+        assert!(gate.open(), "setup shows the launch it kept");
+        assert!(gate.arrive(), "after setup a launch shows at once");
+        assert!(!SecondLaunch::default().open(), "nothing kept, nothing shown");
+    }
+
+    /// The Dock icon on macOS: a reopen with no visible window shows it.
+    #[test]
+    fn a_dock_reopen_with_no_window_shows_the_main_window() {
+        assert!(reopen_shows(false));
+        assert!(!reopen_shows(true));
+        let source = include_str!("lib.rs");
+        assert!(source.contains("tauri::RunEvent::Reopen {"));
+        assert!(source.contains("autostart::reopen_shows(*has_visible_windows)"));
     }
 
     #[test]

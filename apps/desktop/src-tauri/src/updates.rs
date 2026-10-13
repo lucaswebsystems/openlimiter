@@ -48,27 +48,40 @@ pub async fn check_for_update(
     Ok(metadata)
 }
 
+/// The relaunch an update starts carries this process's arguments, the sign
+/// in entry's included, so the install starts only once the mark that brings
+/// the window back is written.
+fn mark_install(directory: Option<&std::path::Path>) -> Result<(), UpdateFailure> {
+    if crate::autostart::mark_update(directory) {
+        Ok(())
+    } else {
+        Err(UpdateFailure::UpdateStateUnavailable)
+    }
+}
+
 #[tauri::command]
 pub async fn install_update(
     app: AppHandle,
     pending: State<'_, PendingUpdate>,
 ) -> Result<(), UpdateFailure> {
-    let update = {
-        let mut slot = pending
-            .0
-            .lock()
-            .map_err(|_| UpdateFailure::UpdateStateUnavailable)?;
-        slot.take().ok_or(UpdateFailure::NoPendingUpdate)?
-    };
-
-    /* The relaunch carries this process's arguments, the sign in entry's
-    included, so a mark brings the window back after an update installed
-    from it. */
     let directory = crate::state::state_directory();
-    crate::autostart::mark_update(directory.as_deref());
-    if update.download_and_install(|_, _| {}, || {}).await.is_err() {
+    mark_install(directory.as_deref())?;
+    let taken = pending
+        .0
+        .lock()
+        .map(|mut slot| slot.take())
+        .map_err(|_| UpdateFailure::UpdateStateUnavailable)
+        .and_then(|update| update.ok_or(UpdateFailure::NoPendingUpdate));
+    let installed = match taken {
+        Ok(update) => update
+            .download_and_install(|_, _| {}, || {})
+            .await
+            .map_err(|_| UpdateFailure::UpdateInstallFailed),
+        Err(failure) => Err(failure),
+    };
+    if let Err(failure) = installed {
         crate::autostart::take_update_mark(directory.as_deref());
-        return Err(UpdateFailure::UpdateInstallFailed);
+        return Err(failure);
     }
     app.restart();
 }
@@ -76,6 +89,19 @@ pub async fn install_update(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The relaunch keeps the sign in argument, so without the mark that
+    /// brings the window back the install does not start.
+    #[test]
+    fn an_install_starts_only_after_its_mark_is_written() {
+        assert!(matches!(
+            mark_install(None),
+            Err(UpdateFailure::UpdateStateUnavailable)
+        ));
+        let dir = crate::test_support::TempDir::new();
+        assert!(mark_install(Some(dir.path())).is_ok());
+        assert!(crate::autostart::take_update_mark(Some(dir.path())));
+    }
 
     #[test]
     fn failures_cross_ipc_as_closed_kinds() {
