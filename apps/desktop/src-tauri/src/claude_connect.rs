@@ -1432,25 +1432,22 @@ pub(crate) fn add_refresh_interval_in_home(home: &Path) -> RefreshMigration {
     add_refresh_interval_with(home, || {})
 }
 
-/// The installer's Claude line ends with its host, and with the `--wrap` it
-/// appends last; shell text that merely mentions OpenLimiter does not.
-static INSTALLER_CLAUDE_TAIL: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)\sstatusline\s+--host\s+claude(?:\s+--wrap\s+[A-Za-z0-9_-]+)?\s*$")
-        .expect("constant status line pattern")
+/// The exact command lines OpenLimiter's writers produce for Claude Code,
+/// each with or without its trailing `--wrap`: the CLI's
+/// `fallbackLauncherCommand` launcher on Windows and on POSIX
+/// (`terminal.ts`), and this desktop's `command_value`. Anything else,
+/// shell text that merely mentions OpenLimiter included, is not ours.
+static OWNED_CLAUDE_COMMANDS: LazyLock<[Regex; 3]> = LazyLock::new(|| {
+    [
+        r#"^"[A-Za-z]:\\[^"]*\\WindowsPowerShell\\v1\.0\\powershell\.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "[^"]*\\terminal-launchers\\[0-9a-f]{64}\\openlimiter\.ps1" statusline --host claude(?: --wrap [A-Za-z0-9_-]+)?$"#,
+        r#"^/bin/sh '(?:[^']|'\\'')*/terminal-launchers/[0-9a-f]{64}/openlimiter\.sh' statusline --host claude(?: --wrap [A-Za-z0-9_-]+)?$"#,
+        r#"^"(?:[^"\\]|\\.)*[\\/]openlimiter(?:\.cmd|\.exe|\.cjs)?" statusline(?: --wrap [A-Za-z0-9_-]+)?$"#,
+    ]
+    .map(|pattern| Regex::new(pattern).expect("constant status line pattern"))
 });
 
-/// The quoted command form this desktop writes, wrapped or not.
-static DESKTOP_STATUS_LINE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r#"(?i)^"[^"]*[\\/]openlimiter(?:\.cjs|\.cmd|\.exe|\.sh|\.ps1)?" statusline(?: --wrap [A-Za-z0-9_-]+)?$"#,
-    )
-    .expect("constant status line pattern")
-});
-
-/// Whether Claude Code's status line is one OpenLimiter wrote, decided by the
-/// command forms it writes (the installer's launcher line, wrapped or not,
-/// this desktop's quoted form and the legacy words), whatever other keys the
-/// object holds.
+/// Whether Claude Code's status line is one OpenLimiter wrote: one of the
+/// exact command lines above, whatever other keys the object holds.
 fn owned_status_line(value: &serde_json::Value) -> bool {
     let Some(object) = value.as_object() else {
         return false;
@@ -1461,9 +1458,7 @@ fn owned_status_line(value: &serde_json::Value) -> bool {
     let Some(command) = object.get("command").and_then(serde_json::Value::as_str) else {
         return false;
     };
-    (INSTALLER_STATUS_LINE[0].is_match(command) && INSTALLER_CLAUDE_TAIL.is_match(command))
-        || DESKTOP_STATUS_LINE.is_match(command)
-        || legacy_owned_command(command, "statusline")
+    OWNED_CLAUDE_COMMANDS.iter().any(|pattern| pattern.is_match(command))
 }
 
 /// The settings text with refreshInterval added to an owned status line that
@@ -1499,12 +1494,13 @@ fn with_refresh_interval(text: &str) -> Option<String> {
 /// collector's own tick.
 const CLAUDE_REFRESH_INTERVAL_SECONDS: u64 = 60;
 
-/// At startup (2.1.6): an OpenLimiter status line written before 2.1.6 gains
-/// refreshInterval. Read, edit, then read again just before the replace;
-/// bytes that changed meanwhile (Claude Code saving) start the edit again
-/// from the new bytes, three times at most, else nothing until the next
-/// start. A missing, unreadable, foreign or already set line is left alone.
-fn add_refresh_interval_with(home: &Path, mut before_replace: impl FnMut()) -> RefreshMigration {
+/// After the collector starts (2.1.6): an OpenLimiter status line written
+/// before 2.1.6 gains refreshInterval. The new bytes are prepared first and
+/// the file is compared right before each replace attempt; bytes that
+/// changed meanwhile (Claude Code saving) start the edit again from the new
+/// bytes, three times at most, else nothing until the next start. A missing,
+/// unreadable, foreign or already set line is left alone.
+fn add_refresh_interval_with(home: &Path, mut before_compare: impl FnMut()) -> RefreshMigration {
     let directory = home.join(".claude");
     let file = directory.join("settings.json");
     if fsx::reject_symlink(&directory).is_err() {
@@ -1517,15 +1513,11 @@ fn add_refresh_interval_with(home: &Path, mut before_replace: impl FnMut()) -> R
         let Some(updated) = with_refresh_interval(&text) else {
             return RefreshMigration::Unchanged;
         };
-        before_replace();
-        if fsx::bounded_read(&file).as_deref() != Some(text.as_str()) {
-            continue;
+        match fsx::replace_if_unchanged(&file, &text, &updated, &mut before_compare) {
+            Ok(true) => return RefreshMigration::Added,
+            Ok(false) => continue,
+            Err(_) => return RefreshMigration::Skipped,
         }
-        return if fsx::atomic_write(&file, &updated).is_ok() {
-            RefreshMigration::Added
-        } else {
-            RefreshMigration::Skipped
-        };
     }
     RefreshMigration::Skipped
 }
@@ -1542,9 +1534,14 @@ mod tests {
     use super::*;
     use crate::test_support::TempDir;
 
-    const INSTALLED_WINDOWS: &str = r#""C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "C:\Users\a\.openlimiter\terminal-launchers\0a1b\openlimiter.ps1" statusline --host claude"#;
+    /// What `terminal.ts` writes: fallbackLauncherCommand, then the host.
+    const INSTALLED_WINDOWS: &str = r#""C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "C:\Users\John Smith\.openlimiter\terminal-launchers\c4f7b753c684549ce1abc587e4a940458dc222ec2a9e7e43b149f44ed412b2ee\openlimiter.ps1" statusline --host claude"#;
     const INSTALLED_POSIX_WRAPPED: &str =
-        "/bin/sh '/home/a/.openlimiter/terminal-launchers/0a1b/openlimiter.sh' statusline --host claude --wrap ZWNobyBoaQ";
+        "/bin/sh '/home/o'\\''brien/.openlimiter/terminal-launchers/c4f7b753c684549ce1abc587e4a940458dc222ec2a9e7e43b149f44ed412b2ee/openlimiter.sh' statusline --host claude --wrap ZWNobyBoaQ";
+    /// What this desktop's command_value writes, plain and wrapped.
+    const DESKTOP_WINDOWS: &str =
+        r#""C:\Users\a\AppData\Roaming\npm\openlimiter.cmd" statusline"#;
+    const DESKTOP_POSIX_WRAPPED: &str = r#""/usr/local/bin/openlimiter" statusline --wrap ZWNobyBoaQ"#;
 
     fn settings_with(status_line: serde_json::Value) -> String {
         serde_json::to_string_pretty(&serde_json::json!({
@@ -1566,7 +1563,12 @@ mod tests {
 
     #[test]
     fn an_owned_status_line_without_an_interval_gains_one_and_no_other_byte_changes() {
-        for command in [INSTALLED_WINDOWS, INSTALLED_POSIX_WRAPPED, "openlimiter statusline"] {
+        for command in [
+            INSTALLED_WINDOWS,
+            INSTALLED_POSIX_WRAPPED,
+            DESKTOP_WINDOWS,
+            DESKTOP_POSIX_WRAPPED,
+        ] {
             let before = settings_with(serde_json::json!({
                 "type": "command",
                 "command": command,
@@ -1601,11 +1603,21 @@ mod tests {
 
     #[test]
     fn a_status_line_that_is_not_ours_is_never_touched() {
+        let wrapped_windows = format!("cmd /c \"{INSTALLED_WINDOWS}\"");
+        let piped = format!("{INSTALLED_POSIX_WRAPPED} | tee /tmp/line");
+        let other_host = INSTALLED_WINDOWS.replace("--host claude", "--host antigravity");
         for command in [
             "my-own-statusline",
             /* Shell text mentioning OpenLimiter is not an OpenLimiter line. */
             "bash -c 'openlimiter statusline --host claude | tee /tmp/line'",
+            "echo openlimiter statusline --host claude",
+            "openlimiter statusline --host claude",
+            /* Legacy hand written words: no writer produces them. */
+            "openlimiter statusline",
             "openlimiter statusline --host antigravity",
+            wrapped_windows.as_str(),
+            piped.as_str(),
+            other_host.as_str(),
         ] {
             let before = settings_with(serde_json::json!({ "type": "command", "command": command }));
             assert_eq!(migrated(&before), (RefreshMigration::Unchanged, before.clone()), "{command}");
@@ -1616,6 +1628,20 @@ mod tests {
         let dir = TempDir::new();
         assert_eq!(add_refresh_interval_in_home(dir.path()), RefreshMigration::Unchanged);
         assert!(!dir.path().join(".claude").exists());
+    }
+
+    /// The migration runs after the collector has started, as its own task.
+    #[test]
+    fn the_migration_runs_after_the_collector_starts_on_its_own() {
+        let source = include_str!("lib.rs");
+        let collector = source
+            .find("collector_runtime::spawn_collector(")
+            .expect("the collector starts");
+        let migration = source
+            .find("claude_connect::add_refresh_interval_in_home(")
+            .expect("the migration runs");
+        assert!(collector < migration);
+        assert!(source[collector..migration].contains("spawn_blocking"));
     }
 
     #[test]

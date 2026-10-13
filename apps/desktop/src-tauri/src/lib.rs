@@ -351,14 +351,17 @@ pub fn run() {
                     use tauri::Emitter;
                     let _ = worker.emit(collector_runtime::COLLECTOR_UPDATED_EVENT, ());
                     startup_cleanup::run(&worker);
-                    /* An idle Claude Code reruns the status line only with
-                    refreshInterval set; one written before 2.1.6 gains it. */
-                    if let Some(home) = state::home() {
-                        let _ = claude_connect::add_refresh_interval_in_home(&home);
-                    }
                 })
                 .await;
                 collector_runtime::spawn_collector(startup.clone());
+                /* An idle Claude Code reruns the status line only with
+                refreshInterval set; one written before 2.1.6 gains it, as its
+                own task once the collector runs. */
+                tauri::async_runtime::spawn_blocking(|| {
+                    if let Some(home) = state::home() {
+                        let _ = claude_connect::add_refresh_interval_in_home(&home);
+                    }
+                });
                 provider_detection::spawn_rescans(startup);
             });
             api_spend::spawn_polling(app.handle().clone());
