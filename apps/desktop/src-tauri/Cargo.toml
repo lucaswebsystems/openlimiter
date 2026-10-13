@@ -76,11 +76,12 @@ unicode-normalization = "0.1"
 # fixed queries.
 rusqlite = { version = "=0.40.2", default-features = false, features = ["bundled"] }
 
-# Start at sign in (2.1.6). Exact pin: the newest 2.x at least 14 days old
-# that builds against the tauri in Cargo.lock (2.11.5); later 2.x releases
-# require tauri 2.12.
+# Start at sign in and one running copy (2.1.6). Exact pins: the newest 2.x
+# of each at least 14 days old that builds against the tauri in Cargo.lock
+# (2.11.5); later 2.x releases require tauri 2.12.
 [target.'cfg(any(windows, target_os = "macos", target_os = "linux"))'.dependencies]
 tauri-plugin-autostart = "=2.5.1"
+tauri-plugin-single-instance = "=2.4.5"
 
 [target.'cfg(windows)'.dependencies]
 # Antigravity uses the vendor target `gemini:antigravity`, which differs from

@@ -201,6 +201,11 @@ pub(crate) fn app_context<R: tauri::Runtime>() -> tauri::Context<R> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        /* One running copy (2.1.6), registered first, so a second launch
+        hands its arguments over and exits before anything else starts. */
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            autostart::on_second_launch(&args, || show_window(app));
+        }))
         .manage(connections::ConnectionsStore::at_state_directory())
         .manage(claude_poll_setting::ClaudePollSetting::default())
         .manage(codex_device_login::OpenDeviceLogin::default())

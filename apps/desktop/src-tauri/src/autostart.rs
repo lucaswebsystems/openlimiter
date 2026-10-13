@@ -244,6 +244,14 @@ pub fn starts_visible(args: &[String], after_update: bool) -> bool {
     after_update || !from_sign_in(args)
 }
 
+/// A second launch brings the running window forward, unless the sign in
+/// entry made it.
+pub fn on_second_launch(args: &[String], show: impl FnOnce()) {
+    if !from_sign_in(args) {
+        show();
+    }
+}
+
 /// Mark an update the window is about to install.
 pub fn mark_update(directory: Option<&Path>) -> bool {
     directory.is_some_and(|directory| {
@@ -540,6 +548,27 @@ mod tests {
             serde_json::from_str(include_str!("../tauri.conf.json")).expect("config");
         assert_eq!(config["productName"], APP_NAME);
         assert_eq!(config["app"]["windows"][0]["visible"], false);
+    }
+
+    #[test]
+    fn a_second_launch_shows_the_window_unless_the_sign_in_entry_made_it() {
+        let shown = std::cell::Cell::new(0);
+        on_second_launch(&args(&["OpenLimiter.exe"]), || shown.set(shown.get() + 1));
+        assert_eq!(shown.get(), 1);
+        on_second_launch(&args(&["OpenLimiter.exe", LAUNCH_ARG]), || shown.set(shown.get() + 1));
+        assert_eq!(shown.get(), 1);
+    }
+
+    /// The single instance plugin goes first, so a second copy hands over
+    /// and exits before any other plugin or the collector starts.
+    #[test]
+    fn one_running_copy_is_registered_before_every_other_plugin() {
+        let source = include_str!("lib.rs");
+        let single = source
+            .find(".plugin(tauri_plugin_single_instance::init(")
+            .expect("the single instance plugin is registered");
+        let first = source.find(".plugin(").expect("plugins are registered");
+        assert_eq!(single, first);
     }
 
     #[test]
