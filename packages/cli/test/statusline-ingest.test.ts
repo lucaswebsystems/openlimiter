@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { FIXTURE_NOW, claudeFixture, grokFixture, parseClaudePayload } from "@openlimiter/connectors";
 import { CACHE_FILE_NAME, mergeSnapshotCache, normalizeMeters, opaqueAccountId, readSnapshotCache } from "@openlimiter/core";
 import { runCli } from "../src/index.js";
+import { CLAUDE_READINGS_LIMIT, keptClaudeReadings } from "../src/ingest.js";
 
 /**
  * Host aware standard input ingestion, against recorded payload shapes.
@@ -174,9 +175,16 @@ describe("statusline ingestion by host", () => {
 
   it("a failed status line write is kept for doctor by stage and code, and cleared by the next success", async () => {
     const directory = await temporaryDirectory();
-    const statusline = () => runCli(["statusline", "--host", "claude"], {
-      stateDirectory: directory, now: () => FIXTURE_NOW, readStandardInput: async () => JSON.stringify(claudeFixture(FIXTURE_NOW))
-    });
+    /* Each render carries a higher reading: one that proves nothing new is
+       not written at all (2.1.6), so it could not clear the record. */
+    let percent = 40;
+    const statusline = () => {
+      const body = claudeFixture(FIXTURE_NOW) as { rate_limits: { five_hour: Record<string, unknown> } };
+      body.rate_limits.five_hour["used_percentage"] = ++percent;
+      return runCli(["statusline", "--host", "claude"], {
+        stateDirectory: directory, now: () => FIXTURE_NOW, readStandardInput: async () => JSON.stringify(body)
+      });
+    };
     const doctor = async () => (await runCli(["doctor"], { stateDirectory: directory, now: () => FIXTURE_NOW })).stdout;
     /* A directory where the file belongs makes each write fail on its own. */
     const blocker = (name: string) => mkdir(path.join(directory, name, "occupied"), { recursive: true });
@@ -344,18 +352,29 @@ describe("statusline ingestion by host", () => {
       return file;
     }
 
-    function payload(session: string, transcript: string, apiMilliseconds: number, percent: number): string {
+    function payload(
+      session: string | null,
+      transcript: string,
+      apiMilliseconds: number,
+      percent: number,
+      options: { reset?: string; sevenDay?: number } = {}
+    ): string {
       return JSON.stringify({
         hook_event_name: "Status",
-        session_id: session,
+        ...(session === null ? {} : { session_id: session }),
         transcript_path: transcript,
         cost: { total_api_duration_ms: apiMilliseconds },
-        rate_limits: { five_hour: { used_percentage: percent, resets_at: Date.parse(RESET) / 1000 } }
+        rate_limits: {
+          five_hour: { used_percentage: percent, resets_at: Date.parse(options.reset ?? RESET) / 1000 },
+          ...(options.sevenDay === undefined ? {} : {
+            seven_day: { used_percentage: options.sevenDay, resets_at: Date.parse("2026-01-05T00:00:00.000Z") / 1000 }
+          })
+        }
       });
     }
 
-    async function seedPoll(directory: string, percent: number, at: string): Promise<void> {
-      const rows = normalizeMeters((parseClaudePayload({ five_hour: { utilization: percent, resets_at: RESET } }, at) ?? [])
+    async function seedPoll(directory: string, percent: number, at: string, reset = RESET): Promise<void> {
+      const rows = normalizeMeters((parseClaudePayload({ five_hour: { utilization: percent, resets_at: reset } }, at) ?? [])
         .map((row) => ({ ...row, accountId: account, provenance: { sourceKind: "remote_api" as const, observedVia: "remote_http" as const } })));
       await mergeSnapshotCache(rows, directory, Date.parse(at));
     }
@@ -386,15 +405,68 @@ describe("statusline ingestion by host", () => {
       expect(await fiveHour(directory)).toEqual({ value: 12, observedAt: T1211 });
     });
 
-    it("a session seen for the first time takes its transcript's time, capped at now, else now", async () => {
+    it("a seven_day that appears or disappears changes nothing", async () => {
+      const { home, directory } = await claudeHome();
+      const transcript = await transcriptAt(home, "s7", T1100);
+      await render(home, directory, T1100, payload("s7", transcript, 1_000, 10, { sevenDay: 30 }));
+      await seedPoll(directory, 80, T1209);
+      await render(home, directory, T1210, payload("s7", transcript, 1_000, 10));
+      expect(await fiveHour(directory)).toEqual({ value: 80, observedAt: T1209 });
+      await render(home, directory, T1211, payload("s7", transcript, 1_000, 10, { sevenDay: 31 }));
+      expect(await fiveHour(directory)).toEqual({ value: 80, observedAt: T1209 });
+    });
+
+    it("a reading whose time is uncertain is written only when its content proves it newer", async () => {
       const { home, directory } = await claudeHome();
       await seedPoll(directory, 80, T1209);
-      await render(home, directory, T1210, payload("s2", await transcriptAt(home, "s2", T1100), 1_000, 10));
+      /* A transcript written after the poll (a prompt, not an API response)
+         proves nothing: the same window at a lower value stays out. */
+      const fresh = await transcriptAt(home, "s8", "2026-01-01T12:09:30.000Z");
+      await render(home, directory, T1210, payload("s8", fresh, 1_000, 10));
       expect(await fiveHour(directory)).toEqual({ value: 80, observedAt: T1209 });
-      await render(home, directory, T1211, payload("s3", await transcriptAt(home, "s3", "2026-01-01T13:00:00.000Z"), 1_000, 12));
-      expect(await fiveHour(directory)).toEqual({ value: 12, observedAt: T1211 });
-      await render(home, directory, T1212, payload("s4", path.join(home, "missing.jsonl"), 1_000, 14));
-      expect(await fiveHour(directory)).toEqual({ value: 14, observedAt: T1212 });
+      /* Its replay is now a known one, and it still stays out. */
+      await render(home, directory, T1211, payload("s8", fresh, 1_000, 10));
+      expect(await fiveHour(directory)).toEqual({ value: 80, observedAt: T1209 });
+      /* The same window at a higher value is newer, whatever its transcript says. */
+      await render(home, directory, T1211, payload("s9", await transcriptAt(home, "s9", T1100), 1_000, 85));
+      expect(await fiveHour(directory)).toEqual({ value: 85, observedAt: "2026-01-01T12:09:00.001Z" });
+      /* A later window is newer too, even at a lower value. */
+      const later = "2026-01-01T17:30:00.000Z";
+      await render(home, directory, T1212, payload("s10", path.join(home, "missing.jsonl"), 1_000, 5, { reset: later }));
+      expect(await fiveHour(directory)).toEqual({ value: 5, observedAt: T1212 });
+      /* An earlier window never is. */
+      await render(home, directory, "2026-01-01T12:13:00.000Z", payload("s11", path.join(home, "missing.jsonl"), 1_000, 99));
+      expect(await fiveHour(directory)).toEqual({ value: 5, observedAt: T1212 });
+    });
+
+    it("no session id and an unreadable log follow the same content rule", async () => {
+      const { home, directory } = await claudeHome();
+      await seedPoll(directory, 80, T1209);
+      const fresh = await transcriptAt(home, "s12", "2026-01-01T12:09:30.000Z");
+      await render(home, directory, T1210, payload(null, fresh, 1_000, 10));
+      expect(await fiveHour(directory)).toEqual({ value: 80, observedAt: T1209 });
+      await writeFile(path.join(directory, "openlimiter-claude-readings.json"), "not json");
+      await render(home, directory, T1211, payload("s12", fresh, 1_000, 10));
+      expect(await fiveHour(directory)).toEqual({ value: 80, observedAt: T1209 });
+      await render(home, directory, T1212, payload(null, fresh, 1_000, 81));
+      expect(await fiveHour(directory)).toEqual({ value: 81, observedAt: "2026-01-01T12:09:30.000Z" });
+    });
+
+    it("the log drops readings older than six hours and evicts whole sessions, oldest first", () => {
+      const now = "2026-01-01T12:00:00.000Z";
+      const entry = (session: string, reading: string, observedAt = now) => ({ session, reading, observedAt });
+      expect(keptClaudeReadings([entry("a", "1"), entry("b", "2", "2026-01-01T05:59:59.000Z")], now, "a"))
+        .toEqual([entry("a", "1")]);
+      /* Newest first: c is the newest session, a the oldest, b in between. */
+      const many = [entry("c", "1"), ...Array.from({ length: CLAUDE_READINGS_LIMIT }, (_, index) =>
+        entry(index % 2 === 0 ? "b" : "a", String(index)))];
+      const kept = keptClaudeReadings(many, now, "c");
+      expect(kept.length).toBeLessThanOrEqual(CLAUDE_READINGS_LIMIT);
+      expect(new Set(kept.map((item) => item.session))).toEqual(new Set(["c", "b"]));
+      expect(kept.filter((item) => item.session === "b")).toHaveLength(CLAUDE_READINGS_LIMIT / 2);
+      /* One session alone over the cap keeps its newest readings. */
+      const alone = Array.from({ length: CLAUDE_READINGS_LIMIT + 5 }, (_, index) => entry("d", String(index)));
+      expect(keptClaudeReadings(alone, now, "d")).toEqual(alone.slice(0, CLAUDE_READINGS_LIMIT));
     });
 
     it("two windows on one session each keep their own reading's time", async () => {
@@ -425,7 +497,7 @@ describe("statusline ingestion by host", () => {
       const text = await readFile(file, "utf8");
       expect(text).not.toContain("bulk-");
       expect(text).not.toContain("s6");
-      expect((JSON.parse(text) as { readings: unknown[] }).readings.length).toBeLessThanOrEqual(64);
+      expect((JSON.parse(text) as { readings: unknown[] }).readings.length).toBeLessThanOrEqual(CLAUDE_READINGS_LIMIT);
     });
   });
 });

@@ -1226,10 +1226,13 @@ async function ingestStandardInput(
         : parseClaudePayload(document.value, now);
     if (meters === null) return { snapshots: null, payload: document.value };
     /* A Claude reading keeps the time its API response arrived, so a timed
-       rerun of an idle window never passes an old number off as new. */
+       rerun of an idle window never passes an old number off as new; one
+       whose time is uncertain and whose content proves nothing is not
+       written at all. */
     const read = host === "claude"
-      ? await observedClaudeReading(meters, document.value, now, dependencies.stateDirectory ?? resolveStateDirectory())
+      ? await observedClaudeReading(meters, document.value, now, dependencies.stateDirectory ?? resolveStateDirectory(), accountId ?? undefined)
       : meters;
+    if (read === null) return { snapshots: null, payload: document.value };
     const provenance = host === "antigravity"
       ? ANTIGRAVITY_STATUSLINE_PROVENANCE
       : host === "grok"
