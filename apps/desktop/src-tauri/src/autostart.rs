@@ -76,8 +76,9 @@ impl Autostart {
         }
     }
 
-    /// A missing or unreadable document is off, the safe answer: the app
-    /// never switches the entry on from a choice it cannot read.
+    /// A missing document is nothing recorded yet. An unreadable one, or no
+    /// state directory at all, is off, the safe answer: the app never
+    /// switches the entry on from a choice it cannot read.
     fn preference(&self) -> Preference {
         let Some(path) = self.file.as_ref() else {
             return Preference::Off;
@@ -262,7 +263,9 @@ pub fn mark_update(directory: Option<&Path>) -> bool {
 
 /// Forget an update mark, saying whether there was one.
 pub fn take_update_mark(directory: Option<&Path>) -> bool {
-    directory.is_some_and(|directory| std::fs::remove_file(directory.join(UPDATE_MARK_FILE_NAME)).is_ok())
+    directory.is_some_and(|directory| {
+        std::fs::remove_file(directory.join(UPDATE_MARK_FILE_NAME)).is_ok()
+    })
 }
 
 #[cfg(test)]
@@ -351,7 +354,10 @@ mod tests {
         let fake = Shared::default();
         let start = autostart(&dir, &fake);
         assert_eq!(start.first_run_complete(), Ok(true));
-        assert_eq!(recorded(&dir).as_deref(), Some(r#"{"version":1,"enabled":true}"#));
+        assert_eq!(
+            recorded(&dir).as_deref(),
+            Some(r#"{"version":1,"enabled":true}"#)
+        );
         /* Every later launch reports the first run again; nothing is rewritten. */
         assert_eq!(start.first_run_complete(), Ok(true));
         start.at_launch().expect("launch");
@@ -377,7 +383,10 @@ mod tests {
         assert_eq!(start.first_run_complete(), Ok(false));
         start.at_launch().expect("launch");
         assert_eq!(fake.with(|fake| fake.enables), 0);
-        assert_eq!(recorded(&dir).as_deref(), Some(r#"{"version":1,"enabled":false}"#));
+        assert_eq!(
+            recorded(&dir).as_deref(),
+            Some(r#"{"version":1,"enabled":false}"#)
+        );
     }
 
     #[test]
@@ -391,7 +400,10 @@ mod tests {
         assert_eq!(recorded(&dir), None);
         fake.with(|fake| fake.refuse = false);
         assert_eq!(start.first_run_complete(), Ok(true));
-        assert_eq!(recorded(&dir).as_deref(), Some(r#"{"version":1,"enabled":true}"#));
+        assert_eq!(
+            recorded(&dir).as_deref(),
+            Some(r#"{"version":1,"enabled":true}"#)
+        );
     }
 
     #[test]
@@ -424,8 +436,14 @@ mod tests {
         assert_eq!(start.set(true), Ok(true));
         assert_eq!(start.status(), Ok(true));
         assert_eq!(start.set(false), Ok(false));
-        assert_eq!(fake.with(|fake| (fake.registered, fake.disables)), (false, 1));
-        assert_eq!(recorded(&dir).as_deref(), Some(r#"{"version":1,"enabled":false}"#));
+        assert_eq!(
+            fake.with(|fake| (fake.registered, fake.disables)),
+            (false, 1)
+        );
+        assert_eq!(
+            recorded(&dir).as_deref(),
+            Some(r#"{"version":1,"enabled":false}"#)
+        );
     }
 
     #[test]
@@ -469,10 +487,16 @@ mod tests {
         /* First launch, and every launch a person makes. */
         assert!(starts_visible(&args(&["OpenLimiter.exe"]), false));
         /* The sign in entry: the tray only. */
-        assert!(!starts_visible(&args(&["OpenLimiter.exe", LAUNCH_ARG]), false));
+        assert!(!starts_visible(
+            &args(&["OpenLimiter.exe", LAUNCH_ARG]),
+            false
+        ));
         /* An update installed from the window relaunches with the old
         arguments; the window comes back. */
-        assert!(starts_visible(&args(&["OpenLimiter.exe", LAUNCH_ARG]), true));
+        assert!(starts_visible(
+            &args(&["OpenLimiter.exe", LAUNCH_ARG]),
+            true
+        ));
         /* A second launch: shown, unless the sign in entry made it. */
         assert!(!from_sign_in(&args(&["OpenLimiter.exe"])));
         assert!(from_sign_in(&args(&["OpenLimiter.exe", LAUNCH_ARG])));
@@ -525,9 +549,18 @@ mod tests {
             .expect("a boolean")
         };
         assert!(!invoke("autostart_status", serde_json::json!({})));
-        assert!(invoke("autostart_first_run_complete", serde_json::json!({})));
-        assert!(!invoke("set_autostart", serde_json::json!({ "enabled": false })));
-        assert!(!invoke("autostart_first_run_complete", serde_json::json!({})));
+        assert!(invoke(
+            "autostart_first_run_complete",
+            serde_json::json!({})
+        ));
+        assert!(!invoke(
+            "set_autostart",
+            serde_json::json!({ "enabled": false })
+        ));
+        assert!(!invoke(
+            "autostart_first_run_complete",
+            serde_json::json!({})
+        ));
         assert!(app.state::<Autostart>().status() == Ok(false));
         assert_eq!(fake.with(|fake| (fake.enables, fake.disables)), (1, 1));
     }
@@ -555,7 +588,9 @@ mod tests {
         let shown = std::cell::Cell::new(0);
         on_second_launch(&args(&["OpenLimiter.exe"]), || shown.set(shown.get() + 1));
         assert_eq!(shown.get(), 1);
-        on_second_launch(&args(&["OpenLimiter.exe", LAUNCH_ARG]), || shown.set(shown.get() + 1));
+        on_second_launch(&args(&["OpenLimiter.exe", LAUNCH_ARG]), || {
+            shown.set(shown.get() + 1)
+        });
         assert_eq!(shown.get(), 1);
     }
 
