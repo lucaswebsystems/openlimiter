@@ -2925,7 +2925,7 @@ dependencies = [
 
 [[package]]
 name = "openlimiter-desktop"
-version = "2.1.5"
+version = "2.1.6"
 dependencies = [
  "base64 0.22.1",
  "chrono",
