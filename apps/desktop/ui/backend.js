@@ -617,6 +617,21 @@ export async function setClaudePollEnabled(enabled) {
   return call("set_claude_poll_enabled", { enabled: enabled === true });
 }
 
+/** Whether OpenLimiter starts when the person signs in, as the OS shows it. */
+export async function autostartStatus() {
+  return call("autostart_status");
+}
+
+/** Set that switch; the answer is the OS state afterwards. */
+export async function setAutostart(enabled) {
+  return call("set_autostart", { enabled: enabled === true });
+}
+
+/** Tell Rust the first run is complete, at its end and on every launch after it. */
+export async function autostartFirstRunComplete() {
+  return call("autostart_first_run_complete");
+}
+
 /**
  * Start the Codex device login.
  *

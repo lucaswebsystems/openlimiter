@@ -110,6 +110,8 @@
     "claudeWeeklyOAuthApps": "週間、OAuth アプリ",
     "showClaudeFable": "Fable の上限を表示",
     "showClaudeFableNote": "このコンピューターの Claude サインインを使って使用量を直接リクエストし、Claude に表示されるものと同じ使用量を読み取ります。このようなツールに関する Anthropic の方針は未解決です。ツールを接続でオフにできます。",
+    "startAtSignIn": "ログイン時に OpenLimiter を起動",
+    "startAtSignInNote": "再起動後もバーを最新の状態に保ちます。",
     "claudePollConsentTitle": "Fable の上限を表示しますか？",
     "claudePollNotNow": "今はしない",
     "claudePollSaveFailed": "選択を保存できなかったため、Claude の使用量はオフのままです。",

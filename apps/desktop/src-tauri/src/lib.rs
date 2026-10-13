@@ -1,6 +1,7 @@
 mod account;
 mod activity;
 mod api_spend;
+mod autostart;
 mod cache_write;
 mod claude_connect;
 mod claude_detect;
@@ -222,6 +223,15 @@ pub fn run() {
         .manage(updates::PendingUpdate::default())
         .manage(notifications::NotificationState::default())
         .manage(pairing::PairingRuntime::default())
+        /* Start at sign in (2.1.6): the entry starts the tray only. Driven
+        from Rust alone, so the webview gets no permission for it; the macOS
+        entry is the plugin's default LaunchAgent. */
+        .plugin(
+            tauri_plugin_autostart::Builder::new()
+                .app_name(autostart::APP_NAME)
+                .arg(autostart::LAUNCH_ARG)
+                .build(),
+        )
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
@@ -260,6 +270,9 @@ pub fn run() {
             commands::list_detected_providers,
             commands::rescan_detected_providers,
             commands::claude_connect_preflight,
+            autostart::autostart_status,
+            autostart::set_autostart,
+            autostart::autostart_first_run_complete,
             claude_poll_setting::claude_poll_enabled,
             claude_poll_setting::set_claude_poll_enabled,
             codex_device_login::codex_device_login_start,
@@ -297,6 +310,24 @@ pub fn run() {
             updates::install_update
         ])
         .setup(|app| {
+            /* The main window starts hidden (tauri.conf.json) and is shown
+            here unless the sign in entry started this process. An update the
+            window installed relaunches with the old arguments and a mark
+            that brings the window back. */
+            let directory = state::state_directory();
+            let after_update = autostart::take_update_mark(directory.as_deref());
+            let start = autostart::Autostart::new(
+                directory,
+                Box::new(autostart::OsLoginItem(app.handle().clone())),
+            );
+            let _ = start.at_launch();
+            app.manage(start);
+            let args: Vec<String> = std::env::args_os()
+                .map(|arg| arg.to_string_lossy().into_owned())
+                .collect();
+            if autostart::starts_visible(&args, after_update) {
+                show_window(app.handle());
+            }
             /* The full collector outlives every window. Its schedule, reads,
             parsing and cache commits never depend on a webview receiving an
             event or being allowed to run a timer. */

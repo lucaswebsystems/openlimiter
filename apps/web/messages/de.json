@@ -110,6 +110,8 @@
     "claudeWeeklyOAuthApps": "Wöchentlich, OAuth Apps",
     "showClaudeFable": "Fable Limit anzeigen",
     "showClaudeFableNote": "Liest dieselbe Nutzung, die Claude anzeigt, indem eine direkte Nutzungsanfrage mit deiner Claude Anmeldung auf diesem Computer gesendet wird. Anthropics Richtlinie für solche Werkzeuge ist ungeklärt. Du kannst dies unter Werkzeuge verbinden ausschalten.",
+    "startAtSignIn": "OpenLimiter beim Anmelden am Computer starten",
+    "startAtSignInNote": "Hält deine Balken nach einem Neustart aktuell.",
     "claudePollConsentTitle": "Dein Fable Limit anzeigen?",
     "claudePollNotNow": "Jetzt nicht",
     "claudePollSaveFailed": "Die Auswahl konnte nicht gespeichert werden, deshalb bleibt die Claude Nutzung ausgeschaltet.",

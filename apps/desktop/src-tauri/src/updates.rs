@@ -61,10 +61,15 @@ pub async fn install_update(
         slot.take().ok_or(UpdateFailure::NoPendingUpdate)?
     };
 
-    update
-        .download_and_install(|_, _| {}, || {})
-        .await
-        .map_err(|_| UpdateFailure::UpdateInstallFailed)?;
+    /* The relaunch carries this process's arguments, the sign in entry's
+    included, so a mark brings the window back after an update installed
+    from it. */
+    let directory = crate::state::state_directory();
+    crate::autostart::mark_update(directory.as_deref());
+    if update.download_and_install(|_, _| {}, || {}).await.is_err() {
+        crate::autostart::take_update_mark(directory.as_deref());
+        return Err(UpdateFailure::UpdateInstallFailed);
+    }
     app.restart();
 }
 
