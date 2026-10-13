@@ -137,6 +137,7 @@ import {
   parseJsonText,
   persistSnapshots,
   clearStatuslineFailure,
+  observedClaudeReading,
   readStatuslineFailure,
   recordStatuslineFailure,
   type StatuslineFailureStage,
@@ -1223,6 +1224,11 @@ async function ingestStandardInput(
         ? parseGrokStatuslinePayload(document.value, now)
         : parseClaudePayload(document.value, now);
     if (meters === null) return { snapshots: null, payload: document.value };
+    /* A Claude reading keeps the time its API response arrived, so a timed
+       rerun of an idle window never passes an old number off as new. */
+    const read = host === "claude"
+      ? await observedClaudeReading(meters, document.value, now, dependencies.stateDirectory ?? resolveStateDirectory())
+      : meters;
     const provenance = host === "antigravity"
       ? ANTIGRAVITY_STATUSLINE_PROVENANCE
       : host === "grok"
@@ -1230,7 +1236,7 @@ async function ingestStandardInput(
         : STATUSLINE_PROVENANCE;
     /* The host wrote this to our standard input in this session. It is a live
        reading, and it says so. */
-    const incoming = normalizeMeters(withProvenance(meters, provenance).map(meter => ({ ...meter, ...(accountId ? { accountId } : {}) })));
+    const incoming = normalizeMeters(withProvenance(read, provenance).map(meter => ({ ...meter, ...(accountId ? { accountId } : {}) })));
     if (incoming.length === 0) return { snapshots: null, payload: document.value };
     /* The render still draws when a write fails, so each failure is kept for
        doctor by its stage, and the next full success clears it. */

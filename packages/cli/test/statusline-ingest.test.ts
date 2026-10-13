@@ -1,9 +1,9 @@
-import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { FIXTURE_NOW, claudeFixture, grokFixture } from "@openlimiter/connectors";
-import { CACHE_FILE_NAME, opaqueAccountId, readSnapshotCache } from "@openlimiter/core";
+import { FIXTURE_NOW, claudeFixture, grokFixture, parseClaudePayload } from "@openlimiter/connectors";
+import { CACHE_FILE_NAME, mergeSnapshotCache, normalizeMeters, opaqueAccountId, readSnapshotCache } from "@openlimiter/core";
 import { runCli } from "../src/index.js";
 
 /**
@@ -312,5 +312,120 @@ describe("statusline ingestion by host", () => {
       now: () => FIXTURE_NOW
     });
     expect(withoutFlag.stdout).toBe(withFlag.stdout);
+  });
+
+  /*
+   * Claude Code reruns an idle window's status line on a timer and hands it the
+   * rate limits its last API response carried. A rerun is not a new reading:
+   * the row keeps the time its reading arrived, so a newer poll is never
+   * replaced by an old number stamped with the render's clock (2.1.6, E).
+   */
+  describe("Claude payload observation time", () => {
+    const T1100 = "2026-01-01T11:00:00.000Z";
+    const T1130 = "2026-01-01T11:30:00.000Z";
+    const T1209 = "2026-01-01T12:09:00.000Z";
+    const T1210 = "2026-01-01T12:10:00.000Z";
+    const T1211 = "2026-01-01T12:11:00.000Z";
+    const T1212 = "2026-01-01T12:12:00.000Z";
+    const RESET = "2026-01-01T15:00:00.000Z";
+    const account = opaqueAccountId("CLAUDE", "fixture-a");
+
+    async function claudeHome(): Promise<{ home: string; directory: string }> {
+      const home = await temporaryDirectory();
+      await claudeConfig(path.join(home, ".claude"), "fixture-a");
+      await mkdir(path.join(home, ".claude", "projects"));
+      return { home, directory: await temporaryDirectory() };
+    }
+
+    async function transcriptAt(home: string, session: string, at: string): Promise<string> {
+      const file = path.join(home, ".claude", "projects", session + ".jsonl");
+      await writeFile(file, "{}\n");
+      await utimes(file, new Date(at), new Date(at));
+      return file;
+    }
+
+    function payload(session: string, transcript: string, apiMilliseconds: number, percent: number): string {
+      return JSON.stringify({
+        hook_event_name: "Status",
+        session_id: session,
+        transcript_path: transcript,
+        cost: { total_api_duration_ms: apiMilliseconds },
+        rate_limits: { five_hour: { used_percentage: percent, resets_at: Date.parse(RESET) / 1000 } }
+      });
+    }
+
+    async function seedPoll(directory: string, percent: number, at: string): Promise<void> {
+      const rows = normalizeMeters((parseClaudePayload({ five_hour: { utilization: percent, resets_at: RESET } }, at) ?? [])
+        .map((row) => ({ ...row, accountId: account, provenance: { sourceKind: "remote_api" as const, observedVia: "remote_http" as const } })));
+      await mergeSnapshotCache(rows, directory, Date.parse(at));
+    }
+
+    async function fiveHour(directory: string): Promise<{ value: number; observedAt: string } | undefined> {
+      const cache = await readSnapshotCache(directory);
+      const row = cache.ok ? cache.snapshots.find((item) => item.provider === "CLAUDE" && item.meter === "FIVE_HOUR") : undefined;
+      return row === undefined ? undefined : { value: row.value, observedAt: row.observedAt };
+    }
+
+    function render(home: string, directory: string, at: string, body: string) {
+      return runCli(["statusline", "--host", "claude"], {
+        stateDirectory: directory, homeDirectory: home, environment: {}, platform: "linux", now: () => at,
+        readStandardInput: async () => body
+      });
+    }
+
+    it("a timed rerun of an idle window never replaces a newer poll, and a new API response wins", async () => {
+      const { home, directory } = await claudeHome();
+      const transcript = await transcriptAt(home, "s1", T1100);
+      await render(home, directory, T1100, payload("s1", transcript, 1_000, 10));
+      expect(await fiveHour(directory)).toEqual({ value: 10, observedAt: T1100 });
+      await seedPoll(directory, 80, T1209);
+      const idle = await render(home, directory, T1210, payload("s1", transcript, 1_000, 10));
+      expect(await fiveHour(directory)).toEqual({ value: 80, observedAt: T1209 });
+      expect(idle.stdout).toContain("80%");
+      await render(home, directory, T1211, payload("s1", transcript, 2_000, 12));
+      expect(await fiveHour(directory)).toEqual({ value: 12, observedAt: T1211 });
+    });
+
+    it("a session seen for the first time takes its transcript's time, capped at now, else now", async () => {
+      const { home, directory } = await claudeHome();
+      await seedPoll(directory, 80, T1209);
+      await render(home, directory, T1210, payload("s2", await transcriptAt(home, "s2", T1100), 1_000, 10));
+      expect(await fiveHour(directory)).toEqual({ value: 80, observedAt: T1209 });
+      await render(home, directory, T1211, payload("s3", await transcriptAt(home, "s3", "2026-01-01T13:00:00.000Z"), 1_000, 12));
+      expect(await fiveHour(directory)).toEqual({ value: 12, observedAt: T1211 });
+      await render(home, directory, T1212, payload("s4", path.join(home, "missing.jsonl"), 1_000, 14));
+      expect(await fiveHour(directory)).toEqual({ value: 14, observedAt: T1212 });
+    });
+
+    it("two windows on one session each keep their own reading's time", async () => {
+      const { home, directory } = await claudeHome();
+      const transcript = await transcriptAt(home, "s5", T1100);
+      await render(home, directory, T1100, payload("s5", transcript, 1_000, 10));
+      await render(home, directory, T1130, payload("s5", transcript, 500, 20));
+      await seedPoll(directory, 80, T1209);
+      await render(home, directory, T1210, payload("s5", transcript, 1_000, 10));
+      await render(home, directory, T1211, payload("s5", transcript, 500, 20));
+      expect(await fiveHour(directory)).toEqual({ value: 80, observedAt: T1209 });
+    });
+
+    it("the reading log is bounded, keeps no session id, and is written only when a reading changes", async () => {
+      const { home, directory } = await claudeHome();
+      const transcript = await transcriptAt(home, "s6", T1100);
+      await render(home, directory, T1100, payload("s6", transcript, 1_000, 10));
+      const log = (await readdir(directory)).filter((name) => name.includes("claude-readings"));
+      expect(log).toHaveLength(1);
+      const file = path.join(directory, log[0] ?? "");
+      const old = new Date("2025-01-01T00:00:00.000Z");
+      await utimes(file, old, old);
+      await render(home, directory, T1210, payload("s6", transcript, 1_000, 10));
+      expect((await stat(file)).mtimeMs).toBe(old.getTime());
+      for (let index = 0; index < 70; index += 1) {
+        await render(home, directory, T1211, payload("bulk-" + index, transcript, 1_000, 10));
+      }
+      const text = await readFile(file, "utf8");
+      expect(text).not.toContain("bulk-");
+      expect(text).not.toContain("s6");
+      expect((JSON.parse(text) as { readings: unknown[] }).readings.length).toBeLessThanOrEqual(64);
+    });
   });
 });

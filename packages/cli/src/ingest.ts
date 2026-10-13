@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import path from "node:path";
 import {
   MANUAL_FILE_MARKER,
@@ -5,7 +6,7 @@ import {
   parseAntigravityPayload,
   parseGrokPayload
 } from "@openlimiter/connectors";
-import { unlink } from "node:fs/promises";
+import { stat, unlink } from "node:fs/promises";
 import {
   canonicalJson,
   errorClassOf,
@@ -13,6 +14,7 @@ import {
   opaqueAccountId,
   readJsonFileSafely,
   resolveStateDirectory,
+  withStateLock,
   writeFileAtomically,
   type CacheMergeResult,
   type RawMeter,
@@ -346,6 +348,120 @@ export async function readStatuslineFailure(directory: string | undefined): Prom
     typeof errorClass === "string" && /^[A-Za-z][A-Za-z0-9_]{0,31}$/u.test(errorClass)
     ? { at, stage: stage as StatuslineFailureStage, errorClass }
     : null;
+}
+
+/**
+ * When each Claude Code reading first arrived, newest first, so a rerun keeps it.
+ *
+ * Only digests of the session id and of the reading are kept, never either
+ * one itself, and only the last CLAUDE_READINGS_LIMIT of them.
+ */
+export const CLAUDE_READINGS_FILE_NAME = "openlimiter-claude-readings.json";
+export const CLAUDE_READINGS_LIMIT = 64;
+
+interface ClaudeReading {
+  readonly session: string;
+  readonly reading: string;
+  readonly observedAt: string;
+}
+
+function objectField(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown> : {};
+}
+
+function digest(text: string): string {
+  return createHash("sha256").update(text).digest("hex").slice(0, 32);
+}
+
+async function readClaudeReadings(file: string): Promise<ClaudeReading[]> {
+  const document = await readJsonFileSafely(file, 65_536);
+  const readings = document.ok ? objectField(document.value)["readings"] : undefined;
+  if (!Array.isArray(readings)) return [];
+  return readings.slice(0, CLAUDE_READINGS_LIMIT).filter((entry): entry is ClaudeReading => {
+    const { session, reading, observedAt } = objectField(entry);
+    return typeof session === "string" && /^[0-9a-f]{32}$/u.test(session) &&
+      typeof reading === "string" && /^[0-9a-f]{32}$/u.test(reading) &&
+      typeof observedAt === "string" && observedAt.length <= 64 && Number.isFinite(Date.parse(observedAt));
+  });
+}
+
+/** The transcript's last write, capped at now, or null when it cannot be read. */
+async function transcriptWritten(value: unknown, now: string): Promise<string | null> {
+  /* Only a local absolute path is looked at, never a network share. */
+  if (typeof value !== "string" || value.length > 4_096 || !path.isAbsolute(value) || /^[\\/]{2}/u.test(value)) return null;
+  try {
+    const info = await stat(value);
+    return info.isFile() && Number.isFinite(info.mtimeMs)
+      ? new Date(Math.min(info.mtimeMs, Date.parse(now))).toISOString()
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * When the reading in a Claude Code status line payload was observed.
+ *
+ * Claude Code reruns an idle window's status line on a timer and hands it the
+ * rate limits its last API response carried. A rerun is not a new reading,
+ * and stamping it with the render's clock let an old number replace a newer
+ * poll. So the time is the API response's, never the render's: a session whose
+ * API time and rate limits are unchanged keeps the time stored when they first
+ * appeared; a session seen for the first time takes its transcript's last
+ * write, capped at now; anything else is a new response, now. The log is
+ * written only when a reading is new, under the state lock, and a failure
+ * falls back to the transcript rather than to now.
+ */
+export async function observedClaudeReading(
+  meters: readonly RawMeter[],
+  payload: unknown,
+  now: string,
+  directory: string
+): Promise<RawMeter[]> {
+  const root = objectField(payload);
+  const firstSight = async (): Promise<string> =>
+    await transcriptWritten(root["transcript_path"], now) ?? now;
+  const sessionId = root["session_id"];
+  let observedAt: string;
+  if (typeof sessionId !== "string" || sessionId.length === 0 || sessionId.length > 256) {
+    observedAt = await firstSight();
+  } else {
+    const session = digest(sessionId);
+    const reading = digest(canonicalJson({
+      api: objectField(root["cost"])["total_api_duration_ms"] ?? null,
+      limits: root["rate_limits"] ?? null
+    }));
+    const file = path.join(directory, CLAUDE_READINGS_FILE_NAME);
+    const stored = (entries: readonly ClaudeReading[]): string | undefined =>
+      entries.find((entry) => entry.session === session && entry.reading === reading)?.observedAt;
+    const known = stored(await readClaudeReadings(file));
+    try {
+      observedAt = known ?? await withStateLock(directory, async () => {
+        const entries = await readClaudeReadings(file);
+        const again = stored(entries);
+        if (again !== undefined) return again;
+        const time = entries.some((entry) => entry.session === session) ? now : await firstSight();
+        await writeFileAtomically(file, canonicalJson({
+          readings: [{ observedAt: time, reading, session }, ...entries].slice(0, CLAUDE_READINGS_LIMIT),
+          version: 1
+        }));
+        return time;
+      });
+    } catch {
+      observedAt = await firstSight();
+    }
+    if (Date.parse(observedAt) > Date.parse(now)) observedAt = now;
+  }
+  if (observedAt === now) return [...meters];
+  const shift = Date.parse(observedAt) - Date.parse(now);
+  return meters.map((meter) => ({
+    ...meter,
+    observedAt,
+    expiresAt: typeof meter.expiresAt === "string"
+      ? new Date(Date.parse(meter.expiresAt) + shift).toISOString()
+      : meter.expiresAt
+  }));
 }
 
 /** Forget it, which a status line write that fully succeeded is the proof of. */
