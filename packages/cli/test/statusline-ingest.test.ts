@@ -401,8 +401,8 @@ describe("statusline ingestion by host", () => {
       const idle = await render(home, directory, T1210, payload("s1", transcript, 1_000, 10));
       expect(await fiveHour(directory)).toEqual({ value: 80, observedAt: T1209 });
       expect(idle.stdout).toContain("80%");
-      await render(home, directory, T1211, payload("s1", transcript, 2_000, 12));
-      expect(await fiveHour(directory)).toEqual({ value: 12, observedAt: T1211 });
+      await render(home, directory, T1211, payload("s1", transcript, 2_000, 85));
+      expect(await fiveHour(directory)).toEqual({ value: 85, observedAt: T1211 });
     });
 
     it("a seven_day that appears or disappears changes nothing", async () => {
@@ -478,6 +478,27 @@ describe("statusline ingestion by host", () => {
       await render(home, directory, T1210, payload("s5", transcript, 1_000, 10));
       await render(home, directory, T1211, payload("s5", transcript, 500, 20));
       expect(await fiveHour(directory)).toEqual({ value: 80, observedAt: T1209 });
+    });
+
+    it("two windows resumed on one session: the older window's first reading never overwrites newer usage", async () => {
+      const { home, directory } = await claudeHome();
+      const transcript = await transcriptAt(home, "s13", T1100);
+      /* Window A shows the session's first reading, then a newer API response. */
+      await render(home, directory, T1100, payload("s13", transcript, 1_000, 10));
+      await render(home, directory, T1130, payload("s13", transcript, 2_000, 30));
+      expect(await fiveHour(directory)).toEqual({ value: 30, observedAt: T1130 });
+      /* Window B, resumed on the same session id, hands over its older reading
+         for the first time afterwards: neither it nor its reruns replace A's. */
+      await render(home, directory, T1210, payload("s13", transcript, 1_500, 20));
+      await render(home, directory, T1211, payload("s13", transcript, 1_500, 20));
+      expect(await fiveHour(directory)).toEqual({ value: 30, observedAt: T1130 });
+      /* A newer API response still wins at once, and one at the same value,
+         which changes no number, keeps an active window fresh. */
+      await render(home, directory, T1212, payload("s13", transcript, 2_500, 31));
+      expect(await fiveHour(directory)).toEqual({ value: 31, observedAt: T1212 });
+      const T1213 = "2026-01-01T12:13:00.000Z";
+      await render(home, directory, T1213, payload("s13", transcript, 3_000, 31));
+      expect(await fiveHour(directory)).toEqual({ value: 31, observedAt: T1213 });
     });
 
     it("the reading log is bounded, keeps no session id, and is written only when a reading changes", async () => {

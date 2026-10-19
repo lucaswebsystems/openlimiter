@@ -446,16 +446,17 @@ async function cachedFiveHour(directory: string, accountId: string | undefined):
  * Whether a reading's content proves it newer than the cached row: there is
  * no row; the row's window is earlier (its reset more than an hour before the
  * reading's); or it is the same window at a strictly higher value, because
- * usage only grows inside one window.
+ * usage only grows inside one window. With `orSame`, the same window at the
+ * same value passes too, because it changes no number.
  */
-function provenNewer(reading: RawMeter, row: Snapshot | undefined): boolean {
+function provenNewer(reading: RawMeter, row: Snapshot | undefined, orSame = false): boolean {
   if (row === undefined) return true;
   const reset = typeof reading.resetAt === "string" ? Date.parse(reading.resetAt) : Number.NaN;
   const rowReset = Date.parse(row.resetAt ?? "");
   if (!Number.isFinite(reset) || !Number.isFinite(rowReset)) return false;
   if (rowReset < reset - SAME_WINDOW_MILLISECONDS) return true;
   return Math.abs(rowReset - reset) <= SAME_WINDOW_MILLISECONDS &&
-    typeof reading.value === "number" && reading.value > row.value;
+    typeof reading.value === "number" && (reading.value > row.value || orSame && reading.value === row.value);
 }
 
 /**
@@ -465,16 +466,18 @@ function provenNewer(reading: RawMeter, row: Snapshot | undefined): boolean {
  * Claude Code reruns an idle window's status line on a timer and hands it the
  * rate limits its last API response carried. A rerun is not a new reading, so
  * the time is the API response's, never the render's. A reading this session
- * already showed keeps the time stored when it first appeared; a new reading
- * in a known session is a new API response, now. Any other time is uncertain
- * (a session not in the log, no session id, a log that cannot be read or
- * locked), and such a reading is written only when its content proves it
- * newer than the cached row, at its transcript's last write capped at now
- * (now without one), raised above the row's time so it wins the merge. One
- * that proves nothing is not written, and its log entry, stored below the
- * row's time, keeps its reruns out too. Known ceiling: two windows resumed on
- * one session id whose older reading was evicted can show that reading until
- * the next API response or poll replaces it.
+ * already showed keeps the time stored when it first appeared. A new reading
+ * in a known session is a new API response, now, unless its content shows it
+ * older than the cached row (the same window at a lower value, or an earlier
+ * window), because two windows resumed on one session id can hand over an
+ * older reading for the first time after a newer one; the same value passes,
+ * since it changes no number and keeps an active window fresh. Any other time
+ * is uncertain (a session not in the log, no session id, a log that cannot be
+ * read or locked), and such a reading is written only when its content proves
+ * it newer than the cached row, at its transcript's last write capped at now
+ * (now without one). A written reading's time is raised above the row's so it
+ * wins the merge; one that is not written leaves a log entry stored below the
+ * row's time, which keeps its reruns out too.
  */
 export async function observedClaudeReading(
   meters: readonly RawMeter[],
@@ -486,15 +489,16 @@ export async function observedClaudeReading(
   const root = objectField(payload);
   const fiveHour = meters.find((meter) => meter.meter === "FIVE_HOUR");
   if (fiveHour === undefined || root["rate_limits"] === undefined) return [...meters];
-  const uncertain = async (): Promise<{ time: string; write: boolean }> => {
+  const decide = async (time: string, orSame: boolean): Promise<{ time: string; write: boolean }> => {
     const row = await cachedFiveHour(directory, accountId);
-    const time = await transcriptWritten(root["transcript_path"], now) ?? now;
     const rowTime = row === undefined ? Number.NaN : Date.parse(row.observedAt);
-    if (provenNewer(fiveHour, row)) {
+    if (provenNewer(fiveHour, row, orSame)) {
       return { time: rowTime >= Date.parse(time) ? new Date(rowTime + 1).toISOString() : time, write: true };
     }
     return { time: rowTime <= Date.parse(time) ? new Date(rowTime - 1).toISOString() : time, write: false };
   };
+  const uncertain = async (): Promise<{ time: string; write: boolean }> =>
+    decide(await transcriptWritten(root["transcript_path"], now) ?? now, false);
   const sessionId = root["session_id"];
   let decided: { time: string; write: boolean };
   if (typeof sessionId !== "string" || sessionId.length === 0 || sessionId.length > 256) {
@@ -515,7 +519,7 @@ export async function observedClaudeReading(
         const again = stored(entries);
         if (again !== undefined) return { time: again, write: true };
         const result = entries?.some((entry) => entry.session === session) === true
-          ? { time: now, write: true }
+          ? await decide(now, true)
           : await uncertain();
         await writeFileAtomically(file, canonicalJson({
           readings: keptClaudeReadings([{ observedAt: result.time, reading, session }, ...(entries ?? [])], now, session),
