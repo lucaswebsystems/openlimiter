@@ -514,7 +514,7 @@
         "folded": "The tab rests on the left edge. A small dot appears when something needs a look, like an agent waiting for you.",
         "unfolded": "Hover it and the panel opens: agents first, with Show app for the one that needs you, then limits, tightest first, with reset times.",
         "foldedAlt": "The real OpenLimiter edge tab, a small tab with the OpenLimiter logo and a yellow dot, on the left edge of a desktop with a mountain lake wallpaper.",
-        "unfoldedAlt": "The real OpenLimiter panel open beside the edge tab, with synthetic data: Claude Code needs you and offers Show app, Codex is busy and Gemini CLI is done, then limits for Codex, Claude Code and OpenRouter with bars and reset times, and an Open app link."
+        "unfoldedAlt": "The real OpenLimiter panel open beside the edge tab, with synthetic data: Claude Code needs you and offers Show app, Codex is busy and Gemini CLI is done, then limits for Codex and Claude Code with bars and reset times, an OpenRouter account balance, and an Open app link."
       },
       "agents": {
         "title": "Three desktop tabs. One hover panel when you step away.",
@@ -1918,7 +1918,7 @@
             "title": "The commands",
             "capturedFixturesLabel": "captured {date}, synthetic fixtures",
             "capturedLabel": "captured {date}",
-            "claudePoll": "The desktop Show Fable limit switch controls the desktop process. To stop it, open Settings and turn Show Fable limit off. <code>providers.claude.poll</code> controls the command line process. To stop it, run <code>openlimiter config set providers.claude.poll false</code>. Each switch is independent. This sends a direct usage request with your local Claude credentials, and Anthropic's policy for tools like this is unresolved.",
+            "claudePoll": "The desktop Show Fable limit switch controls the desktop process. To stop it, open Connect Tools, then the menu at the end of the Claude row, then turn Show Fable limit off. <code>providers.claude.poll</code> controls the command line process. To stop it, run <code>openlimiter config set providers.claude.poll false</code>. Each switch is independent. This sends a direct usage request with your local Claude credentials, and Anthropic's policy for tools like this is unresolved.",
             "init": {
               "body": "Writes local configuration to the state directory, recording every connector and whether it was detected. It reports the detected list, or none."
             },

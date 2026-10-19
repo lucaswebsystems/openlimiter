@@ -514,7 +514,7 @@
         "folded": "La pestaña descansa en el borde izquierdo. Aparece un pequeño punto cuando algo merece un vistazo, como un agente que te espera.",
         "unfolded": "Al pasar el cursor se abre el panel: primero los agentes, con Mostrar app en el que te espera, y luego los límites, el más justo primero, con su reinicio.",
         "foldedAlt": "La pestaña real de OpenLimiter, pequeña, con el logotipo de OpenLimiter y un punto amarillo, en el borde izquierdo de un escritorio con un fondo de lago de montaña.",
-        "unfoldedAlt": "El panel real de OpenLimiter abierto junto a la pestaña, con datos sintéticos: Claude Code te necesita y ofrece Mostrar app, Codex está ocupado y Gemini CLI ha terminado; debajo, los límites de Codex, Claude Code y OpenRouter con barras y el tiempo hasta cada reinicio, y un enlace Abrir app."
+        "unfoldedAlt": "El panel real de OpenLimiter abierto junto a la pestaña, con datos sintéticos: Claude Code te necesita y ofrece Mostrar app, Codex está ocupado y Gemini CLI ha terminado; debajo, los límites de Codex y Claude Code con barras y el tiempo hasta cada reinicio, un saldo de cuenta de OpenRouter y un enlace Abrir app."
       },
       "agents": {
         "title": "Tres pestañas de escritorio. Un panel al pasar el cursor.",
@@ -1918,7 +1918,7 @@
             "title": "The commands",
             "capturedFixturesLabel": "captured {date}, synthetic fixtures",
             "capturedLabel": "captured {date}",
-            "claudePoll": "El control Mostrar límite de Fable de la aplicación de escritorio controla el proceso de escritorio. Para detenerlo, abre Ajustes y desactiva Mostrar límite de Fable. <code>providers.claude.poll</code> controla el proceso de la línea de comandos. Para detenerlo, ejecuta <code>openlimiter config set providers.claude.poll false</code>. Cada control es independiente. Esto envía una solicitud directa de uso con tus credenciales locales de Claude, y la política de Anthropic para herramientas como esta no está resuelta.",
+            "claudePoll": "El control Mostrar límite de Fable de la aplicación de escritorio controla el proceso de escritorio. Para detenerlo, abre Connect Tools, luego el menú al final de la fila de Claude, y desactiva Mostrar límite de Fable. <code>providers.claude.poll</code> controla el proceso de la línea de comandos. Para detenerlo, ejecuta <code>openlimiter config set providers.claude.poll false</code>. Cada control es independiente. Esto envía una solicitud directa de uso con tus credenciales locales de Claude, y la política de Anthropic para herramientas como esta no está resuelta.",
             "init": {
               "body": "Writes local configuration to the state directory, recording every connector and whether it was detected. It reports the detected list, or none."
             },

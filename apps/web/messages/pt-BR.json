@@ -514,7 +514,7 @@
         "folded": "A aba fica na borda esquerda. Um pequeno ponto aparece quando algo merece uma olhada, como um agente esperando por você.",
         "unfolded": "Passe o mouse e o painel se abre: primeiro os agentes, com Mostrar app no que espera por você, depois os limites, o mais apertado primeiro, com o reinício.",
         "foldedAlt": "A aba real do OpenLimiter, pequena, com o logotipo do OpenLimiter e um ponto amarelo, na borda esquerda de uma área de trabalho com um papel de parede de lago na montanha.",
-        "unfoldedAlt": "O painel real do OpenLimiter aberto ao lado da aba, com dados sintéticos: Claude Code precisa de você e oferece Mostrar app, Codex está ocupado e Gemini CLI terminou; abaixo, os limites de Codex, Claude Code e OpenRouter com barras e o tempo até cada reinício, e um link Abrir app."
+        "unfoldedAlt": "O painel real do OpenLimiter aberto ao lado da aba, com dados sintéticos: Claude Code precisa de você e oferece Mostrar app, Codex está ocupado e Gemini CLI terminou; abaixo, os limites de Codex e Claude Code com barras e o tempo até cada reinício, um saldo de conta do OpenRouter e um link Abrir app."
       },
       "agents": {
         "title": "Três abas no desktop. Um painel ao passar o mouse.",
@@ -1918,7 +1918,7 @@
             "title": "The commands",
             "capturedFixturesLabel": "captured {date}, synthetic fixtures",
             "capturedLabel": "captured {date}",
-            "claudePoll": "O controle Mostrar limite do Fable no aplicativo para desktop controla o processo do desktop. Para parar essa solicitação, abra Configurações e desative Mostrar limite do Fable. <code>providers.claude.poll</code> controla o processo da linha de comando. Para parar essa solicitação, execute <code>openlimiter config set providers.claude.poll false</code>. Cada controle é independente. Isso envia uma solicitação direta de uso com suas credenciais locais do Claude, e a política da Anthropic para ferramentas como esta ainda não está resolvida.",
+            "claudePoll": "O controle Mostrar limite do Fable no aplicativo para desktop controla o processo do desktop. Para parar essa solicitação, abra Connect Tools, depois o menu no fim da linha do Claude, e desative Mostrar limite do Fable. <code>providers.claude.poll</code> controla o processo da linha de comando. Para parar essa solicitação, execute <code>openlimiter config set providers.claude.poll false</code>. Cada controle é independente. Isso envia uma solicitação direta de uso com suas credenciais locais do Claude, e a política da Anthropic para ferramentas como esta ainda não está resolvida.",
             "init": {
               "body": "Writes local configuration to the state directory, recording every connector and whether it was detected. It reports the detected list, or none."
             },

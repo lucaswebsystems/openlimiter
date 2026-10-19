@@ -514,7 +514,7 @@
         "folded": "タブは左端で待機しています。あなたを待つエージェントなど、確認が必要なことがあると小さな点が表示されます。",
         "unfolded": "ポインターを合わせるとパネルが開きます。まずエージェント、あなたを待つものには「アプリを表示」。続いて、余裕の少ない順に制限とリセットまでの時間。",
         "foldedAlt": "左端にある実際のOpenLimiterのタブ。OpenLimiterのロゴと黄色い点が付いた小さなタブで、背景は山の湖の壁紙です。",
-        "unfoldedAlt": "タブの横に開いた実際のOpenLimiterのパネル（合成データ）。Claude Codeがあなたを待っていて「アプリを表示」があり、Codexは作業中、Gemini CLIは完了です。その下にCodex、Claude Code、OpenRouterの制限がバーとリセットまでの時間付きで並び、「アプリを開く」リンクがあります。"
+        "unfoldedAlt": "タブの横に開いた実際のOpenLimiterのパネル（合成データ）。Claude Codeがあなたを待っていて「アプリを表示」があり、Codexは作業中、Gemini CLIは完了です。その下にCodexとClaude Codeの制限がバーとリセットまでの時間付きで並び、OpenRouterのアカウント残高と「アプリを開く」リンクがあります。"
       },
       "agents": {
         "title": "デスクトップは3つのタブ。離れているときはホバーパネル。",
@@ -1918,7 +1918,7 @@
             "title": "The commands",
             "capturedFixturesLabel": "captured {date}, synthetic fixtures",
             "capturedLabel": "captured {date}",
-            "claudePoll": "デスクトップアプリの Fable の上限を表示スイッチはデスクトッププロセスを制御します。停止するには、設定を開いて Fable の上限を表示をオフにします。<code>providers.claude.poll</code> はコマンドラインプロセスを制御します。停止するには <code>openlimiter config set providers.claude.poll false</code> を実行します。それぞれのスイッチは独立しています。これはローカルの Claude 認証情報を使って使用量を直接要求します。このようなツールに関する Anthropic の方針は未解決です。",
+            "claudePoll": "デスクトップアプリの Fable の上限を表示スイッチはデスクトッププロセスを制御します。停止するには、Connect Tools を開き、Claude の行の末尾にあるメニューから Fable の上限を表示をオフにします。<code>providers.claude.poll</code> はコマンドラインプロセスを制御します。停止するには <code>openlimiter config set providers.claude.poll false</code> を実行します。それぞれのスイッチは独立しています。これはローカルの Claude 認証情報を使って使用量を直接要求します。このようなツールに関する Anthropic の方針は未解決です。",
             "init": {
               "body": "Writes local configuration to the state directory, recording every connector and whether it was detected. It reports the detected list, or none."
             },

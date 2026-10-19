@@ -514,7 +514,7 @@
         "folded": "Der Reiter liegt am linken Rand. Ein kleiner Punkt erscheint, wenn etwas deinen Blick braucht, etwa ein Agent, der auf dich wartet.",
         "unfolded": "Zeigst du darauf, öffnet sich das Panel: erst die Agenten, mit App anzeigen beim wartenden, dann die Limits, das knappste zuerst, mit Rücksetzzeit.",
         "foldedAlt": "Der echte Reiter von OpenLimiter, klein, mit dem OpenLimiter Logo und einem gelben Punkt, am linken Rand eines Desktops mit einem Bergsee als Hintergrundbild.",
-        "unfoldedAlt": "Das echte Panel von OpenLimiter, geöffnet neben dem Reiter, mit synthetischen Daten: Claude Code braucht dich und bietet App anzeigen an, Codex arbeitet und Gemini CLI ist fertig, darunter Limits für Codex, Claude Code und OpenRouter mit Balken und Zeiten bis zum Zurücksetzen sowie ein Link App öffnen."
+        "unfoldedAlt": "Das echte Panel von OpenLimiter, geöffnet neben dem Reiter, mit synthetischen Daten: Claude Code braucht dich und bietet App anzeigen an, Codex arbeitet und Gemini CLI ist fertig, darunter Limits für Codex und Claude Code mit Balken und Zeiten bis zum Zurücksetzen, ein Kontostand von OpenRouter sowie ein Link App öffnen."
       },
       "agents": {
         "title": "Drei Desktop Tabs. Ein Panel beim Darüberfahren.",
@@ -1918,7 +1918,7 @@
             "title": "The commands",
             "capturedFixturesLabel": "captured {date}, synthetic fixtures",
             "capturedLabel": "captured {date}",
-            "claudePoll": "Der Schalter Fable Limit anzeigen in der Desktopanwendung steuert den Desktopprozess. Um ihn zu stoppen, öffne Einstellungen und schalte Fable Limit anzeigen aus. <code>providers.claude.poll</code> steuert den Befehlszeilenprozess. Um ihn zu stoppen, führe <code>openlimiter config set providers.claude.poll false</code> aus. Jeder Schalter ist unabhängig. Dabei wird eine direkte Nutzungsanfrage mit deinen lokalen Claude Zugangsdaten gesendet, und Anthropics Richtlinie für solche Werkzeuge ist ungeklärt.",
+            "claudePoll": "Der Schalter Fable Limit anzeigen in der Desktopanwendung steuert den Desktopprozess. Um ihn zu stoppen, öffne Connect Tools, dann das Menü am Ende der Zeile von Claude, und schalte Fable Limit anzeigen aus. <code>providers.claude.poll</code> steuert den Befehlszeilenprozess. Um ihn zu stoppen, führe <code>openlimiter config set providers.claude.poll false</code> aus. Jeder Schalter ist unabhängig. Dabei wird eine direkte Nutzungsanfrage mit deinen lokalen Claude Zugangsdaten gesendet, und Anthropics Richtlinie für solche Werkzeuge ist ungeklärt.",
             "init": {
               "body": "Writes local configuration to the state directory, recording every connector and whether it was detected. It reports the detected list, or none."
             },
