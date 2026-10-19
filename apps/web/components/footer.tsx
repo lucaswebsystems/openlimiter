@@ -261,9 +261,9 @@ export function Footer({ localised = true }: { localised?: boolean }) {
         {...reveal}
       >
         <p className="text-xs leading-relaxed text-muted">
+          {/* No "All rights reserved" beside the Apache licence: the licence
+              grants those rights, so the two lines contradicted each other. */}
           © {new Date().getFullYear()} OpenLimiter.com
-          <span className="legal-dot" aria-hidden="true" />
-          {t("rights")}
           <span className="legal-dot" aria-hidden="true" />
           <a
             href={LICENSE_URL}

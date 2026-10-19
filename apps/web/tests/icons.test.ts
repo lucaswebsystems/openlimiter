@@ -49,4 +49,17 @@ describe("mobile launcher icons", () => {
     expect(png.readUInt32BE(16)).toBe(size);
     expect(png.readUInt32BE(20)).toBe(size);
   });
+
+  it("serves /favicon.ico as the launcher tile at 16, 32 and 48 pixels", () => {
+    const ico = readFileSync("public/favicon.ico");
+    expect([ico.readUInt16LE(0), ico.readUInt16LE(2), ico.readUInt16LE(4)]).toEqual([0, 1, 3]);
+    const sizes = [0, 1, 2].map((index) => {
+      const entry = 6 + 16 * index;
+      const png = ico.subarray(ico.readUInt32LE(entry + 12), ico.readUInt32LE(entry + 12) + ico.readUInt32LE(entry + 8));
+      expect(png.subarray(1, 4).toString("ascii")).toBe("PNG");
+      expect(png.readUInt32BE(16)).toBe(ico[entry]);
+      return ico[entry];
+    });
+    expect(sizes).toEqual([16, 32, 48]);
+  });
 });

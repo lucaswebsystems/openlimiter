@@ -93,7 +93,10 @@ const webAppClass =
 /* `localised` is off on the English only trees, like the footer's language
    column: their pages have no other language to link to. */
 export async function Nav({ localised = true }: { localised?: boolean }) {
-  const stars = await fetchStarCount();
+  /* U82: below a hundred, a star count argues against the project, so the
+     chip carries no number until it reaches one. */
+  const fetched = await fetchStarCount();
+  const stars = fetched !== null && fetched >= 100 ? fetched : null;
   const t = await getTranslations("nav");
   const routeLabels = await getTranslations("common.routes");
   const common = await getTranslations("common");
