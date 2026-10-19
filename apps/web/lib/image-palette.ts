@@ -13,6 +13,8 @@
 export const imagePalette = {
   /** mirrors --ol-canvas, dark */
   canvas: "#080b10",
+  /** --ol-canvas, dark, at zero alpha: the far end of a fade into the canvas */
+  canvasClear: "rgba(8, 11, 16, 0)",
   /** mirrors --ol-surface, dark */
   surface: "#0e131b",
   /** mirrors --ol-hairline, dark */

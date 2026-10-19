@@ -84,7 +84,7 @@ export async function GET() {
               top: 0,
               width: 12,
               height: SIZE.height,
-              backgroundImage: `linear-gradient(to right, ${imagePalette.canvas}, rgba(8, 11, 16, 0))`,
+              backgroundImage: `linear-gradient(to right, ${imagePalette.canvas}, ${imagePalette.canvasClear})`,
             }}
           />
         </div>
