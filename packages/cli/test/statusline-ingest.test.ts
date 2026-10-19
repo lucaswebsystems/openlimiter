@@ -501,6 +501,21 @@ describe("statusline ingestion by host", () => {
       expect(await fiveHour(directory)).toEqual({ value: 31, observedAt: T1213 });
     });
 
+    it("two windows' new readings arriving together are each decided against the row their own write meets", async () => {
+      const { home, directory } = await claudeHome();
+      const transcript = await transcriptAt(home, "s14", T1100);
+      await render(home, directory, T1100, payload("s14", transcript, 1_000, 10));
+      /* Window B's older reading renders on the later clock. Checked against
+         the same row before either write, both would pass and B's later time
+         would win the merge; checked inside the lock its write takes, the
+         second one meets the first one's row. */
+      await Promise.all([
+        render(home, directory, "2026-01-01T12:10:30.000Z", payload("s14", transcript, 1_500, 20)),
+        render(home, directory, T1210, payload("s14", transcript, 2_000, 30))
+      ]);
+      expect((await fiveHour(directory))?.value).toBe(30);
+    });
+
     it("the reading log is bounded, keeps no session id, and is written only when a reading changes", async () => {
       const { home, directory } = await claudeHome();
       const transcript = await transcriptAt(home, "s6", T1100);

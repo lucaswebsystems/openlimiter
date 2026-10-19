@@ -796,19 +796,28 @@ export interface CacheMergeResult {
  * observe different providers cannot silently drop each other's rows. An
  * unchanged result skips the write entirely, which keeps a statusline that
  * renders on every keystroke from churning the disk.
+ *
+ * `incoming` can instead be a decision that runs inside that same lock, so a
+ * choice made against the cache is never overtaken by another writer before
+ * its own write; a decision that admits nothing writes nothing.
  */
 export async function mergeSnapshotCache(
-  incoming: readonly Snapshot[],
+  incoming: readonly Snapshot[] | (() => Promise<readonly Snapshot[]>),
   directory = resolveStateDirectory(),
   now = Date.now()
 ): Promise<CacheMergeResult> {
-  rejectOutOfBounds(incoming);
+  if (typeof incoming !== "function") rejectOutOfBounds(incoming);
   return await withCacheLock(directory, async () => {
+    const admitted = typeof incoming === "function" ? await incoming() : incoming;
     const cached = await readCacheState(directory);
     const state: CacheState = cached.ok
       ? cached.state
       : { snapshots: [], suppressions: [] };
-    const merged = retainSnapshots(mergeSnapshots(state.snapshots, incoming), now);
+    if (typeof incoming === "function") {
+      if (admitted.length === 0) return { merged: [...state.snapshots], written: false };
+      rejectOutOfBounds(admitted);
+    }
+    const merged = retainSnapshots(mergeSnapshots(state.snapshots, admitted), now);
     if (canonicalJson(merged) === canonicalJson(state.snapshots)) {
       return { merged, written: false };
     }

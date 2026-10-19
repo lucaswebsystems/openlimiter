@@ -15,7 +15,6 @@ import {
   readJsonFileSafely,
   readSnapshotCache,
   resolveStateDirectory,
-  withStateLock,
   writeFileAtomically,
   type CacheMergeResult,
   type RawMeter,
@@ -478,30 +477,37 @@ function provenNewer(reading: RawMeter, row: Snapshot | undefined, orSame = fals
  * (now without one). A written reading's time is raised above the row's so it
  * wins the merge; one that is not written leaves a log entry stored below the
  * row's time, which keeps its reruns out too.
+ *
+ * The caller holds the state lock, which the log shares with the cache, and
+ * writes the result before releasing it, so the row checked here is the row
+ * the write meets. `logged` false, for a caller that could not take the lock,
+ * decides by content alone and leaves the log untouched.
  */
 export async function observedClaudeReading(
   meters: readonly RawMeter[],
   payload: unknown,
   now: string,
   directory: string,
-  accountId: string | undefined
+  accountId: string | undefined,
+  logged = true
 ): Promise<RawMeter[] | null> {
   const root = objectField(payload);
   const fiveHour = meters.find((meter) => meter.meter === "FIVE_HOUR");
   if (fiveHour === undefined || root["rate_limits"] === undefined) return [...meters];
-  const decide = async (time: string, orSame: boolean): Promise<{ time: string; write: boolean }> => {
+  type Decision = { time: string; write: boolean; beaten?: number };
+  const decide = async (time: string, orSame: boolean): Promise<Decision> => {
     const row = await cachedFiveHour(directory, accountId);
     const rowTime = row === undefined ? Number.NaN : Date.parse(row.observedAt);
     if (provenNewer(fiveHour, row, orSame)) {
-      return { time: rowTime >= Date.parse(time) ? new Date(rowTime + 1).toISOString() : time, write: true };
+      return { time: rowTime >= Date.parse(time) ? new Date(rowTime + 1).toISOString() : time, write: true, beaten: rowTime };
     }
     return { time: rowTime <= Date.parse(time) ? new Date(rowTime - 1).toISOString() : time, write: false };
   };
-  const uncertain = async (): Promise<{ time: string; write: boolean }> =>
+  const uncertain = async (): Promise<Decision> =>
     decide(await transcriptWritten(root["transcript_path"], now) ?? now, false);
   const sessionId = root["session_id"];
-  let decided: { time: string; write: boolean };
-  if (typeof sessionId !== "string" || sessionId.length === 0 || sessionId.length > 256) {
+  let decided: Decision;
+  if (!logged || typeof sessionId !== "string" || sessionId.length === 0 || sessionId.length > 256) {
     decided = await uncertain();
   } else {
     const session = digest(sessionId);
@@ -510,29 +516,26 @@ export async function observedClaudeReading(
       fiveHour: objectField(root["rate_limits"])["five_hour"] ?? null
     }));
     const file = path.join(directory, CLAUDE_READINGS_FILE_NAME);
-    const stored = (entries: readonly ClaudeReading[] | null): string | undefined =>
-      entries?.find((entry) => entry.session === session && entry.reading === reading)?.observedAt;
-    const known = stored(await readClaudeReadings(file));
-    try {
-      decided = known !== undefined ? { time: known, write: true } : await withStateLock(directory, async () => {
-        const entries = await readClaudeReadings(file);
-        const again = stored(entries);
-        if (again !== undefined) return { time: again, write: true };
-        const result = entries?.some((entry) => entry.session === session) === true
-          ? await decide(now, true)
-          : await uncertain();
-        await writeFileAtomically(file, canonicalJson({
-          readings: keptClaudeReadings([{ observedAt: result.time, reading, session }, ...(entries ?? [])], now, session),
-          version: 1
-        })).catch(() => undefined);
-        return result;
-      });
-    } catch {
-      decided = await uncertain();
+    const entries = await readClaudeReadings(file);
+    const known = entries?.find((entry) => entry.session === session && entry.reading === reading)?.observedAt;
+    if (known !== undefined) {
+      decided = { time: known, write: true };
+    } else {
+      decided = entries?.some((entry) => entry.session === session) === true
+        ? await decide(now, true)
+        : await uncertain();
+      await writeFileAtomically(file, canonicalJson({
+        readings: keptClaudeReadings([{ observedAt: decided.time, reading, session }, ...(entries ?? [])], now, session),
+        version: 1
+      })).catch(() => undefined);
     }
   }
   if (!decided.write) return null;
-  const observedAt = Date.parse(decided.time) > Date.parse(now) ? now : decided.time;
+  /* Never past the render's clock, except to match a row this reading beat
+     that is already ahead of it: the merge gives a tie to the newer write. */
+  const ceiling = Math.max(Date.parse(now), Number.isFinite(decided.beaten) ? decided.beaten as number : Number.NEGATIVE_INFINITY);
+  const observedAt = Date.parse(decided.time) <= ceiling ? decided.time
+    : ceiling > Date.parse(now) ? new Date(ceiling).toISOString() : now;
   if (observedAt === now) return [...meters];
   const shift = Date.parse(observedAt) - Date.parse(now);
   return meters.map((meter) => ({
