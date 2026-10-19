@@ -2,13 +2,19 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { DownloadChoice } from "@/components/download-choice";
+import { DocLink } from "@/components/docs/prose";
 import { PageShell } from "@/components/page-shell";
 import { JsonLd } from "@/components/json-ld";
 import { type LocaleParams, pageLocale } from "@/i18n/params";
+import { formatReleaseDate } from "@/lib/changelog";
 import { pageMetadata } from "@/lib/metadata";
 import { softwareApplicationSchema } from "@/lib/jsonld";
 import { downloadAssetHref, primaryDownloadHref } from "@/lib/downloads";
 import { CURRENT_VERSION, REPO_URL, SITE_CONTENT_UPDATED } from "@/lib/site";
+
+/** A multi line command block, left aligned inside the centred column. */
+const COMMANDS =
+  "mx-auto mt-3 block w-fit max-w-full overflow-x-auto rounded-xl border border-hairline bg-frame px-5 py-4 text-left text-sm text-heading";
 
 export async function generateMetadata({ params }: LocaleParams): Promise<Metadata> {
   const locale = await pageLocale(params);
@@ -30,12 +36,16 @@ export default async function DownloadPage({ params }: LocaleParams) {
      has no button for, the other is reading what changed, and GitHub answers
      both from one URL. Computed once so the two props never drift apart. */
   const releaseUrl = `${REPO_URL}/releases/tag/v${CURRENT_VERSION}`;
+  const updated = formatReleaseDate(SITE_CONTENT_UPDATED, locale) ?? SITE_CONTENT_UPDATED;
+  const linkClass = "focus-ring rounded text-accent underline underline-offset-4";
 
   return (
     <PageShell title={t("title")} lead={t("metaDescription", { version: CURRENT_VERSION })}>
       <JsonLd data={await softwareApplicationSchema(locale)} />
       <div className="pb-6 pt-8 md:pb-10 md:pt-12">
-        <p className="mb-6 text-center text-xs text-muted"><time dateTime={SITE_CONTENT_UPDATED}>{t("updated")}</time></p>
+        <p className="mb-6 text-center text-xs text-muted">
+          <time dateTime={SITE_CONTENT_UPDATED}>{t("updated", { date: updated })}</time>
+        </p>
         <DownloadChoice
           windowsHref={primaryDownloadHref("windows")}
           linuxHref={primaryDownloadHref("linux")}
@@ -54,7 +64,27 @@ export default async function DownloadPage({ params }: LocaleParams) {
           detectedLabel={t("choice.detected")}
           previewTitle={t("preview.title")}
           previewAlt={t("preview.alt")}
-        />
+          mobile={{
+            title: t("mobile.title"),
+            body: t("mobile.body"),
+            share: t("mobile.share"),
+            copy: t("mobile.copy"),
+            copied: t("mobile.copied"),
+            source: t("mobile.source"),
+            sourceHref: REPO_URL,
+          }}
+        >
+          {/* The browser warning, the two system prompts by name, and where
+              GitHub shows each file's SHA256 digest. Open Anyway is the
+              documented macOS path; no quarantine command is ever given. */}
+          {t.rich("safety", {
+            release: (chunks) => (
+              <a href={releaseUrl} target="_blank" rel="noopener noreferrer" className={linkClass}>
+                {chunks}
+              </a>
+            ),
+          })}
+        </DownloadChoice>
         <section className="mx-auto mt-12 max-w-3xl text-center" aria-labelledby="package-details">
           <h2 id="package-details" className="heading-face text-xl text-heading">{t("packages.title")}</h2>
           <p className="mx-auto mt-3 max-w-2xl text-soft">{t("packages.lead")}</p>
@@ -108,6 +138,34 @@ export default async function DownloadPage({ params }: LocaleParams) {
           <a className="focus-ring inline-flex rounded text-sm text-accent underline underline-offset-4" href="https://www.npmjs.com/package/openlimiter" target="_blank" rel="noopener noreferrer">
             {t("targets.npm.hrefLabel")}
           </a>
+        </section>
+
+        <section id="disclosure" className="mx-auto mt-12 max-w-3xl text-center" aria-labelledby="disclosure-title">
+          <h2 id="disclosure-title" className="heading-face text-xl text-heading">{t("disclosure.title")}</h2>
+          <ul className="mx-auto mt-4 max-w-2xl space-y-3 text-sm leading-relaxed text-soft">
+            <li>{t("disclosure.webview")}</li>
+            <li>{t("disclosure.updates")}</li>
+            <li>{t("disclosure.logins")}</li>
+            <li>{t("disclosure.claude")}</li>
+          </ul>
+        </section>
+
+        <section id="uninstall" className="mx-auto mt-12 max-w-3xl text-center" aria-labelledby="uninstall-title">
+          <h2 id="uninstall-title" className="heading-face text-xl text-heading">{t("uninstall.title")}</h2>
+          <p className="mx-auto mt-3 max-w-2xl text-soft">{t("uninstall.lead")}</p>
+          <pre className={COMMANDS}><code>{"openlimiter terminal uninstall <host>\nopenlimiter hooks uninstall <agent>\nnpm uninstall -g openlimiter"}</code></pre>
+          <div className="mx-auto mt-6 max-w-2xl space-y-3 text-sm leading-relaxed text-muted">
+            <p>{t("uninstall.first")}</p>
+            <p>{t("uninstall.windows")}</p>
+            <p>{t("uninstall.macos")}</p>
+            <p>{t("uninstall.linux")}</p>
+          </div>
+          <pre className={COMMANDS}><code>{"sudo apt remove open-limiter\nsudo dnf remove open-limiter"}</code></pre>
+          <p className="mx-auto mt-6 max-w-2xl text-sm leading-relaxed text-muted">
+            {t.rich("uninstall.data", {
+              docs: (chunks) => <DocLink href="/docs/configuration">{chunks}</DocLink>,
+            })}
+          </p>
         </section>
       </div>
     </PageShell>

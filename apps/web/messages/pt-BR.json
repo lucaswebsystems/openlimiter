@@ -959,7 +959,7 @@
     "readSource": "Ler o código fonte"
   },
   "download": {
-    "updated": "Atualizado em 28 de setembro de 2026",
+    "updated": "Atualizado em {date}",
     "metaTitle": "Baixe o {version} para desktop e terminal",
     "metaDescription": "Baixe o OpenLimiter {version} para Windows, macOS ou Linux, ou instale a CLI pelo npm. Meters e alertas locais gratuitos. As versões para desktop não são assinadas.",
     "title": "Download",
@@ -983,6 +983,31 @@
     },
     "versionLine": "Versão {version}",
     "releaseNotes": "Notas de lançamento",
+    "safety": "Seu navegador pode avisar que o arquivo não é baixado com frequência, porque cada versão começa sem histórico de downloads: escolha manter o arquivo. Depois, o Windows SmartScreen e o macOS Gatekeeper perguntam uma vez, como cada cartão acima explica. O GitHub mostra o hash SHA256 de cada arquivo na <release>página da versão</release>.",
+    "uninstall": {
+      "title": "Desinstalar",
+      "lead": "Se você os usou, comece por estes comandos: o primeiro restaura a statusline que um host de terminal tinha antes (all restaura todos), o segundo remove um hook de agente e o terceiro remove a ferramenta de linha de comando.",
+      "first": "Na aba Settings do aplicativo, desligue “Start OpenLimiter when you sign in” e depois feche o OpenLimiter.",
+      "windows": "Windows: abra Configurações, vá em Aplicativos, encontre o OpenLimiter entre os aplicativos instalados e escolha Desinstalar.",
+      "macos": "macOS: apague o OpenLimiter de Aplicativos.",
+      "linux": "Linux: apague o arquivo AppImage, ou remova o pacote deb ou rpm com o comando abaixo para a sua distribuição.",
+      "data": "Suas configurações e leituras em cache ficam no diretório de estado da sua conta de usuário. <docs>Configuração</docs> mostra onde ele fica, se quiser remover esse diretório também."
+    },
+    "disclosure": {
+      "title": "O que o aplicativo de desktop faz no seu computador",
+      "webview": "No Windows, o instalador adiciona o runtime WebView2 da Microsoft quando ele falta, porque o aplicativo desenha a janela com ele.",
+      "updates": "O aplicativo verifica no GitHub se há uma versão mais nova e pergunta antes de fazer a instalação. No macOS, por enquanto, uma versão nova é um novo download nesta página.",
+      "logins": "Ele lê os logins que as suas ferramentas de programação já guardaram, só para leitura, e envia cada um apenas ao próprio provedor. Suas leituras só chegam ao OpenLimiter se você entrar, e então apenas como leituras limitadas de quota.",
+      "claude": "As barras da sessão do Claude vêm da statusline documentada do Claude Code. Numa instalação nova, o aplicativo também consulta a Anthropic diretamente sobre o seu uso do Claude, com o seu próprio login do Claude Code e enviado apenas à Anthropic, depois de mostrar um aviso. Você pode desligar essa consulta."
+    },
+    "mobile": {
+      "title": "O OpenLimiter roda no seu computador.",
+      "body": "Envie esta página para você mesmo.",
+      "share": "Compartilhar esta página",
+      "copy": "Copiar link",
+      "copied": "Link copiado",
+      "source": "Ver o código no GitHub"
+    },
     "states": {
       "available": "disponível",
       "inDevelopment": "em breve",

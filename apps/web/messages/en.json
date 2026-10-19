@@ -959,7 +959,7 @@
     "readSource": "Read the source"
   },
   "download": {
-    "updated": "Updated September 28, 2026",
+    "updated": "Updated {date}",
     "metaTitle": "Download {version} for desktop and terminal",
     "metaDescription": "Download OpenLimiter {version} for Windows, macOS or Linux, or install the CLI from npm. Free local meters and alerts. Desktop builds are unsigned.",
     "title": "Download",
@@ -983,6 +983,31 @@
     },
     "versionLine": "Version {version}",
     "releaseNotes": "Release notes",
+    "safety": "Your browser may warn that the file is not commonly downloaded, because every release starts with no download history: choose to keep it. Windows SmartScreen and macOS Gatekeeper then ask once, as each card above says. GitHub shows each file's SHA256 digest on the <release>release page</release>.",
+    "uninstall": {
+      "title": "Uninstall",
+      "lead": "If you used them, run these first: the first restores the status line a terminal host had before (all restores every host), the second removes an agent hook, and the third removes the command line tool.",
+      "first": "In the app's Settings tab, turn off “Start OpenLimiter when you sign in”, then quit OpenLimiter.",
+      "windows": "Windows: open Settings, go to Apps, find OpenLimiter among your installed apps and choose Uninstall.",
+      "macos": "macOS: delete OpenLimiter from Applications.",
+      "linux": "Linux: delete the AppImage file, or remove the deb or rpm package with the command below for your distribution.",
+      "data": "Your settings and cached readings stay in the state directory under your user account. <docs>Configuration</docs> says where it is, if you want it gone too."
+    },
+    "disclosure": {
+      "title": "What the desktop app does on your computer",
+      "webview": "On Windows, the installer adds Microsoft's WebView2 runtime when it is missing, because the app draws its window with it.",
+      "updates": "The app checks GitHub for a newer version and asks before installing it. On macOS, a new version is a new download from this page for now.",
+      "logins": "It reads the logins your coding tools already stored, read only, and sends each one only to its own provider. Your readings reach OpenLimiter only if you sign in, and then only as bounded quota readings.",
+      "claude": "Claude session bars come from Claude Code's documented status line. On a new install, the app also asks Anthropic directly for your Claude usage, with your own Claude Code login and sent only to Anthropic, after showing you a disclosure. You can turn that request off."
+    },
+    "mobile": {
+      "title": "OpenLimiter runs on your computer.",
+      "body": "Send this page to yourself.",
+      "share": "Share this page",
+      "copy": "Copy link",
+      "copied": "Link copied",
+      "source": "View source on GitHub"
+    },
     "states": {
       "available": "available",
       "inDevelopment": "coming soon",

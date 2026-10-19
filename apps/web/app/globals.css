@@ -73,6 +73,9 @@
   --color-primary: var(--ol-primary);
   --color-primary-hover: var(--ol-primary-hover);
   --color-on-primary: var(--ol-on-primary);
+  /* The download page's one primary button, and nothing else on the site. */
+  --color-primary-fill: var(--ol-primary-fill);
+  --color-on-primary-fill: var(--ol-on-primary-fill);
 
   --color-solid: var(--ol-solid);
   --color-solid-hover: var(--ol-solid-hover);

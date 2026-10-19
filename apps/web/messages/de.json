@@ -959,7 +959,7 @@
     "readSource": "Quellcode lesen"
   },
   "download": {
-    "updated": "Aktualisiert am 28. September 2026",
+    "updated": "Aktualisiert am {date}",
     "metaTitle": "{version} für Desktop und Terminal herunterladen",
     "metaDescription": "Lade OpenLimiter {version} für Windows, macOS oder Linux herunter, oder installiere die CLI aus npm. Kostenlose lokale Meter und Alerts. Desktop Builds sind nicht signiert.",
     "title": "Download",
@@ -983,6 +983,31 @@
     },
     "versionLine": "Version {version}",
     "releaseNotes": "Release Notes",
+    "safety": "Dein Browser warnt vielleicht, dass die Datei selten heruntergeladen wird, weil jedes Release ohne Downloadverlauf beginnt: wähle, sie zu behalten. Windows SmartScreen und macOS Gatekeeper fragen danach einmal, wie es auf jeder Karte oben steht. GitHub zeigt die SHA256 Prüfsumme jeder Datei auf der <release>Release Seite</release>.",
+    "uninstall": {
+      "title": "Deinstallieren",
+      "lead": "Wenn du sie genutzt hast, führe diese zuerst aus: der erste Befehl stellt die Statusline wieder her, die ein Terminal Host vorher hatte (all stellt alle Hosts wieder her), der zweite entfernt einen Agent Hook, und der dritte entfernt das Kommandozeilen Tool.",
+      "first": "Schalte im Settings Tab der App „Start OpenLimiter when you sign in“ aus und beende dann OpenLimiter.",
+      "windows": "Windows: Öffne die Einstellungen, gehe zu Apps, suche OpenLimiter unter den installierten Apps und wähle Deinstallieren.",
+      "macos": "macOS: Lösche OpenLimiter aus dem Programme Ordner.",
+      "linux": "Linux: Lösche die AppImage Datei oder entferne das deb oder rpm Paket mit dem Befehl unten für deine Distribution.",
+      "data": "Deine Einstellungen und zwischengespeicherten Messwerte bleiben im Zustandsverzeichnis unter deinem Benutzerkonto. <docs>Konfiguration</docs> zeigt, wo es liegt, falls du es auch entfernen willst."
+    },
+    "disclosure": {
+      "title": "Was die Desktop Anwendung auf deinem Computer tut",
+      "webview": "Unter Windows installiert das Installationsprogramm die WebView2 Laufzeit von Microsoft, wenn sie fehlt, weil die Anwendung ihr Fenster damit zeichnet.",
+      "updates": "Die Anwendung prüft auf GitHub, ob es eine neuere Version gibt, und fragt, bevor sie sie installiert. Unter macOS ist eine neue Version vorerst ein neuer Download von dieser Seite.",
+      "logins": "Sie liest die Anmeldungen, die deine Coding Tools schon gespeichert haben, nur lesend, und schickt jede nur an ihren eigenen Anbieter. Deine Messwerte erreichen OpenLimiter nur, wenn du dich anmeldest, und dann nur als begrenzte Quota Messwerte.",
+      "claude": "Die Balken für die Claude Sitzung kommen aus der dokumentierten Statusline von Claude Code. Bei einer neuen Installation fragt die Anwendung Anthropic zusätzlich direkt nach deiner Claude Nutzung, mit deiner eigenen Claude Code Anmeldung und nur an Anthropic gesendet, nachdem sie dir einen Hinweis gezeigt hat. Du kannst diese Anfrage abschalten."
+    },
+    "mobile": {
+      "title": "OpenLimiter läuft auf deinem Computer.",
+      "body": "Schick dir diese Seite selbst.",
+      "share": "Diese Seite teilen",
+      "copy": "Link kopieren",
+      "copied": "Link kopiert",
+      "source": "Quellcode auf GitHub ansehen"
+    },
     "states": {
       "available": "verfügbar",
       "inDevelopment": "kommt bald",

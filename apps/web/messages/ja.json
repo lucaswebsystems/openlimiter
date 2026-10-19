@@ -959,7 +959,7 @@
     "readSource": "ソースを読む"
   },
   "download": {
-    "updated": "2026年9月28日更新",
+    "updated": "{date}更新",
     "metaTitle": "デスクトップとターミナル向け{version}をダウンロード",
     "metaDescription": "Windows、macOS、Linux向けのOpenLimiter {version}をダウンロードするか、npmからCLIをインストールできます。無料のローカルmeterとアラート。デスクトップビルドには署名がありません。",
     "title": "ダウンロード",
@@ -983,6 +983,31 @@
     },
     "versionLine": "バージョン {version}",
     "releaseNotes": "リリースノート",
+    "safety": "ブラウザが、このファイルはあまりダウンロードされていないと警告することがあります。どのリリースもダウンロード履歴のない状態から始まるためです。その場合はファイルを保持してください。そのあとWindows SmartScreenとmacOS Gatekeeperが一度だけ確認します。手順は上の各カードにあります。各ファイルのSHA256ダイジェストは、GitHubの<release>リリースページ</release>に表示されます。",
+    "uninstall": {
+      "title": "アンインストール",
+      "lead": "使っていた場合は、先にこれらを実行してください。1つ目はターミナルホストの以前のstatuslineを元に戻し（allですべてのホストを戻します）、2つ目はエージェントのフックを削除し、3つ目はコマンドラインツールを削除します。",
+      "first": "アプリのSettingsタブで「Start OpenLimiter when you sign in」をオフにしてから、OpenLimiterを終了します。",
+      "windows": "Windows：設定を開き、アプリに進み、インストールされているアプリからOpenLimiterを探して、アンインストールを選びます。",
+      "macos": "macOS：アプリケーションからOpenLimiterを削除します。",
+      "linux": "Linux：AppImageファイルを削除するか、お使いのディストリビューションに合わせて下のコマンドでdebまたはrpmパッケージを削除します。",
+      "data": "設定とキャッシュされた測定値は、ユーザーアカウントの状態ディレクトリに残ります。それも消したい場合、場所は<docs>設定</docs>に書かれています。"
+    },
+    "disclosure": {
+      "title": "デスクトップアプリがコンピューターで行うこと",
+      "webview": "Windowsでは、MicrosoftのWebView2ランタイムがない場合、インストーラーがそれを追加します。アプリはこれを使ってウィンドウを描画します。",
+      "updates": "アプリはGitHubで新しいバージョンを確認し、インストールする前に確認を求めます。macOSでは当面、新しいバージョンはこのページからの新しいダウンロードになります。",
+      "logins": "コーディングツールがすでに保存したログインを読み取り専用で読み、それぞれをそのプロバイダーにだけ送ります。あなたの測定値がOpenLimiterに届くのはサインインした場合だけで、その場合も範囲を限定したquotaの測定値だけです。",
+      "claude": "Claudeのセッションのバーは、Claude Codeのドキュメント化されたstatuslineから取得します。新しくインストールした場合、アプリは案内を表示したうえで、あなた自身のClaude CodeログインでAnthropicにも直接Claudeの使用量を問い合わせます。送信先はAnthropicだけです。この問い合わせはオフにできます。"
+    },
+    "mobile": {
+      "title": "OpenLimiterはコンピューターで動きます。",
+      "body": "このページを自分に送ってください。",
+      "share": "このページを共有",
+      "copy": "リンクをコピー",
+      "copied": "リンクをコピーしました",
+      "source": "GitHubでソースを見る"
+    },
     "states": {
       "available": "利用可能",
       "inDevelopment": "近日公開",

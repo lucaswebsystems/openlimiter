@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 export type Platform = "windows" | "linux" | "macos" | "mobile" | "unknown";
 
@@ -54,6 +54,97 @@ function PlatformGlyph({ platform }: { platform: "windows" | "macos" | "linux" }
   return <LinuxGlyph />;
 }
 
+/**
+ * The two button tones this component uses, and only this component.
+ *
+ * Primary is the mark blue, `--ol-primary-fill`, with white text: 4.8:1 at rest
+ * and 6.2:1 on the hover step, the same in both themes because neither token
+ * changes with the theme. Focus keeps the fill and adds the ring. The brand
+ * blue the rest of the site's accent uses measures 3.75:1 under white, which is
+ * why it is not used for a label here. Secondary is the ghost: heading text on
+ * the card, which clears 4.5:1 by a wide margin in both themes.
+ */
+const BUTTON =
+  "focus-ring lift-sm inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors";
+const PRIMARY = "border-transparent bg-primary-fill text-on-primary-fill hover:bg-primary-hover";
+const SECONDARY =
+  "border-control-border bg-transparent text-heading hover:border-heading hover:bg-surface";
+
+/** What a phone shows instead of three installers it cannot run. */
+export interface MobileCopy {
+  title: string;
+  body: string;
+  share: string;
+  copy: string;
+  copied: string;
+  source: string;
+  sourceHref: string;
+}
+
+/**
+ * The phone card.
+ *
+ * A phone cannot run any of the three desktop builds, so it gets one honest
+ * sentence and a way to carry the page to the computer that can: the system
+ * share sheet where the browser has one, a copied link where it does not.
+ */
+function MobileCard({ copy }: { copy: MobileCopy }) {
+  const [canShare, setCanShare] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    setCanShare(typeof navigator.share === "function");
+  }, []);
+
+  async function send() {
+    const url = window.location.href;
+    if (canShare) {
+      try {
+        await navigator.share({ title: document.title, url });
+        return;
+      } catch (error) {
+        /* Closing the sheet is an answer, not a failure. */
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+    } catch {
+      /* No clipboard either: the address bar still holds the link. */
+    }
+  }
+
+  return (
+    <section
+      id="mobile"
+      aria-labelledby="mobile-title"
+      className="flex w-full flex-col items-center rounded-2xl border border-hairline bg-surface p-6 text-center elev-1 sm:p-8"
+    >
+      <h2 id="mobile-title" className="heading-face text-xl font-semibold text-heading">
+        {copy.title}
+      </h2>
+      <p className="mx-auto mt-2 max-w-sm text-soft">{copy.body}</p>
+      <div className="mt-6 flex w-full max-w-sm flex-col gap-3">
+        <button type="button" onClick={send} className={`${BUTTON} ${PRIMARY}`}>
+          {canShare ? copy.share : copied ? copy.copied : copy.copy}
+        </button>
+        <a
+          href={copy.sourceHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`${BUTTON} ${SECONDARY}`}
+        >
+          {copy.source}
+        </a>
+      </div>
+      <span aria-live="polite" className="sr-only">
+        {copied ? copy.copied : ""}
+      </span>
+    </section>
+  );
+}
+
 export function DownloadChoice({
   windowsHref,
   linuxHref,
@@ -72,6 +163,8 @@ export function DownloadChoice({
   detectedLabel,
   previewTitle,
   previewAlt,
+  mobile,
+  children,
 }: {
   windowsHref: string;
   linuxHref: string;
@@ -104,6 +197,9 @@ export function DownloadChoice({
   detectedLabel: string;
   previewTitle: string;
   previewAlt: string;
+  mobile: MobileCopy;
+  /** The line about browser and system warnings, shown under the desktop buttons. */
+  children?: ReactNode;
 }) {
   const [platform, setPlatform] = useState<Platform>("unknown");
 
@@ -134,74 +230,85 @@ export function DownloadChoice({
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col items-center gap-10">
-      <div className="flex w-full flex-col items-center rounded-2xl border border-hairline bg-surface p-6 sm:p-8 text-center elev-1">
-        <div className="grid w-full grid-cols-1 items-stretch gap-4 text-center md:grid-cols-3">
-          {targets.map((target) => {
-            const isDetected = target.id === platform;
-            return (
-              <article
-                key={target.id}
-                id={target.id}
-                className={`flex h-full min-h-64 flex-col rounded-xl border p-5 text-center transition-colors ${
-                  isDetected
-                    ? "border-accent bg-accent-subtle/30"
-                    : "border-hairline bg-raised/50 hover:border-hairline-strong"
-                }`}
-              >
-                <div className="flex h-full flex-col items-center">
-                  <div className="mb-3 flex min-h-8 items-center justify-center gap-2">
-                    <h2 className="heading-face text-sm font-semibold text-heading">
-                      {target.id === "windows"
-                        ? "Windows"
-                        : target.id === "macos"
-                          ? "macOS"
-                          : "Linux"}
-                    </h2>
-                    {isDetected && (
-                      <span className="rounded-full bg-accent px-2 py-0.5 text-2xs font-medium text-on-accent">
-                        {detectedLabel}
-                      </span>
-                    )}
-                  </div>
-                  {target.note && (
-                    <p className="mx-auto max-w-xs text-sm leading-relaxed text-muted">
-                      {target.note}
-                    </p>
-                  )}
-                <a
-                  href={target.href}
-                  className="focus-ring lift-sm mt-auto inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-on-accent transition-colors hover:bg-accent-hover"
+      {platform === "mobile" ? (
+        <MobileCard copy={mobile} />
+      ) : (
+        <div className="flex w-full flex-col items-center rounded-2xl border border-hairline bg-surface p-6 sm:p-8 text-center elev-1">
+          <div className="grid w-full grid-cols-1 items-stretch gap-4 text-center md:grid-cols-3">
+            {targets.map((target) => {
+              /* One primary button, for the platform this browser runs on. An
+                 undetected platform gets three equal secondary ones rather
+                 than a guess. */
+              const isDetected = target.id === platform;
+              return (
+                <article
+                  key={target.id}
+                  id={target.id}
+                  className={`flex h-full min-h-64 flex-col rounded-xl border p-5 text-center transition-colors ${
+                    isDetected
+                      ? "border-accent bg-accent-subtle/30"
+                      : "border-hairline bg-raised/50 hover:border-hairline-strong"
+                  }`}
                 >
-                  <PlatformGlyph platform={target.id} />
-                  {target.label}
-                </a>
-                </div>
-              </article>
-            );
-          })}
-        </div>
+                  <div className="flex h-full flex-col items-center">
+                    <div className="mb-3 flex min-h-8 items-center justify-center gap-2">
+                      <h2 className="heading-face text-sm font-semibold text-heading">
+                        {target.id === "windows"
+                          ? "Windows"
+                          : target.id === "macos"
+                            ? "macOS"
+                            : "Linux"}
+                      </h2>
+                      {isDetected && (
+                        <span className="rounded-full bg-primary-fill px-2 py-0.5 text-2xs font-medium text-on-primary-fill">
+                          {detectedLabel}
+                        </span>
+                      )}
+                    </div>
+                    {target.note && (
+                      <p className="mx-auto max-w-xs text-sm leading-relaxed text-muted">
+                        {target.note}
+                      </p>
+                    )}
+                    <a
+                      href={target.href}
+                      className={`${BUTTON} mt-auto ${isDetected ? PRIMARY : SECONDARY}`}
+                    >
+                      <PlatformGlyph platform={target.id} />
+                      {target.label}
+                    </a>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
 
-        <div className="mt-8 border-t border-hairline pt-5 w-full text-center">
-          <p className="text-xs leading-relaxed text-muted">
-            {versionLine}
-            <span className="legal-dot" aria-hidden="true" />
+          {children !== undefined && (
+            <div className="mt-6 w-full text-center text-xs leading-relaxed text-muted">{children}</div>
+          )}
+
+          <div className="mt-6 border-t border-hairline pt-5 w-full text-center">
+            <p className="text-xs leading-relaxed text-muted">
+              {versionLine}
+              <span className="legal-dot" aria-hidden="true" />
+              <a
+                href={releaseNotesHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
+              >
+                {releaseNotesLabel}
+              </a>
+            </p>
             <a
-              href={releaseNotesHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
+              href={otherHref}
+              className="focus-ring mt-3 inline-block rounded text-sm text-muted underline underline-offset-4 hover:text-heading"
             >
-              {releaseNotesLabel}
+              {otherLabel}
             </a>
-          </p>
-          <a
-            href={otherHref}
-            className="focus-ring mt-3 inline-block rounded text-sm text-muted underline underline-offset-4 hover:text-heading"
-          >
-            {otherLabel}
-          </a>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="w-full text-center">
         <h2 className="heading-face mb-3 text-center text-xl font-semibold text-heading">{previewTitle}</h2>
