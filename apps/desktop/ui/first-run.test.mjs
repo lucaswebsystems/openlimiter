@@ -1087,22 +1087,22 @@ test("shows the two SmartScreen actions for an unsigned Windows release", () => 
   });
 });
 
-test("names the Gatekeeper gesture for the unsigned macOS release", () => {
-  assert.deepEqual(launchNotice("MacIntel"), {
+test("names the Open Anyway path macOS 15 still offers for the unsigned release", () => {
+  /* macOS 15 removed Open from the control click menu for an app it has not
+     verified; System Settings is the one way through that is left. */
+  const notice = launchNotice("MacIntel");
+  assert.deepEqual(notice, {
     title: "Unsigned macOS build",
     detail:
-      "Gatekeeper: control click OpenLimiter in Applications, choose Open, then Open again.",
+      "Gatekeeper: open OpenLimiter from Applications and choose Done, then in System Settings, Privacy & Security, choose Open Anyway.",
   });
+  assert.doesNotMatch(notice.detail, /control click/iu);
 });
 
 test("no longer claims a macOS release is coming", () => {
   /* The unsigned universal app and dmg exist, so the journey names the
      Gatekeeper action rather than a download that does not exist. */
-  assert.deepEqual(launchNotice("MacIntel"), {
-    title: "Unsigned macOS build",
-    detail:
-      "Gatekeeper: control click OpenLimiter in Applications, choose Open, then Open again.",
-  });
+  assert.doesNotMatch(launchNotice("MacIntel").detail, /coming|soon|future/iu);
 });
 
 test("does not add a launch warning on Linux", () => {

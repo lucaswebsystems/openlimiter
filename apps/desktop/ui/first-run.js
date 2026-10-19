@@ -19,8 +19,9 @@ import { say } from "./names.js";
  * gone. It went stale the moment the unsigned universal app and dmg were
  * built, and a screen telling someone a download does not exist while they
  * are running that download is worse than a screen saying nothing at all.
- * Gatekeeper refuses an unsigned app on a plain double click and offers no
- * way forward from its dialogue, so the copy names the gesture that works.
+ * Gatekeeper refuses an app it has not verified on a plain double click and
+ * offers no way forward from its dialogue, and macOS 15 took Open out of the
+ * control click menu for it, so the copy names the System Settings path.
  *
  * Linux gets nothing, because nothing stands between the file and running it.
  */
@@ -36,7 +37,7 @@ export function launchNotice(platform) {
     return {
       title: "Unsigned macOS build",
       detail:
-        "Gatekeeper: control click OpenLimiter in Applications, choose Open, then Open again.",
+        "Gatekeeper: open OpenLimiter from Applications and choose Done, then in System Settings, Privacy & Security, choose Open Anyway.",
     };
   }
   return null;
