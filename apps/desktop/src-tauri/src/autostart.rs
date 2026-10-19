@@ -9,8 +9,9 @@
 //! only when none exists, then records on. The Settings switch turning on
 //! writes the entry first, clearing a disable the person set in the OS, then
 //! records on; turning it off records off first, then removes the entry, so
-//! off survives any failure. Off is final: the app never switches the entry
-//! on again by itself. On with the entry gone (an uninstall removes it)
+//! off survives any failure, and a launch that finds a recorded off with the
+//! entry still there removes it. Off is final: the app never switches the
+//! entry on again by itself. On with the entry gone (an uninstall removes it)
 //! registers again at launch without touching an OS disable; an entry that
 //! exists is never touched. Every change takes one turn, so a first run
 //! report and a Settings toggle never interleave.
@@ -57,6 +58,8 @@ enum Preference {
     Unset,
     On,
     Off,
+    /// A choice that cannot be read, or nowhere to keep one.
+    Unknown,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -86,20 +89,25 @@ impl Autostart {
     }
 
     /// A missing document is nothing recorded yet. An unreadable one, or no
-    /// state directory at all, is off, the safe answer: the app never
-    /// switches the entry on from a choice it cannot read.
+    /// state directory at all, is unknown, which acts as off and never as a
+    /// recorded off: the app neither switches the entry on nor removes it on
+    /// a choice it cannot read.
     fn preference(&self) -> Preference {
         let Some(path) = self.file.as_ref() else {
-            return Preference::Off;
+            return Preference::Unknown;
         };
         match crate::fsx::bounded_read_result(path, crate::fsx::MAX_STATE_FILE_BYTES) {
             Err(crate::fsx::ReadFailure::Missing) => Preference::Unset,
-            Err(_) => Preference::Off,
+            Err(_) => Preference::Unknown,
             Ok(text) => match serde_json::from_str::<PreferenceDocument>(&text) {
-                Ok(document) if document.version == DOCUMENT_VERSION && document.enabled => {
-                    Preference::On
+                Ok(document) if document.version == DOCUMENT_VERSION => {
+                    if document.enabled {
+                        Preference::On
+                    } else {
+                        Preference::Off
+                    }
                 }
-                _ => Preference::Off,
+                _ => Preference::Unknown,
             },
         }
     }
@@ -117,13 +125,16 @@ impl Autostart {
     }
 
     /// At launch: on with the entry gone registers it again, leaving an OS
-    /// disable as it is. An entry that exists is never touched.
+    /// disable as it is; a recorded off with the entry still there (a removal
+    /// that failed or never ran) removes it again. Any other entry is never
+    /// touched.
     pub fn at_launch(&self) -> Result<(), String> {
         let _turn = self.turn.lock().map_err(|_| unavailable())?;
-        if self.preference() == Preference::On && !self.item.registered()? {
-            self.item.enable(false)?;
+        match self.preference() {
+            Preference::On if !self.item.registered()? => self.item.enable(false),
+            Preference::Off if self.item.registered()? => self.item.disable(),
+            _ => Ok(()),
         }
-        Ok(())
     }
 
     /// The window finished its first run, now or on an earlier launch. With
@@ -663,6 +674,9 @@ mod tests {
         /// As the plugin on Windows: deleting a value that is not there fails.
         fn disable(&self) -> Result<(), String> {
             self.call(|fake| {
+                if fake.refuse {
+                    return Err("refused".into());
+                }
                 if !fake.registered {
                     return Err("missing".into());
                 }
@@ -865,6 +879,39 @@ mod tests {
             recorded(&dir).as_deref(),
             Some(r#"{"version":1,"enabled":false}"#)
         );
+    }
+
+    #[test]
+    fn a_recorded_off_whose_removal_failed_is_removed_at_the_next_launch() {
+        let dir = TempDir::new();
+        let fake = Shared::default();
+        assert_eq!(autostart(&dir, &fake).set(true), Ok(true));
+        /* Off is recorded, then the OS refuses the removal (or the app quits
+        before it): the entry would start the app at every sign in. */
+        fake.with(|fake| fake.refuse = true);
+        assert!(autostart(&dir, &fake).set(false).is_err());
+        assert_eq!(
+            recorded(&dir).as_deref(),
+            Some(r#"{"version":1,"enabled":false}"#)
+        );
+        assert!(fake.with(|fake| fake.registered));
+        /* The relaunch finishes the removal, once. */
+        fake.with(|fake| fake.refuse = false);
+        autostart(&dir, &fake).at_launch().expect("launch");
+        assert_eq!(fake.with(|fake| (fake.registered, fake.disables)), (false, 1));
+        autostart(&dir, &fake).at_launch().expect("launch");
+        assert_eq!(fake.with(|fake| fake.disables), 1);
+    }
+
+    #[test]
+    fn a_choice_that_cannot_be_read_never_removes_an_entry() {
+        let dir = TempDir::new();
+        let fake = Shared::default();
+        fake.with(|fake| fake.registered = true);
+        std::fs::write(dir.path().join(PREFERENCE_FILE_NAME), "not json").expect("corrupt");
+        autostart(&dir, &fake).at_launch().expect("launch");
+        Autostart::new(None, Box::new(fake.clone())).at_launch().expect("launch");
+        assert_eq!(fake.with(|fake| (fake.registered, fake.disables)), (true, 0));
     }
 
     #[test]
