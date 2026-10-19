@@ -1,65 +1,57 @@
 # OpenLimiter Pro
 
-OpenLimiter is open source under Apache 2.0. OpenLimiter Pro is an optional set of hosted services whose server implementation is private.
+OpenLimiter is open source under Apache 2.0. OpenLimiter Pro is an optional set of hosted services. Its server code is private; the client that talks to it is public in this repository.
+
+## Price, trial and refund
+
+Pro costs USD 5 a month or USD 50 a year. Each account can try it free for 30 days with no card. A full refund is available on request within 14 days of any charge, and you can cancel at any time in the Stripe customer portal. Pro is sold by Lucas Costa, and Stripe processes the payments.
+
+Start the trial from [openlimiter.com/pricing](https://openlimiter.com/pricing) or from Settings in the desktop app.
+
+## What Pro adds
+
+1. History: ninety days of synced readings, with a forecast.
+2. Email and phone push alerts. Desktop alerts stay free.
+3. More than one account per provider. Free keeps one active account per provider.
+4. Cloud metering for the API spend keys you opt in, so spend is read while your computer is off. OpenAI and Anthropic spend needs an organisation admin key.
+
+Pro also unlocks two cosmetic desktop extras: theme presets beyond the default, and the tagged caption preset. Dark and light stay free.
+
+## Nothing local is paywalled
+
+Everything that runs on your machine is free and stays free: every connector, meter and desktop alert, the edge tab, the tray, agent activity, the terminal status line, the command line tool, local advice, manual entry and local ingestion. A free account adds sync of current readings between your devices, the phone included.
+
+An entitlement check protects hosted Pro work and nothing else. When a trial or subscription ends, those hosted services stop. Free sync and the local application continue without losing a feature, changing a meter or needing a reinstall.
 
 ## The public and private line
 
 This public repository contains the entire local product, every connector, the engine, the command line tool, both dashboards, the local agent context block, and the Pro client contract. The Pro client includes sign in, checkout, offline entitlement verification, silent refresh, hosted calls, and the bounded context file read by the coding agent hook.
 
-The separate private repository contains payment event handling, entitlement issuance, database migrations, and hosted service logic. No private key or server secret belongs in this repository.
+The separate private repository contains payment event handling, entitlement issuance, cloud metering, database migrations, and hosted service logic. No private key or server secret belongs in this repository.
 
 Publishing the client is deliberate. You can inspect every network value the application sends and every rule used to accept a signed entitlement on your machine. The private service remains the operated product.
 
-## Nothing local is ever paywalled
+## Subscription states
 
-Every feature that runs on your machine is free and stays free. This promise covers every connector, every meter, every local notification, every dashboard, every command line feature, every statusline option, local advice, manual entry, and local ingestion.
+Checkout redirects never grant access. A signed Stripe event must prove settled payment or an `active` or `trialing` subscription before the server activates paid Pro. A `past_due` subscription keeps hosted access for three days from the signed event that made it past due, and repeated events cannot extend that deadline. `unpaid`, `canceled`, and `incomplete_expired` subscriptions lose paid access at the next refresh. A trial that is still running stays available after cancellation, and each account gets one trial. An expired trial cannot refresh.
 
-An entitlement check protects only hosted Pro work. If Pro access ends, those services stop. Free sync and the local application continue. The local application does not lose a feature, change a meter, or require a reinstall.
+## Entitlement behaviour
 
-Snapshot sync is free, enabled by default after sign in, and never entitlement gated. It sends only usage percentages and can be turned off at any time. Signing out never changes or deletes the local cache.
-
-## What Pro contains
-
-Pro is not available for purchase yet. Its planned deliverables are these six areas.
-
-1. Email and phone push notifications with custom thresholds, quiet hours, and a daily digest.
-2. Token based accent and background variants. Dark and light remain free.
-3. More than one subscription per provider.
-4. Features for heavy API usage.
-5. Ninety day usage history with burn rate forecasts.
-6. Live budget context for coding agent routing.
-
-The routing context is advice. The coding agent chooses whether to follow it. OpenLimiter never intercepts, executes, redirects, or authenticates an agent request.
-
-Current quota synchronization between devices and the phone PWA is free. Device management, team dashboards, and priority requests are not part of Pro.
-
-OpenRouter's free allowance permits one inference key and one management key. These are separate key kinds, each with its own allowance.
-
-## Price and trial
-
-Pro is planned at $5 per month or $50 per year. Checkout is not available before every promised launch requirement is implemented, activated, and proven.
-
-When the trial or subscription ends, only hosted access ends. Local mode remains unchanged.
-
-Checkout redirects never grant access. A signed Stripe event must prove settled payment or an `active` or `trialing` subscription before the server activates paid Pro. A `past_due` subscription keeps hosted access for three days from its first signed transition, and repeated events cannot extend that deadline. `unpaid`, `canceled`, and `incomplete_expired` subscriptions lose paid access at the next refresh. A still active, nonrepeatable account trial remains available after cancellation. An expired trial cannot refresh.
-
-## Entitlement behavior
-
-The desktop verifies an Ed25519 signed device entitlement offline against public keys embedded at build time. The token lasts five days, requests a silent refresh after three days, and permits ten additional days of offline grace after expiry.
+The desktop verifies an Ed25519 signed device entitlement offline against public keys embedded at build time. A token asks for a silent refresh after twelve hours, expires after a day, and is honoured offline for up to three days from issue. The server clips each of those deadlines at the end of paid or trial access.
 
 Each token is bound to one device identifier and carries a monotonic sequence plus a one time identifier. The client keeps its trust anchor and session in the operating system credential store. Older sequences are rejected. A pending request identifier makes retry idempotent, and a cache write can be recovered if the process stops before the trust write completes.
 
 The credential store preserves the highest server timestamp ever observed. A local clock earlier than that timestamp beyond the accepted five minute tolerance fails closed and requires a server refresh. The client also persists consecutive failed entitlement refreshes. After 360 failures, offline entitlement expires even if the local clock is frozen. A successful refresh resets the counter.
 
-Multiple embedded public keys may coexist, so a new signing key can overlap the old key during rotation. If the service is unavailable, a verified token continues through its bounded grace period and the additional failed refresh ceiling. Revocation stops refresh, so hosted access ends when that bounded allowance ends.
+Multiple embedded public keys may coexist, so a new signing key can overlap the old key during rotation. If the service is unavailable, a verified token continues through its bounded grace period and the failed refresh ceiling. Revocation stops refresh, so hosted access ends when that bounded allowance ends.
 
-## What optional sync sends
+## What sync and Pro receive
 
-After sign in, the desktop may send selected provider code, opaque account label, window name, bounded usage percentage, reset time, observation time, and opaque device identifier. Sync defaults on and can be turned off. Free accounts retain only current snapshots. Entitled accounts also retain ninety day samples for alerts, history, forecasts, and routing context.
+After sign in, the desktop may send provider code, opaque account label, window name, bounded usage percentage, reset time, observation time, and opaque device identifier. Sync is on by default after sign in and can be turned off. Free accounts keep current snapshots. Pro accounts also keep ninety days of samples for alerts, history, forecasts, and routing context.
 
-Provider credentials, provider response bodies, prompts, source code, local configuration, and diagnostics never enter sync or Pro. The database has no column for them. Extra JSON fields are discarded before storage. A total sync database breach exposes quota display metadata and cannot reach a provider account. The returned routing context is treated as untrusted data and rebuilt from a closed shape before the coding agent hook reads it.
+Subscription logins, provider response bodies, prompts, source code, local configuration, and diagnostics never enter sync or Pro. The database has no column for them. Extra JSON fields are discarded before storage. A breach of the sync tables exposes quota display metadata and cannot reach a provider account. The returned routing context is treated as untrusted data and rebuilt from a closed shape before the coding agent hook reads it.
 
-The local product and the OpenLimiter account are free. Local collection keeps running offline. Only usage percentages sync, never keys or credentials, and sync can be turned off.
+Cloud metering is the one exception, and you choose it: an API spend key you opt in travels once to the server, is stored encrypted, and is never sent back. Without it, API spend keys stay in this device's keyring.
 
 ## Public build configuration
 
