@@ -26,8 +26,8 @@ export const dynamic = "force-static";
 
 const SIZE = { width: 1200, height: 630 };
 
-/** The panel picture is 1120 by 1180; this is the mark free window into it. */
-const SOURCE = { width: 1120, height: 1180 };
+/** The panel picture is 1120 by 1204; this is the mark free window into it. */
+const SOURCE = { width: 1120, height: 1204 };
 const CROP = { left: 146, top: 164, width: 606, height: 776 };
 const SCALE = SIZE.height / CROP.height;
 

@@ -22,7 +22,7 @@ export const PRODUCT_SHOTS = {
   "desktop-connect": { width: 2000, height: 1852, maxWidth: 1000 },
   "desktop-settings": { width: 2000, height: 3494, maxWidth: 1000 },
   "edge-tab": { width: 400, height: 280, maxWidth: 200 },
-  "edge-panel": { width: 1120, height: 1180, maxWidth: 560 },
+  "edge-panel": { width: 1120, height: 1204, maxWidth: 560 },
   "terminal-statusline": { width: 2400, height: 508, maxWidth: 1200 },
   "phone-1": { width: 1170, height: 2532, maxWidth: 390 },
   "phone-2": { width: 1170, height: 2532, maxWidth: 390 },
