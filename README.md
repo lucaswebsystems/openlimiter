@@ -4,82 +4,81 @@
   <img src="assets/brand/openlimiter-lockup.svg" width="344" alt="OpenLimiter">
 </p>
 
-OpenLimiter 2.0 reads usage limits and agent activity from supported AI tools on your computer and shows them in a small tab at the edge of your desktop, the tray, your terminal, your browser and your phone.
+OpenLimiter is a free, open source meter that shows how much of each AI coding tool's limit you have used, and when it resets, in a small tab at the edge of your desktop, in the tray and in your terminal.
 
 <p align="center">
-  <img src="assets/readme/openlimiter-2-0-home.png" width="522" alt="OpenLimiter Home window showing provider meters and local agent activity">
+  <img src="apps/web/public/screenshots/edge-panel.png" width="480" alt="The OpenLimiter panel open beside the edge tab, with synthetic data: Claude Code needs you, Codex is busy and Gemini CLI is done, then limits for Codex, Claude Code and OpenRouter with bars and reset times">
 </p>
 
-<p align="center"><sub>Current desktop renderer with synthetic fixtures for provider meters and local agent activity. No account identifiers or real usage data are included.</sub></p>
+<p align="center"><sub>The edge panel with synthetic data. No account identifiers or real usage are shown.</sub></p>
 
-[![Download for Windows](https://img.shields.io/badge/Download-Windows-blue)](https://github.com/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-windows-x64-setup.exe)
-[![Download for macOS](https://img.shields.io/badge/Download-macOS-blue)](https://github.com/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-macos-universal.dmg)
-[![Download for Linux](https://img.shields.io/badge/Download-Linux-blue)](https://github.com/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-linux-x86_64.AppImage)
+## Download
 
-[All download formats](https://openlimiter.com/download)
+| System | Download | Notes |
+| --- | --- | --- |
+| Windows x64 | [Installer](https://github.com/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-windows-x64-setup.exe) · [MSI](https://github.com/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-windows-x64.msi) | Unsigned. When SmartScreen appears, choose More info, then Run anyway. |
+| macOS, Apple silicon and Intel | [dmg](https://github.com/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-macos-universal.dmg) | Unsigned and not notarised. Drag OpenLimiter to Applications and open it once; macOS blocks it. Then open System Settings, Privacy and Security, choose Open Anyway beside the OpenLimiter message and confirm with your password. Updates on macOS are manual: download the new dmg. |
+| Linux x86_64 | [deb](https://github.com/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-linux-amd64.deb) · [rpm](https://github.com/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-linux-x86_64.rpm) · [AppImage](https://github.com/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-linux-x86_64.AppImage) | The AppImage needs libfuse2 (`libfuse2t64` on Ubuntu 24.04). On Wayland, which cannot place the edge tab, the tray takes its place. |
+| Any terminal with Node 24 | `npx openlimiter` | Bars in your terminal, no desktop app needed. Install it with `npm install -g openlimiter`. |
 
-```sh
-npm install -g openlimiter
-```
+**Why unsigned:** there is no Apple Developer ID or Windows code signing certificate behind these builds yet, so your system cannot name a publisher. To check a download, compare its SHA256 digest with the one GitHub shows beside each file on the [release page](https://github.com/lucaswebsystems/openlimiter/releases/latest): `certutil -hashfile <file> SHA256` on Windows, `shasum -a 256 <file>` on macOS, `sha256sum <file>` on Linux.
 
 ## Get started
 
-Bars are free and need no account. Run `npx openlimiter`, or install it with `npm install -g openlimiter` and run `openlimiter`: it walks the same three steps everywhere, sign in, connect, show bars in, and any step you skip stays skipped. The desktop app's first run is the same three steps in its own window. The hub at [openlimiter.com/app](https://openlimiter.com/app) is account first: sign in, connect, bars.
+1. Download the app for your system and open it, or run `npx openlimiter` in a terminal.
+2. Connect your tools. Connect Tools lists the AI coding tools on this computer, and most connect with the login their own tool already stored. OpenLimiter never asks for a vendor password.
+3. Watch the bars in the edge tab, the tray and your terminal status line. Desktop alerts arrive at 60, 80 and 90 percent and when a window resets.
 
-Local meters, agent activity and desktop alerts are free, with one active account per provider and no local monthly spend cap. An account adds current reading sync across your devices, including your browser and phone. Pro adds history, remote alerts, more than one account per provider and opt in cloud metering for API spend keys, with a 30 day free trial and no card required.
+Signing in is optional. A free account syncs the same bars to your browser and phone, and Pro adds history and remote alerts.
 
-## Terminal
+## What leaves your machine
 
-Claude Code, Grok Build and the Antigravity CLI draw bars through their own status line. Codex draws its own built in items instead. Gemini CLI, OpenCode, Kimi and any other terminal read a shell prompt segment. The status line uses the same band colours as the meters. `openlimiter terminal` wires whichever hosts a machine supports, and `openlimiter terminal show` and `terminal hide` pick which connected providers actually draw a bar.
+| | What happens |
+| --- | --- |
+| **Stays local** | Readings, settings, agent activity and alerts stay on this computer. Claude Code and Antigravity hand their numbers to OpenLimiter through their own documented status lines, with no network request. |
+| **Each provider's own request** | The login or key a tool already stored on this computer is used for that provider's own usage request and goes to that provider, nowhere else. Codex answers through its own `codex app-server`. |
+| **The Claude request** | Claude session bars come from Claude Code's documented status line. New desktop installs also turn on a direct request to Anthropic's `api/oauth/usage` with your own Claude Code login, sent to Anthropic and nowhere else, after a disclosure that is shown and recorded; it adds the weekly bars and keeps Claude current while Claude Code is closed. Existing installs and the terminal ask before any request. Turn it off with Show Fable limit in Connect Tools, or with `openlimiter config set providers.claude.poll false` in the terminal. |
+| **Signed in sync** | Nothing goes to OpenLimiter until you sign in. Then sync carries bounded readings: provider, an opaque account label, window, percentage, reset time and an opaque device identifier, never prompts, code or credentials. Sync can be turned off. Separately, with Pro cloud metering, which is opt in, the API spend keys you choose are stored encrypted on the server. |
+
+The desktop app also checks GitHub for updates and asks before installing one. On Windows, the installer downloads Microsoft's WebView2 runtime when it is missing. The local product has no analytics or tracking.
 
 ## Connect
 
-Every provider is read from the login its own tool already stored on disk. Codex can also sign in from inside OpenLimiter. Claude reads what Claude Code reports. On a new desktop install, Claude usage is on after it is disclosed and recorded before the first request. An existing desktop install is asked once before any request. The terminal asks once when attended, or stays off when unattended. The desktop Show Fable limit switch controls requests from the desktop process. Stop it in Settings by turning Show Fable limit off. The separate `providers.claude.poll` setting controls the command line process. Stop it with `openlimiter config set providers.claude.poll false`. Either can be turned off without changing the other. Gemini CLI and Antigravity are read only, with a plain disclosure sentence in the row. OpenRouter signs in with real OAuth from the hub. API spend keys live in this device's keyring, or, with opt in cloud metering, encrypted on the server.
+| Tool | How it is read | Status |
+| --- | --- | --- |
+| Claude Code | Its documented status line, plus the Claude request above | Documented |
+| Codex | OpenAI's documented `codex app-server`; Codex can also sign in from inside OpenLimiter | Documented |
+| Antigravity | The documented Antigravity CLI status line | Documented |
+| OpenRouter | The documented key and credits API, with a key you add or OAuth from the hub | Documented |
+| Gemini CLI | The login Gemini CLI stored, against an internal Google endpoint | Provisional |
+| Grok | The login the Grok CLI stored, against an internal xAI endpoint | Provisional |
+| Kimi | The login the Kimi CLI stored, against an internal Moonshot endpoint | Provisional |
+| OpenCode | A usage page behind a session you already opened | Provisional |
+| Cursor | The local Cursor session, against an internal endpoint | Experimental |
+| API spend keys | Each provider's documented cost or balance API, with a key you add | Experimental |
 
-Claude usage requests go directly to the usage endpoint with the local Claude credentials on this computer. Anthropic's policy for tools like this is unresolved.
+Provisional means the provider does not document the interface, so it can change or stop working without notice. `openlimiter doctor` labels every connector `UNVERIFIED`, and a response that stops matching its expected shape makes that provider unknown rather than a guess. Anthropic's policy for tools like this is unresolved.
 
-OpenLimiter never asks for a vendor password, never impersonates a vendor tool, and never uploads a token. Every request identifies itself as OpenLimiter.
+OpenLimiter never asks for a vendor password, never impersonates a vendor tool, never writes to a provider's login files and never uploads a subscription login. Every request identifies itself as OpenLimiter. API spend keys live in this device's keyring unless you opt in to cloud metering.
+
+## Terminal
+
+Claude Code, Grok Build and the Antigravity CLI draw bars through their own status line. Codex draws its own built in items instead. Gemini CLI, OpenCode, Kimi and any other terminal read a shell prompt segment. The status line uses the same band colours as the meters. `openlimiter terminal` wires whichever hosts a machine supports, and `openlimiter terminal show` and `terminal hide` pick which connected providers draw a bar.
 
 ## Phone
 
-Pair from the hub with a QR code, nothing typed. Add it to your home screen from there: Android offers to install it, and iOS uses Share, then Add to Home Screen.
+With an account, pair from the hub with a QR code, nothing typed. Add it to your home screen from there: Android offers to install it, and iOS uses Share, then Add to Home Screen. A phone shows the latest synchronised reading, which can be stale when its computer is offline.
 
-## Privacy boundary
+## Free and Pro
 
-The local product is free forever and has zero analytics or tracking. Local readers open known authentication locations and send the existing token only to that provider's own usage interface. OpenLimiter never writes to a provider's authentication files. Only bounded usage percentages, reset times, opaque account labels and an opaque device identifier can enter sync. Provider credentials, response bodies, prompts, source code and local configuration never enter the OpenLimiter service. Signing out stops remote access; it never touches the local cache, connectors, tray, or command line tools.
+Free, with no account: local meters, the edge tab, the tray, agent activity, desktop alerts at 60, 80 and 90 percent and at reset, the terminal status line and the command line tool, with one account per provider. A free account adds sync of current readings to your browser and phone. The complete local product is open source under Apache 2.0.
 
-## Verification status
-
-Every connector remains labelled `UNVERIFIED` until its reviewed registry evidence meets the project verification contract. When a response fails its expected contract, that provider becomes unknown rather than repaired, estimated, or substituted.
-
-Cursor is Experimental until live account verification is complete. The edge tab works the same on Windows, macOS and Linux X11; on Linux Wayland, which cannot place it, the tray takes its place. A phone shows the latest synchronized reading, which can be stale when its computer is offline.
-
-## Free core and Pro
-
-The complete local product is open source under Apache 2.0. Free includes local readers and meters, the edge tab, agent activity, local alerts, terminal bars, the tray, the command line tool and current reading sync to the browser and phone. Free keeps one active account per provider. Local spend readings have no monthly cap.
-
-OpenLimiter Pro costs 5 US dollars a month or 50 US dollars a year, with a 30 day free trial and no card required. It adds history, remote alerts, more than one account per provider and opt in cloud metering for API spend keys. Checkout runs through Stripe, which acts as the payment processor. A full refund is available on request within 14 days of any charge. Local meters and local alerts remain available after a trial ends.
+Pro costs USD 5 a month or USD 50 a year, with a 30 day trial and no card required. It adds history, email and phone push alerts, more than one account per provider, and cloud metering for API spend keys. A full refund is available on request within 14 days of a charge, and everything local keeps working when Pro ends. [PRO.md](PRO.md) sets out what is public, what runs on the private server, and the contract between them.
 
 ## Build and contribute
 
 The repository pins Node 24.15.0 and pnpm 9.15.0. The Rust desktop uses the stable toolchain. Start with [CONTRIBUTING.md](CONTRIBUTING.md), and never include a real credential, provider response, account identifier, or machine path in an issue or fixture.
 
-## Availability
-
-Windows, macOS and Linux builds ship, all unsigned for now. On Windows, SmartScreen: choose More info, then Run anyway. On macOS: open the app once, then System Settings, Privacy and Security, Open Anyway.
-
 ## Project links
 
-[Source](https://github.com/lucaswebsystems/openlimiter)
-
-[Documentation](https://openlimiter.com/docs)
-
-[Release notes draft for 2.0.0](RELEASE_NOTES_2.0.0.md)
-
-[Honest comparison](docs/COMPARISON.md)
-
-[Security](SECURITY.md)
-
-[Pro boundary](PRO.md)
-
-[License](LICENSE)
+[Website](https://openlimiter.com) · [Documentation](https://openlimiter.com/docs) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [Threat model](THREAT_MODEL.md) · [Pro](PRO.md) · [Licence](LICENSE)
