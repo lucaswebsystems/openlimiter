@@ -1,5 +1,5 @@
 import type { Locale } from "@/i18n/locales";
-import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE, LOCALE_HINT_COOKIE } from "@/i18n/routing";
+import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE } from "@/i18n/routing";
 
 /**
  * Writing down a reader's choice of language.
@@ -8,10 +8,7 @@ import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE, LOCALE_HINT_COOKIE } from "@/i18n
  * offer banner and the footer switcher. The middleware never writes this cookie
  * and neither does next-intl, which is what keeps its meaning exact. It says a
  * person decided, and it is the reason the banner is asked once rather than on
- * every page.
- *
- * The hint goes at the same time. It was the browser's opinion, and the browser's
- * opinion stops mattering the moment its owner states one.
+ * every page. It is the only cookie the site writes before a phone is paired.
  *
  * The event tells the offer banner, in this tab, that the question was answered
  * by some other control. Cookies do not notify, and a banner that only reads
@@ -25,6 +22,5 @@ export function rememberLocale(locale: Locale): void {
 
   const secure = window.location.protocol === "https:" ? "; Secure" : "";
   document.cookie = `${LOCALE_COOKIE}=${locale}; Path=/; Max-Age=${LOCALE_COOKIE_MAX_AGE}; SameSite=Lax${secure}`;
-  document.cookie = `${LOCALE_HINT_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secure}`;
   window.dispatchEvent(new CustomEvent(LOCALE_CHOSEN_EVENT));
 }

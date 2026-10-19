@@ -229,14 +229,14 @@
   "privacy": {
     "title": "Privacidade",
     "lead": "O que o OpenLimiter coleta, o que nunca coleta, para onde vai cada coisa e por quanto tempo é guardada. Isto foi escrito a partir dos fluxos de dados que existem no produto, não a partir de um modelo pronto.",
-    "metaDescription": "Como o OpenLimiter trata os dados. O modo local não coleta nada, os campos da conta e da sincronização estão listados um a um, as credenciais locais de provedores ficam no cofre do sistema operacional e chaves opcionais de API na nuvem são armazenadas de forma criptografada somente quando você liga a medição.",
+    "metaDescription": "Como o OpenLimiter trata os dados. O modo local não coleta nada, os campos da conta e da sincronização estão listados um a um, as credenciais locais de provedores vão apenas ao provedor que as emitiu e chaves opcionais de API na nuvem são armazenadas de forma criptografada somente quando você liga a medição.",
     "summary": {
       "title": "A versão curta",
       "bullets": {
-        "local": "O modo local não coleta nada. Sem conta, sem servidor e nada sai da sua máquina.",
+        "local": "O modo local não coleta nada. Não há conta nem servidor nosso, nada sai da sua máquina para o OpenLimiter e cada conexão com um provedor fala apenas com esse provedor.",
         "account": "A conta é opcional. Entrar existe para que as suas próprias porcentagens de quota cheguem aos seus outros dispositivos, e para que o Pro tenha a que se ligar. A sincronização fica ligada a partir desse momento.",
         "sync": "O que sincroniza é estado de quota delimitado: um provedor, um medidor, uma janela, uma porcentagem e carimbos de tempo. Nunca prompts, nunca código, nunca o conteúdo de um arquivo.",
-        "keys": "Credenciais de provedor e uma chave guardada no cofre do sistema operacional nunca saem do seu aparelho. Uma chave para a qual você ativa a medição em nuvem é a única exceção: ela viaja uma vez por HTTPS até o serviço hospedado e fica guardada lá de forma criptografada, apagada no momento em que você desliga a medição em nuvem ou pede.",
+        "keys": "Credenciais de provedor e uma chave guardada no cofre do sistema operacional são enviadas apenas ao provedor que as emitiu, nunca ao OpenLimiter. Uma chave para a qual você ativa a medição em nuvem é a única exceção: ela viaja uma vez por HTTPS até o serviço hospedado e fica guardada lá de forma criptografada, apagada no momento em que você desliga a medição em nuvem ou pede.",
         "website": "Este site conta visualizações de página sem cookies. O aplicativo não envia nada.",
         "sell": "Nada é vendido, alugado ou entregue a um anunciante. Não há publicidade aqui."
       }
@@ -246,7 +246,7 @@
       "body": "A ferramenta de linha de comando, o aplicativo de desktop e o aplicativo web rodam todos na sua máquina, e no modo local não existe conta nem serviço por trás deles. Não há o que coletar porque não há para onde enviar.",
       "bullets": {
         "reads": "Os conectores leem arquivos que as suas ferramentas já escreveram, apenas para leitura. Eles nunca reescrevem, reparam ou migram o que abrem.",
-        "credentials": "As credenciais de provedor ficam no cofre de credenciais do sistema operacional. O OpenLimiter nunca copia uma delas para um cache, uma exportação, um diagnóstico ou um log.",
+        "credentials": "As credenciais de provedor ficam onde as suas ferramentas as guardaram, ou no cofre de credenciais do sistema operacional. O OpenLimiter nunca copia uma delas para um cache, uma exportação, um diagnóstico ou um log.",
         "telemetry": "O aplicativo não envia telemetria, uso, diagnósticos, identificadores nem conteúdo de prompt para lugar nenhum.",
         "account": "Nenhum login é necessário para usar os recursos locais. Os medidores locais e os alertas do desktop continuam gratuitos. O Pro acrescenta histórico hospedado, alertas por push no celular e por email, contas extras e medição de gasto de API na nuvem."
       }
@@ -316,10 +316,10 @@
       "title": "Este site",
       "body": "O site e o aplicativo são duas coisas diferentes com duas respostas diferentes, e seria desonesto dar uma resposta só.",
       "bullets": {
-        "counts": "O site conta visualizações de página sem cookies. É o Vercel Web Analytics, e o que ele produz é uma contagem de quantas pessoas abriram qual página.",
-        "cookies": "Nenhum cookie é usado para rastrear você, nenhum perfil é montado e nada te segue para outro site. Os cookies aqui são o que lembra o idioma que você escolheu, o que lembra que você fechou um aviso e, assim que você vincula um telefone, os dois que mantêm essa vinculação viva, ol-phone-token e ol-phone-refresh. Os três são estritamente necessários e nenhum deles rastreia você.",
+        "counts": "O site conta visualizações de página sem cookies, com o Vercel Web Analytics. Para cada visualização ele registra a página, a página de origem, o país, o navegador, o sistema operacional e o tipo de dispositivo. Quando um link indica uma campanha, a origem dela é acrescentada ao endereço de página registrado.",
+        "cookies": "Nenhum cookie é usado para rastrear você, nenhum perfil é montado e nada te segue para outro site. Este site define três cookies, cada um só depois de uma ação sua: NEXT_LOCALE quando você escolhe um idioma, e ol-phone-token e ol-phone-refresh quando você vincula um telefone, para manter essa vinculação viva. Os três são estritamente necessários e nenhum deles rastreia você.",
         "app": "O aplicativo não envia nada. Não há análise de nenhum tipo no aplicativo de desktop, na ferramenta de linha de comando nem no aplicativo web.",
-        "language": "O cabeçalho de idioma do seu navegador é lido para oferecer uma página traduzida. A oferta é um aviso que você aceita ou fecha, e ela nunca tira você da página que pediu."
+        "language": "Os idiomas preferidos do seu navegador são lidos no próprio navegador para oferecer uma página traduzida, e nada é guardado para isso até você responder. A oferta é um aviso que você aceita ou fecha, e ela nunca tira você da página que pediu."
       }
     },
     "processors": {
@@ -423,7 +423,7 @@
       "title": "Seus direitos e os controles que os entregam",
       "body": "Um direito que você não consegue exercer não é um direito, então cada item abaixo é um controle no produto e não um pedido que você precisa redigir.",
       "bullets": {
-        "export": "Exporte tudo o que o serviço hospedado guarda sobre você, como um arquivo legível por máquina com uma tabela acessível ao lado. Chaves de provedor ficam fora das exportações. As credenciais locais ficam no seu dispositivo, enquanto uma chave opcional de API na nuvem é mantida apenas para medição e apagada quando você a desliga ou solicita.",
+        "export": "Exporte tudo o que o serviço hospedado guarda sobre você, como um arquivo legível por máquina com uma tabela acessível ao lado. Chaves de provedor ficam fora das exportações. As credenciais locais nunca chegam ao serviço hospedado, enquanto uma chave opcional de API na nuvem é mantida apenas para medição e apagada quando você a desliga ou solicita.",
         "delete": "Apagar a sua conta. Os dados do produto saem em vinte e quatro horas, as cópias de backup criptografadas expiram em trinta dias e nada local é tocado.",
         "devices": "Ver todos os dispositivos conectados à sua conta, inclusive um celular pareado por QR, e revogar qualquer um. Um dispositivo revogado perde o acesso hospedado na hora.",
         "channels": "Desligar email ou push separadamente, a qualquer momento, sem afetar o outro.",
@@ -440,7 +440,7 @@
       "title": "Mudanças e como falar com uma pessoa",
       "body": "Esta página muda quando o produto muda. Quando uma mudança altera o que é coletado, para onde vai ou por quanto tempo fica guardado, a data abaixo se move e a mudança é descrita no changelog em vez de ser feita em silêncio.",
       "contact": "Dúvidas, pedidos e reclamações vão para <mail>lucas@lucaswebsystems.com</mail>, e uma pessoa lê. As regras de uso do site em si estão nos <terms>termos e condições</terms>.",
-      "updated": "Esta política entra em vigor com a versão 1.3.1. Última atualização em 7 de setembro de 2026."
+      "updated": "Esta política entra em vigor com a versão 2.1.6. Última atualização em 19 de outubro de 2026."
     }
   },
   "localeSwitcher": {
@@ -586,19 +586,19 @@
     "connectors": {
       "claude": {
         "tag": "lê o payload nativo do statusline",
-        "detail": "Interpreta o bloco de limite de taxa que o Claude Code já entrega ao seu comando de statusline. Ele não pede nada à Anthropic por conta própria."
+        "detail": "Lê o que o Claude Code entrega ao seu statusline. O aplicativo de desktop também consulta a Anthropic com o seu login, depois de um aviso; você pode desligar isso."
       },
       "openRouter": {
         "tag": "lê uma resposta de créditos documentada",
-        "detail": "Interpreta o formato de créditos que a OpenRouter documenta. A chave pertence ao gerenciador de credenciais do seu sistema operacional, nunca a um arquivo."
+        "detail": "Lê o relatório de créditos que a OpenRouter documenta, depois que você entra com OAuth pelo hub ou adiciona uma chave que já tem."
       },
       "codex": {
-        "tag": "lê um payload interno de uso",
-        "detail": "Interpreta o formato de uso que as ferramentas do Codex produzem. O formato é interno, então pode mudar sem aviso, e falha de forma segura quando isso acontece."
+        "tag": "lê o app server documentado do Codex",
+        "detail": "Lê o uso pelo app server documentado do Codex, com o login que o Codex já guardou, e falha de forma segura se isso mudar."
       },
       "antigravity": {
-        "tag": "lê um payload interno de quota",
-        "detail": "Interpreta o formato de quota que as ferramentas do Antigravity produzem. Também interno, marcado como tal, e nunca corrigido ou reescrito."
+        "tag": "lê a statusline documentada",
+        "detail": "Lê a quota pela statusline documentada do Antigravity CLI. Não lê nenhuma credencial nem faz nenhuma requisição de rede."
       },
       "openCode": {
         "tag": "lê uma sessão que você já abriu",
@@ -669,7 +669,7 @@
       "plannedChip": "planejado"
     },
     "feedIn": "Como alimentar um",
-    "footnote": "Todo connector vem marcado <code>UNVERIFIED</code>, que é o padrão honesto: nenhum verificador explícito confirmou ainda um formato contra uma conta real. Três deles leem interfaces internas às ferramentas de outra empresa, que podem mudar sem aviso, e quando isso acontece, esse provedor falha de forma segura para unknown em vez de chutar. <link>Cada connector e seu estado real</link>.",
+    "footnote": "Nenhum connector foi verificado contra uma conta real ainda. Codex e Cursor passam nos seus fixtures gravados, e todos os outros connectors vêm marcados <code>UNVERIFIED</code>, o padrão honesto. Gemini CLI, Grok, Kimi, OpenCode e Cursor leem interfaces internas às ferramentas de outra empresa, assim como a consulta direta ao Claude, e quando uma muda, esse provedor falha de forma segura para unknown em vez de chutar. <link>Cada connector e seu estado real</link>.",
     "compatibilityNote": "Nomes de produtos, logotipos, marcas e outras marcas comerciais apresentados ou mencionados no OpenLimiter são de propriedade de seus respectivos titulares. Esses titulares de marcas não são afiliados ao OpenLimiter, aos nossos produtos ou ao nosso site. Eles não patrocinam nem endossam o OpenLimiter. O uso dessas marcas não implica qualquer afiliação ou endosso.",
     "manualNote": "Toda ferramenta desta página já pode ser medida hoje. Conecte a ferramenta a partir do aplicativo de desktop, ou, em Avançado, anote os números com manual entry, ou envie um payload com ingest a partir de qualquer script que você controle. De um jeito ou de outro, ele cai no mesmo snapshot que um connector."
   },
@@ -752,10 +752,10 @@
         "fact": "O endpoint de créditos é documentado e a resposta dele é interpretável."
       },
       "codex": {
-        "fact": "Um formato de payload interno, que pode mudar sem aviso."
+        "fact": "O app server documentado do Codex, executado na sua máquina."
       },
       "antigravity": {
-        "fact": "Um formato de payload interno, que pode mudar sem aviso."
+        "fact": "A statusline documentada do Antigravity CLI."
       },
       "opencode": {
         "fact": "Uma visão de uso por trás de uma sessão em que você já entrou."
@@ -776,13 +776,13 @@
     "footnote": {
       "lead": "Leitor significa que algo dentro do OpenLimiter vai buscar o número. Auth significa que uma credencial é guardada e usada. Cada célula acima é lida em tempo de build a partir do registro de provedores revisado, em vez de escrita nesta página, então um estágio não pode ser reivindicado aqui sem um humano mudar uma spec antes.",
       "unspecified": "{count} dos {total} connectors ainda não têm uma spec revisada, e cada célula deles mostra Não informado em vez de chutar.",
-      "elsewhere": "O registro descreve mais {count} produtos sem connector nenhum, por isso eles não são linhas aqui.",
+      "elsewhere": "O registro descreve mais {count} produtos que são experimentais, manuais ou planejados, por isso eles não são linhas aqui.",
       "tail": "Uma linha nesta página só é chamada de Conectado quando um leitor ao vivo para ela é confirmado, nunca só pela força de um parser."
     }
   },
   "cliTranscript": {
     "captions": {
-      "demo": "Todos os oito conectores, um esquema",
+      "demo": "Os fixtures incluídos, um esquema",
       "statusline": "Statusline, barras onde você já olha",
       "statuslineNarrow": "Uma linha, com os piores provedores mantidos",
       "statuslinePlain": "A linha da 0.1.0, sob pedido",
@@ -837,7 +837,7 @@
     "items": {
       "whatLeaves": {
         "question": "O que realmente sai da minha máquina?",
-        "answer": "No modo local, nada sai para o OpenLimiter. As conexões com provedores falam apenas com aquele provedor por uma lista fixa de permissões, e as credenciais locais ficam no seu dispositivo. Quando você entra, snapshots selecionados e limitados de quota vão para o serviço hospedado para que seus próprios dispositivos possam vê los. O Pro acrescenta histórico, alertas por push no celular e por email, contas extras e medição de gasto de API na nuvem. Uma chave de API que você autoriza para a medição na nuvem é armazenada de forma criptografada para esse trabalho e apagada quando você a desliga ou solicita. Os alertas do desktop são gratuitos."
+        "answer": "No modo local, nada sai para o OpenLimiter. As conexões com provedores falam apenas com aquele provedor por uma lista fixa de permissões, e cada credencial local é enviada apenas ao provedor que a emitiu. Quando você entra, snapshots selecionados e limitados de quota vão para o serviço hospedado para que seus próprios dispositivos possam vê los. O Pro acrescenta histórico, alertas por push no celular e por email, contas extras e medição de gasto de API na nuvem. Uma chave de API que você autoriza para a medição na nuvem é armazenada de forma criptografada para esse trabalho e apagada quando você a desliga ou solicita. Os alertas do desktop são gratuitos."
       },
       "safeToPoint": {
         "question": "É seguro apontar para minhas ferramentas?",
@@ -853,7 +853,7 @@
       },
       "apiKey": {
         "question": "Eu preciso de uma chave de API?",
-        "answer": "Não para começar. O caminho do Claude lê um payload que o Claude Code já entrega ao seu statusline, e o caminho manual não precisa de nada. A OpenRouter é o único connector que espera uma chave sua, e essa chave pertence ao gerenciador de credenciais do seu sistema operacional."
+        "answer": "Não para começar. O caminho do Claude lê um payload que o Claude Code já entrega ao seu statusline, a maioria dos connectors usa o login que a própria ferramenta já guardou, e o caminho manual não precisa de nada. A OpenRouter entra com OAuth pelo hub, ou aceita uma chave que você já tem."
       },
       "routing": {
         "question": "Ele roteia minhas requisições por mim?",
@@ -899,12 +899,16 @@
       "priceNote": "para sempre, e na licença",
       "lead": "O produto local e a conta são gratuitos. A sincronização fica ligada a partir do momento em que você entra, porque levar suas porcentagens entre os seus próprios dispositivos é para isso que entrar existe.",
       "footnote": "Código aberto sob a <licence>Apache 2.0</licence>, então isso não pode ser tirado depois. A licença é a promessa.",
+      "cta": "Baixar grátis",
       "lines": {
         "connectors": "Todos os provedores compatíveis",
+        "edgeTab": "O aplicativo de desktop, com a aba na borda da tela e o painel",
+        "agents": "Atividade dos agentes: ocupado, esperando por você ou concluído",
+        "alerts": "Alertas do desktop em 60, 80 e 90 por cento, e no reinício",
         "sync": "Sincronização entre os seus próprios dispositivos, ligada desde o primeiro acesso",
         "agentContext": "O agent context block limitado e suas recomendações de roteamento",
         "themes": "Temas, no aplicativo de desktop e no navegador",
-        "cli": "A ferramenta de linha de comando completa e cada configuração de statusline",
+        "cli": "Barras na statusline do seu terminal, e a ferramenta de linha de comando completa",
         "ingestion": "Os três caminhos de ingestão: um connector, ingest, ou manual entry",
         "noLimits": "Sem limite de uso e sem cobrança pela conta. Tudo o que você vê é gratuito",
         "oneAccount": "Uma conta ativa por provedor, e o Pro amplia isso"
@@ -921,7 +925,6 @@
       "footnote": "Depois do teste, meters locais, alertas locais e acesso gratuito à conta continuam funcionando. A versão gratuita mantém uma conta ativa por provedor.",
       "lines": {
         "alerts": "Alertas por email e push no celular. Os alertas locais do desktop são gratuitos",
-        "themes": "Histórico e previsões para leituras sincronizadas",
         "multiSubscription": "Contas extras por provedor",
         "heavyApi": "Medição de gasto de API na nuvem com chaves de provedor autorizadas",
         "history": "Noventa dias de histórico hospedado, com uma previsão"
@@ -1227,11 +1230,11 @@
       },
       "providers": {
         "title": "Supported providers",
-        "description": "Os oito conectores disponíveis hoje: como conectar cada um, o que ele lê e qual é a chance de falhar.",
-        "lead": "Oito conectores estão disponíveis hoje. Cada um traz rótulos honestos sobre a origem das credenciais, o grau de oficialidade da interface de dados e a chance de falha.",
+        "description": "Os oito conectores disponíveis hoje e o manual entry: como conectar cada um, o que ele lê e qual é a chance de falhar.",
+        "lead": "Oito conectores e o manual entry estão disponíveis hoje, e o aplicativo desktop também lê o Cursor como conector experimental. Cada um traz rótulos honestos sobre a origem das credenciais, o grau de oficialidade da interface de dados e a chance de falha.",
         "sections": {
           "the-nine": {
-            "title": "Os oito conectores",
+            "title": "Os oito conectores e o manual entry",
             "caption": "Conectores disponíveis hoje, como conectar cada um e o que ele lê",
             "columns": {
               "id": "id",
@@ -1276,8 +1279,8 @@
                 "reads": "The usage response the Kimi CLI defines. May break when Moonshot changes it."
               }
             },
-            "calloutTitle": "Every connector ships marked UNVERIFIED",
-            "calloutBody": "<code>UNVERIFIED</code> is the honest default. It means no explicit verifier has confirmed the shape against a live account, so <code>openlimiter doctor</code> reports drift as unverified rather than claiming a connector is known good.",
+            "calloutTitle": "Nenhum conector foi verificado contra uma conta real ainda",
+            "calloutBody": "<code>UNVERIFIED</code> é o padrão honesto. Significa que nenhum verificador explícito confirmou o formato contra uma conta real, então o <code>openlimiter doctor</code> relata desvios como não verificados em vez de afirmar que um conector está bom. Codex e Cursor levam <code>VERIFIED_FIXTURES</code>: os fixtures gravados deles passam, e a verificação com uma conta real ainda está por vir.",
             "neverTitle": "O que o OpenLimiter nunca faz",
             "neverBody": "Nunca pede a senha de um provedor: cada entrada acontece na página do próprio provedor, no seu navegador. Nunca se passa por outra ferramenta: toda solicitação se identifica como OpenLimiter, nunca como Claude Code, Codex ou outro cliente. Nunca envia um token: a conta sincroniza percentuais limitados e horários de reinício das leituras, nunca a credencial que as produziu."
           },
@@ -1320,7 +1323,7 @@
           },
           "not-yet": {
             "title": "Connectors that do not exist yet",
-            "body": "Somente os oito acima são reais. Qualquer outra opção que você espere não foi construída, não está agendada e não deve ser presumida. Se uma assinatura não tiver conector, o caminho manual cobre isso hoje com números inseridos por você."
+            "body": "Somente os oito conectores e o manual entry acima são reais, além do Cursor, que o aplicativo desktop lê como conector experimental. Qualquer outra opção que você espere não foi construída, não está agendada e não deve ser presumida. Se uma assinatura não tiver conector, o caminho manual cobre isso hoje com números inseridos por você."
           },
           "api-spend-keys": {
             "title": "Chaves de gastos de API",
@@ -1448,7 +1451,7 @@
           },
           "providers": {
             "title": "Provedores e leituras compatíveis",
-            "intro": "O aplicativo desktop é compatível com oito conectores de provedores. Cada linha abaixo nomeia a leitura e a fonte com clareza.",
+            "intro": "O aplicativo desktop é compatível com oito conectores de provedores. Cada linha abaixo nomeia a leitura e a fonte com clareza, e Supported providers cobre os outros três.",
             "caption": "Leituras compatíveis e suas fontes",
             "columns": {
               "provider": "provedor",
@@ -1464,7 +1467,7 @@
               "codex": {
                 "name": "Codex",
                 "reports": "A janela principal de quota, o percentual usado e seu reset quando o provedor o fornece.",
-                "source": "O login local do Codex e um endpoint de uso não oficial da OpenAI."
+                "source": "O login local do Codex, lido pelo app server documentado do Codex."
               },
               "antigravity": {
                 "name": "Antigravity",
@@ -1479,11 +1482,11 @@
               "openrouter": {
                 "name": "OpenRouter",
                 "reports": "Créditos usados sobre o total, incluindo o valor em dólares americanos e sem reset.",
-                "source": "Uma chave fornecida por você e a API documentada de créditos do OpenRouter."
+                "source": "OAuth pelo hub ou uma chave que você já tem, e a API documentada de créditos do OpenRouter."
               }
             },
             "riskTitle": "Algumas interfaces não são oficiais",
-            "riskBody": "Claude OAuth, Codex e OpenCode dependem de interfaces privadas dos provedores, que podem mudar ou desaparecer. Uma mudança de contrato produz desconhecido visível para aquele provedor e mantém todos os outros funcionando. O OpenRouter usa uma API documentada."
+            "riskBody": "A consulta direta ao Claude e o OpenCode dependem de interfaces privadas dos provedores, que podem mudar ou desaparecer. Uma mudança de contrato produz desconhecido visível para aquele provedor e mantém todos os outros funcionando. O OpenRouter e o app server do Codex são documentados."
           },
           "privacy": {
             "title": "Limite de privacidade",
@@ -1997,7 +2000,7 @@
             "calloutTitle": "Leia isto antes de confiar num número",
             "bullets": {
               "noOfficialApi": "A maioria dos provedores de assinatura para consumidor não oferece nenhuma API oficial de quota. Vários connectors, por isso, descrevem interfaces não oficiais que podem mudar ou desaparecer sem aviso.",
-              "unverified": "Todo connector vem marcado <code>UNVERIFIED</code>. Nada aqui foi confirmado contra uma conta real por um verificador explícito.",
+              "unverified": "Nenhum connector foi confirmado contra uma conta real por um verificador explícito ainda. Codex e Cursor passam nos seus fixtures gravados, e todos os outros connectors vêm marcados <code>UNVERIFIED</code>.",
               "opencode": "O conector OpenCode descreve o formato de uma página autenticada e tem alto risco de automação. Considere o mais frágil dos oito.",
               "adviceOnly": "O OpenLimiter fornece recomendações de roteamento. Ele não roteia requisições automaticamente, não contorna limites, e não muda como seu agente se autentica."
             }

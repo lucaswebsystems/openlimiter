@@ -9,7 +9,8 @@
  *
  * A published post is a record of what was said on its date, so an older post
  * is never rewritten to agree with a newer one: 0.1.0 says what 0.1.0 said,
- * and 1.2.0 says where that changed.
+ * and 1.2.0 says where that changed. When a post's claims stop being true, a
+ * dated note goes at the top of its body instead.
  */
 
 export type Block =
@@ -37,6 +38,10 @@ export const posts: readonly Post[] = [
     description: "Every bar the providers publish, including Claude's weekly pool for each model. Your quota on your phone, paired by scanning a code the desktop shows. And Pro, which sells alerts, history, phone access, extra accounts and spend tracking above the free ceiling.",
     date: "2026-09-04",
     body: [
+      {
+        kind: "quote",
+        text: "Note added on 19 October 2026: since 2.0, desktop alerts, phone access to your current readings and local spend tracking with no ceiling are free. Pro is now history, email and phone push alerts, extra accounts and cloud API spend metering. The rest of this post is left as it was published.",
+      },
       {
         kind: "p",
         text: "The question this product exists to answer has not changed since the first release. You hold several AI coding subscriptions, you have already paid for all of them, and what you actually need to know at four in the afternoon is which of those windows still has room in it. What changed in 1.2.0 is how many places you can ask, and how much of the answer arrives without you doing anything.",

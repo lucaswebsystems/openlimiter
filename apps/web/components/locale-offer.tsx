@@ -3,8 +3,8 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { LOCALE_FLAG_ICONS } from "@/components/flag-icons";
-import { type Locale, isLocale } from "@/i18n/locales";
-import { LOCALE_COOKIE, LOCALE_HINT_COOKIE, localePath } from "@/i18n/routing";
+import { type Locale, isLocale, negotiateLocale } from "@/i18n/locales";
+import { LOCALE_COOKIE, localePath } from "@/i18n/routing";
 import { LOCALE_CHOSEN_EVENT, rememberLocale } from "@/lib/locale-choice";
 
 /**
@@ -23,12 +23,13 @@ import { LOCALE_CHOSEN_EVENT, rememberLocale } from "@/lib/locale-choice";
  * not in the largest contentful paint either, and a page that never shows it is
  * byte for byte the page it was before this feature existed.
  *
- * WHY IT READS A COOKIE INSTEAD OF A HEADER
+ * WHY IT READS THE BROWSER AND NOT A HEADER
  * -----------------------------------------
- * Accept-Language is a request header, and a page that reads request headers is
- * a page Next has to render per request. This site is built once and served from
- * disk. The middleware sees the header, negotiates it, and leaves the answer on
- * `ol-lang-hint` for this component to read. See middleware.ts.
+ * A page that reads request headers is a page Next has to render per request,
+ * and this site is built once and served from disk. `navigator.languages` is
+ * the same preference list Accept-Language is built from, read here in the
+ * browser, so nothing is stored to carry it: no cookie exists until the reader
+ * answers. An explicit English entry first still wins, as it did in the header.
  */
 
 export type LocaleOfferCopy = Record<Locale, { title: string; action: string; dismiss: string }>;
@@ -55,8 +56,8 @@ export function LocaleOffer({ locale, copy }: { locale: Locale; copy: LocaleOffe
        from some earlier scheme mutes the offer forever with no way back. */
     if (isLocale(readCookie(LOCALE_COOKIE))) return;
 
-    const hint = readCookie(LOCALE_HINT_COOKIE);
-    if (!isLocale(hint)) return;
+    const hint = negotiateLocale(navigator.languages.join(","));
+    if (hint === null) return;
 
     /* The browser asked for the language it is already reading. Nothing to
        offer, and offering it anyway is how a banner becomes furniture. */

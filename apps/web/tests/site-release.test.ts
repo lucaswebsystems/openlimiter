@@ -45,6 +45,9 @@ describe("2.0 site release", () => {
     expect(en.announce.message).toContain("Desktop alerts");
     expect(en.announce.message).not.toContain("$100");
     expect(en.pricing.pro.lead).toContain("history");
+    /* "Four Pro features" heads exactly four lines, with no second history line. */
+    expect(Object.keys(en.pricing.pro.lines)).toHaveLength(4);
+    expect(en.integrations.connectors.claude.detail).not.toMatch(/asks nothing/u);
     expect(en.pricing.pro.lines.heavyApi).not.toContain("$100");
     expect(en.faq.items.phoneAccess.answer).toContain("does not require Pro");
     expect(en.docs.pages.providers.description).toContain("eight");
