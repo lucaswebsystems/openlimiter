@@ -1,3 +1,5 @@
+> Historical, superseded on 19 October 2026: this page describes OpenLimiter 1.0 as checked on 20 August 2026 and is kept for the record, not as a current claim.
+
 # Honest comparison
 
 Checked against official project pages on 20 August 2026. This category changes quickly, so verify again before publication.
