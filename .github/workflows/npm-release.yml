@@ -20,7 +20,7 @@ jobs:
   publish:
     name: Publish public packages
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: npm
     steps:
       - name: Check out source
@@ -192,12 +192,16 @@ jobs:
           EXPECTED_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
+          # The registry can lag a publish by minutes (2.0.3, 2.0.4 and 2.1.0
+          # each went red here after a real publish), so every package is
+          # polled every 15 seconds within one ten minute budget.
+          deadline=$((SECONDS + 600))
           for name in @openlimiter/core @openlimiter/connectors @openlimiter/adapters openlimiter; do
-            # The registry can lag a publish by a minute; retry before failing.
             actual=""
-            for attempt in 1 2 3 4 5 6; do
+            while :; do
               actual="$(npm view "${name}@${EXPECTED_VERSION}" version 2>/dev/null || true)"
               [ "$actual" = "$EXPECTED_VERSION" ] && break
+              [ "$SECONDS" -ge "$deadline" ] && break
               sleep 15
             done
             if [ "$actual" != "$EXPECTED_VERSION" ]; then
