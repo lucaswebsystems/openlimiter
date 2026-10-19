@@ -1432,23 +1432,31 @@ pub(crate) fn add_refresh_interval_in_home(home: &Path) -> RefreshMigration {
     add_refresh_interval_with(home, || {})
 }
 
-/// The exact command lines OpenLimiter's writers produce for Claude Code,
-/// each with or without its trailing `--wrap`: the CLI's
-/// `fallbackLauncherCommand` launcher on Windows and on POSIX
-/// (`terminal.ts`), and this desktop's `command_value`. Anything else,
-/// shell text that merely mentions OpenLimiter included, is not ours.
-static OWNED_CLAUDE_COMMANDS: LazyLock<[Regex; 3]> = LazyLock::new(|| {
+/// The exact command lines the CLI's `fallbackLauncherCommand` launcher
+/// writes for Claude Code (`terminal.ts`), on Windows and on POSIX, each
+/// with or without its trailing `--wrap`; the group is the state folder the
+/// launcher sits in. Anything else, shell text that merely mentions
+/// OpenLimiter included, is not ours. This desktop's own `command_value`
+/// line is ours too but runs a global command whose version nothing
+/// records, so it can never show the runtime below and is left out.
+static LAUNCHER_CLAUDE_COMMANDS: LazyLock<[Regex; 2]> = LazyLock::new(|| {
     [
-        r#"^"[A-Za-z]:\\[^"]*\\WindowsPowerShell\\v1\.0\\powershell\.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "[^"]*\\terminal-launchers\\[0-9a-f]{64}\\openlimiter\.ps1" statusline --host claude(?: --wrap [A-Za-z0-9_-]+)?$"#,
-        r#"^/bin/sh '(?:[^']|'\\'')*/terminal-launchers/[0-9a-f]{64}/openlimiter\.sh' statusline --host claude(?: --wrap [A-Za-z0-9_-]+)?$"#,
-        r#"^"(?:[^"\\]|\\.)*[\\/]openlimiter(?:\.cmd|\.exe|\.cjs)?" statusline(?: --wrap [A-Za-z0-9_-]+)?$"#,
+        r#"^"[A-Za-z]:\\[^"]*\\WindowsPowerShell\\v1\.0\\powershell\.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "([^"]*)\\terminal-launchers\\[0-9a-f]{64}\\openlimiter\.ps1" statusline --host claude(?: --wrap [A-Za-z0-9_-]+)?$"#,
+        r#"^/bin/sh '((?:[^']|'\\'')*)/terminal-launchers/[0-9a-f]{64}/openlimiter\.sh' statusline --host claude(?: --wrap [A-Za-z0-9_-]+)?$"#,
     ]
     .map(|pattern| Regex::new(pattern).expect("constant status line pattern"))
 });
 
-/// Whether Claude Code's status line is one OpenLimiter wrote: one of the
-/// exact command lines above, whatever other keys the object holds.
-fn owned_status_line(value: &serde_json::Value) -> bool {
+/// The first runtime that keeps a replayed Claude Code payload's own time
+/// (2.1.6). An older one stamps every rerun as a new reading, so a status
+/// line rerun each minute would show an idle window's old number as current.
+const CORRECTED_RUNTIME: (u64, u64, u64) = (2, 1, 6);
+
+/// Whether Claude Code's status line is an OpenLimiter launcher line, by the
+/// exact command lines above whatever other keys the object holds, whose
+/// runtime is stamped 2.1.6 or later. A launcher runs the runtime in its
+/// state folder (`terminal-fallback.ts`); no stamp proves nothing.
+fn runs_corrected_runtime(value: &serde_json::Value) -> bool {
     let Some(object) = value.as_object() else {
         return false;
     };
@@ -1458,18 +1466,31 @@ fn owned_status_line(value: &serde_json::Value) -> bool {
     let Some(command) = object.get("command").and_then(serde_json::Value::as_str) else {
         return false;
     };
-    OWNED_CLAUDE_COMMANDS.iter().any(|pattern| pattern.is_match(command))
+    let state = |index: usize| {
+        let found = LAUNCHER_CLAUDE_COMMANDS[index].captures(command)?;
+        Some(found.get(1)?.as_str().to_owned())
+    };
+    let Some(state) = state(0).or_else(|| state(1).map(|posix| posix.replace("'\\''", "'"))) else {
+        return false;
+    };
+    crate::cli_config::runtime_version_in(Path::new(&state))
+        .ok()
+        .flatten()
+        .is_some_and(|version| {
+            crate::codex_device_login::version_at_least(&version, CORRECTED_RUNTIME)
+        })
 }
 
-/// The settings text with refreshInterval added to an owned status line that
-/// has none, every other byte unchanged, or nothing to do.
+/// The settings text with refreshInterval added to a launcher line that has
+/// none and runs the corrected runtime, every other byte unchanged, or
+/// nothing to do.
 fn with_refresh_interval(text: &str) -> Option<String> {
     let settings: serde_json::Value = serde_json::from_str(text).ok()?;
     let status_line = settings.get("statusLine")?;
-    if !owned_status_line(status_line)
-        || status_line
-            .get("refreshInterval")
-            .is_some_and(|value| !value.is_null())
+    if status_line
+        .get("refreshInterval")
+        .is_some_and(|value| !value.is_null())
+        || !runs_corrected_runtime(status_line)
     {
         return None;
     }
@@ -1495,11 +1516,13 @@ fn with_refresh_interval(text: &str) -> Option<String> {
 const CLAUDE_REFRESH_INTERVAL_SECONDS: u64 = 60;
 
 /// After the collector starts (2.1.6): an OpenLimiter status line written
-/// before 2.1.6 gains refreshInterval. The new bytes are prepared first and
-/// the file is compared right before each replace attempt; bytes that
-/// changed meanwhile (Claude Code saving) start the edit again from the new
-/// bytes, three times at most, else nothing until the next start. A missing,
-/// unreadable, foreign or already set line is left alone.
+/// before 2.1.6 gains refreshInterval once it runs a 2.1.6 runtime, so a
+/// desktop updated alone waits for the next setup or install. The new bytes
+/// are prepared first and the file is compared right before each replace
+/// attempt; bytes that changed meanwhile (Claude Code saving) start the edit
+/// again from the new bytes, three times at most, else nothing until the
+/// next start. A missing, unreadable, foreign or already set line, or one on
+/// an older or unknown runtime, is left alone.
 fn add_refresh_interval_with(home: &Path, mut before_compare: impl FnMut()) -> RefreshMigration {
     let directory = home.join(".claude");
     let file = directory.join("settings.json");
@@ -1534,14 +1557,50 @@ mod tests {
     use super::*;
     use crate::test_support::TempDir;
 
-    /// What `terminal.ts` writes: fallbackLauncherCommand, then the host.
-    const INSTALLED_WINDOWS: &str = r#""C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "C:\Users\John Smith\.openlimiter\terminal-launchers\c4f7b753c684549ce1abc587e4a940458dc222ec2a9e7e43b149f44ed412b2ee\openlimiter.ps1" statusline --host claude"#;
-    const INSTALLED_POSIX_WRAPPED: &str =
-        "/bin/sh '/home/o'\\''brien/.openlimiter/terminal-launchers/c4f7b753c684549ce1abc587e4a940458dc222ec2a9e7e43b149f44ed412b2ee/openlimiter.sh' statusline --host claude --wrap ZWNobyBoaQ";
     /// What this desktop's command_value writes, plain and wrapped.
     const DESKTOP_WINDOWS: &str =
         r#""C:\Users\a\AppData\Roaming\npm\openlimiter.cmd" statusline"#;
     const DESKTOP_POSIX_WRAPPED: &str = r#""/usr/local/bin/openlimiter" statusline --wrap ZWNobyBoaQ"#;
+
+    /// What `terminal.ts` writes for a state folder: fallbackLauncherCommand,
+    /// then the host, on Windows plain and on POSIX wrapped.
+    fn launcher_lines(state: &Path) -> [String; 2] {
+        let state = state.to_str().expect("state path");
+        let id = "c4f7b753c684549ce1abc587e4a940458dc222ec2a9e7e43b149f44ed412b2ee";
+        [
+            format!(
+                r#""C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{state}\terminal-launchers\{id}\openlimiter.ps1" statusline --host claude"#
+            ),
+            format!(
+                "/bin/sh '{}/terminal-launchers/{id}/openlimiter.sh' statusline --host claude --wrap ZWNobyBoaQ",
+                state.replace('\'', "'\\''")
+            ),
+        ]
+    }
+
+    /// The stamp the CLI's installer leaves on the runtime a launcher runs.
+    fn stamp_runtime(state: &Path, version: &str) {
+        let runtime = state.join("terminal-runtime");
+        std::fs::create_dir_all(&runtime).expect("runtime");
+        std::fs::write(
+            runtime.join(".openlimiter-runtime.json"),
+            format!(r#"{{"version":"{version}","files":{{}}}}"#),
+        )
+        .expect("stamp");
+    }
+
+    /// The state folder of `launcher_home`, a name both shells must quote.
+    fn launcher_state(dir: &TempDir) -> PathBuf {
+        dir.path().join("John O'Brien").join(".openlimiter")
+    }
+
+    /// A home whose launcher lines run a runtime stamped with this version.
+    fn launcher_home(version: &str) -> (TempDir, [String; 2]) {
+        let dir = TempDir::new();
+        stamp_runtime(&launcher_state(&dir), version);
+        let lines = launcher_lines(&launcher_state(&dir));
+        (dir, lines)
+    }
 
     fn settings_with(status_line: serde_json::Value) -> String {
         serde_json::to_string_pretty(&serde_json::json!({
@@ -1554,27 +1613,22 @@ mod tests {
             + "\n"
     }
 
-    fn migrated(text: &str) -> (RefreshMigration, String) {
-        let dir = TempDir::new();
-        let file = write_settings(&dir, text);
+    fn migrated(dir: &TempDir, text: &str) -> (RefreshMigration, String) {
+        let file = write_settings(dir, text);
         let outcome = add_refresh_interval_in_home(dir.path());
         (outcome, std::fs::read_to_string(file).expect("settings"))
     }
 
     #[test]
     fn an_owned_status_line_without_an_interval_gains_one_and_no_other_byte_changes() {
-        for command in [
-            INSTALLED_WINDOWS,
-            INSTALLED_POSIX_WRAPPED,
-            DESKTOP_WINDOWS,
-            DESKTOP_POSIX_WRAPPED,
-        ] {
+        let (dir, lines) = launcher_home("2.1.6");
+        for command in &lines {
             let before = settings_with(serde_json::json!({
                 "type": "command",
                 "command": command,
                 "padding": 0
             }));
-            let (outcome, after) = migrated(&before);
+            let (outcome, after) = migrated(&dir, &before);
             assert_eq!(outcome, RefreshMigration::Added, "{command}");
             let value: serde_json::Value = serde_json::from_str(&after).expect("still JSON");
             assert_eq!(value["statusLine"]["refreshInterval"], 60, "{command}");
@@ -1582,12 +1636,47 @@ mod tests {
         }
     }
 
+    /// A desktop only upgrade leaves the status line running the runtime the
+    /// last install put in place. Before 2.1.6 that runtime stamps every
+    /// replayed payload as new, so a rerun each minute would show an idle
+    /// window's old number as current: the timer waits for 2.1.6.
+    #[test]
+    fn a_desktop_only_upgrade_over_a_2_1_5_status_line_waits_for_the_corrected_runtime() {
+        let (dir, lines) = launcher_home("2.1.5");
+        let state = launcher_state(&dir);
+        let unchanged = |dir: &TempDir| {
+            for command in &lines {
+                let before =
+                    settings_with(serde_json::json!({ "type": "command", "command": command }));
+                assert_eq!(migrated(dir, &before), (RefreshMigration::Unchanged, before.clone()), "{command}");
+            }
+        };
+        unchanged(&dir);
+        /* A stamp that names no version, or no stamp at all, proves nothing. */
+        stamp_runtime(&state, "not a version");
+        unchanged(&dir);
+        std::fs::remove_dir_all(state.join("terminal-runtime")).expect("no runtime");
+        unchanged(&dir);
+        /* Setup or an install put 2.1.6 in place: the next start adds the timer. */
+        stamp_runtime(&state, "2.1.6");
+        for command in &lines {
+            let before = settings_with(serde_json::json!({ "type": "command", "command": command }));
+            assert_eq!(migrated(&dir, &before).0, RefreshMigration::Added, "{command}");
+        }
+        /* The desktop's own line runs a global command whose version nothing
+        records, so it never proves the corrected runtime. */
+        for command in [DESKTOP_WINDOWS, DESKTOP_POSIX_WRAPPED] {
+            let before = settings_with(serde_json::json!({ "type": "command", "command": command }));
+            assert_eq!(migrated(&dir, &before), (RefreshMigration::Unchanged, before.clone()), "{command}");
+        }
+    }
+
     #[test]
     fn the_migration_is_idempotent_and_keeps_a_person_s_own_interval() {
-        let dir = TempDir::new();
+        let (dir, lines) = launcher_home("2.1.6");
         let file = write_settings(
             &dir,
-            &settings_with(serde_json::json!({ "type": "command", "command": INSTALLED_WINDOWS })),
+            &settings_with(serde_json::json!({ "type": "command", "command": lines[0] })),
         );
         assert_eq!(add_refresh_interval_in_home(dir.path()), RefreshMigration::Added);
         let once = std::fs::read_to_string(&file).expect("once");
@@ -1595,17 +1684,18 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&file).expect("twice"), once);
         let own = settings_with(serde_json::json!({
             "type": "command",
-            "command": INSTALLED_WINDOWS,
+            "command": lines[0],
             "refreshInterval": 600
         }));
-        assert_eq!(migrated(&own), (RefreshMigration::Unchanged, own.clone()));
+        assert_eq!(migrated(&dir, &own), (RefreshMigration::Unchanged, own.clone()));
     }
 
     #[test]
     fn a_status_line_that_is_not_ours_is_never_touched() {
-        let wrapped_windows = format!("cmd /c \"{INSTALLED_WINDOWS}\"");
-        let piped = format!("{INSTALLED_POSIX_WRAPPED} | tee /tmp/line");
-        let other_host = INSTALLED_WINDOWS.replace("--host claude", "--host antigravity");
+        let (dir, [windows, posix]) = launcher_home("2.1.6");
+        let wrapped_windows = format!("cmd /c \"{windows}\"");
+        let piped = format!("{posix} | tee /tmp/line");
+        let other_host = windows.replace("--host claude", "--host antigravity");
         for command in [
             "my-own-statusline",
             /* Shell text mentioning OpenLimiter is not an OpenLimiter line. */
@@ -1620,10 +1710,10 @@ mod tests {
             other_host.as_str(),
         ] {
             let before = settings_with(serde_json::json!({ "type": "command", "command": command }));
-            assert_eq!(migrated(&before), (RefreshMigration::Unchanged, before.clone()), "{command}");
+            assert_eq!(migrated(&dir, &before), (RefreshMigration::Unchanged, before.clone()), "{command}");
         }
         for text in ["{}", "not json", r#"{"statusLine":"openlimiter statusline"}"#] {
-            assert_eq!(migrated(text), (RefreshMigration::Unchanged, text.to_string()), "{text}");
+            assert_eq!(migrated(&dir, text), (RefreshMigration::Unchanged, text.to_string()), "{text}");
         }
         let dir = TempDir::new();
         assert_eq!(add_refresh_interval_in_home(dir.path()), RefreshMigration::Unchanged);
@@ -1646,10 +1736,10 @@ mod tests {
 
     #[test]
     fn a_concurrent_save_is_kept_and_the_edit_starts_again_from_its_bytes() {
-        let dir = TempDir::new();
+        let (dir, lines) = launcher_home("2.1.6");
         let file = write_settings(
             &dir,
-            &settings_with(serde_json::json!({ "type": "command", "command": INSTALLED_WINDOWS })),
+            &settings_with(serde_json::json!({ "type": "command", "command": lines[0] })),
         );
         /* Claude Code saves a setting between the read and the replace, once. */
         let mut saves = 0;
@@ -1671,10 +1761,10 @@ mod tests {
 
     #[test]
     fn a_file_that_keeps_changing_is_left_alone_after_three_tries() {
-        let dir = TempDir::new();
+        let (dir, lines) = launcher_home("2.1.6");
         let file = write_settings(
             &dir,
-            &settings_with(serde_json::json!({ "type": "command", "command": INSTALLED_WINDOWS })),
+            &settings_with(serde_json::json!({ "type": "command", "command": lines[0] })),
         );
         let mut saves = 0;
         let outcome = add_refresh_interval_with(dir.path(), || {

@@ -355,8 +355,8 @@ pub fn run() {
                 .await;
                 collector_runtime::spawn_collector(startup.clone());
                 /* An idle Claude Code reruns the status line only with
-                refreshInterval set; one written before 2.1.6 gains it, as its
-                own task once the collector runs. */
+                refreshInterval set; one written before 2.1.6 gains it once it
+                runs a 2.1.6 runtime, as its own task once the collector runs. */
                 tauri::async_runtime::spawn_blocking(|| {
                     if let Some(home) = state::home() {
                         let _ = claude_connect::add_refresh_interval_in_home(&home);

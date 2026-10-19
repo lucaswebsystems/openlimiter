@@ -211,16 +211,21 @@ pub(crate) fn terminal_runtime_installed(home: &Path) -> bool {
 }
 
 fn terminal_runtime_status_in(home: &Path, app_version: &str) -> Result<Value, String> {
-    let stamp = home.join(".openlimiter").join("terminal-runtime").join(".openlimiter-runtime.json");
-    let version = match crate::fsx::bounded_read_result(&stamp, crate::fsx::MAX_STATE_FILE_BYTES) {
-        Err(crate::fsx::ReadFailure::Missing) => None,
-        Err(_) => return Err("config_refused".to_string()),
+    let version = runtime_version_in(&home.join(".openlimiter"))?;
+    Ok(serde_json::json!({ "version": version, "app_version": app_version }))
+}
+
+/// The version stamped on the terminal runtime installed under a state folder.
+pub(crate) fn runtime_version_in(state: &Path) -> Result<Option<String>, String> {
+    let stamp = state.join("terminal-runtime").join(".openlimiter-runtime.json");
+    match crate::fsx::bounded_read_result(&stamp, crate::fsx::MAX_STATE_FILE_BYTES) {
+        Err(crate::fsx::ReadFailure::Missing) => Ok(None),
+        Err(_) => Err("config_refused".to_string()),
         Ok(text) => {
             let value: Value = serde_json::from_str(&text).map_err(|_| "config_refused".to_string())?;
-            value.get("version").and_then(Value::as_str).map(str::to_owned)
+            Ok(value.get("version").and_then(Value::as_str).map(str::to_owned))
         }
-    };
-    Ok(serde_json::json!({ "version": version, "app_version": app_version }))
+    }
 }
 
 /// The terminal runtime's node only draws status lines (milliseconds) and
