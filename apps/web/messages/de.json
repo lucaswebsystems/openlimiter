@@ -236,7 +236,7 @@
         "account": "Ein Konto ist freiwillig. Die Anmeldung gibt es, damit deine eigenen Quota Prozentwerte deine anderen Geräte erreichen und damit Pro an etwas hängen kann. Ab diesem Moment ist die Synchronisierung aktiv.",
         "sync": "Synchronisiert wird begrenzter Quota Zustand: ein Anbieter, ein Messwert, ein Fenster, ein Prozentwert und Zeitstempel. Niemals Prompts, niemals Code, niemals der Inhalt einer Datei.",
         "keys": "Anbieterzugangsdaten und ein Schlüssel im Schlüsselbund des Betriebssystems gehen nur an den Anbieter, der sie ausgestellt hat, nie an OpenLimiter. Ein Schlüssel, für den du dich für das Cloud Metering entscheidest, ist die eine Ausnahme: er reist einmal über HTTPS zum gehosteten Dienst und wird dort verschlüsselt gespeichert, gelöscht in dem Moment, in dem du Cloud Metering ausschaltest oder danach fragst.",
-        "website": "Diese Website zählt Seitenaufrufe ohne Cookies. Die Anwendung sendet nichts.",
+        "website": "Diese Website zählt Seitenaufrufe ohne Cookies. Die Anwendung sendet keine Analysedaten.",
         "sell": "Nichts wird verkauft, vermietet oder an einen Werbetreibenden gegeben. Hier gibt es keine Werbung."
       }
     },
@@ -317,7 +317,7 @@
       "bullets": {
         "counts": "Die Website zählt Seitenaufrufe ohne Cookies, mit Vercel Web Analytics. Für jeden Aufruf werden die Seite, die verweisende Seite, das Land, der Browser, das Betriebssystem und der Gerätetyp erfasst. Nennt ein Link eine Kampagne, wird ihre Quelle an die erfasste Seitenadresse angehängt.",
         "cookies": "Es wird kein Cookie gesetzt, um dich zu verfolgen, kein Profil gebildet, und nichts folgt dir auf eine andere Website. Diese Website setzt drei Cookies, jedes erst nach einer Handlung von dir: NEXT_LOCALE, wenn du eine Sprache wählst, und ol-phone-token und ol-phone-refresh, wenn du ein Telefon koppelst, damit diese Kopplung bestehen bleibt. Alle drei sind unbedingt erforderlich, und keines davon verfolgt dich.",
-        "app": "Die Anwendung sendet nichts. Es gibt keinerlei Analyse in der Desktopanwendung, im Kommandozeilenwerkzeug oder in der Web App.",
+        "app": "Die Anwendung sendet keine Analysedaten. Es gibt keinerlei Analyse in der Desktopanwendung, im Kommandozeilenwerkzeug oder in der Web App.",
         "language": "Die bevorzugten Sprachen deines Browsers werden im Browser gelesen, um dir eine übersetzte Seite anzubieten, und dafür wird nichts gespeichert, bis du antwortest. Das Angebot ist ein Hinweis, den du annehmen oder schließen kannst, und es holt dich nie von der Seite weg, die du aufgerufen hast."
       }
     },

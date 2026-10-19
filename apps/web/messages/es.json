@@ -236,7 +236,7 @@
         "account": "La cuenta es opcional. Iniciar sesión existe para que tus propios porcentajes de quota lleguen a tus otros dispositivos, y para que Pro tenga a qué asociarse. La sincronización queda activa desde ese momento.",
         "sync": "Lo que se sincroniza es estado de cuota acotado: un proveedor, un medidor, una ventana, un porcentaje y marcas de tiempo. Nunca prompts, nunca código, nunca el contenido de un archivo.",
         "keys": "Las credenciales de proveedor y una clave guardada en el llavero del sistema operativo se envían solo al proveedor que las emitió, nunca a OpenLimiter. Una clave para la que activas la medición en la nube es la única excepción: viaja una vez por HTTPS al servicio alojado y se guarda ahí cifrada, y se borra en el momento en que apagas la medición en la nube o lo pides.",
-        "website": "Este sitio cuenta vistas de página sin cookies. La aplicación no envía nada.",
+        "website": "Este sitio cuenta vistas de página sin cookies. La aplicación no envía analítica.",
         "sell": "Nada se vende, se alquila ni se entrega a un anunciante. Aquí no hay publicidad."
       }
     },
@@ -317,7 +317,7 @@
       "bullets": {
         "counts": "El sitio cuenta vistas de página sin cookies, con Vercel Web Analytics. Por cada vista registra la página, la página de procedencia, el país, el navegador, el sistema operativo y el tipo de dispositivo. Cuando un enlace nombra una campaña, su origen se añade a la dirección de página registrada.",
         "cookies": "No se pone ninguna cookie para rastrearte, no se construye ningún perfil y nada te sigue a otro sitio. Este sitio pone tres cookies, cada una solo después de que actúes: NEXT_LOCALE cuando eliges un idioma, y ol-phone-token y ol-phone-refresh cuando vinculas un teléfono, para mantener ese vínculo vivo. Las tres son estrictamente necesarias y ninguna te rastrea.",
-        "app": "La aplicación no envía nada. No hay analítica de ningún tipo en la aplicación de escritorio, en la herramienta de línea de comandos ni en la aplicación web.",
+        "app": "La aplicación no envía analítica. No hay analítica de ningún tipo en la aplicación de escritorio, en la herramienta de línea de comandos ni en la aplicación web.",
         "language": "Los idiomas preferidos de tu navegador se leen en el propio navegador para ofrecerte una página traducida, y no se guarda nada para esto hasta que respondes. La oferta es un aviso que puedes aceptar o cerrar, y nunca te saca de la página que pediste."
       }
     },

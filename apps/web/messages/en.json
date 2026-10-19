@@ -236,7 +236,7 @@
         "account": "An account is optional. Signing in exists so your own quota percentages can reach your own other devices, and so Pro can be attached to something. Sync is on from that moment.",
         "sync": "What syncs is bounded quota state: a provider, a meter, a window, a percentage and timestamps. Never prompts, never code, never the contents of a file.",
         "keys": "Provider credentials, and a key kept in your operating system keyring, are sent only to the provider that issued them, never to OpenLimiter. A key you opt into cloud metering for is the one exception: it travels once over HTTPS to the hosted service and is stored there encrypted, deleted the moment you turn cloud metering off or ask.",
-        "website": "This website counts page views without cookies. The app sends nothing.",
+        "website": "This website counts page views without cookies. The app sends no analytics.",
         "sell": "Nothing is sold, rented, or handed to an advertiser. There is no advertising here."
       }
     },
@@ -317,7 +317,7 @@
       "bullets": {
         "counts": "The website counts page views without cookies, through Vercel Web Analytics. For each view it records the page, the referrer, the country, the browser, the operating system and the device type. When a link names a campaign, its source is added to the recorded page address.",
         "cookies": "No cookie is set to track you, no profile is built, and nothing follows you to another site. This site sets three cookies, each only after you act: NEXT_LOCALE when you choose a language, and ol-phone-token and ol-phone-refresh when you pair a phone, to keep that pairing alive. All three are strictly necessary and none of them is used to track you.",
-        "app": "The app sends nothing. There is no analytics of any kind in the desktop application, the command line tool or the web app.",
+        "app": "The app sends no analytics. There is none of any kind in the desktop application, the command line tool or the web app.",
         "language": "Your browser's preferred languages are read in the browser, to offer you a translated page, and nothing is stored for this until you answer. The offer is a banner you can take or close, and it never moves you off the page you asked for."
       }
     },

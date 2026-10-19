@@ -236,7 +236,7 @@
         "account": "A conta é opcional. Entrar existe para que as suas próprias porcentagens de quota cheguem aos seus outros dispositivos, e para que o Pro tenha a que se ligar. A sincronização fica ligada a partir desse momento.",
         "sync": "O que sincroniza é estado de quota delimitado: um provedor, um medidor, uma janela, uma porcentagem e carimbos de tempo. Nunca prompts, nunca código, nunca o conteúdo de um arquivo.",
         "keys": "Credenciais de provedor e uma chave guardada no cofre do sistema operacional são enviadas apenas ao provedor que as emitiu, nunca ao OpenLimiter. Uma chave para a qual você ativa a medição em nuvem é a única exceção: ela viaja uma vez por HTTPS até o serviço hospedado e fica guardada lá de forma criptografada, apagada no momento em que você desliga a medição em nuvem ou pede.",
-        "website": "Este site conta visualizações de página sem cookies. O aplicativo não envia nada.",
+        "website": "Este site conta visualizações de página sem cookies. O aplicativo não envia análise.",
         "sell": "Nada é vendido, alugado ou entregue a um anunciante. Não há publicidade aqui."
       }
     },
@@ -317,7 +317,7 @@
       "bullets": {
         "counts": "O site conta visualizações de página sem cookies, com o Vercel Web Analytics. Para cada visualização ele registra a página, a página de origem, o país, o navegador, o sistema operacional e o tipo de dispositivo. Quando um link indica uma campanha, a origem dela é acrescentada ao endereço de página registrado.",
         "cookies": "Nenhum cookie é usado para rastrear você, nenhum perfil é montado e nada te segue para outro site. Este site define três cookies, cada um só depois de uma ação sua: NEXT_LOCALE quando você escolhe um idioma, e ol-phone-token e ol-phone-refresh quando você vincula um telefone, para manter essa vinculação viva. Os três são estritamente necessários e nenhum deles rastreia você.",
-        "app": "O aplicativo não envia nada. Não há análise de nenhum tipo no aplicativo de desktop, na ferramenta de linha de comando nem no aplicativo web.",
+        "app": "O aplicativo não envia análise. Não há análise de nenhum tipo no aplicativo de desktop, na ferramenta de linha de comando nem no aplicativo web.",
         "language": "Os idiomas preferidos do seu navegador são lidos no próprio navegador para oferecer uma página traduzida, e nada é guardado para isso até você responder. A oferta é um aviso que você aceita ou fecha, e ela nunca tira você da página que pediu."
       }
     },
