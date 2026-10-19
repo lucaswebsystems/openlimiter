@@ -6,10 +6,11 @@ import { DocLink } from "@/components/docs/prose";
 import { PageShell } from "@/components/page-shell";
 import { JsonLd } from "@/components/json-ld";
 import { type LocaleParams, pageLocale } from "@/i18n/params";
+import { localePath } from "@/i18n/routing";
 import { formatReleaseDate } from "@/lib/changelog";
 import { pageMetadata } from "@/lib/metadata";
 import { softwareApplicationSchema } from "@/lib/jsonld";
-import { downloadAssetHref, primaryDownloadHref } from "@/lib/downloads";
+import { downloadAssetHref } from "@/lib/downloads";
 import { CURRENT_VERSION, REPO_URL, SITE_CONTENT_UPDATED } from "@/lib/site";
 
 /** A multi line command block, left aligned inside the centred column. */
@@ -46,10 +47,12 @@ export default async function DownloadPage({ params }: LocaleParams) {
         <p className="mb-6 text-center text-xs text-muted">
           <time dateTime={SITE_CONTENT_UPDATED}>{t("updated", { date: updated })}</time>
         </p>
+        {/* Each desktop button goes through /download/started, which starts
+            the file and is what counts the click. */}
         <DownloadChoice
-          windowsHref={primaryDownloadHref("windows")}
-          linuxHref={primaryDownloadHref("linux")}
-          macosHref={primaryDownloadHref("macos")}
+          windowsHref={localePath(locale, "/download/started/windows")}
+          linuxHref={localePath(locale, "/download/started/linux")}
+          macosHref={localePath(locale, "/download/started/macos")}
           otherHref={releaseUrl}
           windowsLabel={t("choice.windows")}
           linuxLabel={t("choice.linux")}

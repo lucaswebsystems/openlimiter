@@ -77,12 +77,17 @@ describe("download choice", () => {
     expect([image?.getAttribute("width"), image?.getAttribute("height")]).toEqual(["2560", "1600"]);
   });
 
-  it("makes the detected desktop platform the one primary button", () => {
+  it("makes the detected desktop platform the one primary button, carrying the visit's tags", () => {
     stubNavigator({ platform: "Win32", userAgent: WINDOWS, maxTouchPoints: 0 });
-    mounted = render(createElement(DownloadChoice, props));
+    window.history.replaceState(null, "", "/download?utm_source=reddit&utm_content=a");
+    try {
+      mounted = render(createElement(DownloadChoice, props));
+    } finally {
+      window.history.replaceState(null, "", "/");
+    }
     const primary = primaries(mounted.container);
     expect(primary).toHaveLength(1);
-    expect(primary[0]?.getAttribute("href")).toBe(props.windowsHref);
+    expect(primary[0]?.getAttribute("href")).toBe(`${props.windowsHref}?utm_source=reddit&utm_content=a`);
     expect(mounted.container.querySelector("#windows")?.textContent).toContain("Detected");
   });
 

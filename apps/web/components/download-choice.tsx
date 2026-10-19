@@ -202,9 +202,13 @@ export function DownloadChoice({
   children?: ReactNode;
 }) {
   const [platform, setPlatform] = useState<Platform>("unknown");
+  /* The visit's own query string rides along to the next step, so a tagged
+     visit's download click is counted with the same source. */
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     setPlatform(detectedPlatform());
+    setQuery(window.location.search);
   }, []);
 
   const targets = [
@@ -271,7 +275,7 @@ export function DownloadChoice({
                       </p>
                     )}
                     <a
-                      href={target.href}
+                      href={`${target.href}${query}`}
                       className={`${BUTTON} mt-auto ${isDetected ? PRIMARY : SECONDARY}`}
                     >
                       <PlatformGlyph platform={target.id} />

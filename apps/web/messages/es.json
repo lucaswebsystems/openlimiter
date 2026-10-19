@@ -984,6 +984,26 @@
     "versionLine": "Versión {version}",
     "releaseNotes": "Notas de la versión",
     "safety": "Tu navegador puede avisar de que el archivo no se descarga con frecuencia, porque cada versión empieza sin historial de descargas: elige conservarlo. Después, Windows SmartScreen y macOS Gatekeeper preguntan una vez, como indica cada tarjeta de arriba. GitHub muestra el hash SHA256 de cada archivo en la <release>página de la versión</release>.",
+    "started": {
+      "title": "Tu descarga está empezando",
+      "lead": "OpenLimiter {version} para {platform}. Esto es lo que sigue.",
+      "manual": "Si la descarga no empezó, <file>descarga el archivo aquí</file>.",
+      "back": "Volver a todas las opciones de descarga",
+      "firstRun": "La primera vez se abre una ventana: inicia sesión o sáltalo, conecta tus herramientas y aparecen tus barras. Después, pasa el cursor por la pestaña pequeña del borde izquierdo de la pantalla para verlas.",
+      "windows": {
+        "open": "Abre el instalador desde tus descargas. Si tu navegador pregunta, conserva el archivo.",
+        "smartScreen": "Si SmartScreen avisa, elige Más información y luego Ejecutar de todas formas. La compilación no está firmada, así que Windows pregunta una vez."
+      },
+      "macos": {
+        "open": "Abre la imagen de disco desde tus descargas y arrastra OpenLimiter a Aplicaciones.",
+        "gatekeeper": "Abre OpenLimiter una vez. macOS rechaza ese primer intento porque la app no está firmada: abre Ajustes del Sistema, ve a Privacidad y seguridad y elige Abrir igualmente junto al mensaje de OpenLimiter."
+      },
+      "linux": {
+        "open": "Haz ejecutable el AppImage y ejecútalo.",
+        "packages": "¿Prefieres un paquete? Los archivos deb y rpm están en la <download>página de descargas</download>.",
+        "wayland": "En Wayland, la bandeja muestra tus barras en lugar de la pestaña del borde."
+      }
+    },
     "uninstall": {
       "title": "Desinstalar",
       "lead": "Si los usaste, ejecuta estos primero: el primero restaura la statusline que tenía un host de terminal (all restaura todos), el segundo quita un hook de agente y el tercero quita la herramienta de línea de comandos.",

@@ -984,6 +984,26 @@
     "versionLine": "Version {version}",
     "releaseNotes": "Release notes",
     "safety": "Your browser may warn that the file is not commonly downloaded, because every release starts with no download history: choose to keep it. Windows SmartScreen and macOS Gatekeeper then ask once, as each card above says. GitHub shows each file's SHA256 digest on the <release>release page</release>.",
+    "started": {
+      "title": "Your download is starting",
+      "lead": "OpenLimiter {version} for {platform}. Here is what happens next.",
+      "manual": "If the download did not start, <file>download the file here</file>.",
+      "back": "Back to every download option",
+      "firstRun": "The first run opens a window: sign in or skip it, connect your tools, and your bars appear. After that, hover the small tab on the left edge of your screen to see them.",
+      "windows": {
+        "open": "Open the installer from your downloads. If your browser asks, keep the file.",
+        "smartScreen": "If SmartScreen warns, choose More info, then Run anyway. The build is unsigned, so Windows asks once."
+      },
+      "macos": {
+        "open": "Open the disk image from your downloads and drag OpenLimiter to Applications.",
+        "gatekeeper": "Open OpenLimiter once. macOS refuses that first attempt because the app is unsigned: open System Settings, go to Privacy and Security, and choose Open Anyway beside the OpenLimiter message."
+      },
+      "linux": {
+        "open": "Make the AppImage executable, then run it.",
+        "packages": "Prefer a package? The deb and rpm files are on the <download>download page</download>.",
+        "wayland": "On Wayland, the tray holds your bars instead of the edge tab."
+      }
+    },
     "uninstall": {
       "title": "Uninstall",
       "lead": "If you used them, run these first: the first restores the status line a terminal host had before (all restores every host), the second removes an agent hook, and the third removes the command line tool.",
