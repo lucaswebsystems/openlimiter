@@ -8,7 +8,7 @@ import { JsonLd } from "@/components/json-ld";
 import { type LocaleParams, pageLocale } from "@/i18n/params";
 import { localePath } from "@/i18n/routing";
 import { formatReleaseDate } from "@/lib/changelog";
-import { pageMetadata } from "@/lib/metadata";
+import { PANEL_IMAGE, pageMetadata } from "@/lib/metadata";
 import { softwareApplicationSchema } from "@/lib/jsonld";
 import { downloadAssetHref } from "@/lib/downloads";
 import { CURRENT_VERSION, REPO_URL, SITE_CONTENT_UPDATED } from "@/lib/site";
@@ -25,6 +25,7 @@ export async function generateMetadata({ params }: LocaleParams): Promise<Metada
     description: t("metaDescription", { version: CURRENT_VERSION }),
     route: "/download",
     locale,
+    image: PANEL_IMAGE,
   });
 }
 
