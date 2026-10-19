@@ -10,7 +10,7 @@ Do not open a public issue for a suspected vulnerability.
 
 ## Scope
 
-Security issues include secret disclosure, provider artifact mutation, unsafe cache behavior, symbolic link bypass, parser bounds bypass, agent context injection, and unexpected network egress.
+Security issues include secret disclosure, provider artifact mutation, unsafe cache behaviour, symbolic link bypass, parser bounds bypass, agent context injection, and unexpected network egress.
 
 Connector drift without a security impact is a compatibility issue. Please use the connector request template for that case.
 
@@ -28,4 +28,4 @@ The Pro session and local trust anchor stay in the operating system credential s
 
 ## Supported versions
 
-Only the latest released version receives security fixes during the initial development period.
+Security fixes go to the latest released version during the initial development period.
