@@ -1968,7 +1968,7 @@
               "body": "Envia uma rodada das barras em cache à central, renovando antes a sessão se ela estiver perto de expirar. <code>refresh</code> já faz isso automaticamente após uma rodada bem sucedida quando há sessão. A execução manual serve para confirmar que o envio chegou."
             },
             "refresh": {
-              "body": "Lê as sessões salvas pelas suas ferramentas e pede a cada provedor seu uso, no máximo uma vez a cada quinze minutos. Guarda as leituras válidas no cache. Pausa enquanto o aplicativo está aberto. <code>statusline</code> e <code>snapshot</code> iniciam o comando automaticamente em segundo plano quando o cache passa de um minuto."
+              "body": "Lê as sessões salvas pelas suas ferramentas e pede a cada provedor seu uso, no máximo uma vez a cada quinze minutos. Guarda as leituras válidas no cache. A solicitação direta de uso do Claude, depois que você a ativa, lê mais ou menos a cada cinco minutos. Pausa enquanto o aplicativo está aberto. <code>statusline</code> e <code>snapshot</code> iniciam o comando automaticamente em segundo plano quando o cache passa de um minuto."
             },
             "terminal": {
               "body": "Lista os terminais compatíveis e sua configuração, oferecendo configurar um ou todos. <code>terminal install '<host>'</code> e <code>terminal uninstall '<host>'</code> configuram ou restauram um terminal. <code>terminal status</code> mostra a tabela, e <code>terminal show</code> e <code>terminal hide</code> escolhem os provedores visíveis. Consulte <docs>contexto do agente</docs> para conhecer os terminais e o formato."

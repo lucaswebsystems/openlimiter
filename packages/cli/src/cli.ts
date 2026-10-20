@@ -1169,9 +1169,10 @@ const help = [
   "login opens the device code sign in; sync uploads one round to the hub when",
   "a session exists, and refresh triggers it automatically after itself.",
   "refresh reads the logins your provider tools already stored on this machine",
-  "and asks each provider for its own usage, at most once every 15 minutes. It",
-  "stands down while the desktop app is running. statusline and snapshot start",
-  "it in the background when the cache is older than a minute.",
+  "and asks each provider for its own usage, at most once every 15 minutes, or",
+  "about every 5 minutes for the Claude usage request once it is on. It stands",
+  "down while the desktop app is running. statusline and snapshot start it in",
+  "the background when the cache is older than a minute.",
   "Exit codes: 0 success, 1 failure, 2 usage, 3 no bounded quota data."
 ].join("\n");
 
