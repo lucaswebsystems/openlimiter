@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 const read = (relative: string) => readFile(path.resolve(process.cwd(), relative), "utf8");
 
 describe("Claude consent documentation", () => {
-  it("gives complete shutdown instructions for desktop and command line polling", async () => {
+  it("says the request is off until turned on, and how to turn it on and off on desktop and command line", async () => {
     const [readme, page, labels, app] = await Promise.all([
       read("packages/cli/README.md"),
       read("apps/web/app/[locale]/docs/cli/page.tsx"),
@@ -15,8 +15,11 @@ describe("Claude consent documentation", () => {
     /* The desktop switch lives in the Claude row's menu on Connect Tools,
        never in Settings, under the names the window shows. */
     const { connectToolsTab, showClaudeFable } = JSON.parse(labels) as Record<string, string>;
-    expect(readme).toContain(`open ${connectToolsTab}, then the menu at the end of the Claude row, then turn ${showClaudeFable} off`);
+    expect(readme).toContain("The direct Claude request is off until you turn it on, and nothing asks you to.");
+    expect(readme).toContain(`open ${connectToolsTab}, then the menu at the end of the Claude row, then turn ${showClaudeFable} on; turn the same switch off to stop it`);
+    expect(readme).toContain("openlimiter config set providers.claude.poll true");
     expect(readme).not.toContain("open Settings");
+    expect(readme).not.toMatch(/asks once|records off/u);
     expect(app).toMatch(/function fillMore\(tool, panel\) \{[\s\S]*tool\.code === "CLAUDE"[\s\S]*say\("showClaudeFable"\)/u);
     expect(readme).toContain("openlimiter config set providers.claude.poll false");
     expect(page).toContain("openlimiter config set providers.claude.poll false");

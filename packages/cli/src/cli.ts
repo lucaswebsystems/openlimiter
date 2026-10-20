@@ -1267,9 +1267,6 @@ async function initCommand(dependencies: CliDependencies): Promise<CliResult> {
     dependencies.stateDirectory
   );
   try {
-    if (!(await ensureClaudePollChoice(dependencies))) {
-      return fail(EXIT_FAILURE, "openlimiter init: configuration could not be written, so Claude usage stays off.");
-    }
     const result = await initialize(
       environment,
       dependencies.credentialStore,
@@ -2272,38 +2269,11 @@ async function triggerSyncAfterRefresh(
 /* -------------------------------------------------------------- setup */
 
 const SETUP_SIGN_IN_PROMPT = "Sign in to sync your bars to the hub and your phone (free)";
-const CLAUDE_POLL_DISCLOSURE =
-  "OpenLimiter can read the same usage Claude shows by sending a direct usage request with your Claude sign in on this computer. Anthropic's policy for tools like this is unresolved.";
-const CLAUDE_POLL_QUESTION =
-  "Show Fable limit? Enter to turn it on, N to keep it off: ";
 
 async function promptOrSkip(dependencies: CliDependencies, question: string): Promise<boolean> {
   if (!dependencies.interactive) return false;
   const answer = await dependencies.promptChoice?.(question) ?? "";
   return !answer.trim().toLowerCase().startsWith("s");
-}
-
-/** Record one real Claude polling choice before any terminal acquisition. */
-async function ensureClaudePollChoice(dependencies: CliDependencies): Promise<boolean> {
-  const stored = await readConfig(dependencies.stateDirectory);
-  if (!stored.ok && stored.reason !== "missing") return false;
-  const config = stored.ok ? stored.config : defaultConfig(dependencies.environment);
-  if (config.providers.claude.recorded) return true;
-  let enabled = false;
-  if (dependencies.interactive) {
-    dependencies.emit(CLAUDE_POLL_DISCLOSURE);
-    const answer = await dependencies.promptChoice?.(CLAUDE_POLL_QUESTION) ?? "n";
-    enabled = !answer.trim().toLowerCase().startsWith("n");
-  }
-  try {
-    await updateConfig((latest) => ({
-      ...latest,
-      providers: { claude: { poll: enabled, recorded: true } }
-    }), dependencies.environment, dependencies.stateDirectory);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 /** Step one: sign in, or say plainly why this machine did not. */
@@ -2542,9 +2512,6 @@ async function setupShowBarsStep(dependencies: CliDependencies): Promise<string[
 async function setupCommand(dependencies: CliDependencies, now: string): Promise<CliResult> {
   await setupSignInStep(dependencies);
   await setupConnectStep(dependencies);
-  if (!(await ensureClaudePollChoice(dependencies))) {
-    dependencies.emit("Claude usage stays off because the choice could not be saved.");
-  }
   const collected = await refreshCommand(dependencies, now);
   if (collected.exitCode !== 0 && collected.stderr !== "") dependencies.emit(collected.stderr);
   await setupShowBarsStep(dependencies);

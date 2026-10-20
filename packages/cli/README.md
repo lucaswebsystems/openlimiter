@@ -65,7 +65,7 @@ openlimiter status --agent-context
 
 | Provider | Connects by | Reads |
 |---|---|---|
-| Claude | Setup asks once in a terminal | The Claude Code status line automatically; the recorded `providers.claude.poll` choice controls direct usage requests when Claude Code is closed |
+| Claude | Its own status line, automatically | The Claude Code status line; once you turn on the direct request, which is off until you do, every Claude bar comes from Anthropic's usage endpoint instead |
 | Codex | Use the login already there, or sign in from inside OpenLimiter | The login the Codex CLI stored |
 | Gemini CLI | Read only, from the login already there | The login the Gemini CLI stored |
 | Antigravity | Read only, from the credential already there | The credential the Antigravity CLI stored |
@@ -77,6 +77,6 @@ openlimiter status --agent-context
 
 `openlimiter refresh` is what reaches the network, at most once every fifteen minutes per provider: it reads the logins your provider tools already stored and asks each provider for its own usage. It stands down while the desktop app is running, and `statusline`, `snapshot` and `setup` all start it in the background on their own. OpenLimiter never asks for a vendor password, never impersonates a vendor tool, and never uploads a token.
 
-Claude has two independent switches. Show Fable limit in the desktop app controls the desktop process. To stop it, open Connect Tools, then the menu at the end of the Claude row, then turn Show Fable limit off. `providers.claude.poll` controls the command line process. To stop it, run `openlimiter config set providers.claude.poll false`. Terminal setup asks once, and unattended setup records off. When the poll is off, the Claude status line shows the session bar only. The request goes directly to the usage endpoint with your local Claude credentials. Anthropic's policy for tools like this is unresolved.
+The direct Claude request is off until you turn it on, and nothing asks you to. When it is on, OpenLimiter sends your own Claude Code login only to Anthropic, about every five minutes, and every Claude bar comes from that one source; while it is off, the Claude bars come from Claude Code's status line, with no weekly bars. One switch serves the desktop app and the terminal. In the desktop app, open Connect Tools, then the menu at the end of the Claude row, then turn Read my Claude usage from Anthropic on; turn the same switch off to stop it. In the terminal, run `openlimiter config set providers.claude.poll true`, and `openlimiter config set providers.claude.poll false` to stop it. Anthropic's policy for tools like this is unresolved.
 
 Read the [documentation](https://openlimiter.com/docs) or browse the [repository](https://github.com/lucaswebsystems/openlimiter).

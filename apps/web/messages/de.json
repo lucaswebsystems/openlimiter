@@ -108,15 +108,15 @@
     "removeTool": "Entfernen",
     "removeConfirm": "Zum Entfernen erneut drücken",
     "claudeWeeklyOAuthApps": "Wöchentlich, OAuth Apps",
-    "showClaudeFable": "Fable Limit anzeigen",
-    "showClaudeFableNote": "Liest dieselbe Nutzung, die Claude anzeigt, indem eine direkte Nutzungsanfrage mit deiner Claude Anmeldung auf diesem Computer gesendet wird. Anthropics Richtlinie für solche Werkzeuge ist ungeklärt. Du kannst dies unter Werkzeuge verbinden ausschalten.",
+    "showClaudeFable": "Meine Claude Nutzung bei Anthropic abrufen",
+    "showClaudeFableNote": "Aus, bis du es einschaltest. Eingeschaltet sendet OpenLimiter deine Claude Code Anmeldung nur an Anthropic, etwa alle fünf Minuten, um deine Nutzung zu lesen, und diese Abfrage wird zur Quelle jedes Claude Balkens. Anthropics Richtlinie für solche Werkzeuge ist ungeklärt.",
+    "claudePollMirrorFailed": "Gespeichert. Eine ältere OpenLimiter Version auf diesem Computer konnte nicht benachrichtigt werden und behält vielleicht deine vorherige Wahl, bis sie aktualisiert wird.",
     "startAtSignIn": "OpenLimiter beim Anmelden am Computer starten",
     "startAtSignInNote": "Hält deine Balken nach einem Neustart aktuell.",
     "claudePollConsentTitle": "Dein Fable Limit anzeigen?",
     "claudePollNotNow": "Jetzt nicht",
     "claudePollSaveFailed": "Die Auswahl konnte nicht gespeichert werden, deshalb bleibt die Claude Nutzung ausgeschaltet.",
-    "claudePollContinueOff": "Mit ausgeschalteter Claude Nutzung fortfahren",
-    "claudeWeeklyPollHint": "Aktiviere die Nutzungsabfrage in den Verbindungstools, um deine Wochenlimits zu sehen."
+    "claudePollContinueOff": "Mit ausgeschalteter Claude Nutzung fortfahren"
   },
   "meta": {
     "title": "OpenLimiter, KI Programmierlimits und Agentenaktivität",
@@ -2295,8 +2295,6 @@
     "accountBalanceDetail": "{purchased} gekauft, {used} verwendet",
     "balance": "Kontostand",
     "percentUsed": "{value}% verwendet",
-    "claudeFableDesktopHint": "Fable wird hier angezeigt, wenn die Claude Nutzung in OpenLimiter auf deinem Computer aktiviert ist.",
-    "claudeWeeklyPollHint": "Aktiviere die Nutzungsabfrage in den Verbindungstools, um deine Wochenlimits zu sehen.",
     "providers": {
       "title": "Anbieter",
       "automaticPrompt": "Öffne die Desktopanwendung. Dort beginnt die lokale Erkennung.",

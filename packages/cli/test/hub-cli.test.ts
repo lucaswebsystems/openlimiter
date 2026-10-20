@@ -287,11 +287,11 @@ describe("openlimiter setup, the three step first run", () => {
           now: () => NOW,
           interactive,
           promptChoice: async (question) => {
-            if (/claude|fable|anthropic/iu.test(question)) asked.push(question);
+            if (/fable|anthropic|usage/iu.test(question)) asked.push(question);
             return "s";
           }
         });
-        expect(result.stdout + result.stderr).not.toMatch(/anthropic|usage request/iu);
+        expect(result.stdout + result.stderr).not.toMatch(/usage request|Anthropic's policy|Fable limit|Claude usage/iu);
       }
       expect(asked).toEqual([]);
       expect((await runCli(["config", "get", "providers.claude.poll"], { stateDirectory })).stdout)

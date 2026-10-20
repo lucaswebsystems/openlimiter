@@ -197,7 +197,6 @@ interface PhoneBarsProps {
   stateAnnouncement: (state: string) => string;
   accountLabel: (count: number) => string;
   claudeMeterCopy?: ClaudeMeterCopy;
-  claudeFableHintText?: string;
 }
 
 /**
@@ -205,7 +204,7 @@ interface PhoneBarsProps {
  * browser dashboard draw, so one reading cannot look like two different
  * readings on two screens.
  */
-function PhoneBars({ body, stale, locale, staleLabel, now, freshLabel, staleStateLabel, unknownAgeLabel, ageLabel, stateAnnouncement, accountLabel, claudeMeterCopy = {}, claudeFableHintText = "" }: PhoneBarsProps) {
+function PhoneBars({ body, stale, locale, staleLabel, now, freshLabel, staleStateLabel, unknownAgeLabel, ageLabel, stateAnnouncement, accountLabel, claudeMeterCopy = {} }: PhoneBarsProps) {
   const rows = useMemo(
     () => meterRowsOf(body).map((row) => stale ? { ...row, stale: true } : row),
     [body, stale],
@@ -249,7 +248,6 @@ function PhoneBars({ body, stale, locale, staleLabel, now, freshLabel, staleStat
             orderScope={{ kind: "paired", id: "current-device" }}
             reorderable
             layout="stacked"
-            claudeFableHintText={claudeFableHintText}
           />
         )}
         {money.length > 0 && (
@@ -334,7 +332,6 @@ function PairedPhone({
   });
   const locale = useRef("en");
   const claudeMeterCopy = useClaudeMeterCopy();
-  const readingsT = useTranslations("hub");
   const [now, setNow] = useState(() => new Date().toISOString());
   const [tab, setTab] = useState<PhoneTab>("usage");
   const unpairedRef = useRef(onUnpaired);
@@ -421,7 +418,6 @@ function PairedPhone({
               stateAnnouncement={(value) => t("cloud.stateAnnouncement", { state: value })}
               accountLabel={(count) => t("grid.account", { count })}
               claudeMeterCopy={claudeMeterCopy}
-              claudeFableHintText={readingsT("claudeFableDesktopHint")}
             />
           </div>
         )}

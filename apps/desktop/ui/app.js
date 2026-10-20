@@ -717,6 +717,9 @@ let inventory = { flags: [], detections: null, connections: [], removed: [] };
 let spendStatus = null;
 /* The direct Claude check setting: null until read, so no button flashes. */
 let claudePoll = null;
+/* The last change from this window stands, and the copy an older terminal
+   runtime reads could not be written. */
+let claudePollMirrorFailed = false;
 
 /**
  * Whether a fresh Claude reading that arrived through the local statusline is
@@ -758,6 +761,7 @@ async function repaintHome() {
     claudePoll = pollResult.ok && typeof pollResult.value?.enabled === "boolean"
       ? pollResult.value.enabled
       : null;
+    claudePollMirrorFailed = pollResult.ok && pollResult.value?.mirrorFailed === true;
     const detections = detectionResult.ok ? detectionResult.value : null;
     const connections = connectionResult.ok ? normalizeConnectionList(connectionResult.value) : [];
     adoptDetectedProviders(detections);
@@ -979,6 +983,7 @@ function fillMore(tool, panel) {
     const note = text("q-morelabel", say("showClaudeFableNote"));
     note.id = "claude-poll-note";
     panel.append(moreLine(label, input), moreLine(note));
+    if (claudePollMirrorFailed) panel.append(moreLine(text("q-morelabel", say("claudePollMirrorFailed"))));
   }
   for (const flag of tool.extra) {
     const route = ["CODEX", "ANTIGRAVITY", "OPENCODE", "CLAUDE"].includes(flag.provider) && flag.fixKind !== "open_app" ? "connect" : "rescan";

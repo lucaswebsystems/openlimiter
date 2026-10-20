@@ -22,7 +22,6 @@ function MessageProbe() {
     t("updatedMinutes", { count: 5 }),
     t("updatedHours", { count: 2 }),
     t("updatedDays", { count: 3 }),
-    t("claudeFableDesktopHint"),
     claude.claudeCurrentSession,
     claude.claudeWeeklyAllModels,
     claude.claudeWeeklyFable,
@@ -39,12 +38,6 @@ afterEach(() => {
 });
 
 describe("app message loading", () => {
-  it("has no catalog copy that promises the Claude poll is off by default", () => {
-    for (const messages of [catalog, ptBr, es, de, ja]) {
-      const copy = JSON.stringify(messages);
-      expect(copy).not.toMatch(/opt in poll|off unless you turn it on/iu);
-    }
-  });
   it("resolves every reading key through the exact namespaces AppLayout provides", () => {
     const errors: unknown[] = [];
     mounted = render(createElement(

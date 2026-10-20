@@ -510,7 +510,7 @@ test("the catalog has no dashes and ships translated in every locale", () => {
   const hubKeys = [
     "accountFallback", "updatedMinutes", "updatedHours", "updatedDays",
     "claudeCurrentSession", "claudeWeeklyAllModels", "claudeWeeklyFable",
-    "claudeWeeklyModel", "claudeExtraUsage", "claudeFableDesktopHint",
+    "claudeWeeklyModel", "claudeExtraUsage",
     "codexMonthlyCreditLimit", "codexCredits", "openrouterKeyAllowance",
     "openrouterAccountBalance", "kimiWeeklyUsed", "kimiFiveHourUsed",
     "kimiFiveMinuteUsed", "kimiDailyUsed", "kimiSevenDayUsed", "kimiUsageUsed",
