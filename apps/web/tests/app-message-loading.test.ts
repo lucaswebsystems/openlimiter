@@ -60,10 +60,18 @@ describe("app message loading", () => {
         expect(at(path), path).toContain(fact);
       }
     }
+    /* The first run's consent keys leave with the DESK lane's first run work. */
+    const consent = new Set(["claudePollConsentTitle", "claudePollNotNow", "claudePollSaveFailed", "claudePollContinueOff"]);
+    const leaves = (node: unknown, key = ""): string[] => typeof node === "string"
+      ? (consent.has(key) ? [] : [node])
+      : node !== null && typeof node === "object"
+        ? Object.entries(node).flatMap(([child, value]) => leaves(value, child))
+        : [];
     for (const messages of [catalog, ptBr, es, de, ja]) {
-      const copy = JSON.stringify(messages);
-      expect(copy).not.toMatch(/Show Fable limit|Fable Limit anzeigen|Mostrar límite de Fable|Fable の上限を表示|Mostrar limite do Fable/u);
-      expect(copy).not.toMatch(/starts on|after a disclosure|after showing you a disclosure|records its own choice|are asked first/u);
+      for (const copy of leaves(messages)) {
+        expect(copy).not.toMatch(/Show Fable limit|Fable Limit anzeigen|Mostrar límite de Fable|Fable の上限を表示|Mostrar limite do Fable/u);
+        expect(copy).not.toMatch(/starts on|after a disclosure|after showing you a disclosure|records its own choice|are asked first/u);
+      }
     }
     const llms = readFileSync(resolve(process.cwd(), "public/llms.txt"), "utf8");
     expect(llms).toMatch(/off until you turn it on/u);
