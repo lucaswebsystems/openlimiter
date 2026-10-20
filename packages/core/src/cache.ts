@@ -30,7 +30,7 @@ import type { ProviderCode, RawMeter, Snapshot } from "./types.js";
 
 export const CACHE_FILE_NAME = "openlimiter-cache.json";
 export const AUTHORITATIVE_CACHE_FILE_NAME = "openlimiter-authoritative.json";
-/** The one store of truth for the direct Claude usage request. Rust twin: claude_poll_setting.rs. */
+/** The one store of truth for the direct Claude usage request. Rust twin: state.rs CLAUDE_POLL_FILE_NAME. */
 export const CLAUDE_POLL_FILE_NAME = "claude-poll.json";
 export const MAX_POLICY_TIMESTAMP = 253_402_300_799_999;
 
@@ -38,7 +38,7 @@ export const MAX_POLICY_TIMESTAMP = 253_402_300_799_999;
  * Whether the direct Claude usage request is on, read fresh from its one
  * store of truth. On only when the document says version 1 and enabled true:
  * missing, disabled, unreadable and invalid are all off. Rust twin:
- * claude_poll_setting.rs.
+ * state.rs read_claude_poll.
  */
 export async function readClaudePoll(directory = resolveStateDirectory()): Promise<boolean> {
   const document = await readJsonFileSafely(path.join(directory, CLAUDE_POLL_FILE_NAME));
