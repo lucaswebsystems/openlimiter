@@ -16,6 +16,10 @@ use tauri::{
 
 /// Sent to the panel whenever it is shown or hidden, with that state.
 pub const PANEL_SHOWN_EVENT: &str = "edge-panel-shown";
+/// Sent to the panel when native code ends its hold: an Escape while it is
+/// held, or the pointer away from its open menu for MENU_AWAY_GRACE. The
+/// panel cancels its drag or closes its menu.
+pub const PANEL_RELEASE_EVENT: &str = "edge-panel-release";
 
 #[derive(Default)]
 struct Applied {
@@ -381,11 +385,9 @@ fn tick<R: Runtime>(
     #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
     let (pointer, fullscreen, escape) = (None::<(i32, i32)>, false, false);
     let inside = pointer.is_some_and(|(x, y)| placement::inside(old_rail, old_card, x, y));
-    if escape && !applied.escape_down {
-        inner.behavior.close_card();
-    }
+    let escape_to_panel = escape && !applied.escape_down && inner.behavior.escape(Instant::now());
     applied.escape_down = escape;
-    inner
+    let menu_let_go = inner
         .behavior
         .tick(Instant::now(), inside, fullscreen, p.visible, p.keep_open);
     let bounds = placement::place(
@@ -414,6 +416,9 @@ fn tick<R: Runtime>(
         applied.card = Some((card_bounds, card_visible));
     }
     announce(app, was_shown, card_visible);
+    if escape_to_panel || menu_let_go {
+        let _ = app.emit_to(EventTarget::webview_window("rail-card"), PANEL_RELEASE_EVENT, ());
+    }
     Ok(visible)
 }
 

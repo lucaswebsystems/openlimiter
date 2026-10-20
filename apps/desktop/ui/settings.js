@@ -33,6 +33,7 @@ import {
 import { activityClient } from "./agents.js";
 import { say } from "./names.js";
 import { LOCK } from "./pro.js";
+import { orderSettingMarkup, wireOrderSetting } from "./reorder.js";
 
 // English catalog for the menu's settings. L7 owns translations.
 export const ALERTS_EN = Object.freeze({
@@ -286,7 +287,20 @@ export function snoozeUntil(minutes, now = Date.now()) {
   return new Date(now + minutes * 60_000).toISOString().replace(/\.\d+Z$/u, ".000Z");
 }
 
-const state = { settings: null, mount: null, agentAlerts: null };
+const state = { settings: null, mount: null, agentAlerts: null, order: null, paintOrder: null };
+
+/** The window's copy of the provider order, for the Order choice. */
+export function useOrderStore(store) {
+  state.order = store;
+  store.subscribe(() => state.paintOrder?.());
+}
+
+/* Order, at the end of Appearance: most used first, or the person's own. */
+function mountOrderSetting(mount) {
+  if (state.order === null || typeof mount?.insertAdjacentHTML !== "function") return;
+  mount.insertAdjacentHTML("beforeend", orderSettingMarkup());
+  state.paintOrder = wireOrderSetting(mount, state.order);
+}
 
 export const RAIL_SETTINGS_COPY = {
   show: "Show the edge tab",
@@ -467,6 +481,7 @@ export async function renderSettings(mount) {
 
   if (!settingsResult.ok && settingsResult.reason === BACKEND_ABSENT) {
     target.appearance.innerHTML = appearanceMarkup("default", false, "short");
+    mountOrderSetting(target.appearance);
     const unavailable = '<p class="menu-note">' + ALERTS_EN.unavailable + "</p>";
     if (target.alerts === target.appearance) target.appearance.innerHTML += unavailable;
     else target.alerts.innerHTML = unavailable;
@@ -492,6 +507,7 @@ export async function renderSettings(mount) {
 
   state.agentAlerts = agentResult.ok ? agentResult.value : null;
   target.appearance.innerHTML = appearanceMarkup(chosen, entitled, captions);
+  mountOrderSetting(target.appearance);
   target.alerts.innerHTML =
     alertsMarkup(settings) +
     '<div class="menu-line"><label for="agent-alerts">' + MENU_EN.agentAlerts + "</label>" +

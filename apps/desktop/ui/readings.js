@@ -24,6 +24,7 @@ import {
 import { parseManualPayload } from "./engine/connectors/manual.js";
 import { bandForPercent, bandIconSvg, closestToLimit, providerMarkMarkup, windowRank } from "./engine/ui/provider-row.js";
 import { duration, meterLabel, meterPresentation, meterRank, providerCode, providerName, say, updatedLabel } from "./names.js";
+import { arrange, byOrder } from "./reorder.js";
 
 export { updatedLabel };
 
@@ -219,13 +220,14 @@ function orderedWindows(provider, windows) {
 }
 
 /**
- * One entry per provider, tightest window first and tightest provider first.
+ * One entry per provider, tightest window first and tightest provider first,
+ * or in a person's own `order` (provider_order in Rust) when they chose one.
  *
  * The rows are already the active accounts only. If a provider still has two
  * (two accounts connected on purpose), they share its one card and the second
  * account's windows say so, by position, never by an id.
  */
-export function limitsModel(snapshots, now) {
+export function limitsModel(snapshots, now, order = null) {
   const providers = new Map();
   /* The one projection decides what is still drawable at `now`: fresh rows,
      and stale rows it holds (a quiet source for seven days, a Claude status
@@ -252,7 +254,7 @@ export function limitsModel(snapshots, now) {
     return { code, name: providerName(code), windows: orderedWindows(code, windows), age: stale.length ? updatedLabel(stale[0], now) : null };
   });
   const headline = (provider) => Math.max(-1, ...provider.windows.map((window) => window.usedPercent ?? -1));
-  return model.sort((left, right) => headline(right) - headline(left) || left.name.localeCompare(right.name));
+  return byOrder(model.sort((left, right) => headline(right) - headline(left) || left.name.localeCompare(right.name)), order);
 }
 
 function node(doc, tag, className, text) {
@@ -349,11 +351,12 @@ export function limitsKey(model) {
   });
 }
 
+/* Rewrite only the ages and countdowns in place, block by provider code: a
+   reorderable list may show its blocks in another order for a moment. */
 export function patchLimits(mount, model, { compact = false } = {}) {
-  const groups = mount.querySelectorAll(".q-group");
-  for (let i = 0; i < model.length; i++) {
-    const provider = model[i];
-    const group = groups[i];
+  const groups = new Map([...mount.querySelectorAll(".q-group")].map((group) => [group.dataset.provider, group]));
+  for (const provider of model) {
+    const group = groups.get(provider.code);
     if (!group) continue;
     const age = group.querySelector(".q-age");
     if (age) age.textContent = provider.age ?? "";
@@ -430,32 +433,79 @@ function moreMenu(doc, provider, more, opened) {
   return { toggle, panel };
 }
 
+/* Constant artwork: the six dots a block is moved by. */
+const GRIP_ICON = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="5.75" cy="3.5" r="1.25"/><circle cx="10.25" cy="3.5" r="1.25"/><circle cx="5.75" cy="8" r="1.25"/><circle cx="10.25" cy="8" r="1.25"/><circle cx="5.75" cy="12.5" r="1.25"/><circle cx="10.25" cy="12.5" r="1.25"/></svg>';
+
+/* The mark, with the grip a block is reordered by laid over it: a real
+   button, so a click, Enter or Space opens its menu (reorder.js). */
+function handle(doc, provider) {
+  const wrap = node(doc, "span", "q-handle");
+  const grip = node(doc, "button", "q-grip");
+  grip.type = "button";
+  grip.innerHTML = GRIP_ICON;
+  grip.setAttribute("aria-label", say("reorderFor", { name: provider.name }));
+  grip.setAttribute("aria-haspopup", "menu");
+  grip.setAttribute("aria-expanded", "false");
+  wrap.append(grip, markNode(doc, provider.code));
+  return wrap;
+}
+
+function drawGroup(doc, provider, { compact, handlers, more, opened, grips }) {
+  const group = node(doc, "div", "q-group");
+  group.dataset.providerCard = "";
+  group.dataset.provider = provider.code;
+  group.setAttribute("role", "group");
+  group.setAttribute("aria-label", provider.name);
+  const head = node(doc, "div", "q-prov");
+  head.append(grips ? handle(doc, provider) : markNode(doc, provider.code), node(doc, "span", "q-pname", provider.name));
+  if (provider.age) head.append(node(doc, "span", "q-age", provider.age));
+  if (provider.note) head.append(node(doc, "span", "q-tnote", provider.note));
+  if (provider.action) head.append(stepButton(doc, provider, handlers));
+  group.append(head);
+  if (more) {
+    const menu = moreMenu(doc, provider, more, opened);
+    head.append(menu.toggle);
+    group.append(menu.panel);
+  }
+  group.append(...provider.windows.map((window) => limitRow(doc, window, compact)));
+  return group;
+}
+
+/* A block that is still listed takes its new content in place, keeping its
+   grip and an open reorder menu: the grip may hold focus or the pointer. */
+function refill(old, fresh) {
+  const head = old.querySelector(".q-prov");
+  const freshHead = fresh.querySelector(".q-prov");
+  const kept = (child) => child.classList.contains("q-handle") || child.classList.contains("q-ordermenu");
+  for (const child of [...head.children]) if (!kept(child)) child.remove();
+  for (const child of [...freshHead.children]) if (!child.classList.contains("q-handle")) head.append(child);
+  for (const child of [...old.children]) if (child !== head) child.remove();
+  for (const child of [...fresh.children]) if (child !== freshHead) old.append(child);
+}
+
 /**
  * Draw a model: limitsModel rows, or inventoryModel rows on Home. `compact`
  * is the panel's column form. A row with no reading carries a muted note or
  * one step, a button that calls `handlers[kind](code)`; `more` adds the
- * small menu at the end of every row.
+ * small menu at the end of every row. `grips` makes the list reorderable
+ * (reorder.js drives it): each block gets a grip, and blocks are kept by
+ * provider code, so a redraw changes values in place.
  */
-export function renderLimits(doc, mount, model, { compact = false, handlers = null, more = null, opened = null } = {}) {
-  mount.replaceChildren(...(compact && model.length ? [columnHeads(doc)] : []), ...model.map((provider) => {
-    const group = node(doc, "div", "q-group");
-    group.dataset.providerCard = "";
-    group.dataset.provider = provider.code;
-    group.setAttribute("role", "group");
-    group.setAttribute("aria-label", provider.name);
-    const head = node(doc, "div", "q-prov");
-    head.append(markNode(doc, provider.code), node(doc, "span", "q-pname", provider.name));
-    if (provider.age) head.append(node(doc, "span", "q-age", provider.age));
-    if (provider.note) head.append(node(doc, "span", "q-tnote", provider.note));
-    if (provider.action) head.append(stepButton(doc, provider, handlers));
-    group.append(head);
-    if (more) {
-      const menu = moreMenu(doc, provider, more, opened);
-      head.append(menu.toggle);
-      group.append(menu.panel);
-    }
-    group.append(...provider.windows.map((window) => limitRow(doc, window, compact)));
-    return group;
+export function renderLimits(doc, mount, model, { compact = false, handlers = null, more = null, opened = null, grips = false } = {}) {
+  const fresh = model.map((provider) => drawGroup(doc, provider, { compact, handlers, more, opened, grips }));
+  if (!grips) {
+    mount.replaceChildren(...(compact && model.length ? [columnHeads(doc)] : []), ...fresh);
+    return;
+  }
+  const kept = new Map([...mount.querySelectorAll(".q-group")].map((group) => [group.dataset.provider, group]));
+  const heads = mount.querySelector(".q-colhead");
+  if (!compact || model.length === 0) heads?.remove();
+  else if (heads === null) mount.insertBefore(columnHeads(doc), mount.children[0] ?? null);
+  arrange(doc, mount, fresh.map((group) => {
+    const old = kept.get(group.dataset.provider);
+    if (!old) return group;
+    refill(old, group);
+    return old;
   }));
 }
 
@@ -588,13 +638,13 @@ function nextStep(code, name, { flag, flags, records, detection, claude }) {
  * from what happens to be measured. A tool is in play when it always has a
  * row, is detected or connected, is flagged, or a person chose it; one that
  * was switched off leaves unless it always has a row. Measured tools come
- * first, tightest first, with their bars; every other tool follows with a
- * note or one step. `claude` is the Claude Code setup state Connections reads.
+ * first, tightest first or in the person's own `order`, with their bars; every
+ * other tool follows with a note or one step. `claude` is the Claude Code setup state Connections reads.
  * A tool waiting for its first reading, or for its sign in, is marked with
  * `usage` so Usage keeps its row too.
  */
-export function inventoryModel({ snapshots = [], flags = [], detections = null, connections = [], configured = [], removed = [], claude = null } = {}, now) {
-  const measured = limitsModel(snapshots, now);
+export function inventoryModel({ snapshots = [], flags = [], detections = null, connections = [], configured = [], removed = [], claude = null, order = null } = {}, now) {
+  const measured = limitsModel(snapshots, now, order);
   const shown = new Set(measured.map((tool) => tool.code));
   const off = switchedOff(flags, removed);
   const detected = (detections?.providers ?? []).filter((entry) => entry.state === "present" || entry.state === "installed_logged_out");

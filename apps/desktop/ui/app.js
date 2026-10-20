@@ -39,8 +39,9 @@ import {
   splitInventory,
 } from "./readings.js";
 import { providerCode, providerName, say } from "./names.js";
+import { createOrderStore, ORDER_CHANGED_EVENT, reorderList } from "./reorder.js";
 import { renderPlanCap } from "./plan-cap.js";
-import { refreshDesktopTrial, renderSettings, tickDesktopTrial } from "./settings.js";
+import { refreshDesktopTrial, renderSettings, tickDesktopTrial, useOrderStore } from "./settings.js";
 import { mountAgents } from "./agents.js";
 import { keyRepaintGate, keyRows, proEntitled, refreshEntitlement, renderKeys, renderPro, saveOpenrouterConnection } from "./pro.js";
 /* The phone panel and the device list it produces. Both live behind an
@@ -96,11 +97,13 @@ import {
   notificationGate,
   proDisconnect,
   proStatus,
+  providerOrder,
   readCache,
   readManual,
   refreshHome,
   setClaudePollEnabled,
   setProviderEnabled,
+  setProviderOrder,
   setTrayStatus,
 } from "./backend.js";
 import { readConfiguredProviders, readRemovedProviders, adoptDetectedProviders, homeSelectionControl } from "./configured-providers.js";
@@ -878,6 +881,38 @@ let drawnCatalogue = "";
 const openMenus = new Set();
 let catalogueOpen = false;
 
+/* The provider order the Usage list, the edge panel and the tray menu share,
+   and the Usage list's grips (reorder.js). Claude's runtime notice rides in
+   its block, so every draw puts it back. */
+const order = createOrderStore({
+  read: providerOrder,
+  write: setProviderOrder,
+  listen: (handler) => listen(ORDER_CHANGED_EVENT, handler),
+});
+useOrderStore(order);
+let usageNotice = null;
+const usageList = reorderList(document, elements.usageRows, {
+  store: order,
+  render: (model) => {
+    renderLimits(document, elements.usageRows, model, { grips: true, handlers: toolHandlers });
+    if (usageNotice !== null) {
+      elements.usageRows.querySelector('[data-provider-card][data-provider="CLAUDE"]')?.append(usageNotice);
+    }
+  },
+});
+/* An order written here, in the edge panel or in Settings: the lists follow,
+   and the repaint tells the tray menu, which reads the order from disk. */
+order.subscribe(() => {
+  void (async () => {
+    if (refreshing) await refreshing;
+    await refresh();
+  })();
+});
+void order.load();
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") usageList.escape();
+});
+
 const toolHandlers = {
   /* OpenRouter connects through its key row, so its Connect goes there. */
   connect: (code) => {
@@ -902,6 +937,7 @@ function paintTools(snapshots, now) {
     configured: readConfiguredProviders(),
     removed: inventory.removed,
     claude: claudeState(),
+    order: order.state,
   }, now);
   /* Redrawn only when something on it changed, so a step in flight keeps
      its button and its line. */
@@ -910,13 +946,13 @@ function paintTools(snapshots, now) {
   paintAccountOffer();
   /* Under Claude's bars while the terminal runtime is older than this app. */
   const runtimeNotice = claudeRuntimeNotice();
-  const usageKey = limitsKey(usage) + (runtimeNotice === null ? "" : "runtime notice");
+  /* The order's generation too: a save that did not land redraws from the
+     order on disk even where the model reads the same as the last drawn. */
+  const usageKey = limitsKey(usage) + (runtimeNotice === null ? "" : "runtime notice") + "@" + order.generation;
   if (usageKey !== drawnUsage) {
     drawnUsage = usageKey;
-    renderLimits(document, elements.usageRows, usage, { handlers: toolHandlers });
-    if (runtimeNotice !== null) {
-      elements.usageRows.querySelector('[data-provider-card][data-provider="CLAUDE"]')?.append(runtimeNotice);
-    }
+    usageNotice = runtimeNotice;
+    usageList.draw(usage);
   } else {
     patchLimits(elements.usageRows, usage);
   }

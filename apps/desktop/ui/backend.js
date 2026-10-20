@@ -242,6 +242,16 @@ export async function setTrayStatus(status) {
   return call("set_tray_status", status);
 }
 
+/** The provider order, { mode, providers, revision } (provider_order.rs). */
+export async function providerOrder() {
+  return call("provider_order");
+}
+
+/** Write the provider order from the revision it was read at; a stale one is refused. */
+export async function setProviderOrder(input) {
+  return call("set_provider_order", { input });
+}
+
 /**
  * Listen for a backend event.
  *
