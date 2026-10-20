@@ -2105,8 +2105,8 @@
         "body": "Pro turns on within a few minutes, once Stripe confirms the payment."
       },
       "confirmed": {
-        "title": "Payment received",
-        "body": "Stripe confirmed the payment, and Pro is on."
+        "title": "Pro is on",
+        "body": "Every Pro service is on for your account."
       },
       "cancel": {
         "title": "Checkout was cancelled",

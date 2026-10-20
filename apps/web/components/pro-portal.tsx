@@ -122,7 +122,9 @@ export function ProPortal({
     /* A return parameter is not proof of payment: anyone can open this
        address. A cancel charged nothing; a success says Pro turns on within a
        few minutes once Stripe confirms the payment, and only an account read
-       that shows Pro on turns it into the confirmed notice (see `paid`). */
+       that shows Pro on turns it into the confirmed notice (see `proOn`). Even
+       then it claims no payment: a complimentary account reads as on too, and
+       nothing here has verified a checkout. */
     setCheckout(outcome);
     const url = new URL(window.location.href);
     url.searchParams.delete("checkout");
@@ -208,9 +210,9 @@ export function ProPortal({
   /* After a success return the account is read again, quietly, until it shows
      Pro on or a few minutes pass: the service turns Pro on once Stripe's
      confirmation reaches it, and the notice says so only then. */
-  const paid = proAccessState(account?.entitlement ?? null) === "active";
+  const proOn = proAccessState(account?.entitlement ?? null) === "active";
   useEffect(() => {
-    if (checkout !== "success" || paid || session === null || session === undefined) return;
+    if (checkout !== "success" || proOn || session === null || session === undefined) return;
     let polls = 0;
     const timer = window.setInterval(() => {
       polls += 1;
@@ -221,8 +223,8 @@ export function ProPortal({
       loadAccount(true);
     }, CHECKOUT_POLL_MS);
     return () => window.clearInterval(timer);
-  }, [checkout, paid, session, loadAccount]);
-  const notice = checkout === "cancel" ? "cancel" : paid ? "confirmed" : "pending";
+  }, [checkout, proOn, session, loadAccount]);
+  const notice = checkout === "cancel" ? "cancel" : proOn ? "confirmed" : "pending";
 
   async function upgrade(interval: ProBillingInterval) {
     if (supabase === null) return;

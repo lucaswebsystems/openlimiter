@@ -2105,8 +2105,8 @@
         "body": "Pro se activa en pocos minutos, en cuanto Stripe confirme el pago."
       },
       "confirmed": {
-        "title": "Pago recibido",
-        "body": "Stripe confirmó el pago y Pro está activo."
+        "title": "Pro está activo",
+        "body": "Todos los servicios Pro están activos en tu cuenta."
       },
       "cancel": {
         "title": "El checkout se canceló",

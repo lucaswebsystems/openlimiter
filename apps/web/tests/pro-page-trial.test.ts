@@ -305,7 +305,7 @@ describe("the return from checkout", () => {
     }
   });
 
-  it("says the payment came through at once when the account already shows Pro on", async () => {
+  it("says Pro is on at once when the account already shows it, claiming no payment", async () => {
     entitlementRow = { plan_state: "active", current_period_end: IN_TEN_DAYS, features: ["alerts", "history"] };
     returnFrom("success");
     const view = await open();
