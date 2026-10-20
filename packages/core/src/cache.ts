@@ -24,7 +24,7 @@ import {
   type CacheSuppression,
   type CollectionReport
 } from "./collection.js";
-import { MAX_CACHE_ENTRIES, mergeSnapshots, snapshotIdentity } from "./merge.js";
+import { MAX_CACHE_ENTRIES, mergeSnapshots, readingOrder, snapshotIdentity } from "./merge.js";
 import { canonicalJson, normalizeMeter, normalizeMeters } from "./normalizer.js";
 import type { ProviderCode, RawMeter, Snapshot } from "./types.js";
 
@@ -765,7 +765,7 @@ export async function mergeAuthoritativeSnapshotCache(
     const byIdentity = new Map(existing.map((row) => [snapshotIdentity(row), row]));
     for (const row of incoming) {
       const previous = byIdentity.get(snapshotIdentity(row));
-      if (previous === undefined || Date.parse(row.observedAt) >= Date.parse(previous.observedAt)) {
+      if (previous === undefined || readingOrder(previous, row) >= 0) {
         byIdentity.set(snapshotIdentity(row), row);
       }
     }
@@ -838,7 +838,8 @@ export async function mergeSnapshotCache(
  * desktop wrote a fresher row for the same identity a moment ago.
  *
  * So the decision is made INSIDE the cache lock, which both processes do share,
- * and it is made per row: the newer `observedAt` wins, and on a tie the row
+ * and it is made per row: the newer reading wins (a Claude window by content,
+ * anything else by `observedAt`; see `readingOrder`), and on a tie the row
  * already in the cache wins. Ties go to the incumbent because the only way to
  * get one is two writers reading the same instant, and in that case the row
  * that is already visible should not flicker.
@@ -865,14 +866,7 @@ export async function mergeAcquiredSnapshots(
     let deferred = 0;
     for (const incoming of report.snapshots) {
       const existing = held.get(snapshotIdentity(incoming));
-      const existingAt = existing === undefined
-        ? null
-        : Date.parse(existing.observedAt);
-      const incomingAt = Date.parse(incoming.observedAt);
-      const loses = existing !== undefined &&
-        Number.isFinite(existingAt) &&
-        Number.isFinite(incomingAt) &&
-        (existingAt as number) >= incomingAt;
+      const loses = existing !== undefined && readingOrder(existing, incoming) <= 0;
       if (loses) {
         deferred += 1;
         continue;

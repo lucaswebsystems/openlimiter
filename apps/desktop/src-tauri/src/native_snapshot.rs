@@ -482,6 +482,47 @@ fn identity(row: &Snapshot) -> String {
     )
 }
 
+/// Two resets at most this far apart name one window: consecutive Claude
+/// windows reset hours apart at the least, while the status line (epoch
+/// seconds) and the poll (a finer instant) disagree by under a second.
+/// TypeScript twin: merge.ts SAME_WINDOW_MILLISECONDS.
+const SAME_WINDOW_MILLISECONDS: u64 = 3_600_000;
+
+/// How a reading compares with the row it would replace, by content alone
+/// (2.1.6). Only a Claude rate limit window has such an order. Inside one
+/// window usage never falls, so a higher value is newer and a lower one is a
+/// replay or a stale reading; a later reset is a new window and an earlier one
+/// an old window. Equal is a question content cannot answer (an equal value, a
+/// row without a reset, a row whose availability says it holds no reading, any
+/// other meter or provider). Shared vectors: claude-poll-vectors.json `order`.
+/// TypeScript twin: merge.ts contentOrder.
+pub(crate) fn content_order(current: &Snapshot, incoming: &Snapshot) -> Ordering {
+    let window = incoming.provider == "CLAUDE"
+        && (incoming.meter == "FIVE_HOUR" || incoming.meter.starts_with("SEVEN_DAY"))
+        && current.availability.is_none()
+        && incoming.availability.is_none();
+    let reset = |row: &Snapshot| row.reset_at.as_deref().and_then(epoch_ms_from_rfc3339);
+    match (window, reset(current), reset(incoming)) {
+        (true, Some(held), Some(next)) if next.abs_diff(held) > SAME_WINDOW_MILLISECONDS => {
+            next.cmp(&held)
+        }
+        (true, Some(_), Some(_)) => incoming
+            .value
+            .partial_cmp(&current.value)
+            .unwrap_or(Ordering::Equal),
+        _ => Ordering::Equal,
+    }
+}
+
+/// `content_order`, and the later observation where content cannot tell, so
+/// an equal value refreshes the age and a lower one refreshes nothing. Each
+/// merge keeps its own rule for Equal, a tie. Observation times still decide
+/// freshness and the stale state. TypeScript twin: merge.ts readingOrder.
+pub(crate) fn reading_order(current: &Snapshot, incoming: &Snapshot) -> Ordering {
+    let observed = |row: &Snapshot| epoch_ms_from_rfc3339(&row.observed_at).unwrap_or(0);
+    content_order(current, incoming).then_with(|| observed(incoming).cmp(&observed(current)))
+}
+
 fn fold(
     text: Option<&str>,
     provider: &str,
@@ -520,10 +561,8 @@ fn fold(
             }) {
                 let key = identity(&row);
                 let existing = rows.iter().position(|current| identity(current) == key);
-                let can_replace = existing.is_none_or(|index| {
-                    epoch_ms_from_rfc3339(&row.observed_at).unwrap_or(0)
-                        >= epoch_ms_from_rfc3339(&rows[index].observed_at).unwrap_or(0)
-                });
+                let can_replace =
+                    existing.is_none_or(|index| reading_order(&rows[index], &row).is_ge());
                 if can_replace {
                     if let Some(index) = existing {
                         rows[index] = row;
@@ -1489,5 +1528,94 @@ mod tests {
             assert_eq!(normalized.limit_amount, None);
             assert_eq!(normalized.currency, None);
         }
+    }
+
+    /// 2.1.6: Claude readings are ordered by content, not by time. The fold
+    /// and the production write (a Claude weekly lands in the authoritative
+    /// store) keep the row the shared vectors name. TypeScript twin:
+    /// merge.test.ts, "Claude readings ordered by content, shared with the
+    /// desktop".
+    #[test]
+    fn every_shared_claude_order_vector() {
+        let document: Value = serde_json::from_str(include_str!(
+            "../../../../packages/core/src/contracts/claude-poll-vectors.json"
+        ))
+        .unwrap();
+        let mut wrong = Vec::new();
+        for vector in document["order"]["vectors"].as_array().unwrap() {
+            let id = vector["id"].as_str().unwrap();
+            let provider = vector["provider"].as_str().unwrap_or("CLAUDE");
+            let meter = vector["meter"].as_str().unwrap_or("FIVE_HOUR");
+            let row = |side: &str| -> Snapshot {
+                let observed = vector[side]["observedAt"].as_str().unwrap();
+                let window = match meter {
+                    "FIVE_HOUR" => serde_json::json!({"kind": "rolling", "durationSeconds": 18_000}),
+                    _ if meter.starts_with("SEVEN_DAY") => {
+                        serde_json::json!({"kind": "rolling", "durationSeconds": 604_800})
+                    }
+                    _ => serde_json::json!({"kind": "unknown"}),
+                };
+                let mut row = serde_json::json!({
+                    "provider": provider, "meter": meter, "value": vector[side]["value"],
+                    "unit": "PERCENT", "window": window, "resetAt": vector[side]["resetAt"],
+                    "source": "internal_payload", "precision": "exact", "observedAt": observed,
+                    "expiresAt": iso_from_epoch_ms(epoch_ms_from_rfc3339(observed).unwrap() + 465_000),
+                    "labels": {
+                        "credentialOrigin": "official-local-tool",
+                        "dataInterfaceStatus": "internal-endpoint",
+                        "automationRisk": "high",
+                        "verification": "UNVERIFIED"
+                    },
+                    "accountId": "vector-account",
+                    "provenance": {"sourceKind": "remote_api", "observedVia": "remote_http"}
+                });
+                if let Some(availability) = vector[side].get("availability") {
+                    row["availability"] = availability.clone();
+                }
+                serde_json::from_value(row).unwrap()
+            };
+            let kept = |text: &str| -> Vec<(f64, String)> {
+                read_document(Some(text))
+                    .unwrap()
+                    .0
+                    .into_iter()
+                    .filter(|row| row.meter == meter)
+                    .map(|row| (row.value, row.observed_at))
+                    .collect()
+            };
+            let expected = &vector[vector["expected"].as_str().unwrap()];
+            let want = vec![(
+                expected["value"].as_f64().unwrap(),
+                expected["observedAt"].as_str().unwrap().to_string(),
+            )];
+            let held = fold(None, provider, Some("vector-account"), &CacheReport::Success(vec![row("held")]))
+                .unwrap();
+            let folded = fold(
+                Some(&held),
+                provider,
+                Some("vector-account"),
+                &CacheReport::Success(vec![row("incoming")]),
+            )
+            .unwrap();
+            if kept(&folded) != want {
+                wrong.push(format!("fold {id}: {:?}", kept(&folded)));
+            }
+            let dir = crate::test_support::TempDir::new();
+            let writer = CacheWriter::at(Some(dir.path().to_path_buf()));
+            for side in ["held", "incoming"] {
+                write_report(&writer, provider, Some("vector-account"), CacheReport::Success(vec![row(side)]))
+                    .unwrap();
+            }
+            let file = if provider == "CLAUDE" && meter.starts_with("SEVEN_DAY") {
+                AUTHORITATIVE_CACHE_FILE_NAME
+            } else {
+                crate::cache_write::CACHE_FILE_NAME
+            };
+            let written = std::fs::read_to_string(dir.path().join(file)).unwrap();
+            if kept(&written) != want {
+                wrong.push(format!("write_report {id}: {:?}", kept(&written)));
+            }
+        }
+        assert!(wrong.is_empty(), "{wrong:#?}");
     }
 }

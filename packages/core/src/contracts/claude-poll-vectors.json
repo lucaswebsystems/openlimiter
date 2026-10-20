@@ -265,5 +265,123 @@
         }
       }
     ]
+  },
+  "order": {
+    "rule": "Two readings of one Claude rate limit window (FIVE_HOUR or a SEVEN_DAY meter, same account) are ordered by content, never by time. Resets at most an hour apart name the same window, where usage never falls: the higher value wins, an equal value goes to the later observation (it refreshes the age), and a lower value is ignored and refreshes nothing. A reset more than an hour later is a new window and replaces the row even at a lower value; one more than an hour earlier is an old window and is ignored. Only a row without a reset time, a row whose availability says it holds no reading, and every other meter or provider keep the later observation. Each vector names the row held and the one arriving; expected names the row the merge keeps, as it was read. Provider defaults to CLAUDE and meter to FIVE_HOUR.",
+    "vectors": [
+      {
+        "id": "identical-times-the-higher-value-stays",
+        "held": { "value": 30, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
+        "incoming": { "value": 20, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
+        "expected": "held"
+      },
+      {
+        "id": "a-higher-value-observed-earlier-wins",
+        "held": { "value": 30, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:01:00.000Z" },
+        "incoming": { "value": 80, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
+        "expected": "incoming"
+      },
+      {
+        "id": "a-lower-value-observed-later-is-ignored",
+        "held": { "value": 30, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T11:30:00.000Z" },
+        "incoming": { "value": 20, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:10:00.000Z" },
+        "expected": "held"
+      },
+      {
+        "id": "a-new-window-replaces-a-higher-value",
+        "held": { "value": 90, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T15:05:00.000Z" },
+        "incoming": { "value": 5, "resetAt": "2026-10-19T20:02:00.000Z", "observedAt": "2026-10-19T15:02:00.000Z" },
+        "expected": "incoming"
+      },
+      {
+        "id": "a-late-reading-from-the-old-window-is-ignored",
+        "held": { "value": 5, "resetAt": "2026-10-19T20:02:00.000Z", "observedAt": "2026-10-19T15:02:00.000Z" },
+        "incoming": { "value": 90, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T15:05:00.000Z" },
+        "expected": "held"
+      },
+      {
+        "id": "an-equal-value-refreshes-the-age",
+        "held": { "value": 40, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
+        "incoming": { "value": 40, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z" },
+        "expected": "incoming"
+      },
+      {
+        "id": "an-equal-value-observed-earlier-keeps-the-later-age",
+        "held": { "value": 40, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z" },
+        "incoming": { "value": 40, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
+        "expected": "held"
+      },
+      {
+        "id": "a-lower-replay-does-not-refresh-the-age",
+        "held": { "value": 40, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
+        "incoming": { "value": 39, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z" },
+        "expected": "held"
+      },
+      {
+        "id": "a-reset-under-an-hour-later-is-the-same-window",
+        "held": { "value": 80, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
+        "incoming": { "value": 70, "resetAt": "2026-10-19T15:59:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z" },
+        "expected": "held"
+      },
+      {
+        "id": "a-reset-over-an-hour-later-is-a-new-window",
+        "held": { "value": 80, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z" },
+        "incoming": { "value": 10, "resetAt": "2026-10-19T16:01:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
+        "expected": "incoming"
+      },
+      {
+        "id": "a-row-without-a-reset-keeps-time-order",
+        "held": { "value": 40, "resetAt": null, "observedAt": "2026-10-19T12:00:00.000Z" },
+        "incoming": { "value": 10, "resetAt": null, "observedAt": "2026-10-19T12:05:00.000Z" },
+        "expected": "incoming"
+      },
+      {
+        "id": "a-reading-without-a-reset-keeps-time-order",
+        "held": { "value": 40, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z" },
+        "incoming": { "value": 90, "resetAt": null, "observedAt": "2026-10-19T12:00:00.000Z" },
+        "expected": "held"
+      },
+      {
+        "id": "a-row-marked-unavailable-keeps-time-order",
+        "held": { "value": 40, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z", "availability": "rate_limited" },
+        "incoming": { "value": 39, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z" },
+        "expected": "incoming"
+      },
+      {
+        "id": "a-weekly-lower-value-is-ignored",
+        "meter": "SEVEN_DAY",
+        "held": { "value": 40, "resetAt": "2026-10-22T12:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
+        "incoming": { "value": 39, "resetAt": "2026-10-22T12:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z" },
+        "expected": "held"
+      },
+      {
+        "id": "a-weekly-model-bucket-higher-value-observed-earlier-wins",
+        "meter": "SEVEN_DAY_FABLE",
+        "held": { "value": 50, "resetAt": "2026-10-22T12:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z" },
+        "incoming": { "value": 60, "resetAt": "2026-10-22T12:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
+        "expected": "incoming"
+      },
+      {
+        "id": "a-new-weekly-window-replaces-a-higher-value",
+        "meter": "SEVEN_DAY",
+        "held": { "value": 95, "resetAt": "2026-10-22T12:00:00.000Z", "observedAt": "2026-10-22T12:05:00.000Z" },
+        "incoming": { "value": 2, "resetAt": "2026-10-29T12:00:00.000Z", "observedAt": "2026-10-22T12:02:00.000Z" },
+        "expected": "incoming"
+      },
+      {
+        "id": "claude-extra-usage-keeps-time-order",
+        "meter": "EXTRA_USAGE",
+        "held": { "value": 40, "resetAt": "2026-11-01T00:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
+        "incoming": { "value": 10, "resetAt": "2026-11-01T00:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z" },
+        "expected": "incoming"
+      },
+      {
+        "id": "another-provider-keeps-time-order",
+        "provider": "CODEX",
+        "held": { "value": 40, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
+        "incoming": { "value": 10, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z" },
+        "expected": "incoming"
+      }
+    ]
   }
 }

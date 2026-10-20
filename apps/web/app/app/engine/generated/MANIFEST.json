@@ -8,7 +8,7 @@
     "core/format.ts": "060178a0ef47ac5d",
     "core/forecast.ts": "5155cb1a6fde4a0e",
     "core/freshness.ts": "ac39aeaff84f6eda",
-    "core/merge.ts": "99ce971bdbf811e7",
+    "core/merge.ts": "f2cc26228dbf0a72",
     "core/normalizer.ts": "651d84c067002a43",
     "core/policy.ts": "a633789edb6b3cc9",
     "core/provider-presentation.ts": "2ce546dce95d154b",

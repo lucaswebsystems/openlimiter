@@ -1,6 +1,31 @@
-import { describe, expect, it } from "vitest";
-import { MAX_CACHE_ENTRIES, mergeSnapshots } from "../src/index.js";
+import { readFileSync } from "node:fs";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import {
+  MAX_CACHE_ENTRIES,
+  applyCollectionReport,
+  mergeAcquiredSnapshots,
+  mergeAuthoritativeSnapshotCache,
+  mergeSnapshots,
+  readCacheState,
+  writeSnapshotCache,
+  type ProviderCode,
+  type Snapshot
+} from "../src/index.js";
 import { snapshot } from "./helpers.js";
+
+const created: string[] = [];
+async function temporaryDirectory(): Promise<string> {
+  const directory = await mkdtemp(path.join(await realpath(tmpdir()), "openlimiter-merge-"));
+  created.push(directory);
+  return directory;
+}
+
+afterEach(async () => {
+  for (const directory of created.splice(0)) await rm(directory, { recursive: true, force: true });
+});
 
 describe("snapshot merge", () => {
   it("replaces one meter and keeps every other meter", () => {
@@ -97,4 +122,57 @@ describe("snapshot merge", () => {
     });
     expect(mergeSnapshots([oauth], [imported])).toHaveLength(2);
   });
+});
+
+/*
+ * 2.1.6: Claude readings are ordered by content, not by time. Every merge that
+ * reconciles two rows for one meter keeps the row the shared vectors name.
+ * Rust twin: native_snapshot.rs, every_shared_claude_order_vector.
+ */
+describe("Claude readings ordered by content, shared with the desktop", () => {
+  interface Side { value: number; resetAt: string | null; observedAt: string; availability?: Snapshot["availability"] }
+  interface Vector { id: string; provider?: ProviderCode; meter?: string; held: Side; incoming: Side; expected: "held" | "incoming" }
+  const vectors = (JSON.parse(readFileSync(path.resolve("packages/core/src/contracts/claude-poll-vectors.json"), "utf8")) as {
+    order: { vectors: Vector[] };
+  }).order.vectors;
+  const row = (vector: Vector, side: Side): Snapshot => {
+    const meter = vector.meter ?? "FIVE_HOUR";
+    return snapshot({
+      provider: vector.provider ?? "CLAUDE",
+      meter,
+      accountId: "vector-account",
+      value: side.value,
+      resetAt: side.resetAt,
+      window: meter === "FIVE_HOUR" ? { kind: "rolling", durationSeconds: 18_000 }
+        : meter.startsWith("SEVEN_DAY") ? { kind: "rolling", durationSeconds: 604_800 } : { kind: "unknown" },
+      source: "internal_payload",
+      observedAt: side.observedAt,
+      expiresAt: new Date(Date.parse(side.observedAt) + 465_000).toISOString(),
+      labels: { credentialOrigin: "official-local-tool", dataInterfaceStatus: "internal-endpoint", automationRisk: "high", verification: "UNVERIFIED" },
+      provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
+      ...(side.availability === undefined ? {} : { availability: side.availability })
+    });
+  };
+  const kept = (rows: readonly Snapshot[]) => rows.map(({ value, observedAt }) => ({ value, observedAt }));
+  for (const vector of vectors) {
+    it(vector.id, async () => {
+      const held = row(vector, vector.held);
+      const incoming = row(vector, vector.incoming);
+      const { value, observedAt } = vector[vector.expected];
+      const expected = [{ value, observedAt }];
+      expect(kept(mergeSnapshots([held], [incoming])), "mergeSnapshots").toEqual(expected);
+      const report = { ok: true as const, provider: incoming.provider, accountId: "vector-account", observedAt: incoming.observedAt, snapshots: [incoming] };
+      expect(kept(applyCollectionReport({ snapshots: [held], suppressions: [] }, report).snapshots), "applyCollectionReport")
+        .toEqual(expected);
+      const acquired = await temporaryDirectory();
+      await writeSnapshotCache([held], acquired);
+      await mergeAcquiredSnapshots(report, acquired);
+      const state = await readCacheState(acquired);
+      expect(kept(state.ok ? state.state.snapshots : []), "mergeAcquiredSnapshots").toEqual(expected);
+      const authoritative = await temporaryDirectory();
+      await mergeAuthoritativeSnapshotCache([held], authoritative, held.observedAt);
+      expect(kept(await mergeAuthoritativeSnapshotCache([incoming], authoritative, incoming.observedAt)), "mergeAuthoritativeSnapshotCache")
+        .toEqual(expected);
+    });
+  }
 });

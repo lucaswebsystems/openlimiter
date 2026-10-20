@@ -38,6 +38,47 @@ function observedMilliseconds(snapshot: Snapshot): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+/**
+ * Two resets at most this far apart name one window: consecutive Claude
+ * windows reset hours apart at the least, while the status line (epoch
+ * seconds) and the poll (a finer instant) disagree by under a second.
+ * Rust twin: native_snapshot.rs SAME_WINDOW_MILLISECONDS.
+ */
+export const SAME_WINDOW_MILLISECONDS = 3_600_000;
+
+/**
+ * How a reading compares with the row it would replace, by content alone
+ * (2.1.6). Only a Claude rate limit window has such an order. Inside one
+ * window usage never falls, so a higher value is newer and a lower one is a
+ * replay or a stale reading; a later reset is a new window and an earlier one
+ * an old window. Positive is newer, negative older, and zero is a question
+ * content cannot answer (an equal value, a row without a reset, a row whose
+ * availability says it holds no reading, any other meter or provider).
+ * Shared vectors: contracts/claude-poll-vectors.json `order`. Rust twin:
+ * native_snapshot.rs content_order.
+ */
+export function contentOrder(current: Snapshot, incoming: Snapshot): number {
+  if (incoming.provider !== "CLAUDE" ||
+    incoming.meter !== "FIVE_HOUR" && !incoming.meter.startsWith("SEVEN_DAY") ||
+    current.availability !== undefined || incoming.availability !== undefined) return 0;
+  const held = Date.parse(current.resetAt ?? "");
+  const reset = Date.parse(incoming.resetAt ?? "");
+  if (!Number.isFinite(held) || !Number.isFinite(reset)) return 0;
+  if (Math.abs(reset - held) > SAME_WINDOW_MILLISECONDS) return Math.sign(reset - held);
+  return Math.sign(incoming.value - current.value);
+}
+
+/**
+ * `contentOrder`, and the later observation where content cannot tell, so
+ * an equal value refreshes the age and a lower one refreshes nothing. Each
+ * merge keeps its own rule for zero, a tie. Observation times still decide
+ * freshness and the stale state. Rust twin: native_snapshot.rs reading_order.
+ */
+export function readingOrder(current: Snapshot, incoming: Snapshot): number {
+  return contentOrder(current, incoming) ||
+    Math.sign(observedMilliseconds(incoming) - observedMilliseconds(current));
+}
+
 function isClaudeStatuslineFallback(snapshot: Snapshot): boolean {
   return snapshot.provider === "CLAUDE" &&
     snapshot.accountId === undefined &&
@@ -68,8 +109,10 @@ function scopedClaudeCoversFallback(
  * Combine cached snapshots with freshly observed ones.
  *
  * One provider and meter pair holds exactly one snapshot. An incoming snapshot
- * replaces the cached snapshot for that pair, every other cached row survives,
- * and the result stays bounded by dropping the least recently observed rows.
+ * replaces the cached snapshot for that pair unless it is the older reading
+ * (`readingOrder`; a tie goes to the incoming one), every other cached row
+ * survives, and the result stays bounded by dropping the least recently
+ * observed rows.
  */
 export function mergeSnapshots(
   existing: readonly Snapshot[],
@@ -83,7 +126,7 @@ export function mergeSnapshots(
   for (const snapshot of incoming) {
     if (isClaudePayloadWeekly(snapshot)) continue;
     const previous = byIdentity.get(identity(snapshot));
-    if (previous === undefined || observedMilliseconds(snapshot) >= observedMilliseconds(previous)) {
+    if (previous === undefined || readingOrder(previous, snapshot) >= 0) {
       byIdentity.set(identity(snapshot), snapshot);
     }
   }

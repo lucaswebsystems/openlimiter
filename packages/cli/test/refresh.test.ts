@@ -595,9 +595,10 @@ describe("the Claude poll switch", () => {
     const transport: AcquisitionTransport = async (request) => {
       if (request.endpoint !== "claude_usage" && !landed) {
         landed = true;
-        // The desktop reads once the Claude lease is free, and Fable is no longer reported.
+        // The desktop reads once the Claude lease is free, and Fable is no longer
+        // reported. Its week is the same one, so its reading is not lower.
         const later = new Date(Date.parse(NOW) + 301_000).toISOString();
-        const desktop: Snapshot = { ...stored, value: 41, observedAt: later, expiresAt: new Date(Date.parse(later) + 465_000).toISOString(), writer: "desktop" };
+        const desktop: Snapshot = { ...stored, value: 42, observedAt: later, expiresAt: new Date(Date.parse(later) + 465_000).toISOString(), writer: "desktop" };
         await mergeAuthoritativeSnapshotCache([desktop], state, later, { provider: "CLAUDE", accountId: stored.accountId, observedAt: later });
         const lease = path.join(state, "acquisition-claude.json");
         const held = JSON.parse(await readFile(lease, "utf8")) as Record<string, unknown>;
@@ -608,7 +609,7 @@ describe("the Claude poll switch", () => {
     await runCli(["refresh"], dependencies(state, home, transport, NOW));
     expect(landed).toBe(true);
     expect(inner.sent.some((request) => request.endpoint === "claude_usage")).toBe(true);
-    expect((await weeklies()).map((row) => row.meter + " " + row.value)).toEqual(["SEVEN_DAY 41"]);
+    expect((await weeklies()).map((row) => row.meter + " " + row.value)).toEqual(["SEVEN_DAY 42"]);
   });
 
   it("keeps the stored Fable when the next poll states a malformed Fable bucket", async () => {
@@ -617,7 +618,12 @@ describe("the Claude poll switch", () => {
     const home = await machineWithLogins();
     await runCli(["config", "set", "providers.claude.poll", "true"], dependencies(state, home, recordingTransport().transport));
     const first = new Date(Date.parse(corpus.now) - 6 * 60_000).toISOString();
-    await runCli(["refresh"], dependencies(state, home, recordingTransport(first).transport, first));
+    /* The read before it covers the same week (the desktop twin's sequence):
+       a reading from an earlier week would now be ignored, not applied. */
+    await runCli(["refresh"], dependencies(state, home, recordingTransport(first, { claude_usage: {
+      seven_day: { utilization: 12, resets_at: "2026-08-11T12:00:00.000Z" },
+      seven_day_fable: { utilization: 33, resets_at: "2026-08-11T12:00:00.000Z" }
+    } }).transport, first));
     const weeklies = async () => {
       const cached = await readSnapshotCache(state);
       return (cached.ok ? cached.snapshots : []).filter((row) => row.provider === "CLAUDE" && row.meter.startsWith("SEVEN_DAY"))
