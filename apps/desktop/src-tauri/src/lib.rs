@@ -23,9 +23,9 @@ mod deps_smoke;
 mod fsx;
 mod gemini_cli_oauth;
 mod grok_oauth;
+#[cfg(any(target_os = "macos", target_os = "linux", test))]
+mod host;
 mod kimi_oauth;
-#[cfg(any(target_os = "macos", test))]
-mod login_path;
 mod native_opencode;
 mod native_readers;
 mod native_snapshot;
@@ -205,7 +205,7 @@ pub fn run() {
     /* Before anything reads PATH or starts a thread: detection scans while
     the builder below is assembled (2.1.7). */
     #[cfg(target_os = "macos")]
-    login_path::import();
+    host::import_login_path();
     tauri::Builder::default()
         /* One running copy (2.1.6), registered first, so a second launch
         hands its arguments over and exits before anything else starts. */
@@ -410,6 +410,14 @@ pub fn run() {
                 provider_detection::request_focus_scan(window.app_handle().clone());
             }
             if let WindowEvent::CloseRequested { api, .. } = event {
+                /* Linux with no tray host: a hidden window would leave the
+                app running where nothing can bring it back, so closing quits
+                there (2.1.7). */
+                #[cfg(target_os = "linux")]
+                if !host::tray_present() {
+                    window.app_handle().exit(0);
+                    return;
+                }
                 api.prevent_close();
                 let _ = window.hide();
             }
