@@ -178,9 +178,11 @@ html.opaque .p-card {
   padding: 0;
 }
 
+/* An agent's mark lines up with the limits' marks: the limits' 0.875rem
+   padding plus their 1.75rem grip gutter, less this card's own 0.5rem. */
 .p-agents .q-agent {
   grid-template-columns: 1rem minmax(0, 1fr) auto;
-  padding-left: 0.25rem;
+  padding-left: 2.125rem;
 }
 
 .p-agents .q-agent .q-mark {
