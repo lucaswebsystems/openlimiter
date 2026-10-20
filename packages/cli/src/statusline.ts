@@ -221,6 +221,11 @@ export interface StatuslineCell {
 /** Two spaces between cells, so a reader can tell one cell from the next. */
 export const CELL_GAP = "  ";
 
+/** Stub with today's measure: string length. */
+export function displayColumns(text: string): number {
+  return text.replace(/\x1b\[[0-9;]*m/gu, "").length;
+}
+
 /**
  * The tilde in front of a value. An estimate always carries it. A reading
  * that could not be refreshed carries it only where the line draws without

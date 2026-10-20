@@ -2,18 +2,23 @@ import { describe, expect, it } from "vitest";
 import { buildAdvice, type Snapshot } from "@openlimiter/core";
 import { DEFAULT_STATUSLINE, type StatuslineConfig } from "../src/config.js";
 import {
-  captionFor, formatResetTime, paintBand, renderPlainStatusline, renderStatuslineLayout,
+  captionFor, displayColumns, formatResetTime, paintBand, renderPlainStatusline, renderStatuslineLayout,
   STATUSLINE_HOSTS, statuslineColor, statuslineWide, type StatuslineHost
 } from "../src/statusline.js";
+import type { StatuslineSession } from "../src/statusline-ingest.js";
 import { GOLDEN_NOW, GOLDEN_SNAPSHOTS } from "./fixtures/statusline-snapshots.js";
 
-/* Status line rows U44 to U48 of the 2026-10-11 UX audit, 2.1.7. */
+/* Status line rows U44 to U48 of the 2026-10-11 UX audit, 2.1.7, in the shape
+   the owner locked in the fix round (decision A): one row of ten block bars. */
 
 const ESCAPE = /\x1b\[[0-9;]*m/gu;
 const row = (overrides: Partial<Snapshot> = {}): Snapshot => ({ ...GOLDEN_SNAPSHOTS[0]!, resetAt: null, ...overrides });
 const render = (
   config: Partial<StatuslineConfig> = {},
-  options: { host?: StatuslineHost; color?: boolean; wide?: boolean; unicode?: boolean; snapshots?: readonly Snapshot[] } = {}
+  options: {
+    host?: StatuslineHost; color?: boolean; wide?: boolean; unicode?: boolean; snapshots?: readonly Snapshot[];
+    session?: StatuslineSession; apiSpend?: unknown;
+  } = {}
 ): string => {
   const snapshots = options.snapshots ?? GOLDEN_SNAPSHOTS;
   return renderStatuslineLayout({
@@ -21,18 +26,26 @@ const render = (
     config: { ...DEFAULT_STATUSLINE, style: "bar", rows: 2, ...config },
     color: options.color ?? false, host: options.host ?? "claude",
     ...(options.wide === undefined ? {} : { wide: options.wide }),
-    ...(options.unicode === undefined ? {} : { unicode: options.unicode })
+    ...(options.unicode === undefined ? {} : { unicode: options.unicode }),
+    ...(options.session === undefined ? {} : { session: options.session }),
+    ...(options.apiSpend === undefined ? {} : { apiSpend: options.apiSpend })
   });
 };
+/** Readings drawn and readings counted out: every one of the fixture's twelve, once. */
+const accounted = (line: string): number =>
+  line.split(" | ").filter((cell) => !/^\+\d+ more$/u.test(cell)).length + Number(/\+(\d+) more$/u.exec(line)?.[1] ?? 0);
 
-describe("U44: the bar style honours the width setting", () => {
-  it("keeps every row inside the width at 80, 120 and 160 columns, on every host, with and without colour", () => {
+describe("decision A and U44: one row of ten block bars inside the width", () => {
+  it("draws one row inside the width at 80, 120 and 160 columns, on every host, with and without colour", () => {
     for (const host of STATUSLINE_HOSTS) {
       for (const width of [80, 120, 160]) {
         for (const color of [false, true]) {
-          const rows = render({ width }, { host, color }).split("\n");
-          expect(rows.length).toBeLessThanOrEqual(2);
-          for (const line of rows) expect(line.replace(ESCAPE, "").length).toBeLessThanOrEqual(width);
+          for (const rows of [1, 2] as const) {
+            const line = render({ width, rows }, { host, color });
+            expect(line.split("\n")).toHaveLength(1);
+            expect(displayColumns(line)).toBeLessThanOrEqual(width);
+            expect(line.replace(ESCAPE, "")).not.toMatch(/\[[█░]{5}\]/u);
+          }
         }
       }
     }
@@ -42,31 +55,70 @@ describe("U44: the bar style honours the width setting", () => {
     expect(new Set([80, 120, 160].map((width) => render({ width }))).size).toBe(3);
   });
 
-  it("truncates for real at 80 columns: the tightest readings stay and the rest are counted", () => {
+  it("keeps the readings closest to their caps and counts every other one exactly", () => {
     const narrow = render({ width: 80 });
-    expect(narrow).toMatch(/\+\d+ more$/u);
-    // OpenCode at 92 and Kimi at 70 are the two readings closest to their caps.
-    expect(narrow).toContain("oc 5h");
-    expect(narrow).toContain("km 5h");
-    // The tighter reading of two is the one kept: Grok's 6 percent never beats them.
-    expect(narrow).not.toContain("gk mo");
+    expect(narrow).toBe("oc 5h [█████████░] 92%!! ↻5h | km 5h [██████░░░░] 70% ↻5h | +10 more");
+    for (const width of [80, 120, 160, 400]) expect(accounted(render({ width }))).toBe(12);
+    expect(render({ width: 400 })).not.toContain("more");
   });
 
-  it("draws five blocks where ten would not fit, and keeps ten where they do", () => {
-    expect(render({ width: 80 })).toMatch(/\[[█░]{5}\]/u);
-    expect(render({ width: 80 })).not.toMatch(/\[[█░]{10}\]/u);
-    expect(render({ width: 400 })).toMatch(/\[[█░]{10}\]/u);
-  });
-
-  it("leaves a line that fits as one row, exactly as before", () => {
+  it("leaves a line that fits exactly as before", () => {
     expect(render({ width: 80 }, { snapshots: [row({ value: 16 })] })).toBe("5h [█░░░░░░░░░] 16%");
   });
+});
 
-  it("stays on one row when the setting says one row", () => {
-    const one = render({ width: 120, rows: 1 });
-    expect(one.split("\n")).toHaveLength(1);
-    expect(one.length).toBeLessThanOrEqual(120);
-    expect(one).toMatch(/\+\d+ more$/u);
+describe("Astra finding 6: ranked by actual pressure, API budget pressure included", () => {
+  const spend = (spendUsd: string) => ({
+    version: 1,
+    sources: [{ id: "src-1", provider: "anthropic", keyLabel: "anthropic", enabled: true, budgetUsd: "100", status: "eligible" }],
+    samples: [{
+      id: "smp-1", sourceId: "src-1", sequence: 1, provider: "anthropic", metricKind: "spend",
+      month: "2026-01-01", spendUsd, balanceUsd: null, observedAt: GOLDEN_NOW, currencySource: "provider_usd"
+    }]
+  });
+
+  it("keeps an API budget at 95 percent over a window at 50 percent", () => {
+    const snapshots = [row({ value: 50 })];
+    expect(render({ width: 25 }, { snapshots, apiSpend: spend("95") })).toBe("an $95.00 | +1 more");
+    expect(render({ width: 25 }, { snapshots, apiSpend: spend("10") })).toBe("5h [█████░░░░░] 50% | +1 more");
+  });
+
+  it("keeps the tightest reading even when it is the last and longest cell in provider order", () => {
+    const snapshots = [
+      row({ value: 10 }),
+      row({ provider: "KIMI", meter: "WINDOW_604800", window: { kind: "rolling", durationSeconds: 604_800 }, value: 97 })
+    ];
+    const line = render({ width: 40 }, { snapshots });
+    expect(line).toContain("97%!!");
+    expect(line).toMatch(/\+1 more$/u);
+  });
+});
+
+describe("Astra finding 5: display columns, and a bounded session head", () => {
+  it("measures display columns, not string length", () => {
+    expect(displayColumns("5h [█░░░░░░░░░] 16% ↻3h20m")).toBe(26);
+    expect(displayColumns("漢字")).toBe(4);
+    expect(displayColumns("é")).toBe(1);
+    expect(displayColumns("\x1b[32mab\x1b[0m")).toBe(2);
+    expect(displayColumns("🔥")).toBe(2);
+  });
+
+  it("keeps a session head of wide and combining characters inside the width", () => {
+    const session = { model: "opus-5-5", effort: "high", dir: "漢字漢字漢字漢字漢字 café", ctx: 42 };
+    for (const width of [60, 80, 120]) {
+      const line = render({ width, visibility: { dir: true } }, { session });
+      expect(line.split("\n")).toHaveLength(1);
+      expect(displayColumns(line)).toBeLessThanOrEqual(width);
+    }
+  });
+
+  it("bounds an oversized session head so the tightest reading and the count still show", () => {
+    const session = { model: "opus-5-5", effort: "high", dir: "a".repeat(300), ctx: 42 };
+    const line = render({ width: 80, visibility: { dir: true } }, { session });
+    expect(displayColumns(line)).toBeLessThanOrEqual(80);
+    expect(line).toContain("…");
+    expect(line).toContain("92%!!");
+    expect(line).toMatch(/\+\d+ more$/u);
   });
 });
 
