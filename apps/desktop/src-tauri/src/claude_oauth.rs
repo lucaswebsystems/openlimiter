@@ -2098,7 +2098,9 @@ mod tests {
             .as_object()
             .is_none_or(|refusals| refusals.is_empty()));
         let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).unwrap();
-        assert!(cache.contains("FIVE_HOUR"));
+        let authoritative =
+            fs::read_to_string(dir.path().join(crate::cache_write::AUTHORITATIVE_CACHE_FILE_NAME)).unwrap();
+        assert!(authoritative.contains("FIVE_HOUR"));
         assert!(!cache.contains("expired_credentials"));
     }
 
@@ -2421,6 +2423,7 @@ mod tests {
             .as_array()
             .unwrap()
             .iter()
+            .filter(|row| row["meter"].as_str().unwrap().starts_with("SEVEN_DAY"))
             .map(|row| format!("{} {}", row["meter"].as_str().unwrap(), row["value"]))
             .collect();
         rows.sort();
@@ -2496,8 +2499,12 @@ mod tests {
             &fs::read_to_string(dir.path().join(crate::cache_write::AUTHORITATIVE_CACHE_FILE_NAME)).unwrap(),
         )
         .unwrap();
-        let weekly = &stored["snapshots"][0];
-        assert_eq!(weekly["meter"], "SEVEN_DAY");
+        let weekly = stored["snapshots"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["meter"] == "SEVEN_DAY")
+            .expect("the weekly");
         assert_eq!(
             weekly["expiresAt"].as_str(),
             iso_from_epoch_ms(NOW + crate::data_rules::CLAUDE_FRESHNESS_SECONDS * 1_000).as_deref()

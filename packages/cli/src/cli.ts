@@ -32,6 +32,7 @@ import {
   openrouterSpec,
   readAcquisitionCredential,
   readAcquisitionSchedule,
+  readClaudePoll,
   readSnapshotCache,
   readWindowsCredentialWith,
   resolveStateDirectory,
@@ -1003,8 +1004,10 @@ async function refreshCommand(
       }
       if (!report.ok) return;
       try {
+        /* The session row joins the weeklies, where a legacy status line
+           payload cannot overwrite it. Rust twin: native_snapshot.rs write_report_with. */
         const pollRows = report.snapshots.filter((row) =>
-          row.provider === "CLAUDE" && row.meter.startsWith("SEVEN_DAY"));
+          row.provider === "CLAUDE" && (row.meter === "FIVE_HOUR" || row.meter.startsWith("SEVEN_DAY")));
         /* A Claude poll that read the account's whole weekly set removes a
            weekly it no longer reports; a partial read deletes nothing. */
         if (report.provider === "CLAUDE") {
@@ -1223,6 +1226,11 @@ async function ingestStandardInput(
         ? parseGrokStatuslinePayload(document.value, now)
         : parseClaudePayload(document.value, now);
     if (meters === null) return { snapshots: null, payload: document.value };
+    /* While the direct request is on it is the only source of every Claude
+       row, so Claude's payload writes nothing and draws nothing. */
+    if (host === "claude" && await readClaudePoll(dependencies.stateDirectory ?? resolveStateDirectory())) {
+      return { snapshots: null, payload: document.value };
+    }
     const provenance = host === "antigravity"
       ? ANTIGRAVITY_STATUSLINE_PROVENANCE
       : host === "grok"

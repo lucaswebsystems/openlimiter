@@ -734,11 +734,17 @@ pub fn write_report_with(
     report: CacheReport,
     weekly_complete: bool,
 ) -> Result<(), CacheWriteError> {
+    /* The session row joins the weeklies in the authoritative file, where a
+    legacy status line payload cannot overwrite it (2.1.7). TypeScript twin:
+    cli.ts refreshCommand persist. */
+    let poll_owned = |row: &Snapshot| {
+        provider == "CLAUDE" && (row.meter == "FIVE_HOUR" || row.meter.starts_with("SEVEN_DAY"))
+    };
     let authoritative = match &report {
         CacheReport::Success(rows) if provider == "CLAUDE" => rows
             .iter()
             .filter(|row| {
-                row.meter.starts_with("SEVEN_DAY")
+                poll_owned(row)
                     && row
                         .provenance
                         .as_ref()
@@ -753,7 +759,7 @@ pub fn write_report_with(
     let main_report = match &report {
         CacheReport::Success(rows) => CacheReport::Success(
             rows.iter()
-                .filter(|row| !(provider == "CLAUDE" && row.meter.starts_with("SEVEN_DAY")))
+                .filter(|row| !poll_owned(row))
                 .cloned()
                 .collect(),
         ),
