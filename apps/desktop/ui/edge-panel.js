@@ -12,11 +12,17 @@
  * their grips (reorder.js). The panel never takes focus, so it gets the
  * pointer drag and the grip's menu; while either is under way it holds itself
  * open, and a native Escape ends the drag or the menu before the panel.
+ *
+ * Its refresh button is the window's: the same pass over the providers Home
+ * has in play, the same busy state and the same sentences (home-refresh.js).
  */
 import { holdReadings, limitsKey, limitsModel, officialMark, patchLimits, projectReadings, renderLimits, updatedLabel } from "./readings.js";
 import { createOrderStore, ORDER_CHANGED_EVENT, reorderList } from "./reorder.js";
 import { agentsModel, locateSentence, renderAgents, runningLabel } from "./agents.js";
-import { freshestObservation } from "./home-refresh.js";
+import { bindHomeRefresh, freshestObservation } from "./home-refresh.js";
+import { homeProviders } from "./home-state.js";
+import { readConfiguredProviders, readRemovedProviders } from "./configured-providers.js";
+import { normalizeConnectionList } from "./backend.js";
 import { say } from "./names.js";
 import { followTheme } from "./edge-tab.js";
 
@@ -67,11 +73,14 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
     updated: $("panel-updated"), agents: $("panel-agents"), agentRows: $("panel-agent-rows"), note: $("panel-note"),
     limits: $("panel-limits"), state: $("panel-state"), stateTitle: $("panel-state-title"), stateDetail: $("panel-state-detail"),
     running: $("panel-running"), runningText: $("panel-running-text"), open: $("panel-open"),
+    refresh: $("panel-refresh"), refreshStatus: $("panel-refresh-status"),
   };
   let stopped = false;
   let pending = false;
   // Asked again while a read was under way: one more read when it ends.
   let again = false;
+  // Waiting for the next read to land, and told whether it read the cache.
+  let waiting = [];
   let timer;
   let drawnLimits = "";
   let drawnAgents = "";
@@ -90,9 +99,10 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
     reported = height;
     void Promise.resolve(invoke("plugin:rail|rail_card_height", { height })).catch(() => {});
   };
-  // Rows that change size after a draw (a font arriving, a line wrapping) report too.
+  // Rows that change size after a draw (a font arriving, a line wrapping) report too, as does the refresh sentence.
   const resized = typeof ResizeObserver === "function" ? new ResizeObserver(() => reportHeight()) : null;
   resized?.observe(view.content);
+  resized?.observe(view.refreshStatus);
 
   /* The order, through the same two commands and event as the window. */
   const settled = (promise) => Promise.resolve(promise).then((value) => ({ ok: true, value }), () => ({ ok: false }));
@@ -128,11 +138,15 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
     cancel(timer);
     pending = true;
     again = false;
+    const served = waiting;
+    waiting = [];
+    let read = false;
     const at = now();
     try {
       const [cache, manual, rail, poll] = await Promise.allSettled([
         invoke("read_cache"), invoke("read_manual"), invoke("plugin:rail|rail_snapshot", {}), invoke("claude_poll_enabled"),
       ]);
+      read = cache.status === "fulfilled";
       if (stopped) return;
       /* A failed read (native code rejects a cache it cannot read or parse)
          keeps what is still fresh of the rows already drawn, by the one
@@ -169,10 +183,33 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
       reportHeight();
     } finally {
       pending = false;
+      served.forEach((resolve) => resolve(read));
       if (!stopped && again) void refresh();
       else if (!stopped && shown) timer = schedule(refresh, interval);
     }
   }
+  /* A read that starts no earlier than this, and whether it read the cache:
+     one under way when asked is already too old. */
+  const reread = () => stopped ? Promise.resolve(false) : new Promise((resolve) => {
+    waiting.push(resolve);
+    void refresh();
+  });
+
+  /* Refresh asks for the window's pass, over the providers Home has in play
+     (set up, found, connected or showing, never one a person removed), then
+     reads again so the time says when it landed. */
+  bindHomeRefresh({
+    button: view.refresh,
+    status: view.refreshStatus,
+    readNow: async () => {
+      await reread();
+      const [detected, connected] = await Promise.all([settled(invoke("list_detected_providers")), settled(invoke("list_connections"))]);
+      const providers = homeProviders(readConfiguredProviders(), detected.ok ? detected.value : null,
+        connected.ok ? normalizeConnectionList(connected.value) : [], held, readRemovedProviders());
+      return settled(invoke("refresh_home", { providers: providers.map((provider) => provider.toLowerCase()) }));
+    },
+    repaint: reread,
+  });
 
   const close = () => void invoke("plugin:rail|rail_card_close", {}).catch(() => {});
   const openApp = async () => {

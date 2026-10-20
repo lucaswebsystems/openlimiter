@@ -9,7 +9,8 @@ import { ORDER_CHANGED_EVENT } from "./dist/reorder.js";
 
 const NOW = Date.parse("2026-09-29T12:00:00.000Z");
 const IDS = ["panel-card", "panel-scroll", "panel-content", "panel-updated", "panel-agents", "panel-agent-rows", "panel-note",
-  "panel-limits", "panel-state", "panel-state-title", "panel-state-detail", "panel-running", "panel-running-text", "panel-open"];
+  "panel-limits", "panel-state", "panel-state-title", "panel-state-detail", "panel-running", "panel-running-text", "panel-open",
+  "panel-refresh", "panel-refresh-status"];
 // What native code hands the window when it cannot read or parse the cache.
 const UNREADABLE = "The saved readings could not be read.";
 const flush = () => new Promise((resolve) => setImmediate(resolve));
@@ -37,6 +38,13 @@ function panel({ cache, sessions = [], windows, event, content = 300, cardOpen =
     if (command === "plugin:rail|rail_snapshot") return { accounts: [], flags: [], sessions, window: { cardOpen } };
     if (command === "plugin:activity|activity_locate") return "focused";
     if (command === "provider_order") return source.order;
+    // What Home's refresh reads to choose its providers, and the pass itself.
+    if (command === "list_detected_providers") return source.detected ?? { providers: [] };
+    if (command === "list_connections") return source.connections ?? [];
+    if (command === "refresh_home") {
+      if (source.refresh === "refused") throw { kind: "busy" };
+      return source.refresh ?? { succeeded: true, failed_providers: [] };
+    }
     if (command === "set_provider_order") {
       if (source.failWrite) throw { kind: "storage" };
       if (args.input.revision !== (source.order?.revision ?? 0)) throw { kind: "stale_revision" };
@@ -413,4 +421,75 @@ test("the panel window may invoke only what its capability grants", () => {
   const commands = readFileSync(new URL("../src-tauri/build_support/rail.rs", import.meta.url), "utf8");
   assert.match(commands, /"rail_card_height"/u);
   assert.match(commands, /"rail_card_hold"/u);
+});
+
+/* The refresh button (2.1.8) is the window's own: the same refresh_home pass
+   over the providers Home has in play (set up, found, connected or showing,
+   never one a person removed), its icon turning while it runs, the time
+   saying when it landed, and a plain sentence when it did not. A click
+   neither closes the panel nor holds it open. */
+test("the refresh button asks for the pass Home's refresh asks for, turns while it runs and says when it lands", async () => {
+  const stored = {
+    "openlimiter-configured-providers-v1": JSON.stringify(["CURSOR", "OPENROUTER"]),
+    "openlimiter-removed-providers-v1": JSON.stringify(["OPENROUTER"]),
+  };
+  globalThis.window = { localStorage: { getItem: (key) => stored[key] ?? null } };
+  try {
+    const { view, calls, source, stop, fixtures } = panel();
+    await flush();
+    assert.equal(view("panel-updated").textContent, "Updated 2 min ago");
+    source.detected = { providers: [{ provider_id: "gemini_cli", state: "present" }, { provider_id: "grok", state: "absent" }] };
+    source.connections = [{ id: "kimi-1", provider_id: "kimi", credential_kind: "api_key" }];
+    let land;
+    source.refresh = new Promise((resolve) => { land = resolve; });
+    const button = view("panel-refresh");
+    const pressed = button.fire("click");
+    for (let turn = 0; turn < 6; turn++) await flush();
+    assert.equal(button.getAttribute("aria-busy"), "true");
+    assert.equal(button.disabled, true);
+    const asked = calls.filter(([command]) => command === "refresh_home");
+    assert.equal(asked.length, 1);
+    assert.deepEqual(asked[0][1].providers.toSorted(), ["claude", "codex", "cursor", "gemini_cli", "kimi"]);
+    // The pass lands, and what it wrote is a moment old.
+    source.cache = { ...fixtures.projected, snapshots: fixtures.projected.snapshots.map((snapshot) => ({ ...snapshot, observedAt: new Date(NOW).toISOString() })) };
+    land({ succeeded: true, failed_providers: [] });
+    await pressed;
+    assert.equal(button.getAttribute("aria-busy"), "false");
+    assert.equal(button.disabled, false);
+    assert.equal(view("panel-updated").textContent, "Updated just now");
+    assert.equal(view("panel-refresh-status").textContent, "");
+    assert.equal(calls.some(([command]) => ["plugin:rail|rail_card_close", "plugin:rail|rail_card_hold"].includes(command)), false);
+    stop();
+  } finally {
+    delete globalThis.window;
+  }
+});
+
+test("a refresh that does not land says so in a plain sentence, and the button is ready again", async () => {
+  const { view, source, stop } = panel();
+  await flush();
+  const button = view("panel-refresh");
+  source.refresh = { succeeded: false, failed_providers: ["codex"] };
+  await button.fire("click");
+  assert.equal(view("panel-refresh-status").textContent, "Some readings could not refresh; try again shortly.");
+  assert.equal(button.disabled, false);
+  assert.equal(button.getAttribute("aria-busy"), "false");
+  // Refused outright, which the window's command call reports the same way.
+  source.refresh = "refused";
+  await button.fire("click");
+  assert.equal(view("panel-refresh-status").textContent, "Some readings could not refresh; try again shortly.");
+  // The next pass that lands clears the sentence.
+  source.refresh = null;
+  await button.fire("click");
+  assert.equal(view("panel-refresh-status").textContent, "");
+  stop();
+});
+
+test("the panel's refresh button carries the window's icon, a name and a tooltip", () => {
+  const icon = (html, id) => html.match(new RegExp(`<button[^>]*id="${id}"[^>]*>([^]*?)</button>`, "u"))?.[1].match(/<path[^>]*>/gu)?.join("");
+  const windowHtml = readFileSync(new URL("./index.html", import.meta.url), "utf8");
+  const panelHtml = readFileSync(new URL("./edge-panel.html", import.meta.url), "utf8");
+  assert.ok(icon(windowHtml, "home-refresh"));
+  assert.equal(icon(panelHtml, "panel-refresh"), icon(windowHtml, "home-refresh"));
+  assert.match(panelHtml, /<button type="button" id="panel-refresh"[^>]*aria-label="Refresh"[^>]*title="Refresh now"/u);
 });

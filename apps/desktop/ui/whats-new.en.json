@@ -3,6 +3,11 @@
   "versionLabel": "Version {version}",
   "dismiss": "Got it",
   "releases": {
+    "2.1.8": {
+      "heading": "Logos stay in view",
+      "grip": "The reorder grip now sits beside each provider's logo instead of replacing it.",
+      "refresh": "The edge panel has a refresh button."
+    },
     "2.1.7": {
       "heading": "Your order, one Claude source",
       "claude": "Every Claude bar comes from one source. The direct request to Anthropic is off unless you turn it on in Connect Tools; if an earlier version turned it on, it stays on until you turn it off there.",

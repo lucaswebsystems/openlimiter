@@ -2,6 +2,12 @@
 
 All notable project changes appear in this file.
 
+## [2.1.8]
+
+The reorder grip now sits beside each provider's logo instead of replacing it.
+
+The edge panel has a refresh button.
+
 ## [2.1.7]
 
 Every Claude bar comes from one source. The direct request to Anthropic is off unless you turn on Read my Claude usage from Anthropic in Connect Tools, and nothing asks you to; if an earlier version turned it on, it stays on until you turn it off there. While it is off, Claude bars come from Claude Code's status line; while it is on, every Claude bar comes from that request, about every five minutes, and a failed request says so beside the bars it leaves.
