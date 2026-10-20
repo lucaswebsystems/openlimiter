@@ -90,19 +90,20 @@ impl ClaudePollSetting {
     ///
     /// The first 2.1.7 run moves a choice the command line tool recorded on in
     /// its legacy keys into the store of truth, when that holds no choice yet.
-    /// Off needs no move: no document already reads as off. TypeScript twin:
-    /// config.ts migrateLegacyClaudePoll.
+    /// Off needs no move: no document already reads as off. Both facts are
+    /// read again inside the shared lock, so a 2.1.5 setter that saved off
+    /// while this waited wins. TypeScript twin: config.ts
+    /// migrateLegacyClaudePoll.
     pub fn status(&self) -> PollStatus {
         let read = || crate::state::read_claude_poll(self.directory.as_deref());
-        if read() == Ok(None) {
-            if let Some(directory) = self.directory.as_deref() {
-                if crate::cli_config::legacy_claude_poll(directory) {
-                    let _ = crate::cli_config::with_lock(directory, || {
-                        if read() == Ok(None) {
-                            let _ = write_document(directory, true);
-                        }
-                    });
-                }
+        if let Some(directory) = self.directory.as_deref() {
+            let due = || read() == Ok(None) && crate::cli_config::legacy_claude_poll(directory);
+            if due() {
+                let _ = crate::cli_config::with_lock(directory, || {
+                    if due() {
+                        let _ = write_document(directory, true);
+                    }
+                });
             }
         }
         match read() {

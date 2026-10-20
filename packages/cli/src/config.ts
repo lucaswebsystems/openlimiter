@@ -403,19 +403,20 @@ export async function setClaudePoll(
 /**
  * The first 2.1.7 run: a choice this tool recorded on in its legacy keys
  * moves into the store of truth when that holds no choice yet. Off needs no
- * move, because no document already reads as off. Rust twin:
- * claude_poll_setting.rs status.
+ * move, because no document already reads as off. Both facts are read again
+ * inside the shared lock, so a 2.1.5 setter that saved off while this waited
+ * wins. Rust twin: claude_poll_setting.rs status.
  */
 export async function migrateLegacyClaudePoll(directory = resolveStateDirectory()): Promise<void> {
-  const missing = async () => {
+  const due = async () => {
     const document = await readJsonFileSafely(path.join(directory, CLAUDE_POLL_FILE_NAME));
-    return !document.ok && document.reason === "missing";
+    if (document.ok || document.reason !== "missing") return false;
+    const legacy = (await readProvidersConfig(directory)).claude;
+    return legacy.recorded && legacy.poll;
   };
-  if (!(await missing())) return;
-  const legacy = (await readProvidersConfig(directory)).claude;
-  if (!(legacy.recorded && legacy.poll)) return;
+  if (!(await due())) return;
   await withStateLock(directory, async () => {
-    if (await missing()) await writeClaudePollDocument(directory, true);
+    if (await due()) await writeClaudePollDocument(directory, true);
   });
 }
 
