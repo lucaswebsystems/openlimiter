@@ -209,6 +209,32 @@ test("a reading whose window reset never raises an alert or stays drawn, even wh
   assert.deepEqual(holdReadings([reset], now, true), []);
 });
 
+/* Astra fix round, finding 6: a failed Claude usage request (a refused login,
+   a rate limit, a response OpenLimiter cannot read) is a plain note beside the
+   readings it left aging, and in the empty state. The bars keep their own look. */
+test("a failed Claude usage request is a plain note beside its aging readings and in the empty state", () => {
+  const claudeRows = fixtures.projected.snapshots.filter((row) => row.provider === "CLAUDE");
+  for (const [reason, fixKind, key] of [
+    ["expired_credentials", "open_app", "claudeRequestRefused"],
+    ["access_denied", "reconnect", "claudeRequestRefused"],
+    ["rate_limited", "open_app", "claudeRequestRateLimited"],
+    ["schema_drift", "unsupported", "claudeRequestDrift"],
+  ]) {
+    assert.ok(say(key).length > 0, key);
+    const flags = [{ provider: "CLAUDE", accountId: ACCOUNTS.claude, reason, fixKind }];
+    const { usage, tools } = splitInventory(inventoryModel({ snapshots: claudeRows, flags, claudePoll: true }, now));
+    const beside = usage.find((tool) => tool.code === "CLAUDE");
+    assert.equal(beside.note, say(key), reason);
+    assert.deepEqual(beside.windows, limitsModel(claudeRows, now)[0].windows, "the readings stay as drawn");
+    assert.equal(beside.action, null, "a plain note, no step");
+    assert.deepEqual(beside.extra, [], "not offered again as a fix");
+    assert.equal(tools.find((tool) => tool.code === "CLAUDE").note, say(key), reason);
+    const empty = inventoryModel({ snapshots: [], flags, claude: "CONNECTED", claudePoll: true }, now).find((tool) => tool.code === "CLAUDE");
+    assert.equal(empty.note, say(key), reason);
+    assert.equal(empty.action, null, reason);
+  }
+});
+
 /* Astra fix round, finding 4: rows held through a failed read are drawn only
    from the Claude source the switch selects now, so a number from the source
    it left never stays on screen. */
