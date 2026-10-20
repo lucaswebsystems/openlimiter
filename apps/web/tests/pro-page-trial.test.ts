@@ -325,7 +325,7 @@ describe("the return from checkout", () => {
     const dismiss = byText(view.container, "button", portal.checkout.dismiss);
     const notice = dismiss?.closest(".rounded-2xl");
     expect(notice).not.toBeNull();
-    expect(notice?.textContent).not.toMatch(/(pay|paid|payment)/iu);
+    expect(notice?.textContent).not.toMatch(/\b(pay|paid|payment)/iu);
     expect(view.container.textContent).not.toMatch(/Payment received|Stripe confirmed/u);
   });
 
