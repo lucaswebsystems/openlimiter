@@ -351,9 +351,21 @@ export function reorderList(doc, mount, { store, render, hold = () => {}, scroll
     grip.setAttribute("aria-controls", element.id);
     menu = { grip, group, code, element };
     hold(true, "menu");
-    /* It opens downward unless that runs past what is visible. */
-    const box = element.getBoundingClientRect();
-    if (box.bottom > edges().bottom && box.top - box.height > edges().top) element.dataset.up = "";
+    /* Whole on screen, measured where it lands: under the grip, or over it,
+       or else under it and scrolled into view (a list can always scroll down
+       to it, never above its own top). */
+    const area = edges();
+    const whole = () => {
+      const box = element.getBoundingClientRect();
+      return box.top >= area.top - 0.5 && box.bottom <= area.bottom + 0.5;
+    };
+    if (!whole()) {
+      element.dataset.up = "";
+      if (!whole()) {
+        delete element.dataset.up;
+        element.scrollIntoView?.({ block: "nearest" });
+      }
+    }
     if (byKeyboard) [...element.children].find((item) => !item.disabled)?.focus();
   }
 
