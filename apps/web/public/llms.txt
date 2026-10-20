@@ -2,7 +2,7 @@
 
 > OpenLimiter is a local first quota meter for AI coding subscriptions. It reads the quota your own machine already knows about, keeps every number bounded, and gives coding agents a budget context block they can act on.
 
-Version 2.1.6. Licence: Apache 2.0. Site: https://openlimiter.com
+Version 2.1.7. Licence: Apache 2.0. Site: https://openlimiter.com
 
 When you hold several AI coding subscriptions at once, the scarce resource stops being money and becomes quota. You have already paid. The question is which of the windows you paid for still has room in it, and OpenLimiter puts that answer in front of you and the agent that is spending it, as bounded state rather than prose.
 
@@ -63,7 +63,7 @@ Moonshot is read as a balance rather than as spend: three separate figures, avai
 
 ## Connectors
 
-Eight connectors ship in 2.1.6, plus manual entry, and the desktop app also reads Cursor as an experimental connector. None is verified against a live account yet: Codex and Cursor pass their recorded fixtures, and every other connector is marked UNVERIFIED. `openlimiter refresh` reaches the network for the six connectors that read their own login; the rest are parsers over something already local.
+Eight connectors ship in 2.1.7, plus manual entry, and the desktop app also reads Cursor as an experimental connector. None is verified against a live account yet: Codex and Cursor pass their recorded fixtures, and every other connector is marked UNVERIFIED. `openlimiter refresh` reaches the network for the six connectors that read their own login; the rest are parsers over something already local.
 
 - `claude`: reads the Claude Code status line automatically. A direct usage request is off until you turn it on, and once on it is the source of every Claude bar. Documented status line payload; the direct request is an internal Anthropic endpoint, sent only to Anthropic with your own Claude Code login, about every five minutes, and Anthropic's policy for tools like this is unresolved. Low automation risk.
 - `openrouter`: real OAuth from the hub, then a documented key and usage report. Low automation risk.
