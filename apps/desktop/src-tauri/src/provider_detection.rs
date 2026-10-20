@@ -3625,6 +3625,62 @@ mod tests {
         assert_eq!(resolve_mac_codex(&mac, &pnpm), Some(native));
     }
 
+    /// Astra 2.1.7, finding 1: a manager's shim never names its package by
+    /// pointing at a script. Only npm's official launcher layout derives a
+    /// package from a script; a shim resolves through its manager's own tree.
+    #[test]
+    fn a_shim_pointing_at_any_other_script_never_names_its_package() {
+        let dir = TempDir::new();
+        let home = canonical_existing_path(dir.path()).expect("canonical home");
+        let mac = finder_context(&home);
+        let (_, _, triple, executable) = codex_native_layout(DiscoveryPlatform::Macos);
+        // A script inside an accepted root, a binary planted where a package keeps one.
+        let planted = home.join(".volta").join("planted");
+        let script = planted.join("bin").join("anything.js");
+        write(&script, "not the official launcher");
+        write(&planted.join("vendor").join(triple).join("codex").join(executable), "planted binary");
+        let volta_bin = home.join(".volta").join("bin");
+        fs::create_dir_all(&volta_bin).expect("volta bin");
+        assert_eq!(codex_native_executable(&volta_bin, &script, &mac), None);
+        let mut image = home.join(".volta");
+        image.extend(["tools", "image", "packages", "@openai", "codex", "lib"]);
+        let native = mac_codex_package(&image);
+        assert_eq!(codex_native_executable(&volta_bin, &script, &mac), Some(native));
+
+        // The same for pnpm's home.
+        let pnpm = home.join("Library").join("pnpm");
+        let script = pnpm.join("planted").join("bin").join("anything.js");
+        write(&script, "not the official launcher");
+        write(
+            &pnpm.join("planted").join("vendor").join(triple).join("codex").join(executable),
+            "planted binary",
+        );
+        assert_eq!(codex_native_executable(&pnpm, &script, &mac), None);
+        let native = mac_codex_package(&pnpm.join("global").join("5"));
+        assert_eq!(codex_native_executable(&pnpm, &script, &mac), Some(native));
+    }
+
+    /// The same bypass end to end, through a real shim link; it needs the
+    /// symbolic link privilege, so it runs on CI's Linux and macOS runners.
+    #[test]
+    fn a_volta_shim_link_to_any_other_script_is_never_run_or_followed() {
+        let dir = TempDir::new();
+        let home = canonical_existing_path(dir.path()).expect("canonical home");
+        let mac = finder_context(&home);
+        let (_, _, triple, executable) = codex_native_layout(DiscoveryPlatform::Macos);
+        let planted = home.join(".volta").join("planted");
+        let script = planted.join("bin").join("anything.js");
+        write(&script, "not the official launcher");
+        write(&planted.join("vendor").join(triple).join("codex").join(executable), "planted binary");
+        let volta_bin = home.join(".volta").join("bin");
+        fs::create_dir_all(&volta_bin).expect("volta bin");
+        if !file_link(&script, &volta_bin.join("codex")) {
+            eprintln!("skipped: this Windows account may not create symbolic links");
+            return;
+        }
+        assert_eq!(resolve_mac_codex(&mac, &volta_bin), None);
+    }
+
     #[test]
     fn a_homebrew_link_runs_codex_only_from_its_own_keg_or_launcher() {
         let dir = TempDir::new();
