@@ -517,14 +517,15 @@ async function claudeRefused(snapshots: readonly Snapshot[], now: string, direct
 export async function claudeWeeklyHint(
   snapshots: readonly Snapshot[],
   now: string,
-  directory: string
+  directory: string,
+  pollOn?: boolean
 ): Promise<string | undefined> {
   if (!snapshots.some((snapshot) => snapshot.provider === "CLAUDE") ||
       readingsFor(snapshots, "CLAUDE", now).some(({ snapshot }) =>
         snapshot.meter.startsWith("SEVEN_DAY") && !isAvailabilitySnapshot(snapshot))) {
     return undefined;
   }
-  if (!(await readClaudePoll(directory))) return "7d off";
+  if (!(pollOn ?? await readClaudePoll(directory))) return "7d off";
   return await claudeRefused(snapshots, now, directory) ? "7d refused" : "7d waiting";
 }
 

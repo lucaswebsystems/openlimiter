@@ -592,8 +592,8 @@ function withFailures(
   return [body, ...failureLines(dedupeFailures(failures), color)].join("\n");
 }
 
-async function cachedSnapshots(directory?: string): Promise<Snapshot[]> {
-  const cached = await readSnapshotCache(directory);
+async function cachedSnapshots(directory?: string, pollOn?: boolean): Promise<Snapshot[]> {
+  const cached = await readSnapshotCache(directory, pollOn);
   return cached.ok ? cached.snapshots : [];
 }
 
@@ -1192,7 +1192,8 @@ const help = [
 async function ingestStandardInput(
   dependencies: CliDependencies,
   now: string,
-  host: StatuslineHost = "claude"
+  host: StatuslineHost,
+  pollOn: boolean
 ): Promise<{ snapshots: Snapshot[] | null; payload: unknown } | null> {
   if (host === "codex" || host === "shell") return null;
   try {
@@ -1212,7 +1213,7 @@ async function ingestStandardInput(
     if (meters === null) return { snapshots: null, payload: document.value };
     /* While the direct request is on it is the only source of every Claude
        row, so Claude's payload writes nothing and draws nothing. */
-    if (host === "claude" && await readClaudePoll(dependencies.stateDirectory ?? resolveStateDirectory())) {
+    if (host === "claude" && pollOn) {
       return { snapshots: null, payload: document.value };
     }
     const provenance = host === "antigravity"
@@ -1231,7 +1232,7 @@ async function ingestStandardInput(
       merged = (await mergeSnapshotCache(incoming, dependencies.stateDirectory ?? resolveStateDirectory(), Date.parse(now))).merged;
     } catch (error) {
       await recordStatuslineFailure(dependencies.stateDirectory, now, "cache_write", error);
-      const existing = await cachedSnapshots(dependencies.stateDirectory);
+      const existing = await cachedSnapshots(dependencies.stateDirectory, pollOn);
       return { snapshots: mergeSnapshots(existing, incoming), payload: document.value };
     }
     try {
@@ -1507,13 +1508,15 @@ async function statuslineCommand(
   const host: StatuslineHost = hostFlag !== undefined && isStatuslineHost(hostFlag)
     ? (hostFlag.toLowerCase() as StatuslineHost)
     : "claude";
-  const ingested = await ingestStandardInput(dependencies, now, host);
-  const cached = await cachedSnapshots(dependencies.stateDirectory);
-  /* The render set holds only the Claude rows the switch selects, for every
-     host and write failure fallback. The cache reader already applies the
-     rule; what ingestion hands back is the unguarded main cache, so it passes
-     the same predicate before the merge, where it could otherwise win. */
-  const pollOn = await readClaudePoll(dependencies.stateDirectory ?? resolveStateDirectory());
+  /* One read of the Claude request switch per render. What is ingested, the
+     cache read, the rows ingestion hands back (the unguarded main cache, write
+     failure fallback included) and the weekly hint all follow this one value,
+     so a switch flip while the render runs never draws the source it did not
+     select. */
+  const directory = dependencies.stateDirectory ?? resolveStateDirectory();
+  const pollOn = await readClaudePoll(directory);
+  const ingested = await ingestStandardInput(dependencies, now, host, pollOn);
+  const cached = await cachedSnapshots(dependencies.stateDirectory, pollOn);
   const snapshots = ingested?.snapshots === null || ingested === null
     ? cached
     : mergeSnapshots(cached, ingested.snapshots.filter((row) => claudeRowCounts(row, pollOn)));
@@ -1535,7 +1538,7 @@ async function statuslineCommand(
   const advice = buildAdvice(snapshots, now, PROVIDER_CODES);
   const config = await readStatuslineConfig(dependencies.stateDirectory);
   const pollHint = host === "claude"
-    ? await claudeWeeklyHint(snapshots, now, dependencies.stateDirectory ?? resolveStateDirectory())
+    ? await claudeWeeklyHint(snapshots, now, directory, pollOn)
     : undefined;
   if (!config.bars) {
     return succeed(renderPlainStatusline(

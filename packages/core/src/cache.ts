@@ -330,14 +330,17 @@ export type CacheReadResult =
  * ACQUISITION row, never a withdrawal.
  */
 export async function readSnapshotCache(
-  directory = resolveStateDirectory()
+  directory = resolveStateDirectory(),
+  /* The switch as a caller already read it, so one render filters every
+     input with one value; read here when not given. */
+  selected?: boolean
 ): Promise<CacheReadResult> {
   try {
     await rejectSymlink(directory);
   } catch {
     return { ok: false, reason: "unsafe" };
   }
-  const pollOn = await readClaudePoll(directory);
+  const pollOn = selected ?? await readClaudePoll(directory);
   const counts = (row: Snapshot) => claudeRowCounts(row, pollOn);
   const document = await readJsonFileSafely(path.join(directory, CACHE_FILE_NAME));
   if (!document.ok) {
