@@ -94,7 +94,7 @@ const KIMI_INSTALL_ROOTS_MACOS: &[&str] = &[
 /* macOS: where those package managers put the commands they install. An app
 opened from Finder starts with launchd's PATH, which names none of them, so
 they are searched after PATH even when the login shell's PATH could not be
-imported (`login_path.rs`). */
+imported (`host.rs`). */
 const MACOS_COMMAND_FOLDERS: &[&str] = &[
     "system/opt/homebrew/bin",
     "system/usr/local/bin",
