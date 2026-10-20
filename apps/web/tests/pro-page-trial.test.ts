@@ -327,6 +327,10 @@ describe("the return from checkout", () => {
     expect(notice).not.toBeNull();
     expect(notice?.textContent).not.toMatch(/\b(pay|paid|payment)/iu);
     expect(view.container.textContent).not.toMatch(/Payment received|Stripe confirmed/u);
+    /* Nor anywhere else on the page: billing speaks of a card, invoices and a
+       period "you already paid for", none of which a complimentary plan has. */
+    expect(view.container.textContent).not.toMatch(/\bpaid\b/u);
+    expect(byText(view.container, "button", portal.billing.manage)).toBeNull();
   });
 
   it("still says a cancelled checkout charged nothing", async () => {
