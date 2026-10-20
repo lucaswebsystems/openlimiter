@@ -433,6 +433,11 @@ describe("hook configuration mutation", () => {
     const native = path.join(directory, "node_modules", "@openai", packageName, "vendor", triple, "bin", "codex.exe");
     await mkdir(path.dirname(native), { recursive: true });
     await writeFile(native, "synthetic native Codex", "utf8");
+    /* The package the shim names, as npm installs it: the desktop's rule and
+       its CLI twin find the platform package from here. */
+    const launcher = path.join(directory, "node_modules", "@openai", "codex", "bin", "codex.js");
+    await mkdir(path.dirname(launcher), { recursive: true });
+    await writeFile(launcher, "synthetic launcher", "utf8");
     const seen: { executable: string; argumentsList: readonly string[] } = { executable: "", argumentsList: [] };
     await expect(detectAgentInstallation("codex", {
       platform: "win32",
