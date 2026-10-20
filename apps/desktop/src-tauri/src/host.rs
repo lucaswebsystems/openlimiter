@@ -5,10 +5,12 @@
 //! macOS: an app opened from Finder starts with launchd's PATH
 //! (`/usr/bin:/bin:/usr/sbin:/sbin`), not the one a terminal has, so command
 //! line clients installed through Homebrew, nvm, Volta, Bun or pnpm look
-//! absent and the scripts among them find no `node`. At start, while this
-//! process has one thread, the login shell's PATH is imported once: one shell
-//! run, read until its marker line or for a bounded wait, then the shell is
-//! killed. A shell that misbehaves leaves PATH as launchd set it. Detection
+//! absent and the scripts among them find no `node`. At start, before Tauri
+//! starts a thread, the login shell's PATH is imported once: one shell run,
+//! read until its marker line or for a bounded wait, then the shell is
+//! killed. The one reader thread here only reads the shell's output and never
+//! touches the environment. A shell that misbehaves leaves PATH as launchd
+//! set it. Detection
 //! also searches the package managers' own folders (`provider_detection.rs`),
 //! so a failed import still finds them.
 //!
