@@ -475,6 +475,7 @@ describe("shared Claude source vectors", () => {
     observedAt?: string;
     availability?: string;
     retryAt?: string;
+    writer?: "cli" | "desktop";
   }
   interface VectorCase {
     id: string;
@@ -512,7 +513,8 @@ describe("shared Claude source vectors", () => {
       ...(spec.sourceKind === null ? {} : { provenance: { sourceKind: spec.sourceKind, observedVia: observedVia[spec.sourceKind] } }),
       ...(acquisition ? { kind: "runtime_info" } : {}),
       ...(spec.availability === undefined ? {} : { availability: spec.availability }),
-      ...(spec.retryAt === undefined ? {} : { retryAt: spec.retryAt })
+      ...(spec.retryAt === undefined ? {} : { retryAt: spec.retryAt }),
+      ...(spec.writer === undefined ? {} : { writer: spec.writer })
     } as Snapshot;
   };
   const key = (row: Snapshot) => [row.provider, row.meter, row.value].join(" ");

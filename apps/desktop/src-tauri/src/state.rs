@@ -317,7 +317,7 @@ mod tests {
         if acquisition {
             value["kind"] = serde_json::json!("runtime_info");
         }
-        for field in ["availability", "retryAt"] {
+        for field in ["availability", "retryAt", "writer"] {
             if let Some(text) = spec.get(field).and_then(serde_json::Value::as_str) {
                 value[field] = serde_json::json!(text);
             }
