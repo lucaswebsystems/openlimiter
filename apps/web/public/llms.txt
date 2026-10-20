@@ -29,7 +29,7 @@ OpenLimiter never asks for a vendor password: every sign in happens on that vend
 ## What ships today
 
 - Command line tool, published on npm as `openlimiter`. Install it with `npm install -g openlimiter`, or run it once with `npx openlimiter`. Commands include setup (the default), login, logout, whoami, sync, init, snapshot, statusline, terminal, refresh, hook, hooks, status, ingest, config, doctor, demo, and export.
-- Desktop tray application for Windows, macOS and Linux, built on continuous integration and attached to the GitHub release. All three ship unsigned for now. In SmartScreen, choose More info, then Run anyway. On macOS, open the app once, then System Settings, Privacy and Security, Open Anyway.
+- Desktop tray application for Windows and Linux, with a macOS preview, built on continuous integration and attached to the GitHub release. The Windows build is unsigned: in SmartScreen, choose More info, then Run anyway. The macOS preview is ad hoc signed but not notarised: open it once, then System Settings, Privacy and Security, Open Anyway. It updates by new download.
 - Web hub at https://openlimiter.com/app, account first: sign in, connect, bars. Signed in, it shows the bounded percentages your own devices synced.
 - Progressive web app. The hub installs to a phone or desktop home screen from the browser and keeps working offline.
 - An account, with sign in through GitHub, Google, Microsoft, or a magic link sent to your email address. Sync is on from the moment you sign in. It syncs bounded quota readings and nothing else.

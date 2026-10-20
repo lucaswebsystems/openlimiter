@@ -510,7 +510,7 @@
     "release": {
       "rail": {
         "title": "One small tab. Your limits and agents on hover.",
-        "lead": "OpenLimiter keeps one small tab with its logo on the left edge of your screen, about 70% of the way down. Hover it to open a panel beside it with your limits and your agents. It works the same on Windows, macOS and Linux X11; on Linux Wayland the tray takes its place. Local meters and desktop alerts are free, with one active account per provider.",
+        "lead": "OpenLimiter keeps one small tab with its logo on the left edge of your screen, about 70% of the way down. Hover it to open a panel beside it with your limits and your agents. It works the same on Windows and Linux X11; on Linux Wayland the tray takes its place, and macOS is a preview. Local meters and desktop alerts are free, with one active account per provider.",
         "folded": "The tab rests on the left edge. A small dot appears when something needs a look, like an agent waiting for you.",
         "unfolded": "Hover it and the panel opens: agents first, with Show app for the one that needs you, then limits, tightest first, with reset times.",
         "foldedAlt": "The real OpenLimiter edge tab, a small tab with the OpenLimiter logo and a yellow dot, on the left edge of a desktop with a mountain lake wallpaper.",
@@ -782,7 +782,7 @@
       },
       "desktopOrPhone": {
         "question": "Is there a desktop or phone app?",
-        "answer": "The desktop tray application ships for Windows, macOS and Linux. Windows and macOS are unsigned, so each asks once: on Windows, SmartScreen, choose More info then Run anyway; on macOS, open System Settings, go to Privacy and Security, and choose Open Anyway. macOS ships as one universal disk image and stays out of automatic updates until signed and notarised builds exist. On a phone, the web app opens in the browser and installs to a home screen, and the desktop application pairs a phone by QR code so it can read your quota. Native iOS and Android applications are not built, nothing is in a store, and there is no waiting list. The download page lists every platform with its real state."
+        "answer": "The desktop tray application ships for Windows and Linux, and macOS is a preview. Windows is unsigned, so it asks once: in SmartScreen, choose More info then Run anyway. The macOS preview is one universal disk image, ad hoc signed but not notarised, so you open it once through System Settings, Privacy and Security, Open Anyway, and a new version is a new download. On a phone, the web app opens in the browser and installs to a home screen, and the desktop application pairs a phone by QR code so it can read your quota. Native iOS and Android applications are not built, nothing is in a store, and there is no waiting list. The download page lists every platform with its real state."
       },
       "free": {
         "question": "Is it free?",
@@ -872,12 +872,11 @@
   "download": {
     "updated": "Updated {date}",
     "metaTitle": "Download {version} for desktop and terminal",
-    "metaDescription": "Download OpenLimiter {version} for Windows, macOS or Linux, or install the CLI from npm. Free local meters and alerts. Desktop builds are unsigned.",
+    "metaDescription": "Download OpenLimiter {version} for Windows or Linux, try the macOS preview, or install the CLI from npm. Free local meters and alerts. Windows builds are unsigned. The macOS preview is not notarised.",
     "title": "Download",
-    "lead": "Windows, macOS and Linux desktop builds are available now. Windows and macOS ship unsigned, so each one asks you to allow it once: on Windows choose More info then Run anyway, and on macOS open System Settings, go to Privacy and Security, and choose Open Anyway. macOS ships as one universal disk image that runs on Apple silicon and on Intel. npm and the web app are also available.",
     "choice": {
       "windowsSummary": "Unsigned build. If SmartScreen warns, choose More info, then Run anyway. Install the desktop app in one step.",
-      "macosSummary": "Universal unsigned build for Apple silicon and Intel. Allow it once in Privacy and Security, then open the app.",
+      "macosSummary": "Preview for Apple silicon and Intel, ad hoc signed but not notarised. Allow it once in Privacy and Security, then open the app. Updates come as a new download.",
       "linuxSummary": "Choose AppImage, deb or rpm for your distribution. AppImage runs after you set its executable bit.",
       "detected": "Detected",
       "windows": "Download for Windows",
@@ -885,7 +884,6 @@
       "macos": "Download for macOS",
       "other": "Other platforms",
       "smartScreen": "Unsigned build. If SmartScreen warns, choose More info, then Run anyway. Install the desktop app in one step.",
-      "openAnyway": "Universal unsigned build for Apple silicon and Intel. Allow it once in Privacy and Security, then open the app.",
       "linuxNote": "Choose AppImage, deb or rpm for your distribution. AppImage runs after you set its executable bit."
     },
     "preview": {
@@ -907,7 +905,7 @@
       },
       "macos": {
         "open": "Open the disk image from your downloads and drag OpenLimiter to Applications.",
-        "gatekeeper": "Open OpenLimiter once. macOS refuses that first attempt because the app is unsigned: open System Settings, go to Privacy and Security, and choose Open Anyway beside the OpenLimiter message."
+        "gatekeeper": "Open OpenLimiter once. macOS refuses that first attempt because the preview is not notarised: open System Settings, go to Privacy and Security, and choose Open Anyway beside the OpenLimiter message."
       },
       "linux": {
         "open": "Make the AppImage executable, then run it.",
@@ -927,7 +925,7 @@
     "disclosure": {
       "title": "What the desktop app does on your computer",
       "webview": "On Windows, the installer adds Microsoft's WebView2 runtime when it is missing, because the app draws its window with it.",
-      "updates": "The app checks GitHub for a newer version and asks before installing it. On macOS, a new version is a new download from this page for now.",
+      "updates": "The app checks GitHub for a newer version and asks before installing it. The macOS preview does not update itself: a new version is a new download from this page.",
       "logins": "It reads the logins your coding tools already stored, read only, and sends each one only to its own provider. Your readings reach OpenLimiter only if you sign in, and then only as bounded quota readings.",
       "claude": "Claude session bars come from Claude Code's documented status line. On a new install, the app also asks Anthropic directly for your Claude usage, with your own Claude Code login and sent only to Anthropic, after showing you a disclosure. You can turn that request off."
     },
@@ -944,10 +942,6 @@
       "inDevelopment": "coming soon",
       "planned": "planned"
     },
-    "available": {
-      "title": "Available now",
-      "lead": "Windows, macOS and Linux have packaged desktop builds, and every link below goes straight to the file. The command line tool is one npm install on any platform, or one clone if you prefer to build from source. The web app needs nothing installed."
-    },
     "phone": {
       "title": "On your phone",
       "lead": "Pair your phone from the desktop, then install the web app to your home screen. No native iOS or Android application is built.",
@@ -962,10 +956,6 @@
       "lead": "Choose the package that matches how you manage your machine. Each link downloads the file from the current release.",
       "windows": "Use the MSI for managed installs across several Windows machines. Use the installer above for one normal machine.",
       "linux": "Choose deb for Debian or Ubuntu, rpm for Fedora or openSUSE, or AppImage for a portable install."
-    },
-    "building": {
-      "title": "Coming soon",
-      "lead": "Signed and notarised macOS builds, and the automatic updates that depend on them. The macOS app is downloadable today and is excluded from the update manifest until it can be signed, because an update whose signature cannot be checked is worse than no update at all."
     },
     "notBuilt": {
       "title": "Not built yet",
@@ -994,14 +984,6 @@
         "note": "Unsigned Windows build. SmartScreen: choose More info, then Run anyway.",
         "requirement": "Node 24 or newer and pnpm 9.15.0, which the repository pins. PowerShell or any terminal you like."
       },
-      "macos": {
-        "name": "macOS",
-        "summary": "The desktop application is packaged for macOS as one universal disk image that runs on Apple silicon and on Intel, and it is attached to the release. The build is unsigned, so Gatekeeper refuses the first open and you allow it once in System Settings. The command line tool installs from npm on macOS like anywhere else.",
-        "note": "Unsigned macOS build. Open the disk image, drag OpenLimiter to Applications, and open it once. macOS refuses that first attempt: open System Settings, go to Privacy and Security, scroll to Security, and choose Open Anyway beside the OpenLimiter message, then confirm. You do this once. macOS is excluded from automatic updates until signed and notarised builds exist, so until then a new version is a new download from this page.",
-        "assets": {
-          "universal": "Universal disk image"
-        }
-      },
       "linux": {
         "name": "Linux",
         "summary": "The desktop application is packaged for Linux three ways, all attached to the release: an AppImage that runs on anything, a deb for Debian and Ubuntu, and an rpm for Fedora and openSUSE. The command line tool installs from npm and is tested on Linux alongside Windows on every push.",
@@ -1022,11 +1004,6 @@
         "name": "Web app",
         "summary": "Nothing to install. The web app runs the same engine as the command line tool inside the browser tab, and it installs to a phone or desktop home screen and keeps working offline. Sign in to see the percentages your own devices synced, or pair a phone from the desktop application by scanning the code it shows.",
         "hrefLabel": "Open the web app"
-      },
-      "desktop": {
-        "name": "Desktop application",
-        "summary": "A tray icon beside the system clock reads the same local cache as the command line tool, so quota is visible with no terminal open. Packaged releases ship for Windows, macOS and Linux. Automatic updates cover Windows and Linux; macOS joins them when signed builds exist.",
-        "note": "The Windows and macOS builds are unsigned. On Windows, SmartScreen: choose More info, then Run anyway. On macOS: System Settings, Privacy and Security, Open Anyway."
       },
       "iphone": {
         "name": "iOS",
@@ -1985,15 +1962,15 @@
           "not-available": {
             "title": "Read this first",
             "calloutTitle": "Planned means not built",
-            "calloutBody": "Every item marked planned below does not exist today. There is no native mobile application in any store, no code signing, and no automatic update channel for macOS. OpenLimiter Pro is listed separately as available."
+            "calloutBody": "Every item marked planned below does not exist today. There is no native mobile application in any store, the Windows build carries no code signature, and macOS is a preview that is not notarised and does not update itself. OpenLimiter Pro is listed separately as available."
           },
           "desktop": {
             "title": "Shipped: the desktop application",
-            "intro": "A small desktop application with a tray icon next to the system clock reads the same local cache the command line tool writes, so quota is glanceable without a terminal open. Packaged Windows, macOS and Linux builds are attached to the release.",
+            "intro": "A small desktop application with a tray icon next to the system clock reads the same local cache the command line tool writes, so quota is glanceable without a terminal open. Packaged Windows and Linux builds, and a macOS preview, are attached to the release.",
             "bullets": {
-              "status": "Status: shipped on Windows, macOS and Linux, with a public download for each.",
-              "signing": "Windows and macOS ship unsigned. On Windows, SmartScreen: choose More info, then Run anyway. On macOS: System Settings, Privacy and Security, Open Anyway. macOS is excluded from automatic updates until signing and notarisation exist.",
-              "updates": "Planned: an automatic update channel. There is none today."
+              "status": "Status: shipped on Windows and Linux, and a preview on macOS, with a public download for each.",
+              "signing": "The Windows build is unsigned: in SmartScreen, choose More info, then Run anyway. The macOS preview is ad hoc signed but not notarised: open it once, then System Settings, Privacy and Security, Open Anyway.",
+              "updates": "Updates: the Windows and Linux apps check GitHub and ask before installing a new version. The macOS preview updates by new download."
             }
           },
           "mobile": {
@@ -2253,7 +2230,7 @@
       "description": "The app signs you in, finds the tools already on this machine, and your bars appear here.",
       "download": {
         "windows": "Download OpenLimiter for Windows",
-        "macos": "Download OpenLimiter for macOS",
+        "macos": "Download the OpenLimiter macOS preview",
         "linux": "Download OpenLimiter for Linux"
       },
       "platforms": {

@@ -510,7 +510,7 @@
     "release": {
       "rail": {
         "title": "Uma aba pequena. Seus limites e agentes ao passar o mouse.",
-        "lead": "O OpenLimiter mantém uma aba pequena com o logotipo na borda esquerda da tela, a cerca de 70% da altura, contando de cima. Passe o mouse sobre ela para abrir ao lado um painel com seus limites e seus agentes. Funciona igual no Windows, no macOS e no Linux X11; no Linux Wayland, a bandeja assume o lugar dela. Medidores locais e alertas do desktop são gratuitos, com uma conta ativa por provedor.",
+        "lead": "O OpenLimiter mantém uma aba pequena com o logotipo na borda esquerda da tela, a cerca de 70% da altura, contando de cima. Passe o mouse sobre ela para abrir ao lado um painel com seus limites e seus agentes. Funciona igual no Windows e no Linux X11; no Linux Wayland, a bandeja assume o lugar dela, e o macOS é uma prévia. Medidores locais e alertas do desktop são gratuitos, com uma conta ativa por provedor.",
         "folded": "A aba fica na borda esquerda. Um pequeno ponto aparece quando algo merece uma olhada, como um agente esperando por você.",
         "unfolded": "Passe o mouse e o painel se abre: primeiro os agentes, com Mostrar app no que espera por você, depois os limites, o mais apertado primeiro, com o reinício.",
         "foldedAlt": "A aba real do OpenLimiter, pequena, com o logotipo do OpenLimiter e um ponto amarelo, na borda esquerda de uma área de trabalho com um papel de parede de lago na montanha.",
@@ -782,7 +782,7 @@
       },
       "desktopOrPhone": {
         "question": "Existe um aplicativo de desktop ou de celular?",
-        "answer": "O aplicativo de bandeja para desktop sai para Windows, macOS e Linux. Windows e macOS não são assinados, então cada um pergunta uma vez: no Windows, no SmartScreen, escolha Mais informações e depois Executar assim mesmo; no macOS, abra os Ajustes do Sistema, vá em Privacidade e Segurança e escolha Abrir Mesmo Assim. O macOS sai como uma única imagem de disco universal e fica fora das atualizações automáticas até existirem builds assinadas e notarizadas. No celular, o web app abre no navegador e instala na tela inicial, e o aplicativo de desktop pareia um celular por código QR para ler sua quota. Aplicativos nativos de iOS e Android não são feitos, nada está em loja e não há lista de espera. A página de download lista cada plataforma com o estado real dela."
+        "answer": "O aplicativo de bandeja para desktop sai para Windows e Linux, e o macOS é uma prévia. O Windows não é assinado, então pergunta uma vez: no SmartScreen, escolha Mais informações e depois Executar assim mesmo. A prévia para macOS é uma única imagem de disco universal, com assinatura ad hoc mas sem notarização, então você a abre uma vez em Ajustes do Sistema, Privacidade e Segurança, Abrir Mesmo Assim, e uma versão nova é um novo download. No celular, o web app abre no navegador e instala na tela inicial, e o aplicativo de desktop pareia um celular por código QR para ler sua quota. Aplicativos nativos de iOS e Android não são feitos, nada está em loja e não há lista de espera. A página de download lista cada plataforma com o estado real dela."
       },
       "free": {
         "question": "É grátis?",
@@ -872,12 +872,11 @@
   "download": {
     "updated": "Atualizado em {date}",
     "metaTitle": "Baixe o {version} para desktop e terminal",
-    "metaDescription": "Baixe o OpenLimiter {version} para Windows, macOS ou Linux, ou instale a CLI pelo npm. Meters e alertas locais gratuitos. As versões para desktop não são assinadas.",
+    "metaDescription": "Baixe o OpenLimiter {version} para Windows ou Linux, experimente a prévia para macOS ou instale a CLI pelo npm. Meters e alertas locais gratuitos. As versões para Windows não são assinadas. A prévia para macOS não é notarizada.",
     "title": "Download",
-    "lead": "As builds de desktop para Windows, macOS e Linux já estão disponíveis. Windows e macOS saem sem assinatura, então cada um pede autorização uma vez: no Windows escolha Mais informações e depois Executar assim mesmo, e no macOS abra Ajustes do Sistema, vá em Privacidade e Segurança e escolha Abrir Mesmo Assim. O macOS sai como uma única imagem de disco universal que roda em Apple silicon e em Intel. npm e o web app também estão disponíveis.",
     "choice": {
       "windowsSummary": "Build sem assinatura. Se o SmartScreen avisar, escolha Mais informações e depois Executar assim mesmo.",
-      "macosSummary": "Build universal sem assinatura para Apple silicon e Intel. Autorize uma vez em Privacidade e Segurança.",
+      "macosSummary": "Prévia para Apple silicon e Intel, com assinatura ad hoc mas sem notarização. Autorize uma vez em Privacidade e Segurança e depois abra o app. As atualizações chegam como um novo download.",
       "linuxSummary": "Escolha AppImage, deb ou rpm para sua distribuição. O AppImage roda depois que você define o bit executável.",
       "detected": "Detectado",
       "windows": "Baixar para Windows",
@@ -885,7 +884,6 @@
       "macos": "Baixar para macOS",
       "other": "Outras plataformas",
       "smartScreen": "Esta versão para Windows não é assinada, então o SmartScreen pode avisar: escolha Mais informações e depois Executar assim mesmo.",
-      "openAnyway": "Esta build de macOS não é assinada. Abra uma vez, depois abra os Ajustes do Sistema, vá em Privacidade e Segurança e escolha Abrir Mesmo Assim. A imagem de disco é universal, então roda em Apple silicon e em Intel. As atualizações automáticas chegam com as builds assinadas.",
       "linuxNote": "Pacotes AppImage, deb e rpm disponíveis. Executa diretamente sem aviso de assinatura."
     },
     "preview": {
@@ -907,7 +905,7 @@
       },
       "macos": {
         "open": "Abra a imagem de disco nos seus downloads e arraste o OpenLimiter para Aplicativos.",
-        "gatekeeper": "Abra o OpenLimiter uma vez. O macOS recusa essa primeira tentativa porque o app não é assinado: abra Ajustes do Sistema, vá em Privacidade e Segurança e escolha Abrir Assim Mesmo ao lado da mensagem do OpenLimiter."
+        "gatekeeper": "Abra o OpenLimiter uma vez. O macOS recusa essa primeira tentativa porque a prévia não é notarizada: abra Ajustes do Sistema, vá em Privacidade e Segurança e escolha Abrir Assim Mesmo ao lado da mensagem do OpenLimiter."
       },
       "linux": {
         "open": "Torne o AppImage executável e depois execute o arquivo.",
@@ -927,7 +925,7 @@
     "disclosure": {
       "title": "O que o aplicativo de desktop faz no seu computador",
       "webview": "No Windows, o instalador adiciona o runtime WebView2 da Microsoft quando ele falta, porque o aplicativo desenha a janela com ele.",
-      "updates": "O aplicativo verifica no GitHub se há uma versão mais nova e pergunta antes de fazer a instalação. No macOS, por enquanto, uma versão nova é um novo download nesta página.",
+      "updates": "O aplicativo verifica no GitHub se há uma versão mais nova e pergunta antes de fazer a instalação. A prévia para macOS não se atualiza sozinha: uma versão nova é um novo download nesta página.",
       "logins": "Ele lê os logins que as suas ferramentas de programação já guardaram, só para leitura, e envia cada um apenas ao próprio provedor. Suas leituras só chegam ao OpenLimiter se você entrar, e então apenas como leituras limitadas de quota.",
       "claude": "As barras da sessão do Claude vêm da statusline documentada do Claude Code. Numa instalação nova, o aplicativo também consulta a Anthropic diretamente sobre o seu uso do Claude, com o seu próprio login do Claude Code e enviado apenas à Anthropic, depois de mostrar um aviso. Você pode desligar essa consulta."
     },
@@ -944,10 +942,6 @@
       "inDevelopment": "em breve",
       "planned": "planejado"
     },
-    "available": {
-      "title": "Disponível agora",
-      "lead": "Windows, macOS e Linux têm builds de desktop empacotadas, e cada link abaixo leva direto ao arquivo. A ferramenta de linha de comando é um npm install em qualquer plataforma, ou um clone se você preferir compilar do código. O web app não precisa de instalação."
-    },
     "packages": {
       "title": "Outros pacotes de desktop",
       "lead": "Escolha o pacote que combina com a forma como você administra sua máquina. Cada link baixa o arquivo do release atual.",
@@ -962,10 +956,6 @@
       "lead": "Pareie seu celular pelo desktop e depois instale o web app na tela de início. Nenhum aplicativo nativo para iOS ou Android foi construído.",
       "qrAlt": "Código QR apontando para {url}",
       "scan": "Escaneie com seu celular o código mostrado pelo desktop. O web app abre, e você o instala na tela de início a partir dali."
-    },
-    "building": {
-      "title": "Em breve",
-      "lead": "Builds de macOS assinadas e notarizadas, e as atualizações automáticas que dependem delas. O app de macOS já pode ser baixado hoje e fica fora do manifesto de atualização até poder ser assinado, porque uma atualização cuja assinatura não pode ser verificada é pior do que nenhuma atualização."
     },
     "notBuilt": {
       "title": "Ainda não construído",
@@ -994,14 +984,6 @@
         "note": "Build do Windows sem assinatura. SmartScreen: escolha Mais informações e depois Executar assim mesmo.",
         "requirement": "Node 24 ou mais recente, e pnpm 9.15.0, que o repositório fixa. PowerShell ou qualquer terminal de sua preferência."
       },
-      "macos": {
-        "name": "macOS",
-        "summary": "O aplicativo de desktop é empacotado para macOS como uma única imagem de disco universal que roda em Apple silicon e em Intel, e vem anexada ao release. A build não é assinada, então o Gatekeeper recusa a primeira abertura e você autoriza uma vez nos Ajustes do Sistema. A ferramenta de linha de comando instala pelo npm no macOS como em qualquer outro lugar.",
-        "note": "Build de macOS sem assinatura. Abra a imagem de disco, arraste o OpenLimiter para Aplicativos e abra uma vez. O macOS recusa essa primeira tentativa: abra Ajustes do Sistema, vá em Privacidade e Segurança, role até Segurança e escolha Abrir Assim Mesmo ao lado da mensagem do OpenLimiter, depois confirme. Isso é feito só uma vez. O macOS fica fora das atualizações automáticas até existirem builds assinadas e notarizadas, então até lá uma versão nova é um novo download nesta página.",
-        "assets": {
-          "universal": "Imagem de disco universal"
-        }
-      },
       "linux": {
         "name": "Linux",
         "summary": "O aplicativo de desktop é empacotado para Linux de três formas, todas anexadas ao release: um AppImage que roda em qualquer distribuição, um deb para Debian e Ubuntu, e um rpm para Fedora e openSUSE. A ferramenta de linha de comando se instala pelo npm e é testada no Linux junto com o Windows a cada push.",
@@ -1022,11 +1004,6 @@
         "name": "Web app",
         "summary": "Nada para instalar. O web app roda o mesmo motor da ferramenta de linha de comando dentro da aba do navegador, instala na tela inicial de um celular ou de um desktop e continua funcionando offline. Entre para ver as porcentagens que os seus próprios dispositivos sincronizaram, ou pareie um celular a partir do aplicativo de desktop escaneando o código que ele mostra.",
         "hrefLabel": "Abrir o web app"
-      },
-      "desktop": {
-        "name": "Aplicativo de desktop",
-        "summary": "Um ícone na bandeja, ao lado do relógio do sistema, lê o mesmo cache local da ferramenta de linha de comando, então a quota fica visível sem nenhum terminal aberto. Os releases empacotados saem para Windows, macOS e Linux. As atualizações automáticas cobrem Windows e Linux; o macOS entra quando existirem builds assinadas.",
-        "note": "As builds de Windows e macOS não são assinadas. No Windows, SmartScreen: escolha Mais informações e depois Executar assim mesmo. No macOS: Ajustes do Sistema, Privacidade e Segurança, Abrir Assim Mesmo."
       },
       "iphone": {
         "name": "iOS",
@@ -1985,15 +1962,15 @@
           "not-available": {
             "title": "Leia isto primeiro",
             "calloutTitle": "Planejado significa ainda não construído",
-            "calloutBody": "Todo item marcado como planejado abaixo não existe hoje. Não há aplicativo móvel nativo em nenhuma loja, não há assinatura de código, e não há canal de atualização automática para macOS. O OpenLimiter Pro é listado à parte como disponível."
+            "calloutBody": "Todo item marcado como planejado abaixo não existe hoje. Não há aplicativo móvel nativo em nenhuma loja, a versão para Windows não tem assinatura de código, e o macOS é uma prévia sem notarização que não se atualiza sozinha. O OpenLimiter Pro é listado à parte como disponível."
           },
           "desktop": {
             "title": "Lançado: o aplicativo de desktop",
-            "intro": "Um pequeno aplicativo de desktop com um ícone na bandeja, ao lado do relógio do sistema, lê o mesmo cache local que a ferramenta de linha de comando escreve, então a quota fica à vista sem terminal aberto. Builds empacotadas de Windows, macOS e Linux ficam anexadas ao release.",
+            "intro": "Um pequeno aplicativo de desktop com um ícone na bandeja, ao lado do relógio do sistema, lê o mesmo cache local que a ferramenta de linha de comando escreve, então a quota fica à vista sem terminal aberto. Builds empacotadas de Windows e Linux, e uma prévia para macOS, ficam anexadas ao release.",
             "bullets": {
-              "status": "Status: disponível em Windows, macOS e Linux, com download público para cada um.",
-              "signing": "Windows e macOS saem sem assinatura. No Windows, SmartScreen: escolha Mais informações e depois Executar assim mesmo. No macOS: Ajustes do Sistema, Privacidade e Segurança, Abrir Assim Mesmo. O macOS fica fora das atualizações automáticas até existirem assinatura e notarização.",
-              "updates": "Planejado: um canal de atualização automática. Ainda não há nenhum hoje."
+              "status": "Status: disponível em Windows e Linux, e como prévia no macOS, com download público para cada um.",
+              "signing": "A versão para Windows sai sem assinatura: no SmartScreen, escolha Mais informações e depois Executar assim mesmo. A prévia para macOS tem assinatura ad hoc mas não é notarizada: abra uma vez e depois Ajustes do Sistema, Privacidade e Segurança, Abrir Assim Mesmo.",
+              "updates": "Atualizações: os aplicativos para Windows e Linux verificam o GitHub e perguntam antes de instalar uma versão nova. A prévia para macOS é atualizada por um novo download."
             }
           },
           "mobile": {
@@ -2253,7 +2230,7 @@
       "description": "O aplicativo entra na sua conta, encontra as ferramentas que já estão nesta máquina e suas barras aparecem aqui.",
       "download": {
         "windows": "Baixar o OpenLimiter para Windows",
-        "macos": "Baixar o OpenLimiter para macOS",
+        "macos": "Baixar a prévia do OpenLimiter para macOS",
         "linux": "Baixar o OpenLimiter para Linux"
       },
       "platforms": {

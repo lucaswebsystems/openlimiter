@@ -176,11 +176,11 @@ export function DownloadChoice({
   otherLabel: string;
   windowsSummary: string;
   /**
-   * What a Mac reader has to do the first time, and what they do not get yet.
+   * What a Mac reader has to do the first time, and what the preview is.
    *
-   * Both builds this site offers are unsigned, and an unsigned build is only
-   * honest if the note is beside the button rather than three sections below
-   * it. macOS gets the same treatment Windows already had.
+   * The Windows build is unsigned and the macOS preview is not notarised, and
+   * either is only honest if the note is beside the button rather than three
+   * sections below it.
    */
   macosSummary: string;
   linuxSummary: string;
