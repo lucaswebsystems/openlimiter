@@ -77,11 +77,12 @@ const linkClass =
 
 /**
  * The one filled control in the header opens the Pro sign in and checkout page.
- * Solid in both header states, so it never turns into a ghost over footage.
+ * Solid in both header states, so it never turns into a ghost over footage, and
+ * on the mark blue, where its white label clears AA.
  */
 const proClass =
-  "focus-ring inline-flex flex-none items-center rounded-lg bg-accent-solid px-3.5 py-2 " +
-  "text-sm font-medium text-on-accent transition-colors duration-200 hover:bg-accent-solid-hover";
+  "focus-ring inline-flex flex-none items-center rounded-lg bg-primary px-3.5 py-2 " +
+  "text-sm font-medium text-on-primary transition-colors duration-200 hover:bg-primary-hover";
 
 /* The web app button, white in both header states, the founder's order:
    it sits between the theme toggle and Get Pro and carries the same globe

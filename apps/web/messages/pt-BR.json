@@ -2543,7 +2543,8 @@
       "retry": "Atualizar leituras",
       "defaultLabel": "Este celular",
       "bars": {
-        "title": "Sua cota"
+        "title": "Sua cota",
+        "empty": "Ainda não há leituras. Abra o OpenLimiter no seu computador e conecte uma ferramenta."
       },
       "reading": {
         "title": "Lendo sua cota",

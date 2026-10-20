@@ -120,14 +120,14 @@ export default async function DownloadPage({ params }: LocaleParams) {
             <article id="iphone" className="flex h-full flex-col items-center rounded-xl border border-hairline bg-surface p-6 text-center">
               <h3 className="heading-face text-lg font-semibold text-heading">{t("targets.iphone.name")}</h3>
               <p className="mt-3 flex-1 text-sm leading-relaxed text-muted">{t("phone.iphoneGuide")}</p>
-              <Link className="focus-ring mt-5 inline-flex min-h-11 items-center justify-center rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-on-accent hover:bg-accent-hover" href="/app">
+              <Link className="focus-ring mt-5 inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary hover:bg-primary-hover" href="/app">
                 {t("phone.openApp")}
               </Link>
             </article>
             <article id="android" className="flex h-full flex-col items-center rounded-xl border border-hairline bg-surface p-6 text-center">
               <h3 className="heading-face text-lg font-semibold text-heading">{t("targets.android.name")}</h3>
               <p className="mt-3 flex-1 text-sm leading-relaxed text-muted">{t("phone.androidGuide")}</p>
-              <Link className="focus-ring mt-5 inline-flex min-h-11 items-center justify-center rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-on-accent hover:bg-accent-hover" href="/app">
+              <Link className="focus-ring mt-5 inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary hover:bg-primary-hover" href="/app">
                 {t("phone.openApp")}
               </Link>
             </article>

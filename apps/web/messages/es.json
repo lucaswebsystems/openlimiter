@@ -2543,7 +2543,8 @@
       "retry": "Actualizar lecturas",
       "defaultLabel": "Este teléfono",
       "bars": {
-        "title": "Tu cuota"
+        "title": "Tu cuota",
+        "empty": "Aún no hay lecturas. Abre OpenLimiter en tu ordenador y conecta una herramienta."
       },
       "reading": {
         "title": "Leyendo tu cuota",

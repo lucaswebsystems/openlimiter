@@ -2543,7 +2543,8 @@
       "retry": "Messungen aktualisieren",
       "defaultLabel": "Dieses Telefon",
       "bars": {
-        "title": "Ihr Kontingent"
+        "title": "Ihr Kontingent",
+        "empty": "Noch keine Werte. Öffnen Sie OpenLimiter auf Ihrem Computer und verbinden Sie ein Tool."
       },
       "reading": {
         "title": "Ihr Kontingent wird gelesen",

@@ -2543,7 +2543,8 @@
       "retry": "Refresh readings",
       "defaultLabel": "This phone",
       "bars": {
-        "title": "Your quota"
+        "title": "Your quota",
+        "empty": "No readings yet. Open OpenLimiter on your computer and connect a tool."
       },
       "reading": {
         "title": "Reading your quota",
