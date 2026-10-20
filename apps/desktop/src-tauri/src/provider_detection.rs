@@ -1438,14 +1438,7 @@ fn installed_executable(
                     let extension = resolved
                         .extension()
                         .map(|extension| extension.to_string_lossy().to_ascii_lowercase());
-                    let is_npm_launcher = executable_is_link
-                        && resolved.ends_with(
-                            Path::new("node_modules")
-                                .join("@openai")
-                                .join("codex")
-                                .join("bin")
-                                .join("codex.js"),
-                        );
+                    let is_npm_launcher = executable_is_link && is_official_codex_launcher(&resolved);
                     /* A shim only names a package, so it is mapped to that
                     package's native binary and never run itself: npm's `.cmd`
                     and `.bat` on Windows, Volta's shims, and pnpm's script on
@@ -1519,17 +1512,32 @@ fn codex_native_executable(
     None
 }
 
+/// npm's official Codex launcher, `node_modules/@openai/codex/bin/codex.js`,
+/// matched by whole path components so no lookalike folder passes.
+fn is_official_codex_launcher(path: &Path) -> bool {
+    path.ends_with(
+        Path::new("node_modules")
+            .join("@openai")
+            .join("codex")
+            .join("bin")
+            .join("codex.js"),
+    )
+}
+
 /// Where the `@openai/codex` package a launcher starts really lives, by
-/// layout: the package of a POSIX npm link; Volta's package image for a Volta
-/// shim; pnpm's global folders for a pnpm shim; and the shim's own prefix for
-/// npm, nvm windows, fnm and scoop, whose prefix holds shims and packages.
+/// layout: the package of npm's official launcher; Volta's package image for a
+/// Volta shim; pnpm's global folders for a pnpm shim; and the shim's own
+/// prefix for npm, nvm windows, fnm and scoop, whose prefix holds shims and
+/// packages. A script that is not the official launcher names nothing: a shim
+/// pointing at one resolves only through its manager's tree (Astra 2.1.7,
+/// finding 1).
 fn codex_package_roots(
     path_directory: &Path,
     launcher: &Path,
     context: &DiscoveryContext,
 ) -> Vec<PathBuf> {
     let package = |prefix: &Path| prefix.join("node_modules").join("@openai").join("codex");
-    if launcher.extension().is_some_and(|extension| extension == "js") {
+    if is_official_codex_launcher(launcher) {
         return launcher
             .parent()
             .and_then(Path::parent)
