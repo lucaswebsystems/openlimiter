@@ -20,15 +20,14 @@ export async function ReleaseOverview() {
       </section>
       <section id="agents" {...reveal}>
         <SectionHeading title={t("agents.title")} lead={t("agents.lead")} />
-        <div className="grid gap-6 md:grid-cols-3">
-          {([
-            ["desktop-home", "desktopHomeAlt", "desktopHomeNote"],
-            ["desktop-connect", "desktopConnectAlt", "desktopConnectNote"],
-            ["desktop-settings", "desktopSettingsAlt", "desktopSettingsNote"],
-          ] as const).map(([shot, alt, caption]) => (
-            <ProductFigure key={shot} name={shot} alt={t(`agents.${alt}`)} caption={t(`agents.${caption}`)} />
-          ))}
-        </div>
+        {/* One tab at its real size. Three across drew each at about 350
+            pixels, where their text was four pixels tall, so the other two
+            tabs are named in words under it instead. */}
+        <ProductFigure name="desktop-home" alt={t("agents.desktopHomeAlt")} caption={t("agents.desktopHomeNote")} />
+        <ul className="mx-auto mt-[var(--ol-space-3)] max-w-2xl space-y-[var(--ol-space-1)] text-sm leading-relaxed text-body">
+          <li>{t("agents.desktopConnectNote")}</li>
+          <li>{t("agents.desktopSettingsNote")}</li>
+        </ul>
       </section>
       <section id="terminal" {...reveal}>
         <SectionHeading title={t("terminal.title")} lead={t("terminal.lead")} />

@@ -523,9 +523,7 @@
         "alt": "OpenLimiter Desktop mit den drei Tabs Usage, Connect Tools und Settings, synthetischen Limits für Codex, Claude Code und OpenRouter und einem Hover Panel mit Agentenaktivität.",
         "desktopHomeAlt": "Der OpenLimiter Desktop im Tab Usage mit synthetischen Balken für Codex, Claude Code und OpenRouter.",
         "desktopHomeNote": "Usage zeigt die Balken für Codex, Claude Code und OpenRouter.",
-        "desktopConnectAlt": "Der OpenLimiter Desktop im Tab Connect Tools mit synthetischen Anbieter Verbindungen.",
         "desktopConnectNote": "Connect Tools zeigt die Anbietereinrichtung und den Verbindungsstatus.",
-        "desktopSettingsAlt": "Der OpenLimiter Desktop im Tab Settings mit den Optionen für die Anwendung.",
         "desktopSettingsNote": "Settings zeigt die Optionen, die den Desktop bestimmen."
       },
       "terminal": {
@@ -555,7 +553,7 @@
     "screenshot": {
       "alt": "Das OpenLimiter Desktop Fenster im Tab Usage mit synthetischen Balken für Codex, Claude Code und OpenRouter."
     },
-    "caption": "Das echte Fenster des Tabs Usage wurde mit synthetischen Fixtures ohne grafische Oberfläche gerendert. Kein persönliches Konto, keine Zugangsdaten und kein echter Nutzungswert erscheinen darin."
+    "caption": "Das echte Fenster des Tabs Usage, mit Beispieldaten gezeichnet. Kein persönliches Konto, keine Zugangsdaten und kein echter Nutzungswert erscheinen darin."
   },
   "phonePanels": {
     "shots": {
@@ -593,7 +591,7 @@
       },
       "codex": {
         "tag": "liest den dokumentierten Codex App Server",
-        "detail": "Liest die Nutzung über den dokumentierten Codex App Server, mit der Anmeldung, die Codex schon gespeichert hat, und schlägt geschlossen fehl, wenn sich das ändert."
+        "detail": "Liest die Nutzung über den dokumentierten Codex App Server, mit der Anmeldung, die Codex schon gespeichert hat, und zeigt keine Zahl statt einer falschen, wenn sich das ändert."
       },
       "antigravity": {
         "tag": "liest die dokumentierte Statusline",
@@ -609,11 +607,11 @@
       },
       "grok": {
         "tag": "liest Abofenster aus der lokalen Session",
-        "detail": "Liest die Abrechnungsfenster der installierten Grok Session und schlägt bei einer Formatänderung sicher fehl."
+        "detail": "Liest die Abrechnungsfenster, die die installierte Grok Session zeigt, und zeigt keine Zahl statt einer falschen, wenn Grok sie ändert."
       },
       "kimi": {
         "tag": "liest Abofenster aus der lokalen Session",
-        "detail": "Liest die Nutzungsfenster der installierten Kimi Session und schlägt bei einer Formatänderung sicher fehl."
+        "detail": "Liest die Nutzungsfenster, die die installierte Kimi Session zeigt, und zeigt keine Zahl statt einer falschen, wenn Kimi sie ändert."
       },
       "manualEntry": {
         "name": "Manual entry",
@@ -663,12 +661,13 @@
       }
     },
     "tile": {
-      "connector": "Connector",
+      "works": "Funktioniert heute",
+      "mayBreak": "Funktioniert, kann bei Updates des Tools ausfallen",
       "noConnector": "Noch kein Connector",
       "plannedChip": "geplant"
     },
     "feedIn": "So fütterst du einen",
-    "footnote": "Noch ist kein Connector gegen ein echtes Konto verifiziert. Codex und Cursor bestehen ihre aufgezeichneten Fixtures, und jeder andere Connector wird als <code>UNVERIFIED</code> ausgeliefert, der ehrliche Standard. Gemini CLI, Grok, Kimi, OpenCode und Cursor lesen Schnittstellen, die intern zum Tooling eines anderen gehören, ebenso die direkte Claude Anfrage, und ändert sich eine davon, fällt dieser Provider geschlossen auf unknown zurück, statt zu raten. <link>Jeder Connector und sein echter Stand</link>.",
+    "footnote": "Claude Code, Codex, Antigravity und OpenRouter werden über Schnittstellen gelesen, die ihre Hersteller dokumentieren. Gemini CLI, Grok, Kimi und OpenCode werden über Schnittstellen gelesen, die ihre Hersteller nicht dokumentieren, ebenso die direkte Claude Anfrage, daher kann ein Update auf deren Seite einen Balken anhalten, bis OpenLimiter nachzieht, und er zeigt dann keine Zahl statt einer falschen. <link>Jeder Connector und sein echter Stand</link>.",
     "compatibilityNote": "Produktnamen, Logos, Marken und andere Warenzeichen, die in OpenLimiter verwendet werden oder auf die verwiesen wird, sind Eigentum der jeweiligen Markeninhaber. Diese Markeninhaber sind nicht mit OpenLimiter, unseren Produkten oder unserer Website verbunden. Sie sponsern oder unterstützen OpenLimiter nicht. Die Verwendung begründet keine Zugehörigkeit oder Befürwortung.",
     "manualNote": "Jedes Tool auf dieser Seite lässt sich schon heute in den Meter aufnehmen. Verbinde es über die Desktop Anwendung, oder trag unter Erweitert die Zahlen per manual entry ein, oder leite eine Payload per ingest aus einem beliebigen Skript ein, das du kontrollierst. So oder so landet es im selben Snapshot wie ein Connector."
   },
@@ -697,87 +696,6 @@
     },
     "openApp": "Web App öffnen",
     "howToProduce": "Wie man ein Dokument erzeugt"
-  },
-  "connections": {
-    "heading": {
-      "title": "Was jeder davon wirklich tut",
-      "note": "Ein Parser ist keine Verbindung"
-    },
-    "columns": {
-      "parser": "Parser",
-      "reader": "Reader",
-      "auth": "Auth",
-      "verification": "Verifizierung"
-    },
-    "table": {
-      "caption": "Jeder Provider, und welche der vier Support Stufen er heute erreicht hat, ausgelesen aus der geprüften Provider Registry",
-      "provider": "Provider",
-      "state": "Stand"
-    },
-    "cells": {
-      "unstated": "Nicht angegeben"
-    },
-    "support": {
-      "ready": "Bereit",
-      "notRequired": "Nicht erforderlich",
-      "none": "Keine"
-    },
-    "verification": {
-      "unverified": "UNVERIFIED",
-      "beta": "Beta",
-      "verified": "Verifiziert",
-      "importOnly": "Import only",
-      "manual": "Manuell",
-      "experimental": "Experimentell",
-      "planned": "Geplant"
-    },
-    "state": {
-      "noSpec": "Keine Spezifikation",
-      "manual": "Manuell",
-      "importOnly": "Import only",
-      "localCli": "Lokale CLI",
-      "connected": "Verbunden"
-    },
-    "readerLine": {
-      "noSpec": "Noch keine geprüfte Spezifikation in der Registry, also beansprucht hier nichts einen Stand dafür.",
-      "implemented": "OpenLimiter liest diesen selbst aus.",
-      "notImplemented": "Hier holt nichts diesen Wert, das Dokument kommt also von dir."
-    },
-    "providers": {
-      "claude": {
-        "fact": "Claude Code schreibt einen Rate Limit Block an seinen Statusline Befehl."
-      },
-      "openrouter": {
-        "fact": "Der Credits Endpoint ist dokumentiert, und seine Antwort lässt sich parsen."
-      },
-      "codex": {
-        "fact": "Der dokumentierte Codex App Server, ausgeführt auf deinem Rechner."
-      },
-      "antigravity": {
-        "fact": "Die dokumentierte Statusline der Antigravity CLI."
-      },
-      "opencode": {
-        "fact": "Eine Usage Ansicht hinter einer Session, die du schon hast."
-      },
-      "gemini": {
-        "fact": "Modellquota aus der installierten Gemini CLI Session."
-      },
-      "grok": {
-        "fact": "Abofenster aus der installierten Grok Session."
-      },
-      "kimi": {
-        "fact": "Abofenster aus der installierten Kimi Session."
-      },
-      "manual": {
-        "fact": "Zahlen, die du selbst pflegst, für alles ohne Schnittstelle."
-      }
-    },
-    "footnote": {
-      "lead": "Reader bedeutet: Etwas in OpenLimiter holt die Zahl selbst. Auth bedeutet: Eine Zugangsdaten wird gehalten und genutzt. Jede Zelle oben wird zur Build Zeit aus der geprüften Provider Registry ausgelesen statt in diese Seite geschrieben, sodass eine Stufe hier nicht beansprucht werden kann, ohne dass zuerst ein Mensch eine Spezifikation ändert.",
-      "unspecified": "{count} der {total} Connectors haben noch keine geprüfte Spezifikation, und jede ihrer Zellen liest Nicht angegeben, statt zu raten.",
-      "elsewhere": "Die Registry beschreibt {count} weitere Produkte, die experimentell, manuell oder geplant sind, weshalb sie hier keine Zeile haben.",
-      "tail": "Eine Zeile auf dieser Seite heißt erst dann Verbunden, wenn ein echter Reader dafür bestätigt ist, nie allein auf der Stärke eines Parsers."
-    }
   },
   "cliTranscript": {
     "captions": {
@@ -840,7 +758,7 @@
       },
       "safeToPoint": {
         "question": "Ist es sicher, es auf meine Tools anzusetzen?",
-        "answer": "OpenLimiter öffnet, was deine installierten Tools ohnehin speichern, nur lesend, und schreibt, repariert oder migriert sie nie. Jeder Parser behält begrenzte Zahlen und Zeitstempel und verwirft Provider Text, bevor irgendetwas deinen Agenten erreicht."
+        "answer": "OpenLimiter öffnet, was deine installierten Tools ohnehin speichern, nur lesend, und schreibt, repariert oder migriert sie nie. Es behält nur begrenzte Zahlen und Zeitstempel und verwirft jeden Text eines Providers, bevor irgendetwas deinen Agenten erreicht."
       },
       "promptHook": {
         "question": "Kann der Prompt Hook meine Session kaputt machen?",
@@ -848,7 +766,7 @@
       },
       "providersToday": {
         "question": "Welche Provider funktionieren heute?",
-        "answer": "Der Anbieterleitfaden listet die verfügbaren Meter, Einrichtungsschritte und den Prüfstatus jeder Integration. Quota Messungen und Agentenaktivität sind getrennte Fähigkeiten. Ein Anbieter, der Aktivität meldet, stellt nicht unbedingt eine quota bereit, und ein an Fixtures getesteter Parser beweist keine Live Erfassung."
+        "answer": "Der Anbieterleitfaden listet die verfügbaren Meter, Einrichtungsschritte und den echten Stand jeder Integration. Quota Messungen und Agentenaktivität sind getrennte Fähigkeiten: Ein Anbieter, der Aktivität meldet, stellt nicht unbedingt eine quota bereit."
       },
       "apiKey": {
         "question": "Brauche ich einen API Key?",
@@ -860,7 +778,7 @@
       },
       "connectorBreaks": {
         "question": "Was passiert, wenn ein Connector kaputtgeht?",
-        "answer": "Inoffizielle Formen ändern sich ohne Ankündigung. Passiert das, schlägt das Parsen geschlossen fehl: Der betroffene Provider fällt zurück auf unknown, die anderen Provider bleiben unberührt, und nichts erfindet eine Zahl, um die Lücke zu füllen. Unknown wird nie zu null."
+        "answer": "Schnittstellen, die ihre Hersteller nicht dokumentieren, können sich ohne Ankündigung ändern. Passiert das, zeigt dieser Provider keine Zahl, bis OpenLimiter nachzieht, die anderen Provider bleiben unberührt, und nichts erfindet eine Zahl, um die Lücke zu füllen. Eine fehlende Zahl wird nie zu null."
       },
       "desktopOrPhone": {
         "question": "Gibt es eine Desktop oder Handy App?",
@@ -943,7 +861,7 @@
       },
       "unknownStaysUnknown": {
         "title": "Unknown bleibt unknown",
-        "detail": "Eine fehlende Zahl wird nie zu einer sicheren. Ändert sich eine Form unter einem Connector, fällt dieser Provider geschlossen aus."
+        "detail": "Eine fehlende Zahl wird nie zu einer sicheren. Ändert ein Tool, was es meldet, zeigt dieser Provider keine Zahl statt einer Schätzung."
       }
     },
     "signature": {
@@ -1153,16 +1071,12 @@
         "description": "Melden Sie sich an, verbinden Sie die KI Konten, für die Sie bereits bezahlen, und sehen Sie Ihre Balken. Balken bleiben ohne Konto kostenlos.",
         "lead": "OpenLimiter misst die KI Abonnements, für die Sie bereits bezahlen. Balken werden ohne Konto auf Ihrem eigenen Computer angezeigt. Nach der Anmeldung werden dieselben Balken zwischen Ihren Geräten synchronisiert. Eine kostenlose Testphase von 30 Tagen ohne Kreditkarte schaltet die übrigen Funktionen frei.",
         "sections": {
-          "what-you-need": {
-            "title": "Was Sie brauchen",
-            "bullets": {
+          "terminal": {
+            "title": "Terminal",
+            "needs": {
               "node": "Node 24 oder neuer für das Terminal.",
               "npm": "npm wird mit Node geliefert."
             },
-            "local": "Lokale Meter, Desktop Benachrichtigungen und das Terminal bleiben kostenlos. Ein Konto ergänzt die Synchronisierung, und Pro ergänzt gehosteten Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung von API Ausgaben."
-          },
-          "terminal": {
-            "title": "Terminal",
             "intro": "Führen Sie das Tool ohne Argumente aus. Es führt überall durch dieselben drei Schritte: anmelden, verbinden und auswählen, wo Balken erscheinen.",
             "terminalLabel": "terminal",
             "steps": "Bei der Anmeldung erscheinen ein kurzer Code und ein Link zu <code>openlimiter.com/app/cli</code>. Das Terminal sieht nie ein Passwort. Mit der Eingabetaste können Sie überspringen und bleiben abgemeldet. Beim Verbinden werden alle vorhandenen Agenten geprüft. Jede Zeile zeigt <code>use current login</code>, <code>sign in</code> oder <code>install</code>. Die Anmeldung von Codex kann direkt gestartet werden. Anschließend werden die unterstützten Terminalprogramme aufgelistet und die ausgewählten eingerichtet.",
@@ -1171,7 +1085,8 @@
           },
           "desktop": {
             "title": "Desktopanwendung",
-            "body": "Beim ersten Start zeigt die Desktopanwendung dieselben drei Schritte: Konto erstellen oder überspringen, direkt erreichbare Anbieter verbinden und Balken im Infobereich anzeigen. Der Infobereich und seine Balken benötigen kein Konto."
+            "download": "<download>Laden Sie die Desktopanwendung herunter</download>, für Windows oder Linux oder als macOS Vorschau. Sie braucht nichts weiter und kein Konto.",
+            "body": "Beim ersten Start führt die Desktopanwendung in ihrem eigenen Fenster zu Ihren ersten Balken: Sie verbindet die direkt erreichbaren Anbieter, und die Anmeldung ist freiwillig. Der Infobereich und seine Balken benötigen kein Konto."
           },
           "hub": {
             "title": "Webzentrale",

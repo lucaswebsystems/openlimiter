@@ -523,9 +523,7 @@
         "alt": "OpenLimiter desktop with three tabs named Usage, Connect Tools and Settings, synthetic limits for Codex, Claude Code and OpenRouter, and a hover panel with agent activity.",
         "desktopHomeAlt": "OpenLimiter desktop Usage tab with synthetic bars for Codex, Claude Code and OpenRouter.",
         "desktopHomeNote": "Usage shows the bars for Codex, Claude Code and OpenRouter.",
-        "desktopConnectAlt": "OpenLimiter desktop Connect Tools tab showing synthetic provider connections.",
         "desktopConnectNote": "Connect Tools shows provider setup and connection status.",
-        "desktopSettingsAlt": "OpenLimiter desktop Settings tab showing choices for the application.",
         "desktopSettingsNote": "Settings shows the choices that shape the desktop."
       },
       "terminal": {
@@ -555,7 +553,7 @@
     "screenshot": {
       "alt": "The OpenLimiter desktop Usage tab window with synthetic bars for Codex, Claude Code and OpenRouter."
     },
-    "caption": "The real Usage tab window rendered headlessly with synthetic fixtures. No personal account, credential or real usage figure appears in it."
+    "caption": "The real Usage tab window, drawn with sample data. No personal account, credential or real usage figure appears in it."
   },
   "phonePanels": {
     "shots": {
@@ -593,7 +591,7 @@
       },
       "codex": {
         "tag": "reads the documented Codex app server",
-        "detail": "Reads usage through the documented Codex app server, with the login Codex already stored, and fails closed if that changes."
+        "detail": "Reads usage through the documented Codex app server, with the login Codex already stored, and shows no number rather than a wrong one if that changes."
       },
       "antigravity": {
         "tag": "reads the documented status line",
@@ -609,11 +607,11 @@
       },
       "grok": {
         "tag": "reads subscription windows from the local session",
-        "detail": "Reads the billing windows exposed to the installed Grok session and fails closed when the shape changes."
+        "detail": "Reads the billing windows the installed Grok session shows, and shows no number rather than a wrong one when Grok changes them."
       },
       "kimi": {
         "tag": "reads subscription windows from the local session",
-        "detail": "Reads the usage windows exposed to the installed Kimi session and fails closed when the shape changes."
+        "detail": "Reads the usage windows the installed Kimi session shows, and shows no number rather than a wrong one when Kimi changes them."
       },
       "manualEntry": {
         "name": "Manual entry",
@@ -663,12 +661,13 @@
       }
     },
     "tile": {
-      "connector": "Connector",
+      "works": "Works today",
+      "mayBreak": "Works, may break when the tool updates",
       "noConnector": "No connector yet",
       "plannedChip": "planned"
     },
     "feedIn": "How to feed one in",
-    "footnote": "No connector has been verified against a live account yet. Codex and Cursor pass their recorded fixtures, and every other connector ships marked <code>UNVERIFIED</code>, the honest default. Gemini CLI, Grok, Kimi, OpenCode and Cursor read interfaces internal to somebody else's tooling, as does the direct Claude request, and when one changes, that provider fails closed to unknown rather than guessing. <link>Every connector and its real state</link>.",
+    "footnote": "Claude Code, Codex, Antigravity and OpenRouter are read through interfaces their makers document. Gemini CLI, Grok, Kimi and OpenCode are read through interfaces their makers do not document, as is the direct Claude request, so an update on their side can stop a bar until OpenLimiter catches up, and it then shows no number rather than a wrong one. <link>Every connector and its real state</link>.",
     "compatibilityNote": "Product names, logos, brands, and other trademarks featured or referred to within OpenLimiter are the property of their respective trademark holders. These trademark holders are not affiliated with OpenLimiter, our products, or our website. They do not sponsor or endorse OpenLimiter. Use of them does not imply any affiliation with or endorsement by them.",
     "manualNote": "Every tool on this page can be metered today. Connect it from the desktop application, or, under Advanced, write the numbers down with manual entry or pipe a payload in with ingest from any script you control. Either way it lands in the same snapshot as a connector."
   },
@@ -697,87 +696,6 @@
     },
     "openApp": "Open the web app",
     "howToProduce": "How to produce a document"
-  },
-  "connections": {
-    "heading": {
-      "title": "What each one actually does",
-      "note": "A parser is not a connection"
-    },
-    "columns": {
-      "parser": "Parser",
-      "reader": "Reader",
-      "auth": "Auth",
-      "verification": "Verification"
-    },
-    "table": {
-      "caption": "Every provider, and which of the four stages of support it has reached today, read from the reviewed provider registry",
-      "provider": "Provider",
-      "state": "State"
-    },
-    "cells": {
-      "unstated": "Unstated"
-    },
-    "support": {
-      "ready": "Ready",
-      "notRequired": "Not required",
-      "none": "None"
-    },
-    "verification": {
-      "unverified": "Unverified",
-      "beta": "Beta",
-      "verified": "Verified",
-      "importOnly": "Import only",
-      "manual": "Manual",
-      "experimental": "Experimental",
-      "planned": "Planned"
-    },
-    "state": {
-      "noSpec": "No spec",
-      "manual": "Manual",
-      "importOnly": "Import only",
-      "localCli": "Local CLI",
-      "connected": "Connected"
-    },
-    "readerLine": {
-      "noSpec": "No reviewed spec in the registry yet, so nothing here claims a state for it.",
-      "implemented": "OpenLimiter reads this one itself.",
-      "notImplemented": "Nothing here fetches it, so the document comes from you."
-    },
-    "providers": {
-      "claude": {
-        "fact": "Claude Code writes a rate limit block to its statusline command."
-      },
-      "openrouter": {
-        "fact": "The credits endpoint is documented and its response parses."
-      },
-      "codex": {
-        "fact": "The documented Codex app server, run on your machine."
-      },
-      "antigravity": {
-        "fact": "The documented Antigravity CLI status line."
-      },
-      "opencode": {
-        "fact": "A usage view behind a session you already hold."
-      },
-      "gemini": {
-        "fact": "Model quota returned through the installed Gemini CLI session."
-      },
-      "grok": {
-        "fact": "Subscription windows returned through the installed Grok session."
-      },
-      "kimi": {
-        "fact": "Subscription windows returned through the installed Kimi session."
-      },
-      "manual": {
-        "fact": "Numbers you keep yourself, for anything with no interface."
-      }
-    },
-    "footnote": {
-      "lead": "Reader means something in OpenLimiter goes and fetches the number. Auth means a credential is held and used. Every cell above is read at build time from the reviewed provider registry rather than written into this page, so a stage cannot be claimed here without a human changing a spec first.",
-      "unspecified": "{count} of the {total} connectors have no reviewed spec yet, and every one of their cells reads Unstated rather than guessing.",
-      "elsewhere": "The registry describes {count} further products that are experimental, manual or planned, which is why they are not rows here.",
-      "tail": "A row on this page is only ever called Connected once a live reader for it is confirmed, never on the strength of a parser alone."
-    }
   },
   "cliTranscript": {
     "captions": {
@@ -840,7 +758,7 @@
       },
       "safeToPoint": {
         "question": "Is it safe to point at my tools?",
-        "answer": "OpenLimiter opens what your installed tools already store, read only, and never rewrites, repairs or migrates them. Every parser keeps bounded numbers and timestamps and discards provider text before anything reaches your agent."
+        "answer": "OpenLimiter opens what your installed tools already store, read only, and never rewrites, repairs or migrates them. It keeps only bounded numbers and timestamps, and drops any text a provider sends before anything reaches your agent."
       },
       "promptHook": {
         "question": "Can the prompt hook break my session?",
@@ -848,7 +766,7 @@
       },
       "providersToday": {
         "question": "Which providers work today?",
-        "answer": "The provider guide lists the available meters, setup steps and verification status for each integration. Quota readings and agent activity are separate capabilities. A provider that reports activity does not necessarily expose a quota, and a parser tested on fixtures is not proof of live acquisition."
+        "answer": "The provider guide lists the available meters, setup steps and the real state of each integration. Quota readings and agent activity are separate capabilities: a provider that reports activity does not necessarily expose a quota."
       },
       "apiKey": {
         "question": "Do I need an API key?",
@@ -860,7 +778,7 @@
       },
       "connectorBreaks": {
         "question": "What happens when a connector breaks?",
-        "answer": "Unofficial shapes change without notice. When one does, parsing fails closed: that provider returns to unknown, the other providers are unaffected, and nothing invents a number to fill the gap. Unknown never becomes zero."
+        "answer": "Interfaces their makers do not document can change without notice. When one does, that provider shows no number until OpenLimiter catches up, the other providers are unaffected, and nothing invents a number to fill the gap. A missing number never becomes zero."
       },
       "desktopOrPhone": {
         "question": "Is there a desktop or phone app?",
@@ -943,7 +861,7 @@
       },
       "unknownStaysUnknown": {
         "title": "Unknown stays unknown",
-        "detail": "A missing number never becomes a confident one. When a shape changes underneath a connector, that provider fails closed."
+        "detail": "A missing number never becomes a confident one. When a tool changes what it reports, that provider shows no number rather than a guess."
       }
     },
     "signature": {
@@ -1153,16 +1071,12 @@
         "description": "Sign in, connect the AI accounts you already pay for, and see your bars. Bars stay free with no account at all.",
         "lead": "OpenLimiter meters the AI subscriptions you already pay for. Bars render from your own machine with no account. Sign in and the same bars sync between your devices, and a free 30 day trial with no card unlocks the rest.",
         "sections": {
-          "what-you-need": {
-            "title": "What you need",
-            "bullets": {
+          "terminal": {
+            "title": "Terminal",
+            "needs": {
               "node": "Node 24 or newer, for the terminal.",
               "npm": "npm, which ships with Node."
             },
-        "local": "Local meters, desktop alerts and the terminal stay free. An account adds sync, and Pro adds hosted history, phone push and email alerts, extra accounts and cloud API spend metering."
-          },
-          "terminal": {
-            "title": "Terminal",
             "intro": "Run the tool with nothing after it and it walks the same three steps everywhere: sign in, connect, then show bars in.",
             "terminalLabel": "terminal",
             "steps": "Sign in prints a short code and a link to <code>openlimiter.com/app/cli</code>, so the terminal never sees a password, and Enter to skip leaves the device signed out. Connect checks every agent CLI already on this machine and reports one of <code>use current login</code>, <code>sign in</code> or <code>install</code> for each row, and offers to run Codex's own sign in on the spot. Show bars in lists the terminal hosts this machine can draw bars into and wires whichever ones you keep.",
@@ -1171,7 +1085,8 @@
           },
           "desktop": {
             "title": "Desktop app",
-            "body": "The desktop app's first run draws the same three steps in its own window: create an account or skip it, connect the providers it can reach directly, then bars in the tray. The tray and its bars never require that account."
+            "download": "<download>Download the desktop app</download> for Windows or Linux, or the macOS preview. It needs nothing else installed and no account.",
+            "body": "Its first run walks you to your first bars in its own window: it connects the providers it can reach directly, and signing in is optional. The tray and its bars never require an account."
           },
           "hub": {
             "title": "Web hub",
