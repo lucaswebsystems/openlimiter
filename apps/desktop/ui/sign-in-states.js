@@ -13,8 +13,9 @@
  * it, the same way pairing-states.js is checked.
  */
 
-/** The two providers the body offers, in the order it draws them. */
-export const SIGN_IN_PROVIDERS = Object.freeze(["github", "google"]);
+/** The three providers the body offers, in the order it draws them. Microsoft
+    travels as azure, the name the authentication service knows it by. */
+export const SIGN_IN_PROVIDERS = Object.freeze(["github", "google", "azure"]);
 
 /** The tones a status line can take. Each one has a shape in surfaces.css. */
 export const SIGN_IN_TONES = Object.freeze(["working", "error", "success", "sent"]);

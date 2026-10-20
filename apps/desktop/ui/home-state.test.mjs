@@ -1,9 +1,21 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { homeProviders } from "./home-state.js";
+import * as homeState from "./home-state.js";
 
+const { homeProviders } = homeState;
 const read = (name) => readFileSync(new URL(name, import.meta.url), "utf8");
+
+test("the account is offered under the first bar of a fresh install, once, and never to a signed in person", () => {
+  const { accountOfferShown } = homeState;
+  assert.equal(typeof accountOfferShown, "function", "no rule for the account offer");
+  const shown = (change) => accountOfferShown({ offer: "pending", accountKnown: true, signedIn: false, hasBars: true, ...change });
+  assert.equal(shown({}), true);
+  assert.equal(shown({ hasBars: false }), false, "offered before the first bar");
+  assert.equal(shown({ accountKnown: false }), false, "offered before the account answered");
+  assert.equal(shown({ signedIn: true }), false, "offered to a signed in person");
+  for (const offer of [null, "dismissed", "done"]) assert.equal(shown({ offer }), false, String(offer));
+});
 
 test("Home refreshes every provider in play, Cursor included, never a removed one", () => {
   const detections = { providers: [

@@ -2,11 +2,11 @@
  * The settings half of the menu: short labels, switches, no paragraphs.
  *
  * Alerts on or off with their 60, 80 and 90 thresholds and the reset notice,
- * quiet hours, snooze, the theme preset, the edge tab, the Claude direct poll
- * and the provider switches. Everything the Settings tab did stays reachable
- * here; what it said in sentences is gone (Lucas, 2026-10-01). The one
- * sentence kept is the Claude direct poll's, because that switch reads a
- * local sign in.
+ * quiet hours, snooze, the theme preset, the edge tab and the provider
+ * switches. Everything the Settings tab did stays reachable here; what it
+ * said in sentences is gone (Lucas, 2026-10-01). The Claude direct usage
+ * request is not here: its one switch lives on the Claude row in Connect
+ * Tools, off until a person turns it on there.
  *
  * Quiet hours keep contract 5.2's shape (start inclusive, end exclusive, a
  * range may cross midnight, start equal to end is off), so the switch turns
@@ -25,7 +25,6 @@ import {
   proStatus,
   proService,
   setAutostart,
-  setClaudePollEnabled,
   setNotificationSettings,
   setTerminalCaptions,
   terminalCaptions,
@@ -46,12 +45,6 @@ export const ALERTS_EN = Object.freeze({
   snoozeOff: "Off",
   snoozeUntil: "Until {time}",
   unavailable: "Alerts unavailable in this build",
-});
-
-/* The one sentence the menu keeps (plan 2.0.3, Step 2). */
-export const CLAUDE_POLL_EN = Object.freeze({
-  label: say("showClaudeFable"),
-  note: say("showClaudeFableNote"),
 });
 
 export const MENU_EN = Object.freeze({ tools: "Tools", preset: "Theme preset", agentAlerts: "Agent alerts" });
@@ -541,13 +534,6 @@ function wire(agents) {
     if (value === "keep") return;
     const minutes = Number(value);
     void save({ snoozedUntil: minutes === 0 ? null : snoozeUntil(minutes) });
-  });
-  byId("claude-poll")?.addEventListener("change", async (event) => {
-    const requested = event.target.checked;
-    event.target.disabled = true;
-    const result = await setClaudePollEnabled(requested);
-    event.target.checked = result.ok ? requested : !requested;
-    event.target.disabled = false;
   });
   /* The preset buttons only: the page root carries data-preset too, and a
      listener there repainted Settings on every click, taking a switch out

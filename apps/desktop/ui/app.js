@@ -27,7 +27,6 @@ import {
 } from "./engine/core/index.js";
 /* The one projection, names and drawing Home shares with the edge panel. */
 import {
-  ALWAYS_LISTED,
   alertSamples,
   fixWords,
   holdReadings,
@@ -107,7 +106,7 @@ import {
 import { readConfiguredProviders, readRemovedProviders, adoptDetectedProviders, homeSelectionControl } from "./configured-providers.js";
 import { bindHomeRefresh } from "./home-refresh.js";
 import { headerPopovers } from "./header-popovers.js";
-import { homeProviders } from "./home-state.js";
+import { accountOfferShown, homeProviders } from "./home-state.js";
 /* Every value on a failure card came off a file this window did not write, so
    the card is built out of nodes and text rather than out of a markup string. */
 import { buildFailureRow } from "./failure-rows.js";
@@ -127,8 +126,7 @@ import {
   replaceOpenrouterKey,
   saveOpenrouterKey,
 } from "./connections.js";
-import { initFirstRun } from "./first-run.js";
-import { useClaudeSignIn } from "./claude-sign-in.js";
+import { ACCOUNT_OFFER_STORAGE_KEY, initFirstRun } from "./first-run.js";
 import { initWhatsNew, openWhatsNew } from "./whats-new.js";
 import { tabSwitcher } from "./tabs.js";
 
@@ -164,7 +162,6 @@ const elements = {
   phoneButton: document.getElementById("phone-button"),
   phonePopover: document.getElementById("phone-popover"),
   signIn: document.getElementById("sign-in"),
-  signInSlot: document.getElementById("sign-in-slot"),
   signInBody: document.getElementById("sign-in-body"),
   signInClose: document.getElementById("sign-in-close"),
   signInStatus: document.getElementById("sign-in-status"),
@@ -182,6 +179,10 @@ const elements = {
   signInCreate: document.getElementById("account-email-create"),
   signInGoogle: document.getElementById("account-google"),
   signInGithub: document.getElementById("account-github"),
+  signInMicrosoft: document.getElementById("account-microsoft"),
+  accountOffer: document.getElementById("account-offer"),
+  accountOfferSignIn: document.getElementById("account-offer-sign-in"),
+  accountOfferDismiss: document.getElementById("account-offer-dismiss"),
   updateBanner: document.getElementById("update-banner"),
   offlineBanner: document.getElementById("offline-banner"),
   refreshStatus: document.getElementById("home-refresh-status"),
@@ -223,10 +224,47 @@ function closeHeaderPopovers() {
 /** Whether a session exists right now. The menu and the phone panel both
     branch on it, so it has one owner and is read rather than guessed. */
 let signedIn = false;
+/* False until the account answers, so the offer never flashes for a person
+   who turns out to be signed in. */
+let accountKnown = false;
+/* Whether Usage draws at least one bar: the offer waits for the first one. */
+let hasBars = false;
+
+function readAccountOffer() {
+  try {
+    return window.localStorage.getItem(ACCOUNT_OFFER_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function settleAccountOffer(value) {
+  try {
+    window.localStorage.setItem(ACCOUNT_OFFER_STORAGE_KEY, value);
+  } catch {
+    /* Storage refused. The card still goes for this window. */
+  }
+}
+
+/** The account card under the bars: a fresh install's one offer, once. */
+function paintAccountOffer() {
+  if (elements.accountOffer === null) return;
+  elements.accountOffer.hidden = !accountOfferShown({ offer: readAccountOffer(), accountKnown, signedIn, hasBars });
+}
+
+elements.accountOfferSignIn?.addEventListener("click", openSignIn);
+elements.accountOfferDismiss?.addEventListener("click", () => {
+  settleAccountOffer("dismissed");
+  paintAccountOffer();
+});
 
 function applyAccountState(status) {
   if (status === null || typeof status !== "object") return;
   signedIn = status.signedIn === true;
+  accountKnown = true;
+  /* A person with an account has nothing left to be offered. */
+  if (signedIn) settleAccountOffer("done");
+  paintAccountOffer();
   elements.menuEmail.textContent = signedIn
     ? String(status.email ?? "Signed in")
     : "Signed out";
@@ -247,13 +285,13 @@ function applyAccountState(status) {
 /* ------------------------------------------------------------- signing in */
 
 /**
- * One sign in body, two hosts.
+ * One sign in body, in the sheet.
  *
- * The body, the two provider buttons with their marks, the rule, the email
- * form behind its quiet link and the status line, is one set of nodes. The
- * sheet owns it; the first run account step borrows it for the length of
- * that step and hands it back, so there is exactly one password field in the
- * document and one place for a sign in bug to live.
+ * The body, the three provider buttons with their marks, the rule, the email
+ * form behind its quiet link and the status line, is one set of nodes, and
+ * the sheet owns it: the account menu, the phone popover and the offer under
+ * the first bar all open the sheet, so there is exactly one password field in
+ * the document and one place for a sign in bug to live.
  *
  * Every state the body can be in is drawn rather than printed: a browser tab
  * opening, the service refusing a provider it has not switched on, a session
@@ -264,6 +302,7 @@ function signInControls() {
   return [
     elements.signInGithub,
     elements.signInGoogle,
+    elements.signInMicrosoft,
     elements.signInToggle,
     elements.signInEmail,
     elements.signInPassword,
@@ -370,29 +409,10 @@ function resetSignInBody() {
   }
 }
 
-function signInIsInSheet() {
-  return elements.signInBody?.parentElement === elements.signInSlot;
-}
-
-/** Lend the body to another host, the first run account step. */
-function mountSignIn(host) {
-  if (elements.signInBody === null || !(host instanceof HTMLElement)) return;
-  host.append(elements.signInBody);
-  resetSignInBody();
-  elements.signInGithub?.focus();
-}
-
-/** Take the body back into the sheet, wherever it was. */
-function unmountSignIn() {
-  if (elements.signInBody === null || elements.signInSlot === null) return;
-  if (!signInIsInSheet()) elements.signInSlot.append(elements.signInBody);
-  resetSignInBody();
-}
-
 function openSignIn() {
   if (elements.signIn === null) return;
   closeHeaderPopovers();
-  unmountSignIn();
+  resetSignInBody();
   elements.signIn.hidden = false;
   elements.signInGithub?.focus();
 }
@@ -443,25 +463,21 @@ async function runSignIn(action, provider, working, pressed) {
   setSignInBusy(false);
   showSignedIn(signedInSentence(result.value.email));
   void refresh();
-  window.setTimeout(() => {
-    if (signInIsInSheet()) closeSignIn();
-    window.dispatchEvent(new CustomEvent("openlimiter:signed-in"));
-  }, SIGNED_IN_DWELL_MILLISECONDS);
+  window.setTimeout(closeSignIn, SIGNED_IN_DWELL_MILLISECONDS);
   return { ok: true, displayed: true };
 }
 
 /**
  * One way in, whichever button was pressed and wherever it was drawn.
  *
- * GitHub and Google are buttons in the shared body; Microsoft is drawn by the
- * first run step, which hands its own element in so the busy state lands on
- * the control somebody actually pressed. All three reach `runSignIn`, which is
- * what applies the account state, draws the arrival and announces it. A path
- * that skips it signs somebody in and leaves the screen where it was.
+ * GitHub, Google and Microsoft are buttons in the one body, and all three
+ * reach `runSignIn`, which is what applies the account state and draws the
+ * arrival; the busy state lands on the button that was pressed. A path that
+ * skips it signs somebody in and leaves the screen where it was.
  */
-function continueWith(provider, pressed = null) {
-  const known = { google: elements.signInGoogle, github: elements.signInGithub };
-  const control = pressed ?? known[provider] ?? elements.signInGithub;
+function continueWith(provider) {
+  const known = { google: elements.signInGoogle, github: elements.signInGithub, azure: elements.signInMicrosoft };
+  const control = known[provider] ?? elements.signInGithub;
   return runSignIn(() => accountOauth(provider), provider, openingSentence(provider), control);
 }
 
@@ -534,6 +550,7 @@ elements.signInCreate?.addEventListener("click", () => {
 
 elements.signInGithub?.addEventListener("click", () => void continueWith("github"));
 elements.signInGoogle?.addEventListener("click", () => void continueWith("google"));
+elements.signInMicrosoft?.addEventListener("click", () => void continueWith("azure"));
 
 async function runUpdateCheck(silent) {
   if (!silent) elements.menuUpdate.textContent = "Checking for updates";
@@ -828,17 +845,6 @@ const toolHandlers = {
     return code === "OPENROUTER" ? focusKey("openrouter") : connectTool(code);
   },
   check: (code) => checkTool(code),
-  /* Claude's one click: the direct check on, the menu switch repainted, one read. */
-  poll: async () => {
-    const done = await useClaudeSignIn({
-      setPoll: setClaudePollEnabled,
-      repaintMenu: () => renderSettings(elements.settingsMount),
-      check: checkTool,
-    });
-    claudePoll = done ? true : claudePoll;
-    void refresh();
-    return done;
-  },
 };
 
 const catalogueHandlers = {
@@ -861,6 +867,8 @@ function paintTools(snapshots, now) {
   /* Redrawn only when something on it changed, so a step in flight keeps
      its button and its line. */
   const { usage, tools } = splitInventory(model);
+  hasBars = usage.some((tool) => tool.windows.length > 0);
+  paintAccountOffer();
   /* Under Claude's bars while the terminal runtime is older than this app. */
   const runtimeNotice = claudeRuntimeNotice();
   const usageKey = limitsKey(usage) + (runtimeNotice === null ? "" : "runtime notice");
@@ -1127,51 +1135,28 @@ void initWhatsNew().catch(() => {
   // Release notes must not prevent startup if the local resource is unavailable.
 });
 
+/* The account is read once at launch: the menu, the phone panel, the plan
+   and the offer under the first bar all wait on this answer. */
+void accountStatus().then(async (result) => {
+  if (!result.ok) return;
+  applyAccountState(result.value);
+  await readPlan();
+  await renderSettings(elements.settingsMount);
+  if (result.value.syncEnabled !== false) {
+    void accountSyncConfiguredSnapshot(readConfiguredProviders());
+  }
+}, () => {});
+
 initFirstRun({
   setProviderEnabled,
-  accountStatus,
   detectProviders: listDetectedProviders,
   markFor: officialMark,
-  isSignedIn: () => signedIn,
-  mountSignIn,
-  unmountSignIn,
-  /* Step one hands the wire value straight through, so the one place that
-     owns sign in stays the one place that owns sign in. */
-  signInWithProvider: (wire, pressed) => continueWith(wire, pressed),
-  /* Step two's install rows show a command rather than running one. The
-     clipboard is the whole of the help this product offers there. */
-  copyText: async (value) => {
-    try {
-      await navigator.clipboard.writeText(String(value));
-      return { ok: true };
-    } catch (error) {
-      /* A webview with no clipboard permission is a fact, not a failure: the
-         line is on screen and can be selected by hand. */
-      return { ok: false };
-    }
-  },
-  claudePollEnabled,
-  setClaudePoll: (enabled) => setClaudePollEnabled(enabled),
   autostartFirstRun: autostartFirstRunComplete,
   codexSignIn: codexDeviceLoginStart,
   codexSignInPoll: codexDeviceLoginStatus,
   codexSignInCancel: codexDeviceLoginCancel,
-  onAccountState: async (status) => {
-    applyAccountState(status);
-    await readPlan();
-    await renderSettings(elements.settingsMount);
-    if (status.syncEnabled !== false) {
-      void accountSyncConfiguredSnapshot(readConfiguredProviders());
-    }
-  },
   onContinue: () => {
     void refresh();
-  },
-  /* An install row's tool gets its own step on the one screen. */
-  onInstall: (provider) => {
-    document.getElementById("tab-tools")?.click();
-    const code = providerCode(provider);
-    void (ALWAYS_LISTED.includes(code) || code === "CODEX" ? toolHandlers.connect(code) : checkTool(code));
   },
 });
 

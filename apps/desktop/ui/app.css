@@ -206,20 +206,6 @@ html[data-first-run="complete"] .first-run {
   font-size: var(--ol-text-caption);
 }
 
-.first-run-consent-actions {
-  display: grid;
-  gap: var(--ol-space-3);
-}
-
-.first-run-consent-actions .first-run-continue {
-  margin-top: 0;
-}
-
-.first-run-recovery {
-  width: 100%;
-  margin-top: var(--ol-space-3);
-}
-
 .first-run[data-empty="true"] .first-run-panel {
   width: min(28rem, 100%);
   text-align: center;
@@ -1576,10 +1562,11 @@ button.first-run-continue {
   color: var(--ol-on-primary);
 }
 
-button.first-run-continue:hover,
-#empty-connect:hover {
-  border-color: var(--ol-accent-solid-hover);
-  background: var(--ol-accent-solid-hover);
+/* The hover keeps the label readable: white on the mark blue's own hover
+   measures 6.2:1, where the brand blue's light hover fell to 2.5:1. */
+button.first-run-continue:hover {
+  border-color: var(--ol-primary-hover);
+  background: var(--ol-primary-hover);
 }
 
 .first-run {
@@ -2490,26 +2477,6 @@ pre {
   height: 2.25rem;
 }
 
-/* ------------------------------------------------- the optional account */
-
-/* The account step hosts the one sign in body, the same nodes the sheet draws,
-   so the providers and their marks are right there rather than behind a
-   second dialog. The body's own shapes live in surfaces.css beside the sheet;
-   this is only where it sits on the first run panel. "Not now" follows it as
-   a quiet control with the honest sentence beside it, a real choice about an
-   optional account rather than a way out of a wall. */
-.first-run-account-mount {
-  margin-top: var(--ol-space-5);
-}
-
-.first-run-account-mount:empty {
-  display: none;
-}
-
-#first-run-account .sign-in-foot {
-  margin-top: var(--ol-space-4);
-}
-
 /* -------------------------------------------------- the alert plan gate */
 
 .notification-gate {
@@ -2622,28 +2589,33 @@ pre {
   text-align: center;
 }
 
-/* --------------------------------------------- the three step first run */
+/* ----------------------------------------------- the two step first run */
 
-/* The way past a step, drawn quiet.
-   Later and Skip are not the point of their screens, so neither is given the
-   weight of a button beside sign in or beside the tools. They borrow the
-   sheet's own link shape and this only places them on the centre line. */
-.first-run-quiet {
-  display: grid;
-  justify-items: center;
+/* Show my bars and its helper line, pinned to the bottom of the window while
+   the list scrolls under them, so the one way out is never below the fold of
+   the 520 by 720 window, whatever the machine has installed. */
+.first-run-footer {
+  position: sticky;
+  bottom: 0;
   margin-top: var(--ol-space-3);
+  padding-block: var(--ol-space-3);
+  border-top: 1px solid var(--ol-hairline);
+  background: var(--ol-canvas);
 }
 
-/* The one line the Microsoft button can need. It has no size until it has
-   something to say, so it never pushes the Later link down for nothing. */
-.first-run-way-status {
-  margin: var(--ol-space-2) 0 0;
-  color: var(--ol-meter-critical-label);
+.first-run-footer button.first-run-continue {
+  margin-top: 0;
+}
+
+/* The tools this machine does not have, named once under the list. */
+.first-run-absent {
+  margin: var(--ol-space-2) var(--ol-space-1) 0;
+  color: var(--ol-muted);
   font-size: var(--ol-text-micro);
-  text-align: center;
+  line-height: var(--ol-leading-body);
 }
 
-.first-run-way-status:empty {
+.first-run-absent:empty {
   display: none;
 }
 
@@ -2731,37 +2703,51 @@ button.first-run-quiet-button {
   font-size: var(--ol-text-caption);
 }
 
-/* The Claude poll setting, under the Claude row and under no other, because
-   it is the only provider it can possibly mean. Off by default, and the
-   sentence under it says exactly what turning it on reads. */
-.first-run-poll {
-  display: grid;
-  gap: var(--ol-space-1);
-  grid-column: 1 / -1;
-  margin-top: var(--ol-space-3);
-  padding: var(--ol-space-2) var(--ol-space-3);
-  border: 1px solid var(--ol-hairline);
-  border-radius: var(--ol-radius-sm);
-  background: var(--ol-raised);
-}
-
-.first-run-poll-label {
-  display: flex;
-  align-items: center;
-  gap: var(--ol-space-2);
-  color: var(--ol-heading);
-  font-size: var(--ol-text-caption);
-  font-weight: var(--ol-weight-medium);
-}
-
-.first-run-poll-note {
+/* The time the device code has left, under the code. Not a live region: a
+   screen reader hears how the flow ends, not every second of it. */
+.first-run-countdown {
   margin: 0;
   color: var(--ol-muted);
   font-size: var(--ol-text-micro);
-  line-height: var(--ol-leading-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.first-run-countdown:empty {
+  display: none;
 }
 
 /* ------------------------------------------------------- the one screen */
+
+/* The account, offered under the first bar of a fresh install: one heading,
+   the one sentence about what it adds, Sign in, and a Not now that settles it. */
+.account-offer {
+  display: grid;
+  gap: var(--ol-space-2);
+  padding: var(--ol-space-4);
+}
+
+.account-offer h2 {
+  margin: 0;
+  color: var(--ol-heading);
+  font-size: var(--ol-text-body);
+  font-weight: var(--ol-weight-semibold);
+  line-height: var(--ol-leading-tight);
+  white-space: normal;
+}
+
+.account-offer p {
+  margin: 0;
+  color: var(--ol-muted);
+  font-size: var(--ol-text-caption);
+  line-height: var(--ol-leading-body);
+}
+
+.account-offer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ol-space-2);
+  margin-top: var(--ol-space-1);
+}
 
 /* Refresh is an icon in the header; while a read runs its icon turns. */
 #home-refresh[aria-busy="true"] svg {

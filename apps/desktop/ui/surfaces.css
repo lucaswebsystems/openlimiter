@@ -1073,16 +1073,6 @@ select.field:focus-visible {
   font-size: var(--ol-text-micro);
 }
 
-.trial-offer {
-  margin-block: var(--ol-space-3);
-  color: var(--ol-heading);
-}
-
-.trial-offer > p {
-  margin: var(--ol-space-1) 0 0;
-  color: var(--ol-body);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .provider-switch-track::before {
     transition: none;
@@ -1190,16 +1180,6 @@ select.field:focus-visible {
   color: var(--muted);
   font-size: var(--ol-text-caption);
   line-height: var(--ol-leading-body);
-}
-
-/* The first run step wears the same head, so the panel's own lockup steps
-   aside for it and the step marks sit on the centre line. */
-.first-run[data-step="account"] .first-run-lockup {
-  display: none;
-}
-
-.first-run[data-step="account"] .first-run-steps {
-  justify-content: center;
 }
 
 .sign-in-body {

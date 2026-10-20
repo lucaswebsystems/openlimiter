@@ -279,7 +279,6 @@ const WINDOW_FILES = [
   "whats-new.css",
   "home-state.js",
   "backend.js",
-  "claude-sign-in.js",
   "configured-providers.js",
   "connections.js",
   "first-run.js",
