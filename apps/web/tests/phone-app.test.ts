@@ -45,6 +45,19 @@ describe("phone card geometry", () => {
     expect(PHONE_THEME).toMatch(/\.ol-lock-offer\s*\{[\s\S]*?border-radius:\s*var\(--ol-radius-md\)/u);
     expect(PHONE_THEME).toMatch(/\.ol-lock-list li\s*\{[\s\S]*?display:\s*grid;[\s\S]*?grid-template-columns:\s*0\.375rem\s+minmax\(0,\s*1fr\)/u);
   });
+
+  /* The Pro tab's grid rule once landed inside the install button's selector
+     group, which gave that button a grid and took its primary fill away. */
+  it("keeps the install confirmation's primary fill and gives the grid only to the Pro tab", () => {
+    const rules = [...PHONE_THEME.replace(/\/\*[\s\S]*?\*\//gu, "").matchAll(/([^{}]+)\{([^{}]*)\}/gu)]
+      .map(([, head, body]) => ({ selectors: head.split(",").map((selector) => selector.trim()), body }));
+    const install = "body:has(.ol-phone-shell) .ol-sheet .ol-install-done.ol-control-primary";
+    expect(rules.find((rule) => rule.selectors.includes(install))?.body).toMatch(/background:\s*var\(--ol-primary-fill\)/u);
+    for (const rule of rules.filter((candidate) => candidate.selectors.some((selector) => selector.includes(".ol-install-done")))) {
+      expect(rule.body).not.toMatch(/display:\s*grid/u);
+    }
+    expect(rules.find((rule) => rule.selectors.join() === ".ol-phone-pro")?.body).toMatch(/display:\s*grid/u);
+  });
 });
 
 describe("the paired phone display cache", () => {
