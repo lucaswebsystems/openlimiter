@@ -3482,6 +3482,20 @@ body:has(.ol-phone-shell) .ol-phone-pro .ol-control-primary:hover {
   line-height: var(--ol-leading-body);
 }
 
+/* The two plans side by side where they fit; a phone stacks them full width
+   through the rule on .ol-lock-offer .ol-control below. */
+.ol-lock-plans {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ol-space-2);
+  width: 100%;
+}
+
+/* The prices under the trial button read from the card's own left edge. */
+.ol-lock .ol-trial-note {
+  text-align: start;
+}
+
 .ol-lock-offer .ol-control {
   margin-top: var(--ol-space-2);
   min-height: var(--ol-control-height-touch);

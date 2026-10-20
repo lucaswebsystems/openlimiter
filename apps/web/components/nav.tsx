@@ -189,7 +189,7 @@ export async function Nav({ localised = true }: { localised?: boolean }) {
             {/* The compact row, everywhere below the large breakpoint. A tablet
                 at 768 wrapped the wide row into two lines, so the sheet owns
                 that width too: two controls beside the mark, and never a third. */}
-            <div className="flex items-center gap-2 lg:hidden">
+            <div className="flex items-center gap-2 max-[359px]:gap-1 lg:hidden">
               <SiteLink href="/pro" className={proClass}>
                 {t("getPro")}
               </SiteLink>

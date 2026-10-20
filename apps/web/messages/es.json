@@ -1640,7 +1640,7 @@
             },
             "grammar": {
               "title": "El formato",
-              "intro": "En Claude Code la línea empieza con el modelo, el esfuerzo y cuánto ocupa la ventana de contexto. Después viene una celda por ventana: una etiqueta, una barra de diez bloques, el porcentaje con su marca de actualidad y la hora de reinicio. El proveedor al que pertenece la línea de estado omite su etiqueta, pues el terminal ya indica de quién son las cifras. Los demás conservan una etiqueta corta antes del código de ventana, y un saldo de crédito muestra su importe en dólares en vez de una barra.",
+              "intro": "En Claude Code la línea empieza con el modelo, el esfuerzo y cuánto ocupa la ventana de contexto. Después viene una celda por ventana, todo en una línea: el código de ventana, una barra de diez bloques, el porcentaje con su marca de actualidad y el reinicio tras una flecha, como ↻6d23h, o tras la palabra resets cuando el terminal solo usa ASCII. Una lectura lleva ! desde el 80 por ciento y !! desde el 90. El proveedor al que pertenece la línea de estado omite su etiqueta, pues el terminal ya indica de quién son las cifras. Los demás ponen una etiqueta corta antes del código de ventana, separada por un espacio, como cx 5h, y un saldo de crédito muestra su importe en dólares en vez de una barra. Cuando la línea es más ancha que el terminal, conserva las lecturas más cercanas a su límite y termina con +N more.",
               "exampleLabel": "Salida de ejemplo, fila de un terminal",
               "freshness": {
                 "title": "Las marcas de actualidad",
@@ -1816,7 +1816,7 @@
             },
             "statusline": {
               "intro": "Renders the status row for a statusline host. It reads standard input first, so a Claude Code session payload is ingested and rendered in the same call, then falls back to the cache. This is the only command that writes as a side effect of being displayed.",
-              "cells": "The default layout draws one cell per window for the host named by <code>--host</code>: a tag, a ten block bar, the percentage, and the reset time, with no header line at all. See <docs>agent context</docs> for the full grammar and the freshness marks.",
+              "cells": "El diseño predeterminado dibuja una línea para el host indicado con <code>--host</code>, con una celda por ventana: una etiqueta con espacio como <code>cx 5h</code>, una barra de diez bloques, el porcentaje con ! desde el 80 por ciento y !! desde el 90, y el reinicio tras una flecha como <code>↻6d23h</code>, o tras la palabra resets en un terminal solo ASCII. Una línea más ancha que el terminal conserva las lecturas más cercanas a su límite y termina con <code>+N more</code>. Consulta <docs>Agent context</docs> para la gramática completa y las marcas de actualidad.",
               "order": "<code>statusline.style cells</code> brings back the previous row instead: the overall reason code and the routing recommendation lead, then one compact cell per provider with a five block bar rather than the ten the new default draws.",
               "stacking": "A row wider than its budget stacks rather than truncating. The break lands between two cells and never inside one, because half a bar reads as a reading and is not one. Two rows is the ceiling. Past that the providers closest to their caps are kept, and the last row ends by saying how many it could not show.",
               "calloutTitle": "The old line is still one setting away",

@@ -68,6 +68,10 @@ describe("live terminal status line", () => {
     expect(row?.className).toContain("overflow-x-auto");
     expect(row?.className).toContain("whitespace-nowrap");
     expect(row?.className).not.toContain("flex-wrap");
+    /* U73: the row's sr-only labels are absolutely positioned, and without a
+       positioned scroller they escaped it and made the home page 1,108 pixels
+       wide at 320. */
+    expect(row?.className).toContain("relative");
   });
 
   it("draws each meter as blocks one character cell per glyph, so no font fallback can misdraw it", () => {

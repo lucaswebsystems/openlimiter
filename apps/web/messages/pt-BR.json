@@ -1640,7 +1640,7 @@
             },
             "grammar": {
               "title": "O formato",
-              "intro": "No Claude Code, a linha começa com o modelo, o esforço e quanto da janela de contexto está em uso. Depois vem uma célula por janela: etiqueta, barra de dez blocos, percentual com sua marca de atualização e horário de reinício. O provedor dono da linha de status omite sua etiqueta, pois o terminal já identifica de quem são os números. Os demais mantêm uma etiqueta curta antes do código da janela, e um saldo de crédito mostra seu valor em dólares em vez de uma barra.",
+              "intro": "No Claude Code, a linha começa com o modelo, o esforço e quanto da janela de contexto está em uso. Depois vem uma célula por janela, tudo em uma linha: código da janela, barra de dez blocos, percentual com sua marca de atualização e o reinício depois de uma seta, como ↻6d23h, ou depois da palavra resets quando o terminal só usa ASCII. Uma leitura ganha ! a partir de 80 por cento e !! a partir de 90. O provedor dono da linha de status omite sua etiqueta, pois o terminal já identifica de quem são os números. Os demais põem uma etiqueta curta antes do código da janela, separada por um espaço, como cx 5h, e um saldo de crédito mostra seu valor em dólares em vez de uma barra. Quando a linha é mais larga que o terminal, ela mantém as leituras mais próximas do limite e termina com +N more.",
               "exampleLabel": "Exemplo de saída, linha de um terminal",
               "freshness": {
                 "title": "As marcas de atualização",
@@ -1816,7 +1816,7 @@
             },
             "statusline": {
               "intro": "Renders the status row for a statusline host. It reads standard input first, so a Claude Code session payload is ingested and rendered in the same call, then falls back to the cache. This is the only command that writes as a side effect of being displayed.",
-              "cells": "The default layout draws one cell per window for the host named by <code>--host</code>: a tag, a ten block bar, the percentage, and the reset time, with no header line at all. See <docs>agent context</docs> for the full grammar and the freshness marks.",
+              "cells": "O layout padrão desenha uma linha para o host indicado em <code>--host</code>, com uma célula por janela: uma etiqueta com espaço como <code>cx 5h</code>, uma barra de dez blocos, o percentual com ! a partir de 80 por cento e !! a partir de 90, e o reinício depois de uma seta como <code>↻6d23h</code>, ou depois da palavra resets em um terminal só ASCII. Uma linha mais larga que o terminal mantém as leituras mais próximas do limite e termina com <code>+N more</code>. Veja <docs>Agent context</docs> para a gramática completa e as marcas de atualização.",
               "order": "<code>statusline.style cells</code> brings back the previous row instead: the overall reason code and the routing recommendation lead, then one compact cell per provider with a five block bar rather than the ten the new default draws.",
               "stacking": "A row wider than its budget stacks rather than truncating. The break lands between two cells and never inside one, because half a bar reads as a reading and is not one. Two rows is the ceiling. Past that the providers closest to their caps are kept, and the last row ends by saying how many it could not show.",
               "calloutTitle": "The old line is still one setting away",

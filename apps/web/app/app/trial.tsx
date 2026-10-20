@@ -386,12 +386,14 @@ export function ProLockCard({
 
         {locked && (
           <div className="ol-lock-offer">
-            <Button tone="primary" onClick={() => checkout("month")} disabled={busy !== null}>
-              {busy === "month" ? t("prices.working") : portal("upgrade.monthly", { price: PRO_MONTHLY_PRICE })}
-            </Button>
-            <Button tone="ghost" onClick={() => checkout("year")} disabled={busy !== null}>
-              {busy === "year" ? t("prices.working") : portal("upgrade.yearly", { price: PRO_YEARLY_PRICE })}
-            </Button>
+            <div className="ol-lock-plans">
+              <Button tone="primary" onClick={() => checkout("month")} disabled={busy !== null}>
+                {busy === "month" ? t("prices.working") : portal("upgrade.monthly", { price: PRO_MONTHLY_PRICE })}
+              </Button>
+              <Button tone="ghost" onClick={() => checkout("year")} disabled={busy !== null}>
+                {busy === "year" ? t("prices.working") : portal("upgrade.yearly", { price: PRO_YEARLY_PRICE })}
+              </Button>
+            </div>
             <p className="ol-lock-price">{portal("upgrade.note")}</p>
           </div>
         )}
