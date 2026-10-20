@@ -47,6 +47,8 @@ export class FakeElement {
   append(...nodes) {
     for (const node of nodes) {
       if (node.parent !== null) {
+        // A browser drops focus from a node it moves, as insertBefore below does.
+        if (node.contains(node.ownerDocument.activeElement)) node.ownerDocument.activeElement.blur();
         node.parent.children = node.parent.children.filter((child) => child !== node);
       }
       node.parent = this;
@@ -153,6 +155,24 @@ export class FakeElement {
   }
   removeEventListener(name, listener) { this.listeners[name] = (this.listeners[name] ?? []).filter((entry) => entry !== listener); }
   fire(name, event = {}) { return Promise.all((this.listeners[name] ?? []).map((listener) => listener(event))); }
+
+  /** The nearest element, this one included, with a class (".name") or a tag. */
+  closest(selector) {
+    for (let node = this; node !== null; node = node.parent) {
+      if (selector.startsWith(".") ? node.classList.contains(selector.slice(1)) : node.localName === selector) return node;
+    }
+    return null;
+  }
+
+  /* Geometry is whatever a test says it is: set `rect` to { top, height }. */
+  getBoundingClientRect() {
+    const { top = 0, height = 0, left = 0, width = 0 } = this.rect ?? {};
+    return { top, height, bottom: top + height, left, width, right: left + width };
+  }
+
+  setPointerCapture(id) { this.captured = id; }
+  releasePointerCapture(id) { if (this.captured === id) this.captured = null; }
+  hasPointerCapture(id) { return this.captured === id; }
 
   /** Every descendant, depth first. */
   all(predicate = () => true) {
