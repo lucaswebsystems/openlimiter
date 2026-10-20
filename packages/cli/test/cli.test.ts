@@ -99,6 +99,8 @@ async function seedClaudePoll(directory: string): Promise<void> {
     provenance: { sourceKind: "remote_api" as const, observedVia: "remote_http" as const }
   })));
   await mergeAuthoritativeSnapshotCache(rows, directory, FIXTURE_NOW);
+  /* The poll writes only while the request is on. */
+  await writeFile(path.join(directory, "claude-poll.json"), JSON.stringify({ version: 1, enabled: true }));
 }
 
 describe("CLI", () => {

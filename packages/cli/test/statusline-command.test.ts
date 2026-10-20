@@ -27,20 +27,25 @@ const plain = "opus-5-5 high | ctx 42% | 5h [█░░░░░░░░░] 17%
 const painted = "opus-5-5 high | ctx 42% | 5h \x1b[32m[█░░░░░░░░░]\x1b[0m \x1b[32m17%\x1b[0m ·3h20m | 7d \x1b[33m[██████░░░░]\x1b[0m \x1b[33m65%\x1b[0m ·4d2h | cx7d \x1b[38;5;208m[████████░░]\x1b[0m \x1b[38;5;208m85%\x1b[0m ·4d2h | concise";
 
 const roots: string[] = [];
-async function seeded(): Promise<string> {
+/* The request on, with its own session and weekly readings, and older host
+   readings beside them that it stands over; another provider survives. */
+async function seeded({ fiveHour = 17, weekly = true } = {}): Promise<string> {
   const directory = await mkdtemp(path.join(await realpath(tmpdir()), "openlimiter-statusline-command-"));
   roots.push(directory);
   const rows = normalizeMeters(parseClaudePayload(payload(), NOW)!);
   const pollRows = normalizeMeters(parseClaudePayload({
-    five_hour: { used_percentage: 17, resets_at: Date.parse("2026-01-01T03:20:00Z") / 1000 },
+    five_hour: { used_percentage: fiveHour, resets_at: Date.parse("2026-01-01T03:20:00Z") / 1000 },
     seven_day: { utilization: 65, resets_at: "2026-01-05T02:00:00Z" }
-  }, NOW)!).filter((row) => row.meter.startsWith("SEVEN_DAY"));
+  }, NOW)!).map((row) => ({
+    ...row, source: "internal_payload" as const, provenance: { sourceKind: "remote_api" as const, observedVia: "remote_http" as const }
+  }));
+  const pollWeekly = pollRows.find((row) => row.meter === "SEVEN_DAY")!;
   await persistSnapshots([
-    // Old host readings must be replaced, while another provider survives.
     ...rows.map((row) => ({ ...row, value: 1 })),
-    { ...pollRows[0]!, provider: "CODEX", value: 85 }
+    { ...pollWeekly, provider: "CODEX", value: 85 }
   ], directory, NOW);
-  await mergeAuthoritativeSnapshotCache(pollRows, directory, NOW);
+  await mergeAuthoritativeSnapshotCache(pollRows.filter((row) => weekly || row !== pollWeekly), directory, NOW);
+  await writeFile(path.join(directory, "claude-poll.json"), JSON.stringify({ version: 1, enabled: true }));
   return directory;
 }
 afterEach(async () => {
@@ -69,7 +74,7 @@ describe("statusline command reference layout", () => {
   });
 
   it("paints the red band through the real command", async () => {
-    const stateDirectory = await seeded();
+    const stateDirectory = await seeded({ fiveHour: 95 });
     const input = payload();
     input.rate_limits.five_hour.used_percentage = 95;
     const result = await runCli(["statusline", "--host", "claude"], {
@@ -82,15 +87,11 @@ describe("statusline command reference layout", () => {
     ));
   });
 
-  it("says why the Claude weekly is missing: off on both consents, refused, or waiting", async () => {
+  it("says why the Claude weekly is missing: off, refused, or waiting", async () => {
     const account = opaqueAccountId("CLAUDE", "refused-fixture");
-    const render = async (cliPoll: string, desktopPoll: boolean, refused: boolean) => {
-      const stateDirectory = await seeded();
-      await rm(path.join(stateDirectory, AUTHORITATIVE_CACHE_FILE_NAME));
-      await runCli(["config", "set", "providers.claude.poll", cliPoll], { stateDirectory, now: () => NOW });
-      if (desktopPoll) {
-        await writeFile(path.join(stateDirectory, "claude-poll.json"), JSON.stringify({ version: 1, enabled: true }));
-      }
+    const render = async (enabled: boolean, refused: boolean) => {
+      const stateDirectory = await seeded({ weekly: false });
+      await writeFile(path.join(stateDirectory, "claude-poll.json"), JSON.stringify({ version: 1, enabled }));
       if (refused) {
         // What the desktop leaves behind when its poll is refused for an account.
         await recordAcquisitionAvailability("CLAUDE", "expired_credentials", NOW, undefined, stateDirectory, account);
@@ -103,11 +104,10 @@ describe("statusline command reference layout", () => {
         readStandardInput: async () => JSON.stringify(payload())
       })).stdout;
     };
-    expect(await render("false", false, false)).toMatch(/ \| 7d off$/u);
-    expect(await render("false", false, true)).toMatch(/ \| 7d off$/u);
-    expect(await render("true", false, false)).toMatch(/ \| 7d waiting$/u);
-    expect(await render("false", true, false)).toMatch(/ \| 7d waiting$/u);
-    expect(await render("false", true, true)).toMatch(/ \| 7d refused$/u);
+    expect(await render(false, false)).toMatch(/ \| 7d off$/u);
+    expect(await render(false, true)).toMatch(/ \| 7d off$/u);
+    expect(await render(true, false)).toMatch(/ \| 7d waiting$/u);
+    expect(await render(true, true)).toMatch(/ \| 7d refused$/u);
   });
 
   it("reads a malformed or unreadable desktop policy as no refusal, never as a broken line", async () => {
@@ -205,10 +205,8 @@ describe("statusline command reference layout", () => {
       stateDirectory, now: () => NOW, environment: { NO_COLOR: "" },
       readStandardInput: async () => JSON.stringify(session)
     });
-    expect(result).toEqual({
-      exitCode: 0, stderr: "",
-      stdout: plain.replace("17%", "1%")
-    });
+    /* The older host reading (1) is not the request's, so the session is the poll's. */
+    expect(result).toEqual({ exitCode: 0, stderr: "", stdout: plain });
     const context = await readFile(contextPath, "utf8");
     expect(context).toContain("CODEX");
     expect(context).not.toContain("Olá projeto");

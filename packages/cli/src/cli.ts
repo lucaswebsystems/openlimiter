@@ -1540,9 +1540,8 @@ async function statuslineCommand(
   }
   const advice = buildAdvice(snapshots, now, PROVIDER_CODES);
   const config = await readStatuslineConfig(dependencies.stateDirectory);
-  const providers = await readProvidersConfig(dependencies.stateDirectory);
   const pollHint = host === "claude"
-    ? await claudeWeeklyHint(snapshots, now, providers.claude.poll, dependencies.stateDirectory ?? resolveStateDirectory())
+    ? await claudeWeeklyHint(snapshots, now, dependencies.stateDirectory ?? resolveStateDirectory())
     : undefined;
   if (!config.bars) {
     return succeed(renderPlainStatusline(

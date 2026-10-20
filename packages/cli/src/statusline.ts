@@ -10,6 +10,7 @@ import {
   providerMeterVisible,
   isSnapshotDisplayEligible,
   readAcquisitionSchedule,
+  readClaudePoll,
   resetPassed,
   readJsonFileSafely,
   type Advice,
@@ -509,14 +510,13 @@ async function claudeRefused(snapshots: readonly Snapshot[], now: string, direct
  * The cell that says why the Claude weekly bar is missing, or nothing.
  *
  * It appears while Claude has a reading on this line and no weekly, fresh or
- * stale. Both consents count, this tool's `providers.claude.poll` and the
- * desktop's `claude-poll.json`: off on both says so, a recorded refusal says
- * refused, and otherwise the weekly is waiting for its next poll.
+ * stale. The switch is read from its one store of truth, as the cache reader
+ * reads it (`readClaudePoll`): off says so, a recorded refusal says refused,
+ * and otherwise the weekly is waiting for its next poll.
  */
 export async function claudeWeeklyHint(
   snapshots: readonly Snapshot[],
   now: string,
-  cliPoll: boolean,
   directory: string
 ): Promise<string | undefined> {
   if (!snapshots.some((snapshot) => snapshot.provider === "CLAUDE") ||
@@ -524,9 +524,7 @@ export async function claudeWeeklyHint(
         snapshot.meter.startsWith("SEVEN_DAY") && !isAvailabilitySnapshot(snapshot))) {
     return undefined;
   }
-  const desktop = await readJsonFileSafely(path.join(directory, "claude-poll.json"));
-  const desktopPoll = desktop.ok && field(desktop.value, "version") === 1 && field(desktop.value, "enabled") === true;
-  if (!cliPoll && !desktopPoll) return "7d off";
+  if (!(await readClaudePoll(directory))) return "7d off";
   return await claudeRefused(snapshots, now, directory) ? "7d refused" : "7d waiting";
 }
 

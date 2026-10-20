@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -284,6 +284,7 @@ describe("a reading from before its reset is never shown", () => {
   it("a poll that fails after the reset leaves the reading stored for seven days and never on screen", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "d-reset-"));
     try {
+      await writeFile(path.join(root, "claude-poll.json"), JSON.stringify({ version: 1, enabled: true }));
       await mergeAuthoritativeSnapshotCache([weekly()], root, "2026-09-29T13:59:00.000Z");
       const after = "2026-09-29T14:05:00.000Z";
       const stored = await readSnapshotCache(root);

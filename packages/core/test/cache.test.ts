@@ -158,7 +158,7 @@ describe("snapshot cache", () => {
       JSON.stringify({
         snapshots: [
           snapshot({ value: 101 }),
-          snapshot({ meter: "SEVEN_DAY", value: 64, window: { kind: "rolling", durationSeconds: 604_800 } })
+          snapshot({ provider: "CODEX", meter: "SEVEN_DAY", value: 64, window: { kind: "rolling", durationSeconds: 604_800 } })
         ],
         version: 1
       }),
@@ -170,7 +170,7 @@ describe("snapshot cache", () => {
       ok: true,
       suppressed: 0,
       suppressions: [],
-      snapshots: [snapshot({ meter: "SEVEN_DAY", value: 64, window: { kind: "rolling", durationSeconds: 604_800 } })],
+      snapshots: [snapshot({ provider: "CODEX", meter: "SEVEN_DAY", value: 64, window: { kind: "rolling", durationSeconds: 604_800 } })],
       dropped: 1
     });
   });
@@ -180,7 +180,7 @@ describe("snapshot cache", () => {
     await writeFile(
       path.join(directory, CACHE_FILE_NAME),
       JSON.stringify({
-        snapshots: [null, "invalid", 42, snapshot({ meter: "SEVEN_DAY", value: 64, window: { kind: "rolling", durationSeconds: 604_800 } })],
+        snapshots: [null, "invalid", 42, snapshot({ provider: "CODEX", meter: "SEVEN_DAY", value: 64, window: { kind: "rolling", durationSeconds: 604_800 } })],
         version: 2
       }),
       "utf8"
@@ -189,7 +189,7 @@ describe("snapshot cache", () => {
       ok: true,
       suppressed: 0,
       suppressions: [],
-      snapshots: [snapshot({ meter: "SEVEN_DAY", value: 64, window: { kind: "rolling", durationSeconds: 604_800 } })],
+      snapshots: [snapshot({ provider: "CODEX", meter: "SEVEN_DAY", value: 64, window: { kind: "rolling", durationSeconds: 604_800 } })],
       dropped: 3
     });
   });
@@ -224,7 +224,7 @@ describe("snapshot cache", () => {
       }),
       "utf8"
     );
-    const incoming = snapshot({ meter: "SEVEN_DAY", value: 64, window: { kind: "rolling", durationSeconds: 604_800 } });
+    const incoming = snapshot({ provider: "CODEX", meter: "SEVEN_DAY", value: 64, window: { kind: "rolling", durationSeconds: 604_800 } });
     const result = await mergeSnapshotCache(
       [incoming],
       directory,
@@ -242,7 +242,7 @@ describe("snapshot cache", () => {
   });
 
   it.each(["main then authoritative", "authoritative then main"])(
-    "gives authoritative rows precedence across stores, %s",
+    "reads each Claude row from the switch's source across stores, %s",
     async (order) => {
       const directory = await temporaryDirectory();
       const main = snapshot({
@@ -272,10 +272,15 @@ describe("snapshot cache", () => {
         await mergeAuthoritativeSnapshotCache([authoritative], directory, "2026-01-01T00:10:00.000Z");
         await writeSnapshotCache([main, session], directory);
       }
-      const result = await readSnapshotCache(directory);
-      expect(result.ok && result.snapshots.filter((row) => row.meter === "SEVEN_DAY")).toHaveLength(1);
-      expect(result.ok && result.snapshots.find((row) => row.meter === "SEVEN_DAY")?.value).toBe(13);
-      expect(result.ok && result.snapshots.find((row) => row.meter === "FIVE_HOUR")?.value).toBe(42);
+      const read = async (enabled: boolean) => {
+        await writeFile(path.join(directory, "claude-poll.json"), JSON.stringify({ version: 1, enabled }));
+        const result = await readSnapshotCache(directory);
+        return result.ok ? result.snapshots.map((row) => row.meter + " " + String(row.value)) : [];
+      };
+      /* On: the poll's weekly stands over a newer payload weekly, and the
+         payload's session is not read. Off: the session is, and no weekly. */
+      expect(await read(true)).toEqual(["SEVEN_DAY 13"]);
+      expect(await read(false)).toEqual(["FIVE_HOUR 42"]);
     }
   );
 

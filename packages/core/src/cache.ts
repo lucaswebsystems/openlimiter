@@ -30,7 +30,36 @@ import type { ProviderCode, RawMeter, Snapshot } from "./types.js";
 
 export const CACHE_FILE_NAME = "openlimiter-cache.json";
 export const AUTHORITATIVE_CACHE_FILE_NAME = "openlimiter-authoritative.json";
+/** The one store of truth for the direct Claude usage request. Rust twin: claude_poll_setting.rs. */
+export const CLAUDE_POLL_FILE_NAME = "claude-poll.json";
 export const MAX_POLICY_TIMESTAMP = 253_402_300_799_999;
+
+/**
+ * Whether the direct Claude usage request is on, read fresh from its one
+ * store of truth. On only when the document says version 1 and enabled true:
+ * missing, disabled, unreadable and invalid are all off. Rust twin:
+ * claude_poll_setting.rs.
+ */
+export async function readClaudePoll(directory = resolveStateDirectory()): Promise<boolean> {
+  const document = await readJsonFileSafely(path.join(directory, CLAUDE_POLL_FILE_NAME));
+  return document.ok && isRecord(document.value) &&
+    document.value["version"] === 1 && document.value["enabled"] === true;
+}
+
+/**
+ * Whether a row may reach a surface, by provenance and never by the file it
+ * sits in. With the request on, a Claude row counts only when the request read
+ * it, plus the ACQUISITION row that carries the request's availability. With it
+ * off, every Claude row except the request's counts, as in 2.1.5, with no
+ * weekly. Other providers always count. Rust twin: state.rs claude_row_counts;
+ * both prove claude-poll-vectors.json `source`.
+ */
+export function claudeRowCounts(row: Snapshot, pollOn: boolean): boolean {
+  if (row.provider !== "CLAUDE") return true;
+  if (row.meter === "ACQUISITION") return pollOn;
+  const remote = row.provenance?.sourceKind === "remote_api";
+  return pollOn ? remote : !remote && !row.meter.startsWith("SEVEN_DAY");
+}
 
 /** Pure policy shared with the desktop contract. All instants are UTC. */
 export function retryPolicy(input: { attemptCount: number; retryAfter: string | null; now: string; jitterSeconds: number; layer: string }) {
@@ -304,6 +333,11 @@ export type CacheReadResult =
  * A suppression list that cannot be believed empties the whole document. See
  * `readSuppressions`: the failure direction has to be unknown, because the
  * alternative is showing a number the cache itself was trying to withdraw.
+ *
+ * Claude rows pass `claudeRowCounts` for the switch read at this call, the
+ * newest observation of an identity winning across the two files, and a
+ * Claude drift suppression is ignored: a failed Claude read is a flag on its
+ * ACQUISITION row, never a withdrawal.
  */
 export async function readSnapshotCache(
   directory = resolveStateDirectory()
@@ -313,6 +347,8 @@ export async function readSnapshotCache(
   } catch {
     return { ok: false, reason: "unsafe" };
   }
+  const pollOn = await readClaudePoll(directory);
+  const counts = (row: Snapshot) => claudeRowCounts(row, pollOn);
   const document = await readJsonFileSafely(path.join(directory, CACHE_FILE_NAME));
   if (!document.ok) {
     if (document.reason !== "missing") return document;
@@ -322,7 +358,7 @@ export async function readSnapshotCache(
       return { ok: false, reason: "corrupt" };
     }
     const snapshots = normalizeMeters(authoritative.value["snapshots"] as RawMeter[]);
-    return { ok: true, snapshots: snapshots.filter(isSnapshotDisplayEligible), dropped: authoritative.value["snapshots"].length - snapshots.length, suppressed: 0, suppressions: [] };
+    return { ok: true, snapshots: snapshots.filter(isSnapshotDisplayEligible).filter(counts), dropped: authoritative.value["snapshots"].length - snapshots.length, suppressed: 0, suppressions: [] };
   }
   const authoritative = await readJsonFileSafely(path.join(directory, AUTHORITATIVE_CACHE_FILE_NAME));
   if (!authoritative.ok && authoritative.reason !== "missing") return authoritative;
@@ -340,15 +376,13 @@ export async function readSnapshotCache(
   const mainValidated = normalizeMeters(migrated as RawMeter[]);
   const authoritativeRows = authoritative.ok && isRecord(authoritative.value) &&
     Array.isArray(authoritative.value["snapshots"]) && authoritative.value["snapshots"].length <= MAX_CACHE_ENTRIES
-    ? normalizeMeters(authoritative.value["snapshots"] as RawMeter[])
+    ? normalizeMeters(authoritative.value["snapshots"] as RawMeter[]).filter(counts)
     : [];
-  const authoritativeIdentities = new Set(authoritativeRows.map(snapshotIdentity));
+  const mainCounted = mainValidated.filter(counts);
+  /* Newest observation wins, a tie going to the authoritative row. */
   const validated = authoritativeRows.length > 0
-    ? mergeSnapshots(
-        mainValidated.filter((snapshot) => !authoritativeIdentities.has(snapshotIdentity(snapshot))),
-        authoritativeRows
-      )
-    : mainValidated;
+    ? mergeSnapshots(mainCounted, authoritativeRows)
+    : mainCounted;
   const dropped = rawSnapshots.length - mainValidated.length;
   const read = readSuppressions(document.value["suppressions"]);
   if (!read.ok) {
@@ -359,7 +393,7 @@ export async function readSnapshotCache(
   }
   const snapshots = visibleSnapshots({
     snapshots: validated,
-    suppressions: read.suppressions
+    suppressions: read.suppressions.filter((entry) => entry.provider !== "CLAUDE")
   });
   return {
     ok: true,

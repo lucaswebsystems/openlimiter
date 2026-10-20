@@ -24,7 +24,12 @@ describe("shared production policy vectors", () => {
 });
 
 const now = Date.parse("2026-08-07T12:00:00.000Z");
-const directory = async () => realpath(await mkdtemp(path.join(tmpdir(), "openlimiter-policy-")));
+/* Every round here plays the Claude poll, which runs only while the request is on. */
+const directory = async () => {
+  const dir = await realpath(await mkdtemp(path.join(tmpdir(), "openlimiter-policy-")));
+  await writeFile(path.join(dir, "claude-poll.json"), JSON.stringify({ version: 1, enabled: true }));
+  return dir;
+};
 
 it("takes over an expired desktop lease and rejects duplicate owners", async () => {
   const dir = await directory();
