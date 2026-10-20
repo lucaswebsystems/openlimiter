@@ -363,7 +363,7 @@
     ]
   },
   "commit": {
-    "rule": "Committing a Claude poll read sends its session and weeklies to the authoritative file and keeps every row another source wrote in the main file, a status line payload that arrived while the read was in flight included. It clears the account's ACQUISITION flag recorded no later than the read, and keeps a later one. After the commit, every row listed in kept is still in the main file and every row listed in gone is not. Rows take the source section's rowDefaults; the poll reads at observedAt, a read that stated its whole weekly set.",
+    "rule": "Committing a Claude poll read sends its session and weeklies to the authoritative file and keeps every row another source wrote in the main file, a status line payload that arrived while the read was in flight included. In the main file it replaces only the account's own remote_api rows and its ACQUISITION flag recorded no later than the read; a later flag or read stays. The rule goes by provenance and time alone: a row's writer stamp (cli or desktop) never changes it. After the commit, every row listed in kept is still in the main file and every row listed in gone is not. Rows take the source section's rowDefaults; the poll reads at observedAt, a read that stated its whole weekly set.",
     "observedAt": "2026-10-20T09:55:00.000Z",
     "poll": [
       { "ref": "session", "meter": "FIVE_HOUR", "sourceKind": "remote_api", "value": 4 },
@@ -387,7 +387,33 @@
         "kept": [], "gone": ["flag"] },
       { "id": "a-flag-recorded-after-the-read-stays",
         "main": [{ "ref": "flag", "meter": "ACQUISITION", "sourceKind": null, "value": 0, "availability": "rate_limited", "retryAt": "2026-10-20T10:10:00.000Z", "observedAt": "2026-10-20T09:56:00.000Z" }],
-        "kept": ["flag"], "gone": [] }
+        "kept": ["flag"], "gone": [] },
+      { "id": "a-later-flag-the-command-line-stamped-stays",
+        "main": [{ "ref": "flag", "meter": "ACQUISITION", "sourceKind": null, "value": 0, "availability": "rate_limited", "retryAt": "2026-10-20T10:10:00.000Z", "observedAt": "2026-10-20T09:56:00.000Z", "writer": "cli" }],
+        "kept": ["flag"], "gone": [] },
+      { "id": "a-later-flag-the-desktop-stamped-stays",
+        "main": [{ "ref": "flag", "meter": "ACQUISITION", "sourceKind": null, "value": 0, "availability": "rate_limited", "retryAt": "2026-10-20T10:10:00.000Z", "observedAt": "2026-10-20T09:56:00.000Z", "writer": "desktop" }],
+        "kept": ["flag"], "gone": [] },
+      { "id": "an-older-flag-the-command-line-stamped-clears",
+        "main": [{ "ref": "flag", "meter": "ACQUISITION", "sourceKind": null, "value": 0, "availability": "rate_limited", "retryAt": "2026-10-20T10:10:00.000Z", "observedAt": "2026-10-20T09:54:00.000Z", "writer": "cli" }],
+        "kept": [], "gone": ["flag"] },
+      { "id": "an-older-flag-the-desktop-stamped-clears",
+        "main": [{ "ref": "flag", "meter": "ACQUISITION", "sourceKind": null, "value": 0, "availability": "rate_limited", "retryAt": "2026-10-20T10:10:00.000Z", "observedAt": "2026-10-20T09:54:00.000Z", "writer": "desktop" }],
+        "kept": [], "gone": ["flag"] },
+      { "id": "every-other-source-stays-when-the-command-line-stamped-it",
+        "main": [
+          { "ref": "payload", "meter": "FIVE_HOUR", "sourceKind": "statusline_payload", "value": 37, "observedAt": "2026-10-20T09:59:00.000Z", "writer": "cli" },
+          { "ref": "ingest", "meter": "SEVEN_DAY_OPUS", "sourceKind": "explicit_ingest", "value": 44, "writer": "cli" },
+          { "ref": "manual", "meter": "SEVEN_DAY_SONNET", "sourceKind": "manual_document", "value": 45, "writer": "cli" }
+        ],
+        "kept": ["payload", "ingest", "manual"], "gone": [] },
+      { "id": "the-reads-own-older-rows-leave-whoever-stamped-them",
+        "main": [
+          { "ref": "legacySession", "meter": "FIVE_HOUR", "sourceKind": "remote_api", "value": 9, "observedAt": "2026-10-20T09:50:00.000Z", "writer": "cli" },
+          { "ref": "olderRead", "meter": "SEVEN_DAY_SONNET", "sourceKind": "remote_api", "value": 12, "observedAt": "2026-10-20T09:50:00.000Z", "writer": "desktop" },
+          { "ref": "laterRead", "meter": "SEVEN_DAY_OPUS", "sourceKind": "remote_api", "value": 13, "observedAt": "2026-10-20T09:58:00.000Z", "writer": "desktop" }
+        ],
+        "kept": ["laterRead"], "gone": ["legacySession", "olderRead"] }
     ]
   }
 }

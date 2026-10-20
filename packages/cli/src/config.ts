@@ -392,6 +392,10 @@ export async function setClaudePoll(
 ): Promise<{ mirrored: boolean }> {
   return withStateLock(directory, async (owned) => {
     await pause("store");
+    /* ponytail: an ownership check, then an awaited write; a setter suspended
+       more than sixty seconds between the two can still lose the lock to
+       reclamation unnoticed. Upgrade path: liveness based reclamation (a
+       heartbeat the holder renews) or an OS level file lock. */
     if (!(await owned())) throw new Error("The state lock passed to another writer");
     await writeClaudePollDocument(directory, enabled);
     try {
