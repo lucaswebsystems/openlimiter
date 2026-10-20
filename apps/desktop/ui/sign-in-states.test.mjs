@@ -320,10 +320,31 @@ test("the foot is a bordered Not now beside the honest sentence, at caption size
   const sheet = css();
   assert.match(sheet, /button\.sign-in-ghost \{[^}]*border-color: var\(--ol-control-border\)/u);
   assert.match(sheet, /\.sign-in-foot-note \{[^}]*font-size: var\(--ol-text-caption\)/u);
-  /* Escape and the backdrop put the sheet away like Not now does. */
+  /* The backdrop puts the sheet away like Not now does; Escape is the native
+     dialog's own cancel, so no key handler of ours stands in for it. */
   const source = app();
-  assert.match(source, /event\.key !== "Escape"[\s\S]*?closeSignIn\(\)/u);
+  assert.doesNotMatch(source, /event\.key !== "Escape"[\s\S]*?closeSignIn\(\)/u);
   assert.match(source, /event\.target === elements\.signIn\) closeSignIn\(\)/u);
+});
+
+test("the sheet is a native modal: focus stays in it, the window behind is inert, and closing returns focus", () => {
+  const markup = html();
+  /* showModal puts the sheet in the top layer and makes the rest of the
+     document inert, which is what aria-modal only promised. */
+  assert.match(markup, /<dialog id="sign-in" class="sheet" aria-labelledby="sign-in-title">/u);
+  assert.doesNotMatch(markup, /id="sign-in"[^>]*\b(?:hidden|role="dialog"|aria-modal)/u);
+  const source = app();
+  assert.match(source, /function openSignIn\(\) \{[\s\S]*?signInOpener = document\.activeElement[\s\S]*?elements\.signIn\.showModal\(\);/u);
+  assert.match(source, /function closeSignIn\(\) \{[\s\S]*?if \(elements\.signIn\.open\) elements\.signIn\.close\(\);/u);
+  /* Escape, the backdrop, Not now and a finished sign in all end in close,
+     and close puts focus back where the sheet was opened from. */
+  assert.match(source, /elements\.signIn\?\.addEventListener\("close", \(\) => \{[\s\S]*?resetSignInBody\(\);[\s\S]*?restoreFocus\(signInOpener\)/u);
+  assert.doesNotMatch(source, /elements\.signIn\.hidden/u);
+  /* Tab wraps at both ends, so the keyboard never walks out of the sheet. */
+  assert.match(source, /elements\.signIn\?\.addEventListener\("keydown", \(event\) => \{\s*if \(event\.key !== "Tab"\) return;[\s\S]*?last\.focus\(\);[\s\S]*?first\.focus\(\);/u);
+  const sheet = css();
+  assert.match(sheet, /dialog\.sheet\[open\] \{[^}]*display: grid;/u);
+  assert.match(sheet, /dialog\.sheet::backdrop \{/u);
 });
 
 test("the one sign in body lives in the sheet alone, and the first run never borrows it", () => {

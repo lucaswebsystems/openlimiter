@@ -222,10 +222,12 @@ const SNOOZE_WINDOWS = [
 const TOOL_SWITCHES = ["CLAUDE", "CODEX", "ANTIGRAVITY", "GEMINI_CLI", "GROK", "KIMI", "OPENCODE", "OPENROUTER", "CURSOR"];
 
 const PRESETS = [
-  { id: "default", name: "Product", swatches: ["var(--ol-canvas)", "var(--ol-surface)", "var(--ol-accent)"] },
-  { id: "graphite", name: "Graphite", swatches: ["var(--ol-code)", "var(--ol-elevated)", "var(--ol-soft)"] },
-  { id: "meadow", name: "Meadow", swatches: ["var(--ol-canvas)", "var(--ol-raised)", "var(--ol-band-green-fill)"] },
-  { id: "ember", name: "Ember", swatches: ["var(--ol-canvas)", "var(--ol-raised)", "var(--ol-band-orange-fill)"], pro: true },
+  /* Each tile shows its own canvas, surface and accent, from theme.css,
+     whatever preset the window wears. */
+  { id: "default", name: "Product", swatches: ["var(--ol-preset-product-canvas)", "var(--ol-preset-product-surface)", "var(--ol-preset-product-accent)"] },
+  { id: "graphite", name: "Graphite", swatches: ["var(--ol-preset-graphite-canvas)", "var(--ol-preset-graphite-surface)", "var(--ol-preset-graphite-accent)"] },
+  { id: "meadow", name: "Meadow", swatches: ["var(--ol-preset-meadow-canvas)", "var(--ol-preset-meadow-surface)", "var(--ol-preset-meadow-accent)"] },
+  { id: "ember", name: "Ember", swatches: ["var(--ol-preset-ember-canvas)", "var(--ol-preset-ember-surface)", "var(--ol-preset-ember-accent)"], pro: true },
 ];
 
 /* Which preset the window wears: any free one, and Ember only with Pro. */

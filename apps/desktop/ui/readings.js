@@ -494,6 +494,9 @@ const REFUSED = new Set(["NEEDS_AUTH", "AUTH_EXPIRED", "ERROR"]);
 /* The ones among them that a new sign in fixes. */
 const SIGNED_OUT = new Set(["NEEDS_AUTH", "AUTH_EXPIRED"]);
 
+/* Connection states that read on their own once they have something to read. */
+const LIVE = new Set(["CONNECTING", "CONNECTED", "DEGRADED", "STALE"]);
+
 /* Fixes worth offering for another account of a tool that already reads. */
 const ACCOUNT_FIXES = new Set(["sign_in", "reconnect", "open_app"]);
 
@@ -529,7 +532,6 @@ function nextStep(code, name, { flag, flags, records, detection, claude }) {
     if (claude === "READY_TO_ENABLE" || claude === "CONNECTED") return waiting;
     return step("connect", "connect");
   }
-  if (code === "OPENROUTER") return records.length === 0 || refused ? step("connect", "connect") : step("check", "fixOpenAppAction");
   if (code === "ANTIGRAVITY") {
     if (detection?.statusline_state === "legacy") {
       return { ...step("connect", "setupAntigravityStatusLine"), note: say("antigravityStatusLineLegacy") };
@@ -543,9 +545,14 @@ function nextStep(code, name, { flag, flags, records, detection, claude }) {
   }
   if (code === "GEMINI_CLI" && flag?.reason === "quota_unavailable") return { note: say("geminiCliConsumerRetired") };
   if (flag?.fixKind === "unsupported") return { note: say("fixUnsupportedIssue") };
-  if (CONNECTABLE.has(code) && (refused || flag?.fixKind === "reconnect" || flag?.fixKind === "sign_in")) {
-    return signedOut ? { ...step("connect", "connect"), usage: "signin" } : step("connect", "connect");
-  }
+  /* A stored connection says where its tool stands before any provider's own
+     steps, OpenRouter's included: signed out offers Connect and keeps a row
+     on Usage, an error offers Connect, and a live one that has not read yet
+     waits, on Usage too. */
+  if (CONNECTABLE.has(code) && signedOut) return { ...step("connect", "connect"), usage: "signin" };
+  if (CONNECTABLE.has(code) && (refused || flag?.fixKind === "reconnect")) return step("connect", "connect");
+  if (records.some((record) => LIVE.has(record.state)) && flag === undefined) return waiting;
+  if (code === "OPENROUTER") return records.length === 0 ? step("connect", "connect") : step("check", "fixOpenAppAction");
   if (loggedOut || flag?.fixKind === "sign_in") return signInAgain;
   if (detection?.state === "present" && flag === undefined) return waiting;
   return step("check", "fixOpenAppAction", title(flag?.fixKind === "open_app" ? "fixOpenAppDetail" : "fixToolDetail"));

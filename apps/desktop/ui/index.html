@@ -28,6 +28,12 @@
           if (stored === "light" || stored === "dark") {
             document.documentElement.setAttribute("data-theme", stored);
           }
+          /* A free preset paints with the first pixel; Ember waits for the
+             plan, which settings.js reads. */
+          var preset = window.localStorage.getItem("openlimiter-theme-preset");
+          if (preset === "graphite" || preset === "meadow") {
+            document.documentElement.setAttribute("data-preset", preset);
+          }
         } catch (error) {
           /* Storage refused. Dark is already the default. */
         }
@@ -51,7 +57,7 @@
       role="dialog"
       aria-modal="true"
       aria-labelledby="first-run-title"
-      aria-describedby="first-run-intro first-run-helper"
+      aria-describedby="first-run-intro"
     >
       <div class="first-run-panel surface">
         <div class="first-run-lockup" role="img" aria-label="OpenLimiter">
@@ -92,7 +98,7 @@
               <span id="first-run-launch-detail"></span>
             </p>
           </div>
-          <div id="first-run-providers" class="first-run-providers" aria-live="polite"></div>
+          <div id="first-run-providers" class="first-run-providers" hidden></div>
           <p id="first-run-absent" class="first-run-absent"></p>
           <p id="first-run-status" class="first-run-status" role="status" aria-live="polite" aria-atomic="true">
             Checking local tools.
@@ -101,9 +107,6 @@
             <button type="button" id="first-run-continue" class="first-run-continue">
               Show my bars
             </button>
-            <p id="first-run-helper" class="first-run-helper">
-              Provider access stays local. Sync can be turned off at any time.
-            </p>
           </div>
         </div>
       </div>
@@ -123,7 +126,7 @@
       brand colours with no token, so they are drawn on currentColor, the
       presentation the GitHub button beside them already uses.
     -->
-    <section id="sign-in" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sign-in-title" hidden>
+    <dialog id="sign-in" class="sheet" aria-labelledby="sign-in-title">
       <div class="sheet-panel sign-in-panel">
         <div class="sign-in-head">
           <div class="sign-in-lockup" role="img" aria-label="OpenLimiter">
@@ -196,7 +199,7 @@
           <span class="sign-in-foot-note">Every meter in this window keeps running without an account.</span>
         </div>
       </div>
-    </section>
+    </dialog>
 
     <div class="chrome">
       <header class="strip">

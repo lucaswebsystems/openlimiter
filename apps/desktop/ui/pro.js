@@ -24,17 +24,13 @@
  */
 import { proCheckoutUrl, proPortalUrl, proRefresh, proService, proStatus, BACKEND_ABSENT } from "./backend.js";
 import { say, updatedLabel } from "./names.js";
+import proList from "../../web/lib/pro-features.json" with { type: "json" };
 
-/* Keyed by the feature codes a signed token carries (pro.rs). Current usage
-   sync between devices is free, so it is not listed. */
-export const FEATURES = [
-  { key: "multi_account", label: "More than one account per provider" },
-  { key: "history", label: "Ninety days of private hosted history" },
-  { key: "api_spend_beta", label: "Spend forecast from observed periods" },
-  { key: "alerts", label: "Alerts that arrive with the app closed" },
-  { key: "routing", label: "Live budget context for coding agent routing" },
-  { key: "theme_preset", label: "Ember theme preset" },
-];
+/* The one list of what Pro adds, the file the site, the hub and the phone
+   read too, keyed by the feature code a signed token carries (pro.rs). The
+   build turns the file into a module beside the window's own. */
+export const FEATURES = Object.freeze(proList.features.map((feature) =>
+  Object.freeze({ key: feature.entitlement, label: feature.label })));
 
 /* The service says trialing; this window has always said trial. Both are
    listed so a plan state never renders as its own raw code. */

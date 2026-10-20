@@ -240,6 +240,104 @@ test("a machine with nothing detected shows no empty list, and a failed scan cla
   }
 });
 
+/* The native inventory before its first scan: no scan time, no providers. */
+const UNSCANNED = { version: 1, scanned_at: "", providers: [] };
+const scannedWith = (providers) => ({
+  version: 1,
+  scanned_at: "2026-10-20T12:00:00.000Z",
+  providers: [
+    ...providers,
+    ...["claude", "codex", "gemini_cli", "antigravity", "grok", "kimi", "opencode", "openrouter"]
+      .filter((id) => !providers.some((entry) => entry.provider_id === id))
+      .map((provider_id) => ({ provider_id, state: "absent", accounts: [] })),
+  ],
+});
+
+test("an unscanned inventory is not a scan: Connect keeps checking and claims nothing absent", () => {
+  const result = normalizeDetections(UNSCANNED);
+  assert.equal(result.pending, true);
+  assert.equal(result.available, false);
+  assert.equal(firstRun.absentLine(result), "");
+  assert.ok(result.providers.every((entry) => entry.state === "unavailable"));
+  /* A completed scan is a scan, and a payload with no scan time at all is
+     the older shape, which always came from a scan. */
+  assert.equal(normalizeDetections(scannedWith([])).pending, undefined);
+  assert.equal(normalizeDetections({ providers: [] }).available, true);
+});
+
+test("Connect fills in when the real scan lands, and not before", async () => {
+  const harness = firstRunDom(false);
+  installFirstRunGlobals(harness);
+  let payload = UNSCANNED;
+  let landed = null;
+  initFirstRun({
+    detectProviders: async () => ({ ok: true, value: payload }),
+    onScanUpdate: (handler) => { landed = handler; return () => {}; },
+    platform: "Linux",
+  });
+  await waitFor(() => landed !== null, "Connect never listened for the scan");
+  for (let turn = 0; turn < 5; turn += 1) await nextTurn();
+  assert.equal(harness.status.textContent, "Checking local tools.");
+  assert.equal(harness.providers.children.length, 0, "rows were drawn from an unscanned inventory");
+  assert.equal(harness.absent.textContent, "", "an unscanned inventory called every tool absent");
+  payload = scannedWith([{ provider_id: "codex", state: "present", accounts: [] }]);
+  await landed();
+  await waitFor(() => harness.providers.children.length === 1, "the landed scan was never drawn");
+  assert.equal(harness.status.textContent, "Scan complete.");
+  assert.match(harness.absent.textContent, /^Not on this computer: Claude Code, Gemini CLI, /u);
+  /* A later scan that changes nothing redraws nothing; one that does, does. */
+  const row = harness.providers.children[0];
+  await landed();
+  for (let turn = 0; turn < 5; turn += 1) await nextTurn();
+  assert.equal(harness.providers.children[0], row, "an unchanged scan redrew the rows");
+  payload = scannedWith([
+    { provider_id: "codex", state: "present", accounts: [] },
+    { provider_id: "claude", state: "present", accounts: [] },
+  ]);
+  await landed();
+  await waitFor(() => harness.providers.children.length === 2, "a changed scan was never drawn");
+});
+
+test("a scan that lands during a Codex sign in waits for the sign in to end", async () => {
+  const harness = firstRunDom(false);
+  installFirstRunGlobals(harness);
+  const waits = [];
+  harness.win.setTimeout = (callback) => { waits.push(callback); return waits.length; };
+  harness.win.setInterval = () => 1;
+  harness.win.clearInterval = () => {};
+  let payload = scannedWith([{ provider_id: "codex", state: "installed_logged_out", accounts: [] }]);
+  let landed = null;
+  initFirstRun({
+    detectProviders: async () => ({ ok: true, value: payload }),
+    onScanUpdate: (handler) => { landed = handler; return () => {}; },
+    codexSignIn: async () => ({ ok: true, value: { sessionId: "one", userCode: "ABCD", verificationUrl: "https://auth.openai.com/device", expiresInSeconds: 180 } }),
+    codexSignInPoll: async () => ({ ok: true, value: { kind: "pending" } }),
+    codexSignInCancel: async () => ({ ok: true }),
+    now: () => 0,
+    platform: "Linux",
+  });
+  await waitFor(() => harness.providers.children.length === 1, "the Codex row was not drawn");
+  const codex = harness.providers.children[0];
+  await codex.all((node) => node.localName === "button")[0].fire("click");
+  await waitFor(() => waits.length === 1, "the sign in did not reach its first wait");
+  payload = scannedWith([
+    { provider_id: "codex", state: "installed_logged_out", accounts: [] },
+    { provider_id: "claude", state: "present", accounts: [] },
+  ]);
+  await landed();
+  for (let turn = 0; turn < 5; turn += 1) await nextTurn();
+  assert.equal(harness.providers.children[0], codex, "the scan redrew the row in the middle of a sign in");
+  assert.equal(codex.all((node) => node.className === "first-run-countdown").length, 1, "the sign in lost its code");
+  /* Cancel ends the flow; the scan that waited is drawn now. */
+  await codex.all((node) => node.localName === "button" && node.textContent === "Cancel")[0].fire("click");
+  waits.shift()();
+  await waitFor(() => harness.providers.children.length === 2, "the waiting scan was never drawn");
+  /* The redrawn Codex row still says how its sign in ended and offers it again. */
+  const after = harness.providers.children.find((row) => row.dataset.provider === "CODEX");
+  assert.equal(after.all((node) => node.localName === "button")[0].textContent, "Try again");
+  assert.equal(after.all((node) => node.getAttribute("role") === "status")[0].textContent, "Sign in cancelled, and nothing changed.");
+});
+
 test("the first run never asks about, pre checks or saves the Claude direct usage request", async () => {
   const harness = firstRunDom(false);
   installFirstRunGlobals(harness);
@@ -317,14 +415,18 @@ test("no Claude consent screen, switch or string is left in the first run's file
   assert.doesNotMatch(read("app.js"), /useClaudeSignIn|claude-sign-in\.js|poll: async/u);
 });
 
-test("Show my bars is the only way out, and it sits with its helper in one sticky footer", () => {
+test("Show my bars is the only way out, alone in one sticky footer", () => {
   const step = firstRunSection();
   const buttons = [...step.matchAll(/<button\b[^>]*\bid="([^"]+)"/gu)].map((match) => match[1]);
   assert.deepEqual(buttons, ["first-run-continue"]);
   assert.match(
     step,
-    /<div class="first-run-footer">\s*<button type="button" id="first-run-continue" class="first-run-continue">\s*Show my bars\s*<\/button>\s*<p id="first-run-helper" class="first-run-helper">/u,
+    /<div class="first-run-footer">\s*<button type="button" id="first-run-continue" class="first-run-continue">\s*Show my bars\s*<\/button>\s*<\/div>/u,
   );
+  /* Each login goes to its own provider, so "provider access stays local" was
+     untrue, and the intro already says where logins go. */
+  assert.doesNotMatch(step, /stays local|first-run-helper|Sync can be turned off/u);
+  assert.match(step, /aria-describedby="first-run-intro"/u);
   const css = read("app.css");
   const footer = css.match(/\.first-run-footer \{([^}]*)\}/u)?.[1] ?? "";
   assert.match(footer, /position: sticky;/u);
@@ -350,6 +452,20 @@ test("finishing a fresh first run marks the account offer the bars will carry", 
   initFirstRun({ detectProviders: async () => ({ ok: true, value: { providers: [] } }), platform: "Linux" });
   await again.doc.byId["first-run-continue"].fire("click");
   assert.equal(again.values.get(firstRun.ACCOUNT_OFFER_STORAGE_KEY), "dismissed");
+});
+
+test("an install that finished a first run before is never offered the account on its way back", async () => {
+  /* Every tool was removed, so Connect shows again; the install is not fresh,
+     and it already met the account where earlier versions offered it. */
+  const returning = firstRunDom(false);
+  returning.values.set("openlimiter-first-run-complete-v1", "complete");
+  returning.values.set("openlimiter-configured-providers-v1", "[]");
+  installFirstRunGlobals(returning);
+  initFirstRun({ detectProviders: async () => ({ ok: true, value: { providers: [] } }), platform: "Linux" });
+  assert.equal(returning.setup.hidden, false, "Connect did not show again");
+  await returning.doc.byId["first-run-continue"].fire("click");
+  assert.equal(returning.screen.hidden, true);
+  assert.equal(returning.values.get(firstRun.ACCOUNT_OFFER_STORAGE_KEY), undefined, "a returning install was offered the account");
 });
 
 test("Microsoft is offered by name in the one sign in body and sent as azure", () => {
@@ -696,6 +812,40 @@ test("the Codex device flow stops at three minutes", async () => {
   assert.deepEqual(cancelled, ["session one"]);
 });
 
+test("the Codex flow counts down from the lifetime Rust reports, not a fresh three minutes", async () => {
+  /* Rust started its deadline before the code was printed, so by the time
+     the start answers, part of the lifetime is gone. */
+  let clock = 0;
+  let polls = 0;
+  let started = null;
+  const outcome = await runCodexSignIn({
+    start: async () => ({ ok: true, value: { sessionId: "one", userCode: "A", verificationUrl: "https://example.invalid", expiresInSeconds: 150 } }),
+    poll: async () => {
+      polls += 1;
+      clock += 50_000;
+      return { ok: true, value: { kind: "pending" } };
+    },
+    cancel: async () => ({ ok: true }),
+    onStarted: (value) => { started = value; },
+    wait: async () => {},
+    now: () => clock,
+  });
+  assert.equal(started.endsAt, 150_000, "the window did not take the remaining lifetime");
+  assert.equal(outcome.kind, "timed_out");
+  assert.equal(polls, 3, "the flow ran past the lifetime Rust reported");
+  /* A start that states no lifetime keeps the three minutes it always had. */
+  let fallback = null;
+  await runCodexSignIn({
+    start: async () => ({ ok: true, value: { sessionId: "two", userCode: "A", verificationUrl: "https://example.invalid" } }),
+    poll: async () => ({ ok: true, value: { kind: "complete" } }),
+    cancel: async () => ({ ok: true }),
+    onStarted: (value) => { fallback = value; },
+    wait: async () => {},
+    now: () => 1_000,
+  });
+  assert.equal(fallback.endsAt, 1_000 + CODEX_SIGN_IN_TIMEOUT_MILLISECONDS);
+});
+
 test("the Codex code counts down in minutes and seconds, never below zero", () => {
   const { codexCountdown } = firstRun;
   assert.equal(typeof codexCountdown, "function", "no countdown for the Codex code");
@@ -707,7 +857,17 @@ test("the Codex code counts down in minutes and seconds, never below zero", () =
   assert.equal(codexCountdown(-5_000), "Code expires in 0:00");
 });
 
-test("a Codex sign in that runs out of time counts down, then offers Try again", async () => {
+/* The nearest element that would make a screen reader speak its changes. */
+function liveAncestor(node) {
+  for (let at = node; at !== null && at !== undefined; at = at.parent) {
+    const role = at.getAttribute?.("role");
+    if (role === "status" || role === "alert" || role === "log" || role === "timer") return at;
+    if (at.getAttribute?.("aria-live") !== null && at.getAttribute?.("aria-live") !== undefined && at.getAttribute("aria-live") !== "off") return at;
+  }
+  return null;
+}
+
+test("a Codex sign in that runs out of time counts down quietly, says what happened, then offers Try again", async () => {
   const harness = firstRunDom(false);
   installFirstRunGlobals(harness);
   let clock = 0;
@@ -718,6 +878,8 @@ test("a Codex sign in that runs out of time counts down, then offers Try again",
   harness.win.setTimeout = (callback) => { callback(); return 0; };
   let starts = 0;
   let cancels = 0;
+  let firstCountdown = null;
+  let saidAtStart = null;
   initFirstRun({
     detectProviders: async () => ({
       ok: true,
@@ -725,9 +887,12 @@ test("a Codex sign in that runs out of time counts down, then offers Try again",
     }),
     codexSignIn: async () => {
       starts += 1;
-      return { ok: true, value: { sessionId: "one", userCode: "ABCD", verificationUrl: "https://auth.openai.com/device" } };
+      return { ok: true, value: { sessionId: "one", userCode: "ABCD", verificationUrl: "https://auth.openai.com/device", expiresInSeconds: 150 } };
     },
     codexSignInPoll: async () => {
+      const ticking = harness.providers.children[0].all((node) => node.className === "first-run-countdown")[0];
+      if (ticking !== undefined && firstCountdown === null) firstCountdown = { text: ticking.textContent, live: liveAncestor(ticking) };
+      saidAtStart ??= harness.providers.children[0].all((node) => node.getAttribute("role") === "status")[0]?.textContent;
       /* Two minutes and fifty seconds pass before the next answer. */
       clock += 170_000;
       for (const tick of timers.values()) tick();
@@ -737,22 +902,32 @@ test("a Codex sign in that runs out of time counts down, then offers Try again",
     now: () => clock,
     platform: "Linux",
   });
+  /* The list is not a live region: rows are announced by the scan status. */
+  assert.equal(harness.providers.getAttribute("aria-live"), null);
+  assert.doesNotMatch(read("index.html"), /id="first-run-providers"[^>]*aria-live/u);
   await waitFor(() => harness.providers.children.length === 1, "the Codex row was not drawn");
   const row = harness.providers.children[0];
   const button = row.all((node) => node.localName === "button")[0];
   assert.equal(button.textContent, "Sign in");
+  const live = row.all((node) => node.getAttribute("role") === "status")[0];
+  assert.ok(live, "the row has no place to say what happened");
   await button.fire("click");
-  await waitFor(() => row.all((node) => node.className === "first-run-countdown").length === 1, "no countdown was drawn");
-  const countdown = row.all((node) => node.className === "first-run-countdown")[0];
-  assert.equal(countdown.getAttribute("role"), null, "the ticking time is not announced every second");
+  await waitFor(() => firstCountdown !== null, "no countdown was drawn");
+  /* It starts from what Rust said was left, two and a half minutes, and
+     the row says once that a code is waiting to be entered. */
+  assert.equal(firstCountdown.text, "Code expires in 2:30");
+  assert.equal(firstCountdown.live, null, "the ticking time sits inside a live region");
+  assert.equal(saidAtStart, "Open this page and enter the code.");
   await waitFor(() => button.disabled === false, "the flow did not end");
   assert.equal(cancels, 1, "the expired flow was not cancelled on the backend");
-  assert.match(screenWords(harness), /The sign in ran out of time, and nothing changed\./u);
+  assert.equal(live.textContent, "The sign in ran out of time, and nothing changed.");
+  assert.equal(row.all((node) => node.className === "first-run-countdown").length, 0, "the countdown outlived its flow");
   assert.equal(button.textContent, "Try again");
   assert.match(button.getAttribute("aria-label"), /^Try again/u);
   assert.equal(timers.size, 0, "the countdown kept ticking after the flow ended");
   await button.fire("click");
   await waitFor(() => starts === 2, "Try again did not start a new sign in");
+  assert.equal(row.all((node) => node.getAttribute("role") === "status")[0], live, "Try again replaced the place the row speaks from");
 });
 
 test("a flow that never starts leaves the row exactly as it was", async () => {

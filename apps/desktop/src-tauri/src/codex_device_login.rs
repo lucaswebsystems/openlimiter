@@ -515,19 +515,24 @@ impl DeviceLoginSession {
                 DeviceLoginFailure::NoCode
             });
         };
+        let deadline = now + timeout;
         let session = Arc::new(Self {
             home,
             child: Mutex::new(child),
-            deadline: now + timeout,
+            deadline,
             cancelled: Mutex::new(false),
         });
-        arm_deadline_timer(&session, timeout);
+        /* The deadline began before the client printed its code, so what the
+        window counts down from, and what the timer waits for, is what is left
+        of it now, rounded up to whole seconds. */
+        let left = deadline.saturating_duration_since(Instant::now());
+        arm_deadline_timer(&session, left);
         Ok((
             session,
             DeviceLoginStart {
                 user_code,
                 verification_url,
-                expires_in_seconds: timeout.as_secs(),
+                expires_in_seconds: left.as_millis().div_ceil(1000) as u64,
             },
         ))
     }
@@ -1521,6 +1526,31 @@ mod tests {
             session.state(Instant::now()),
             DeviceLoginState::Complete { .. }
         ));
+    }
+
+    /// The window counts down from what is actually left. The deadline began
+    /// before the client printed its code, so the start reports the remainder
+    /// rather than the whole three minutes.
+    #[test]
+    fn the_start_reports_the_lifetime_that_is_left_not_the_whole_timeout() {
+        let stub = runner(
+            &[
+                "Open https://auth.openai.com/device",
+                "Your code is BDXK-9QTZ",
+            ],
+            false,
+        );
+        let began = Instant::now()
+            .checked_sub(Duration::from_secs(25))
+            .expect("an instant twenty five seconds ago");
+        let (session, start) = DeviceLoginSession::start(&stub, &session_id(), began)
+            .expect("a started login");
+        assert!(
+            (154..=155).contains(&start.expires_in_seconds),
+            "reported {} seconds left",
+            start.expires_in_seconds
+        );
+        session.cancel();
     }
 
     #[test]

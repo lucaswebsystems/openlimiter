@@ -200,8 +200,7 @@ html[data-first-run="complete"] .first-run {
 
 .first-run-detail,
 .first-run-caption,
-.first-run-status,
-.first-run-helper {
+.first-run-status {
   color: var(--muted);
   font-size: var(--ol-text-caption);
 }
@@ -215,8 +214,7 @@ html[data-first-run="complete"] .first-run {
 .first-run[data-empty="true"] .first-run-intro,
 .first-run[data-empty="true"] .first-run-launch-note,
 .first-run[data-empty="true"] .first-run-status,
-.first-run[data-empty="true"] .first-run-continue,
-.first-run[data-empty="true"] .first-run-helper {
+.first-run[data-empty="true"] .first-run-continue {
   display: none;
 }
 
@@ -286,11 +284,6 @@ button.first-run-continue {
 button.first-run-continue:hover {
   border-color: var(--solid-hover);
   background: var(--solid-hover);
-}
-
-.first-run-helper {
-  margin: var(--ol-space-3) 0 0;
-  text-align: center;
 }
 
 .mono {
@@ -1797,8 +1790,7 @@ button.first-run-continue:hover {
 
 .first-run-caption,
 .first-run-detail,
-.first-run-status,
-.first-run-helper {
+.first-run-status {
   color: var(--ol-muted);
   font-size: var(--ol-text-micro);
 }
@@ -1824,10 +1816,6 @@ button.first-run-install {
 
 button.first-run-continue {
   margin-top: var(--ol-space-3);
-}
-
-.first-run-helper {
-  margin: var(--ol-space-2) 0 0;
 }
 
 .strip {
@@ -2731,6 +2719,21 @@ button.first-run-quiet-button {
   border-color: var(--ol-control-border);
   color: var(--ol-heading);
   font-size: var(--ol-text-caption);
+}
+
+/* The one line a sign in row says out loud. It has no :empty rule, so it is
+   in the accessibility tree before its first sentence arrives. */
+.first-run-said {
+  margin: 0;
+  color: var(--ol-muted);
+  font-size: var(--ol-text-micro);
+  line-height: var(--ol-leading-body);
+}
+
+/* The page, the code, its countdown and Cancel, removed when the flow ends. */
+.first-run-device {
+  display: grid;
+  gap: var(--ol-space-2);
 }
 
 /* The time the device code has left, under the code. Not a live region: a

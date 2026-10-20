@@ -91,6 +91,7 @@ import {
   installUpdate,
   listConnections,
   listDetectedProviders,
+  listen,
   normalizeConnectionList,
   notificationGate,
   proDisconnect,
@@ -403,19 +404,62 @@ function resetSignInBody() {
   }
 }
 
+/** Where focus was when the sheet opened, so closing can put it back. */
+let signInOpener = null;
+
+/*
+ * The sheet is a native modal dialog. showModal puts it in the top layer and
+ * makes the window behind it inert, so focus cannot wander out of it, and
+ * Escape is the dialog's own cancel.
+ */
 function openSignIn() {
   if (elements.signIn === null) return;
   closeHeaderPopovers();
+  signInOpener = document.activeElement;
   resetSignInBody();
-  elements.signIn.hidden = false;
+  if (!elements.signIn.open) elements.signIn.showModal();
   elements.signInGithub?.focus();
 }
 
 function closeSignIn() {
   if (elements.signIn === null) return;
-  elements.signIn.hidden = true;
-  resetSignInBody();
+  if (elements.signIn.open) elements.signIn.close();
 }
+
+/* Back to the control that opened the sheet. When it has gone (the offer
+   card hides once somebody signs in, the phone popover closes as the sheet
+   opens), focus lands on the selected tab rather than nowhere. */
+function restoreFocus(opener) {
+  if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+  if (opener instanceof HTMLElement && document.activeElement === opener) return;
+  document.querySelector('[role="tab"][aria-selected="true"]')?.focus();
+}
+
+/* Tab wraps at both ends of the sheet: the window behind is inert, and the
+   keyboard never walks out of the dialog into the browser's own chrome. */
+elements.signIn?.addEventListener("keydown", (event) => {
+  if (event.key !== "Tab") return;
+  const stops = [...elements.signIn.querySelectorAll("button, input, select, textarea, [href]")]
+    .filter((node) => !node.disabled && node.getClientRects().length > 0);
+  if (stops.length === 0) return;
+  const first = stops[0];
+  const last = stops[stops.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+});
+
+/* Every way out ends here: Not now, the backdrop, Escape and a finished
+   sign in all close the dialog. */
+elements.signIn?.addEventListener("close", () => {
+  resetSignInBody();
+  restoreFocus(signInOpener);
+  signInOpener = null;
+});
 
 /**
  * Run one sign in to its drawn end.
@@ -501,10 +545,6 @@ document.addEventListener("click", (event) => {
    second attempt started meanwhile is answered by the broker as busy. */
 elements.signIn?.addEventListener("click", (event) => {
   if (event.target === elements.signIn) closeSignIn();
-});
-document.addEventListener("keydown", (event) => {
-  if (event.key !== "Escape" || elements.signIn === null || elements.signIn.hidden) return;
-  closeSignIn();
 });
 
 elements.signInToggle?.addEventListener("click", () => showEmailForm(true));
@@ -1147,6 +1187,10 @@ initFirstRun({
   codexSignIn: codexDeviceLoginStart,
   codexSignInPoll: codexDeviceLoginStatus,
   codexSignInCancel: codexDeviceLoginCancel,
+  /* Rust says so once its first scan lands, and after every collection, so
+     Connect fills in from the real scan rather than the empty inventory a
+     window opened before it. */
+  onScanUpdate: (handler) => listen("collector-updated", handler),
   onContinue: () => {
     void refresh();
   },

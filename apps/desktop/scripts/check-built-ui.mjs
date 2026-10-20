@@ -97,7 +97,11 @@ function installCaptureStub() {
       if (name === "account_status") return { signedIn: false, syncEnabled: false, backendReachable: false };
       if (name === "notification_settings") return { enabled: false };
       if (name === "terminal_captions") return { captions: "short" };
-      if (name === "pro_status") return { entitled: false };
+      if (name === "pro_status") {
+        return desk.pro
+          ? { state: "active", plan_state: "active", features: ["theme_preset"], theme_preset: true }
+          : { entitled: false };
+      }
       if (name === "plugin:activity|activity_sessions") return [session];
       if (name === "plugin:activity|activity_notification_preferences") return { sound: "silent", local: { enabled: false, quietHours: null, mutedProviders: [] } };
       if (name === "plugin:rail|rail_snapshot") return { accounts: [account], sessions: [session], window: { available: true, visible: true, unfolded: true, keepOpen: false, offset: 120, cardOpen: true, cardAnchor: null } };
@@ -106,14 +110,20 @@ function installCaptureStub() {
       if (name === "claude_connect_preflight") return { kind: "ready", cli_path: "openlimiter" };
       if (name === "claude_poll_enabled") return false;
       if (name === "terminal_runtime_status") return { version: "2.0.3", app_version: "2.1.0" };
-      if (name === "list_detected_providers") return { providers: desk.detected ?? [] };
-      if (name === "codex_device_login_start") return { sessionId: "capture-session", userCode: "ABCD-1234", verificationUrl: "https://auth.openai.com/codex/device" };
+      if (name === "list_detected_providers") {
+        if (desk.unscanned) return { version: 1, scanned_at: "", providers: [] };
+        return { providers: desk.detected ?? [] };
+      }
+      if (name === "codex_device_login_start") return { sessionId: "capture-session", userCode: "ABCD-1234", verificationUrl: "https://auth.openai.com/codex/device", expiresInSeconds: 150 };
       if (name === "codex_device_login_status") return { kind: "pending" };
       if (name === "codex_device_login_cancel") return null;
       if (["list_connections", "disabled_providers", "notification_events"].includes(name)) return [];
       return null;
     } },
-    event: { listen: async () => () => {} },
+    event: { listen: async (name, handler) => {
+      (window.__listeners ??= {})[name] = [...(window.__listeners[name] ?? []), handler];
+      return () => {};
+    } },
   };
 }
 
@@ -259,6 +269,40 @@ async function inspectTab(page, id, width, height, shots) {
   findings.push(...await inspectView(page, id));
   findings.push(...await inspectFit(page));
   if (shots) await page.screenshot({ path: path.join(shots, `${id}-${width}x${height}.png`), fullPage: true });
+  return findings;
+}
+
+/* The sign in sheet is a native modal: Tab never leaves it, the window behind
+   it cannot be reached, Escape closes it, and focus returns to its opener. */
+async function inspectSheet(page, shots, suffix) {
+  const findings = [];
+  const opener = page.locator("#account-offer-sign-in");
+  await opener.focus();
+  await page.keyboard.press("Enter");
+  const sheet = page.locator("#sign-in");
+  await sheet.waitFor({ state: "visible" });
+  if (!await sheet.evaluate((node) => node.matches(":modal"))) findings.push("the sign in sheet is not modal");
+  if (shots) await page.screenshot({ path: path.join(shots, `signin-sheet-520x720${suffix}.png`) });
+  for (let press = 0; press < 14; press += 1) {
+    await page.keyboard.press(press % 5 === 4 ? "Shift+Tab" : "Tab");
+    if (!await page.evaluate(() => document.querySelector("#sign-in").contains(document.activeElement))) {
+      findings.push("Tab left the sign in sheet");
+      break;
+    }
+  }
+  /* The window behind is inert: a point over a tab hits the sheet, and the
+     tab cannot take focus even when asked. */
+  const reachable = await page.evaluate(() => {
+    const tab = document.querySelector("#tab-tools");
+    const box = tab.getBoundingClientRect();
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    tab.focus();
+    return !document.querySelector("#sign-in").contains(hit) || document.activeElement === tab;
+  });
+  if (reachable) findings.push("the window behind the sheet can still be reached");
+  await page.keyboard.press("Escape");
+  await sheet.waitFor({ state: "hidden" });
+  if (!await opener.evaluate((node) => document.activeElement === node)) findings.push("focus did not return to the control that opened the sheet");
   return findings;
 }
 
@@ -419,7 +463,7 @@ try {
     const rows = await page.locator("#first-run-providers .first-run-row").evaluateAll((nodes) => nodes.map((node) => node.dataset.provider));
     if (rows.join() !== "CODEX,CLAUDE,GEMINI_CLI,ANTIGRAVITY") findings.push(`first run rows are ${rows.join()}`);
     const words = await screen.innerText();
-    if (/Fable|usage request|Anthropic|npm install|Create your account|Skip/u.test(words)) findings.push("the first run asks about Claude, an account or an install");
+    if (/Fable|usage request|Anthropic|npm install|Create your account|Skip|stays local/u.test(words)) findings.push("the first run asks about Claude, an account or an install, or says something untrue");
     if (await page.locator("#first-run input:not([data-provider-switch])").count()) findings.push("a control other than a tool switch is in the first run");
     if (await page.locator("#first-run button:visible").evaluateAll((nodes) => nodes.filter((node) => node.id !== "first-run-continue" && !node.closest(".first-run-action")).length)) {
       findings.push("the first run has a second way out");
@@ -430,7 +474,11 @@ try {
        flow with Try again on the row. */
     const codex = page.locator('#first-run-providers [data-provider="CODEX"]');
     await codex.locator("button", { hasText: "Sign in" }).click();
-    await codex.locator(".first-run-countdown", { hasText: /^Code expires in [0-3]:[0-5][0-9]$/u }).waitFor();
+    await codex.locator(".first-run-countdown", { hasText: /^Code expires in 2:(?:30|29|28)$/u }).waitFor();
+    if (await codex.locator(".first-run-countdown").evaluate((node) => node.closest('[aria-live]:not([aria-live="off"]), [role="status"], [role="alert"], [role="timer"]') !== null)) {
+      findings.push("the countdown ticks inside a live region");
+    }
+    if (await codex.locator('[role="status"]').textContent() !== "Open this page and enter the code.") findings.push("the row did not say a code is waiting");
     if (shots) await page.screenshot({ path: path.join(shots, `firstrun-codex-${width}x${height}${suffix}.png`) });
     await codex.locator("button", { hasText: "Cancel" }).click();
     await codex.locator("button", { hasText: "Try again" }).waitFor();
@@ -444,8 +492,110 @@ try {
     findings.push(...await inspectFit(page));
     assert.deepEqual(errors, [], `first run ${width}x${height} browser errors`);
     if (shots) await page.screenshot({ path: path.join(shots, `after-firstrun-${width}x${height}${suffix}.png`), fullPage: true });
+    if (width === 520) findings.push(...await inspectSheet(page, shots, suffix));
     if (findings.length) throw new Error(`FAIL first run ${width}x${height}: ${findings.join(", ")}`);
     process.stdout.write(`PASS first run ${width}x${height}\n`);
+    await context.close();
+  }
+
+  /* A window opened before Rust's first scan: Connect keeps checking and
+     calls nothing absent, then fills in when the scan event arrives. */
+  {
+    const [width, height] = [520, 720];
+    const context = await browser.newContext({ viewport: { width, height }, serviceWorkers: "block" });
+    await context.addInitScript(() => { window.__desk = { fresh: true, unscanned: true }; });
+    await context.addInitScript(installCaptureStub);
+    const page = await context.newPage();
+    const errors = [];
+    page.on("pageerror", error => errors.push(error.message));
+    await page.goto(`${origin}/index.html`);
+    await page.waitForLoadState("networkidle");
+    await page.locator("#first-run").waitFor({ state: "visible" });
+    const findings = [];
+    if (await page.locator("#first-run-status").innerText() !== "Checking local tools.") findings.push("an unscanned inventory did not keep checking");
+    if (await page.locator("#first-run-providers .first-run-row").count()) findings.push("rows were drawn from an unscanned inventory");
+    if (await page.locator("#first-run-absent").innerText() !== "") findings.push("an unscanned inventory called tools absent");
+    if (shots) await page.screenshot({ path: path.join(shots, `firstrun-checking-${width}x${height}.png`) });
+    await page.evaluate(() => {
+      window.__desk.unscanned = false;
+      window.__desk.detected = [{ provider_id: "codex", state: "present", accounts: [] }];
+      for (const handler of window.__listeners?.["collector-updated"] ?? []) handler({ payload: null });
+    });
+    await page.locator("#first-run-status", { hasText: "Scan complete." }).waitFor();
+    const rows = await page.locator("#first-run-providers .first-run-row").evaluateAll((nodes) => nodes.map((node) => node.dataset.provider));
+    if (rows.join() !== "CODEX") findings.push(`the landed scan drew ${rows.join()}`);
+    assert.deepEqual(errors, [], "unscanned first run browser errors");
+    if (findings.length) throw new Error(`FAIL unscanned first run: ${findings.join(", ")}`);
+    process.stdout.write(`PASS first run waits for the scan ${width}x${height}\n`);
+    await context.close();
+  }
+
+  /* The four presets, each applied for real, in both themes: Product, then
+     Graphite and Meadow (free) and Ember (Pro, here entitled). */
+  const accents = {
+    dark: { default: "#2f81f7", graphite: "#c3ccd8", meadow: "#3fb950", ember: "#ffa657" },
+    light: { default: "#2f81f7", graphite: "#46566b", meadow: "#1a7f37", ember: "#bc4c00" },
+  };
+  for (const theme of ["dark", "light"]) {
+    const [width, height] = [520, 800];
+    const context = await browser.newContext({ viewport: { width, height }, serviceWorkers: "block" });
+    await context.addInitScript((chosen) => { window.__desk = { pro: true, theme: chosen }; }, theme);
+    await context.addInitScript(installCaptureStub);
+    const page = await context.newPage();
+    const errors = [];
+    page.on("pageerror", error => errors.push(error.message));
+    await page.goto(`${origin}/index.html`);
+    await page.waitForLoadState("networkidle");
+    await dismissModal(page);
+    await page.locator("#tab-settings").click();
+    const findings = [];
+    for (const preset of ["default", "graphite", "meadow", "ember"]) {
+      const tile = page.locator(`button[data-preset="${preset}"]`);
+      await tile.click();
+      await page.waitForFunction((id) => document.documentElement.getAttribute("data-preset") === id, preset);
+      await page.locator(`button[data-preset="${preset}"][aria-pressed="true"]`).waitFor();
+      const accent = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--ol-accent").trim().toLowerCase());
+      if (accent !== accents[theme][preset] && !(preset === "default" && accent === "var(--ol-brand)")) {
+        const resolved = await page.evaluate(() => {
+          const probe = document.createElement("span");
+          probe.style.color = "var(--ol-accent)";
+          document.body.append(probe);
+          const value = getComputedStyle(probe).color;
+          probe.remove();
+          return value;
+        });
+        findings.push(`${preset} ${theme} accent is ${accent} (${resolved})`);
+      }
+      if (shots) await page.screenshot({ path: path.join(shots, `preset-${preset}-${theme}-${width}x${height}.png`), fullPage: true });
+    }
+    assert.deepEqual(errors, [], `presets ${theme} browser errors`);
+    if (findings.length) throw new Error(`FAIL presets ${theme}: ${findings.join(", ")}`);
+    process.stdout.write(`PASS four presets ${theme}\n`);
+    await context.close();
+  }
+
+  /* Without Pro, Ember stays locked: a press shows the plan and changes nothing. */
+  {
+    const context = await browser.newContext({ viewport: { width: 520, height: 800 }, serviceWorkers: "block" });
+    await context.addInitScript(installCaptureStub);
+    const page = await context.newPage();
+    await page.goto(`${origin}/index.html`);
+    await page.waitForLoadState("networkidle");
+    await dismissModal(page);
+    await page.locator("#tab-settings").click();
+    await page.locator('button[data-preset="meadow"]').click();
+    await page.waitForFunction(() => document.documentElement.getAttribute("data-preset") === "meadow");
+    /* Locked, it still takes focus and a key press, and shows the plan. */
+    await page.locator('button[data-preset="ember"]').focus();
+    if (!await page.locator('button[data-preset="ember"]').evaluate((node) => document.activeElement === node)) {
+      throw new Error("FAIL locked Ember cannot take focus");
+    }
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(300);
+    if (await page.evaluate(() => document.documentElement.getAttribute("data-preset")) !== "meadow") {
+      throw new Error("FAIL locked Ember changed the preset without Pro");
+    }
+    process.stdout.write("PASS Ember stays locked without Pro\n");
     await context.close();
   }
 

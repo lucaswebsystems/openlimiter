@@ -366,6 +366,32 @@ button.danger:hover {
   background: var(--ol-backdrop);
 }
 
+/* The sign in sheet is a native modal dialog. Its own box gives way to the
+   same full window backdrop the keeper sheet draws, and it shows only while
+   open; the top layer already sits above everything, the browser's own
+   backdrop is left clear. */
+dialog.sheet {
+  width: auto;
+  max-width: none;
+  height: auto;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  color: inherit;
+}
+
+dialog.sheet:not([open]) {
+  display: none;
+}
+
+dialog.sheet[open] {
+  display: grid;
+}
+
+dialog.sheet::backdrop {
+  background: transparent;
+}
+
 .sheet-panel {
   width: min(100%, 28rem);
   max-height: calc(100vh - var(--ol-space-6));

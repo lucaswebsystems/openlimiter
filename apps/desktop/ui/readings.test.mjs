@@ -52,6 +52,33 @@ test("a tool that is set up but has no reading waits on Usage and in Connect Too
   assert.deepEqual(leaks(spoken(mount)), []);
 });
 
+test("a stored connection keeps its tool on Usage: connected waits, signed out offers Connect", () => {
+  /* Classified before any provider's own steps, so OpenRouter, whose key is
+     its connection, behaves like every other connected tool. */
+  for (const code of ["OPENROUTER", "CODEX", "OPENCODE"]) {
+    for (const [state, expected] of [
+      ["CONNECTED", ["waiting", "Waiting for first reading", null]],
+      ["NEEDS_AUTH", ["signin", "Signed out", "Connect"]],
+      ["AUTH_EXPIRED", ["signin", "Signed out", "Connect"]],
+    ]) {
+      const model = inventoryModel({ connections: [{ provider: code, state }] }, now);
+      const tool = model.find((entry) => entry.code === code);
+      assert.equal(tool.usage, expected[0], `${code} ${state}`);
+      const { usage } = splitInventory(model);
+      const row = usage.find((entry) => entry.code === code);
+      assert.ok(row, `${code} ${state} vanished from Usage`);
+      assert.deepEqual([row.note, row.action?.label ?? null], [expected[1], expected[2]], `${code} ${state}`);
+    }
+    /* A connection that errored is a fix in Connect Tools, not a sign in. */
+    const broken = inventoryModel({ connections: [{ provider: code, state: "ERROR" }] }, now).find((entry) => entry.code === code);
+    assert.equal(broken.action.label, "Connect", `${code} ERROR`);
+    assert.equal(broken.usage, undefined, `${code} ERROR`);
+  }
+  /* With no connection at all, OpenRouter is a setup step and stays off Usage. */
+  const unset = splitInventory(inventoryModel({}, now)).usage.find((entry) => entry.code === "OPENROUTER");
+  assert.equal(unset, undefined);
+});
+
 test("a tool that needs a sign in keeps a row on Usage, with the same action Connect Tools offers", async () => {
   const detections = { providers: [{ provider_id: "gemini-cli", state: "installed_logged_out" }] };
   const model = inventoryModel({ detections, flags: [{ provider: "GROK", reason: "account_not_connected", fixKind: "sign_in" }] }, now);
@@ -716,7 +743,7 @@ test("every tool in play gets one row with one fix; a switched off one leaves un
   const off = inventoryModel({ removed: ["ANTIGRAVITY"] }, now).find((tool) => tool.code === "ANTIGRAVITY");
   assert.deepEqual([off.action, off.note], [null, "Off"]);
   const connected = inventoryModel({ connections: [{ provider: "OPENROUTER", state: "CONNECTED" }] }, now).find((tool) => tool.code === "OPENROUTER");
-  assert.equal(connected.action.label, "Check again");
+  assert.deepEqual([connected.action, connected.note], [null, "Waiting for first reading"]);
   const lost = inventoryModel({ connections: [{ provider: "OPENROUTER", state: "NEEDS_AUTH" }] }, now).find((tool) => tool.code === "OPENROUTER");
   assert.equal(lost.action.label, "Connect");
   const doc = fakeDocument();

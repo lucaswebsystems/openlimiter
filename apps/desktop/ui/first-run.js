@@ -185,6 +185,20 @@ export function normalizeDetections(value) {
     ]),
   );
 
+  /* The native inventory before its first scan has no scan time and nothing
+     in it. That proves no tool is absent, so it is pending, not a scan. */
+  if (value !== null && typeof value === "object" && value.scanned_at === "") {
+    return {
+      available: false,
+      pending: true,
+      providers: [...normalized.values()].map((provider) => ({
+        ...provider,
+        state: "unavailable",
+        recovery: null,
+      })),
+    };
+  }
+
   const entries = Array.isArray(value?.providers) ? value.providers : null;
   if (entries !== null) {
     for (const entry of entries) {
@@ -425,19 +439,25 @@ export async function runCodexSignIn(deps) {
 
   const value = started.value ?? {};
   const sessionId = value.sessionId;
+  /* Rust started the deadline before the client printed its code, so it says
+     how much is left; a start that says nothing keeps the three minutes. */
+  const lifetime = Number.isFinite(value.expiresInSeconds) && value.expiresInSeconds > 0
+    ? Math.min(value.expiresInSeconds * 1000, CODEX_SIGN_IN_TIMEOUT_MILLISECONDS)
+    : CODEX_SIGN_IN_TIMEOUT_MILLISECONDS;
+  const endsAt = now() + lifetime;
   onStarted({
     sessionId,
     userCode: value.userCode ?? "",
     verificationUrl: value.verificationUrl ?? "",
+    endsAt,
   });
 
-  const began = now();
   for (;;) {
     if (cancelled()) {
       await cancelQuietly(deps.cancel, sessionId);
       return { kind: "cancelled", sentence: codexSentence("cancelled") };
     }
-    if (now() - began >= CODEX_SIGN_IN_TIMEOUT_MILLISECONDS) {
+    if (now() >= endsAt) {
       await cancelQuietly(deps.cancel, sessionId);
       return { kind: "timed_out", sentence: codexSentence("timed_out") };
     }
@@ -588,6 +608,7 @@ const DEFAULT_OPTIONS = Object.freeze({
   codexSignInPoll: async () => ({ ok: false, reason: "unconfigured" }),
   codexSignInCancel: async () => ({ ok: true }),
   autostartFirstRun: async () => ({ ok: false, reason: "unconfigured" }),
+  onScanUpdate: () => () => {},
   now: () => Date.now(),
 });
 
@@ -637,7 +658,7 @@ function quietButton(label) {
  * it. Everything a state needs to say more than a button can hold goes in the
  * disclosure under both columns, which grows the row downward instead.
  */
-function connectRow(provider, detection, signals, options, redraw, quota) {
+function connectRow(provider, detection, signals, options, flow, quota) {
   const row = element("div", "first-run-row");
   row.dataset.state = detection?.state ?? "unavailable";
   row.dataset.provider = provider.code;
@@ -666,11 +687,24 @@ function connectRow(provider, detection, signals, options, redraw, quota) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "first-run-install";
-    button.textContent = plan.label;
-    button.setAttribute("aria-label", plan.label + " " + provider.name);
+    /* What this row says out loud: that a code waits to be entered, and how
+       the sign in ended. It is the one live line in the row and it stays put
+       across attempts; the ticking countdown is never inside it. */
+    const said = element("p", "first-run-said", "");
+    said.setAttribute("role", "status");
+    disclosure.append(said);
+    const ended = flow.outcomes.get(provider.code);
+    if (ended === undefined) {
+      button.textContent = plan.label;
+      button.setAttribute("aria-label", plan.label + " " + provider.name);
+    } else {
+      offerTryAgain(button, provider);
+      said.textContent = ended;
+      disclosure.hidden = false;
+    }
     button.addEventListener("click", () => {
       button.disabled = true;
-      void startCodexSignIn(provider, options, disclosure, button, redraw);
+      void startCodexSignIn(provider, options, disclosure, said, button, flow);
     });
     action.append(button);
   } else {
@@ -681,31 +715,36 @@ function connectRow(provider, detection, signals, options, redraw, quota) {
   return row;
 }
 
+function offerTryAgain(button, provider) {
+  button.textContent = TRY_AGAIN;
+  button.setAttribute("aria-label", TRY_AGAIN + ", " + provider.name + " sign in");
+}
+
 /*
  * The Codex device flow, drawn inside this window.
  *
  * The code and the page are shown here rather than in a console, because a
  * console window that appears behind the app is a code nobody ever sees. The
- * time the code has left counts down under it, quietly: a screen reader hears
- * the ending, not every second. The Cancel control is present from the first
+ * time the code has left counts down under it, quietly and outside any live
+ * region: a screen reader hears that a code is waiting and how the sign in
+ * ended, not every second. The Cancel control is present from the first
  * frame and stays until the flow has a terminal answer, and every ending that
  * is not a completed sign in puts the row back with one sentence saying what
  * happened and its button offering to try again.
  */
-async function startCodexSignIn(provider, options, disclosure, button, redraw) {
+async function startCodexSignIn(provider, options, disclosure, said, button, flow) {
   let cancelled = false;
   let ticker = null;
+  flow.begin(provider.code);
   disclosure.hidden = false;
-  disclosure.textContent = "";
+  said.textContent = "";
 
-  const lead = element("p", "first-run-hint", "Open this page and enter the code.");
+  const steps = element("div", "first-run-device");
   const url = element("p", "first-run-command", "");
   url.classList.add("mono");
   const code = element("p", "first-run-code", "");
   code.classList.add("mono");
   const countdown = element("p", "first-run-countdown", "");
-  const status = element("p", "first-run-hint", "");
-  status.setAttribute("role", "status");
   const actions = element("div", "first-run-device-actions");
   const cancel = quietButton("Cancel");
   cancel.addEventListener("click", () => {
@@ -713,7 +752,8 @@ async function startCodexSignIn(provider, options, disclosure, button, redraw) {
     cancel.disabled = true;
   });
   actions.append(cancel);
-  disclosure.append(lead, url, code, countdown, actions, status);
+  steps.append(url, code, countdown, actions);
+  disclosure.append(steps);
 
   const outcome = await runCodexSignIn({
     start: () => options.codexSignIn(),
@@ -724,29 +764,28 @@ async function startCodexSignIn(provider, options, disclosure, button, redraw) {
     onStarted: (started) => {
       url.textContent = started.verificationUrl;
       code.textContent = started.userCode;
-      const ends = options.now() + CODEX_SIGN_IN_TIMEOUT_MILLISECONDS;
-      const paint = () => { countdown.textContent = codexCountdown(ends - options.now()); };
+      said.textContent = "Open this page and enter the code.";
+      const paint = () => { countdown.textContent = codexCountdown(started.endsAt - options.now()); };
       paint();
       ticker = window.setInterval(paint, 1000);
     },
   });
   if (ticker !== null) window.clearInterval(ticker);
+  steps.remove();
 
   if (outcome.kind === "complete") {
     configureProvider(provider.code);
-    await redraw(outcome.quota);
+    await flow.end(provider.code, outcome);
     return;
   }
   /* Back to where the row was, with one sentence and a way to go again. */
-  disclosure.textContent = "";
-  disclosure.hidden = false;
-  disclosure.append(element("p", "first-run-hint", outcome.sentence));
-  button.textContent = TRY_AGAIN;
-  button.setAttribute("aria-label", TRY_AGAIN + ", " + provider.name + " sign in");
+  said.textContent = outcome.sentence;
+  offerTryAgain(button, provider);
   button.disabled = false;
+  await flow.end(provider.code, outcome);
 }
 
-function renderProviders(screen, result, signals, options, redraw, quota) {
+function renderProviders(screen, result, signals, options, flow, quota) {
   const list = screen.querySelector("#first-run-providers");
   const absent = screen.querySelector("#first-run-absent");
   const note = screen.querySelector("#first-run-status");
@@ -756,7 +795,7 @@ function renderProviders(screen, result, signals, options, redraw, quota) {
   for (const provider of PROVIDERS) {
     const detection = byCode.get(provider.code);
     if (onThisComputer(detection)) {
-      list.append(connectRow(provider, detection, signals, options, redraw, quota));
+      list.append(connectRow(provider, detection, signals, options, flow, quota));
     }
   }
   /* An empty bordered box is not a list; the line under it says why. */
@@ -793,11 +832,68 @@ export function initFirstRun(input) {
   if (screen === null) return;
 
   const setup = screen.querySelector("#first-run-setup");
+  const note = screen.querySelector("#first-run-status");
   const detections = createDetectionLoader(options.detectProviders);
+  /* Read once, before this run can write it: only a fresh install is
+     offered the account under its first bar. */
+  const finishedBefore = storedFirstRunComplete();
+  let stopListening = () => {};
+
+  /* What the rows were last drawn from, a scan held back while a sign in
+     runs, and how each sign in that did not complete ended. */
+  let codexQuota = null;
+  let drawnKey = "";
+  let held = null;
+  let signingIn = false;
+  const flow = {
+    outcomes: new Map(),
+    begin: (code) => {
+      signingIn = true;
+      flow.outcomes.delete(code);
+    },
+    end: async (code, outcome) => {
+      signingIn = false;
+      if (outcome.kind === "complete") {
+        codexQuota = outcome.quota ?? null;
+        draw(await detections.load(true), true);
+        if (note !== null) note.textContent = outcome.sentence;
+        return;
+      }
+      flow.outcomes.set(code, outcome.sentence);
+      if (held !== null) {
+        const waiting = held;
+        held = null;
+        draw(waiting, true);
+      }
+    },
+  };
+
+  /* Draw a scan: a pending one keeps checking, a failed one only says so
+     while nothing better is on screen, and an unchanged one redraws nothing.
+     A scan that lands during a sign in waits until the sign in ends, so a
+     code someone is typing never disappears from under them. */
+  function draw(latest, force = false) {
+    if (!detections.isCurrent(latest)) return;
+    const { result, signals } = latest;
+    if (result.pending === true) {
+      if (note !== null && drawnKey === "") note.textContent = "Checking local tools.";
+      return;
+    }
+    if (result.available !== true && drawnKey !== "") return;
+    const key = JSON.stringify([result, signals, codexQuota]);
+    if (!force && key === drawnKey) return;
+    if (signingIn) {
+      held = latest;
+      return;
+    }
+    drawnKey = key;
+    renderProviders(screen, result, signals, options, flow, codexQuota);
+  }
 
   /* The one step. One row per tool this machine has, drawn from what the
      machine already said, and one line naming the rest. It opens at once,
-     saying it checks, and fills itself in when the scan answers. */
+     saying it checks, and fills itself in when the scan answers, including a
+     scan that lands after the window opened. */
   async function showConnect() {
     markStep(screen, "connect");
     if (setup === null) {
@@ -806,21 +902,20 @@ export function initFirstRun(input) {
     }
     setup.hidden = false;
     setup.querySelector("#first-run-title")?.focus({ preventScroll: true });
-    let codexQuota = null;
-    const redraw = async (quota = codexQuota) => {
-      const latest = await detections.load(true);
-      if (!detections.isCurrent(latest)) return;
-      codexQuota = quota;
-      renderProviders(screen, latest.result, latest.signals, options, redraw, codexQuota);
-    };
+    const listening = options.onScanUpdate(() => {
+      void detections.load(true).then((latest) => draw(latest));
+    });
+    void Promise.resolve(listening).then((stop) => {
+      if (typeof stop === "function") stopListening = stop;
+    });
     const loaded = await detections.load();
-    const initial = detections.isCurrent(loaded) ? loaded : await detections.load();
-    renderProviders(screen, initial.result, initial.signals, options, redraw, codexQuota);
+    draw(detections.isCurrent(loaded) ? loaded : await detections.load());
   }
 
   /* Show my bars is the only way out, and it asks nothing on the way. */
   function finish() {
-    markAccountOffer();
+    stopListening();
+    if (!finishedBefore) markAccountOffer();
     completeFirstRun(screen, options);
     options.onContinue();
   }
@@ -843,7 +938,7 @@ export function initFirstRun(input) {
 
   screen.querySelector("#first-run-continue")?.addEventListener("click", finish);
 
-  if (storedFirstRunComplete() && readConfiguredProviders().length > 0) {
+  if (finishedBefore && readConfiguredProviders().length > 0) {
     completeFirstRun(screen, options);
     return;
   }
