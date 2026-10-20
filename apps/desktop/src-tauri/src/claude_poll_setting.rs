@@ -400,6 +400,30 @@ mod tests {
         }
     }
 
+    /// Astra fix round, finding 3: a 2.1.5 setter that saves off while the
+    /// move waits for the shared lock wins, because the move rereads the
+    /// legacy choice and the store of truth inside the lock. TypeScript twin:
+    /// refresh.test.ts, "never moves a legacy on that a setter turned off
+    /// while the move waited for the lock".
+    #[test]
+    fn a_legacy_off_saved_while_the_move_waits_wins() {
+        let dir = TempDir::new();
+        let config = dir.path().join("openlimiter-config.json");
+        std::fs::write(&config, r#"{"version":1,"providers":{"claude":{"poll":true,"recorded":true}}}"#).expect("fixture");
+        let root = dir.path().to_path_buf();
+        // This thread holds the shared lock, as a 2.1.5 setter does while it saves.
+        let mover = crate::cli_config::with_lock(dir.path(), || {
+            let mover = std::thread::spawn(move || ClaudePollSetting::at(Some(root)).status());
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            std::fs::write(&config, r#"{"version":1,"providers":{"claude":{"poll":false,"recorded":true}}}"#)
+                .expect("the setter saves off");
+            mover
+        })
+        .expect("lock");
+        assert_eq!(mover.join().expect("mover"), PollStatus::Missing);
+        assert!(!dir.path().join(SETTING_FILE_NAME).exists(), "the move wrote a stale on");
+    }
+
     #[test]
     fn a_machine_with_no_state_directory_never_polls() {
         let setting = ClaudePollSetting::at(None);

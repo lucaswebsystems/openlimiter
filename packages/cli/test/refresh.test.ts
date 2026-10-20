@@ -19,6 +19,7 @@ import {
   type Snapshot
 } from "@openlimiter/core";
 import { runCli, runtimeDependencies } from "../src/index.js";
+import { migrateLegacyClaudePoll } from "../src/config.js";
 import { writeSession } from "../src/session.js";
 import {
   SYNTHETIC_CODEX_ACCOUNT,
@@ -574,6 +575,26 @@ describe("the Claude poll switch", () => {
     await runCli(["refresh"], dependencies(state, home, recorder.transport));
     expect(recorder.sent.some((request) => request.endpoint === "claude_usage")).toBe(false);
     expect(JSON.parse(await readFile(path.join(state, "claude-poll.json"), "utf8"))).toEqual({ version: 1, enabled: false });
+  });
+
+  /* Astra fix round, finding 3: a 2.1.5 setter that saves off while the move
+     waits for the shared lock wins, because the move rereads the legacy choice
+     and the store of truth inside the lock. Rust twin: claude_poll_setting.rs,
+     a_legacy_off_saved_while_the_move_waits_wins. */
+  it("never moves a legacy on that a setter turned off while the move waited for the lock", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const config = path.join(state, "openlimiter-config.json");
+    await writeFile(config, JSON.stringify({ version: 1, providers: { claude: { poll: true, recorded: true } } }), "utf8");
+    // Another process holds the shared lock, as a 2.1.5 setter does while it saves.
+    const lock = path.join(state, "openlimiter.lock");
+    await mkdir(lock);
+    await writeFile(path.join(lock, "owner.json"), JSON.stringify({ pid: process.pid, startedAt: Date.now(), token: "a-2.1.5-setter" }), "utf8");
+    const move = migrateLegacyClaudePoll(state);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await writeFile(config, JSON.stringify({ version: 1, providers: { claude: { poll: false, recorded: true } } }), "utf8");
+    await rm(lock, { recursive: true, force: true });
+    await move;
+    await expect(readFile(path.join(state, "claude-poll.json"), "utf8")).rejects.toThrow();
   });
 
   it("reads every window the account exposes once it is turned on", async () => {
