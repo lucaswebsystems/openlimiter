@@ -35,7 +35,7 @@ export function launchNotice(platform) {
   }
   if (value.includes("mac")) {
     return {
-      title: "Unsigned macOS build",
+      title: "macOS preview build",
       detail:
         "Gatekeeper: open OpenLimiter from Applications and choose Done, then in System Settings, Privacy & Security, choose Open Anyway.",
     };

@@ -1,5 +1,5 @@
 import { isSnapshotDisplayEligible, retainSnapshots } from "./data-rules.js";
-import { mergeSnapshots, readingOrder, snapshotIdentity, MAX_CACHE_ENTRIES } from "./merge.js";
+import { mergeSnapshots, snapshotIdentity, MAX_CACHE_ENTRIES } from "./merge.js";
 import type { ProviderCode, Snapshot } from "./types.js";
 import { PROVIDER_CODES, ACCOUNT_ID_PATTERN } from "./types.js";
 
@@ -240,7 +240,7 @@ export function applyCollectionReport(
     );
     const newer = incoming.filter((snapshot) => {
       const current = state.snapshots.find((row) => snapshotIdentity(row) === snapshotIdentity(snapshot));
-      return current === undefined || readingOrder(current, snapshot) > 0;
+      return current === undefined || Date.parse(snapshot.observedAt) > Date.parse(current.observedAt);
     });
     const retained = partial
       ? state.snapshots

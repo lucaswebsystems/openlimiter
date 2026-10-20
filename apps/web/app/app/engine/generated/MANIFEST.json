@@ -1,15 +1,15 @@
 {
   "generatedBy": "app/app/engine/sync.mjs",
   "sources": {
-    "core/types.ts": "30aa576500d4c066",
+    "core/types.ts": "8fb9fbed56395e86",
     "core/connection-state.ts": "a99cf59208d5bbde",
     "core/data-rules.ts": "b26d3b60f9375aff",
     "core/failures.ts": "92c8818a6dcb3557",
     "core/format.ts": "060178a0ef47ac5d",
     "core/forecast.ts": "5155cb1a6fde4a0e",
     "core/freshness.ts": "ac39aeaff84f6eda",
-    "core/merge.ts": "09c0d9d61bc07011",
-    "core/normalizer.ts": "71946d91c850e0a5",
+    "core/merge.ts": "99ce971bdbf811e7",
+    "core/normalizer.ts": "651d84c067002a43",
     "core/policy.ts": "a633789edb6b3cc9",
     "core/provider-presentation.ts": "2ce546dce95d154b",
     "core/contracts/claude-presentation.json": "154e17d99423f11c",

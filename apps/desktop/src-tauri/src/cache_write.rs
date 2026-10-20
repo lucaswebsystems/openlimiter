@@ -292,11 +292,10 @@ fn release_session(lock_path: &Path, session: PendingWrite) {
 }
 
 impl CacheWriter {
-    /// Upsert `incoming`, a newer or equal reading wins (a Claude window by
-    /// certainty and content, `reading_order`). With a weekly set, the
-    /// account's weeklies the poll did not report and observed no later than
-    /// it are removed first, so a bucket the endpoint stops reporting leaves;
-    /// another account and a newer observation stay.
+    /// Upsert `incoming`, newer or equal observation wins. With a weekly
+    /// set, the account's weeklies the poll did not report and observed no
+    /// later than it are removed first, so a bucket the endpoint stops
+    /// reporting leaves; another account and a newer observation stay.
     /// TypeScript twin: `mergeAuthoritativeSnapshotCache`.
     fn replace_authoritative_rows(
         directory: &Path,
@@ -342,8 +341,9 @@ impl CacheWriter {
             let value = serde_json::to_value(snapshot).map_err(|_| CacheWriteError::Io)?;
             let key = identity(&value);
             if let Some(existing) = rows.iter_mut().find(|row| identity(row) == key) {
-                let held = serde_json::from_value::<crate::native_snapshot::Snapshot>(existing.clone()).ok();
-                if held.is_none_or(|held| crate::native_snapshot::reading_order(&held, snapshot).is_ge()) {
+                let old = existing.get("observedAt").and_then(serde_json::Value::as_str).unwrap_or("");
+                let next = value.get("observedAt").and_then(serde_json::Value::as_str).unwrap_or("");
+                if next >= old {
                     *existing = value;
                 }
             } else {

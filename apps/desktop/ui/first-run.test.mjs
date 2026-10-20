@@ -1092,7 +1092,7 @@ test("names the Open Anyway path macOS 15 still offers for the unsigned release"
      verified; System Settings is the one way through that is left. */
   const notice = launchNotice("MacIntel");
   assert.deepEqual(notice, {
-    title: "Unsigned macOS build",
+    title: "macOS preview build",
     detail:
       "Gatekeeper: open OpenLimiter from Applications and choose Done, then in System Settings, Privacy & Security, choose Open Anyway.",
   });

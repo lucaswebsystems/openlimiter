@@ -154,11 +154,6 @@ pub struct DeviceLoginStart {
 /// not say its version is treated as too old, because the alternative is
 /// offering an action that fails in a way nobody can read.
 pub fn version_is_supported(value: &str) -> bool {
-    version_at_least(value, MINIMUM_CODEX_VERSION)
-}
-
-/// Whether a version string is three numbers at or above the floor.
-pub(crate) fn version_at_least(value: &str, floor: (u64, u64, u64)) -> bool {
     let trimmed = value.trim().trim_start_matches('v');
     let head = trimmed.split(['-', '+', ' ']).next().unwrap_or_default();
     let mut parts = head.split('.');
@@ -174,7 +169,7 @@ pub(crate) fn version_at_least(value: &str, floor: (u64, u64, u64)) -> bool {
     if parts.next().is_some() {
         return false;
     }
-    (major, minor, patch) >= floor
+    (major, minor, patch) >= MINIMUM_CODEX_VERSION
 }
 
 /// The user code and the address, taken out of the client's own output.

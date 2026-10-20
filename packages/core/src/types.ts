@@ -227,16 +227,6 @@ export interface Snapshot {
    * merges exactly as it always did.
    */
   writer?: SnapshotWriter;
-  /**
-   * Whether this reading is known to be new at its observation time: the
-   * usage poll's own response, or a status line reading the ingest proved to
-   * be a new API response. A replay, or a reading whose time had to be
-   * guessed, is not. Absent means certain for a poll row (provenance
-   * `remote_api`) and uncertain for any other, which is how every row written
-   * before 2.1.6 reads. Only orders two readings of one Claude window
-   * (merge.ts `readingOrder`). Rust twin: native_snapshot.rs Snapshot.certain.
-   */
-  certain?: boolean;
   /** Absent means unknown. Never infer this from unit. */
   kind?: SnapshotKind;
   /**
@@ -267,7 +257,6 @@ export interface RawMeter {
   accountLabel?: unknown;
   provenance?: unknown;
   writer?: unknown;
-  certain?: unknown;
   kind?: unknown;
   availability?: unknown;
   retryAt?: unknown;

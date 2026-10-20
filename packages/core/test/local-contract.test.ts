@@ -103,20 +103,6 @@ describe("local snapshot contract", () => {
     expect(availabilityConnectionReason.schema_drift).toBe("shape_mismatch");
   });
 
-  /* 2.1.6: certainty is optional, and a value this build cannot read costs
-     the field, never the reading. Rust twin: native_snapshot.rs
-     a_certainty_survives_a_desktop_write_and_a_bad_one_is_dropped. */
-  it("local_contract_certainty", () => {
-    for (const certain of [true, false]) {
-      expect(normalizeMeter(raw({ certain }))?.certain).toBe(certain);
-    }
-    for (const certain of ["true", 1, null, {}]) {
-      const result = normalizeMeter(raw({ certain }));
-      expect(result?.value).toBe(snapshot().value);
-      expect(result).not.toHaveProperty("certain");
-    }
-  });
-
   it("local_contract_provider_codes", () => {
     // New providers join PROVIDER_CODES with their reader, mark and registry
     // entry (relaunch units L1b and L6), never ahead of them.

@@ -259,53 +259,6 @@ fn atomic_write_tagged(
     written
 }
 
-/// Replace `target` with `contents` only while it still holds `expected`.
-///
-/// The new bytes are written and flushed to a temporary sibling first, and
-/// the file is compared again right before every rename attempt, retries
-/// included, so a save that lands meanwhile (Claude Code writing its own
-/// settings) is never replaced. `Ok(false)` when the file changed. The
-/// temporary file never outlives the call. `before_compare` runs right
-/// before each comparison, where a test puts its concurrent writer.
-pub fn replace_if_unchanged(
-    target: &Path,
-    expected: &str,
-    contents: &str,
-    before_compare: &mut dyn FnMut(),
-) -> Result<bool, FsFailure> {
-    reject_symlink(target)?;
-    let mut temp_name = target.as_os_str().to_owned();
-    temp_name.push(format!(".{}.{}.tmp", std::process::id(), uuid::Uuid::new_v4()));
-    let temp_path = PathBuf::from(temp_name);
-    let mut outcome = write_flushed(&temp_path, contents).map(|()| false);
-    if outcome.is_ok() {
-        for attempt in 0..=RENAME_ATTEMPT_LIMIT {
-            before_compare();
-            if bounded_read(target).as_deref() != Some(expected) {
-                outcome = Ok(false);
-                break;
-            }
-            match fs::rename(&temp_path, target) {
-                Ok(()) => {
-                    outcome = Ok(true);
-                    break;
-                }
-                Err(error) if attempt < RENAME_ATTEMPT_LIMIT && transient_rename_error(&error) => {
-                    std::thread::sleep(backoff_delay(attempt));
-                }
-                Err(_) => {
-                    outcome = Err(FsFailure::Io);
-                    break;
-                }
-            }
-        }
-    }
-    if outcome != Ok(true) {
-        let _ = fs::remove_file(&temp_path);
-    }
-    outcome
-}
-
 fn write_flushed(temp_path: &Path, contents: &str) -> Result<(), FsFailure> {
     let mut options = fs::OpenOptions::new();
     options.write(true).create_new(true);
@@ -325,31 +278,6 @@ fn write_flushed(temp_path: &Path, contents: &str) -> Result<(), FsFailure> {
 mod tests {
     use super::*;
     use crate::test_support::TempDir;
-
-    #[test]
-    fn a_replace_never_lands_over_a_change_made_while_its_bytes_were_prepared() {
-        let dir = TempDir::new();
-        let target = dir.path().join("settings.json");
-        fs::write(&target, "{\"a\":1}").expect("seed");
-        assert_eq!(
-            replace_if_unchanged(&target, "{\"a\":1}", "{\"a\":2}", &mut || {}),
-            Ok(true)
-        );
-        assert_eq!(fs::read_to_string(&target).expect("read"), "{\"a\":2}");
-        /* A save lands after the new bytes are written, right before the compare. */
-        let mut save = || fs::write(&target, "{\"a\":3}").expect("save");
-        assert_eq!(
-            replace_if_unchanged(&target, "{\"a\":2}", "{\"a\":4}", &mut save),
-            Ok(false)
-        );
-        assert_eq!(fs::read_to_string(&target).expect("read"), "{\"a\":3}");
-        let leftovers = fs::read_dir(dir.path())
-            .expect("listable")
-            .filter_map(Result::ok)
-            .filter(|entry| entry.file_name().to_string_lossy().ends_with(".tmp"))
-            .count();
-        assert_eq!(leftovers, 0);
-    }
 
     #[test]
     fn atomic_write_replaces_and_leaves_no_temporaries() {

@@ -56,14 +56,6 @@ where
     T::deserialize(deserializer).map(Some)
 }
 
-// A certainty this build cannot read costs the field, never the row.
-fn deserialize_lenient_bool<'de, D>(deserializer: D) -> Result<Option<bool>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    Value::deserialize(deserializer).map(|value| value.as_bool())
-}
-
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VerificationEvidence {
@@ -151,20 +143,6 @@ pub struct Snapshot {
     /// as writing it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub writer: Option<String>,
-    /// Whether this reading is known to be new at its observation time: the
-    /// usage poll's own response, or a status line reading the command line
-    /// tool proved to be a new API response. Absent means certain for a poll
-    /// row (provenance `remote_api`) and uncertain for any other, which is how
-    /// every row written before 2.1.6 reads. Like `writer`, it has to survive
-    /// a desktop write it did not cause. Only orders two readings of one
-    /// Claude window (`reading_order`). TypeScript twin: types.ts
-    /// Snapshot.certain.
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "deserialize_lenient_bool"
-    )]
-    pub certain: Option<bool>,
     /// Absent means unknown. Never infer this from unit.
     #[serde(
         default,
@@ -504,85 +482,6 @@ fn identity(row: &Snapshot) -> String {
     )
 }
 
-/// Two resets at most this far apart name one window: consecutive Claude
-/// windows reset hours apart at the least, while the status line (epoch
-/// seconds) and the poll (a finer instant) disagree by under a second.
-/// TypeScript twin: merge.ts SAME_WINDOW_MILLISECONDS.
-const SAME_WINDOW_MILLISECONDS: u64 = 3_600_000;
-
-/// Whether a reading is known to be new at its observation time (2.1.6): the
-/// row's own `certain`, else certain only for a poll row. TypeScript twin:
-/// merge.ts isCertainReading.
-pub(crate) fn is_certain(row: &Snapshot) -> bool {
-    row.certain.unwrap_or_else(|| {
-        row.provenance
-            .as_ref()
-            .and_then(|value| value.get("sourceKind"))
-            .and_then(Value::as_str)
-            == Some("remote_api")
-    })
-}
-
-fn is_claude_window(row: &Snapshot) -> bool {
-    row.provider == "CLAUDE" && (row.meter == "FIVE_HOUR" || row.meter.starts_with("SEVEN_DAY"))
-}
-
-/// How a reading compares with the row it would replace, by content alone
-/// (2.1.6). Only a Claude rate limit window has such an order. Inside one
-/// window usage only grows unless a reset intervenes, so a higher value is
-/// newer; a later reset is a new window and an earlier one an old window.
-/// Equal is a question content cannot answer (an equal value, a row without a
-/// reset, any other meter or provider). A marker (availability) changes
-/// nothing: a marked row still holds its last reading. TypeScript twin:
-/// merge.ts contentOrder.
-pub(crate) fn content_order(current: &Snapshot, incoming: &Snapshot) -> Ordering {
-    let reset = |row: &Snapshot| row.reset_at.as_deref().and_then(epoch_ms_from_rfc3339);
-    match (is_claude_window(incoming), reset(current), reset(incoming)) {
-        (true, Some(held), Some(next)) if next.abs_diff(held) > SAME_WINDOW_MILLISECONDS => {
-            next.cmp(&held)
-        }
-        (true, Some(_), Some(_)) => incoming
-            .value
-            .partial_cmp(&current.value)
-            .unwrap_or(Ordering::Equal),
-        _ => Ordering::Equal,
-    }
-}
-
-/// Which of two readings of one meter is newer, the one rule every merge
-/// applies (2.1.6). Equal is a tie that each merge settles its own way.
-///
-/// Two readings of one Claude window go by certainty first: two certain ones
-/// by observation time, so a genuine reset (Settings, Usage) lowers the bar,
-/// with the higher value at identical times; an uncertain one never overrides
-/// a certain row; a certain one observed before an uncertain row wins only
-/// with a higher value, and at or after it wins; two uncertain ones by content
-/// (`content_order`), the later observation where content is equal, so an
-/// equal value refreshes the age and a lower one refreshes nothing. A new or
-/// an old window, a row without a reset, and every other meter or provider go
-/// by `content_order`, then time. Markers never change the order. Shared
-/// vectors: claude-poll-vectors.json `order`. TypeScript twin: merge.ts
-/// readingOrder.
-pub(crate) fn reading_order(current: &Snapshot, incoming: &Snapshot) -> Ordering {
-    let observed = |row: &Snapshot| epoch_ms_from_rfc3339(&row.observed_at).unwrap_or(0);
-    let reset = |row: &Snapshot| row.reset_at.as_deref().and_then(epoch_ms_from_rfc3339);
-    let time = observed(incoming).cmp(&observed(current));
-    let content = content_order(current, incoming);
-    let window = is_claude_window(incoming)
-        && matches!((reset(current), reset(incoming)),
-            (Some(held), Some(next)) if next.abs_diff(held) <= SAME_WINDOW_MILLISECONDS);
-    if !window {
-        return content.then(time);
-    }
-    match (is_certain(current), is_certain(incoming)) {
-        (true, false) => Ordering::Less,
-        (false, false) => content.then(time),
-        (true, true) => time.then(content),
-        (false, true) if time.is_ge() || content.is_gt() => Ordering::Greater,
-        (false, true) => Ordering::Less,
-    }
-}
-
 fn fold(
     text: Option<&str>,
     provider: &str,
@@ -621,8 +520,10 @@ fn fold(
             }) {
                 let key = identity(&row);
                 let existing = rows.iter().position(|current| identity(current) == key);
-                let can_replace =
-                    existing.is_none_or(|index| reading_order(&rows[index], &row).is_ge());
+                let can_replace = existing.is_none_or(|index| {
+                    epoch_ms_from_rfc3339(&row.observed_at).unwrap_or(0)
+                        >= epoch_ms_from_rfc3339(&rows[index].observed_at).unwrap_or(0)
+                });
                 if can_replace {
                     if let Some(index) = existing {
                         rows[index] = row;
@@ -1530,7 +1431,6 @@ mod tests {
             account_id: Some("claude-overspend".to_string()),
             account_label: None,
             writer: None,
-            certain: None,
             provenance: None,
             kind: None,
             availability: None,
@@ -1588,143 +1488,6 @@ mod tests {
             assert_eq!(normalized.used_amount, None);
             assert_eq!(normalized.limit_amount, None);
             assert_eq!(normalized.currency, None);
-        }
-    }
-
-    /// 2.1.6: Claude readings are ordered by certainty first and content
-    /// second. The fold and the production write (a Claude weekly lands in the
-    /// authoritative store) keep the row the shared vectors name, with its
-    /// marker and its certainty. TypeScript twin: merge.test.ts, "Claude
-    /// readings ordered by certainty and content, shared with the desktop".
-    #[test]
-    fn every_shared_claude_order_vector() {
-        let document: Value = serde_json::from_str(include_str!(
-            "../../../../packages/core/src/contracts/claude-poll-vectors.json"
-        ))
-        .unwrap();
-        let mut wrong = Vec::new();
-        for vector in document["order"]["vectors"].as_array().unwrap() {
-            let id = vector["id"].as_str().unwrap();
-            let provider = vector["provider"].as_str().unwrap_or("CLAUDE");
-            let meter = vector["meter"].as_str().unwrap_or("FIVE_HOUR");
-            let row = |side: &str| -> Snapshot {
-                let observed = vector[side]["observedAt"].as_str().unwrap();
-                let window = match meter {
-                    "FIVE_HOUR" => serde_json::json!({"kind": "rolling", "durationSeconds": 18_000}),
-                    _ if meter.starts_with("SEVEN_DAY") => {
-                        serde_json::json!({"kind": "rolling", "durationSeconds": 604_800})
-                    }
-                    _ => serde_json::json!({"kind": "unknown"}),
-                };
-                let mut row = serde_json::json!({
-                    "provider": provider, "meter": meter, "value": vector[side]["value"],
-                    "unit": "PERCENT", "window": window, "resetAt": vector[side]["resetAt"],
-                    "source": "internal_payload", "precision": "exact", "observedAt": observed,
-                    "expiresAt": iso_from_epoch_ms(epoch_ms_from_rfc3339(observed).unwrap() + 465_000),
-                    "labels": {
-                        "credentialOrigin": "official-local-tool",
-                        "dataInterfaceStatus": "internal-endpoint",
-                        "automationRisk": "high",
-                        "verification": "UNVERIFIED"
-                    },
-                    "accountId": "vector-account",
-                    "provenance": if vector[side]["via"] == "statusline" {
-                        serde_json::json!({"sourceKind": "statusline_payload", "observedVia": "claude_code_statusline"})
-                    } else {
-                        serde_json::json!({"sourceKind": "remote_api", "observedVia": "remote_http"})
-                    }
-                });
-                for field in ["availability", "certain"] {
-                    if let Some(value) = vector[side].get(field) {
-                        row[field] = value.clone();
-                    }
-                }
-                serde_json::from_value(row).unwrap()
-            };
-            type Kept = (f64, String, Option<String>, Option<bool>);
-            let kept = |text: &str| -> Vec<Kept> {
-                read_document(Some(text))
-                    .unwrap()
-                    .0
-                    .into_iter()
-                    .filter(|row| row.meter == meter)
-                    .map(|row| (row.value, row.observed_at, row.availability, row.certain))
-                    .collect()
-            };
-            let expected = &vector[vector["expected"].as_str().unwrap()];
-            let want: Vec<Kept> = vec![(
-                expected["value"].as_f64().unwrap(),
-                expected["observedAt"].as_str().unwrap().to_string(),
-                expected["availability"].as_str().map(str::to_string),
-                expected["certain"].as_bool(),
-            )];
-            let held = fold(None, provider, Some("vector-account"), &CacheReport::Success(vec![row("held")]))
-                .unwrap();
-            let folded = fold(
-                Some(&held),
-                provider,
-                Some("vector-account"),
-                &CacheReport::Success(vec![row("incoming")]),
-            )
-            .unwrap();
-            if kept(&folded) != want {
-                wrong.push(format!("fold {id}: {:?}", kept(&folded)));
-            }
-            let dir = crate::test_support::TempDir::new();
-            let writer = CacheWriter::at(Some(dir.path().to_path_buf()));
-            for side in ["held", "incoming"] {
-                write_report(&writer, provider, Some("vector-account"), CacheReport::Success(vec![row(side)]))
-                    .unwrap();
-            }
-            let file = if provider == "CLAUDE" && meter.starts_with("SEVEN_DAY") {
-                AUTHORITATIVE_CACHE_FILE_NAME
-            } else {
-                crate::cache_write::CACHE_FILE_NAME
-            };
-            let written = std::fs::read_to_string(dir.path().join(file)).unwrap();
-            if kept(&written) != want {
-                wrong.push(format!("write_report {id}: {:?}", kept(&written)));
-            }
-        }
-        assert!(wrong.is_empty(), "{wrong:#?}");
-    }
-
-    /// 2.1.6: the certainty the command line tool stamps on a status line row
-    /// survives a desktop write it did not cause, and a value this build
-    /// cannot read costs the field, never the reading. TypeScript twin:
-    /// local-contract.test.ts local_contract_certainty.
-    #[test]
-    fn a_certainty_survives_a_desktop_write_and_a_bad_one_is_dropped() {
-        let row = |provider: &str, certain: Value| {
-            serde_json::json!({
-                "provider": provider, "meter": "FIVE_HOUR", "value": 30, "unit": "PERCENT",
-                "window": {"kind": "rolling", "durationSeconds": 18_000},
-                "resetAt": "2026-10-19T15:00:00.000Z", "source": "native_payload", "precision": "exact",
-                "observedAt": "2026-10-19T12:00:00.000Z", "expiresAt": "2026-10-19T12:07:45.000Z",
-                "labels": {
-                    "credentialOrigin": "official-local-tool",
-                    "dataInterfaceStatus": "native-statusline-payload",
-                    "automationRisk": "low",
-                    "verification": "UNVERIFIED"
-                },
-                "accountId": "claude-cli", "writer": "cli", "certain": certain,
-                "provenance": {"sourceKind": "statusline_payload", "observedVia": "claude_code_statusline"}
-            })
-        };
-        for (stated, kept) in [
-            (Value::from(true), Some(true)),
-            (Value::from(false), Some(false)),
-            (Value::from("true"), None),
-            (Value::from(1), None),
-            (Value::Null, None),
-        ] {
-            let document = serde_json::json!({"version": 3, "snapshots": [row("CLAUDE", stated)]}).to_string();
-            let other: Snapshot = serde_json::from_value(row("CODEX", Value::Null)).unwrap();
-            let after = fold(Some(&document), "CODEX", Some("claude-cli"), &CacheReport::Success(vec![other]))
-                .unwrap();
-            let rows = read_document(Some(&after)).unwrap().0;
-            let claude = rows.iter().find(|row| row.provider == "CLAUDE").expect("the reading stands");
-            assert_eq!((claude.value, claude.certain), (30.0, kept));
         }
     }
 }

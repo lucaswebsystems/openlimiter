@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import path from "node:path";
 import {
   MANUAL_FILE_MARKER,
@@ -6,17 +5,13 @@ import {
   parseAntigravityPayload,
   parseGrokPayload
 } from "@openlimiter/connectors";
-import { stat, unlink } from "node:fs/promises";
+import { unlink } from "node:fs/promises";
 import {
   canonicalJson,
-  contentOrder,
   errorClassOf,
   mergeSnapshotCache,
-  normalizeMeter,
   opaqueAccountId,
   readJsonFileSafely,
-  readSnapshotCache,
-  readingOrder,
   resolveStateDirectory,
   writeFileAtomically,
   type CacheMergeResult,
@@ -351,198 +346,6 @@ export async function readStatuslineFailure(directory: string | undefined): Prom
     typeof errorClass === "string" && /^[A-Za-z][A-Za-z0-9_]{0,31}$/u.test(errorClass)
     ? { at, stage: stage as StatuslineFailureStage, errorClass }
     : null;
-}
-
-/**
- * When each Claude Code reading first arrived, per session, so a rerun keeps it.
- *
- * Only digests of the session id and of the reading are kept, never either
- * one itself. A reading is the API time and the five hour window, the one
- * window the status line imports: a weekly window that appears or disappears
- * after its own reset is the same reading. Entries older than six hours go,
- * because a five hour reading cannot outlive its window, and past the cap
- * whole sessions go, oldest first, so a session is known in full or not at
- * all.
- */
-export const CLAUDE_READINGS_FILE_NAME = "openlimiter-claude-readings.json";
-/** Entries kept at most: about 30 KiB, inside the 64 KiB bounded read. */
-export const CLAUDE_READINGS_LIMIT = 256;
-const CLAUDE_READINGS_MAX_BYTES = 65_536;
-const CLAUDE_READING_MAX_AGE_MILLISECONDS = 6 * 3_600_000;
-
-export interface ClaudeReading {
-  readonly session: string;
-  readonly reading: string;
-  readonly observedAt: string;
-}
-
-/**
- * The log as it is written: newest first, nothing older than six hours, and
- * at most CLAUDE_READINGS_LIMIT entries, whole sessions evicted oldest first
- * (by their newest entry), never the session just written. That one alone
- * over the cap keeps its newest readings.
- */
-export function keptClaudeReadings(
-  entries: readonly ClaudeReading[],
-  now: string,
-  current: string
-): ClaudeReading[] {
-  const oldest = Date.parse(now) - CLAUDE_READING_MAX_AGE_MILLISECONDS;
-  let kept = entries.filter((entry) => !(Date.parse(entry.observedAt) < oldest));
-  const sessions = [...new Set(kept.map((entry) => entry.session))].filter((session) => session !== current);
-  while (kept.length > CLAUDE_READINGS_LIMIT && sessions.length > 0) {
-    const evicted = sessions.pop();
-    kept = kept.filter((entry) => entry.session !== evicted);
-  }
-  return kept.slice(0, CLAUDE_READINGS_LIMIT);
-}
-
-function objectField(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown> : {};
-}
-
-function digest(text: string): string {
-  return createHash("sha256").update(text).digest("hex").slice(0, 32);
-}
-
-/** The log's entries, an empty one when there is none, null when it cannot be read. */
-async function readClaudeReadings(file: string): Promise<ClaudeReading[] | null> {
-  const document = await readJsonFileSafely(file, CLAUDE_READINGS_MAX_BYTES);
-  if (!document.ok) return document.reason === "missing" ? [] : null;
-  const readings = objectField(document.value)["readings"];
-  if (!Array.isArray(readings)) return null;
-  return readings.filter((entry): entry is ClaudeReading => {
-    const { session, reading, observedAt } = objectField(entry);
-    return typeof session === "string" && /^[0-9a-f]{32}$/u.test(session) &&
-      typeof reading === "string" && /^[0-9a-f]{32}$/u.test(reading) &&
-      typeof observedAt === "string" && observedAt.length <= 64 && Number.isFinite(Date.parse(observedAt));
-  });
-}
-
-/** The transcript's last write, capped at now, or null when it cannot be read. */
-async function transcriptWritten(value: unknown, now: string): Promise<string | null> {
-  /* Only a local absolute path is looked at, never a network share. */
-  if (typeof value !== "string" || value.length > 4_096 || !path.isAbsolute(value) || /^[\\/]{2}/u.test(value)) return null;
-  try {
-    const info = await stat(value);
-    return info.isFile() && Number.isFinite(info.mtimeMs)
-      ? new Date(Math.min(info.mtimeMs, Date.parse(now))).toISOString()
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-/** The cached five hour row this reading would replace; a cache that cannot be read holds none. */
-async function cachedFiveHour(directory: string, accountId: string | undefined): Promise<Snapshot | undefined> {
-  const cache = await readSnapshotCache(directory);
-  return cache.ok
-    ? cache.snapshots.find((row) => row.provider === "CLAUDE" && row.meter === "FIVE_HOUR" && row.accountId === accountId)
-    : undefined;
-}
-
-/**
- * When the reading in a Claude Code status line payload was observed, or
- * null when it must not be written at all.
- *
- * Claude Code reruns an idle window's status line on a timer and hands it the
- * rate limits its last API response carried. A rerun is not a new reading, so
- * the time is the API response's, never the render's, and which reading the
- * cache keeps is decided in the merge (`readingOrder`, certainty first).
- *
- * A reading this session already showed is a replay: it keeps the time stored
- * when it first appeared and is not certain, so it never overrides a certain
- * row. A new reading in a known session is a new API response, now, and
- * certain, when its content does not contradict that: no cached row, a later
- * window, or the same window at an equal or higher value. The last reading of
- * a row a marker covers counts, since a marker changes no order. Two windows
- * resumed on one session id can hand over an older reading for the first time
- * after a newer one, so a lower reading in a known session proves nothing and
- * is decided like any reading of uncertain time. When another render's proven
- * reading already holds the row with a later render clock, the two clocks say
- * nothing about which response is newer, so this one meets that clock and
- * content decides between them.
- *
- * Any other time is uncertain (a session not in the log, no session id, a log
- * that cannot be read or locked): it is the transcript's last write capped at
- * now (now without one), and since an uncertain time must never refresh an
- * age, such a reading is written only when it would win the merge on content
- * (`contentOrder`, and `readingOrder` as an uncertain reading, which no
- * certain row of its window gives way to). One that is not leaves a log entry
- * stored below the row's time, so its reruns cannot refresh the age either.
- *
- * The caller holds the state lock, which the log shares with the cache, and
- * writes the result before releasing it, so the row checked here is the row
- * the write meets. `logged` false, for a caller that could not take the lock,
- * decides as if every time were uncertain and leaves the log untouched.
- */
-export async function observedClaudeReading(
-  meters: readonly RawMeter[],
-  payload: unknown,
-  now: string,
-  directory: string,
-  accountId: string | undefined,
-  logged = true
-): Promise<RawMeter[] | null> {
-  const root = objectField(payload);
-  const fiveHour = meters.find((meter) => meter.meter === "FIVE_HOUR");
-  const measured = fiveHour === undefined ? null : normalizeMeter(fiveHour);
-  if (measured === null || root["rate_limits"] === undefined) return [...meters];
-  type Decision = { time: string; write: boolean; certain?: true };
-  const uncertain = async (row: Snapshot | undefined): Promise<Decision> => {
-    const time = await transcriptWritten(root["transcript_path"], now) ?? now;
-    return row === undefined ||
-      contentOrder(row, measured) > 0 && readingOrder(row, { ...measured, observedAt: time, certain: false }) > 0
-      ? { time, write: true }
-      : { time: new Date(Math.min(Date.parse(time), Date.parse(row.observedAt) - 1)).toISOString(), write: false };
-  };
-  const proven = async (): Promise<Decision> => {
-    const row = await cachedFiveHour(directory, accountId);
-    if (row === undefined) return { time: now, write: true, certain: true };
-    if (contentOrder(row, measured) < 0) return uncertain(row);
-    const raced = row.provenance?.sourceKind === "statusline_payload" && row.certain === true &&
-      readingOrder(row, { ...measured, observedAt: now, certain: true }) < 0;
-    return { time: raced ? row.observedAt : now, write: true, certain: true };
-  };
-  const sessionId = root["session_id"];
-  let decided: Decision;
-  if (!logged || typeof sessionId !== "string" || sessionId.length === 0 || sessionId.length > 256) {
-    decided = await uncertain(await cachedFiveHour(directory, accountId));
-  } else {
-    const session = digest(sessionId);
-    const reading = digest(canonicalJson({
-      api: objectField(root["cost"])["total_api_duration_ms"] ?? null,
-      fiveHour: objectField(root["rate_limits"])["five_hour"] ?? null
-    }));
-    const file = path.join(directory, CLAUDE_READINGS_FILE_NAME);
-    const entries = await readClaudeReadings(file);
-    const known = entries?.find((entry) => entry.session === session && entry.reading === reading)?.observedAt;
-    if (known !== undefined) {
-      decided = { time: known, write: true };
-    } else {
-      decided = entries?.some((entry) => entry.session === session) === true
-        ? await proven()
-        : await uncertain(await cachedFiveHour(directory, accountId));
-      await writeFileAtomically(file, canonicalJson({
-        readings: keptClaudeReadings([{ observedAt: decided.time, reading, session }, ...(entries ?? [])], now, session),
-        version: 1
-      })).catch(() => undefined);
-    }
-  }
-  if (!decided.write) return null;
-  /* Never past the render's clock, except to meet another render's proven
-     reading (above). */
-  const observedAt = decided.certain === true || Date.parse(decided.time) < Date.parse(now) ? decided.time : now;
-  const shift = Date.parse(observedAt) - Date.parse(now);
-  return meters.map((meter) => ({
-    ...meter,
-    observedAt,
-    expiresAt: typeof meter.expiresAt === "string"
-      ? new Date(Date.parse(meter.expiresAt) + shift).toISOString()
-      : meter.expiresAt,
-    ...(decided.certain === true ? { certain: true } : {})
-  }));
 }
 
 /** Forget it, which a status line write that fully succeeded is the proof of. */

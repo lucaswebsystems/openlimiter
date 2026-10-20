@@ -24,7 +24,7 @@ import {
   type CacheSuppression,
   type CollectionReport
 } from "./collection.js";
-import { MAX_CACHE_ENTRIES, mergeSnapshots, readingOrder, snapshotIdentity } from "./merge.js";
+import { MAX_CACHE_ENTRIES, mergeSnapshots, snapshotIdentity } from "./merge.js";
 import { canonicalJson, normalizeMeter, normalizeMeters } from "./normalizer.js";
 import type { ProviderCode, RawMeter, Snapshot } from "./types.js";
 
@@ -672,10 +672,7 @@ const withCacheLock = withStateLock;
  * Document version of the snapshot cache.
  *
  * It stayed at 1 through `accountId` and `provenance`, because both were
- * optional fields an old reader could ignore without being wrong. Version 3
- * stays through `certain` (2.1.6) for the same reason: a reader that ignores
- * it orders readings by time, as every build before 2.1.6 did, and absent
- * reads as certain for a poll row and uncertain for any other.
+ * optional fields an old reader could ignore without being wrong.
  *
  * Version 2 is the first change that fails that test. A `suppressions` array is
  * an instruction to DISTRUST rows that are still present in the document, so a
@@ -768,7 +765,7 @@ export async function mergeAuthoritativeSnapshotCache(
     const byIdentity = new Map(existing.map((row) => [snapshotIdentity(row), row]));
     for (const row of incoming) {
       const previous = byIdentity.get(snapshotIdentity(row));
-      if (previous === undefined || readingOrder(previous, row) >= 0) {
+      if (previous === undefined || Date.parse(row.observedAt) >= Date.parse(previous.observedAt)) {
         byIdentity.set(snapshotIdentity(row), row);
       }
     }
@@ -799,28 +796,19 @@ export interface CacheMergeResult {
  * observe different providers cannot silently drop each other's rows. An
  * unchanged result skips the write entirely, which keeps a statusline that
  * renders on every keystroke from churning the disk.
- *
- * `incoming` can instead be a decision that runs inside that same lock, so a
- * choice made against the cache is never overtaken by another writer before
- * its own write; a decision that admits nothing writes nothing.
  */
 export async function mergeSnapshotCache(
-  incoming: readonly Snapshot[] | (() => Promise<readonly Snapshot[]>),
+  incoming: readonly Snapshot[],
   directory = resolveStateDirectory(),
   now = Date.now()
 ): Promise<CacheMergeResult> {
-  if (typeof incoming !== "function") rejectOutOfBounds(incoming);
+  rejectOutOfBounds(incoming);
   return await withCacheLock(directory, async () => {
-    const admitted = typeof incoming === "function" ? await incoming() : incoming;
     const cached = await readCacheState(directory);
     const state: CacheState = cached.ok
       ? cached.state
       : { snapshots: [], suppressions: [] };
-    if (typeof incoming === "function") {
-      if (admitted.length === 0) return { merged: [...state.snapshots], written: false };
-      rejectOutOfBounds(admitted);
-    }
-    const merged = retainSnapshots(mergeSnapshots(state.snapshots, admitted), now);
+    const merged = retainSnapshots(mergeSnapshots(state.snapshots, incoming), now);
     if (canonicalJson(merged) === canonicalJson(state.snapshots)) {
       return { merged, written: false };
     }
@@ -841,11 +829,10 @@ export async function mergeSnapshotCache(
  * desktop wrote a fresher row for the same identity a moment ago.
  *
  * So the decision is made INSIDE the cache lock, which both processes do share,
- * and it is made per row: the newer reading wins (a Claude window by certainty
- * and content, anything else by `observedAt`; see `readingOrder`), and on a
- * tie the row already in the cache wins. Ties go to the incumbent because the
- * only way to get one is two writers reading the same instant, and in that
- * case the row that is already visible should not flicker.
+ * and it is made per row: the newer `observedAt` wins, and on a tie the row
+ * already in the cache wins. Ties go to the incumbent because the only way to
+ * get one is two writers reading the same instant, and in that case the row
+ * that is already visible should not flicker.
  *
  * When nothing was deferred this behaves exactly like a collection report, so a
  * provider that stops reporting a window still loses that row. When something
@@ -869,7 +856,14 @@ export async function mergeAcquiredSnapshots(
     let deferred = 0;
     for (const incoming of report.snapshots) {
       const existing = held.get(snapshotIdentity(incoming));
-      const loses = existing !== undefined && readingOrder(existing, incoming) <= 0;
+      const existingAt = existing === undefined
+        ? null
+        : Date.parse(existing.observedAt);
+      const incomingAt = Date.parse(incoming.observedAt);
+      const loses = existing !== undefined &&
+        Number.isFinite(existingAt) &&
+        Number.isFinite(incomingAt) &&
+        (existingAt as number) >= incomingAt;
       if (loses) {
         deferred += 1;
         continue;

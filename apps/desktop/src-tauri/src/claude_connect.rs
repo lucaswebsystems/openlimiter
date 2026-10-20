@@ -678,15 +678,15 @@ pub fn unavailable_preflight() -> ClaudePreflightVerdict {
 }
 
 #[derive(Clone)]
+#[cfg(test)]
 struct MemberSpan {
     key: String,
-    /* Read only by the test writer's member removal. */
-    #[cfg_attr(not(test), allow(dead_code))]
     key_start: usize,
     value_start: usize,
     value_end: usize,
 }
 
+#[cfg(test)]
 struct ObjectLayout {
     open: usize,
     members: Vec<MemberSpan>,
@@ -704,6 +704,7 @@ struct ArrayLayout {
     elements: Vec<ValueSpan>,
 }
 
+#[cfg(test)]
 fn skip_space(bytes: &[u8], mut at: usize) -> usize {
     while at < bytes.len() && bytes[at].is_ascii_whitespace() {
         at += 1;
@@ -711,6 +712,7 @@ fn skip_space(bytes: &[u8], mut at: usize) -> usize {
     at
 }
 
+#[cfg(test)]
 fn string_end(bytes: &[u8], start: usize) -> Option<usize> {
     if bytes.get(start) != Some(&b'"') {
         return None;
@@ -729,6 +731,7 @@ fn string_end(bytes: &[u8], start: usize) -> Option<usize> {
     None
 }
 
+#[cfg(test)]
 fn compound_end(bytes: &[u8], start: usize) -> Option<usize> {
     let expected = match bytes.get(start)? {
         b'{' => b'}',
@@ -763,6 +766,7 @@ fn compound_end(bytes: &[u8], start: usize) -> Option<usize> {
     None
 }
 
+#[cfg(test)]
 fn value_end(bytes: &[u8], start: usize) -> Option<usize> {
     match bytes.get(start)? {
         b'"' => string_end(bytes, start),
@@ -780,6 +784,7 @@ fn value_end(bytes: &[u8], start: usize) -> Option<usize> {
     }
 }
 
+#[cfg(test)]
 fn object_layout(text: &str, start: usize) -> Option<ObjectLayout> {
     let bytes = text.as_bytes();
     let open = skip_space(bytes, start);
@@ -844,6 +849,7 @@ fn array_layout(text: &str, start: usize) -> Option<ArrayLayout> {
     }
 }
 
+#[cfg(test)]
 fn set_object_member(text: &str, object_start: usize, key: &str, value: &str) -> Option<String> {
     let layout = object_layout(text, object_start)?;
     if let Some(member) = layout.members.iter().find(|member| member.key == key) {
@@ -1420,131 +1426,6 @@ fn disconnect_in(
     Ok(next.1)
 }
 
-/// What the startup migration did to Claude Code's settings (2.1.6).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum RefreshMigration {
-    Added,
-    Unchanged,
-    Skipped,
-}
-
-pub(crate) fn add_refresh_interval_in_home(home: &Path) -> RefreshMigration {
-    add_refresh_interval_with(home, || {})
-}
-
-/// The exact command lines the CLI's `fallbackLauncherCommand` launcher
-/// writes for Claude Code (`terminal.ts`), on Windows and on POSIX, each
-/// with or without its trailing `--wrap`; the group is the state folder the
-/// launcher sits in. Anything else, shell text that merely mentions
-/// OpenLimiter included, is not ours. This desktop's own `command_value`
-/// line is ours too but runs a global command whose version nothing
-/// records, so it can never show the runtime below and is left out.
-static LAUNCHER_CLAUDE_COMMANDS: LazyLock<[Regex; 2]> = LazyLock::new(|| {
-    [
-        r#"^"[A-Za-z]:\\[^"]*\\WindowsPowerShell\\v1\.0\\powershell\.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "([^"]*)\\terminal-launchers\\[0-9a-f]{64}\\openlimiter\.ps1" statusline --host claude(?: --wrap [A-Za-z0-9_-]+)?$"#,
-        r#"^/bin/sh '((?:[^']|'\\'')*)/terminal-launchers/[0-9a-f]{64}/openlimiter\.sh' statusline --host claude(?: --wrap [A-Za-z0-9_-]+)?$"#,
-    ]
-    .map(|pattern| Regex::new(pattern).expect("constant status line pattern"))
-});
-
-/// The first runtime that keeps a replayed Claude Code payload's own time
-/// (2.1.6). An older one stamps every rerun as a new reading, so a status
-/// line rerun each minute would show an idle window's old number as current.
-const CORRECTED_RUNTIME: (u64, u64, u64) = (2, 1, 6);
-
-/// Whether Claude Code's status line is an OpenLimiter launcher line, by the
-/// exact command lines above whatever other keys the object holds, whose
-/// runtime is stamped 2.1.6 or later. A launcher runs the runtime in its
-/// state folder (`terminal-fallback.ts`); no stamp proves nothing.
-fn runs_corrected_runtime(value: &serde_json::Value) -> bool {
-    let Some(object) = value.as_object() else {
-        return false;
-    };
-    if object.get("type").and_then(serde_json::Value::as_str) != Some("command") {
-        return false;
-    }
-    let Some(command) = object.get("command").and_then(serde_json::Value::as_str) else {
-        return false;
-    };
-    let state = |index: usize| {
-        let found = LAUNCHER_CLAUDE_COMMANDS[index].captures(command)?;
-        Some(found.get(1)?.as_str().to_owned())
-    };
-    let Some(state) = state(0).or_else(|| state(1).map(|posix| posix.replace("'\\''", "'"))) else {
-        return false;
-    };
-    crate::cli_config::runtime_version_in(Path::new(&state))
-        .ok()
-        .flatten()
-        .is_some_and(|version| {
-            crate::codex_device_login::version_at_least(&version, CORRECTED_RUNTIME)
-        })
-}
-
-/// The settings text with refreshInterval added to a launcher line that has
-/// none and runs the corrected runtime, every other byte unchanged, or
-/// nothing to do.
-fn with_refresh_interval(text: &str) -> Option<String> {
-    let settings: serde_json::Value = serde_json::from_str(text).ok()?;
-    let status_line = settings.get("statusLine")?;
-    if status_line
-        .get("refreshInterval")
-        .is_some_and(|value| !value.is_null())
-        || !runs_corrected_runtime(status_line)
-    {
-        return None;
-    }
-    let root = object_layout(text, 0)?;
-    let mut members = root.members.iter().filter(|member| member.key == "statusLine");
-    let member = members.next()?;
-    if members.next().is_some() {
-        return None;
-    }
-    let updated = set_object_member(
-        text,
-        member.value_start,
-        "refreshInterval",
-        &CLAUDE_REFRESH_INTERVAL_SECONDS.to_string(),
-    )?;
-    serde_json::from_str::<serde_json::Value>(&updated).ok()?;
-    Some(updated)
-}
-
-/// Claude Code reruns a status line on its own only with refreshInterval set,
-/// so an idle window keeps its last render without it. Sixty seconds is the
-/// collector's own tick.
-const CLAUDE_REFRESH_INTERVAL_SECONDS: u64 = 60;
-
-/// After the collector starts (2.1.6): an OpenLimiter status line written
-/// before 2.1.6 gains refreshInterval once it runs a 2.1.6 runtime, so a
-/// desktop updated alone waits for the next setup or install. The new bytes
-/// are prepared first and the file is compared right before each replace
-/// attempt; bytes that changed meanwhile (Claude Code saving) start the edit
-/// again from the new bytes, three times at most, else nothing until the
-/// next start. A missing, unreadable, foreign or already set line, or one on
-/// an older or unknown runtime, is left alone.
-fn add_refresh_interval_with(home: &Path, mut before_compare: impl FnMut()) -> RefreshMigration {
-    let directory = home.join(".claude");
-    let file = directory.join("settings.json");
-    if fsx::reject_symlink(&directory).is_err() {
-        return RefreshMigration::Unchanged;
-    }
-    for _ in 0..3 {
-        let Some(text) = fsx::bounded_read(&file) else {
-            return RefreshMigration::Unchanged;
-        };
-        let Some(updated) = with_refresh_interval(&text) else {
-            return RefreshMigration::Unchanged;
-        };
-        match fsx::replace_if_unchanged(&file, &text, &updated, &mut before_compare) {
-            Ok(true) => return RefreshMigration::Added,
-            Ok(false) => continue,
-            Err(_) => return RefreshMigration::Skipped,
-        }
-    }
-    RefreshMigration::Skipped
-}
-
 #[cfg(test)]
 pub fn disconnect() -> Result<ClaudeDisconnectOutcome, ClaudeConnectError> {
     let home = crate::state::home().ok_or(ClaudeConnectError::Storage)?;
@@ -1556,229 +1437,6 @@ pub fn disconnect() -> Result<ClaudeDisconnectOutcome, ClaudeConnectError> {
 mod tests {
     use super::*;
     use crate::test_support::TempDir;
-
-    /// What this desktop's command_value writes, plain and wrapped.
-    const DESKTOP_WINDOWS: &str =
-        r#""C:\Users\a\AppData\Roaming\npm\openlimiter.cmd" statusline"#;
-    const DESKTOP_POSIX_WRAPPED: &str = r#""/usr/local/bin/openlimiter" statusline --wrap ZWNobyBoaQ"#;
-
-    /// What `terminal.ts` writes for a state folder: fallbackLauncherCommand,
-    /// then the host, on Windows plain and on POSIX wrapped.
-    fn launcher_lines(state: &Path) -> [String; 2] {
-        let state = state.to_str().expect("state path");
-        let id = "c4f7b753c684549ce1abc587e4a940458dc222ec2a9e7e43b149f44ed412b2ee";
-        [
-            format!(
-                r#""C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{state}\terminal-launchers\{id}\openlimiter.ps1" statusline --host claude"#
-            ),
-            format!(
-                "/bin/sh '{}/terminal-launchers/{id}/openlimiter.sh' statusline --host claude --wrap ZWNobyBoaQ",
-                state.replace('\'', "'\\''")
-            ),
-        ]
-    }
-
-    /// The stamp the CLI's installer leaves on the runtime a launcher runs.
-    fn stamp_runtime(state: &Path, version: &str) {
-        let runtime = state.join("terminal-runtime");
-        std::fs::create_dir_all(&runtime).expect("runtime");
-        std::fs::write(
-            runtime.join(".openlimiter-runtime.json"),
-            format!(r#"{{"version":"{version}","files":{{}}}}"#),
-        )
-        .expect("stamp");
-    }
-
-    /// The state folder of `launcher_home`, a name both shells must quote.
-    fn launcher_state(dir: &TempDir) -> PathBuf {
-        dir.path().join("John O'Brien").join(".openlimiter")
-    }
-
-    /// A home whose launcher lines run a runtime stamped with this version.
-    fn launcher_home(version: &str) -> (TempDir, [String; 2]) {
-        let dir = TempDir::new();
-        stamp_runtime(&launcher_state(&dir), version);
-        let lines = launcher_lines(&launcher_state(&dir));
-        (dir, lines)
-    }
-
-    fn settings_with(status_line: serde_json::Value) -> String {
-        serde_json::to_string_pretty(&serde_json::json!({
-            "theme": "dark",
-            "statusLine": status_line,
-            "openlimiter managed": true,
-            "permissions": { "allow": ["Bash(ls:*)"] }
-        }))
-        .expect("settings")
-            + "\n"
-    }
-
-    fn migrated(dir: &TempDir, text: &str) -> (RefreshMigration, String) {
-        let file = write_settings(dir, text);
-        let outcome = add_refresh_interval_in_home(dir.path());
-        (outcome, std::fs::read_to_string(file).expect("settings"))
-    }
-
-    #[test]
-    fn an_owned_status_line_without_an_interval_gains_one_and_no_other_byte_changes() {
-        let (dir, lines) = launcher_home("2.1.6");
-        for command in &lines {
-            let before = settings_with(serde_json::json!({
-                "type": "command",
-                "command": command,
-                "padding": 0
-            }));
-            let (outcome, after) = migrated(&dir, &before);
-            assert_eq!(outcome, RefreshMigration::Added, "{command}");
-            let value: serde_json::Value = serde_json::from_str(&after).expect("still JSON");
-            assert_eq!(value["statusLine"]["refreshInterval"], 60, "{command}");
-            assert_eq!(after.replacen(",\"refreshInterval\":60", "", 1), before, "{command}");
-        }
-    }
-
-    /// A desktop only upgrade leaves the status line running the runtime the
-    /// last install put in place. Before 2.1.6 that runtime stamps every
-    /// replayed payload as new, so a rerun each minute would show an idle
-    /// window's old number as current: the timer waits for 2.1.6.
-    #[test]
-    fn a_desktop_only_upgrade_over_a_2_1_5_status_line_waits_for_the_corrected_runtime() {
-        let (dir, lines) = launcher_home("2.1.5");
-        let state = launcher_state(&dir);
-        let unchanged = |dir: &TempDir| {
-            for command in &lines {
-                let before =
-                    settings_with(serde_json::json!({ "type": "command", "command": command }));
-                assert_eq!(migrated(dir, &before), (RefreshMigration::Unchanged, before.clone()), "{command}");
-            }
-        };
-        unchanged(&dir);
-        /* A stamp that names no version, or no stamp at all, proves nothing. */
-        stamp_runtime(&state, "not a version");
-        unchanged(&dir);
-        std::fs::remove_dir_all(state.join("terminal-runtime")).expect("no runtime");
-        unchanged(&dir);
-        /* Setup or an install put 2.1.6 in place: the next start adds the timer. */
-        stamp_runtime(&state, "2.1.6");
-        for command in &lines {
-            let before = settings_with(serde_json::json!({ "type": "command", "command": command }));
-            assert_eq!(migrated(&dir, &before).0, RefreshMigration::Added, "{command}");
-        }
-        /* The desktop's own line runs a global command whose version nothing
-        records, so it never proves the corrected runtime. */
-        for command in [DESKTOP_WINDOWS, DESKTOP_POSIX_WRAPPED] {
-            let before = settings_with(serde_json::json!({ "type": "command", "command": command }));
-            assert_eq!(migrated(&dir, &before), (RefreshMigration::Unchanged, before.clone()), "{command}");
-        }
-    }
-
-    #[test]
-    fn the_migration_is_idempotent_and_keeps_a_person_s_own_interval() {
-        let (dir, lines) = launcher_home("2.1.6");
-        let file = write_settings(
-            &dir,
-            &settings_with(serde_json::json!({ "type": "command", "command": lines[0] })),
-        );
-        assert_eq!(add_refresh_interval_in_home(dir.path()), RefreshMigration::Added);
-        let once = std::fs::read_to_string(&file).expect("once");
-        assert_eq!(add_refresh_interval_in_home(dir.path()), RefreshMigration::Unchanged);
-        assert_eq!(std::fs::read_to_string(&file).expect("twice"), once);
-        let own = settings_with(serde_json::json!({
-            "type": "command",
-            "command": lines[0],
-            "refreshInterval": 600
-        }));
-        assert_eq!(migrated(&dir, &own), (RefreshMigration::Unchanged, own.clone()));
-    }
-
-    #[test]
-    fn a_status_line_that_is_not_ours_is_never_touched() {
-        let (dir, [windows, posix]) = launcher_home("2.1.6");
-        let wrapped_windows = format!("cmd /c \"{windows}\"");
-        let piped = format!("{posix} | tee /tmp/line");
-        let other_host = windows.replace("--host claude", "--host antigravity");
-        for command in [
-            "my-own-statusline",
-            /* Shell text mentioning OpenLimiter is not an OpenLimiter line. */
-            "bash -c 'openlimiter statusline --host claude | tee /tmp/line'",
-            "echo openlimiter statusline --host claude",
-            "openlimiter statusline --host claude",
-            /* Legacy hand written words: no writer produces them. */
-            "openlimiter statusline",
-            "openlimiter statusline --host antigravity",
-            wrapped_windows.as_str(),
-            piped.as_str(),
-            other_host.as_str(),
-        ] {
-            let before = settings_with(serde_json::json!({ "type": "command", "command": command }));
-            assert_eq!(migrated(&dir, &before), (RefreshMigration::Unchanged, before.clone()), "{command}");
-        }
-        for text in ["{}", "not json", r#"{"statusLine":"openlimiter statusline"}"#] {
-            assert_eq!(migrated(&dir, text), (RefreshMigration::Unchanged, text.to_string()), "{text}");
-        }
-        let dir = TempDir::new();
-        assert_eq!(add_refresh_interval_in_home(dir.path()), RefreshMigration::Unchanged);
-        assert!(!dir.path().join(".claude").exists());
-    }
-
-    /// The migration runs after the collector has started, as its own task.
-    #[test]
-    fn the_migration_runs_after_the_collector_starts_on_its_own() {
-        let source = include_str!("lib.rs");
-        let collector = source
-            .find("collector_runtime::spawn_collector(")
-            .expect("the collector starts");
-        let migration = source
-            .find("claude_connect::add_refresh_interval_in_home(")
-            .expect("the migration runs");
-        assert!(collector < migration);
-        assert!(source[collector..migration].contains("spawn_blocking"));
-    }
-
-    #[test]
-    fn a_concurrent_save_is_kept_and_the_edit_starts_again_from_its_bytes() {
-        let (dir, lines) = launcher_home("2.1.6");
-        let file = write_settings(
-            &dir,
-            &settings_with(serde_json::json!({ "type": "command", "command": lines[0] })),
-        );
-        /* Claude Code saves a setting between the read and the replace, once. */
-        let mut saves = 0;
-        let outcome = add_refresh_interval_with(dir.path(), || {
-            if saves == 0 {
-                let text = std::fs::read_to_string(&file).expect("read");
-                std::fs::write(&file, text.replacen("\"theme\": \"dark\"", "\"theme\": \"light\"", 1))
-                    .expect("save");
-            }
-            saves += 1;
-        });
-        assert_eq!(outcome, RefreshMigration::Added);
-        let value: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(&file).expect("after")).expect("json");
-        assert_eq!(value["theme"], "light");
-        assert_eq!(value["statusLine"]["refreshInterval"], 60);
-        assert_eq!(saves, 2);
-    }
-
-    #[test]
-    fn a_file_that_keeps_changing_is_left_alone_after_three_tries() {
-        let (dir, lines) = launcher_home("2.1.6");
-        let file = write_settings(
-            &dir,
-            &settings_with(serde_json::json!({ "type": "command", "command": lines[0] })),
-        );
-        let mut saves = 0;
-        let outcome = add_refresh_interval_with(dir.path(), || {
-            saves += 1;
-            let text = std::fs::read_to_string(&file).expect("read");
-            std::fs::write(&file, text.replacen("\"dark", &format!("\"dark{saves}"), 1)).expect("save");
-        });
-        assert_eq!(outcome, RefreshMigration::Skipped);
-        assert_eq!(saves, 3);
-        let value: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(&file).expect("after")).expect("json");
-        assert!(value["statusLine"].get("refreshInterval").is_none());
-        assert_eq!(value["theme"], "dark321");
-    }
 
     const SETTINGS_CANARY: &str = "settings-secret-canary-never-export-123456";
 

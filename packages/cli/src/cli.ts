@@ -137,7 +137,6 @@ import {
   parseJsonText,
   persistSnapshots,
   clearStatuslineFailure,
-  observedClaudeReading,
   readStatuslineFailure,
   recordStatuslineFailure,
   type StatuslineFailureStage,
@@ -170,7 +169,6 @@ import { readApiSpend } from "./api-spend.js";
 import {
   TERMINAL_HOST_NAMES,
   installHost,
-  ensureClaudeRefreshInterval,
   repairAntigravityCommand,
   terminalHide,
   terminalShow,
@@ -1230,33 +1228,20 @@ async function ingestStandardInput(
       : host === "grok"
         ? GROK_STATUSLINE_PROVENANCE
         : STATUSLINE_PROVENANCE;
-    const directory = dependencies.stateDirectory ?? resolveStateDirectory();
     /* The host wrote this to our standard input in this session. It is a live
-       reading, and it says so. A Claude reading keeps the time its API
-       response arrived, so a timed rerun of an idle window never passes an
-       old number off as new; one whose time is uncertain and whose content
-       proves nothing is not written at all. That is decided inside the cache
-       lock its write takes, against the row the write meets. */
-    const decide = async (logged: boolean): Promise<Snapshot[]> => {
-      const read = host === "claude"
-        ? await observedClaudeReading(meters, document.value, now, directory, accountId ?? undefined, logged)
-        : meters;
-      return read === null ? [] : normalizeMeters(withProvenance(read, provenance).map(meter => ({ ...meter, ...(accountId ? { accountId } : {}) })));
-    };
+       reading, and it says so. */
+    const incoming = normalizeMeters(withProvenance(meters, provenance).map(meter => ({ ...meter, ...(accountId ? { accountId } : {}) })));
+    if (incoming.length === 0) return { snapshots: null, payload: document.value };
     /* The render still draws when a write fails, so each failure is kept for
        doctor by its stage, and the next full success clears it. */
-    const decided: { incoming?: Snapshot[] } = {};
     let merged: Snapshot[];
     try {
-      merged = (await mergeSnapshotCache(async () => (decided.incoming = await decide(true)), directory, Date.parse(now))).merged;
+      merged = (await mergeSnapshotCache(incoming, dependencies.stateDirectory ?? resolveStateDirectory(), Date.parse(now))).merged;
     } catch (error) {
       await recordStatuslineFailure(dependencies.stateDirectory, now, "cache_write", error);
-      const incoming = decided.incoming ?? await decide(false);
-      if (incoming.length === 0) return { snapshots: null, payload: document.value };
       const existing = await cachedSnapshots(dependencies.stateDirectory);
       return { snapshots: mergeSnapshots(existing, incoming), payload: document.value };
     }
-    if (decided.incoming === undefined || decided.incoming.length === 0) return { snapshots: null, payload: document.value };
     try {
       await writeAgentContextSnapshot(merged, dependencies.stateDirectory, now);
       await clearStatuslineFailure(dependencies.stateDirectory);
@@ -2545,8 +2530,7 @@ async function setupShowBarsStep(dependencies: CliDependencies): Promise<string[
   for (const host of TERMINAL_HOST_NAMES) {
     if (host !== "codex" && await hostStatus(host, context) === "Wired") {
       await installLauncher(context.stateDirectory ?? path.join(context.homeDirectory, ".openlimiter"));
-      const repaired = host === "antigravity" ? await repairAntigravityCommand(context)
-        : host === "claude" ? await ensureClaudeRefreshInterval(context) : null;
+      const repaired = host === "antigravity" ? await repairAntigravityCommand(context) : null;
       const line = host + ": " + (repaired?.message ?? "already wired, status line runtime updated.");
       lines.push(line);
       dependencies.emit(line);

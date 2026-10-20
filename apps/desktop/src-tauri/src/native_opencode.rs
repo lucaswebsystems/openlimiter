@@ -234,7 +234,6 @@ pub fn parse_opencode(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<S
                 account_id: Some(account_id.to_string()),
                 account_label: None,
                 writer: None,
-                certain: None,
                 kind: None,
                 availability: None,
                 retry_at: None,
