@@ -425,6 +425,20 @@ async function inspectPanelFit(browser, origin, providers, work, shots) {
   if (fit.bottom > height + 0.5) findings.push("the card runs past the window");
   if (await asked() !== wanted) findings.push(`asked ${wanted}, then ${await asked()} once sized`);
   if (shots) await page.screenshot({ path: path.join(shots, `panel-${providers}-providers-${work}-tall.png`) });
+  if (wanted > work) {
+    // A drag held near the bottom of a list that scrolls scrolls it.
+    const first = page.locator("#panel-limits > .q-group").first();
+    await first.hover();
+    const grip = await first.locator(".q-grip").boundingBox();
+    const area = await page.locator("#panel-scroll").boundingBox();
+    await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(grip.x + grip.width / 2, area.y + area.height - 8, { steps: 12 });
+    await page.waitForTimeout(600);
+    if (await page.evaluate(() => document.querySelector("#panel-scroll").scrollTop) <= 0) findings.push("a drag at the bottom edge does not scroll the list");
+    if (shots) await page.screenshot({ path: path.join(shots, `panel-${providers}-providers-${work}-tall-edge-drag.png`) });
+    await page.mouse.up();
+  }
   if (errors.length) findings.push(...errors);
   await context.close();
   return { findings, wanted, height, overflow: fit.overflow };

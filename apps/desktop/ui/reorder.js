@@ -348,12 +348,17 @@ export function reorderList(doc, mount, { store, render, hold = () => {}, scroll
     edgeScroll();
   }
 
-  /* The block follows the pointer up and down; the others slide aside. */
+  /* The block follows the pointer up and down, its middle kept between the
+     list's top and bottom: every place is reachable, and past the ends it
+     would only grow what scrolls. The others slide aside. */
   function follow(clientY) {
     drag.clientY = clientY;
     const { items, from, gap } = drag;
     const dragged = items[from];
-    const dy = clientY - drag.y + scrollTop() - drag.scroll;
+    const middle = dragged.top + dragged.height / 2;
+    const last = items.at(-1);
+    const dy = Math.min(Math.max(clientY - drag.y + scrollTop() - drag.scroll, items[0].top - middle),
+      last.top + last.height - middle);
     const center = dragged.top + dragged.height / 2 + dy;
     const to = items.filter((item, index) => index !== from && item.top + item.height / 2 < center).length;
     dragged.group.style.setProperty("transform", `translateY(${dy}px)`);

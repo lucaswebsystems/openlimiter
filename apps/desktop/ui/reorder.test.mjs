@@ -51,18 +51,22 @@ async function surface(list, { order = USAGE, refuse = false, motion = false } =
   let model = list.map((code, index) => block(code, 60 - index * 10));
   const layout = () => mount.all((node) => node.className === "q-group")
     .forEach((group, index) => { group.rect = { top: index * 110, height: 100 }; });
+  const heard = {};
   const controller = reorderList(doc, mount, {
     store: memory.store,
     render: (shown) => { renderLimits(doc, mount, shown, { grips: true }); layout(); },
     hold: (held) => holds.push(held),
-    view: { setTimeout: (callback) => timers.push(callback), matchMedia: () => ({ matches: !motion }) },
+    view: {
+      setTimeout: (callback) => timers.push(callback), matchMedia: () => ({ matches: !motion }),
+      addEventListener: (name, handler) => { heard[name] = handler; },
+    },
   });
   const draw = (next = model) => { model = next; controller.draw(byOrder(model, memory.store.state)); };
   memory.store.subscribe(() => draw());
   await memory.store.load();
   draw();
   return {
-    doc, mount, controller, memory, holds, draw,
+    doc, mount, controller, memory, holds, draw, heard,
     tick: () => timers.splice(0).forEach((callback) => callback()),
     order: () => mount.all((node) => node.className === "q-group").map((group) => group.dataset.provider),
     group: (code) => mount.all((node) => node.className === "q-group").find((group) => group.dataset.provider === code),
@@ -247,6 +251,14 @@ test("a press under 4 px is a click; a drag lifts the block, slides the others, 
   await pointer(grip, "pointermove", 280);
   assert.equal(transform(s.group("KIMI")), "translateY(-110px)");
   assert.equal(s.slot().style.props.top, "220px");
+  // Past either end the block's middle stops at the list's edge, so it never grows what scrolls.
+  await pointer(grip, "pointermove", 2000);
+  assert.equal(transform(s.group("CLAUDE")), "translateY(270px)");
+  assert.equal(s.slot().style.props.top, "220px", "the last place stays reachable");
+  await pointer(grip, "pointermove", -500);
+  assert.equal(transform(s.group("CLAUDE")), "translateY(-50px)");
+  assert.equal(s.slot().style.props.top, "0px");
+  await pointer(grip, "pointermove", 280);
   await pointer(grip, "pointerup", 280);
   await flush();
   assert.deepEqual(s.order(), ["CODEX", "KIMI", "CLAUDE"]);
@@ -304,6 +316,9 @@ test("Escape, a lost pointer capture, a cancelled pointer and hiding cancel a dr
   await s.doc.fire("visibilitychange");
   returned("the window hid");
   s.doc.visibilityState = "visible";
+  await drag();
+  s.heard.blur();
+  returned("the window lost focus");
   await drag();
   s.controller.cancel();
   returned("the panel hid");
