@@ -2100,9 +2100,13 @@
       "neverSeen": "まだ確認されていません"
     },
     "checkout": {
-      "success": {
+      "pending": {
+        "title": "支払いを確認しています",
+        "body": "Stripe が支払いを確認し次第、数分以内に Pro が有効になります。"
+      },
+      "confirmed": {
         "title": "支払いを受け取りました",
-        "body": "Stripe が支払いを確認しました。サービスが記録し次第、数分以内に Pro が有効になります。"
+        "body": "Stripe が支払いを確認し、Pro が有効になりました。"
       },
       "cancel": {
         "title": "チェックアウトを中止しました",

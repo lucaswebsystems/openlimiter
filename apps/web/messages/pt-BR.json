@@ -2100,9 +2100,13 @@
       "neverSeen": "Ainda não visto"
     },
     "checkout": {
-      "success": {
+      "pending": {
+        "title": "Confirmando seu pagamento",
+        "body": "O Pro é ativado em poucos minutos, assim que a Stripe confirmar o pagamento."
+      },
+      "confirmed": {
         "title": "Pagamento recebido",
-        "body": "A Stripe confirmou o pagamento. O Pro é ativado em poucos minutos, assim que o serviço registrar."
+        "body": "A Stripe confirmou o pagamento, e o Pro está ativo."
       },
       "cancel": {
         "title": "O checkout foi cancelado",

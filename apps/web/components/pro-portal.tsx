@@ -57,6 +57,10 @@ import { ExpiredProSummary } from "./pro-expired-summary";
  */
 
 type AccountState = "loading" | "ready" | "error";
+
+/** How often, and how many times, a success return reads the account again. */
+const CHECKOUT_POLL_MS = 10_000;
+const CHECKOUT_POLLS = 30;
 type Action = "none" | "month" | "year" | "billing";
 
 /**
@@ -108,10 +112,10 @@ export function ProPortal({ locale }: { locale: string }) {
   useEffect(() => {
     const outcome = proCheckoutOutcome(window.location.search);
     if (outcome === null) return;
-    /* A return parameter is not proof of payment, so the plan on this page is
-       still only what the account read below says. The notice says what the
-       return means: a cancel charged nothing, and a success is a payment Stripe
-       took, which turns Pro on within a few minutes once the service records it. */
+    /* A return parameter is not proof of payment: anyone can open this
+       address. A cancel charged nothing; a success says Pro turns on within a
+       few minutes once Stripe confirms the payment, and only an account read
+       that shows Pro on turns it into the confirmed notice (see `paid`). */
     setCheckout(outcome);
     const url = new URL(window.location.href);
     url.searchParams.delete("checkout");
@@ -175,23 +179,43 @@ export function ProPortal({ locale }: { locale: string }) {
     [attachAuthListener, keepSignedIn, supabase],
   );
 
-  const loadAccount = useCallback(() => {
+  /** Read the account. A quiet read keeps what is on screen until it lands. */
+  const loadAccount = useCallback((quiet = false) => {
     if (supabase === null || session === null || session === undefined) return;
     const requestId = ++accountRequest.current;
     const userId = session.user.id;
-    setAccountState("loading");
+    if (!quiet) setAccountState("loading");
     void readProAccount(supabase).then((result) => {
       if (requestId !== accountRequest.current || session?.user.id !== userId) return;
       if (result.ok) {
         setAccount(result.value);
         setAccountState("ready");
-      } else {
+      } else if (!quiet) {
         setAccountState("error");
       }
     });
   }, [session, supabase]);
 
-  useEffect(loadAccount, [loadAccount]);
+  useEffect(() => loadAccount(), [loadAccount]);
+
+  /* After a success return the account is read again, quietly, until it shows
+     Pro on or a few minutes pass: the service turns Pro on once Stripe's
+     confirmation reaches it, and the notice says so only then. */
+  const paid = proAccessState(account?.entitlement ?? null) === "active";
+  useEffect(() => {
+    if (checkout !== "success" || paid || session === null || session === undefined) return;
+    let polls = 0;
+    const timer = window.setInterval(() => {
+      polls += 1;
+      if (polls > CHECKOUT_POLLS) {
+        window.clearInterval(timer);
+        return;
+      }
+      loadAccount(true);
+    }, CHECKOUT_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [checkout, paid, session, loadAccount]);
+  const notice = checkout === "cancel" ? "cancel" : paid ? "confirmed" : "pending";
 
   async function upgrade(interval: ProBillingInterval) {
     if (supabase === null) return;
@@ -250,7 +274,7 @@ export function ProPortal({ locale }: { locale: string }) {
   if (session === null) {
     return (
       <div className="mx-auto max-w-md space-y-4">
-        {checkout !== null && <CheckoutNotice outcome={checkout} onDismiss={() => setCheckout(null)} />}
+        {checkout !== null && <CheckoutNotice notice={notice} onDismiss={() => setCheckout(null)} />}
         <SignInCard
           client={supabase}
           heading="h2"
@@ -274,7 +298,7 @@ export function ProPortal({ locale }: { locale: string }) {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      {checkout !== null && <CheckoutNotice outcome={checkout} onDismiss={() => setCheckout(null)} />}
+      {checkout !== null && <CheckoutNotice notice={notice} onDismiss={() => setCheckout(null)} />}
 
       <SectionPanel>
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -303,7 +327,7 @@ export function ProPortal({ locale }: { locale: string }) {
           <div className="mt-6 rounded-xl border border-hairline bg-raised p-5">
             <p className="text-sm font-medium text-heading">{t("accountError.title")}</p>
             <p className="mt-1 text-sm leading-relaxed text-muted">{t("accountError.body")}</p>
-            <Button tone="ghost" onClick={loadAccount} className="mt-4">
+            <Button tone="ghost" onClick={() => loadAccount()} className="mt-4">
               {t("accountError.retry")}
             </Button>
           </div>
@@ -455,10 +479,11 @@ export function ProPortal({ locale }: { locale: string }) {
 }
 
 function CheckoutNotice({
-  outcome,
+  notice,
   onDismiss,
 }: {
-  outcome: Exclude<ProCheckoutOutcome, null>;
+  /** A cancel, a success not yet confirmed by the account read, or a confirmed one. */
+  notice: "cancel" | "pending" | "confirmed";
   onDismiss: () => void;
 }) {
   const t = useTranslations("proPortal.checkout");
@@ -466,8 +491,8 @@ function CheckoutNotice({
     <SectionPanel className="border-accent-subtle">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-lg font-medium text-heading">{t(`${outcome}.title`)}</h2>
-          <p className="mt-2 text-sm leading-relaxed text-muted">{t(`${outcome}.body`)}</p>
+          <h2 className="text-lg font-medium text-heading">{t(`${notice}.title`)}</h2>
+          <p className="mt-2 text-sm leading-relaxed text-muted">{t(`${notice}.body`)}</p>
         </div>
         <Button tone="quiet" onClick={onDismiss}>
           {t("dismiss")}

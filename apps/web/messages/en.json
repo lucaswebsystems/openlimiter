@@ -2100,9 +2100,13 @@
       "neverSeen": "Not seen yet"
     },
     "checkout": {
-      "success": {
+      "pending": {
+        "title": "Confirming your payment",
+        "body": "Pro turns on within a few minutes, once Stripe confirms the payment."
+      },
+      "confirmed": {
         "title": "Payment received",
-        "body": "Stripe confirmed the payment. Pro turns on within a few minutes, once the service records it."
+        "body": "Stripe confirmed the payment, and Pro is on."
       },
       "cancel": {
         "title": "Checkout was cancelled",
