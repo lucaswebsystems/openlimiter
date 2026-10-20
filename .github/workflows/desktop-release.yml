@@ -1,6 +1,7 @@
 name: Desktop release
 
-# Windows and macOS installers are intentionally unsigned. The macOS artifact
+# Windows installers are intentionally unsigned, and the macOS app carries only
+# an ad hoc signature (no Developer ID, no notarisation). The macOS artifact
 # is a full download with the documented Gatekeeper override, but it is never
 # an updater target until signing and notarisation are available.
 
@@ -22,6 +23,12 @@ on:
 
 permissions:
   contents: write
+
+# One tag runs one release at a time: a tag push and a manual run for the same
+# tag would otherwise build at once and race to attach to one draft release.
+concurrency:
+  group: desktop-release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -178,7 +185,7 @@ jobs:
           fi
           bash .github/scripts/verify-linux-package.sh "$package_file"
 
-      - name: Verify the unsigned macOS bundles have no updater artifacts
+      - name: Verify the macOS app's ad hoc signature and that no updater artifact exists
         if: matrix.os == 'macos-14'
         shell: bash
         run: |
@@ -190,6 +197,8 @@ jobs:
             echo "The unsigned macOS app and dmg were not both produced" >&2
             exit 1
           fi
+          # An app without an intact signature opens as damaged on Apple Silicon.
+          codesign --verify --deep --strict --verbose=2 "$app_bundle"
           if find "$bundle_root" -type f \( -name '*.sig' -o -name '*updater*' \) -print -quit | grep -q .; then
             echo "Unsigned macOS produced an updater artifact" >&2
             exit 1

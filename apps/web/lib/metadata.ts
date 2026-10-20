@@ -82,6 +82,20 @@ const TWITTER_IMAGE = {
   type: "image/png",
 } as const;
 
+/**
+ * The panel card, for the two pages a link to the product usually points at:
+ * the home page and /download. See app/opengraph-panel.png/route.tsx.
+ */
+export const PANEL_IMAGE = {
+  url: "/opengraph-panel.png",
+  width: 1200,
+  height: 630,
+  alt: "The OpenLimiter edge panel with usage bars, beside the line One small tab. Your limits and agents on hover.",
+  type: "image/png",
+} as const;
+
+type SocialImage = typeof SOCIAL_IMAGE | typeof PANEL_IMAGE;
+
 export interface PageMetadataInput {
   /** The page's own title, before the template appends the site name. */
   title: string;
@@ -107,6 +121,8 @@ export interface PageMetadataInput {
    * engine than advertising nothing.
    */
   localised?: boolean;
+  /** The card a shared link shows. The logo card unless a page asks for the panel. */
+  image?: SocialImage;
 }
 
 export function pageMetadata(input: PageMetadataInput): Metadata {
@@ -118,7 +134,9 @@ export function pageMetadata(input: PageMetadataInput): Metadata {
     absoluteTitle = false,
     published,
     localised = true,
+    image = SOCIAL_IMAGE,
   } = input;
+  const twitterImage = image === SOCIAL_IMAGE ? TWITTER_IMAGE : { url: image.url, alt: image.alt, type: image.type };
 
   const social = absoluteTitle ? title : `${title}${TITLE_SUFFIX}`;
   const path = localePath(locale, route);
@@ -132,7 +150,7 @@ export function pageMetadata(input: PageMetadataInput): Metadata {
       card: "summary_large_image" as const,
       title: social,
       description,
-      images: [TWITTER_IMAGE],
+      images: [twitterImage],
     },
   };
 
@@ -148,7 +166,7 @@ export function pageMetadata(input: PageMetadataInput): Metadata {
         title: social,
         description,
         locale: ogLocale,
-        images: [SOCIAL_IMAGE],
+        images: [image],
         publishedTime: published,
         authors: [AUTHOR_NAME],
       },
@@ -164,7 +182,7 @@ export function pageMetadata(input: PageMetadataInput): Metadata {
       title: social,
       description,
       locale: ogLocale,
-      images: [SOCIAL_IMAGE],
+      images: [image],
     },
   };
 }

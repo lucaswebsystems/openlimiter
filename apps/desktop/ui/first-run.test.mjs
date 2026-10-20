@@ -188,7 +188,7 @@ test("walks account, then connect, then bars, and says so on the screen", () => 
     source,
     /markStep\(screen, "bars"\);\s*document\.documentElement\.dataset\.firstRun = "complete";\s*screen\.hidden = true;/u,
   );
-  assert.match(source, /function finish\(\) \{[\s\S]*?completeFirstRun\(screen\);\s*options\.onContinue\(\);/u);
+  assert.match(source, /function finish\(\) \{[\s\S]*?completeFirstRun\(screen, options\);\s*options\.onContinue\(\);/u);
 });
 
 test("asks for nothing before the machine is read", () => {
@@ -551,6 +551,48 @@ test("fresh setup waits for detection and offers a safe exit when saving from ei
       assert.deepEqual(writes, [true], "the safe exit made another durable consent write");
       assert.equal(harness.screen.hidden, true);
     });
+  }
+});
+
+test("a completed first run tells Rust, at its end and on every later launch", async () => {
+  {
+    const harness = firstRunDom(false);
+    installFirstRunGlobals(harness);
+    let reports = 0;
+    initFirstRun({
+      accountStatus: async () => ({ ok: true, value: null }),
+      isSignedIn: () => true,
+      claudePollEnabled: async () => ({ state: "missing", enabled: false }),
+      detectProviders: async () => ({ ok: true, value: { providers: [] } }),
+      setClaudePoll: async (enabled) => ({ ok: true, value: enabled }),
+      autostartFirstRun: async () => {
+        reports += 1;
+        return { ok: true, value: true };
+      },
+      platform: "Linux",
+    });
+    await waitFor(() => harness.setup.hidden === false, "Connect did not appear");
+    assert.equal(reports, 0, "reported before the first run was complete");
+    await harness.doc.byId["first-run-continue"].fire("click");
+    await waitFor(() => reports === 1, "the end of the first run was not reported");
+    assert.equal(harness.screen.hidden, true);
+  }
+  {
+    const harness = firstRunDom(true);
+    installFirstRunGlobals(harness);
+    let reports = 0;
+    initFirstRun({
+      accountStatus: async () => ({ ok: true, value: null }),
+      claudePollEnabled: async () => ({ state: "disabled", enabled: false }),
+      detectProviders: async () => new Promise(() => {}),
+      autostartFirstRun: async () => {
+        reports += 1;
+        throw new Error("the report fails quietly");
+      },
+      platform: "Linux",
+    });
+    await waitFor(() => reports === 1, "a completed install did not report at launch");
+    assert.equal(harness.screen.hidden, true);
   }
 });
 
@@ -1045,22 +1087,22 @@ test("shows the two SmartScreen actions for an unsigned Windows release", () => 
   });
 });
 
-test("names the Gatekeeper gesture for the unsigned macOS release", () => {
-  assert.deepEqual(launchNotice("MacIntel"), {
-    title: "Unsigned macOS build",
+test("names the Open Anyway path macOS 15 still offers for the unsigned release", () => {
+  /* macOS 15 removed Open from the control click menu for an app it has not
+     verified; System Settings is the one way through that is left. */
+  const notice = launchNotice("MacIntel");
+  assert.deepEqual(notice, {
+    title: "macOS preview build",
     detail:
-      "Gatekeeper: control click OpenLimiter in Applications, choose Open, then Open again.",
+      "Gatekeeper: open OpenLimiter from Applications and choose Done, then in System Settings, Privacy & Security, choose Open Anyway.",
   });
+  assert.doesNotMatch(notice.detail, /control click/iu);
 });
 
 test("no longer claims a macOS release is coming", () => {
   /* The unsigned universal app and dmg exist, so the journey names the
      Gatekeeper action rather than a download that does not exist. */
-  assert.deepEqual(launchNotice("MacIntel"), {
-    title: "Unsigned macOS build",
-    detail:
-      "Gatekeeper: control click OpenLimiter in Applications, choose Open, then Open again.",
-  });
+  assert.doesNotMatch(launchNotice("MacIntel").detail, /coming|soon|future/iu);
 });
 
 test("does not add a launch warning on Linux", () => {

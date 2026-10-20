@@ -34,7 +34,7 @@ describe("generated llms.txt", () => {
     };
     const output = generateLlms(changed);
     expect(output).toContain("Version 9.8.7.");
-    expect(output).toContain("Nine ship in 9.8.7.");
+    expect(output).toContain("Eight connectors ship in 9.8.7, plus manual entry");
     expect(output).toContain("7 US dollars a month or 70 US dollars a year");
     expect(output).toContain("example.test/app/cli");
     for (const key of ["SITE_NAME", "SITE_URL", "REPO_URL", "RELEASES_URL", "LICENSE_SPDX_URL", "AUTHOR_NAME", "AUTHOR_SITE"] as const) {
@@ -42,5 +42,11 @@ describe("generated llms.txt", () => {
       expect(output).not.toContain(site[key]);
     }
     expect(output).not.toContain(site.CURRENT_VERSION);
+  });
+
+  it("keeps desktop alerts free and states no local spend ceiling (R2, R21)", () => {
+    const output = generateLlms(site);
+    expect(output).toContain("Desktop alerts are free");
+    expect(output).not.toMatch(/every alert \(desktop|100 US dollars/u);
   });
 });

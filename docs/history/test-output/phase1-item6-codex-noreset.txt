@@ -1,5 +1,5 @@
 
-[1m[46m RUN [49m[22m [36mv3.2.7 [39m[90mC:/Users/lucas/Desktop/Claude/Personal/OpenLimiter/openlimiter[39m
+[1m[46m RUN [49m[22m [36mv3.2.7 [39m[90m<repository>[39m
 
  [32m✓[39m .test-dist/packages/cli/test/qr.test.js[2m > [22mQR encoder[2m > [22mmatches the error correction codewords published in annex I[32m 2[2mms[22m[39m
  [32m✓[39m .test-dist/packages/cli/test/qr.test.js[2m > [22mQR encoder[2m > [22mpicks the smallest version that holds the payload[32m 12[2mms[22m[39m

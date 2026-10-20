@@ -53,10 +53,21 @@ requireCondition(
   macConfig.bundle?.createUpdaterArtifacts === false,
   "The unsigned macOS overlay must disable updater artifacts",
 );
-requireCondition(
-  macConfig.bundle?.macOS?.signingIdentity === null,
-  "The unsigned macOS overlay must not select a signing identity",
-);
+verifyMacSigning(config, macConfig);
+
+/**
+ * The macOS app is signed ad hoc ("-"): never unsigned, which Apple Silicon
+ * reports as a damaged app, and never with a real identity, which this
+ * release does not hold.
+ */
+export function verifyMacSigning(base, overlay) {
+  for (const [label, value] of [["base", base], ["macOS overlay", overlay]]) {
+    requireCondition(
+      value.bundle?.macOS?.signingIdentity === "-",
+      `The ${label} configuration must sign macOS ad hoc ("-"), never unsigned or with a real identity`,
+    );
+  }
+}
 
 export function updaterPlatforms(workflow) {
   // Read only the build matrix, not the installer verification matrix.

@@ -3,6 +3,10 @@
   "versionLabel": "Version {version}",
   "dismiss": "Got it",
   "releases": {
+    "2.1.6": {
+      "heading": "Starts when you sign in",
+      "autostart": "OpenLimiter now starts when you sign in, so your bars stay current after a restart. Turn it off in Settings."
+    },
     "2.1.5": {
       "heading": "Fresher Claude bars",
       "weekly": "Claude weekly bars are read every five minutes while the app runs, and while Claude Code draws its status line with the command line poll on. Nothing is read while neither runs.",

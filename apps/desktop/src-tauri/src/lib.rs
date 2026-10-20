@@ -1,6 +1,7 @@
 mod account;
 mod activity;
 mod api_spend;
+mod autostart;
 mod cache_write;
 mod claude_connect;
 mod claude_detect;
@@ -200,6 +201,20 @@ pub(crate) fn app_context<R: tauri::Runtime>() -> tauri::Context<R> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        /* One running copy (2.1.6), registered first, so a second launch
+        hands its arguments over and exits before anything else starts. */
+        /* Known limitation (2.1.6): on Windows the plugin lets a second copy
+        through when it starts in the microseconds between the first copy's
+        mutex and its message window. Two copies at worst, never a wrong
+        number. */
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            autostart::on_second_launch(&args, || {
+                if app.state::<autostart::SecondLaunch>().arrive() {
+                    show_window(app);
+                }
+            });
+        }))
+        .manage(autostart::SecondLaunch::default())
         .manage(connections::ConnectionsStore::at_state_directory())
         .manage(claude_poll_setting::ClaudePollSetting::default())
         .manage(codex_device_login::OpenDeviceLogin::default())
@@ -260,6 +275,9 @@ pub fn run() {
             commands::list_detected_providers,
             commands::rescan_detected_providers,
             commands::claude_connect_preflight,
+            autostart::autostart_status,
+            autostart::set_autostart,
+            autostart::autostart_first_run_complete,
             claude_poll_setting::claude_poll_enabled,
             claude_poll_setting::set_claude_poll_enabled,
             codex_device_login::codex_device_login_start,
@@ -297,6 +315,23 @@ pub fn run() {
             updates::install_update
         ])
         .setup(|app| {
+            /* The main window starts hidden (tauri.conf.json) and is shown
+            here unless the sign in entry started this process. An update the
+            window installed relaunches with the old arguments and a mark
+            that brings the window back. */
+            let directory = state::state_directory();
+            let after_update = autostart::take_update_mark(directory.as_deref());
+            /* Start at sign in (2.1.6): the OS entry starts the tray only. */
+            let start = autostart::Autostart::new(directory, autostart::os_login_item());
+            let _ = start.at_launch();
+            app.manage(start);
+            let args: Vec<String> = std::env::args_os()
+                .map(|arg| arg.to_string_lossy().into_owned())
+                .collect();
+            let kept = app.state::<autostart::SecondLaunch>().open();
+            if kept || autostart::starts_visible(&args, after_update) {
+                show_window(app.handle());
+            }
             /* The full collector outlives every window. Its schedule, reads,
             parsing and cache commits never depend on a webview receiving an
             event or being allowed to run a timer. */
@@ -376,6 +411,14 @@ pub fn run() {
         .build(app_context())
         .expect("OpenLimiter could not start")
         .run(|app_handle, event| {
+            /* The Dock icon on macOS: a reopen with no visible window shows
+            the main window, the one a sign in start kept hidden. */
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { has_visible_windows, .. } = &event {
+                if autostart::reopen_shows(*has_visible_windows) {
+                    show_window(app_handle);
+                }
+            }
             /* A Codex device login this process spawned must not outlive the
             app it belongs to. Every ordinary ending already stops it (Drop on
             the child, a completed login, the login's own deadline timer), but

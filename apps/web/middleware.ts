@@ -1,25 +1,22 @@
 import createMiddleware from "next-intl/middleware";
 import { type NextRequest, NextResponse } from "next/server";
-import { DEFAULT_LOCALE, LOCALES, isLocale, negotiateLocale } from "./i18n/locales";
-import {
-  LOCALE_COOKIE,
-  LOCALE_HINT_COOKIE,
-  LOCALE_HINT_MAX_AGE,
-  isUnlocalisedRoute,
-  routing,
-} from "./i18n/routing";
+import { DEFAULT_LOCALE, LOCALES, isLocale } from "./i18n/locales";
+import { LOCALE_COOKIE, isUnlocalisedRoute, routing } from "./i18n/routing";
 
 /**
  * The one request time decision this site makes.
  *
  * Everything else here is a file on disk built once. This runs on the edge in
- * front of those files and does three things, in this order, and nothing else.
+ * front of those files and does two things, in this order, and nothing else.
  *
  *   1. Gets out of the way of the two trees that are not localised.
  *   2. Sends a returning reader who has chosen a language to that language, at
  *      the bare root only.
- *   3. Notes what Accept-Language asked for, with a country fallback when it
- *      names no published language, so the offer banner can use that language.
+ *
+ * It sets no cookie. The offer banner reads the browser's own language list in
+ * the browser (components/locale-offer.tsx), so a first visit stores nothing
+ * until the reader answers. The country fallback that used to ride a hint
+ * cookie from here is gone with it: a country cannot be read in the browser.
  *
  * WHAT IT DELIBERATELY DOES NOT DO
  * --------------------------------
@@ -38,36 +35,6 @@ import {
  * 'as-needed'` would mean two implementations of one rule.
  */
 const intlMiddleware = createMiddleware(routing);
-
-const COUNTRY_TO_LOCALE: Partial<Record<string, (typeof LOCALES)[number]>> = {
-  BR: "pt-BR",
-  ES: "es",
-  MX: "es",
-  AR: "es",
-  CO: "es",
-  CL: "es",
-  PE: "es",
-  UY: "es",
-  PY: "es",
-  BO: "es",
-  EC: "es",
-  VE: "es",
-  GT: "es",
-  CR: "es",
-  PA: "es",
-  DO: "es",
-  HN: "es",
-  NI: "es",
-  SV: "es",
-  DE: "de",
-  AT: "de",
-  JP: "ja",
-};
-
-function localeFromCountry(country: string | null): (typeof LOCALES)[number] | null {
-  if (country === null) return null;
-  return COUNTRY_TO_LOCALE[country.toUpperCase()] ?? null;
-}
 
 /**
  * A locale segment spelled in the wrong case.
@@ -125,38 +92,7 @@ export default function middleware(request: NextRequest): NextResponse {
     return NextResponse.redirect(url);
   }
 
-  const response = intlMiddleware(request);
-
-  /*
-    The hint, and the only thing Accept-Language and country are used for here.
-
-    Written only while the reader has never chosen, because that is exactly when
-    the banner is allowed to appear. Once `NEXT_LOCALE` exists the question has
-    been answered and the hint is cleared, so a stale answer cannot bring the
-    banner back on the next visit.
-  */
-  if (!isLocale(chosen)) {
-    const negotiated = negotiateLocale(request.headers.get("accept-language"));
-    /* `null` means no published language matched. An explicit English match
-       must win even though English is also the default locale. */
-    const preferred =
-      negotiated ?? localeFromCountry(request.headers.get("x-vercel-ip-country"));
-    if (preferred !== null) {
-      response.cookies.set(LOCALE_HINT_COOKIE, preferred, {
-        path: "/",
-        sameSite: "lax",
-        maxAge: LOCALE_HINT_MAX_AGE,
-        /* Read by the banner in the browser, so not httpOnly. It carries a
-           language code and nothing else: no identifier, nothing personal, and
-           nothing that leaves the machine. */
-        httpOnly: false,
-      });
-    }
-  } else if (request.cookies.has(LOCALE_HINT_COOKIE)) {
-    response.cookies.delete(LOCALE_HINT_COOKIE);
-  }
-
-  return response;
+  return intlMiddleware(request);
 }
 
 export const config = {

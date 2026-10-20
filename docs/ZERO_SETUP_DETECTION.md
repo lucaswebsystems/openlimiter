@@ -115,8 +115,9 @@ install with no choice asks once. Terminal setup asks once, while unattended
 setup records off. Missing state never triggers a request, and invalid,
 unreadable, unsafe, oversized or unknown version state stays off.
 
-To stop desktop polling, open Settings and turn Show Fable limit off. To stop
-command line polling, run `openlimiter config set providers.claude.poll false`.
+To stop desktop polling, open Connect Tools, then the menu at the end of the
+Claude row, and turn Show Fable limit off. To stop command line polling, run
+`openlimiter config set providers.claude.poll false`.
 
 This is a direct usage request with the local Claude credentials on the
 computer. Anthropic's policy for tools like this is unresolved.

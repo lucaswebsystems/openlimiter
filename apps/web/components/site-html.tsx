@@ -1,4 +1,3 @@
-import { Analytics } from "@vercel/analytics/next";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages, getTranslations } from "next-intl/server";
 import { Inter } from "next/font/google";
@@ -9,6 +8,7 @@ import { LocaleOffer, type LocaleOfferCopy } from "@/components/locale-offer";
 import { Nav } from "@/components/nav";
 import { Reveal } from "@/components/reveal";
 import { ScrollTop } from "@/components/scroll-top";
+import { SiteAnalytics } from "@/components/site-analytics";
 import { LOCALES, type Locale } from "@/i18n/locales";
 import { announceArmScript } from "@/lib/announce";
 import { markArmScript } from "@/lib/brand";
@@ -175,7 +175,9 @@ export async function SiteHtml({
               site is published in and who has never answered the question. It
               overlays the page and reserves no space. See components/locale-offer.tsx. */}
           {offer !== null && <LocaleOffer locale={locale} copy={offer} />}
-          {analytics && <Analytics />}
+          {/* Cookieless, and a tagged link's source rides in the recorded path.
+              See components/site-analytics.tsx. */}
+          {analytics && <SiteAnalytics />}
         </NextIntlClientProvider>
       </body>
     </html>

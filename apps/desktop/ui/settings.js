@@ -20,9 +20,11 @@
 import {
   BACKEND_ABSENT,
   accountStatus,
+  autostartStatus,
   notificationSettings,
   proStatus,
   proService,
+  setAutostart,
   setClaudePollEnabled,
   setNotificationSettings,
   setTerminalCaptions,
@@ -251,11 +253,12 @@ function escapeText(value) {
 }
 
 /* The one switch the menu uses everywhere, the same as the tool switches. */
-function switchMarkup(id, checked, disabled = false) {
+function switchMarkup(id, checked, disabled = false, describedBy = "") {
   return (
     '<span class="provider-switch"><input type="checkbox" role="switch" id="' + id + '"' +
     (checked ? " checked" : "") +
     (disabled ? " disabled" : "") +
+    (describedBy ? ' aria-describedby="' + describedBy + '"' : "") +
     ' /><span class="provider-switch-track" aria-hidden="true"></span></span>'
   );
 }
@@ -335,6 +338,29 @@ function wireRailSettings(mount) {
   return wireRailVisibility(mount.querySelector("#rail-visible"), mount.querySelector("#rail-visibility-status"));
 }
 
+/* Start at sign in (2.1.6): the switch shows what the OS shows. */
+function autostartMarkup() {
+  return '<div class="menu-line"><label for="autostart">' + escapeText(say("startAtSignIn")) + '</label>' +
+    switchMarkup("autostart", false, true, "autostart-note") + '</div>' +
+    '<p id="autostart-note" class="menu-note">' + escapeText(say("startAtSignInNote")) + '</p>';
+}
+
+/** Read the OS state into the switch; a toggle writes it and reads it back. */
+export async function wireAutostart(control, api = { autostartStatus, setAutostart }) {
+  const shown = await api.autostartStatus();
+  if (!control || !shown.ok || typeof shown.value !== "boolean") return;
+  control.checked = shown.value;
+  control.disabled = false;
+  control.addEventListener("change", async () => {
+    const requested = control.checked;
+    control.disabled = true;
+    const result = await api.setAutostart(requested);
+    const after = result.ok && typeof result.value === "boolean" ? result : await api.autostartStatus();
+    control.checked = after.ok && typeof after.value === "boolean" ? after.value : !requested;
+    control.disabled = false;
+  });
+}
+
 export function presetMarkup(entitled, chosen) {
   return PRESETS.map(
     (preset) => {
@@ -407,7 +433,7 @@ export function captionsMarkup(captions, entitled) {
 function appearanceMarkup(chosen, entitled, captions) {
   return themeMarkup() +
     '<div class="menu-presets"><span>' + MENU_EN.preset + '</span><span class="preset-grid">' + presetMarkup(entitled, chosen) + "</span></div>" +
-    captionsMarkup(captions, entitled) + railSettingsMarkup();
+    captionsMarkup(captions, entitled) + railSettingsMarkup() + autostartMarkup();
 }
 
 /** Settings are divided into appearance and alerts mounts, while account and Pro stay in the page. */
@@ -434,6 +460,7 @@ export async function renderSettings(mount) {
     if (target.alerts === target.appearance) target.appearance.innerHTML += unavailable;
     else target.alerts.innerHTML = unavailable;
     await wireRailSettings(target.appearance);
+    await wireAutostart(target.appearance.querySelector("#autostart"));
     return;
   }
 
@@ -461,6 +488,7 @@ export async function renderSettings(mount) {
 
   wire(agents);
   await wireRailSettings(target.appearance);
+  await wireAutostart(target.appearance.querySelector("#autostart"));
 }
 
 async function save(patch) {
@@ -521,7 +549,10 @@ function wire(agents) {
     event.target.checked = result.ok ? requested : !requested;
     event.target.disabled = false;
   });
-  for (const control of document.querySelectorAll("[data-preset]")) {
+  /* The preset buttons only: the page root carries data-preset too, and a
+     listener there repainted Settings on every click, taking a switch out
+     from under the click that was turning it. */
+  for (const control of document.querySelectorAll("button[data-preset]")) {
     control.addEventListener("click", async () => {
       if (control.disabled) return;
       try {

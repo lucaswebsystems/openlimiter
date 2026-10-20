@@ -11,7 +11,7 @@ vi.mock("next-intl/server", () => ({
 
 describe("2.0 site release", () => {
   it("uses the six aliases published by L8.2, with no version in their names", () => {
-    expect(CURRENT_VERSION).toBe("2.1.5");
+    expect(CURRENT_VERSION).toBe("2.1.6");
     const links = [primaryDownloadHref("windows"), downloadAssetHref("windows", "msi"),
       primaryDownloadHref("macos"), primaryDownloadHref("linux"),
       downloadAssetHref("linux", "deb"), downloadAssetHref("linux", "rpm")];
@@ -28,8 +28,8 @@ describe("2.0 site release", () => {
   it("publishes the release version and the free, monthly and annual offers", async () => {
     const { softwareApplicationSchema, jsonLdText } = await import("../lib/jsonld");
     const schema = JSON.parse(jsonLdText(await softwareApplicationSchema("en")));
-    expect(schema.softwareVersion).toBe("2.1.5");
-    expect(schema.dateModified).toBe("2026-10-13");
+    expect(schema.softwareVersion).toBe("2.1.6");
+    expect(schema.dateModified).toBe("2026-10-20");
     expect(schema.offers.map((offer: { price: string }) => offer.price)).toEqual(["0", "5", "50"]);
   });
 
@@ -45,6 +45,9 @@ describe("2.0 site release", () => {
     expect(en.announce.message).toContain("Desktop alerts");
     expect(en.announce.message).not.toContain("$100");
     expect(en.pricing.pro.lead).toContain("history");
+    /* "Four Pro features" heads exactly four lines, with no second history line. */
+    expect(Object.keys(en.pricing.pro.lines)).toHaveLength(4);
+    expect(en.integrations.connectors.claude.detail).not.toMatch(/asks nothing/u);
     expect(en.pricing.pro.lines.heavyApi).not.toContain("$100");
     expect(en.faq.items.phoneAccess.answer).toContain("does not require Pro");
     expect(en.docs.pages.providers.description).toContain("eight");

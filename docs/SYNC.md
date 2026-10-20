@@ -4,7 +4,7 @@ The local product and the OpenLimiter account are free. The desktop requires sig
 
 ## Stored shape
 
-The desktop constructs one closed row per quota window with `provider`, `account_label`, `window_name`, `usage_percent`, and `reset_at`. The request adds `event_id`, `device_id`, and `observed_at`. Account and device identifiers are opaque. Email addresses are rejected as account labels.
+The desktop constructs one closed row per quota window with `provider`, `account_label`, `window_name`, `usage_percent`, and `reset_at`. For balance meters, a row also carries the amount and its currency. Each API spend key adds a row to a separate list with a random key identifier, the name the user gave the key and an account identifier made from that name, its provider, the month, the amount spent in US dollars, the budget if one is set, the period that amount covers and whether that period is complete; its forecast fields are sent empty. A free account sends API spend rows with every sync. A device with a Pro or trial entitlement sends them only when that entitlement includes the API spend feature, because the server refuses a whole upload that names a feature the account does not hold. The request adds `event_id`, `device_id`, and `observed_at`. Account identifiers on usage rows and device identifiers are opaque. Email addresses are rejected as account labels.
 
 The sync database contains no field for provider credentials, provider tokens, provider response bodies, prompts, source code, local configuration, or diagnostics. Both the desktop and Edge Function rebuild the request from the closed shape. Extra input fields are discarded. A total sync database breach exposes quota display metadata and cannot reach a provider account.
 

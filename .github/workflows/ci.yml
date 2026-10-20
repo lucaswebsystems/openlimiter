@@ -14,8 +14,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # The labels name the checks main's branch protection requires, so
+        # the Linux image is pinned beside its label instead of renaming it.
         os: [windows-latest, ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+        include:
+          - os: ubuntu-latest
+            image: ubuntu-24.04
+    runs-on: ${{ matrix.image || matrix.os }}
     steps:
       # Actions are pinned to commit SHAs, not tags, so a moved tag cannot
       # silently change what runs here. The comment records the version.

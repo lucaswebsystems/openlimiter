@@ -347,13 +347,13 @@ export const todayTools: readonly Tool[] = [
     name: "OpenAI Codex",
     Mark: OpenAIMark,
     state: "today",
-    detail: "Reads the usage shape the Codex tooling writes. Internal, so it can change.",
+    detail: "Reads usage through the documented Codex app server, with the login Codex stored.",
   },
   {
     name: "Google Antigravity",
     Mark: AntigravityMark,
     state: "today",
-    detail: "Reads the quota shape the Antigravity tooling writes. Internal too.",
+    detail: "Reads quota from the documented Antigravity CLI status line.",
   },
   {
     name: "Gemini CLI",
@@ -383,7 +383,7 @@ export const todayTools: readonly Tool[] = [
     name: "OpenRouter",
     Mark: OpenRouterMark,
     state: "today",
-    detail: "Reads the credits shape OpenRouter documents, with a key you hold.",
+    detail: "Reads the credits OpenRouter documents, by OAuth from the hub or a key you hold.",
   },
 ];
 

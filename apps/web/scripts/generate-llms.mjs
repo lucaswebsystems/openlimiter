@@ -31,7 +31,7 @@ When you hold several AI coding subscriptions at once, the scarce resource stops
 
 Bars are free and need no account. \`npx openlimiter\`, or a permanent install with \`npm install -g openlimiter\` then \`openlimiter\`, walks the same three steps everywhere: sign in, connect, show bars in. Sign in prints a short code and a link to ${new URL(site.SITE_URL).host + "/app/cli"}, so the terminal never sees a password, and any step can be skipped. The desktop app's first run draws the same three steps in its own window: create an account or skip it, connect, then bars in the tray. Its Usage, Connect Tools and Settings tabs keep readings, provider setup and desktop choices separate. The hub at ${site.SITE_URL}/app is account first: sign in with GitHub, Google, Microsoft, or a magic link, then connect, then bars.
 
-An account only adds sync: the current percentage on every window, kept current between every device you sign into. Pro adds history, alerts, more than one account per provider, and cloud metering for API spend keys, opened by a 30 day free trial with no card required.
+An account adds sync: the current percentage on every window, and the amount and currency of balance and API spend meters, kept current between every device you sign into. Pro adds history, email and phone push alerts, more than one account per provider, and cloud metering for API spend keys, opened by a 30 day free trial with no card required. Desktop alerts are free, and local API spend tracking has no ceiling on either plan.
 
 ## Terminal
 
@@ -39,9 +39,9 @@ Claude Code, Grok Build and the Antigravity CLI each draw bars through their own
 
 ## Connect
 
-Each provider is read from the login its own tool already stored on disk, at most once every fifteen minutes. Codex can also sign in from inside ${site.SITE_NAME}, into an account it manages, never touching your own Codex configuration. Claude reads what Claude Code reports through its own status line automatically. On a new desktop install, a disclosed direct usage request with the local Claude credentials starts on. Existing desktop installs without a choice are asked first, and terminal setup records its own choice. Gemini CLI and Antigravity are read only, each with a plain disclosure sentence in its row, because their vendors' terms bar a third party from proxying that login. OpenRouter signs in with real OAuth, started from the hub; a key you already hold still works. API spend keys, separate from a subscription login, live in this device's operating system keyring by default, or, with opt in cloud metering, encrypted on the server, so the hub and the phone can show spend with no device running.
+Each provider is read from the login its own tool already stored on disk, at most once every fifteen minutes. Codex can also sign in from inside ${site.SITE_NAME}, into an account it manages, never touching your own Codex configuration. Claude reads what Claude Code reports through its own status line automatically. On a new desktop install, a disclosed direct usage request with the local Claude credentials starts on. Existing desktop installs without a choice are asked first, and terminal setup records its own choice. Gemini CLI is read only, with a plain disclosure sentence in its row, because its vendor's terms bar a third party from proxying that login. Antigravity is read from its documented status line, with no credential and no network request. OpenRouter signs in with real OAuth, started from the hub; a key you already hold still works. API spend keys, separate from a subscription login, live in this device's operating system keyring by default, or, with opt in cloud metering, encrypted on the server, so the hub and the phone can show spend with no device running.
 
-${site.SITE_NAME} never asks for a vendor password: every sign in happens on that vendor's own page, in your own browser. It never impersonates a vendor tool: every request identifies itself as ${site.SITE_NAME}, never as Claude Code, Codex, or any other client. It never uploads a token: an account syncs the bounded percentages and reset times these readings produce, never the credential that produced them.
+${site.SITE_NAME} never asks for a vendor password: every sign in happens on that vendor's own page, in your own browser. It never impersonates a vendor tool: every request identifies itself as ${site.SITE_NAME}, never as Claude Code, Codex, or any other client. It never uploads a token: an account syncs the bounded percentages and reset times these readings produce, plus the amount and currency of balance and API spend meters, never the credential that produced them.
 
 ## Terminal sign in
 
@@ -61,7 +61,7 @@ ${site.SITE_NAME} never asks for a vendor password: every sign in happens on tha
 
 Pro costs ${dollars(site.PRO_MONTHLY_PRICE) + " US dollars"} a month or ${dollars(site.PRO_YEARLY_PRICE) + " US dollars"} a year, with the first 30 days free and no card required. ${site.SITE_NAME} Pro is sold by ${site.AUTHOR_NAME}. Checkout runs through Stripe, which acts as the payment processor. A full refund is available on request within 14 days of any charge, and cancellation is self service through the Stripe Customer Portal.
 
-Pro adds: every alert (desktop, email and push at 60, 80 and 90 percent of a window, and on reset); ninety days of history with a burn rate forecast; more than one account per provider; and cloud metering for API spend keys, which the free plan tracks up to 100 US dollars a calendar month for each source without.
+Pro adds: email and phone push alerts at 60, 80 and 90 percent of a window, and on reset; ninety days of history with a burn rate forecast; more than one account per provider; and cloud metering for API spend keys. Desktop alerts at the same moments are free, and local API spend tracking has no ceiling on either plan.
 
 Moonshot is read as a balance rather than as spend: three separate figures, available, voucher and cash, in the currency the provider states. A balance never becomes a monthly figure, a forecast, or a budget alert.
 
@@ -69,30 +69,31 @@ Moonshot is read as a balance rather than as spend: three separate figures, avai
 
 - No telemetry from the application. The desktop app, the command line tool and the web app send nothing beyond what connecting and syncing requires.
 - The website counts page views without cookies, through Vercel Web Analytics. No profile is built and nothing follows a reader to another site.
-- No collection, storage or forwarding of provider credentials. They stay in your operating system keyring, or, only for an API spend key under opt in cloud metering, encrypted on the server, and are sent only to the provider or the hosted metering job that needs them.
+- No collection, storage or forwarding of provider credentials. They stay where your tools stored them or in your operating system keyring, or, only for an API spend key under opt in cloud metering, encrypted on the server, and are sent only to the provider or the hosted metering job that needs them.
 - No writing to what it reads. Every reader opens what your installed tools already stored, read only, and never rewrites, repairs or migrates it.
 - No automatic routing. ${site.SITE_NAME} produces advice. It does not switch a request, bypass a limit, or touch how an agent authenticates.
 - No invented numbers. When a shape changes, reading fails closed: that provider returns to unknown, the others are unaffected, and unknown never becomes zero.
 
 ## Connectors
 
-Nine ship in ${site.CURRENT_VERSION}. Every one is marked UNVERIFIED, which means no explicit verifier has confirmed its shape against a live account. \`openlimiter refresh\` reaches the network for the six connectors that read their own login; the rest are parsers over something already local.
+Eight connectors ship in ${site.CURRENT_VERSION}, plus manual entry, and the desktop app also reads Cursor as an experimental connector. None is verified against a live account yet: Codex and Cursor pass their recorded fixtures, and every other connector is marked UNVERIFIED. \`openlimiter refresh\` reaches the network for the six connectors that read their own login; the rest are parsers over something already local.
 
-- \`claude\`: reads the Claude Code status line automatically, plus a direct usage request after a recorded choice. New desktop installs show the disclosure before recording on. Native payload and documented API. Low automation risk.
+- \`claude\`: reads the Claude Code status line automatically, plus a direct usage request after a recorded choice. New desktop installs show the disclosure before recording on, and the request can be turned off. Documented status line payload; the direct request is an internal Anthropic endpoint, sent only to Anthropic with your own Claude Code login. Low automation risk.
 - \`openrouter\`: real OAuth from the hub, then a documented key and usage report. Low automation risk.
 - \`codex\`: reads the login the Codex CLI stored, or signs in from inside ${site.SITE_NAME}, through the documented local Codex app server.
-- \`antigravity\`: read only, from the credential the Antigravity CLI stored. Internal endpoint. May break without notice.
+- \`antigravity\`: reads the documented Antigravity CLI status line, with no credential and no network request. Low automation risk.
 - \`gemini_cli\`: read only, from the login the Gemini CLI stored. Internal endpoint. High automation risk.
 - \`grok\`: reads the login the Grok CLI stored, with its weekly credit window. Internal endpoint. High automation risk.
 - \`kimi\`: reads the login the Kimi CLI stored, with its weekly summary and five hour limit. Internal endpoint. High automation risk.
 - \`opencode\`: reads a usage view behind a session you already signed in to, imported through \`openlimiter ingest --provider opencode\`. Authenticated page. High automation risk. May break.
 - \`manual\`: reads numbers you write yourself. Manual entry. Never breaks, never guesses.
+- \`cursor\`: experimental, desktop only. Reads the existing local Cursor session in place, sent only to Cursor. Internal endpoint. High automation risk.
 
 ## Documentation
 
 - [Getting started](${site.SITE_URL}/docs): sign in, connect, and see your bars in a few minutes.
 - [Why ${site.SITE_NAME}](${site.SITE_URL}/docs/why-openlimiter): the problem it addresses, and why quota rather than cost.
-- [Supported providers](${site.SITE_URL}/docs/providers): the nine connectors, how you connect each one, and what it reads.
+- [Supported providers](${site.SITE_URL}/docs/providers): the eight connectors and manual entry, how you connect each one, and what it reads.
 - [Connections](${site.SITE_URL}/docs/connections): what each connection state and source chip actually means.
 - [Ingestion](${site.SITE_URL}/docs/ingestion): the offline paths that put quota data in front of ${site.SITE_NAME}.
 - [Agent context](${site.SITE_URL}/docs/agent-context): the terminal hosts, the bar grammar, and what reaches a coding agent.

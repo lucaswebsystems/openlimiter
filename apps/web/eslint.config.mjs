@@ -15,7 +15,7 @@ const config = [
      them matches on the path separator, so an inline disable was needed on
      Windows and reported as unused on Linux; turning it off here holds on both. */
   {
-    files: ["app/icon.tsx", "app/apple-icon.tsx", "app/opengraph-image.tsx"],
+    files: ["app/icon.tsx", "app/apple-icon.tsx", "app/opengraph-image.tsx", "app/opengraph-panel.png/route.tsx"],
     rules: { "@next/next/no-img-element": "off" },
   },
 ];

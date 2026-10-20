@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { updaterPlatforms, verifyManifest } from "./verify-desktop-release-config.mjs";
+import { updaterPlatforms, verifyMacSigning, verifyManifest } from "./verify-desktop-release-config.mjs";
 
 const workflow = readFileSync(new URL("../workflows/desktop-release.yml", import.meta.url), "utf8");
 
@@ -28,6 +28,15 @@ test("the build verifies its source before either artifact upload", () => {
   assert.ok(sourceCheck >= 0);
   assert.ok(sourceCheck < build.indexOf("uses: tauri-apps/tauri-action@"));
   assert.ok(sourceCheck < build.indexOf("name: Upload stable installer aliases"));
+});
+
+test("the macOS app is signed ad hoc, never unsigned and never with a real identity", () => {
+  const signed = (identity) => ({ bundle: { macOS: { signingIdentity: identity } } });
+  assert.doesNotThrow(() => verifyMacSigning(signed("-"), signed("-")));
+  for (const identity of [null, undefined, "", "Developer ID Application: Example (ABCDE12345)", "Apple Development"]) {
+    assert.throws(() => verifyMacSigning(signed("-"), signed(identity)), /ad hoc/u);
+    assert.throws(() => verifyMacSigning(signed(identity), signed("-")), /ad hoc/u);
+  }
 });
 
 function fixture(t, algorithm = "ED") {

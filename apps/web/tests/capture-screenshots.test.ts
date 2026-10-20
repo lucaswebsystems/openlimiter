@@ -8,7 +8,7 @@ import { ansiHtml, assertCaptureSafe, demoSessions } from "../../../scripts/capt
 import { initialPairState, pairStateAfterClaim, pairStateAfterPoll } from "@/lib/pairing";
 import { meterRowOf } from "@/lib/device-snapshots";
 // @ts-expect-error Capture scripts run directly in Node.
-import { DEMO_SHARED_METERS, demoSnapshots, edgeLayout, edgePage, edgeScene, edgeTabLayout, pairingCaptureResponse, statuslineSnapshots, terminalPage, windowPage } from "../../../scripts/capture-screenshots.mjs";
+import { DEMO_SHARED_METERS, demoSnapshots, edgeLayout, edgePage, edgeScene, edgeTabLayout, pairingCaptureResponse, phoneRows, statuslineSnapshots, terminalPage, windowPage } from "../../../scripts/capture-screenshots.mjs";
 
 const now = "2026-09-28T12:00:00.000Z";
 
@@ -17,6 +17,8 @@ type CaptureSnapshot = {
   meter: string;
   unit: string;
   value: number;
+  usedAmount?: number;
+  limitAmount?: number;
   currency?: string;
   window?: { durationSeconds?: number };
   resetAt?: string | null;
@@ -129,14 +131,12 @@ describe("synthetic screenshot pipeline", () => {
 
   it("keeps shared demo meters identical across terminal, desktop and phone sources", async () => {
     const snapshots = await demoSnapshots(now);
-    const phoneRows: CapturePhoneRow[] = snapshots.map((row: CaptureSnapshot) => ({
-      provider: row.provider,
-      code: row.meter,
-      amount: row.unit === "CREDITS" ? row.value : null,
-      currency: row.unit === "CREDITS" ? row.currency ?? null : null,
-      percent: row.unit === "PERCENT" ? Math.round(row.value) : null,
-    }));
-    const terminalRows = new Map(statuslineSnapshots(snapshots).map((row: CaptureSnapshot) => [`${row.provider}:${row.meter}`, row.value]));
+    const phone: CapturePhoneRow[] = phoneRows(snapshots, now);
+    // A balance shows the money left; every other meter shows its value.
+    const shown = (row: CaptureSnapshot) => row.limitAmount !== undefined && row.usedAmount !== undefined
+      ? row.limitAmount - row.usedAmount
+      : row.value;
+    const terminalRows = new Map(statuslineSnapshots(snapshots).map((row: CaptureSnapshot) => [`${row.provider}:${row.meter}`, shown(row)]));
     for (const [key, value] of [
       ["CODEX:SEVEN_DAY", DEMO_SHARED_METERS.CODEX_SEVEN_DAY],
       ["ANTIGRAVITY:FIVE_HOUR", DEMO_SHARED_METERS.ANTIGRAVITY_FIVE_HOUR],
@@ -144,28 +144,30 @@ describe("synthetic screenshot pipeline", () => {
     ] as const) {
       const [provider, meter] = key.split(":");
       const desktop = snapshots.find((row: CaptureSnapshot) => row.provider === provider && row.meter === meter);
-      const phone = phoneRows.find((row) => row.provider === provider && row.code === meter);
+      const row = phone.find((candidate) => candidate.provider === provider && candidate.code === meter);
       expect(terminalRows.get(key)).toBe(value);
-      expect(desktop?.value).toBe(value);
-      expect(phone?.percent ?? phone?.amount).toBe(value);
+      expect(desktop === undefined ? undefined : shown(desktop)).toBe(value);
+      expect(row?.percent ?? row?.amount).toBe(value);
     }
   });
 
   it("keeps every phone fixture row inside the phone wire contract", async () => {
-    const snapshots = await demoSnapshots(now);
-    const rows: CapturePhoneRow[] = snapshots.map((row: CaptureSnapshot) => ({
-      account_id: "demo",
-      provider: row.provider,
-      code: row.meter,
-      percent: row.unit === "PERCENT" ? Math.round(row.value) : null,
-      amount: row.unit === "CREDITS" ? row.value : null,
-      currency: row.unit === "CREDITS" ? row.currency ?? null : null,
-      resets_at: row.resetAt ?? null,
-      observed_at: row.observedAt ?? now,
-      stale: false,
-    }));
+    const rows: CapturePhoneRow[] = phoneRows(await demoSnapshots(now), now);
     expect(rows.every((row) => meterRowOf(row) !== null)).toBe(true);
-    expect(rows.some((row) => row.provider === "OPENROUTER")).toBe(true);
+    // As the desktop sync sends a balance: the money left, never a percentage.
+    expect(rows.find((row) => row.provider === "OPENROUTER")).toMatchObject({
+      percent: null,
+      amount: DEMO_SHARED_METERS.OPENROUTER_ACCOUNT_BALANCE,
+      currency: "USD",
+    });
+  });
+
+  it("draws the OpenRouter balance in dollars through the real desktop renderer, never as credits", async () => {
+    const readings = await import(new URL("../../desktop/ui/dist/readings.js", import.meta.url).href);
+    const model: { code: string; windows: unknown[] }[] = readings.limitsModel(await demoSnapshots(now), now);
+    expect(model.find((provider) => provider.code === "OPENROUTER")?.windows).toEqual([
+      expect.objectContaining({ value: "$12.54", limit: "$20.00 purchased, $7.46 used" }),
+    ]);
   });
 
   it("feeds the real desktop, edge tab and edge panel entry points only synthetic data", async () => {

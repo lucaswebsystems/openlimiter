@@ -10,6 +10,9 @@ const whatsNewForVersion = (version) => selectRelease(version, WHATS_NEW_EN);
 
 /* What each recent release says, word for word; the current version is one of them. */
 const NOTES = {
+  "2.1.6": [
+    { key: "autostart", text: "OpenLimiter now starts when you sign in, so your bars stay current after a restart. Turn it off in Settings." },
+  ],
   "2.1.5": [
     { key: "weekly", text: "Claude weekly bars are read every five minutes while the app runs, and while Claude Code draws its status line with the command line poll on. Nothing is read while neither runs." },
     { key: "reset", text: "A reading from before its weekly reset is never shown, on any surface, the paired phone included." },

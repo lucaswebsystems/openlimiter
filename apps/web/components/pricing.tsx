@@ -29,23 +29,26 @@ function CheckGlyph() {
  * language, so it lives here. Each identifier is a catalog key under
  * `pricing.free.lines` or `pricing.pro.lines`.
  *
- * `planned` marks the one free line that is not shipped. It is a fact about the
- * product rather than a word, so it stays in the code and only the chip's label
- * is read from the catalog.
+ * The free list names what a reader actually gets on the desktop, because the
+ * edge tab, agent activity and desktop alerts are free and used to be missing
+ * from it. The Pro list is the four features its lead names, in that order.
  */
 const FREE_LINES: readonly { id: string }[] = [
   { id: "connectors" },
+  { id: "edgeTab" },
+  { id: "agents" },
+  { id: "alerts" },
+  { id: "cli" },
   { id: "sync" },
   { id: "oneAccount" },
   { id: "noLimits" },
 ];
 
 const PRO_LINES: readonly { id: string }[] = [
+  { id: "history" },
   { id: "alerts" },
-  { id: "themes" },
   { id: "multiSubscription" },
   { id: "heavyApi" },
-  { id: "history" },
 ];
 
 function PlanList({
@@ -127,18 +130,27 @@ export async function Pricing() {
             </p>
           }
           lead={t("free.lead")}
-          footnote={t.rich("free.footnote", {
-            licence: (chunks) => (
-              <a
-                href={LICENSE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
-              >
-                {chunks}
-              </a>
-            ),
-          })}
+          footnote={
+            <div className="space-y-3">
+              <ButtonLink href="/download" tone="primary" className="w-full">
+                {t("free.cta")}
+              </ButtonLink>
+              <p>
+                {t.rich("free.footnote", {
+                  licence: (chunks) => (
+                    <a
+                      href={LICENSE_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
+                    >
+                      {chunks}
+                    </a>
+                  ),
+                })}
+              </p>
+            </div>
+          }
         >
           <PlanList
             lines={FREE_LINES}
@@ -153,13 +165,15 @@ export async function Pricing() {
           price={
             <>
               <p className="mt-4 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                {/* US$, because a bare $ reads as the local dollar in Canada,
+                    Australia, Mexico and the rest of the dollar countries. */}
                 <span className="text-4xl font-medium tracking-tight text-heading">
-                  {PRO_MONTHLY_PRICE}
+                  US{PRO_MONTHLY_PRICE}
                 </span>
                 <span className="text-sm text-muted">{t("pro.perMonth")}</span>
               </p>
               <p className="mt-2 text-sm text-muted">
-                {t("pro.or")} <strong>{PRO_YEARLY_PRICE}</strong> {t("pro.perYear")}
+                {t("pro.or")} <strong>US{PRO_YEARLY_PRICE}</strong> {t("pro.perYear")}
               </p>
             </>
           }

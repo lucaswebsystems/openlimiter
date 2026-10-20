@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { captionsMarkup, presetMarkup, themeLabel } from "./settings.js";
+import { captionsMarkup, presetMarkup, renderSettings, themeLabel, wireAutostart } from "./settings.js";
 
 const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
 const settings = readFileSync(new URL("./settings.js", import.meta.url), "utf8");
@@ -37,4 +37,62 @@ test("Settings aligns caption tiles and keeps filled controls on the shared bran
   assert.match(tokens, /:root\[data-theme="light"\] \{[\s\S]*?--ol-primary-fill: #0866FF;[\s\S]*?--ol-on-primary-fill: #ffffff;/u);
   assert.doesNotMatch(webUi, /ol-primary-fill/u);
   assert.doesNotMatch(hero, /ol-primary-fill/u);
+});
+
+function fakeSwitch() {
+  return {
+    checked: false,
+    disabled: true,
+    handlers: {},
+    addEventListener(type, handler) { this.handlers[type] = handler; },
+  };
+}
+
+test("the start at sign in switch shows the OS state and writes it both ways", async () => {
+  let os = false;
+  const writes = [];
+  const control = fakeSwitch();
+  await wireAutostart(control, {
+    autostartStatus: async () => ({ ok: true, value: os }),
+    setAutostart: async (enabled) => {
+      writes.push(enabled);
+      os = enabled;
+      return { ok: true, value: os };
+    },
+  });
+  assert.equal(control.checked, false);
+  assert.equal(control.disabled, false);
+  for (const next of [true, false]) {
+    control.checked = next;
+    await control.handlers.change();
+    assert.equal(control.checked, next);
+    assert.equal(control.disabled, false);
+  }
+  assert.deepEqual(writes, [true, false]);
+});
+
+test("a refused write shows what the OS kept, and a missing backend leaves the switch disabled", async () => {
+  const control = fakeSwitch();
+  await wireAutostart(control, {
+    autostartStatus: async () => ({ ok: true, value: true }),
+    setAutostart: async () => ({ ok: false, reason: "command_failed" }),
+  });
+  control.checked = false;
+  await control.handlers.change();
+  assert.equal(control.checked, true);
+  const absent = fakeSwitch();
+  await wireAutostart(absent, {
+    autostartStatus: async () => ({ ok: false, reason: "backend_absent" }),
+    setAutostart: async () => assert.fail("nothing is written without a backend"),
+  });
+  assert.equal(absent.disabled, true);
+  assert.equal(absent.handlers.change, undefined);
+});
+
+test("Settings shows the start at sign in switch with its note", async () => {
+  const mount = { innerHTML: "", querySelector: () => fakeSwitch() };
+  await renderSettings(mount);
+  assert.match(mount.innerHTML, /<label for="autostart">Start OpenLimiter when you sign in<\/label>/u);
+  assert.match(mount.innerHTML, /id="autostart"[^>]* disabled aria-describedby="autostart-note"/u);
+  assert.match(mount.innerHTML, /<p id="autostart-note" class="menu-note">Keeps your bars current after a restart\.<\/p>/u);
 });

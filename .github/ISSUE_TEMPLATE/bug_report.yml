@@ -1,16 +1,17 @@
 name: Bug report
-description: Report a reproducible OpenLimiter problem using synthetic data.
+description: Report an OpenLimiter problem without any real credential or account data.
 title: "[Bug]: "
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
-      value: Thank you for reporting a problem. Never include a real credential or account identifier.
+      value: Thank you for reporting a problem. Never include a real credential, token, cookie, email address or account identifier.
   - type: input
     id: version
     attributes:
       label: OpenLimiter version
-      placeholder: 1.1.0
+      description: The desktop app shows it in Settings, under Updates and About. In a terminal, run `openlimiter --version`.
+      placeholder: 2.1.6
     validations:
       required: true
   - type: dropdown
@@ -21,6 +22,36 @@ body:
         - Windows
         - macOS
         - Linux
+    validations:
+      required: true
+  - type: input
+    id: operating_system_version
+    attributes:
+      label: Operating system version
+      description: On Linux, also say whether the session is X11 or Wayland.
+      placeholder: Windows 11 24H2, macOS 15.5, Ubuntu 24.04 on Wayland
+    validations:
+      required: false
+  - type: dropdown
+    id: install_method
+    attributes:
+      label: Install method
+      options:
+        - Windows installer (setup.exe)
+        - Windows MSI
+        - macOS dmg
+        - Linux AppImage
+        - Linux deb
+        - Linux rpm
+        - npm (npx openlimiter or npm install)
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of openlimiter doctor
+      description: Run `npx openlimiter doctor`, or `openlimiter doctor` if it is installed, and paste the output. It reads local state and asks no provider anything. If you cannot run it, say why.
+      render: text
     validations:
       required: true
   - type: textarea
@@ -34,9 +65,9 @@ body:
     id: reproduction
     attributes:
       label: Synthetic reproduction
-      description: Provide the smallest reproduction with obviously fake values.
+      description: Optional. The smallest reproduction you can make, with obviously fake values.
     validations:
-      required: true
+      required: false
   - type: checkboxes
     id: safety
     attributes:

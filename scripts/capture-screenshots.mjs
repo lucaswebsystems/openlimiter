@@ -202,7 +202,9 @@ export async function demoSnapshots(now) {
       seven_day: { utilization: 64, resets_at: new Date(Date.parse(now) + 604_800 * 1000).toISOString() },
       seven_day_fable: { utilization: 69, resets_at: new Date(Date.parse(now) + 604_800 * 1000).toISOString() },
     }, now) ?? []),
-    ...(connectors.parseOpenrouterPayload(connectors.openrouterFixture(), now) ?? []),
+    /* A management credits answer, read the way 2.1 reads a real one: money,
+       $20.00 purchased and $7.46 used, which every surface draws as $12.54. */
+    ...(connectors.parseOpenrouterPayload({ data: { total_credits: 20, total_usage: 7.46 } }, now) ?? []),
     ...(connectors.parseCodexPayload({
       ...connectors.codexFixture(now),
       rateLimits: {
@@ -225,12 +227,6 @@ export async function demoSnapshots(now) {
     };
     if (snapshot.provider === "CODEX" && snapshot.meter === "SEVEN_DAY") stamped.value = DEMO_SHARED_METERS.CODEX_SEVEN_DAY;
     if (snapshot.provider === "ANTIGRAVITY" && snapshot.meter === "FIVE_HOUR") stamped.value = DEMO_SHARED_METERS.ANTIGRAVITY_FIVE_HOUR;
-    if (snapshot.provider === "OPENROUTER" && snapshot.meter === "ACCOUNT_BALANCE") {
-      stamped.unit = "CREDITS";
-      stamped.value = DEMO_SHARED_METERS.OPENROUTER_ACCOUNT_BALANCE;
-      stamped.usedAmount = undefined;
-      stamped.limitAmount = undefined;
-    }
     if (snapshot.provider === "CLAUDE" && snapshot.source === "native_payload") {
       stamped.provenance = {
         sourceKind: "statusline_payload",
@@ -535,13 +531,7 @@ export function statuslineSnapshots(snapshots) {
   });
   const openrouter = snapshots.find((row) => row.provider === "OPENROUTER");
   if (openrouter === undefined) throw new Error("The OpenRouter fixture has no balance row.");
-  return [...rows, {
-    ...openrouter,
-    unit: "CREDITS",
-    value: DEMO_SHARED_METERS.OPENROUTER_ACCOUNT_BALANCE,
-    usedAmount: undefined,
-    limitAmount: undefined,
-  }];
+  return [...rows, openrouter];
 }
 
 function statuslineApiSpend(now) {
@@ -990,22 +980,34 @@ function wholeLinesScroll(from) {
   return null;
 }
 
+/* The one reading the desktop sync sends as the money left rather than as a
+   percentage (apps/desktop/src-tauri/src/account.rs). */
+const syncedAsMoney = (row) => row.provider === "OPENROUTER" && row.meter === "ACCOUNT_BALANCE";
+
+/** The rows the hosted read hands a paired phone, in the shape the sync sends them. */
+export function phoneRows(snapshots, now) {
+  return snapshots.map((row) => {
+    const money = syncedAsMoney(row);
+    return {
+      account_id: "demo",
+      provider: row.provider,
+      code: row.meter,
+      percent: row.unit === "PERCENT" && !money ? Math.round(row.value) : null,
+      amount: money ? Math.max(0, row.limitAmount - row.usedAmount) : null,
+      currency: money ? row.currency : null,
+      resets_at: row.resetAt ?? null,
+      observed_at: row.observedAt ?? now,
+      stale: false,
+    };
+  });
+}
+
 async function capturePhone(browser, theme, snapshots, now) {
   // Build the local site with NEXT_PUBLIC_SUPABASE_URL=https://capture.openlimiter.invalid
   // and NEXT_PUBLIC_SUPABASE_ANON_KEY=capture-only. No real service is contacted.
   const api = "https://capture.openlimiter.invalid";
   const siteOrigin = new URL(SITE).origin;
-  const phoneRows = snapshots.map((row) => ({
-    account_id: "demo",
-    provider: row.provider,
-    code: row.meter,
-    percent: row.unit === "PERCENT" ? Math.round(row.value) : null,
-    amount: row.unit === "CREDITS" ? row.value : null,
-    currency: row.unit === "CREDITS" ? row.currency ?? null : null,
-    resets_at: row.resetAt ?? null,
-    observed_at: row.observedAt ?? now,
-    stale: false,
-  }));
+  const pairedRows = phoneRows(snapshots, now);
   const written = [];
   for (const view of PHONE_VIEWS) {
     const context = await browser.newContext({
@@ -1037,7 +1039,7 @@ async function capturePhone(browser, theme, snapshots, now) {
       if (url.origin === siteOrigin && view.screen !== "pair") {
         if (url.pathname === "/app/pair/api/read") {
           phoneReads++;
-          await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ body: { rows: phoneRows } }) });
+          await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ body: { rows: pairedRows } }) });
           return;
         }
         if (url.pathname === "/app/pair/api/renew") {
@@ -1067,7 +1069,7 @@ async function capturePhone(browser, theme, snapshots, now) {
         if (url.pathname.startsWith("/auth/")) body = user;
         else if (action === "read_usage") {
           syncedReads++;
-          body = { rows: snapshots.filter(row => row.unit === "PERCENT").map(row => ({
+          body = { rows: snapshots.filter(row => row.unit === "PERCENT" && !syncedAsMoney(row)).map(row => ({
             provider: row.provider, account_id: "demo", window_id: row.meter, used_percent: row.value,
             resets_at: row.resetAt, observed_at: now, stale: false,
           })) };

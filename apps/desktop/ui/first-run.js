@@ -19,8 +19,9 @@ import { say } from "./names.js";
  * gone. It went stale the moment the unsigned universal app and dmg were
  * built, and a screen telling someone a download does not exist while they
  * are running that download is worse than a screen saying nothing at all.
- * Gatekeeper refuses an unsigned app on a plain double click and offers no
- * way forward from its dialogue, so the copy names the gesture that works.
+ * Gatekeeper refuses an app it has not verified on a plain double click and
+ * offers no way forward from its dialogue, and macOS 15 took Open out of the
+ * control click menu for it, so the copy names the System Settings path.
  *
  * Linux gets nothing, because nothing stands between the file and running it.
  */
@@ -34,9 +35,9 @@ export function launchNotice(platform) {
   }
   if (value.includes("mac")) {
     return {
-      title: "Unsigned macOS build",
+      title: "macOS preview build",
       detail:
-        "Gatekeeper: control click OpenLimiter in Applications, choose Open, then Open again.",
+        "Gatekeeper: open OpenLimiter from Applications and choose Done, then in System Settings, Privacy & Security, choose Open Anyway.",
     };
   }
   return null;
@@ -844,6 +845,7 @@ const DEFAULT_OPTIONS = Object.freeze({
   codexSignInCancel: async () => ({ ok: true }),
   claudePollEnabled: async () => ({ ok: false, reason: "unconfigured" }),
   setClaudePoll: async () => ({ ok: false, reason: "unconfigured" }),
+  autostartFirstRun: async () => ({ ok: false, reason: "unconfigured" }),
   copyText: async (text) => {
     await window.navigator.clipboard.writeText(text);
     return { ok: true };
@@ -858,12 +860,15 @@ function withDefaults(input) {
   return merged;
 }
 
-function completeFirstRun(screen) {
+function completeFirstRun(screen, options) {
   try {
     window.localStorage.setItem(FIRST_RUN_STORAGE_KEY, "complete");
   } catch {
     /* The current session can still continue when storage is unavailable. */
   }
+  /* Rust starts the app at sign in once a first run is complete, so it
+     hears about it here: at the end of one, and on every launch after. */
+  void Promise.resolve().then(() => options.autostartFirstRun()).catch(() => {});
   /* Step three is not a screen. It is the window a person lands in, already
      reading, which is why the last step is marked and then immediately gone
      rather than dwelt on with a congratulation nobody needs. */
@@ -1268,7 +1273,7 @@ export function initFirstRun(input) {
        account menu can raise it again later exactly as it was. */
     if (microsoft !== null) microsoft.remove();
     options.unmountSignIn();
-    completeFirstRun(screen);
+    completeFirstRun(screen, options);
     options.onContinue();
   }
 
@@ -1391,7 +1396,7 @@ export function initFirstRun(input) {
       return;
     }
     if (completed) {
-      completeFirstRun(screen);
+      completeFirstRun(screen, options);
       return;
     }
     void detections.load();

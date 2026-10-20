@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { SiteHtml } from "@/components/site-html";
 import { LOCALE_FACES } from "@/i18n/locales";
 import { localePath, routing } from "@/i18n/routing";
-import { localeAlternates } from "@/lib/metadata";
+import { PANEL_IMAGE, localeAlternates } from "@/lib/metadata";
 import {
   AUTHOR_NAME,
   AUTHOR_SITE,
@@ -79,11 +79,15 @@ export async function generateMetadata({
       title,
       description,
       locale: LOCALE_FACES[locale].ogLocale,
+      /* The home page's card. Every other page states its own through
+         pageMetadata, so this reaches only `/`. */
+      images: [PANEL_IMAGE],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
+      images: [{ url: PANEL_IMAGE.url, alt: PANEL_IMAGE.alt, type: PANEL_IMAGE.type }],
     },
     robots: {
       index: true,

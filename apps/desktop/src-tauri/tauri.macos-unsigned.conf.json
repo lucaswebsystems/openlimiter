@@ -4,7 +4,7 @@
     "targets": ["app", "dmg"],
     "createUpdaterArtifacts": false,
     "macOS": {
-      "signingIdentity": null
+      "signingIdentity": "-"
     }
   }
 }

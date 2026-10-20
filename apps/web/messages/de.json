@@ -110,6 +110,8 @@
     "claudeWeeklyOAuthApps": "Wöchentlich, OAuth Apps",
     "showClaudeFable": "Fable Limit anzeigen",
     "showClaudeFableNote": "Liest dieselbe Nutzung, die Claude anzeigt, indem eine direkte Nutzungsanfrage mit deiner Claude Anmeldung auf diesem Computer gesendet wird. Anthropics Richtlinie für solche Werkzeuge ist ungeklärt. Du kannst dies unter Werkzeuge verbinden ausschalten.",
+    "startAtSignIn": "OpenLimiter beim Anmelden am Computer starten",
+    "startAtSignInNote": "Hält deine Balken nach einem Neustart aktuell.",
     "claudePollConsentTitle": "Dein Fable Limit anzeigen?",
     "claudePollNotNow": "Jetzt nicht",
     "claudePollSaveFailed": "Die Auswahl konnte nicht gespeichert werden, deshalb bleibt die Claude Nutzung ausgeschaltet.",
@@ -161,7 +163,6 @@
     "issues": "Issues",
     "licenceNote": "Apache 2.0 | Lokal zuerst | Null Telemetrie in der App | Keine Tracking Cookies | Kostenloses Konto",
     "licenceRead": "Lizenz lesen",
-    "rights": "Alle Rechte vorbehalten",
     "licensed": "Apache 2.0 lizenziert",
     "security": "Sicherheit"
   },
@@ -227,15 +228,15 @@
   "privacy": {
     "title": "Datenschutz",
     "lead": "Was OpenLimiter erhebt, was es niemals erhebt, wohin jedes Stück geht und wie lange es aufbewahrt wird. Geschrieben aus den Datenflüssen, die es im Produkt wirklich gibt, nicht aus einer Vorlage.",
-    "metaDescription": "Wie OpenLimiter mit Daten umgeht. Der lokale Modus erhebt nichts, Konto und Synchronisierung sind einzeln aufgeführt, lokale Anbieter Zugangsdaten bleiben im Schlüsselbund des Betriebssystems und optionale Cloud API Schlüssel werden nur bei aktivierter Messung verschlüsselt gespeichert.",
+    "metaDescription": "Wie OpenLimiter mit Daten umgeht. Der lokale Modus erhebt nichts, Konto und Synchronisierung sind einzeln aufgeführt, lokale Anbieter Zugangsdaten gehen nur an den Anbieter, der sie ausgestellt hat, und optionale Cloud API Schlüssel werden nur bei aktivierter Messung verschlüsselt gespeichert.",
     "summary": {
       "title": "Die kurze Fassung",
       "bullets": {
-        "local": "Der lokale Modus erhebt nichts. Kein Konto, kein Server, und nichts verlässt deinen Rechner.",
+        "local": "Der lokale Modus erhebt nichts. Es gibt kein Konto und keinen Server von uns, nichts verlässt deinen Rechner in Richtung OpenLimiter, und jede Anbieterverbindung spricht nur mit diesem Anbieter.",
         "account": "Ein Konto ist freiwillig. Die Anmeldung gibt es, damit deine eigenen Quota Prozentwerte deine anderen Geräte erreichen und damit Pro an etwas hängen kann. Ab diesem Moment ist die Synchronisierung aktiv.",
-        "sync": "Synchronisiert wird begrenzter Quota Zustand: ein Anbieter, ein Messwert, ein Fenster, ein Prozentwert und Zeitstempel. Niemals Prompts, niemals Code, niemals der Inhalt einer Datei.",
-        "keys": "Anbieterzugangsdaten und ein Schlüssel im Schlüsselbund des Betriebssystems verlassen dein Gerät nie. Ein Schlüssel, für den du dich für das Cloud Metering entscheidest, ist die eine Ausnahme: er reist einmal über HTTPS zum gehosteten Dienst und wird dort verschlüsselt gespeichert, gelöscht in dem Moment, in dem du Cloud Metering ausschaltest oder danach fragst.",
-        "website": "Diese Website zählt Seitenaufrufe ohne Cookies. Die Anwendung sendet nichts.",
+        "sync": "Synchronisiert wird begrenzter Quota Zustand: ein Anbieter, ein Messwert, ein Fenster, ein Prozentwert und Zeitstempel, und bei Messwerten für Guthaben und API Ausgaben der Betrag und seine Währung. Niemals Prompts, niemals Code, niemals der Inhalt einer Datei.",
+        "keys": "Anbieterzugangsdaten und ein Schlüssel im Schlüsselbund des Betriebssystems gehen nur an den Anbieter, der sie ausgestellt hat, nie an OpenLimiter. Ein Schlüssel, für den du dich für das Cloud Metering entscheidest, ist die eine Ausnahme: er reist einmal über HTTPS zum gehosteten Dienst und wird dort verschlüsselt gespeichert, gelöscht in dem Moment, in dem du Cloud Metering ausschaltest oder danach fragst.",
+        "website": "Diese Website zählt Seitenaufrufe ohne Cookies. Die Anwendung sendet keine Analysedaten.",
         "sell": "Nichts wird verkauft, vermietet oder an einen Werbetreibenden gegeben. Hier gibt es keine Werbung."
       }
     },
@@ -244,7 +245,7 @@
       "body": "Das Kommandozeilenwerkzeug, die Desktopanwendung und die Web App laufen alle auf deinem Rechner, und im lokalen Modus steht kein Konto und kein Dienst dahinter. Es gibt nichts zu erheben, weil es keinen Ort gibt, an den es gehen könnte.",
       "bullets": {
         "reads": "Konnektoren lesen Dateien, die deine installierten Werkzeuge bereits geschrieben haben, nur lesend. Sie schreiben nie zurück, reparieren nicht und migrieren nicht, was sie öffnen.",
-        "credentials": "Anbieterzugangsdaten liegen im Anmeldeinformationsspeicher des Betriebssystems. OpenLimiter kopiert keine davon in einen Cache, einen Export, eine Diagnose oder ein Protokoll.",
+        "credentials": "Anbieterzugangsdaten bleiben dort, wo deine Tools sie gespeichert haben, oder im Anmeldeinformationsspeicher des Betriebssystems. OpenLimiter kopiert keine davon in einen Cache, einen Export, eine Diagnose oder ein Protokoll.",
         "telemetry": "Die Anwendung sendet keine Telemetrie, keine Nutzung, keine Diagnose, keine Kennungen und keine Prompt Inhalte irgendwohin.",
         "account": "Für lokale Funktionen ist keine Anmeldung nötig. Lokale Meter und Desktop Benachrichtigungen bleiben kostenlos. Pro ergänzt gehosteten Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung von API Ausgaben."
       }
@@ -263,7 +264,7 @@
       "title": "Was die Synchronisierung wirklich sendet",
       "body": "Die Synchronisierung existiert, damit eine Zahl, die du auf einem Rechner schon hast, auf einem anderen sichtbar wird. Sie trägt den Messwert und nichts drumherum.",
       "bullets": {
-        "fields": "Eine Zeile pro Messwert: welcher Anbieter, welcher Messwert, welches Fenster, ein begrenzter Nutzungsprozentwert, wann das Fenster zurückgesetzt wird, wann der Wert beobachtet wurde, eine undurchsichtige Kontokennung und das Gerät, das gesendet hat.",
+        "fields": "Eine Zeile pro Messwert: welcher Anbieter, welcher Messwert, welches Fenster, ein begrenzter Nutzungsprozentwert, wann das Fenster zurückgesetzt wird, wann der Wert beobachtet wurde, bei Messwerten für Guthaben der Betrag und seine Währung, eine undurchsichtige Kontokennung und das Gerät, das gesendet hat. Jeder API Ausgabenschlüssel ergänzt eine Zeile mit einer zufälligen Schlüsselkennung, dem Namen, den du dem Schlüssel gegeben hast, seinem Anbieter, dem Monat, dem ausgegebenen Betrag in US Dollar, deinem Budget, falls du eines festgelegt hast, dem Zeitraum, den dieser Betrag abdeckt, und der Angabe, ob dieser Zeitraum abgeschlossen ist.",
         "never": "Sie trägt nie einen Prompt, eine Antwort, einen Dateinamen, einen Pfad, Quelltext, einen Projektnamen, ein Repository, Anbieterzugangsdaten oder eine Anbieternachricht.",
         "retention": "Deine aktuelle Momentaufnahme wird sieben Tage aufbewahrt. Sie wird ersetzt, sobald ein neuerer Wert eintrifft.",
         "off": "Die Synchronisierung ist ab deiner Anmeldung aktiv, denn genau dafür ist die Anmeldung da. Du kannst sie in den Einstellungen abschalten, und dann bleiben die Messwerte auf dem Gerät, das sie genommen hat."
@@ -314,10 +315,10 @@
       "title": "Diese Website",
       "body": "Die Website und die Anwendung sind zwei verschiedene Dinge mit zwei verschiedenen Antworten, und es wäre unredlich, nur eine zu geben.",
       "bullets": {
-        "counts": "Die Website zählt Seitenaufrufe ohne Cookies. Es ist Vercel Web Analytics, und was dabei herauskommt, ist eine Zahl, wie viele Menschen welche Seite geöffnet haben.",
-        "cookies": "Es wird kein Cookie gesetzt, um dich zu verfolgen, kein Profil gebildet, und nichts folgt dir auf eine andere Website. Die Cookies hier sind das, welches deine gewählte Sprache merkt, das, welches merkt, dass du einen Hinweis geschlossen hast, und, sobald du ein Telefon koppelst, die zwei, die diese Kopplung am Leben halten, ol-phone-token und ol-phone-refresh. Alle drei sind unbedingt erforderlich, und keines davon verfolgt dich.",
-        "app": "Die Anwendung sendet nichts. Es gibt keinerlei Analyse in der Desktopanwendung, im Kommandozeilenwerkzeug oder in der Web App.",
-        "language": "Der Sprachkopf deines Browsers wird gelesen, um dir eine übersetzte Seite anzubieten. Das Angebot ist ein Hinweis, den du annehmen oder schließen kannst, und es holt dich nie von der Seite weg, die du aufgerufen hast."
+        "counts": "Die Website zählt Seitenaufrufe ohne Cookies, mit Vercel Web Analytics. Für jeden Aufruf werden die Seite, die verweisende Seite, das Land, der Browser, das Betriebssystem und der Gerätetyp erfasst. Nennt ein Link eine Kampagne, wird ihre Quelle an die erfasste Seitenadresse angehängt.",
+        "cookies": "Es wird kein Cookie gesetzt, um dich zu verfolgen, kein Profil gebildet, und nichts folgt dir auf eine andere Website. Diese Website setzt drei Cookies, jedes erst nach einer Handlung von dir: NEXT_LOCALE, wenn du eine Sprache wählst, und ol-phone-token und ol-phone-refresh, wenn du ein Telefon koppelst, damit diese Kopplung bestehen bleibt. Alle drei sind unbedingt erforderlich, und keines davon verfolgt dich.",
+        "app": "Die Anwendung sendet keine Analysedaten. Es gibt keinerlei Analyse in der Desktopanwendung, im Kommandozeilenwerkzeug oder in der Web App.",
+        "language": "Die bevorzugten Sprachen deines Browsers werden im Browser gelesen, um dir eine übersetzte Seite anzubieten, und dafür wird nichts gespeichert, bis du antwortest. Das Angebot ist ein Hinweis, den du annehmen oder schließen kannst, und es holt dich nie von der Seite weg, die du aufgerufen hast."
       }
     },
     "processors": {
@@ -421,7 +422,7 @@
       "title": "Deine Rechte und die Bedienelemente, die sie einlösen",
       "body": "Ein Recht, das du nicht ausüben kannst, ist keines, deshalb ist jeder Punkt unten ein Bedienelement im Produkt und kein Antrag, den du formulieren musst.",
       "bullets": {
-        "export": "Exportiere alles, was der gehostete Dienst über dich hält, als maschinenlesbares Archiv mit einer zugänglichen Tabelle daneben. Anbieterschlüssel werden nicht exportiert. Lokale Zugangsdaten bleiben auf deinem Gerät, während ein optionaler Cloud API Schlüssel nur für die Messung gespeichert und beim Abschalten oder auf Wunsch gelöscht wird.",
+        "export": "Exportiere alles, was der gehostete Dienst über dich hält, als maschinenlesbares Archiv mit einer zugänglichen Tabelle daneben. Anbieterschlüssel werden nicht exportiert. Lokale Zugangsdaten erreichen den gehosteten Dienst nie, während ein optionaler Cloud API Schlüssel nur für die Messung gespeichert und beim Abschalten oder auf Wunsch gelöscht wird.",
         "delete": "Dein Konto löschen. Die Produktdaten gehen binnen vierundzwanzig Stunden, verschlüsselte Sicherungskopien verfallen binnen dreißig Tagen, und nichts Lokales wird angerührt.",
         "devices": "Jedes an deinem Konto angemeldete Gerät sehen, auch ein per QR gekoppeltes Telefon, und jedes davon widerrufen. Ein widerrufenes Gerät verliert den gehosteten Zugriff sofort.",
         "channels": "E Mail oder Push getrennt abschalten, jederzeit, ohne das andere zu berühren.",
@@ -438,7 +439,7 @@
       "title": "Änderungen und wie du einen Menschen erreichst",
       "body": "Diese Seite ändert sich, wenn sich das Produkt ändert. Wenn eine Änderung betrifft, was erhoben wird, wohin es geht oder wie lange es bleibt, rückt das Datum unten weiter, und die Änderung steht im Changelog, statt still zu geschehen.",
       "contact": "Fragen, Anliegen und Beschwerden gehen an <mail>lucas@lucaswebsystems.com</mail>, und ein Mensch liest sie. Die Regeln für die Nutzung der Website selbst stehen in den <terms>Nutzungsbedingungen</terms>.",
-      "updated": "Diese Richtlinie gilt ab Version 1.3.1. Zuletzt aktualisiert am 7. September 2026."
+      "updated": "Diese Richtlinie gilt ab Version 2.1.6. Zuletzt aktualisiert am 20. Oktober 2026."
     }
   },
   "localeSwitcher": {
@@ -513,7 +514,7 @@
         "folded": "Der Reiter liegt am linken Rand. Ein kleiner Punkt erscheint, wenn etwas deinen Blick braucht, etwa ein Agent, der auf dich wartet.",
         "unfolded": "Zeigst du darauf, öffnet sich das Panel: erst die Agenten, mit App anzeigen beim wartenden, dann die Limits, das knappste zuerst, mit Rücksetzzeit.",
         "foldedAlt": "Der echte Reiter von OpenLimiter, klein, mit dem OpenLimiter Logo und einem gelben Punkt, am linken Rand eines Desktops mit einem Bergsee als Hintergrundbild.",
-        "unfoldedAlt": "Das echte Panel von OpenLimiter, geöffnet neben dem Reiter, mit synthetischen Daten: Claude Code braucht dich und bietet App anzeigen an, Codex arbeitet und Gemini CLI ist fertig, darunter Limits für Codex, Claude Code und OpenRouter mit Balken und Zeiten bis zum Zurücksetzen sowie ein Link App öffnen."
+        "unfoldedAlt": "Das echte Panel von OpenLimiter, geöffnet neben dem Reiter, mit synthetischen Daten: Claude Code braucht dich und bietet App anzeigen an, Codex arbeitet und Gemini CLI ist fertig, darunter Limits für Codex und Claude Code mit Balken und Zeiten bis zum Zurücksetzen, ein Kontostand von OpenRouter sowie ein Link App öffnen."
       },
       "agents": {
         "title": "Drei Desktop Tabs. Ein Panel beim Darüberfahren.",
@@ -536,7 +537,7 @@
       "phone": {
         "title": "Vom Desktop koppeln. Deine Balken auf dem Startbildschirm.",
         "lead": "Kopple dein Handy vom Desktop aus und öffne dann die Web App über den Startbildschirm. Sie zeigt die neuesten Messungen von deinem Computer, einschließlich des Zeitpunkts ihrer Erfassung.",
-        "note": "Das Handy folgt seinem hellen oder dunklen Design und behält die letzten Messungen offline. Dein Computer sammelt weiterhin neue Messungen, und Anbieterzugangsdaten bleiben dort.",
+        "note": "Das Handy folgt seinem hellen oder dunklen Design und behält die letzten Messungen offline. Dein Computer sammelt weiterhin neue Messungen, und seine Anbieterzugangsdaten gehen nur an ihren eigenen Anbieter.",
         "cta": "Telefon App öffnen",
         "alt": "Die OpenLimiter Telefon App mit synthetischen, vom Desktop gekoppelten Messungen in den Ansichten Usage und Pro."
       },
@@ -584,19 +585,19 @@
     "connectors": {
       "claude": {
         "tag": "liest die native Statusline Payload",
-        "detail": "Parst den Rate Limit Block, den Claude Code deinem Statusline Befehl ohnehin übergibt. Es fragt Anthropic dabei nichts von sich aus."
+        "detail": "Liest, was Claude Code deiner Statusline übergibt. Die Desktop Anwendung fragt zusätzlich Anthropic mit deiner Anmeldung, nach einem Hinweis; du kannst das abschalten."
       },
       "openRouter": {
         "tag": "liest eine dokumentierte Credits Antwort",
-        "detail": "Parst die Credits Form, die OpenRouter dokumentiert. Der Key gehört in den Zugangsdatenspeicher deines Betriebssystems, nie in eine Datei."
+        "detail": "Liest den Credits Bericht, den OpenRouter dokumentiert, nachdem du dich per OAuth über den Hub anmeldest oder einen Key hinzufügst, den du schon hast."
       },
       "codex": {
-        "tag": "liest eine interne Usage Payload",
-        "detail": "Parst die Usage Form, die das Codex Tooling erzeugt. Die Form ist intern, kann sich also ohne Ankündigung ändern, und schlägt dann geschlossen fehl."
+        "tag": "liest den dokumentierten Codex App Server",
+        "detail": "Liest die Nutzung über den dokumentierten Codex App Server, mit der Anmeldung, die Codex schon gespeichert hat, und schlägt geschlossen fehl, wenn sich das ändert."
       },
       "antigravity": {
-        "tag": "liest eine interne Quota Payload",
-        "detail": "Parst die Quota Form, die das Antigravity Tooling erzeugt. Ebenfalls intern, so gekennzeichnet, und nie repariert oder umgeschrieben."
+        "tag": "liest die dokumentierte Statusline",
+        "detail": "Liest die Quota aus der dokumentierten Statusline der Antigravity CLI. Es liest keine Zugangsdaten und stellt keine Netzwerkanfrage."
       },
       "openCode": {
         "tag": "liest eine Session, die du schon geöffnet hast",
@@ -667,7 +668,7 @@
       "plannedChip": "geplant"
     },
     "feedIn": "So fütterst du einen",
-    "footnote": "Jeder Connector wird als <code>UNVERIFIED</code> ausgeliefert, der ehrliche Standard: Noch hat kein expliziter Verifier eine Form gegen ein echtes Konto bestätigt. Drei von ihnen lesen Schnittstellen, die intern zum Tooling eines anderen gehören und sich ohne Ankündigung ändern können, und tut eine das, fällt dieser Provider geschlossen auf unknown zurück, statt zu raten. <link>Jeder Connector und sein echter Stand</link>.",
+    "footnote": "Noch ist kein Connector gegen ein echtes Konto verifiziert. Codex und Cursor bestehen ihre aufgezeichneten Fixtures, und jeder andere Connector wird als <code>UNVERIFIED</code> ausgeliefert, der ehrliche Standard. Gemini CLI, Grok, Kimi, OpenCode und Cursor lesen Schnittstellen, die intern zum Tooling eines anderen gehören, ebenso die direkte Claude Anfrage, und ändert sich eine davon, fällt dieser Provider geschlossen auf unknown zurück, statt zu raten. <link>Jeder Connector und sein echter Stand</link>.",
     "compatibilityNote": "Produktnamen, Logos, Marken und andere Warenzeichen, die in OpenLimiter verwendet werden oder auf die verwiesen wird, sind Eigentum der jeweiligen Markeninhaber. Diese Markeninhaber sind nicht mit OpenLimiter, unseren Produkten oder unserer Website verbunden. Sie sponsern oder unterstützen OpenLimiter nicht. Die Verwendung begründet keine Zugehörigkeit oder Befürwortung.",
     "manualNote": "Jedes Tool auf dieser Seite lässt sich schon heute in den Meter aufnehmen. Verbinde es über die Desktop Anwendung, oder trag unter Erweitert die Zahlen per manual entry ein, oder leite eine Payload per ingest aus einem beliebigen Skript ein, das du kontrollierst. So oder so landet es im selben Snapshot wie ein Connector."
   },
@@ -750,10 +751,10 @@
         "fact": "Der Credits Endpoint ist dokumentiert, und seine Antwort lässt sich parsen."
       },
       "codex": {
-        "fact": "Eine interne Payload Form, die sich ohne Ankündigung ändern kann."
+        "fact": "Der dokumentierte Codex App Server, ausgeführt auf deinem Rechner."
       },
       "antigravity": {
-        "fact": "Eine interne Payload Form, die sich ohne Ankündigung ändern kann."
+        "fact": "Die dokumentierte Statusline der Antigravity CLI."
       },
       "opencode": {
         "fact": "Eine Usage Ansicht hinter einer Session, die du schon hast."
@@ -774,13 +775,13 @@
     "footnote": {
       "lead": "Reader bedeutet: Etwas in OpenLimiter holt die Zahl selbst. Auth bedeutet: Eine Zugangsdaten wird gehalten und genutzt. Jede Zelle oben wird zur Build Zeit aus der geprüften Provider Registry ausgelesen statt in diese Seite geschrieben, sodass eine Stufe hier nicht beansprucht werden kann, ohne dass zuerst ein Mensch eine Spezifikation ändert.",
       "unspecified": "{count} der {total} Connectors haben noch keine geprüfte Spezifikation, und jede ihrer Zellen liest Nicht angegeben, statt zu raten.",
-      "elsewhere": "Die Registry beschreibt {count} weitere Produkte ganz ohne Connector, weshalb sie hier keine Zeile haben.",
+      "elsewhere": "Die Registry beschreibt {count} weitere Produkte, die experimentell, manuell oder geplant sind, weshalb sie hier keine Zeile haben.",
       "tail": "Eine Zeile auf dieser Seite heißt erst dann Verbunden, wenn ein echter Reader dafür bestätigt ist, nie allein auf der Stärke eines Parsers."
     }
   },
   "cliTranscript": {
     "captions": {
-      "demo": "Alle acht Connectors, ein Schema",
+      "demo": "Die mitgelieferten Fixtures, ein Schema",
       "statusline": "Statusline, Balken dort, wo du ohnehin hinschaust",
       "statuslineNarrow": "Eine Zeile, schlechteste Provider behalten",
       "statuslinePlain": "Die 0.1.0 Zeile, auf Wunsch",
@@ -835,7 +836,7 @@
     "items": {
       "whatLeaves": {
         "question": "Was verlässt meinen Rechner wirklich?",
-        "answer": "Im lokalen Modus verlässt nichts dein Gerät für OpenLimiter. Anbieterverbindungen sprechen über eine feste Erlaubnisliste nur mit dem jeweiligen Anbieter, und lokale Zugangsdaten bleiben auf deinem Gerät. Nach der Anmeldung gehen ausgewählte begrenzte Quota Aufnahmen an den gehosteten Dienst, damit deine eigenen Geräte sie sehen können. Pro ergänzt Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung von API Ausgaben. Ein API Schlüssel, den du für Cloud Messung aktivierst, wird für diese Aufgabe verschlüsselt gespeichert und beim Abschalten oder auf Wunsch gelöscht. Desktop Benachrichtigungen sind kostenlos."
+        "answer": "Im lokalen Modus verlässt nichts dein Gerät für OpenLimiter. Anbieterverbindungen sprechen über eine feste Erlaubnisliste nur mit dem jeweiligen Anbieter, und lokale Zugangsdaten gehen nur an den Anbieter, der sie ausgestellt hat. Nach der Anmeldung gehen ausgewählte begrenzte Quota Aufnahmen an den gehosteten Dienst, damit deine eigenen Geräte sie sehen können. Pro ergänzt Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung von API Ausgaben. Ein API Schlüssel, den du für Cloud Messung aktivierst, wird für diese Aufgabe verschlüsselt gespeichert und beim Abschalten oder auf Wunsch gelöscht. Desktop Benachrichtigungen sind kostenlos."
       },
       "safeToPoint": {
         "question": "Ist es sicher, es auf meine Tools anzusetzen?",
@@ -851,7 +852,7 @@
       },
       "apiKey": {
         "question": "Brauche ich einen API Key?",
-        "answer": "Nicht zum Start. Der Claude Pfad liest eine Payload, die Claude Code deiner Statusline ohnehin übergibt, und der manuelle Pfad braucht überhaupt nichts. OpenRouter ist der eine Connector, der einen eigenen Key erwartet, und dieser Key gehört in den Zugangsdatenspeicher deines Betriebssystems."
+        "answer": "Nicht zum Start. Der Claude Pfad liest eine Payload, die Claude Code deiner Statusline ohnehin übergibt, die meisten Connectoren nutzen die Anmeldung, die ihr eigenes Tool schon gespeichert hat, und der manuelle Pfad braucht überhaupt nichts. OpenRouter meldet sich per OAuth über den Hub an oder nimmt einen Key, den du schon hast."
       },
       "routing": {
         "question": "Routet es meine Anfragen für mich?",
@@ -867,7 +868,7 @@
       },
       "free": {
         "question": "Ist es kostenlos?",
-        "answer": "Alles, was du sehen kannst, ist kostenlos und bleibt es unter Apache 2.0. Das OpenLimiter Konto ist kostenlos. Desktop Benachrichtigungen sind kostenlos. Pro ergänzt Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung von API Ausgaben. Nur Nutzungsprozente werden synchronisiert, niemals lokale Anbieter Zugangsdaten."
+        "answer": "Alles, was du sehen kannst, ist kostenlos und bleibt es unter Apache 2.0. Das OpenLimiter Konto ist kostenlos. Desktop Benachrichtigungen sind kostenlos. Pro ergänzt Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung von API Ausgaben. Die Synchronisierung trägt Nutzungsprozente sowie Betrag und Währung der Messwerte für Guthaben und API Ausgaben, niemals lokale Anbieter Zugangsdaten."
       },
       "pro": {
         "question": "Was ist OpenLimiter Pro?",
@@ -897,12 +898,16 @@
       "priceNote": "für immer, und laut Lizenz",
       "lead": "Das lokale Produkt und das Konto sind kostenlos. Die Synchronisierung ist ab dem Moment deiner Anmeldung aktiv, denn genau dafür gibt es die Anmeldung: deine Prozentwerte zwischen deinen eigenen Geräten zu bewegen.",
       "footnote": "Open Source unter <licence>Apache 2.0</licence>, das kann dir also später nicht genommen werden. Die Lizenz ist das Versprechen.",
+      "cta": "Kostenlos herunterladen",
       "lines": {
         "connectors": "Alle unterstützten Anbieter",
+        "edgeTab": "Die Desktop Anwendung mit ihrem Reiter am Bildschirmrand und dem Hover Panel",
+        "agents": "Agentenaktivität: beschäftigt, wartet auf dich oder fertig",
+        "alerts": "Desktop Benachrichtigungen bei 60, 80 und 90 Prozent und beim Zurücksetzen",
         "sync": "Synchronisierung zwischen deinen eigenen Geräten, aktiv ab der ersten Anmeldung",
         "agentContext": "Der begrenzte agent context block und seine Routingempfehlung",
         "themes": "Themes, in der Desktop Anwendung und im Browser",
-        "cli": "Das vollständige Kommandozeilen Tool und jede Statusline Einstellung",
+        "cli": "Balken in der Statusline deines Terminals, und das vollständige Kommandozeilen Tool",
         "ingestion": "Alle drei Ingestionswege: ein Connector, ingest, oder manual entry",
         "noLimits": "Keine Nutzungsgrenze und keine Gebühr für das Konto. Alles, was du siehst, ist kostenlos",
         "oneAccount": "Ein aktives Konto je Anbieter, und Pro hebt das an"
@@ -914,12 +919,11 @@
       "or": "oder",
       "perYear": "pro Jahr",
       "trialChip": "30 Tage kostenlos",
-      "priceNote": "Die ersten 30 Tage sind kostenlos, ohne Karte. Endet der Zugang, hören die Pro Funktionen auf: die gehosteten sofort, die lokalen fallen auf ein Konto je Anbieter und das Standardthema zurück. Alles, was du vor Pro sehen konntest, bleibt unverändert.",
+      "priceNote": "Die ersten 30 Tage sind kostenlos, ohne Karte. Endet der Zugang, hören der Pro Verlauf, die Push und E Mail Benachrichtigungen, die zusätzlichen Konten und die Cloud Messung von API Ausgaben auf. Lokale Meter, Desktop Benachrichtigungen und Kontozugriff funktionieren weiter.",
       "lead": "Vier Pro Funktionen: Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung von API Ausgaben.",
       "footnote": "Nach dem Test funktionieren lokale Meter, lokale Alerts und der kostenlose Kontozugriff weiter. Die kostenlose Version behält ein aktives Konto je Anbieter.",
       "lines": {
         "alerts": "E Mail und Push Benachrichtigungen auf dem Telefon. Lokale Desktop Benachrichtigungen sind kostenlos",
-        "themes": "Verlauf und Prognosen für synchronisierte Messwerte",
         "multiSubscription": "Zusätzliche Konten je Anbieter",
         "heavyApi": "Cloud Messung von API Ausgaben mit ausdrücklich aktivierten Anbieterschlüsseln",
         "history": "Neunzig Tage gehosteter Verlauf, mit einer Prognose"
@@ -937,7 +941,7 @@
     "commitments": {
       "runsLocal": {
         "title": "Es läuft auf deinem Rechner",
-        "detail": "Der lokale Modus hat keine Telemetrie. Das Konto ist kostenlos. Anbieter Verbindungen sprechen nur mit dem jeweiligen Anbieter, und Zugangsdaten bleiben beim Betriebssystem. Nur Nutzungsprozente werden synchronisiert, und die Synchronisierung kann ausgeschaltet werden."
+        "detail": "Der lokale Modus hat keine Telemetrie. Das Konto ist kostenlos. Anbieter Verbindungen sprechen nur mit dem jeweiligen Anbieter, und Zugangsdaten bleiben beim Betriebssystem. Die Synchronisierung trägt Nutzungsprozente sowie Betrag und Währung der Messwerte für Guthaben und API Ausgaben, und sie kann ausgeschaltet werden."
       },
       "reportsNobody": {
         "title": "Es berichtet niemandem",
@@ -954,7 +958,7 @@
     "readSource": "Quellcode lesen"
   },
   "download": {
-    "updated": "Aktualisiert am 28. September 2026",
+    "updated": "Aktualisiert am {date}",
     "metaTitle": "{version} für Desktop und Terminal herunterladen",
     "metaDescription": "Lade OpenLimiter {version} für Windows, macOS oder Linux herunter, oder installiere die CLI aus npm. Kostenlose lokale Meter und Alerts. Desktop Builds sind nicht signiert.",
     "title": "Download",
@@ -978,6 +982,51 @@
     },
     "versionLine": "Version {version}",
     "releaseNotes": "Release Notes",
+    "safety": "Dein Browser warnt vielleicht, dass die Datei selten heruntergeladen wird, weil jedes Release ohne Downloadverlauf beginnt: wähle, sie zu behalten. Windows SmartScreen und macOS Gatekeeper fragen danach einmal, wie es auf jeder Karte oben steht. GitHub zeigt die SHA256 Prüfsumme jeder Datei auf der <release>Release Seite</release>.",
+    "started": {
+      "title": "Dein Download startet",
+      "lead": "OpenLimiter {version} für {platform}. So geht es weiter.",
+      "manual": "Falls der Download nicht gestartet ist, <file>lade die Datei hier herunter</file>.",
+      "back": "Zurück zu allen Download Optionen",
+      "firstRun": "Beim ersten Start öffnet sich ein Fenster: melde dich an oder überspring das, verbinde deine Tools, und deine Balken erscheinen. Danach zeigst du auf den kleinen Reiter am linken Bildschirmrand, um sie zu sehen.",
+      "windows": {
+        "open": "Öffne das Installationsprogramm aus deinen Downloads. Wenn dein Browser fragt, behalte die Datei.",
+        "smartScreen": "Wenn SmartScreen warnt, wähle Weitere Informationen und dann Trotzdem ausführen. Der Build ist unsigniert, deshalb fragt Windows einmal."
+      },
+      "macos": {
+        "open": "Öffne das Disk Image aus deinen Downloads und ziehe OpenLimiter in den Programme Ordner.",
+        "gatekeeper": "Öffne OpenLimiter einmal. macOS verweigert diesen ersten Versuch, weil die App unsigniert ist: öffne die Systemeinstellungen, gehe zu Datenschutz und Sicherheit und wähle neben der OpenLimiter Meldung Trotzdem öffnen."
+      },
+      "linux": {
+        "open": "Mach das AppImage ausführbar und starte es.",
+        "packages": "Lieber ein Paket? Die deb und rpm Dateien findest du auf der <download>Download Seite</download>.",
+        "wayland": "Unter Wayland zeigt der Infobereich deine Balken statt des Reiters am Rand."
+      }
+    },
+    "uninstall": {
+      "title": "Deinstallieren",
+      "lead": "Wenn du sie genutzt hast, führe diese zuerst aus: der erste Befehl stellt die Statusline wieder her, die ein Terminal Host vorher hatte (all stellt alle Hosts wieder her), der zweite entfernt einen Agent Hook, und der dritte entfernt das Kommandozeilen Tool.",
+      "first": "Schalte im Settings Tab der App „Start OpenLimiter when you sign in“ aus und beende dann OpenLimiter.",
+      "windows": "Windows: Öffne die Einstellungen, gehe zu Apps, suche OpenLimiter unter den installierten Apps und wähle Deinstallieren.",
+      "macos": "macOS: Lösche OpenLimiter aus dem Programme Ordner.",
+      "linux": "Linux: Lösche die AppImage Datei oder entferne das deb oder rpm Paket mit dem Befehl unten für deine Distribution.",
+      "data": "Deine Einstellungen und zwischengespeicherten Messwerte bleiben im Zustandsverzeichnis unter deinem Benutzerkonto. <docs>Konfiguration</docs> zeigt, wo es liegt, falls du es auch entfernen willst."
+    },
+    "disclosure": {
+      "title": "Was die Desktop Anwendung auf deinem Computer tut",
+      "webview": "Unter Windows installiert das Installationsprogramm die WebView2 Laufzeit von Microsoft, wenn sie fehlt, weil die Anwendung ihr Fenster damit zeichnet.",
+      "updates": "Die Anwendung prüft auf GitHub, ob es eine neuere Version gibt, und fragt, bevor sie sie installiert. Unter macOS ist eine neue Version vorerst ein neuer Download von dieser Seite.",
+      "logins": "Sie liest die Anmeldungen, die deine Coding Tools schon gespeichert haben, nur lesend, und schickt jede nur an ihren eigenen Anbieter. Deine Messwerte erreichen OpenLimiter nur, wenn du dich anmeldest, und dann nur als begrenzte Quota Messwerte.",
+      "claude": "Die Balken für die Claude Sitzung kommen aus der dokumentierten Statusline von Claude Code. Bei einer neuen Installation fragt die Anwendung Anthropic zusätzlich direkt nach deiner Claude Nutzung, mit deiner eigenen Claude Code Anmeldung und nur an Anthropic gesendet, nachdem sie dir einen Hinweis gezeigt hat. Du kannst diese Anfrage abschalten."
+    },
+    "mobile": {
+      "title": "OpenLimiter läuft auf deinem Computer.",
+      "body": "Schick dir diese Seite selbst.",
+      "share": "Diese Seite teilen",
+      "copy": "Link kopieren",
+      "copied": "Link kopiert",
+      "source": "Quellcode auf GitHub ansehen"
+    },
     "states": {
       "available": "verfügbar",
       "inDevelopment": "kommt bald",
@@ -1138,7 +1187,7 @@
             "title": "Kostenlos und Pro",
             "intro": "Balken bleiben dauerhaft kostenlos und benötigen kein Konto.",
             "bullets": {
-              "sync": "Ein Konto ergänzt die Synchronisierung: Der aktuelle Prozentsatz jedes Zeitfensters bleibt auf allen angemeldeten Geräten aktuell.",
+              "sync": "Ein Konto ergänzt die Synchronisierung: Der aktuelle Prozentsatz jedes Zeitfensters sowie Betrag und Währung der Messwerte für Guthaben und API Ausgaben bleiben auf allen angemeldeten Geräten aktuell.",
               "pro": "Pro ergänzt Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung für API Ausgabenschlüssel.",
               "trial": "Jede Pro Funktion bietet eine kostenlose Testphase von 30 Tagen ohne Kreditkarte."
             }
@@ -1225,11 +1274,11 @@
       },
       "providers": {
         "title": "Supported providers",
-        "description": "Die acht heute verfügbaren Connectoren: wie du jeden verbindest, was er liest und wie wahrscheinlich er ausfällt.",
-        "lead": "Heute gibt es acht Connectoren. Jeder trägt ehrliche Hinweise zur Herkunft seiner Zugangsdaten, zur offiziellen Datenoberfläche und zur Ausfallwahrscheinlichkeit.",
+        "description": "Die acht heute verfügbaren Connectoren und manual entry: wie du jeden verbindest, was er liest und wie wahrscheinlich er ausfällt.",
+        "lead": "Heute gibt es acht Connectoren und manual entry, und die Desktop Anwendung liest Cursor zusätzlich als experimentellen Connector. Jeder trägt ehrliche Hinweise zur Herkunft seiner Zugangsdaten, zur offiziellen Datenoberfläche und zur Ausfallwahrscheinlichkeit.",
         "sections": {
           "the-nine": {
-            "title": "Die acht Connectoren",
+            "title": "Die acht Connectoren und manual entry",
             "caption": "Heute verfügbare Connectoren, ihre Verbindung und ihre Messwerte",
             "columns": {
               "id": "id",
@@ -1274,10 +1323,10 @@
                 "reads": "The usage response the Kimi CLI defines. May break when Moonshot changes it."
               }
             },
-            "calloutTitle": "Every connector ships marked UNVERIFIED",
-            "calloutBody": "<code>UNVERIFIED</code> is the honest default. It means no explicit verifier has confirmed the shape against a live account, so <code>openlimiter doctor</code> reports drift as unverified rather than claiming a connector is known good.",
+            "calloutTitle": "Noch ist kein Connector gegen ein echtes Konto verifiziert",
+            "calloutBody": "<code>UNVERIFIED</code> ist der ehrliche Standard. Es bedeutet, dass kein expliziter Verifier die Form gegen ein echtes Konto bestätigt hat, deshalb meldet <code>openlimiter doctor</code> Abweichungen als unverifiziert, statt einen Connector für bekannt gut zu erklären. Codex und Cursor tragen <code>VERIFIED_FIXTURES</code>: ihre aufgezeichneten Fixtures bestehen, und eine Prüfung mit einem echten Konto steht noch aus.",
             "neverTitle": "Was OpenLimiter niemals tut",
-            "neverBody": "Es fragt nie nach einem Anbieterpasswort: Jede Anmeldung erfolgt auf der Seite des Anbieters in Ihrem Browser. Es gibt sich nie als anderes Tool aus: Jede Anfrage nennt OpenLimiter, niemals Claude Code, Codex oder einen anderen Client. Es lädt nie ein Token hoch: Ein Konto synchronisiert die begrenzten Prozentwerte und Rücksetzzeiten der Messungen, niemals die dafür verwendeten Zugangsdaten."
+            "neverBody": "Es fragt nie nach einem Anbieterpasswort: Jede Anmeldung erfolgt auf der Seite des Anbieters in Ihrem Browser. Es gibt sich nie als anderes Tool aus: Jede Anfrage nennt OpenLimiter, niemals Claude Code, Codex oder einen anderen Client. Es lädt nie ein Token hoch: Ein Konto synchronisiert die begrenzten Prozentwerte und Rücksetzzeiten der Messungen sowie Betrag und Währung der Messwerte für Guthaben und API Ausgaben, niemals die dafür verwendeten Zugangsdaten."
           },
           "how-data-arrives": {
             "title": "How data actually arrives",
@@ -1318,7 +1367,7 @@
           },
           "not-yet": {
             "title": "Connectors that do not exist yet",
-            "body": "Nur die acht oben sind echt. Alles andere, was du erwartest, ist nicht gebaut, nicht geplant und darf nicht vorausgesetzt werden. Wenn ein Abo keinen Connector hat, deckt der manuelle Weg es heute mit deinen eigenen Zahlen ab."
+            "body": "Nur die acht Connectoren und manual entry oben sind echt, dazu Cursor, den die Desktop Anwendung als experimentellen Connector liest. Alles andere, was du erwartest, ist nicht gebaut, nicht geplant und darf nicht vorausgesetzt werden. Wenn ein Abo keinen Connector hat, deckt der manuelle Weg es heute mit deinen eigenen Zahlen ab."
           },
           "api-spend-keys": {
             "title": "Schlüssel für API Ausgaben",
@@ -1446,7 +1495,7 @@
           },
           "providers": {
             "title": "Unterstützte Anbieter und Messungen",
-            "intro": "Die Desktop Anwendung unterstützt acht Anbieter Connectoren. Jede Zeile nennt die Messung und ihre Quelle offen.",
+            "intro": "Die Desktop Anwendung unterstützt acht Anbieter Connectoren. Jede Zeile nennt die Messung und ihre Quelle offen, und Supported providers behandelt die übrigen drei.",
             "caption": "Unterstützte Anbieter Messungen und ihre Quelle",
             "columns": {
               "provider": "Anbieter",
@@ -1462,7 +1511,7 @@
               "codex": {
                 "name": "Codex",
                 "reports": "Das primäre Quota Fenster, den genutzten Prozentsatz und seinen Reset, wenn der Anbieter einen liefert.",
-                "source": "Die lokale Codex Anmeldung und ein nicht unterstützter OpenAI Nutzungsendpunkt."
+                "source": "Die lokale Codex Anmeldung, gelesen über den dokumentierten Codex App Server."
               },
               "antigravity": {
                 "name": "Antigravity",
@@ -1477,11 +1526,11 @@
               "openrouter": {
                 "name": "OpenRouter",
                 "reports": "Verbrauchte Credits im Verhältnis zum Gesamtwert, einschließlich Betrag in US Dollar und ohne Reset.",
-                "source": "Ein von dir bereitgestellter Schlüssel und die dokumentierte OpenRouter Credits API."
+                "source": "OAuth über den Hub oder ein Schlüssel, den du schon hast, und die dokumentierte OpenRouter Credits API."
               }
             },
             "riskTitle": "Einige Schnittstellen werden nicht unterstützt",
-            "riskBody": "Claude OAuth, Codex und OpenCode hängen von privaten Anbieter Schnittstellen ab, die sich ändern oder verschwinden können. Eine Vertragsänderung erzeugt für diesen Anbieter sichtbar unbekannt und lässt alle anderen Anbieter weiterarbeiten. OpenRouter nutzt eine dokumentierte API."
+            "riskBody": "Die direkte Claude Anfrage und OpenCode hängen von privaten Anbieter Schnittstellen ab, die sich ändern oder verschwinden können. Eine Vertragsänderung erzeugt für diesen Anbieter sichtbar unbekannt und lässt alle anderen Anbieter weiterarbeiten. OpenRouter und der Codex App Server sind dokumentiert."
           },
           "privacy": {
             "title": "Datenschutzgrenze",
@@ -1869,7 +1918,7 @@
             "title": "The commands",
             "capturedFixturesLabel": "captured {date}, synthetic fixtures",
             "capturedLabel": "captured {date}",
-            "claudePoll": "Der Schalter Fable Limit anzeigen in der Desktopanwendung steuert den Desktopprozess. Um ihn zu stoppen, öffne Einstellungen und schalte Fable Limit anzeigen aus. <code>providers.claude.poll</code> steuert den Befehlszeilenprozess. Um ihn zu stoppen, führe <code>openlimiter config set providers.claude.poll false</code> aus. Jeder Schalter ist unabhängig. Dabei wird eine direkte Nutzungsanfrage mit deinen lokalen Claude Zugangsdaten gesendet, und Anthropics Richtlinie für solche Werkzeuge ist ungeklärt.",
+            "claudePoll": "Der Schalter Fable Limit anzeigen in der Desktopanwendung steuert den Desktopprozess. Um ihn zu stoppen, öffne Connect Tools, dann das Menü am Ende der Zeile von Claude, und schalte Fable Limit anzeigen aus. <code>providers.claude.poll</code> steuert den Befehlszeilenprozess. Um ihn zu stoppen, führe <code>openlimiter config set providers.claude.poll false</code> aus. Jeder Schalter ist unabhängig. Dabei wird eine direkte Nutzungsanfrage mit deinen lokalen Claude Zugangsdaten gesendet, und Anthropics Richtlinie für solche Werkzeuge ist ungeklärt.",
             "init": {
               "body": "Writes local configuration to the state directory, recording every connector and whether it was detected. It reports the detected list, or none."
             },
@@ -1966,7 +2015,7 @@
               "noServer": "<strong>Der lokale Modus erreicht keinen OpenLimiter Server.</strong> Den Autoren des Projekts wird nichts gesendet, weil es im lokalen Modus keinen Ort dafür gibt. Der gehostete Dienst existiert nur für das kostenlose Konto, für die Synchronisierung und für Pro, und erst nach der Anmeldung.",
               "noTelemetry": "<strong>Es gibt keine Telemetrie.</strong> Kein Befehl sendet Nutzung, Diagnose, Kennungen oder Prompts irgendwohin, in keinem Modus. Quota Zustand verlässt deinen Rechner nur über die Synchronisierung, nur nach der Anmeldung und nur als die begrenzten Werte, die du abschalten kannst.",
               "hookNoNetwork": "<strong>Der Hook stellt keine Netzwerkanfrage.</strong> Er liest den lokalen Cache und sonst nichts.",
-              "noEgress": "<strong>Der lokale Modus sendet nichts an OpenLimiter.</strong> Anbieterverbindungen sprechen über eine feste Erlaubnisliste nur mit dem jeweiligen Anbieter. Optionales Pro sendet nach der Anmeldung ausgewählte begrenzte Quota Aufnahmen an den gehosteten Dienst. Ein ausdrücklich für Cloud Messung aktivierter API Schlüssel wird einmal über HTTPS gesendet und für diese Aufgabe verschlüsselt gespeichert. Lokale Anbieter Zugangsdaten verlassen das Gerät nie.",
+              "noEgress": "<strong>Der lokale Modus sendet nichts an OpenLimiter.</strong> Anbieterverbindungen sprechen über eine feste Erlaubnisliste nur mit dem jeweiligen Anbieter. Optionales Pro sendet nach der Anmeldung ausgewählte begrenzte Quota Aufnahmen an den gehosteten Dienst. Ein ausdrücklich für Cloud Messung aktivierter API Schlüssel wird einmal über HTTPS gesendet und für diese Aufgabe verschlüsselt gespeichert. Ansonsten gehen lokale Anbieter Zugangsdaten nur an ihren eigenen Anbieter.",
               "unknownNeverZero": "<strong>Unknown wird nie zu null.</strong> Fehlende, abgelaufene, fehlerhafte und nicht erkannte Eingaben lösen sich alle in unknown auf.",
               "readOnlyArtifacts": "<strong>Provider Authentifizierungsartefakte sind nur lesend.</strong> Sie werden nie umgeschrieben, gesichert, repariert oder migriert."
             }
@@ -1995,7 +2044,7 @@
             "calloutTitle": "Lies das, bevor du dich auf eine Zahl verlässt",
             "bullets": {
               "noOfficialApi": "Die meisten Consumer Abo Provider bieten keine offizielle Quota API. Mehrere Connectors beschreiben deshalb inoffizielle Schnittstellen, die sich ohne Ankündigung ändern oder verschwinden können.",
-              "unverified": "Jeder Connector wird als <code>UNVERIFIED</code> ausgeliefert. Nichts hier wurde von einem expliziten Verifier gegen ein echtes Konto bestätigt.",
+              "unverified": "Noch wurde kein Connector von einem expliziten Verifier gegen ein echtes Konto bestätigt. Codex und Cursor bestehen ihre aufgezeichneten Fixtures, und jeder andere Connector wird als <code>UNVERIFIED</code> ausgeliefert.",
               "opencode": "Der OpenCode Connector beschreibt die Form einer authentifizierten Seite und hat ein hohes Automatisierungsrisiko. Behandle ihn als den fragilsten der acht.",
               "adviceOnly": "OpenLimiter gibt Routingempfehlungen. Es routet Anfragen nicht automatisch, umgeht keine Limits, und ändert nicht, wie dein Agent sich authentifiziert."
             }

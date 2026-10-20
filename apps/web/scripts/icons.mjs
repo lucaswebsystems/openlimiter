@@ -147,6 +147,32 @@ export function renderPng(size, treatment) {
   return encodePng(render(size, treatment), size, size);
 }
 
+/**
+ * An ICO file whose entries are PNGs, the form every browser and Windows since
+ * Vista reads. It exists for the tools that ask for /favicon.ico by name rather
+ * than reading the icon link, and it carries the launcher icon, the same tile
+ * as openlimiter-512.png, at the sizes a tab and a bookmark use.
+ */
+export function encodeIco(sizes, treatment) {
+  const images = sizes.map((size) => ({ size, png: renderPng(size, treatment) }));
+  const header = Buffer.alloc(6 + 16 * images.length);
+  header.writeUInt16LE(0, 0);
+  header.writeUInt16LE(1, 2);
+  header.writeUInt16LE(images.length, 4);
+  let offset = header.length;
+  images.forEach(({ size, png }, index) => {
+    const entry = 6 + 16 * index;
+    header.writeUInt8(size >= 256 ? 0 : size, entry);
+    header.writeUInt8(size >= 256 ? 0 : size, entry + 1);
+    header.writeUInt16LE(1, entry + 4);
+    header.writeUInt16LE(32, entry + 6);
+    header.writeUInt32LE(png.length, entry + 8);
+    header.writeUInt32LE(offset, entry + 12);
+    offset += png.length;
+  });
+  return Buffer.concat([header, ...images.map(({ png }) => png)]);
+}
+
 export { assertGeometry, encodePng };
 
 /* Only writes when this file is the program being run, so the desktop script
@@ -166,6 +192,8 @@ if (process.argv[1] !== undefined && pathToFileURL(process.argv[1]).href === imp
   }
   writeFileSync(path.resolve(HERE, "..", "app", "apple-icon.png"), renderPng(180, APPLE));
   process.stdout.write("Wrote apple-icon.png at 180 pixels.\n");
+  writeFileSync(path.resolve(HERE, "..", "public", "favicon.ico"), encodeIco([16, 32, 48], MARK));
+  process.stdout.write("Wrote favicon.ico at 16, 32 and 48 pixels.\n");
   const canonical = readFileSync(
     path.resolve(HERE, "..", "..", "..", "assets", "brand", "openlimiter-lockup.svg"),
   );

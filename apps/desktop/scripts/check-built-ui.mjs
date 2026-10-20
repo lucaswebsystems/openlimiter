@@ -71,9 +71,21 @@ function installCaptureStub() {
     { ...snapshot("OPENROUTER", "ACCOUNT_BALANCE", 12.54, "openrouter-fixture"), unit: "CREDITS" },
   ];
   const session = { sessionId: "synthetic-session", agent: "claude_code", state: "busy", confidence: "explicit", firstObservedAt: now, observedAt: now, elapsedSeconds: 0, computer: "local" };
+  /* Start at sign in (2.1.6): the OS state, every write, every first run report. */
+  window.__autostart = { enabled: false, writes: [], reports: 0 };
   const account = { provider: "claude", account: null, headlineMeterId: "quota", kind: "quota_percent", value: 42, meaning: "used", windowLabel: "Session", resetAt: null, freshness: "fresh", availability: "available", band: "green", precision: "exact", fidelityMarker: null, sessions: { busy: 1, waiting: 0, done: 0, idle: 0, unknown: 0 } };
   window.__TAURI__ = {
-    core: { invoke: async name => {
+    core: { invoke: async (name, args) => {
+      if (name === "autostart_status") return window.__autostart.enabled;
+      if (name === "set_autostart") {
+        window.__autostart.writes.push(args?.enabled);
+        window.__autostart.enabled = args?.enabled === true;
+        return window.__autostart.enabled;
+      }
+      if (name === "autostart_first_run_complete") {
+        window.__autostart.reports += 1;
+        return window.__autostart.enabled;
+      }
       if (name === "read_cache") return JSON.stringify({ version: 2, snapshots, suppressions: [] });
       if (name === "read_manual") return "";
       if (name === "state_directory") return "the demo fixtures";
@@ -242,6 +254,38 @@ async function inspectTab(page, id, width, height, shots) {
   return findings;
 }
 
+/* The start at sign in switch renders in Settings, reads the OS state, and
+   writes both directions through the stub; the completed first run in the
+   stub's storage was reported at launch. */
+async function inspectAutostart(page) {
+  await page.locator("#tab-settings").click();
+  const control = page.locator("#autostart");
+  await control.waitFor({ state: "attached" });
+  await page.waitForFunction(() => document.querySelector("#autostart")?.disabled === false);
+  const findings = [];
+  if (await control.isChecked()) findings.push("the start at sign in switch is on while the OS says off");
+  for (const expected of [true, false]) {
+    await control.click();
+    await page.waitForFunction((want) => {
+      const input = document.querySelector("#autostart");
+      return input.checked === want && !input.disabled && window.__autostart.enabled === want;
+    }, expected);
+  }
+  const seen = await page.evaluate(() => ({
+    writes: window.__autostart.writes,
+    reports: window.__autostart.reports,
+    label: document.querySelector('label[for="autostart"]')?.textContent,
+    note: document.querySelector("#autostart-note")?.textContent,
+    describedBy: document.querySelector("#autostart")?.getAttribute("aria-describedby"),
+  }));
+  if (JSON.stringify(seen.writes) !== "[true,false]") findings.push(`autostart writes were ${JSON.stringify(seen.writes)}`);
+  if (seen.reports < 1) findings.push("the completed first run was not reported to Rust");
+  if (seen.label !== "Start OpenLimiter when you sign in") findings.push("the start at sign in label is missing");
+  if (seen.note !== "Keeps your bars current after a restart.") findings.push("the start at sign in note is missing");
+  if (seen.describedBy !== "autostart-note") findings.push("the switch is not described by its note");
+  return findings;
+}
+
 let browser;
 try {
   server.listen(0, "127.0.0.1");
@@ -328,6 +372,11 @@ try {
       const findings = await inspectTab(page, id, width, height, shots);
       if (findings.length) throw new Error(`FAIL ${id} ${width}x${height}: ${findings.join(", ")}`);
       process.stdout.write(`PASS ${id} ${width}x${height}\n`);
+    }
+    if (width === 520 && height === 800) {
+      const findings = await inspectAutostart(page);
+      if (findings.length) throw new Error(`FAIL start at sign in ${width}x${height}: ${findings.join(", ")}`);
+      process.stdout.write(`PASS start at sign in switch ${width}x${height}\n`);
     }
     await context.close();
   }

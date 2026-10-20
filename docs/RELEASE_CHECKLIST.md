@@ -29,12 +29,12 @@ The workflow uses a hosted runner and short lived OIDC credentials. It does not 
 ## Desktop artifacts
 
 1. Run the desktop release workflow for the intended tag.
-2. Inspect the draft release, including both unsigned Windows installers, AppImage, deb and rpm.
-3. Confirm that no macOS artifact is attached. macOS remains coming soon until signing and notarisation are available.
+2. Inspect the draft release, including both unsigned Windows installers, the unsigned macOS universal dmg, AppImage, deb and rpm.
+3. Confirm that `latest.json` lists Windows and Linux and no macOS entry. macOS is not notarised, so macOS updates stay manual: download the new dmg.
 4. Confirm that Windows reports the installers as unsigned and that the documented SmartScreen path says `More info`, then `Run anyway`.
 5. Publish the draft only after Lucas approves it.
 
-Version 1.1 enables the official Tauri updater. The workflow must create signed updater bundles and `latest.json` from the same tag as the installers. Confirm the manifest signature and each updater signature before publishing the draft. Operating system signing is separate: Windows remains intentionally unsigned, while no unsigned macOS build is distributed.
+Version 1.1 enables the official Tauri updater. The workflow must create signed updater bundles and `latest.json` from the same tag as the installers. Confirm the manifest signature and each updater signature before publishing the draft. Operating system signing is separate: the Windows and macOS builds carry no Windows code signing certificate or Apple Developer ID, and the README explains SmartScreen and Open Anyway.
 
 ## Public site
 

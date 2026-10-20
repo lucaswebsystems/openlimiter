@@ -34,25 +34,6 @@ export const routing = defineRouting({
 /** The cookie holding a reader's own choice of language. Written by a click. */
 export const LOCALE_COOKIE = "NEXT_LOCALE";
 
-/**
- * The cookie carrying what Accept-Language said, for the offer banner to read.
- *
- * A static page cannot read a request header: calling `headers()` in a page is
- * what turns a prerendered file into a rendered one, and this site is meant to
- * be built once and served from disk. So the middleware, which does see the
- * header, writes its conclusion here, and the banner reads it on the client.
- *
- * It is a hint and nothing else. It never decides which page is served.
- */
-export const LOCALE_HINT_COOKIE = "ol-lang-hint";
-
-/**
- * How long the hint is worth keeping. Long enough to survive a reader clicking
- * around the site before deciding, short enough that a borrowed machine or a
- * changed browser setting is not remembered for a season.
- */
-export const LOCALE_HINT_MAX_AGE = 60 * 60 * 24;
-
 /** A year, which is what a deliberate choice of language deserves. */
 export const LOCALE_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
