@@ -44,6 +44,14 @@ describe("generated llms.txt", () => {
     expect(output).not.toContain(site.CURRENT_VERSION);
   });
 
+  /* Astra fix round, finding 7: no fifteen minute ceiling the Claude usage
+     request, about every five minutes, exceeds. */
+  it("qualifies the fifteen minute cadence for the Claude usage request", () => {
+    const cadence = generateLlms(site).split(/(?<=\.)\s+/u).filter((sentence: string) => sentence.includes("fifteen minutes"));
+    expect(cadence.length).toBeGreaterThan(0);
+    for (const sentence of cadence) expect(sentence).toMatch(/except the direct Claude usage request/u);
+  });
+
   it("keeps desktop alerts free and states no local spend ceiling (R2, R21)", () => {
     const output = generateLlms(site);
     expect(output).toContain("Desktop alerts are free");

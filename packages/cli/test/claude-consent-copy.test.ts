@@ -65,5 +65,12 @@ describe("Claude consent documentation", () => {
       expect(flat, name).toContain("about every five minutes");
       expect(flat, name).not.toMatch(/Show Fable limit|asks once|records off|after a disclosure|new desktop installs/iu);
     }
+    /* Astra fix round, finding 7: a failed request never hands the bars to a
+       payload, and no fifteen minute ceiling is stated that the request exceeds. */
+    expect(zeroSetup.replace(/\s+/gu, " ")).not.toMatch(/after OAuth expiry|accepted again|if both sources fail/iu);
+    const readme = (await read("packages/cli/README.md")).replace(/\s+/gu, " ");
+    const cadence = readme.split(/(?<=\.) /u).filter((sentence) => sentence.includes("fifteen minutes"));
+    expect(cadence.length).toBeGreaterThan(0);
+    for (const sentence of cadence) expect(sentence).toMatch(/except the direct Claude usage request/u);
   });
 });
