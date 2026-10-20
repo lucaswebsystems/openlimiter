@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { captionsMarkup, presetMarkup, renderSettings, themeLabel, wireAutostart } from "./settings.js";
+import { DOWNLOAD_URL, captionsMarkup, presetMarkup, renderSettings, themeLabel, updateView, wireAutostart } from "./settings.js";
 
 const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
 const settings = readFileSync(new URL("./settings.js", import.meta.url), "utf8");
@@ -95,4 +95,16 @@ test("Settings shows the start at sign in switch with its note", async () => {
   assert.match(mount.innerHTML, /<label for="autostart">Start OpenLimiter when you sign in<\/label>/u);
   assert.match(mount.innerHTML, /id="autostart"[^>]* disabled aria-describedby="autostart-note"/u);
   assert.match(mount.innerHTML, /<p id="autostart-note" class="menu-note">Keeps your bars current after a restart\.<\/p>/u);
+});
+
+test("a release the manifest has no installer for links to the download page (macOS, 2.1.7)", () => {
+  const out = "Version 2.1.7 is out. Download it from openlimiter.com.";
+  assert.equal(DOWNLOAD_URL, "https://openlimiter.com/download");
+  assert.deepEqual(updateView({ version: "2.1.7", currentVersion: "2.1.6", manual: true }), {
+    menu: out, banner: out, href: DOWNLOAD_URL,
+  });
+  assert.deepEqual(updateView({ version: "2.1.7", currentVersion: "2.1.6", manual: false }), {
+    menu: "Install OpenLimiter 2.1.7", banner: "OpenLimiter 2.1.7 is ready. Install now.", href: null,
+  });
+  assert.deepEqual(updateView(null), { menu: "OpenLimiter is current", banner: null, href: null });
 });

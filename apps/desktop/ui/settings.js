@@ -81,6 +81,25 @@ export function openTrialInBrowser(url = TRIAL_URL) {
   return window.open(url, "_blank", "noopener,noreferrer");
 }
 
+/** Where a platform with no installer in the release manifest gets the release. */
+export const DOWNLOAD_URL = "https://openlimiter.com/download";
+
+/**
+ * What the window says after an update check that answered: nothing new, a
+ * newer version this app installs itself, or a newer version the release
+ * manifest has no installer for here (macOS while it is unsigned), whose
+ * banner links to the download page instead (2.1.7).
+ */
+export function updateView(update) {
+  if (update === null || update === undefined) return { menu: "OpenLimiter is current", banner: null, href: null };
+  const version = String(update.version ?? "new version");
+  if (update.manual === true) {
+    const out = say("updateOut", { version });
+    return { menu: out, banner: out, href: DOWNLOAD_URL };
+  }
+  return { menu: "Install OpenLimiter " + version, banner: "OpenLimiter " + version + " is ready. Install now.", href: null };
+}
+
 /** Bring the plan card into view: open the menu when it is closed, then scroll. */
 export function showPlan(doc = document) {
   doc.getElementById("tab-settings")?.click();

@@ -45,6 +45,7 @@
     "accountPro": "Cuenta y Pro",
     "pairPhone": "Vincula tu teléfono",
     "updatesAbout": "Actualizaciones y acerca de",
+    "updateOut": "La versión {version} ya está disponible. Descárgala desde openlimiter.com.",
     "theme": "Tema",
     "themeToggle": "Cambiar entre el tema claro y oscuro",
     "themeDark": "Oscuro",

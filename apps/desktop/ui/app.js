@@ -41,7 +41,7 @@ import {
 } from "./readings.js";
 import { providerCode, providerName, say } from "./names.js";
 import { renderPlanCap } from "./plan-cap.js";
-import { refreshDesktopTrial, renderSettings, themeLabel, tickDesktopTrial } from "./settings.js";
+import { refreshDesktopTrial, renderSettings, themeLabel, tickDesktopTrial, updateView } from "./settings.js";
 import { mountAgents } from "./agents.js";
 import { keyRepaintGate, keyRows, proEntitled, refreshEntitlement, renderKeys, renderPro, saveOpenrouterConnection } from "./pro.js";
 /* The phone panel and the device list it produces. Both live behind an
@@ -535,6 +535,10 @@ elements.signInCreate?.addEventListener("click", () => {
 elements.signInGithub?.addEventListener("click", () => void continueWith("github"));
 elements.signInGoogle?.addEventListener("click", () => void continueWith("google"));
 
+/* Set when the newest release has no installer for this platform (macOS):
+   the banner then opens the download page instead of installing. */
+let updateHref = null;
+
 async function runUpdateCheck(silent) {
   if (!silent) elements.menuUpdate.textContent = "Checking for updates";
   const result = await checkForUpdate();
@@ -542,14 +546,15 @@ async function runUpdateCheck(silent) {
     if (!silent) elements.menuUpdate.textContent = "Update check unavailable";
     return;
   }
-  if (result.value === null) {
-    if (!silent) elements.menuUpdate.textContent = "OpenLimiter is current";
+  const view = updateView(result.value);
+  if (view.banner === null) {
+    if (!silent) elements.menuUpdate.textContent = view.menu;
     return;
   }
-  const version = String(result.value.version ?? "new version");
-  elements.updateBanner.textContent = "OpenLimiter " + version + " is ready. Install now.";
+  updateHref = view.href;
+  elements.updateBanner.textContent = view.banner;
   elements.updateBanner.hidden = false;
-  elements.menuUpdate.textContent = "Install OpenLimiter " + version;
+  elements.menuUpdate.textContent = view.menu;
 }
 
 /* Ask once per window, when the menu that holds the Alerts switch opens.
@@ -622,6 +627,10 @@ elements.menuWhatsNew = document.getElementById("menu-whats-new");
 elements.menuWhatsNew?.addEventListener("click", () => { void openWhatsNew(); });
 
 elements.updateBanner?.addEventListener("click", () => {
+  if (updateHref !== null) {
+    window.open(updateHref, "_blank", "noopener,noreferrer");
+    return;
+  }
   elements.updateBanner.disabled = true;
   elements.updateBanner.textContent = "Installing update";
   void installUpdate().then((result) => {

@@ -24,6 +24,8 @@ mod fsx;
 mod gemini_cli_oauth;
 mod grok_oauth;
 mod kimi_oauth;
+#[cfg(any(target_os = "macos", test))]
+mod login_path;
 mod native_opencode;
 mod native_readers;
 mod native_snapshot;
@@ -200,6 +202,10 @@ pub(crate) fn app_context<R: tauri::Runtime>() -> tauri::Context<R> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    /* Before anything reads PATH or starts a thread: detection scans while
+    the builder below is assembled (2.1.7). */
+    #[cfg(target_os = "macos")]
+    login_path::import();
     tauri::Builder::default()
         /* One running copy (2.1.6), registered first, so a second launch
         hands its arguments over and exits before anything else starts. */

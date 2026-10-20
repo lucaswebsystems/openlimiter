@@ -42,6 +42,7 @@
     "accountPro": "Account and Pro",
     "pairPhone": "Pair your phone",
     "updatesAbout": "Updates and About",
+    "updateOut": "Version {version} is out. Download it from openlimiter.com.",
     "theme": "Theme",
     "themeToggle": "Switch between the light and dark theme",
     "themeDark": "Dark",
