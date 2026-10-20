@@ -361,7 +361,7 @@ function PairedPhone({
         unpairedRef.current();
       } else if (answer.kind === "fresh") {
         setState((previous) => ({ ...previous, bars: answer.body, phase: "ready", generation: previous.generation + 1 }));
-        setEntitlement(phoneEntitlementOf(answer.body));
+        setEntitlement(phoneEntitlementOf(answer.body, answer.plan));
         setAnswered(true);
       } else if (answer.kind === "empty") {
         setState((previous) => ({ ...previous, phase: "offline" }));

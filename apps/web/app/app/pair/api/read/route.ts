@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { readDeviceSnapshots } from "@/lib/pro-device";
-import { PHONE_TOKEN_COOKIE, readPhoneBars } from "@/lib/phone-session";
+import { PHONE_TOKEN_COOKIE, phoneTokenPlanOf, readPhoneBars } from "@/lib/phone-session";
 
 /**
  * Read the account's meters with the token cookie this path already holds.
@@ -35,8 +35,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
      token the upstream no longer accepts at all, not a retry. */
   if (answer.kind === "unpaired") return privateJson({ error: "no_pair" }, { status: 401 });
   if (answer.kind !== "fresh") return privateJson({ error: "unavailable" }, { status: 503 });
-  /* The answer as the server gave it, the account's current plan included,
-     and nothing taken from the token: its signed plan holds until renewal.
-     See phoneEntitlementOf in lib/phone-session.ts. */
-  return privateJson({ body: answer.body });
+  /* The answer as the server gave it, the account's current plan included.
+     Only an answer with no entitlement key, from an older server or a
+     rollback, gets the plan signed into the token beside it; the token itself
+     never leaves the cookie. See phoneEntitlementOf in lib/phone-session.ts. */
+  const body = answer.body;
+  const reported = body !== null && typeof body === "object" && "entitlement" in body;
+  const plan = reported ? null : phoneTokenPlanOf(token);
+  return privateJson(plan === null ? { body } : { body, plan });
 }
