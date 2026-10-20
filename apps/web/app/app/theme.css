@@ -1935,13 +1935,13 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell.ol-phone-shell {
   background: var(--ol-accent-solid-hover);
 }
 
-body:has(.ol-phone-shell) .ol-sheet .ol-install-done.ol-control-primary,
 /* The paired phone's Pro tab: the plan or the offer, then the pairing note. */
 .ol-phone-pro {
   display: grid;
   gap: var(--ol-space-3);
 }
 
+body:has(.ol-phone-shell) .ol-sheet .ol-install-done.ol-control-primary,
 body:has(.ol-phone-shell) .ol-phone-pro .ol-control-primary {
   border-color: var(--ol-primary-fill);
   background: var(--ol-primary-fill);
