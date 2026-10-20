@@ -5,7 +5,7 @@
   "releases": {
     "2.1.7": {
       "heading": "Your order, one Claude source",
-      "claude": "Every Claude bar comes from one source. The direct request to Anthropic is off until you turn it on in Connect Tools.",
+      "claude": "Every Claude bar comes from one source. The direct request to Anthropic is off unless you turn it on in Connect Tools; if an earlier version turned it on, it stays on until you turn it off there.",
       "order": "Drag a provider by its grip, or use its move menu, to put Usage and the edge panel in your own order. Settings, Order switches back to Most used first.",
       "presets": "Graphite, Meadow and terminal captions are free, and Ember is the one Pro preset.",
       "status": "The status line keeps to its width on one row."

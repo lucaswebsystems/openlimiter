@@ -1,6 +1,6 @@
 # OpenLimiter 2.1.7
 
-Every Claude bar comes from one source. The direct request to Anthropic is off until you turn on Read my Claude usage from Anthropic in Connect Tools, and nothing asks you to. While it is off, Claude bars come from Claude Code's status line; while it is on, every Claude bar comes from that request, about every five minutes, and a failed request says so beside the bars it leaves.
+Every Claude bar comes from one source. The direct request to Anthropic is off unless you turn on Read my Claude usage from Anthropic in Connect Tools, and nothing asks you to; if an earlier version turned it on, it stays on until you turn it off there. While it is off, Claude bars come from Claude Code's status line; while it is on, every Claude bar comes from that request, about every five minutes, and a failed request says so beside the bars it leaves.
 
 The first run connects your tools first, asks nothing about Claude and keeps Show my bars on screen. A tool that is set up says Waiting for first reading until it reads, a tool that needs its sign in keeps its row on Usage, and the Codex sign in counts down with Try again.
 
