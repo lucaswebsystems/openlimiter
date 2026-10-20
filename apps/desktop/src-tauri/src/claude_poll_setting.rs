@@ -294,6 +294,102 @@ mod tests {
         assert!(!blocked.enabled(), "a failed write switched the poll on");
     }
 
+    fn json(path: &std::path::Path) -> serde_json::Value {
+        serde_json::from_str(&std::fs::read_to_string(path).expect("document")).expect("json")
+    }
+
+    /// 2.1.7, plan item 1: one store of truth, read at every pass. The other
+    /// runtime's change is seen at the next call, and this switch writes the
+    /// store of truth and mirrors the legacy keys a 2.1.5 runtime reads.
+    /// TypeScript twin: refresh.test.ts, "either setter changes both runtimes
+    /// at their next pass".
+    #[test]
+    fn either_setter_changes_both_runtimes_at_their_next_pass() {
+        let dir = TempDir::new();
+        let config = dir.path().join("openlimiter-config.json");
+        std::fs::write(
+            &config,
+            r#"{"version":1,"connectors":[],"statusline":{"captions":"tagged"},"providers":{"claude":{"poll":false,"recorded":true}}}"#,
+        )
+        .expect("fixture");
+        let setting = ClaudePollSetting::at(Some(dir.path().to_path_buf()));
+        assert!(!setting.enabled());
+        // What `openlimiter config set providers.claude.poll true` writes.
+        std::fs::write(dir.path().join(SETTING_FILE_NAME), r#"{"enabled":true,"version":1}"#).expect("fixture");
+        assert!(setting.enabled(), "the switch was read from a cached copy");
+        for enabled in [false, true] {
+            setting.set(enabled).expect("a writable state directory");
+            assert_eq!(json(&dir.path().join(SETTING_FILE_NAME))["enabled"], enabled);
+            let mirrored = json(&config);
+            assert_eq!(mirrored["providers"]["claude"], serde_json::json!({"poll": enabled, "recorded": true}));
+            assert_eq!(mirrored["statusline"]["captions"], "tagged", "the rest of the document stays");
+        }
+        assert!(!setting.view().mirror_failed);
+    }
+
+    #[test]
+    fn a_failed_mirror_write_keeps_the_switch_and_is_reported() {
+        let dir = TempDir::new();
+        let config = dir.path().join("openlimiter-config.json");
+        std::fs::create_dir_all(&config).expect("a directory in the legacy document's place");
+        let setting = ClaudePollSetting::at(Some(dir.path().to_path_buf()));
+        assert!(setting.set(true).is_ok(), "the store of truth was written");
+        assert!(setting.enabled());
+        assert!(setting.view().mirror_failed);
+        std::fs::remove_dir(&config).expect("remove fixture");
+        std::fs::write(&config, r#"{"version":1,"providers":{"claude":{"poll":true,"recorded":true}}}"#).expect("fixture");
+        setting.set(false).expect("a writable state directory");
+        assert!(!setting.view().mirror_failed);
+    }
+
+    #[test]
+    fn concurrent_changes_end_in_one_state() {
+        let dir = TempDir::new();
+        let config = dir.path().join("openlimiter-config.json");
+        std::fs::write(&config, r#"{"version":1,"providers":{"claude":{"poll":false,"recorded":true}}}"#).expect("fixture");
+        let root = dir.path().to_path_buf();
+        let writers: Vec<_> = (0..8)
+            .map(|index| {
+                let root = root.clone();
+                std::thread::spawn(move || ClaudePollSetting::at(Some(root)).set(index % 2 == 0).expect("written"))
+            })
+            .collect();
+        for writer in writers {
+            writer.join().expect("writer");
+        }
+        let switched = json(&dir.path().join(SETTING_FILE_NAME))["enabled"].clone();
+        assert_eq!(json(&config)["providers"]["claude"], serde_json::json!({"poll": switched, "recorded": true}));
+    }
+
+    /// The first 2.1.7 run moves a choice recorded on in the command line
+    /// tool's legacy keys into the store of truth, when it holds no choice yet.
+    #[test]
+    fn a_recorded_cli_on_moves_into_the_store_of_truth_once() {
+        let dir = TempDir::new();
+        let config = dir.path().join("openlimiter-config.json");
+        // A 2.0.3 boolean predates the recorded marker and is still a choice.
+        std::fs::write(&config, r#"{"version":1,"providers":{"claude":{"poll":true}}}"#).expect("fixture");
+        let setting = ClaudePollSetting::at(Some(dir.path().to_path_buf()));
+        assert_eq!(setting.status(), PollStatus::Enabled);
+        assert_eq!(json(&dir.path().join(SETTING_FILE_NAME))["enabled"], true);
+        for (legacy, stored, expected) in [
+            (r#"{"version":1,"providers":{"claude":{"poll":true,"recorded":false}}}"#, None, PollStatus::Missing),
+            (r#"{"version":1,"providers":{"claude":{"poll":false,"recorded":true}}}"#, None, PollStatus::Missing),
+            (
+                r#"{"version":1,"providers":{"claude":{"poll":true,"recorded":true}}}"#,
+                Some(r#"{"version":1,"enabled":false}"#),
+                PollStatus::Disabled,
+            ),
+        ] {
+            let _ = std::fs::remove_file(dir.path().join(SETTING_FILE_NAME));
+            std::fs::write(&config, legacy).expect("fixture");
+            if let Some(text) = stored {
+                std::fs::write(dir.path().join(SETTING_FILE_NAME), text).expect("fixture");
+            }
+            assert_eq!(setting.status(), expected, "{legacy}");
+        }
+    }
+
     #[test]
     fn a_machine_with_no_state_directory_never_polls() {
         let setting = ClaudePollSetting::at(None);
