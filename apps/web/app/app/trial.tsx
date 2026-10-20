@@ -319,7 +319,13 @@ export function ProLockCard({
 
   const checkout = useCallback(
     (interval: ProBillingInterval) => {
-      if (client === null || inFlight.current) return;
+      /* A paired phone has no account session to check out with, so its two
+         plans open /pro, where the account signs in and picks one. */
+      if (client === null) {
+        window.location.assign("/pro");
+        return;
+      }
+      if (inFlight.current) return;
       inFlight.current = true;
       setBusy(interval);
       setFailed(false);
@@ -362,7 +368,9 @@ export function ProLockCard({
           <p>{t(`${group}.lead`)}</p>
         </div>
 
-        {locked ? (
+        {/* What stopped needs the account session the phone does not have;
+            there the list of what Pro adds stands in for it. */}
+        {locked && client !== null ? (
           <ExpiredProSummary client={client} namespace="hub.pro" />
         ) : (
           <ul className="ol-lock-list">

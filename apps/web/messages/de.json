@@ -2353,6 +2353,10 @@
         "price": "Nach dem Test {monthly} im Monat oder {yearly} im Jahr. Jederzeit kündbar, mit voller Rückerstattung auf Anfrage innerhalb von 14 Tagen."
       },
       "phonePush": "Die Kopplung zeigt deine Balken auf diesem Telefon. Push Benachrichtigungen schaltet sie nicht ein: Die gehen an den Browser, in dem du Pro angemeldet gestartet und Mitteilungen erlaubt hast.",
+      "phonePlan": {
+        "loading": "Dein Plan wird gelesen.",
+        "unavailable": "Dein Plan konnte auf diesem Telefon gerade nicht gelesen werden. Deine Balken werden weiter aktualisiert."
+      },
       "expired": {
         "title": "Pro ist beendet",
         "lead": "Ihre gespeicherten Pro Einstellungen blieben erhalten, und diese Dienste wurden beendet."

@@ -2353,6 +2353,10 @@
         "price": "After the trial, {monthly} a month or {yearly} a year. Cancel any time, with a full refund on request within 14 days."
       },
       "phonePush": "Pairing shows your bars on this phone. It does not turn on push alerts: those go to the browser where you started Pro, signed in, with notifications allowed.",
+      "phonePlan": {
+        "loading": "Reading your plan.",
+        "unavailable": "Your plan could not be read on this phone right now. Your bars still update."
+      },
       "expired": {
         "title": "Pro has ended",
         "lead": "Your saved Pro preferences stayed in place, and these are the services that stopped."

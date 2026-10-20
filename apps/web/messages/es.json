@@ -2353,6 +2353,10 @@
         "price": "Después de la prueba, {monthly} al mes o {yearly} al año. Cancela cuando quieras, con reembolso completo a petición dentro de 14 días."
       },
       "phonePush": "El emparejamiento muestra tus barras en este teléfono. No activa las alertas push: esas llegan al navegador donde iniciaste Pro con tu sesión iniciada y las notificaciones permitidas.",
+      "phonePlan": {
+        "loading": "Leyendo tu plan.",
+        "unavailable": "No se pudo leer tu plan en este teléfono ahora mismo. Tus barras siguen actualizándose."
+      },
       "expired": {
         "title": "Pro ha terminado",
         "lead": "Tus preferencias guardadas de Pro se conservaron, y estos servicios se detuvieron."

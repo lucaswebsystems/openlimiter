@@ -1,28 +1,52 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { phoneProState, type PhonePlan } from "@/lib/phone-session";
+import { proAccessState, type ProEntitlement } from "@/lib/pro";
+import { offersTrial, locksPro } from "@/lib/pro-trial";
 import { ProLockCard } from "../trial";
 
 /**
  * The paired phone's Pro tab.
  *
  * A paired phone holds a read token and no account session, so the plan comes
- * from that token (see app/app/pair/api/read/route.ts). An account with Pro on
- * sees what it has; an account without Pro, or a phone that has not read yet,
- * sees the hub's own card: the one Pro list, the trial and the prices after it.
- * Either way the tab says that pairing shows bars and never turns push on.
+ * from the latest server read (see phoneEntitlementOf in lib/phone-session.ts),
+ * and the one rule the hub and /pro use, proAccessState, sorts it:
+ *
+ *   a plan that is on says so;
+ *   an ended plan gets the hub's card with the two subscriptions;
+ *   only an account that never had a plan gets the trial;
+ *   a plan no read has reported says it is reading, then that it cannot be
+ *   read, and offers nothing at all.
+ *
+ * Every case ends with the note that pairing shows bars and never turns push on.
  */
-export function ProTab({ plan = null }: { plan?: PhonePlan | null }) {
+export function ProTab({
+  entitlement,
+  reading,
+}: {
+  /** Undefined until a read reports the plan; null for an account that never had one. */
+  entitlement: ProEntitlement | null | undefined;
+  /** No read has answered yet. */
+  reading: boolean;
+}) {
   const pro = useTranslations("hub.pro");
   const portal = useTranslations("proPortal");
-  const state = phoneProState(plan);
+  const state = entitlement === undefined ? null : proAccessState(entitlement);
   return (
     <div className="ol-phone-pro">
       {state === null ? (
+        <section className="ol-lock" aria-label={pro("label")}>
+          <div className="ol-lock-inner">
+            <div className="ol-lock-head">
+              <span className="ol-lock-chip">{pro("label")}</span>
+              <p role="status">{pro(reading ? "phonePlan.loading" : "phonePlan.unavailable")}</p>
+            </div>
+          </div>
+        </section>
+      ) : offersTrial(state) || locksPro(state) ? (
         <ProLockCard
           client={null}
-          entitlement={null}
+          entitlement={entitlement ?? null}
           onStartTrial={() => window.location.assign("/app?trial=1")}
         />
       ) : (

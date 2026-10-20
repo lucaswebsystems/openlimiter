@@ -166,7 +166,8 @@ describe("the paired phone shell", () => {
       const [tab, setTab] = useState<PhoneTab>("usage");
       return createElement("div", null,
         createElement("div", { id: "ol-phone-panel-usage", role: "tabpanel", "aria-labelledby": "ol-phone-tab-usage", hidden: tab !== "usage" }, "bars"),
-        createElement("div", { id: "ol-phone-panel-pro", role: "tabpanel", "aria-labelledby": "ol-phone-tab-pro", hidden: tab !== "pro" }, createElement(ProTab)),
+        /* An account that never had a plan: the one case the trial is for. */
+        createElement("div", { id: "ol-phone-panel-pro", role: "tabpanel", "aria-labelledby": "ol-phone-tab-pro", hidden: tab !== "pro" }, createElement(ProTab, { entitlement: null, reading: false })),
         createElement(PhoneTabs, { active: tab, onSelect: setTab }));
     }
     render(createElement(Harness));

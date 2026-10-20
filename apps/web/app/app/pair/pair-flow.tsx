@@ -29,9 +29,10 @@ import {
   readCurrentPhoneBars,
   readPhoneLastBars,
   readPhonePairMeta,
+  phoneEntitlementOf,
   phonePairOf,
-  type PhonePlan,
 } from "@/lib/phone-session";
+import type { ProEntitlement } from "@/lib/pro";
 import { createPhoneSessionRuntime } from "@/lib/session-runtime";
 import { serialPoll } from "@/lib/serial-poll";
 import { claimPairingCode, pollPairingClaim } from "@/lib/pro-device";
@@ -338,9 +339,11 @@ function PairedPhone({
   const readingsT = useTranslations("hub");
   const [now, setNow] = useState(() => new Date().toISOString());
   const [tab, setTab] = useState<PhoneTab>("usage");
-  /* The plan the read token carries, from the newest fresh read. Null until
-     one arrives, which the Pro tab draws the same as an account without Pro. */
-  const [plan, setPlan] = useState<PhonePlan | null>(null);
+  /* The plan the newest fresh read reports, and whether any read has answered
+     yet: until one has, the Pro tab says it is reading. A failed read keeps
+     the plan from the last good one, the way the rows are kept. */
+  const [entitlement, setEntitlement] = useState<ProEntitlement | null | undefined>(undefined);
+  const [answered, setAnswered] = useState(false);
   const unpairedRef = useRef(onUnpaired);
   unpairedRef.current = onUnpaired;
 
@@ -358,9 +361,11 @@ function PairedPhone({
         unpairedRef.current();
       } else if (answer.kind === "fresh") {
         setState((previous) => ({ ...previous, bars: answer.body, phase: "ready", generation: previous.generation + 1 }));
-        setPlan(answer.plan ?? null);
+        setEntitlement(phoneEntitlementOf(answer.body));
+        setAnswered(true);
       } else if (answer.kind === "empty") {
         setState((previous) => ({ ...previous, phase: "offline" }));
+        setAnswered(true);
       }
     });
     runtime.start();
@@ -438,7 +443,7 @@ function PairedPhone({
           tabIndex={0}
           hidden={tab !== "pro"}
         >
-          <ProTab plan={plan} />
+          <ProTab entitlement={entitlement} reading={!answered} />
         </section>
       </main>
       <PhoneTabs active={tab} onSelect={setTab} />

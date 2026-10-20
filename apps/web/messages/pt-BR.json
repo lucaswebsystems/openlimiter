@@ -2353,6 +2353,10 @@
         "price": "Depois do teste, {monthly} por mês ou {yearly} por ano. Cancele quando quiser, com reembolso integral mediante pedido em até 14 dias."
       },
       "phonePush": "O pareamento mostra suas barras neste celular. Ele não ativa os alertas por push: eles vão para o navegador em que você iniciou o Pro conectado e com notificações permitidas.",
+      "phonePlan": {
+        "loading": "Lendo seu plano.",
+        "unavailable": "Não foi possível ler seu plano neste celular agora. Suas barras continuam atualizando."
+      },
       "expired": {
         "title": "O Pro terminou",
         "lead": "Suas preferências salvas do Pro foram mantidas, e estes serviços foram interrompidos."
