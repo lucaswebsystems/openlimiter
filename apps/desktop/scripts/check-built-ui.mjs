@@ -84,6 +84,9 @@ function installCaptureStub({ providers = 0 } = {}) {
       // An amount row: its value must not push the panel's countdown column out.
       { ...snapshot("OPENROUTER", "ACCOUNT_BALANCE", 12.54, "openrouter-fixture"), unit: "CREDITS" },
     ];
+  /* When the readings were taken: a check can age them, and a refresh pass
+     that lands makes them new. */
+  window.__observedAt = new Date(Date.now() - (desk.observedAgo ?? 0)).toISOString();
   /* The provider order store and what the surfaces told native code, in order;
      events a check sends as native code would, and writes it makes fail. */
   window.__order = { mode: "usage", providers: [], revision: 0 };
@@ -97,8 +100,16 @@ function installCaptureStub({ providers = 0 } = {}) {
   const account = { provider: "claude", account: null, headlineMeterId: "quota", kind: "quota_percent", value: 42, meaning: "used", windowLabel: "Session", resetAt: null, freshness: "fresh", availability: "available", band: "green", precision: "exact", fidelityMarker: null, sessions: { busy: 1, waiting: 0, done: 0, idle: 0, unknown: 0 } };
   window.__TAURI__ = {
     core: { invoke: async (name, args) => {
-      if (["set_tray_status", "set_provider_order", "plugin:rail|rail_card_height", "plugin:rail|rail_card_hold"].includes(name)) {
+      if (["set_tray_status", "set_provider_order", "plugin:rail|rail_card_height", "plugin:rail|rail_card_hold",
+        "plugin:rail|rail_card_close", "refresh_home"].includes(name)) {
         window.__calls.push([name, args]);
+      }
+      /* A refresh pass: held until a check lands it, refused when it says so. */
+      if (name === "refresh_home") {
+        if (window.__refreshHeld) await new Promise((resolve) => { window.__landRefresh = resolve; });
+        if (window.__failRefresh) return { succeeded: false, failed_providers: ["codex"] };
+        window.__observedAt = new Date().toISOString();
+        return { succeeded: true, failed_providers: [] };
       }
       if (name === "provider_order") return window.__order;
       if (name === "set_provider_order") {
@@ -120,7 +131,10 @@ function installCaptureStub({ providers = 0 } = {}) {
         window.__autostart.reports += 1;
         return window.__autostart.enabled;
       }
-      if (name === "read_cache") return JSON.stringify({ version: 2, snapshots: desk.noReadings ? [] : snapshots, suppressions: [] });
+      if (name === "read_cache") {
+        const taken = snapshots.map((reading) => ({ ...reading, observedAt: window.__observedAt }));
+        return JSON.stringify({ version: 2, snapshots: desk.noReadings ? [] : taken, suppressions: [] });
+      }
       if (name === "read_manual") return "";
       if (name === "state_directory") return "the demo fixtures";
       if (name === "account_status") return { signedIn: false, syncEnabled: false, backendReachable: false };
@@ -744,6 +758,90 @@ async function inspectPanelReorder(browser, origin, shots) {
   return findings;
 }
 
+/* The edge panel's refresh button (2.1.8) sends the refresh_home the window's
+   header button sends, for the same providers; it turns while the pass runs,
+   the header says Updated just now when it lands and a plain sentence says
+   when it did not, nothing in the header moves, and a click neither closes
+   the panel nor holds it open. */
+async function inspectPanelRefresh(browser, origin, shots) {
+  const findings = [];
+  const context = await browser.newContext({ viewport: { width: 360, height: 700 }, serviceWorkers: "block" });
+  await context.addInitScript(() => { window.__desk = { observedAgo: 2 * 60_000 }; });
+  await context.addInitScript(installCaptureStub);
+  // The window first, in the same profile: what its header button asks for.
+  const main = await context.newPage();
+  await main.goto(`${origin}/index.html`);
+  await main.waitForLoadState("networkidle");
+  findings.push(...await dismissModal(main));
+  await main.locator("#home-refresh").click();
+  await main.waitForFunction(() => window.__calls.some(([name]) => name === "refresh_home"));
+  const windowAsked = await main.evaluate(() => window.__calls.find(([name]) => name === "refresh_home")[1]);
+  const page = await context.newPage();
+  await page.goto(`${origin}/edge-panel.html`);
+  await page.waitForLoadState("networkidle");
+  await page.evaluate(() => document.fonts.ready);
+  const header = () => page.evaluate(() => {
+    const button = document.querySelector(".p-head #panel-refresh");
+    if (!button) return null;
+    const box = (node) => { const rect = node.getBoundingClientRect(); return [rect.left, rect.top, rect.width, rect.height]; };
+    return {
+      head: box(document.querySelector(".p-head")), mark: box(document.querySelector(".p-head img")),
+      title: box(document.querySelector("#panel-title")), button: box(button),
+      time: document.querySelector("#panel-updated").getBoundingClientRect().right,
+      updated: document.querySelector("#panel-updated").textContent,
+      busy: button.getAttribute("aria-busy"), disabled: button.disabled,
+      turning: getComputedStyle(button.querySelector("svg")).animationName,
+      name: button.getAttribute("aria-label"), tip: button.getAttribute("title"),
+      said: document.querySelector("#panel-refresh-status")?.textContent ?? null,
+    };
+  });
+  const rest = await header();
+  if (!rest) {
+    await context.close();
+    return [...findings, "the panel header has no refresh button"];
+  }
+  if (rest.updated !== "Updated 2 min ago") findings.push(`at rest the header says "${rest.updated}"`);
+  if (rest.name !== "Refresh" || rest.tip !== "Refresh now") findings.push(`the button is named "${rest.name}" with the tooltip "${rest.tip}"`);
+  if (rest.button[2] < 24 || rest.button[3] < 24) findings.push(`the button is ${rest.button[2]} by ${rest.button[3]}`);
+  if (rest.head[3] !== 44) findings.push(`the header is ${rest.head[3]} px tall`);
+  if (shots) await page.screenshot({ path: path.join(shots, "panel-refresh-rest.png") });
+  await page.evaluate(() => { window.__refreshHeld = true; });
+  await page.locator("#panel-refresh").click();
+  await page.waitForFunction(() => document.querySelector("#panel-refresh").getAttribute("aria-busy") === "true");
+  await page.waitForTimeout(300);
+  const busy = await header();
+  if (!busy.disabled || busy.turning !== "q-turn") findings.push(`while it runs: disabled ${busy.disabled}, animation ${busy.turning}`);
+  if (shots) await page.screenshot({ path: path.join(shots, "panel-refresh-busy.png") });
+  await page.evaluate(() => window.__landRefresh());
+  await page.waitForFunction(() => document.querySelector("#panel-refresh").getAttribute("aria-busy") === "false");
+  const done = await header();
+  if (done.updated !== "Updated just now") findings.push(`when the pass lands the header says "${done.updated}"`);
+  if (done.said !== "") findings.push(`a landed pass said "${done.said}"`);
+  if (shots) await page.screenshot({ path: path.join(shots, "panel-refresh-done.png") });
+  for (const [state, seen] of [["while it runs", busy], ["when it lands", done]]) {
+    for (const part of ["head", "mark", "title", "button"]) {
+      if (seen[part].some((value, index) => Math.abs(value - rest[part][index]) > 0.01)) findings.push(`${state} the header's ${part} moved from ${rest[part]} to ${seen[part]}`);
+    }
+    if (Math.abs(seen.time - rest.time) > 0.01) findings.push(`${state} the time's right edge moved`);
+  }
+  const panelAsked = await page.evaluate(() => window.__calls.filter(([name]) => name === "refresh_home").map(([, args]) => args));
+  if (panelAsked.length !== 1 || panelAsked[0].providers.toSorted().join() !== windowAsked.providers.toSorted().join()) {
+    findings.push(`the panel asked ${JSON.stringify(panelAsked)}, the window ${JSON.stringify(windowAsked)}`);
+  }
+  // A pass that does not land: a plain sentence under the header, and the button ready again.
+  await page.evaluate(() => { window.__refreshHeld = false; window.__failRefresh = true; });
+  await page.locator("#panel-refresh").click();
+  await page.waitForFunction(() => document.querySelector("#panel-refresh-status")?.textContent !== "");
+  const failed = await header();
+  if (failed.said !== "Some readings could not refresh; try again shortly." || failed.disabled) findings.push(`a pass that failed said "${failed.said}", disabled ${failed.disabled}`);
+  if (shots) await page.screenshot({ path: path.join(shots, "panel-refresh-failed.png") });
+  if (await page.evaluate(() => window.__calls.some(([name]) => ["plugin:rail|rail_card_close", "plugin:rail|rail_card_hold"].includes(name)))) {
+    findings.push("a click on refresh closed the panel or held it open");
+  }
+  await context.close();
+  return findings;
+}
+
 let browser;
 try {
   server.listen(0, "127.0.0.1");
@@ -821,6 +919,11 @@ try {
     const findings = await inspectPanelReorder(browser, origin, shots);
     if (findings.length) throw new Error(`FAIL edge panel reorder: ${findings.join(", ")}`);
     process.stdout.write("PASS edge panel drag and menu hold the panel and let go\n");
+  }
+  {
+    const findings = await inspectPanelRefresh(browser, origin, shots);
+    if (findings.length) throw new Error(`FAIL edge panel refresh: ${findings.join(", ")}`);
+    process.stdout.write("PASS edge panel refresh sends the window's pass, turns, lands and keeps its header still\n");
   }
   {
     const findings = await inspectWindowEdgeScroll(browser, origin, shots);
