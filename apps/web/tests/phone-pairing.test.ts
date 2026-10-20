@@ -1632,6 +1632,8 @@ describe("the paired phone's Pro tab", () => {
     const panel = await proPanel();
     expect(panel.textContent).not.toContain(hub.trial.start);
     expect(panel.textContent).toContain(messages.proPortal.plan.active.title);
+    /* The plan sentence reads the one Pro list, so the Ember preset is named. */
+    expect(panel.textContent).toContain((messages.proFeatures as unknown as { inline: Record<string, string> }).inline.ember);
     expect(panel.textContent).toContain(hub.pro.phonePush);
   });
 

@@ -308,6 +308,8 @@ describe("the return from checkout", () => {
     const view = await open();
     expect(view.container.textContent).toContain(portal.checkout.confirmed.title);
     expect(view.container.textContent).toContain(portal.checkout.confirmed.body);
+    /* The active plan's sentence reads the one Pro list, Ember included. */
+    expect(view.container.textContent).toContain((messages.proFeatures as unknown as { inline: Record<string, string> }).inline.ember);
   });
 
   it("still says a cancelled checkout charged nothing", async () => {
