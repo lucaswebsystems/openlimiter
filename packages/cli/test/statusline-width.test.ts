@@ -184,6 +184,27 @@ describe("U47: a band never rests on colour alone", () => {
     expect(statuslineColor("always", { FORCE_COLOR: "0" }, false, "codex")).toBe(true);
   });
 
+  it("reads FORCE_COLOR as an explicit level before any terminal hint (Astra finding 8)", () => {
+    const terminal = { TERM: "xterm-256color", COLORTERM: "truecolor", WT_SESSION: "b0c1d2e3" };
+    // Empty and true are level 1: colour, in the 16 colour palette whatever the terminal claims.
+    for (const force of ["", "true", "1"]) {
+      expect(statuslineColor("auto", { FORCE_COLOR: force }, false, "codex")).toBe(true);
+      expect(statuslineWide({ ...terminal, FORCE_COLOR: force })).toBe(false);
+    }
+    for (const force of ["0", "false"]) {
+      expect(statuslineColor("auto", { FORCE_COLOR: force }, true, "claude")).toBe(false);
+      expect(statuslineWide({ ...terminal, FORCE_COLOR: force })).toBe(false);
+    }
+    for (const force of ["2", "3", "4"]) expect(statuslineWide({ TERM: "dumb", FORCE_COLOR: force })).toBe(true);
+    // A value that is no level leaves it to the terminal.
+    expect(statuslineColor("auto", { FORCE_COLOR: "yes please" }, false, "codex")).toBe(false);
+    expect(statuslineWide({ ...terminal, FORCE_COLOR: "yes please" })).toBe(true);
+    // NO_COLOR and the saved setting still come first.
+    expect(statuslineColor("auto", { FORCE_COLOR: "3", NO_COLOR: "" }, true, "claude")).toBe(false);
+    expect(statuslineColor("never", { FORCE_COLOR: "3" }, true, "claude")).toBe(false);
+    expect(statuslineColor("always", { FORCE_COLOR: "0" }, false, "codex")).toBe(true);
+  });
+
   it("reads the 256 colour claim from the terminal or from FORCE_COLOR 2 and above", () => {
     expect(statuslineWide({})).toBe(false);
     expect(statuslineWide({ TERM: "xterm-256color" })).toBe(true);
