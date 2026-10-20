@@ -442,7 +442,9 @@ describe("a successful read clears a failure flag on its own", () => {
     meter: "ACQUISITION", value: 0, window: { kind: "unknown" }, resetAt: null, kind: "runtime_info", source: "internal_payload",
     accountId: "a", writer: "cli", availability: "rate_limited", retryAt: "2026-01-01T00:10:00.000Z"
   });
+  /* A later read by the other runtime: the rule keeps it (round 2, finding 1). */
   const other = snapshot({ meter: "EXTRA_USAGE", accountId: "a", writer: "desktop", source: "internal_payload",
+    observedAt: "2026-01-01T00:06:00.000Z", expiresAt: "2026-01-01T00:11:00.000Z",
     provenance: { sourceKind: "remote_api", observedVia: "remote_http" } });
   it.each([["alone", [] as Snapshot[]], ["beside another writer's row", [other]]])("%s", async (_name, others) => {
     const directory = await temporaryDirectory();

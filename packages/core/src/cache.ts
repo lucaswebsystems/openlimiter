@@ -943,6 +943,26 @@ export async function mergeAcquiredSnapshots(
     const incomingIdentities = new Set(
       report.snapshots.map((snapshot) => snapshotIdentity(snapshot))
     );
+    /* A Claude poll read replaces only the account's own remote_api rows and
+       its ACQUISITION flag recorded no later than the read; a later flag or
+       read and every other source's row stay, whatever writer stamped them.
+       Its session and weeklies went to the authoritative file. Rust twin:
+       native_snapshot.rs fold_read; both prove claude-poll-vectors.json `commit`. */
+    if (report.provider === "CLAUDE") {
+      const readAt = Date.parse(report.observedAt);
+      const replaced = (row: Snapshot) => snapshotBelongsTo(row, "CLAUDE", report.accountId) &&
+        (row.meter === "ACQUISITION" || row.provenance?.sourceKind === "remote_api") &&
+        Date.parse(row.observedAt) <= readAt && !incomingIdentities.has(snapshotIdentity(row));
+      const merged = retainSnapshots(mergeSnapshots(stored.snapshots.filter((row) => !replaced(row)), taken), readAt);
+      const suppressions = stored.suppressions.filter((entry) =>
+        !(entry.provider === "CLAUDE" && entry.accountId === report.accountId && Date.parse(entry.suppressedAt) < readAt));
+      if (canonicalJson({ merged, suppressions }) === canonicalJson({ merged: stored.snapshots, suppressions: stored.suppressions })) {
+        return { written: false, taken: taken.length, deferred };
+      }
+      rejectOutOfBounds(merged);
+      await replaceCache(directory, merged, suppressions);
+      return { written: true, taken: taken.length, deferred };
+    }
     const foreign = before.snapshots.filter(
       (snapshot) =>
         snapshotBelongsTo(snapshot, report.provider, report.accountId) &&
