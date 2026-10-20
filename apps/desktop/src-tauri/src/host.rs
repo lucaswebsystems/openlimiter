@@ -189,6 +189,36 @@ fn reports(line: &[u8]) -> Option<bool> {
     })
 }
 
+/// Stub with today's behaviour: only the status notifier host counts.
+#[cfg(any(target_os = "linux", test))]
+fn tray_shown(host_registered: bool, xembed_manager: impl FnOnce() -> bool) -> bool {
+    let _ = xembed_manager;
+    host_registered
+}
+
+/// Stub with today's behaviour: no session is read as X11.
+#[cfg(any(target_os = "linux", test))]
+fn x11_session(gdk_backend: Option<&str>, wayland: bool, display: bool) -> bool {
+    let _ = (gdk_backend, wayland, display);
+    false
+}
+
+/// Stub with today's behaviour: the tray is asked on the window's thread.
+#[cfg(any(target_os = "linux", test))]
+pub fn close_without_waiting(
+    prevent: impl FnOnce(),
+    tray: impl FnOnce() -> bool + Send + 'static,
+    hide: impl FnOnce() + Send + 'static,
+    quit: impl FnOnce() + Send + 'static,
+) {
+    prevent();
+    if tray() {
+        hide();
+    } else {
+        quit();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -305,6 +335,97 @@ mod tests {
         assert!(gdbus.get_args().any(|arg| arg == "IsStatusNotifierHostRegistered"));
         assert_eq!(dbus_send.get_program(), "dbus-send");
         assert!(dbus_send.get_args().any(|arg| arg == "string:IsStatusNotifierHostRegistered"));
+    }
+
+    /// Astra 2.1.7, finding 3: where the indicator falls back to the older
+    /// XEmbed tray, an XEmbed tray manager counts as a tray; anything less
+    /// certain than a host or a manager still quits.
+    #[test]
+    fn an_xembed_tray_counts_where_the_indicator_falls_back_and_nothing_less_does() {
+        assert!(tray_shown(true, || panic!("not asked once a host answered")));
+        assert!(tray_shown(false, || true));
+        assert!(!tray_shown(false, || false));
+        // The fallback draws only where this app's windows use X11.
+        assert!(x11_session(None, false, true), "an X11 session");
+        assert!(x11_session(Some("x11"), true, true), "X11 forced under Wayland");
+        assert!(x11_session(Some("x11,wayland"), true, true), "X11 first in a list");
+        assert!(!x11_session(None, true, true), "a Wayland session");
+        assert!(!x11_session(Some("wayland"), false, true), "Wayland forced");
+        assert!(!x11_session(Some("x11"), false, false), "no display to draw on");
+        assert!(!x11_session(None, false, false), "no display at all");
+    }
+
+    /// Astra 2.1.7, finding 7: a close is prevented at once, the tray is
+    /// asked off the window's thread, and only then does the window hide or
+    /// the app quit.
+    #[test]
+    fn a_close_is_prevented_at_once_and_the_tray_asked_off_the_window_thread() {
+        let caller = std::thread::current().id();
+        for (answer, expected) in [(false, "quit"), (true, "hide")] {
+            let (sender, receiver) = std::sync::mpsc::channel::<(&str, bool)>();
+            let (asked, hidden, quitted) = (sender.clone(), sender.clone(), sender);
+            let prevented = std::cell::Cell::new(false);
+            let started = Instant::now();
+            close_without_waiting(
+                || prevented.set(true),
+                move || {
+                    std::thread::sleep(Duration::from_millis(400));
+                    let _ = asked.send(("asked", std::thread::current().id() != caller));
+                    answer
+                },
+                move || {
+                    let _ = hidden.send(("hide", true));
+                },
+                move || {
+                    let _ = quitted.send(("quit", true));
+                },
+            );
+            assert!(prevented.get());
+            assert!(started.elapsed() < Duration::from_millis(200), "{:?}", started.elapsed());
+            let wait = Duration::from_secs(3);
+            assert_eq!(receiver.recv_timeout(wait), Ok(("asked", true)), "asked off the window thread");
+            assert_eq!(receiver.recv_timeout(wait), Ok((expected, true)));
+        }
+    }
+
+    /// Astra 2.1.7, finding 4: the shell's whole process group ends with it,
+    /// and a descendant holding the pipe never holds the reader. Unix only,
+    /// where this module runs in the product; CI's Linux and macOS runners.
+    #[cfg(unix)]
+    #[test]
+    fn the_whole_group_ends_and_a_descendant_holding_the_pipe_never_holds_the_reader() {
+        let dir = crate::test_support::TempDir::new();
+        let pid_file = dir.path().join("descendant.pid");
+        let mut command = Command::new("/bin/sh");
+        command.arg("-c").arg(format!(
+            "sleep 300 & echo $! > '{}'; printf '{MARK}%s\\n' /usr/bin; wait",
+            pid_file.display()
+        ));
+        let started = Instant::now();
+        assert_eq!(
+            first_line(command, Duration::from_secs(5), marked),
+            Some(vec![PathBuf::from("/usr/bin")])
+        );
+        assert!(started.elapsed() < Duration::from_secs(4), "{:?}", started.elapsed());
+        let pid: i32 = std::fs::read_to_string(&pid_file)
+            .expect("descendant pid")
+            .trim()
+            .parse()
+            .expect("a pid");
+        let gone = (0..100).any(|_| {
+            std::thread::sleep(Duration::from_millis(20));
+            // SAFETY: signal 0 only asks whether the process exists.
+            let status = unsafe { libc::kill(pid, 0) };
+            status != 0
+        });
+        assert!(gone, "the descendant outlived the shell's group");
+
+        // Nothing printed, the pipe held open by a descendant: still bounded.
+        let mut command = Command::new("/bin/sh");
+        command.args(["-c", "sleep 300 & wait"]);
+        let started = Instant::now();
+        assert_eq!(first_line(command, Duration::from_millis(500), marked), None);
+        assert!(started.elapsed() < Duration::from_secs(2), "{:?}", started.elapsed());
     }
 
     #[test]
