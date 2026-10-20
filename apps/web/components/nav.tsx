@@ -79,8 +79,10 @@ const linkClass =
  * The one filled control in the header opens the Pro sign in and checkout page.
  * Solid in both header states, so it never turns into a ghost over footage.
  */
+/* Narrower padding below 360 pixels: the Japanese label pushed the menu
+   button eleven pixels past a 320 pixel screen. */
 const proClass =
-  "focus-ring inline-flex flex-none items-center rounded-lg bg-accent-solid px-3.5 py-2 " +
+  "focus-ring inline-flex flex-none items-center rounded-lg bg-accent-solid px-3.5 max-[359px]:px-2 py-2 " +
   "text-sm font-medium text-on-accent transition-colors duration-200 hover:bg-accent-solid-hover";
 
 /* The web app button, white in both header states, the founder's order:
