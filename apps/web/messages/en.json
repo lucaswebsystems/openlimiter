@@ -149,7 +149,7 @@
     "closeMenu": "Close menu"
   },
   "announce": {
-    "message": "OpenLimiter Pro is here. Desktop alerts, account access and local meters are free. Pro adds {features}.",
+    "message": "OpenLimiter Pro adds {features}. Desktop alerts stay free.",
     "short": "Desktop alerts stay free",
     "dismiss": "Close this announcement"
   },
@@ -2141,7 +2141,7 @@
     "ember": "The Ember theme preset",
     "inline": {
       "multiAccount": "extra accounts",
-      "history": "hosted history with a forecast",
+      "history": "hosted history",
       "alerts": "phone push and email alerts",
       "apiSpend": "cloud API spend metering",
       "ember": "the Ember theme preset"

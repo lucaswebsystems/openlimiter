@@ -149,7 +149,7 @@
     "closeMenu": "メニューを閉じる"
   },
   "announce": {
-    "message": "OpenLimiter Proが登場しました。デスクトップ通知、アカウントアクセス、ローカルメーターは無料です。Proでは{features}が加わります。",
+    "message": "OpenLimiter Proでは{features}が加わります。デスクトップ通知は無料のままです。",
     "short": "デスクトップ通知は無料のまま",
     "dismiss": "このお知らせを閉じる"
   },
@@ -2141,8 +2141,8 @@
     "ember": "Ember テーマプリセット",
     "inline": {
       "multiAccount": "追加アカウント",
-      "history": "予測付きのホスト型履歴",
-      "alerts": "メールとスマートフォンへのプッシュ通知",
+      "history": "ホスト型履歴",
+      "alerts": "メールとプッシュ通知",
       "apiSpend": "クラウドAPI支出メーター",
       "ember": "Ember テーマプリセット"
     }

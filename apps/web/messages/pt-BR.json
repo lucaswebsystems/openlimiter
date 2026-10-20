@@ -149,7 +149,7 @@
     "closeMenu": "Fechar menu"
   },
   "announce": {
-    "message": "O OpenLimiter Pro chegou. Alertas do desktop, acesso à conta e medidores locais são gratuitos. O Pro acrescenta {features}.",
+    "message": "OpenLimiter Pro acrescenta {features}. Alertas do desktop continuam gratuitos.",
     "short": "Os alertas do desktop continuam gratuitos",
     "dismiss": "Fechar este aviso"
   },
@@ -2141,10 +2141,10 @@
     "ember": "O tema predefinido Ember",
     "inline": {
       "multiAccount": "contas extras",
-      "history": "histórico hospedado com previsão",
-      "alerts": "alertas por push no celular e por email",
+      "history": "histórico hospedado",
+      "alerts": "alertas por push e por email",
       "apiSpend": "medição de gasto de API na nuvem",
-      "ember": "o tema predefinido Ember"
+      "ember": "o tema Ember"
     }
   },
   "hub": {

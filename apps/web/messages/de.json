@@ -149,7 +149,7 @@
     "closeMenu": "Menü schließen"
   },
   "announce": {
-    "message": "OpenLimiter Pro ist da. Desktop Benachrichtigungen, Kontozugriff und lokale Meter sind kostenlos. Pro ergänzt {features}.",
+    "message": "OpenLimiter Pro ergänzt {features}. Desktop Benachrichtigungen bleiben kostenlos.",
     "short": "Desktop Benachrichtigungen bleiben kostenlos",
     "dismiss": "Diese Ankündigung schließen"
   },
@@ -2141,7 +2141,7 @@
     "ember": "Die Designvorlage Ember",
     "inline": {
       "multiAccount": "zusätzliche Konten",
-      "history": "Verlauf mit Prognose",
+      "history": "Verlauf",
       "alerts": "Push und E Mail Benachrichtigungen",
       "apiSpend": "Cloud Messung von API Ausgaben",
       "ember": "die Designvorlage Ember"
