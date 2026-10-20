@@ -436,8 +436,9 @@ function moreMenu(doc, provider, more, opened) {
 /* Constant artwork: the six dots a block is moved by. */
 const GRIP_ICON = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="5.75" cy="3.5" r="1.25"/><circle cx="10.25" cy="3.5" r="1.25"/><circle cx="5.75" cy="8" r="1.25"/><circle cx="10.25" cy="8" r="1.25"/><circle cx="5.75" cy="12.5" r="1.25"/><circle cx="10.25" cy="12.5" r="1.25"/></svg>';
 
-/* The mark, with the grip a block is reordered by laid over it: a real
-   button, so a click, Enter or Space opens its menu (reorder.js). */
+/* The mark, with the grip a block is reordered by beside it, in the gutter
+   left of it (the mark always shows): a real button, so a click, Enter or
+   Space opens its menu (reorder.js). */
 function handle(doc, provider) {
   const wrap = node(doc, "span", "q-handle");
   const grip = node(doc, "button", "q-grip");

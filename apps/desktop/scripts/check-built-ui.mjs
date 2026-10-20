@@ -390,7 +390,7 @@ function inspectMark(page, list, index, state, at = null) {
       findings.push(`${state}: ${code}'s grip lies over its mark`);
     }
     const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
-    if (!hit || !mark.contains(hit)) findings.push(`${state}: ${code}'s mark is covered by ${hit?.getAttribute("class") ?? "nothing"}`);
+    if (!hit || !mark.contains(hit)) findings.push(`${state}: ${code}'s mark is covered by ${hit ? hit.closest("[class]")?.getAttribute("class") ?? hit.localName : "nothing"}`);
     if (grip.left < area.left - 0.5 || grip.right > area.right + 0.5) findings.push(`${state}: ${code}'s grip runs past its list`);
     const place = { mark: [box.left, box.top], name: [name.left, name.top] };
     const moved = at && [...place.mark, ...place.name].some((value, i) => Math.abs(value - [...at.mark, ...at.name][i]) > 0.01);

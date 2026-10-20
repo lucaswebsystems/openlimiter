@@ -482,15 +482,37 @@ button.q-show {
 /* ------------------------------------------------------- moving blocks */
 
 /*
- * A reorderable list (reorder.js). A grip lies over each block's mark and
- * shows on hover or keyboard focus. While a block is dragged it lifts and
- * follows the pointer, the others slide aside, and a dashed slot marks where
- * it will land; on the drop every block slides into its place. No motion
- * under reduced motion.
+ * A reorderable list (reorder.js). Each block keeps a gutter left of its
+ * mark, and the grip shows there on hover or keyboard focus: beside the mark,
+ * never over it, so the provider's mark always shows and nothing moves when
+ * the grip appears. While a block is dragged it lifts and follows the
+ * pointer, the others slide aside, and a dashed slot marks where it will
+ * land; on the drop every block slides into its place. No motion under
+ * reduced motion.
  */
 .q-limits,
 .q-prov {
   position: relative;
+}
+
+/* The gutter: the grip's 24 pixels with a little air either side. */
+.q-limits:has(.q-grip) > .q-group {
+  padding-left: 2rem;
+}
+
+/* The panel's blocks have no padding of their own: the gutter is theirs, and
+   their lines start under the mark, as the narrowest window's do, so the
+   labels keep the room they had. The column heads move with them. */
+.q-compact:has(.q-grip) > .q-group {
+  padding-left: 1.75rem;
+}
+
+.q-compact:has(.q-grip) .q-row {
+  padding-left: 0;
+}
+
+.q-compact:has(.q-grip) > .q-colhead {
+  padding-left: 1.75rem;
 }
 
 .q-handle {
@@ -500,19 +522,12 @@ button.q-show {
   place-items: center;
 }
 
-/* The mark only shows; the grip over it takes the pointer, even while the
-   fading mark is its own layer. */
-.q-handle .q-mark {
-  pointer-events: none;
-  transition: opacity var(--ol-motion-fast) linear;
-}
-
-/* At least 24 by 24 pixels, centred on the mark whatever its size. */
+/* At least 24 by 24 pixels, in the gutter just left of the mark and level
+   with it whatever its size. */
 button.q-grip {
   position: absolute;
-  z-index: 1;
   top: calc(50% - 0.75rem);
-  left: calc(50% - 0.75rem);
+  right: calc(100% + 0.25rem);
   display: grid;
   width: 1.5rem;
   min-width: 0;
@@ -541,13 +556,6 @@ button.q-grip {
 button.q-grip[aria-expanded="true"],
 .q-group[data-dragging] button.q-grip {
   opacity: 1;
-}
-
-.q-group:hover .q-grip ~ .q-mark,
-.q-group:has(:focus-visible) .q-grip ~ .q-mark,
-.q-grip[aria-expanded="true"] ~ .q-mark,
-.q-group[data-dragging] .q-mark {
-  opacity: 0;
 }
 
 button.q-grip:hover,
@@ -581,8 +589,8 @@ button.q-grip:focus-visible {
   transition: none;
 }
 
-/* The panel's blocks have no padding of their own, so the lift and the slot
-   draw a little room around them without moving anything. */
+/* The panel's blocks have no padding of their own beyond the gutter, so the
+   lift and the slot draw a little room around them without moving anything. */
 .q-compact > .q-group[data-dragging] {
   box-shadow: 0 0 0 0.25rem var(--ol-surface), 0 0 0 calc(0.25rem + 1px) var(--ol-hairline-strong),
     var(--ol-shadow-floating), var(--ol-shadow-sheet);
@@ -613,12 +621,13 @@ button.q-grip:focus-visible {
   transition: top 150ms var(--ol-ease-out);
 }
 
-/* The grip's menu, under it, or over it where the list ends. */
+/* The grip's menu, under it, or over it where the list ends, its left edge
+   on the grip's. */
 .q-ordermenu {
   position: absolute;
   z-index: 5;
   top: calc(100% + 0.25rem);
-  left: -0.375rem;
+  left: -1.75rem;
   display: grid;
   min-width: 10.5rem;
   padding: 0.25rem;
@@ -685,7 +694,6 @@ button.q-orderitem:disabled {
 
 @media (prefers-reduced-motion: reduce) {
   button.q-grip,
-  .q-handle .q-mark,
   .q-limits[data-reordering] > .q-group,
   .q-group[data-settling],
   .q-slot {
@@ -701,9 +709,10 @@ button.q-orderitem:disabled {
   padding: var(--ol-space-2);
 }
 
-/* On Home the agent marks line up with the limit marks in the card above. */
+/* On Home the agent marks line up with the limit marks in the card above,
+   past the grip's gutter. */
 .q-agents .q-agent-list {
-  padding: 0.625rem;
+  padding: 0.625rem 0.625rem 0.625rem 1.625rem;
 }
 
 .q-agent {
@@ -1090,6 +1099,12 @@ button.q-addrow:focus-visible {
 
 .q-key + .q-key {
   border-top: 1px solid var(--ol-hairline);
+}
+
+/* Usage's spend card lines its marks up with the limits above it, past the
+   grip's gutter, at every width. */
+#spend-rows > .q-key {
+  padding-left: 2rem;
 }
 
 .q-kname {
