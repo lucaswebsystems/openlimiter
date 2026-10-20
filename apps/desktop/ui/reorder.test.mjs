@@ -72,10 +72,10 @@ async function surface(list, { order = USAGE, refuse = false, fail = 0, held = f
     },
   });
   const draw = (next = model) => { model = next; controller.draw(byOrder(model, memory.store.state)); };
-  memory.store.subscribe(() => draw());
   await memory.store.load();
   // Another surface writes after this one read the order, before it draws.
   meanwhile?.(memory.disk);
+  memory.store.subscribe(() => draw());
   draw();
   return {
     doc, mount, controller, memory, holds, draw, heard,
@@ -124,9 +124,9 @@ test("the store shows a write at once, applies only newer records it hears, and 
   const seen = [];
   memory.store.subscribe((state) => seen.push(state.providers.join()));
   await memory.store.load();
-  const saving = memory.store.move(["CLAUDE", "CODEX"], "CODEX", 0);
+  const saving = memory.store.move(["CLAUDE", "CODEX"], "CODEX", 0, 2);
   assert.deepEqual(memory.store.state.providers, ["CODEX", "CLAUDE"], "shown before the write returns");
-  assert.equal(await saving, true);
+  assert.deepEqual(await saving, { outcome: "saved", revision: 3 });
   assert.equal(memory.store.state.revision, 3);
   memory.hear({ mode: "custom", providers: ["CLAUDE", "CODEX"], revision: 1 });
   assert.equal(memory.store.state.revision, 3, "an older record is ignored");
@@ -134,7 +134,7 @@ test("the store shows a write at once, applies only newer records it hears, and 
   assert.equal(memory.store.state.mode, "usage", "a newer one from another surface applies");
   // That surface wrote revision 5 on a disk this copy last saw at 3: refused, reloaded.
   Object.assign(memory.disk, { mode: "custom", providers: ["KIMI"], revision: 6 });
-  assert.equal(await memory.store.move(["CODEX", "CLAUDE"], "CLAUDE", 0), false);
+  assert.deepEqual(await memory.store.move(["CODEX", "CLAUDE"], "CLAUDE", 0, memory.store.state.revision), { outcome: "stale", revision: 6 });
   assert.deepEqual(memory.store.state, { mode: "custom", providers: ["KIMI"], revision: 6 });
   assert.ok(seen.length >= 4);
 });
@@ -530,12 +530,12 @@ test("in My order a provider seen for the first time joins at the bottom once, b
   const usage = await surface(["CLAUDE", "CODEX"]);
   await flush();
   assert.deepEqual(usage.memory.writes, []);
-  // A refused append is not retried in a loop.
+  // An append the disk keeps refusing is tried a few times, not in a loop.
   const refused = await surface(["CLAUDE", "GROK"], { order: { mode: "custom", providers: ["CLAUDE"], revision: 1 }, refuse: true });
   await flush();
   refused.draw();
   await flush();
-  assert.equal(refused.memory.writes.length, 1);
+  assert.equal(refused.memory.writes.length, 3);
   assert.deepEqual(refused.order(), ["CLAUDE", "GROK"]);
 });
 

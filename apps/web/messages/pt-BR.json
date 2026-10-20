@@ -111,6 +111,7 @@
     "moveBottom": "Mover para o final",
     "movedTo": "{name} foi para a posição {position} de {count}",
     "orderNotSaved": "Não foi possível salvar a ordem, então nada mudou.",
+    "orderChangedElsewhere": "A ordem foi alterada em outro lugar, então sua mudança não foi salva.",
     "reorderGone": "{name} não aparece mais, então a mudança foi cancelada.",
     "order": "Ordem",
     "orderUsage": "Mais usados primeiro",

@@ -111,6 +111,7 @@
     "moveBottom": "Ganz nach unten",
     "movedTo": "{name} ist jetzt an Position {position} von {count}",
     "orderNotSaved": "Die Reihenfolge konnte nicht gespeichert werden, daher hat sich nichts geändert.",
+    "orderChangedElsewhere": "Die Reihenfolge wurde anderswo geändert, daher wurde deine Verschiebung nicht gespeichert.",
     "reorderGone": "{name} wird nicht mehr angezeigt, daher wurde das Verschieben abgebrochen.",
     "order": "Reihenfolge",
     "orderUsage": "Meistgenutzte zuerst",

@@ -78,6 +78,7 @@
   "moveBottom": "Move to bottom",
   "movedTo": "{name} moved to position {position} of {count}",
   "orderNotSaved": "The order could not be saved, so nothing changed.",
+  "orderChangedElsewhere": "The order was changed elsewhere, so your move was not saved.",
   "reorderGone": "{name} is no longer shown, so the move was cancelled.",
   "order": "Order",
   "orderUsage": "Most used first",

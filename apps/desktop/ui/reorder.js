@@ -86,44 +86,69 @@ export function movedOrder(stored, shown, code, to) {
   return [...stored.map((entry) => (visible.has(entry) ? next.shift() : entry)), ...next];
 }
 
+/* Storage failures a newcomer append is retried through, per session. */
+const ADOPT_ATTEMPTS = 3;
+
 /**
  * A surface's copy of the order. `read()` and `write(input)` answer
  * { ok, value } like backend.js; `listen(handler)` hears Rust's change event.
+ * `generation` changes with every change of the copy, and also when a save
+ * did not land, so a surface that keys its drawing on it redraws from what
+ * is true now.
  */
 export function createOrderStore({ read, write, listen = null }) {
   let state = USAGE;
+  let generation = 0;
   let saving = 0;
+  let adoptFailures = 0;
   const watchers = new Set();
-  const tried = new Set();
+  const notify = () => {
+    generation += 1;
+    for (const watcher of watchers) watcher(state);
+  };
   const set = (next) => {
     if (same(state, next)) return;
     state = next;
-    for (const watcher of watchers) watcher(state);
+    notify();
   };
   const load = async () => {
     const result = await read();
     if (result?.ok && validOrder(result.value)) set(result.value);
     return state;
   };
-  /* A whole record from the revision this copy holds, shown at once. A
-     refusal (another surface wrote first) or a failure reloads the record on
-     disk, which puts the previous order back. */
-  const save = async (mode, providers) => {
+  /* After a save that did not land: the record on disk (drawn by notify). */
+  const fromDisk = async (before) => {
+    const result = await read();
+    if (result?.ok && validOrder(result.value) && result.value.revision >= state.revision) state = result.value;
+    else if (state.revision === before.revision) state = before;
+  };
+  /* A whole record, written from `revision`, the revision the change was made
+     on. It shows at once unless this copy already holds a newer record. The
+     answer: "saved"; "stale", another surface wrote first and its record now
+     shows; or "failed", the record on disk stands. A failed newcomer append
+     (`appending`) is counted before every list redraws, as a redraw is what
+     tries it again. */
+  const save = async (mode, providers, revision = state.revision, appending = false) => {
     const before = state;
     saving += 1;
-    set({ mode, providers, revision: before.revision });
+    if (revision === state.revision) set({ mode, providers, revision });
+    let result = null;
     try {
-      const result = await write({ revision: before.revision, mode, providers });
-      if (result?.ok && validOrder(result.value)) {
-        if (result.value.revision >= state.revision) set(result.value);
-        return true;
-      }
-      await load();
-      if (state.revision === before.revision) set(before);
-      return false;
+      result = await write({ revision, mode, providers });
+    } catch {
+      result = null;
     } finally {
       saving -= 1;
     }
+    if (result?.ok && validOrder(result.value)) {
+      if (result.value.revision >= state.revision) set(result.value);
+      return { outcome: "saved", revision: result.value.revision };
+    }
+    await fromDisk(before);
+    const outcome = state.revision === revision ? "failed" : "stale";
+    if (appending && outcome === "failed") adoptFailures += 1;
+    notify();
+    return { outcome, revision: state.revision };
   };
   let unlisten = null;
   if (typeof listen === "function") {
@@ -134,23 +159,36 @@ export function createOrderStore({ read, write, listen = null }) {
   }
   return {
     get state() { return state; },
+    get generation() { return generation; },
     load,
     subscribe(watcher) {
       watchers.add(watcher);
       return () => watchers.delete(watcher);
     },
-    /* The first move by any path makes the order the person's own. */
-    move: (shown, code, to) => save("custom", movedOrder(state.providers, shown, code, to)),
+    /* A move made on `shown`, the order `revision` drew. The first move by
+       any path makes the order the person's own. */
+    move: (shown, code, to, revision) => save("custom", movedOrder(state.providers, shown, code, to), revision),
+    /* A move that cannot be saved (the one it followed was not): the record
+       on disk, drawn everywhere. */
+    async restore() {
+      await fromDisk(state);
+      notify();
+      return { outcome: "failed", revision: state.revision };
+    },
     /* Most used first keeps the list, so My order brings it back. */
-    setMode: (mode) => (mode === state.mode ? Promise.resolve(true) : save(mode, [...state.providers])),
+    setMode: (mode) => (mode === state.mode
+      ? Promise.resolve(true)
+      : save(mode, [...state.providers]).then(({ outcome }) => outcome === "saved")),
     /* In a person's own order a provider seen for the first time joins at
-       the bottom, once: one revision checked write. */
-    adopt(shown) {
-      if (state.mode !== "custom" || saving > 0) return Promise.resolve(false);
-      const fresh = shown.filter((code) => !state.providers.includes(code) && !tried.has(code));
-      if (fresh.length === 0) return Promise.resolve(false);
-      for (const code of fresh) tried.add(code);
-      return save("custom", [...state.providers, ...fresh]);
+       the bottom: one revision checked write, tried again on the order that
+       stands when another surface wrote first, and left after a few storage
+       failures. */
+    async adopt(shown) {
+      if (state.mode !== "custom" || saving > 0 || adoptFailures >= ADOPT_ATTEMPTS) return false;
+      const fresh = shown.filter((code) => !state.providers.includes(code));
+      if (fresh.length === 0) return false;
+      const { outcome } = await save("custom", [...state.providers, ...fresh], state.revision, true);
+      return outcome === "saved";
     },
     dispose() {
       unlisten?.();
@@ -175,6 +213,11 @@ export function reorderList(doc, mount, { store, render, hold = () => {}, scroll
   let drag = null;
   let menu = null;
   let suppressClick = false;
+  /* The revision the order on screen was drawn from or, while a move made
+     here is saving, that save (the revision it lands as). A move is saved
+     from it, so a move made on an order another surface has since replaced
+     is refused rather than written over theirs. */
+  let shownRevision = 0;
 
   const live = doc.createElement("p");
   live.className = "q-live";
@@ -198,15 +241,15 @@ export function reorderList(doc, mount, { store, render, hold = () => {}, scroll
     return { top: parseFloat(root?.scrollPaddingTop) || 0, bottom: view.innerHeight ?? 0 };
   };
 
+  /* The surface's model, drawn from the order as the copy holds it now. */
   function draw(model) {
     const active = drag ?? menu ?? press;
     if (active === null) {
-      render(model);
-      drawn = model;
+      show(model, store.state.revision);
       void store.adopt(model.map((provider) => provider.code));
       return;
     }
-    latest = model;
+    latest = { model, generation: store.generation, revision: store.state.revision };
     if (!model.some((provider) => provider.code === active.code)) {
       const name = providerName(active.code);
       cancel();
@@ -218,26 +261,60 @@ export function reorderList(doc, mount, { store, render, hold = () => {}, scroll
     render(drawn.map((provider) => fresh.get(provider.code) ?? provider));
   }
 
-  /* What arrived during the interaction, in the order as it is now. */
+  /* Draw a model and note the revision it was drawn from (null: not known). */
+  function show(model, revision) {
+    render(model);
+    drawn = model;
+    if (revision !== null && typeof shownRevision === "number") shownRevision = revision;
+  }
+
+  /* What arrived during the interaction: as it came, or, when the order has
+     changed since, in the order as it is now, its revision then unknown. */
   function settle() {
     if (latest === null || drag || menu || press) return;
-    const model = byOrder(latest, store.state);
+    const { model, generation, revision } = latest;
     latest = null;
-    draw(model);
+    if (generation === store.generation) show(model, revision);
+    else show(byOrder(model, store.state), null);
   }
 
-  /* Show the blocks in `codes` order now; the focused or dragged one stays put. */
+  /* Show the blocks in `codes` order now, any others after them; the focused
+     or dragged block stays put. */
   function place(codes) {
     const byCode = new Map(groups().map((group) => [group.dataset.provider, group]));
+    const order = [...codes.filter((code) => byCode.has(code)), ...[...byCode.keys()].filter((code) => !codes.includes(code))];
     const models = new Map(drawn.map((provider) => [provider.code, provider]));
-    arrange(doc, mount, codes.map((code) => byCode.get(code)).filter(Boolean));
-    drawn = codes.map((code) => models.get(code)).filter(Boolean);
+    arrange(doc, mount, order.map((code) => byCode.get(code)));
+    drawn = order.map((code) => models.get(code)).filter(Boolean);
   }
 
-  async function commit(code, to, before) {
-    const name = providerName(code);
-    const saved = await store.move(before, code, to);
-    announce(saved ? say("movedTo", { name, position: to + 1, count: before.length }) : say("orderNotSaved"));
+  /* A move made on screen: shown at once, unless this list has already heard
+     of a newer order (then it is only submitted, to be refused), and saved
+     from the revision its order was drawn from. A move made while the one
+     before it is saving waits for it and is saved from it. */
+  function moveBlock(code, to, before, after, revision) {
+    if (typeof revision !== "number" || revision === store.state.revision) place(after);
+    const saving = commit(code, to, before, revision);
+    shownRevision = saving;
+    void saving.then((landed) => {
+      if (shownRevision === saving) shownRevision = landed ?? store.state.revision;
+    });
+  }
+
+  /* Answers the revision the move landed as, or null. What it says counts
+     the list as it settled, blocks that came or went during it included. */
+  async function commit(code, to, before, revision) {
+    const base = await revision;
+    const result = base === null ? await store.restore() : await store.move(before, code, to, base);
+    if (result.outcome === "saved") {
+      const list = shown();
+      if (list.includes(code)) {
+        announce(say("movedTo", { name: providerName(code), position: list.indexOf(code) + 1, count: list.length }));
+      }
+      return result.revision;
+    }
+    announce(say(result.outcome === "stale" ? "orderChangedElsewhere" : "orderNotSaved"));
+    return null;
   }
 
   /* ------------------------------------------------------------ the menu */
@@ -292,18 +369,19 @@ export function reorderList(doc, mount, { store, render, hold = () => {}, scroll
     settle();
   }
 
+  /* A move chosen in the menu, made on the order as it was shown. */
   function choose(move) {
     const { grip, code } = menu;
-    closeMenu(true);
+    const revision = shownRevision;
     const before = shown();
+    closeMenu(true);
     const from = before.indexOf(code);
     const to = { up: from - 1, down: from + 1, top: 0, bottom: before.length - 1 }[move];
     if (from < 0 || to === undefined || to < 0 || to >= before.length || to === from) return;
     const after = before.filter((entry) => entry !== code);
     after.splice(to, 0, code);
-    place(after);
+    moveBlock(code, to, before, after, revision);
     grip.scrollIntoView?.({ block: "nearest" });
-    void commit(code, to, before);
   }
 
   /* ------------------------------------------------------------ the drag */
@@ -391,9 +469,11 @@ export function reorderList(doc, mount, { store, render, hold = () => {}, scroll
     });
   }
 
-  /* Drop (commit) or cancel: every block slides from where it shows to its place. */
+  /* Drop (commit) or cancel: what arrived during the drag settles, the move
+     shows, and every block slides from where it showed to its place. */
   function finish(commitIt) {
     const { grip, group, code, pointerId, items, from, to, slot, frame } = drag;
+    const revision = shownRevision;
     drag = null;
     if (frame !== null) view.cancelAnimationFrame?.(frame);
     const before = items.map((item) => item.code);
@@ -406,11 +486,10 @@ export function reorderList(doc, mount, { store, render, hold = () => {}, scroll
     slot.remove();
     for (const item of items) item.group.style.setProperty("transform", "");
     if (grip.hasPointerCapture?.(pointerId)) grip.releasePointerCapture(pointerId);
-    if (moved) place(after);
+    settle();
+    if (moved) moveBlock(code, to, before, after, revision);
     slide(shownAt);
     hold(false);
-    if (moved) void commit(code, to, before);
-    settle();
   }
 
   function slide(shownAt) {

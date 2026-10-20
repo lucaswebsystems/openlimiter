@@ -141,7 +141,8 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
         ? holdReadings(held, at)
         : projectReadings(cache.value, manual.status === "fulfilled" ? manual.value : null, at).snapshots;
       const model = limitsModel(held, at, order.state);
-      const key = limitsKey(model);
+      // With the order's generation: a save that did not land redraws from the order on disk.
+      const key = limitsKey(model) + "@" + order.generation;
       if (key !== drawnLimits) {
         drawnLimits = key;
         list.draw(model);

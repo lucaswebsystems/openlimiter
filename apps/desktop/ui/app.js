@@ -900,7 +900,9 @@ function paintTools(snapshots, now) {
   const { usage, tools } = splitInventory(model);
   /* Under Claude's bars while the terminal runtime is older than this app. */
   const runtimeNotice = claudeRuntimeNotice();
-  const usageKey = limitsKey(usage) + (runtimeNotice === null ? "" : "runtime notice");
+  /* The order's generation too: a save that did not land redraws from the
+     order on disk even where the model reads the same as the last drawn. */
+  const usageKey = limitsKey(usage) + (runtimeNotice === null ? "" : "runtime notice") + "@" + order.generation;
   if (usageKey !== drawnUsage) {
     drawnUsage = usageKey;
     usageNotice = runtimeNotice;
