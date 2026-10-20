@@ -19,7 +19,8 @@ describe("2.0 site release", () => {
       "/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-windows-x64-setup.exe",
       "/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-windows-x64.msi",
       "/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-macos-universal.dmg",
-      "/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-linux-x86_64.AppImage",
+      /* The Linux button downloads the deb, as the README leads with it. */
+      "/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-linux-amd64.deb",
       "/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-linux-amd64.deb",
       "/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-linux-x86_64.rpm",
     ]);
