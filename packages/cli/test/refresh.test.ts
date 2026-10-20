@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { FIXTURE_NOW } from "@openlimiter/connectors";
 import {
   ACQUISITION_STATE_FILE_NAME,
+  AUTHORITATIVE_CACHE_FILE_NAME,
   opaqueAccountId,
   CACHE_FILE_NAME,
   OPENLIMITER_USER_AGENT,
@@ -18,6 +19,7 @@ import {
   type Snapshot
 } from "@openlimiter/core";
 import { runCli, runtimeDependencies } from "../src/index.js";
+import { migrateLegacyClaudePoll, setClaudePoll } from "../src/config.js";
 import { writeSession } from "../src/session.js";
 import {
   SYNTHETIC_CODEX_ACCOUNT,
@@ -449,16 +451,60 @@ describe("the Claude poll switch", () => {
       .toBe("providers.claude.poll=false");
   });
 
-  it("keeps the desktop and CLI choices independent in both directions", async () => {
+  /* 2.1.7, plan item 1: one store of truth, read at every pass. The desktop's
+     switch and this setter both write claude-poll.json, so the last change
+     wins in both runtimes, and both mirror the legacy keys a 2.1.5 runtime
+     reads. Rust twin: claude_poll_setting.rs. */
+  it("either setter changes both runtimes at their next pass", async () => {
     const home = await machineWithLogins();
-    for (const [desktop, cli, expected] of [[false, true, true], [true, false, false]] as const) {
-      const state = await temporaryDirectory("openlimiter-state-");
-      await writeFile(path.join(state, "claude-poll.json"), JSON.stringify({ version: 1, enabled: desktop }), "utf8");
-      await runCli(["config", "set", "providers.claude.poll", String(cli)], dependencies(state, home, recordingTransport().transport));
+    const polls = async (state: string) => {
       const recorder = recordingTransport();
       await runCli(["refresh"], dependencies(state, home, recorder.transport));
-      expect(recorder.sent.some((request) => request.endpoint === "claude_usage")).toBe(expected);
+      for (const name of await readdir(state)) {
+        if (name.startsWith("acquisition") || name === ACQUISITION_STATE_FILE_NAME) await rm(path.join(state, name), { force: true });
+      }
+      return recorder.sent.some((request) => request.endpoint === "claude_usage");
+    };
+    const store = async (state: string) => JSON.parse(await readFile(path.join(state, "claude-poll.json"), "utf8")) as unknown;
+    const legacy = async (state: string) => (JSON.parse(await readFile(path.join(state, "openlimiter-config.json"), "utf8")) as {
+      providers: unknown;
+    }).providers;
+    for (const [desktop, cli] of [[false, true], [true, false]] as const) {
+      const state = await temporaryDirectory("openlimiter-state-");
+      // What the desktop's switch writes.
+      await writeFile(path.join(state, "claude-poll.json"), JSON.stringify({ version: 1, enabled: desktop }), "utf8");
+      expect(await polls(state)).toBe(desktop);
+      const set = await runCli(["config", "set", "providers.claude.poll", String(cli)], dependencies(state, home, recordingTransport().transport));
+      expect(set).toEqual({ exitCode: 0, stdout: "providers.claude.poll=" + String(cli), stderr: "" });
+      expect(await store(state)).toEqual({ enabled: cli, version: 1 });
+      expect(await legacy(state)).toEqual({ claude: { poll: cli, recorded: true } });
+      expect(await polls(state)).toBe(cli);
+      expect((await runCli(["config", "get", "providers.claude.poll"], dependencies(state, home, recordingTransport().transport))).stdout)
+        .toBe("providers.claude.poll=" + String(cli));
     }
+  });
+
+  it("reports a legacy copy it could not write and keeps the switch it did", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    await mkdir(path.join(state, "openlimiter-config.json"));
+    const set = await runCli(["config", "set", "providers.claude.poll", "true"], dependencies(state, home, recordingTransport().transport));
+    expect(set.exitCode).toBe(0);
+    expect(set.stdout).toBe("providers.claude.poll=true");
+    expect(set.stderr).toContain("could not be written");
+    expect(JSON.parse(await readFile(path.join(state, "claude-poll.json"), "utf8"))).toEqual({ enabled: true, version: 1 });
+  });
+
+  it("ends concurrent changes in one state, in the switch and its legacy copy alike", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    await Promise.all(Array.from({ length: 8 }, (_unused, index) =>
+      runCli(["config", "set", "providers.claude.poll", String(index % 2 === 0)], dependencies(state, home, recordingTransport().transport))));
+    const switched = (JSON.parse(await readFile(path.join(state, "claude-poll.json"), "utf8")) as { enabled: boolean }).enabled;
+    const mirrored = (JSON.parse(await readFile(path.join(state, "openlimiter-config.json"), "utf8")) as {
+      providers: { claude: { poll: boolean; recorded: boolean } };
+    }).providers.claude;
+    expect(mirrored).toEqual({ poll: switched, recorded: true });
   });
 
   it("keeps every broken configuration state off", async () => {
@@ -514,6 +560,73 @@ describe("the Claude poll switch", () => {
     const recorder = recordingTransport();
     await runCli(["refresh"], dependencies(state, home, recorder.transport));
     expect(recorder.sent.some((request) => request.endpoint === "claude_usage")).toBe(true);
+    /* The first 2.1.7 run moves a recorded on into the one store of truth. */
+    expect(JSON.parse(await readFile(path.join(state, "claude-poll.json"), "utf8"))).toEqual({ enabled: true, version: 1 });
+  });
+
+  it("never moves a legacy choice over one the store of truth already holds", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    await writeFile(path.join(state, "openlimiter-config.json"), JSON.stringify({
+      version: 1, providers: { claude: { poll: true, recorded: true } }
+    }), "utf8");
+    await writeFile(path.join(state, "claude-poll.json"), JSON.stringify({ version: 1, enabled: false }), "utf8");
+    const recorder = recordingTransport();
+    await runCli(["refresh"], dependencies(state, home, recorder.transport));
+    expect(recorder.sent.some((request) => request.endpoint === "claude_usage")).toBe(false);
+    expect(JSON.parse(await readFile(path.join(state, "claude-poll.json"), "utf8"))).toEqual({ version: 1, enabled: false });
+  });
+
+  /* Astra fix round, finding 3: a 2.1.5 setter that saves off while the move
+     waits for the shared lock wins, because the move rereads the legacy choice
+     and the store of truth inside the lock. Rust twin: claude_poll_setting.rs,
+     a_legacy_off_saved_while_the_move_waits_wins. */
+  it("never moves a legacy on that a setter turned off while the move waited for the lock", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const config = path.join(state, "openlimiter-config.json");
+    await writeFile(config, JSON.stringify({ version: 1, providers: { claude: { poll: true, recorded: true } } }), "utf8");
+    // Another process holds the shared lock, as a 2.1.5 setter does while it saves.
+    const lock = path.join(state, "openlimiter.lock");
+    await mkdir(lock);
+    await writeFile(path.join(lock, "owner.json"), JSON.stringify({ pid: process.pid, startedAt: Date.now(), token: "a-2.1.5-setter" }), "utf8");
+    const move = migrateLegacyClaudePoll(state);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await writeFile(config, JSON.stringify({ version: 1, providers: { claude: { poll: false, recorded: true } } }), "utf8");
+    await rm(lock, { recursive: true, force: true });
+    await move;
+    await expect(readFile(path.join(state, "claude-poll.json"), "utf8")).rejects.toThrow();
+  });
+
+  /* Astra fix round, finding 5: a setter whose lock was reclaimed while it
+     paused (a lock held past sixty seconds is reclaimed even from a live
+     owner) writes nothing more over the writer that took it, and says so.
+     Rust twin: claude_poll_setting.rs,
+     a_setter_that_lost_the_lock_writes_nothing_more_and_says_so. */
+  it("a setter that lost the lock before a write writes nothing more and says so", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const config = path.join(state, "openlimiter-config.json");
+    const lock = path.join(state, "openlimiter.lock");
+    const legacyOff = JSON.stringify({ version: 1, providers: { claude: { poll: false, recorded: true } } });
+    await writeFile(config, legacyOff, "utf8");
+    // The lock was reclaimed, and another setter saved off in both places.
+    const takeOver = async () => {
+      await writeFile(path.join(lock, "owner.json"), JSON.stringify({ pid: process.pid, startedAt: Date.now(), token: "another-setter" }), "utf8");
+      await writeFile(path.join(state, "claude-poll.json"), JSON.stringify({ enabled: false, version: 1 }), "utf8");
+      await writeFile(config, legacyOff, "utf8");
+    };
+    const store = async () => JSON.parse(await readFile(path.join(state, "claude-poll.json"), "utf8")) as unknown;
+    const mirror = async () => (JSON.parse(await readFile(config, "utf8")) as { providers: { claude: unknown } }).providers.claude;
+    // Paused before the mirror: the other setter's mirror stays, and the result says this one was not written.
+    expect(await setClaudePoll(true, {}, state, async (step) => { if (step === "mirror") await takeOver(); }))
+      .toEqual({ mirrored: false });
+    expect(await store()).toEqual({ enabled: false, version: 1 });
+    expect(await mirror()).toEqual({ poll: false, recorded: true });
+    await rm(lock, { recursive: true, force: true });
+    // Paused before the store of truth: nothing is written, and the set fails.
+    await expect(setClaudePoll(true, {}, state, async (step) => { if (step === "store") await takeOver(); })).rejects.toThrow();
+    expect(await store()).toEqual({ enabled: false, version: 1 });
+    expect(await mirror()).toEqual({ poll: false, recorded: true });
+    await rm(lock, { recursive: true, force: true });
   });
 
   it("reads every window the account exposes once it is turned on", async () => {
@@ -645,6 +758,20 @@ describe("the Claude poll switch", () => {
     const cached = await readSnapshotCache(state);
     const meters = cached.ok ? cached.snapshots.filter((row) => row.provider === "CLAUDE").map((row) => row.meter).sort() : [];
     expect(meters).toEqual(["FIVE_HOUR", "SEVEN_DAY"]);
+  });
+
+  /* 2.1.7: the poll's session row joins its weeklies in the authoritative
+     file, where a legacy status line payload cannot overwrite it. Rust twin:
+     claude_oauth.rs, one_success_is_cached_and_the_next_call_never_reaches_the_provider. */
+  it("writes the poll's session reading beside its weeklies in the authoritative file", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    await runCli(["config", "set", "providers.claude.poll", "true"], dependencies(state, home, recordingTransport().transport));
+    await runCli(["refresh"], dependencies(state, home, recordingTransport().transport));
+    const claudeMeters = async (file: string) => (JSON.parse(await readFile(path.join(state, file), "utf8")) as { snapshots: Snapshot[] })
+      .snapshots.filter((row) => row.provider === "CLAUDE").map((row) => row.meter).sort();
+    expect(await claudeMeters(AUTHORITATIVE_CACHE_FILE_NAME)).toEqual(["FIVE_HOUR", "SEVEN_DAY", "SEVEN_DAY_FABLE"]);
+    expect(await claudeMeters(CACHE_FILE_NAME)).toEqual([]);
   });
 
   /* Hotfix 2.1.5 fix 3: when the desktop polled and then exited, the shared

@@ -238,6 +238,44 @@ describe("Claude adapter", () => {
     expect(context).not.toContain("SEVEN_DAY");
   });
 
+  /* Astra fix round, finding 1, its sibling surface: when the cache cannot be
+     read, the context is written from the caller's rows, and those pass the
+     Claude source predicate too, so a payload never reaches an agent while
+     the request is on. */
+  it("writes a context from the caller's rows only through the Claude source predicate", async () => {
+    const now = "2026-01-01T00:01:00.000Z";
+    const payload: Snapshot = {
+      provider: "CLAUDE",
+      meter: "FIVE_HOUR",
+      value: 37,
+      unit: "PERCENT",
+      window: { kind: "rolling", durationSeconds: 18_000 },
+      resetAt: "2026-01-01T04:00:00.000Z",
+      source: "native_payload",
+      precision: "exact",
+      observedAt: "2026-01-01T00:00:00.000Z",
+      expiresAt: "2026-01-01T00:05:00.000Z",
+      labels: {
+        credentialOrigin: "official-local-tool",
+        dataInterfaceStatus: "native-statusline-payload",
+        automationRisk: "low",
+        verification: "UNVERIFIED"
+      },
+      provenance: { sourceKind: "statusline_payload", observedVia: "claude_code_statusline" }
+    };
+    const written: Record<string, string> = {};
+    for (const enabled of [false, true]) {
+      const directory = await mkdtemp(path.join(await scratchRoot(), "openlimiter-adapter-fallback-"));
+      created.push(directory);
+      await writeFile(path.join(directory, "openlimiter-cache.json"), "not a cache", "utf8");
+      await writeFile(path.join(directory, "claude-poll.json"), JSON.stringify({ version: 1, enabled }), "utf8");
+      await writeAgentContextSnapshot([payload], directory, now, ["CLAUDE"]);
+      written[String(enabled)] = await readFile(path.join(directory, "openlimiter-agent-context.json"), "utf8").catch(() => "");
+    }
+    expect(written["false"]).toContain("usage_percent=37");
+    expect(written["true"]).not.toContain("usage_percent=37");
+  });
+
   /* Hotfix 2.1.5, change D: a reading whose window reset never drives advice,
      and a context written before a reset expires at that reset. */
   it("never advises from a reading whose window reset and expires the context at the next reset", async () => {

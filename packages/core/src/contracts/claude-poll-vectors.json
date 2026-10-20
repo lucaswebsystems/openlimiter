@@ -265,5 +265,129 @@
         }
       }
     ]
+  },
+  "source": {
+    "rule": "Which Claude rows a surface reads, decided by the switch in claude-poll.json (on only when it reads version 1 and enabled true; missing, disabled and invalid are off) and by each row's provenance, never by the file it sits in. On: a Claude row counts only when its sourceKind is remote_api, from either file, the newest observation of an identity winning, plus the ACQUISITION availability row. Off: every Claude row except remote_api counts, with no weekly row and no ACQUISITION row. Other providers are never filtered. A Claude drift suppression is ignored; any other provider's suppression still applies. An availability flag on the ACQUISITION row never hides a reading. Each row takes rowDefaults for what it does not state; visible lists, by ref, exactly the rows the reader returns.",
+    "rowDefaults": {
+      "provider": "CLAUDE",
+      "accountId": "claude-acct",
+      "observedAt": "2026-10-20T09:55:00.000Z",
+      "resetAt": "2026-10-20T14:00:00.000Z"
+    },
+    "cases": [
+      { "id": "on-main-remote-session", "switch": "on", "rows": [{ "ref": "a", "store": "main", "meter": "FIVE_HOUR", "sourceKind": "remote_api", "value": 4 }], "visible": ["a"] },
+      { "id": "on-authoritative-remote-session", "switch": "on", "rows": [{ "ref": "a", "store": "authoritative", "meter": "FIVE_HOUR", "sourceKind": "remote_api", "value": 4 }], "visible": ["a"] },
+      { "id": "on-authoritative-remote-weekly", "switch": "on", "rows": [{ "ref": "a", "store": "authoritative", "meter": "SEVEN_DAY", "sourceKind": "remote_api", "value": 20 }], "visible": ["a"] },
+      { "id": "on-main-remote-weekly", "switch": "on", "rows": [{ "ref": "a", "store": "main", "meter": "SEVEN_DAY", "sourceKind": "remote_api", "value": 20 }], "visible": ["a"] },
+      { "id": "on-main-payload-session", "switch": "on", "rows": [{ "ref": "a", "store": "main", "meter": "FIVE_HOUR", "sourceKind": "statusline_payload", "value": 37 }], "visible": [] },
+      { "id": "on-main-payload-weekly", "switch": "on", "rows": [{ "ref": "a", "store": "main", "meter": "SEVEN_DAY", "sourceKind": "statusline_payload", "value": 30 }], "visible": [] },
+      { "id": "on-authoritative-payload-session", "switch": "on", "rows": [{ "ref": "a", "store": "authoritative", "meter": "FIVE_HOUR", "sourceKind": "statusline_payload", "value": 37 }], "visible": [] },
+      { "id": "on-main-manual-session", "switch": "on", "rows": [{ "ref": "a", "store": "main", "meter": "FIVE_HOUR", "sourceKind": "manual_document", "value": 50 }], "visible": [] },
+      { "id": "on-main-ingest-session", "switch": "on", "rows": [{ "ref": "a", "store": "main", "meter": "FIVE_HOUR", "sourceKind": "explicit_ingest", "value": 51 }], "visible": [] },
+      { "id": "on-main-unmarked-session", "switch": "on", "rows": [{ "ref": "a", "store": "main", "meter": "FIVE_HOUR", "sourceKind": null, "value": 52 }], "visible": [] },
+      { "id": "on-main-acquisition-flag", "switch": "on", "rows": [{ "ref": "a", "store": "main", "meter": "ACQUISITION", "sourceKind": null, "value": 0, "availability": "rate_limited", "retryAt": "2026-10-20T10:10:00.000Z" }], "visible": ["a"] },
+      { "id": "off-main-payload-session", "switch": "off", "rows": [{ "ref": "a", "store": "main", "meter": "FIVE_HOUR", "sourceKind": "statusline_payload", "value": 37 }], "visible": ["a"] },
+      { "id": "off-main-payload-weekly", "switch": "off", "rows": [{ "ref": "a", "store": "main", "meter": "SEVEN_DAY", "sourceKind": "statusline_payload", "value": 30 }], "visible": [] },
+      { "id": "off-main-manual-session", "switch": "off", "rows": [{ "ref": "a", "store": "main", "meter": "FIVE_HOUR", "sourceKind": "manual_document", "value": 50 }], "visible": ["a"] },
+      { "id": "off-main-manual-weekly", "switch": "off", "rows": [{ "ref": "a", "store": "main", "meter": "SEVEN_DAY", "sourceKind": "manual_document", "value": 50 }], "visible": [] },
+      { "id": "off-main-ingest-session", "switch": "off", "rows": [{ "ref": "a", "store": "main", "meter": "FIVE_HOUR", "sourceKind": "explicit_ingest", "value": 51 }], "visible": ["a"] },
+      { "id": "off-main-unmarked-session", "switch": "off", "rows": [{ "ref": "a", "store": "main", "meter": "FIVE_HOUR", "sourceKind": null, "value": 52 }], "visible": ["a"] },
+      { "id": "off-main-remote-session", "switch": "off", "rows": [{ "ref": "a", "store": "main", "meter": "FIVE_HOUR", "sourceKind": "remote_api", "value": 4 }], "visible": [] },
+      { "id": "off-authoritative-remote-session", "switch": "off", "rows": [{ "ref": "a", "store": "authoritative", "meter": "FIVE_HOUR", "sourceKind": "remote_api", "value": 4 }], "visible": [] },
+      { "id": "off-authoritative-remote-weekly", "switch": "off", "rows": [{ "ref": "a", "store": "authoritative", "meter": "SEVEN_DAY", "sourceKind": "remote_api", "value": 20 }], "visible": [] },
+      { "id": "off-main-acquisition-flag", "switch": "off", "rows": [{ "ref": "a", "store": "main", "meter": "ACQUISITION", "sourceKind": null, "value": 0, "availability": "rate_limited", "retryAt": "2026-10-20T10:10:00.000Z" }], "visible": [] },
+      { "id": "missing-is-off", "switch": "missing", "rows": [
+        { "ref": "a", "store": "main", "meter": "FIVE_HOUR", "sourceKind": "statusline_payload", "value": 37 },
+        { "ref": "b", "store": "authoritative", "meter": "SEVEN_DAY", "sourceKind": "remote_api", "value": 20 }
+      ], "visible": ["a"] },
+      { "id": "invalid-is-off", "switch": "invalid", "rows": [
+        { "ref": "a", "store": "main", "meter": "FIVE_HOUR", "sourceKind": "statusline_payload", "value": 37 },
+        { "ref": "b", "store": "authoritative", "meter": "SEVEN_DAY", "sourceKind": "remote_api", "value": 20 }
+      ], "visible": ["a"] },
+      { "id": "off-other-providers-unfiltered", "switch": "off", "rows": [
+        { "ref": "a", "store": "main", "provider": "CODEX", "meter": "FIVE_HOUR", "sourceKind": "remote_api", "value": 33 },
+        { "ref": "b", "store": "main", "provider": "MANUAL", "accountId": null, "meter": "SEVEN_DAY", "sourceKind": "manual_document", "value": 12 }
+      ], "visible": ["a", "b"] },
+      { "id": "on-other-providers-unfiltered", "switch": "on", "rows": [
+        { "ref": "a", "store": "main", "provider": "CODEX", "meter": "FIVE_HOUR", "sourceKind": "remote_api", "value": 33 },
+        { "ref": "b", "store": "main", "provider": "MANUAL", "accountId": null, "meter": "SEVEN_DAY", "sourceKind": "manual_document", "value": 12 }
+      ], "visible": ["a", "b"] },
+      { "id": "on-newest-poll-reading-wins-from-main", "switch": "on", "rows": [
+        { "ref": "a", "store": "main", "meter": "FIVE_HOUR", "sourceKind": "remote_api", "value": 12, "observedAt": "2026-10-20T09:59:00.000Z" },
+        { "ref": "b", "store": "authoritative", "meter": "FIVE_HOUR", "sourceKind": "remote_api", "value": 4, "observedAt": "2026-10-20T09:55:00.000Z" }
+      ], "visible": ["a"] },
+      { "id": "on-newest-poll-reading-wins-from-authoritative", "switch": "on", "rows": [
+        { "ref": "a", "store": "main", "meter": "FIVE_HOUR", "sourceKind": "remote_api", "value": 12, "observedAt": "2026-10-20T09:50:00.000Z" },
+        { "ref": "b", "store": "authoritative", "meter": "FIVE_HOUR", "sourceKind": "remote_api", "value": 4, "observedAt": "2026-10-20T09:55:00.000Z" }
+      ], "visible": ["b"] },
+      { "id": "on-a-newer-payload-never-replaces-the-poll", "switch": "on", "rows": [
+        { "ref": "a", "store": "main", "meter": "FIVE_HOUR", "sourceKind": "statusline_payload", "value": 37, "observedAt": "2026-10-20T09:59:59.000Z" },
+        { "ref": "b", "store": "authoritative", "meter": "FIVE_HOUR", "sourceKind": "remote_api", "value": 4, "observedAt": "2026-10-20T09:55:00.000Z" }
+      ], "visible": ["b"] },
+      { "id": "on-legacy-lease-win-then-legacy-payload", "switch": "on", "rows": [
+        { "ref": "a", "store": "main", "meter": "FIVE_HOUR", "sourceKind": "statusline_payload", "value": 37, "observedAt": "2026-10-20T09:59:00.000Z" },
+        { "ref": "b", "store": "authoritative", "meter": "SEVEN_DAY", "sourceKind": "remote_api", "value": 30, "observedAt": "2026-10-20T09:56:00.000Z" }
+      ], "visible": ["b"] },
+      { "id": "on-legacy-lease-win-keeps-an-older-poll-session", "switch": "on", "rows": [
+        { "ref": "a", "store": "main", "meter": "FIVE_HOUR", "sourceKind": "statusline_payload", "value": 37, "observedAt": "2026-10-20T09:59:00.000Z" },
+        { "ref": "b", "store": "authoritative", "meter": "SEVEN_DAY", "sourceKind": "remote_api", "value": 30, "observedAt": "2026-10-20T09:56:00.000Z" },
+        { "ref": "c", "store": "authoritative", "meter": "FIVE_HOUR", "sourceKind": "remote_api", "value": 4, "observedAt": "2026-10-20T09:50:00.000Z" }
+      ], "visible": ["b", "c"] },
+      { "id": "off-upgrade-with-only-historical-poll-readings", "switch": "off", "rows": [
+        { "ref": "a", "store": "main", "meter": "FIVE_HOUR", "sourceKind": "remote_api", "value": 12, "observedAt": "2026-10-20T09:50:00.000Z" },
+        { "ref": "b", "store": "main", "meter": "SEVEN_DAY", "sourceKind": "remote_api", "value": 30, "observedAt": "2026-10-20T09:50:00.000Z" }
+      ], "visible": [] },
+      { "id": "off-upgrade-then-a-payload-arrives", "switch": "off", "rows": [
+        { "ref": "a", "store": "main", "meter": "FIVE_HOUR", "sourceKind": "statusline_payload", "value": 15, "observedAt": "2026-10-20T09:59:00.000Z" },
+        { "ref": "b", "store": "main", "meter": "SEVEN_DAY", "sourceKind": "remote_api", "value": 30, "observedAt": "2026-10-20T09:50:00.000Z" }
+      ], "visible": ["a"] },
+      { "id": "on-a-failure-flag-keeps-the-readings", "switch": "on", "rows": [
+        { "ref": "a", "store": "authoritative", "meter": "FIVE_HOUR", "sourceKind": "remote_api", "value": 4 },
+        { "ref": "b", "store": "authoritative", "meter": "SEVEN_DAY", "sourceKind": "remote_api", "value": 20 },
+        { "ref": "c", "store": "main", "meter": "ACQUISITION", "sourceKind": null, "value": 0, "availability": "rate_limited", "retryAt": "2026-10-20T10:10:00.000Z", "observedAt": "2026-10-20T09:58:00.000Z" }
+      ], "visible": ["a", "b", "c"] },
+      { "id": "on-a-claude-drift-suppression-is-ignored", "switch": "on",
+        "suppressions": [
+          { "provider": "CLAUDE", "accountId": "claude-acct", "suppressedAt": "2026-10-20T09:58:00.000Z" },
+          { "provider": "CODEX", "accountId": "codex-acct", "suppressedAt": "2026-10-20T09:58:00.000Z" }
+        ],
+        "rows": [
+          { "ref": "a", "store": "authoritative", "meter": "FIVE_HOUR", "sourceKind": "remote_api", "value": 4 },
+          { "ref": "b", "store": "main", "meter": "SEVEN_DAY", "sourceKind": "remote_api", "value": 20 },
+          { "ref": "c", "store": "main", "provider": "CODEX", "accountId": "codex-acct", "meter": "FIVE_HOUR", "sourceKind": "remote_api", "value": 33 }
+        ], "visible": ["a", "b"] },
+      { "id": "off-a-claude-drift-suppression-is-ignored", "switch": "off",
+        "suppressions": [{ "provider": "CLAUDE", "accountId": "claude-acct", "suppressedAt": "2026-10-20T09:58:00.000Z" }],
+        "rows": [{ "ref": "a", "store": "main", "meter": "FIVE_HOUR", "sourceKind": "statusline_payload", "value": 37 }],
+        "visible": ["a"] }
+    ]
+  },
+  "commit": {
+    "rule": "Committing a Claude poll read sends its session and weeklies to the authoritative file and keeps every row another source wrote in the main file, a status line payload that arrived while the read was in flight included. It clears the account's ACQUISITION flag recorded no later than the read, and keeps a later one. After the commit, every row listed in kept is still in the main file and every row listed in gone is not. Rows take the source section's rowDefaults; the poll reads at observedAt, a read that stated its whole weekly set.",
+    "observedAt": "2026-10-20T09:55:00.000Z",
+    "poll": [
+      { "ref": "session", "meter": "FIVE_HOUR", "sourceKind": "remote_api", "value": 4 },
+      { "ref": "weekly", "meter": "SEVEN_DAY", "sourceKind": "remote_api", "value": 20 }
+    ],
+    "cases": [
+      { "id": "a-payload-that-arrived-while-the-read-was-in-flight-stays",
+        "main": [{ "ref": "payload", "meter": "FIVE_HOUR", "sourceKind": "statusline_payload", "value": 37, "observedAt": "2026-10-20T09:59:00.000Z" }],
+        "kept": ["payload"], "gone": [] },
+      { "id": "every-other-source-stays",
+        "main": [
+          { "ref": "payload", "meter": "FIVE_HOUR", "sourceKind": "statusline_payload", "value": 37, "observedAt": "2026-10-20T09:50:00.000Z" },
+          { "ref": "ingest", "meter": "SEVEN_DAY_OPUS", "sourceKind": "explicit_ingest", "value": 44 },
+          { "ref": "manual", "meter": "SEVEN_DAY_SONNET", "sourceKind": "manual_document", "value": 45 },
+          { "ref": "unmarked", "meter": "SEVEN_DAY_HAIKU", "sourceKind": null, "value": 46 },
+          { "ref": "otherAccount", "accountId": "other-acct", "meter": "FIVE_HOUR", "sourceKind": "remote_api", "value": 9 }
+        ],
+        "kept": ["payload", "ingest", "manual", "unmarked", "otherAccount"], "gone": [] },
+      { "id": "the-read-clears-its-account-flag-recorded-no-later",
+        "main": [{ "ref": "flag", "meter": "ACQUISITION", "sourceKind": null, "value": 0, "availability": "rate_limited", "retryAt": "2026-10-20T10:10:00.000Z", "observedAt": "2026-10-20T09:54:00.000Z" }],
+        "kept": [], "gone": ["flag"] },
+      { "id": "a-flag-recorded-after-the-read-stays",
+        "main": [{ "ref": "flag", "meter": "ACQUISITION", "sourceKind": null, "value": 0, "availability": "rate_limited", "retryAt": "2026-10-20T10:10:00.000Z", "observedAt": "2026-10-20T09:56:00.000Z" }],
+        "kept": ["flag"], "gone": [] }
+    ]
   }
 }

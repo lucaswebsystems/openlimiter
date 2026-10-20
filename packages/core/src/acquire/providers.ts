@@ -37,8 +37,8 @@ export type PayloadParser = (
  */
 export const ACQUISITION_DISCLOSURE = {
   claude:
-    "polls Anthropic with the token Claude Code stored on this machine after " +
-    "a recorded choice",
+    "polls Anthropic with the token Claude Code stored on this machine, only " +
+    "once you turn it on",
   codex: "reads the login the Codex CLI stored, may break when OpenAI changes it",
   gemini:
     "reads the login the Gemini CLI stored, may break when Google changes it",
@@ -147,11 +147,9 @@ const codeAssistSentences = {
 export interface ClaudeSpecOptions {
   readonly parse: PayloadParser;
   /**
-   * Whether the poll is on.
-   *
-   * Off in every code path that does not read a recorded choice. The documented
-   * status line payload is Claude's primary source; this poll only exists for
-   * the hours Claude Code is closed.
+   * Whether the poll is on: only when the one switch, claude-poll.json, says
+   * so (`readClaudePoll`). While it is on, the poll is the only source of
+   * every Claude row; while it is off, the status line payload is.
    */
   readonly enabled: boolean;
   /** Whether a usage document stated its whole weekly set. */

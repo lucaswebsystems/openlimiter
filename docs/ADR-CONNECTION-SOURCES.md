@@ -15,6 +15,13 @@ Status of all five: **accepted 2026-08-16**.
 
 ## ADR 1: Claude Code quota source
 
+**Superseded in 2.1.7.** The direct request is opt in and off until it is
+turned on, and nothing asks. While it is on it is the only source of every
+Claude bar, read about every five minutes, and a failure never falls back to
+the status line: the readings age and the account shows a flag. While it is
+off, the status line and manual entry are the source. See the Claude
+collection policy in `ZERO_SETUP_DETECTION.md`.
+
 **Decision.** The native desktop reads the OAuth token Claude Code already
 stored locally and asks the private usage route for the five hour and seven day
 windows. This is the primary source. The documented `statusLine` payload stays
@@ -119,6 +126,7 @@ into one:
 
 1. **Polled.** Claude OAuth usage, with a fifteen minute floor and longer typed
    backoff after provider refusal. Statusline remains an event driven fallback.
+   Superseded for Claude in 2.1.7, see ADR 1.
 2. **Subscription.** Codex app-server notifications, where the protocol offers
   them, with a read on connect and on explicit refresh.
 3. **Polled.** Documented remote read APIs only, at a cadence the reader declares

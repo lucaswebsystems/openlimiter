@@ -11,6 +11,7 @@
  * the constant artwork of a provider mark, a band shape or a state icon.
  */
 import {
+  claudeRowCounts,
   dedupeFailures,
   freshness,
   mergeSnapshots,
@@ -108,10 +109,12 @@ export function switchedOff(flags, removed = []) {
 /**
  * What is still displayable of rows already on screen, at `now`. When a read
  * fails the window keeps only these: fresh rows, and stale rows the data rules
- * still hold, drawn grey with their age rather than frozen as if current.
+ * still hold, drawn grey with their age rather than frozen as if current. A
+ * Claude row counts only from the source the request switch selects as it
+ * stands now (`pollOn`), so a number from the source it left never stays.
  */
-export function holdReadings(snapshots, now) {
-  return projectSnapshots(snapshots, now).snapshots;
+export function holdReadings(snapshots, now, pollOn) {
+  return projectSnapshots(snapshots.filter((row) => claudeRowCounts(row, pollOn === true)), now).snapshots;
 }
 
 /**
@@ -462,8 +465,9 @@ export function splitInventory(model = []) {
   const tools = [];
   for (const tool of model) {
     if (tool.windows.length > 0) {
-      usage.push({ ...tool, action: null, note: null, extra: [] });
-      tools.push({ ...tool, windows: [], note: tool.note ?? say("connected") });
+      /* A failed read is said beside the readings it left, and on the tool. */
+      usage.push({ ...tool, action: null, note: tool.failure ?? null, extra: [] });
+      tools.push({ ...tool, windows: [], note: tool.failure ?? tool.note ?? say("connected") });
     } else {
       tools.push(tool);
     }
@@ -485,6 +489,23 @@ const REFUSED = new Set(["NEEDS_AUTH", "AUTH_EXPIRED", "ERROR"]);
 /* Fixes worth offering for another account of a tool that already reads. */
 const ACCOUNT_FIXES = new Set(["sign_in", "reconnect", "open_app"]);
 
+/* What a failed Claude usage request leaves on the account's ACQUISITION row
+   (claude_oauth.rs), each said as a plain note: the readings it left keep
+   their own aging look, and no step is offered for what only time or Claude
+   Code can change. */
+const CLAUDE_REQUEST_FAILURES = Object.freeze({
+  expired_credentials: "claudeRequestRefused",
+  access_denied: "claudeRequestRefused",
+  rate_limited: "claudeRequestRateLimited",
+  schema_drift: "claudeRequestDrift",
+});
+const requestFailure = (flag) => flag.provider === "CLAUDE" && Object.hasOwn(CLAUDE_REQUEST_FAILURES, flag.reason);
+
+function claudeRequestNote(flags) {
+  const flag = flags.find(requestFailure);
+  return flag === undefined ? null : say(CLAUDE_REQUEST_FAILURES[flag.reason]);
+}
+
 const step = (kind, key, title = null) => ({ action: { kind, label: say(key), title } });
 
 /**
@@ -496,6 +517,9 @@ const step = (kind, key, title = null) => ({ action: { kind, label: say(key), ti
 function nextStep(code, name, { flag, flags, records, detection, claude, claudePoll }) {
   const title = (key) => say(key, { name });
   const reasons = new Set(flags.map((entry) => entry.reason));
+  /* A failed Claude usage request says what happened, before any setup step. */
+  const failure = code === "CLAUDE" ? claudeRequestNote(flags) : null;
+  if (failure !== null) return { note: failure };
   /* Waiting with the direct check still off: one click turns it on and reads. */
   const waiting = code === "CLAUDE" && claudePoll === false
     ? {}
@@ -567,11 +591,13 @@ export function inventoryModel({ snapshots = [], flags = [], detections = null, 
       const antigravity = tool.code === "ANTIGRAVITY"
         ? nextStep(tool.code, tool.name, { flag: best.get(tool.code), flags: [], records: [], detection, claude, claudePoll })
         : null;
+      const failure = tool.code === "CLAUDE" ? claudeRequestNote(flags) : null;
       return {
         ...tool,
         action: antigravity?.action ?? null,
         note: antigravity?.note ?? null,
-        extra: flags.filter((flag) => flag.provider === tool.code && ACCOUNT_FIXES.has(flag.fixKind)),
+        ...(failure === null ? {} : { failure }),
+        extra: flags.filter((flag) => flag.provider === tool.code && ACCOUNT_FIXES.has(flag.fixKind) && !requestFailure(flag)),
       };
     }),
     ...waiting.map((code) => {

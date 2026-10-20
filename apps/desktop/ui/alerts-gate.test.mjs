@@ -47,7 +47,7 @@ test("the menu names its controls in short labels, and keeps the Claude poll's o
   }
   assert.equal(
     CLAUDE_POLL_EN.note,
-    "Reads the same usage Claude shows by sending a direct usage request with your Claude sign in on this computer. Anthropic's policy for tools like this is unresolved. Turn it off in Connect Tools."
+    "Off unless you turn it on. When on, OpenLimiter sends your Claude Code login only to Anthropic, about every five minutes, to read your usage, and that reading becomes the source of every Claude bar. Anthropic's policy for tools like this is unresolved."
   );
   /* Contract 5.2: equal times are no quiet period, so the switch is the truth. */
   assert.equal(quietOn({ quietStart: "22:00", quietEnd: "07:00" }), true);

@@ -85,8 +85,6 @@
     "addTool": "ツールを追加",
     "fixToolDetail": "このコンピューターで {name} にサインインしてから、もう一度確認してください。",
     "fixSignInAgainIssue": "もう一度サインイン",
-    "useClaudeSignIn": "自分の Claude サインインを使う",
-    "useClaudeSignInTitle": "Claude Code を閉じている間も、この PC の Claude サインインを使って Anthropic に利用上限を問い合わせます。",
     "fixWaitingIssue": "{name} を待っています",
     "fixWaitingDetail": "前回の枠がリセットされました。{name} を一度使うと、上限が再び表示されます。",
     "meterFallback": "上限",
@@ -108,15 +106,18 @@
     "removeTool": "削除",
     "removeConfirm": "もう一度押すと削除します",
     "claudeWeeklyOAuthApps": "週間、OAuth アプリ",
-    "showClaudeFable": "Fable の上限を表示",
-    "showClaudeFableNote": "このコンピューターの Claude サインインを使って使用量を直接リクエストし、Claude に表示されるものと同じ使用量を読み取ります。このようなツールに関する Anthropic の方針は未解決です。ツールを接続でオフにできます。",
+    "showClaudeFable": "Anthropic から Claude の使用量を読み取る",
+    "showClaudeFableNote": "オンにするまでオフです。オンにすると、OpenLimiter は約 5 分ごとに Claude Code のサインイン情報を Anthropic にのみ送信して使用量を読み取り、その結果がすべての Claude バーの情報源になります。このようなツールに関する Anthropic の方針は未解決です。",
+    "claudePollMirrorFailed": "保存しました。このコンピューター上の古い OpenLimiter には通知できなかったため、更新されるまで以前の選択が使われる場合があります。",
+    "claudeRequestRefused": "Anthropic が Claude Code のサインイン情報を受け付けなかったため、Claude の使用量を読み取れませんでした。",
+    "claudeRequestRateLimited": "Anthropic から待機を求められたため、Claude の使用量を読み取れませんでした。後でもう一度試します。",
+    "claudeRequestDrift": "Anthropic の応答が OpenLimiter で読み取れない形式だったため、Claude の使用量を読み取れませんでした。",
     "startAtSignIn": "ログイン時に OpenLimiter を起動",
     "startAtSignInNote": "再起動後もバーを最新の状態に保ちます。",
     "claudePollConsentTitle": "Fable の上限を表示しますか？",
     "claudePollNotNow": "今はしない",
     "claudePollSaveFailed": "選択を保存できなかったため、Claude の使用量はオフのままです。",
-    "claudePollContinueOff": "Claude の使用量をオフにして続行",
-    "claudeWeeklyPollHint": "接続ツールで使用量のポーリングをオンにすると、週間上限を確認できます。"
+    "claudePollContinueOff": "Claude の使用量をオフにして続行"
   },
   "meta": {
     "title": "OpenLimiter、AIコーディングの制限とエージェントの活動",
@@ -585,7 +586,7 @@
     "connectors": {
       "claude": {
         "tag": "ネイティブのstatuslineペイロードを読み取ります",
-        "detail": "Claude Codeがstatuslineに渡す内容を読み取ります。デスクトップアプリは案内を表示したうえで、あなたのログインでAnthropicにも問い合わせます。この問い合わせはオフにできます。"
+        "detail": "Claude Codeがstatuslineに渡す内容を読み取ります。あなた自身のログインでAnthropicに直接問い合わせる機能は、オンにするまでオフです。"
       },
       "openRouter": {
         "tag": "ドキュメント化されたクレジットレスポンスを読み取ります",
@@ -668,7 +669,7 @@
       "plannedChip": "計画中"
     },
     "feedIn": "データの渡し方",
-    "footnote": "実際のアカウントに対して検証されたconnectorは、まだありません。CodexとCursorは記録済みのフィクスチャーに合格しており、その他のconnectorはすべて誠実なデフォルトである<code>UNVERIFIED</code>のマークつきで提供されます。Gemini CLI、Grok、Kimi、OpenCode、Cursorは他社のツールの内部インターフェースを読み取り、Claudeへの直接の問い合わせも同様です。変更された場合、そのプロバイダーは推測するのではなく、unknownへと安全側に倒れます。<link>すべてのconnectorとその実際の状態</link>。",
+    "footnote": "実際のアカウントに対して検証されたconnectorは、まだありません。CodexとCursorは記録済みのフィクスチャーに合格しており、その他のconnectorはすべて誠実なデフォルトである<code>UNVERIFIED</code>のマークつきで提供されます。Gemini CLI、Grok、Kimi、OpenCode、Cursorは他社のツールの内部インターフェースを読み取り、オンにするまでオフであるClaudeへの直接の問い合わせも同様です。変更された場合、そのプロバイダーは推測せずにそれを表示します。<link>すべてのconnectorとその実際の状態</link>。",
     "compatibilityNote": "OpenLimiter 内に掲載または参照されている製品名、ロゴ、ブランド、その他の商標は、それぞれの商標権者に帰属します。これらの商標権者は OpenLimiter、当社の製品、または当社のウェブサイトとは一切関係ありません。また OpenLimiter を後援または推奨するものでもありません。これらの使用は、提携や推奨を意味するものではありません。",
     "manualNote": "このページのすべてのツールは、今日からmeterできます。デスクトップアプリケーションから接続するか、「詳細設定」の下でmanual entryを使って数値を書き込むか、あなたが管理するスクリプトからingestでペイロードを流し込んでください。どちらの方法でも、connectorと同じスナップショットに収まります。"
   },
@@ -1017,7 +1018,7 @@
       "webview": "Windowsでは、MicrosoftのWebView2ランタイムがない場合、インストーラーがそれを追加します。アプリはこれを使ってウィンドウを描画します。",
       "updates": "アプリはGitHubで新しいバージョンを確認し、インストールする前に確認を求めます。macOSでは当面、新しいバージョンはこのページからの新しいダウンロードになります。",
       "logins": "コーディングツールがすでに保存したログインを読み取り専用で読み、それぞれをそのプロバイダーにだけ送ります。あなたの測定値がOpenLimiterに届くのはサインインした場合だけで、その場合も範囲を限定したquotaの測定値だけです。",
-      "claude": "Claudeのセッションのバーは、Claude Codeのドキュメント化されたstatuslineから取得します。新しくインストールした場合、アプリは案内を表示したうえで、あなた自身のClaude CodeログインでAnthropicにも直接Claudeの使用量を問い合わせます。送信先はAnthropicだけです。この問い合わせはオフにできます。"
+      "claude": "ClaudeのバーはClaude Codeのドキュメント化されたstatuslineから取得します。AnthropicにClaudeの使用量を直接問い合わせる機能は、Connect Toolsでオンにするまでオフです。オンにすると、あなた自身のClaude Codeログインを約5分ごとにAnthropicだけに送信し、すべてのClaudeのバーがその1つの情報源から表示されます。このようなツールに関するAnthropicの方針は未解決です。"
     },
     "mobile": {
       "title": "OpenLimiterはコンピューターで動きます。",
@@ -1288,7 +1289,7 @@
             "rows": {
               "claude": {
                 "connect": "設定は不要です。OpenLimiterはClaude Codeがすでに表示している情報を読み取ります。",
-                "reads": "Claude Code のステータス行を自動的に読み取ります。デスクトップへの新規インストールでは、ローカルの Claude 認証情報を使う説明済みの直接使用量リクエストがオンで開始します。選択がない既存のデスクトップインストールでは先に確認します。ターミナル設定は独自の選択を記録します。"
+                "reads": "Claude Code のステータス行を自動的に読み取ります。直接使用量リクエストはオンにするまでオフです。オンにすると、あなた自身の Claude Code ログインを約 5 分ごとに Anthropic だけに送信し、すべての Claude のバーがそこから表示されます。このようなツールに関する Anthropic の方針は未解決です。"
               },
               "openrouter": {
                 "connect": "ハブから開始する正式なOAuthです。すでに持っているキーも引き続き使えます。",
@@ -1333,7 +1334,7 @@
             "intro": "Most connectors read for themselves now. Two still do not, and this is the part worth stating plainly.",
             "bullets": {
               "antigravity": "<code>antigravity</code> は文書化された Antigravity CLI のステータス行から届きます。Antigravity CLI で <code>/usage</code> を使って割り当てを更新してください。",
-              "claude": "<code>claude</code> は Claude Code のステータス行が表示されるとすぐにデータを受け取ります。デスクトップへの新規インストールでは、説明済みの直接使用量リクエストがオンで開始します。選択がない既存のインストールでは先に確認し、ターミナル設定は独自の選択を記録します。",
+              "claude": "<code>claude</code> は Claude Code のステータス行が表示されるとすぐにデータを受け取ります。直接使用量リクエストはオンにするまでオフです。オンにすると、代わりにそれがすべての Claude のバーの情報源になります。",
               "live": "<code>codex</code>、<code>gemini_cli</code>、<code>grok</code>、<code>kimi</code>、<code>openrouter</code> は、それぞれのツールが保存したログインを最大15分に1回読み取ります。デスクトップアプリの更新処理、またはターミナルの <code>openlimiter refresh</code> が実行します。",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
               "ingestOnly": "<code>opencode</code> is the one connector left with no reader of its own: it only accepts data through <code>openlimiter ingest --provider opencode</code>, because it reads an authenticated page rather than a login file."
@@ -1506,7 +1507,7 @@
               "claude": {
                 "name": "Claude Code",
                 "reports": "五時間セッションと七日間の使用量、およびリセット時刻。",
-                "source": "Claude Code が表示するステータス行を自動的に読み取ります。デスクトップへの新規インストールでは、ローカルの Claude 認証情報を使う説明済みの直接使用量リクエストがオンで開始します。選択がない既存のインストールでは先に確認します。"
+                "source": "Claude Code が表示するステータス行を自動的に読み取ります。あなた自身の Claude Code ログインを使う直接使用量リクエストはオンにするまでオフです。オンにすると、それがすべての Claude のバーの情報源になり、約 5 分ごとに読み取られます。"
               },
               "codex": {
                 "name": "Codex",
@@ -1530,7 +1531,7 @@
               }
             },
             "riskTitle": "一部のインターフェースは非公式です",
-            "riskBody": "Claudeへの直接の問い合わせとOpenCodeは、変更または廃止される可能性がある非公開のプロバイダーインターフェースに依存します。契約の形が変わると、そのプロバイダーだけが不明になり、他のプロバイダーは動作を続けます。OpenRouterとCodex app serverは文書化されています。"
+            "riskBody": "Claudeへの直接の問い合わせとOpenCodeは、変更または廃止される可能性がある非公開のプロバイダーインターフェースに依存します。契約の形が変わると、推測せずにそのプロバイダーに表示し、他のプロバイダーは動作を続けます。OpenRouterとCodex app serverは文書化されています。"
           },
           "privacy": {
             "title": "プライバシー境界",
@@ -1918,7 +1919,7 @@
             "title": "The commands",
             "capturedFixturesLabel": "captured {date}, synthetic fixtures",
             "capturedLabel": "captured {date}",
-            "claudePoll": "デスクトップアプリの Fable の上限を表示スイッチはデスクトッププロセスを制御します。停止するには、Connect Tools を開き、Claude の行の末尾にあるメニューから Fable の上限を表示をオフにします。<code>providers.claude.poll</code> はコマンドラインプロセスを制御します。停止するには <code>openlimiter config set providers.claude.poll false</code> を実行します。それぞれのスイッチは独立しています。これはローカルの Claude 認証情報を使って使用量を直接要求します。このようなツールに関する Anthropic の方針は未解決です。",
+            "claudePoll": "Claude への直接リクエストはオンにするまでオフで、1 つのスイッチがデスクトップアプリとこのツールの両方に適用されます。デスクトップアプリでは、Connect Tools を開き、Claude の行の末尾にあるメニューから Read my Claude usage from Anthropic をオンまたはオフにします。ターミナルでは <code>openlimiter config set providers.claude.poll true</code> でオンにし、<code>openlimiter config set providers.claude.poll false</code> で停止します。オンにすると、あなた自身の Claude Code ログインを約 5 分ごとに Anthropic だけに送信し、すべての Claude のバーがその 1 つの情報源から表示されます。このようなツールに関する Anthropic の方針は未解決です。",
             "init": {
               "body": "Writes local configuration to the state directory, recording every connector and whether it was detected. It reports the detected list, or none."
             },
@@ -1967,7 +1968,7 @@
               "body": "キャッシュしたバーをハブへ1回アップロードします。セッションの期限が近い場合は先に更新します。セッションがあれば、<code>refresh</code> は取得成功後にすでにこれを自動実行します。手動実行は送信の到着を確認したいときに使います。"
             },
             "refresh": {
-              "body": "各ツールが保存したログインを読み、各プロバイダーへ最大15分に1回使用量を問い合わせます。検証に通った読み取りをキャッシュに取り込みます。デスクトップアプリが動作中なら停止します。キャッシュが1分を超えると、<code>statusline</code> と <code>snapshot</code> が自動でバックグラウンド起動します。"
+              "body": "各ツールが保存したログインを読み、各プロバイダーへ最大15分に1回使用量を問い合わせます。検証に通った読み取りをキャッシュに取り込みます。Claude への直接の使用量リクエストは、オンにすると約5分ごとに読み取ります。デスクトップアプリが動作中なら停止します。キャッシュが1分を超えると、<code>statusline</code> と <code>snapshot</code> が自動でバックグラウンド起動します。"
             },
             "terminal": {
               "body": "対応する表示先と設定状態を一覧表示し、1つまたはすべての設定を提案します。<code>terminal install '<host>'</code> と <code>terminal uninstall '<host>'</code> は指定先を設定または復元します。<code>terminal status</code> は一覧だけを表示し、<code>terminal show</code> と <code>terminal hide</code> は表示するプロバイダーを選びます。対応先と形式は <docs>エージェントコンテキスト</docs> を参照してください。"
@@ -2295,8 +2296,6 @@
     "accountBalanceDetail": "購入済み {purchased}、使用済み {used}",
     "balance": "残高",
     "percentUsed": "{value}% 使用済み",
-    "claudeFableDesktopHint": "お使いのコンピューターの OpenLimiter で Claude の使用量がオンになっていると、ここに Fable が表示されます。",
-    "claudeWeeklyPollHint": "接続ツールで使用量のポーリングをオンにすると、週間上限を確認できます。",
     "providers": {
       "title": "プロバイダー",
       "automaticPrompt": "デスクトップアプリを開いてください。ローカル検出はそこから始まります。",

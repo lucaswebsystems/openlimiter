@@ -126,7 +126,7 @@ describe("account and freshness status line goldens", () => {
     expect(render(rows)).toBe("5h [█░░░░░░░░░] 16%");
     const directory = await mkdtemp(path.join(await realpath(tmpdir()), "openlimiter-golden-"));
     try {
-      expect(await claudeWeeklyHint(rows, GOLDEN_NOW, false, directory)).toBe("7d off");
+      expect(await claudeWeeklyHint(rows, GOLDEN_NOW, directory)).toBe("7d off");
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

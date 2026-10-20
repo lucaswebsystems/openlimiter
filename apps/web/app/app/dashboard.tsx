@@ -608,7 +608,6 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
             <ProviderRows
               rows={[]}
               onAddAccount={addAccount}
-              claudeFableHintText={readingsT("claudeFableDesktopHint")}
             />
           )}
         </div>
@@ -621,7 +620,6 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
           orderScope={interactive ? cardOrderScope : undefined}
           reorderable={interactive}
           onAddAccount={addAccount}
-          claudeFableHintText={readingsT("claudeFableDesktopHint")}
         />
       );
     }
@@ -632,7 +630,6 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
           <ProviderRows
             rows={[]}
             onAddAccount={addAccount}
-            claudeFableHintText={readingsT("claudeFableDesktopHint")}
           />
         )}
       </div>

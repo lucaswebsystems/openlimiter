@@ -85,8 +85,6 @@
     "addTool": "Adicionar uma ferramenta",
     "fixToolDetail": "Entre em {name} neste computador e depois verifique de novo.",
     "fixSignInAgainIssue": "Entre de novo",
-    "useClaudeSignIn": "Usar meu login do Claude",
-    "useClaudeSignInTitle": "Usa o login local do Claude para pedir seus limites à Anthropic enquanto o Claude Code está fechado.",
     "fixWaitingIssue": "Aguardando {name}",
     "fixWaitingDetail": "A última janela foi redefinida. Use {name} uma vez e os limites voltam a aparecer.",
     "meterFallback": "Limite",
@@ -108,15 +106,18 @@
     "removeTool": "Remover",
     "removeConfirm": "Clique de novo para remover",
     "claudeWeeklyOAuthApps": "Semanal, aplicativos OAuth",
-    "showClaudeFable": "Mostrar limite do Fable",
-    "showClaudeFableNote": "Lê o mesmo uso que o Claude mostra ao enviar uma solicitação direta com seu login do Claude neste computador. A política da Anthropic para ferramentas como esta ainda não está resolvida. Desative em Conectar ferramentas.",
+    "showClaudeFable": "Ler meu uso do Claude na Anthropic",
+    "showClaudeFableNote": "Desativado até você ativar. Quando ativado, o OpenLimiter envia seu login do Claude Code somente para a Anthropic, mais ou menos a cada cinco minutos, para ler seu uso, e essa leitura passa a ser a fonte de todas as barras do Claude. A política da Anthropic para ferramentas como esta ainda não está resolvida.",
+    "claudePollMirrorFailed": "Salvo. Uma versão mais antiga do OpenLimiter neste computador não pôde ser avisada, então ela pode manter sua escolha anterior até ser atualizada.",
+    "claudeRequestRefused": "A Anthropic não aceitou seu login do Claude Code, então não foi possível ler seu uso do Claude.",
+    "claudeRequestRateLimited": "A Anthropic pediu ao OpenLimiter para esperar, então não foi possível ler seu uso do Claude. Ele tenta de novo mais tarde.",
+    "claudeRequestDrift": "A Anthropic respondeu em um formato que o OpenLimiter não consegue ler, então não foi possível ler seu uso do Claude.",
     "startAtSignIn": "Abrir o OpenLimiter ao entrar no computador",
     "startAtSignInNote": "Mantém suas barras atualizadas depois de reiniciar.",
     "claudePollConsentTitle": "Mostrar seu limite do Fable?",
     "claudePollNotNow": "Agora não",
     "claudePollSaveFailed": "A escolha não pôde ser salva, então o uso do Claude continua desativado.",
-    "claudePollContinueOff": "Continuar com o uso do Claude desativado",
-    "claudeWeeklyPollHint": "Ative a consulta de uso em Ferramentas de conexão para ver seus limites semanais."
+    "claudePollContinueOff": "Continuar com o uso do Claude desativado"
   },
   "meta": {
     "title": "OpenLimiter, limites de codificação com IA e atividade de agentes",
@@ -585,7 +586,7 @@
     "connectors": {
       "claude": {
         "tag": "lê o payload nativo do statusline",
-        "detail": "Lê o que o Claude Code entrega ao seu statusline. O aplicativo de desktop também consulta a Anthropic com o seu login, depois de um aviso; você pode desligar isso."
+        "detail": "Lê o que o Claude Code entrega ao seu statusline. Uma consulta direta à Anthropic com o seu próprio login fica desativada até que você a ative."
       },
       "openRouter": {
         "tag": "lê uma resposta de créditos documentada",
@@ -668,7 +669,7 @@
       "plannedChip": "planejado"
     },
     "feedIn": "Como alimentar um",
-    "footnote": "Nenhum connector foi verificado contra uma conta real ainda. Codex e Cursor passam nos seus fixtures gravados, e todos os outros connectors vêm marcados <code>UNVERIFIED</code>, o padrão honesto. Gemini CLI, Grok, Kimi, OpenCode e Cursor leem interfaces internas às ferramentas de outra empresa, assim como a consulta direta ao Claude, e quando uma muda, esse provedor falha de forma segura para unknown em vez de chutar. <link>Cada connector e seu estado real</link>.",
+    "footnote": "Nenhum connector foi verificado contra uma conta real ainda. Codex e Cursor passam nos seus fixtures gravados, e todos os outros connectors vêm marcados <code>UNVERIFIED</code>, o padrão honesto. Gemini CLI, Grok, Kimi, OpenCode e Cursor leem interfaces internas às ferramentas de outra empresa, assim como a consulta direta ao Claude, que fica desativada até que você a ative, e quando uma muda, esse provedor mostra isso em vez de chutar. <link>Cada connector e seu estado real</link>.",
     "compatibilityNote": "Nomes de produtos, logotipos, marcas e outras marcas comerciais apresentados ou mencionados no OpenLimiter são de propriedade de seus respectivos titulares. Esses titulares de marcas não são afiliados ao OpenLimiter, aos nossos produtos ou ao nosso site. Eles não patrocinam nem endossam o OpenLimiter. O uso dessas marcas não implica qualquer afiliação ou endosso.",
     "manualNote": "Toda ferramenta desta página já pode ser medida hoje. Conecte a ferramenta a partir do aplicativo de desktop, ou, em Avançado, anote os números com manual entry, ou envie um payload com ingest a partir de qualquer script que você controle. De um jeito ou de outro, ele cai no mesmo snapshot que um connector."
   },
@@ -1017,7 +1018,7 @@
       "webview": "No Windows, o instalador adiciona o runtime WebView2 da Microsoft quando ele falta, porque o aplicativo desenha a janela com ele.",
       "updates": "O aplicativo verifica no GitHub se há uma versão mais nova e pergunta antes de fazer a instalação. No macOS, por enquanto, uma versão nova é um novo download nesta página.",
       "logins": "Ele lê os logins que as suas ferramentas de programação já guardaram, só para leitura, e envia cada um apenas ao próprio provedor. Suas leituras só chegam ao OpenLimiter se você entrar, e então apenas como leituras limitadas de quota.",
-      "claude": "As barras da sessão do Claude vêm da statusline documentada do Claude Code. Numa instalação nova, o aplicativo também consulta a Anthropic diretamente sobre o seu uso do Claude, com o seu próprio login do Claude Code e enviado apenas à Anthropic, depois de mostrar um aviso. Você pode desligar essa consulta."
+      "claude": "As barras do Claude vêm da statusline documentada do Claude Code. Uma consulta direta à Anthropic sobre o seu uso do Claude fica desativada até que você a ative em Connect Tools; ativada, ela envia o seu próprio login do Claude Code somente para a Anthropic, mais ou menos a cada cinco minutos, e todas as barras do Claude vêm dessa única fonte. A política da Anthropic para ferramentas como esta ainda não está resolvida."
     },
     "mobile": {
       "title": "O OpenLimiter roda no seu computador.",
@@ -1288,7 +1289,7 @@
             "rows": {
               "claude": {
                 "connect": "Nada a configurar: o OpenLimiter lê o que o Claude Code já mostra.",
-                "reads": "A linha de status do Claude Code, automaticamente. Em uma nova instalação no desktop, uma solicitação direta de uso divulgada com suas credenciais locais do Claude começa ativada. Instalações existentes no desktop sem uma escolha perguntam primeiro. A configuração no terminal registra sua própria escolha."
+                "reads": "A linha de status do Claude Code, automaticamente. Uma solicitação direta de uso fica desativada até que você a ative; ativada, ela envia o seu próprio login do Claude Code somente para a Anthropic, mais ou menos a cada cinco minutos, e todas as barras do Claude vêm dela. A política da Anthropic para ferramentas como esta ainda não está resolvida."
               },
               "openrouter": {
                 "connect": "OAuth real, iniciado pela central. Uma chave que você já tenha continua funcionando.",
@@ -1333,7 +1334,7 @@
             "intro": "Most connectors read for themselves now. Two still do not, and this is the part worth stating plainly.",
             "bullets": {
               "antigravity": "<code>antigravity</code> chega pela linha de status documentada do Antigravity CLI. Use <code>/usage</code> no Antigravity CLI para atualizar a cota.",
-              "claude": "<code>claude</code> recebe dados da linha de status do Claude Code assim que ela aparece. Em uma nova instalação no desktop, uma solicitação direta de uso divulgada começa ativada. Instalações existentes sem uma escolha perguntam primeiro, e a configuração no terminal registra sua própria escolha.",
+              "claude": "<code>claude</code> recebe dados da linha de status do Claude Code assim que ela aparece. Uma solicitação direta de uso fica desativada até que você a ative; ativada, ela passa a ser a fonte de todas as barras do Claude.",
               "live": "<code>codex</code>, <code>gemini_cli</code>, <code>grok</code>, <code>kimi</code> e <code>openrouter</code> leem a sessão salva pela própria ferramenta, no máximo uma vez a cada quinze minutos, pela atualização do aplicativo ou por <code>openlimiter refresh</code> no terminal.",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
               "ingestOnly": "<code>opencode</code> is the one connector left with no reader of its own: it only accepts data through <code>openlimiter ingest --provider opencode</code>, because it reads an authenticated page rather than a login file."
@@ -1506,7 +1507,7 @@
               "claude": {
                 "name": "Claude Code",
                 "reports": "Uso da sessão de cinco horas e uso de sete dias, com horários de reset.",
-                "source": "A linha de status do Claude Code, automaticamente, sempre que o Claude Code aparece. Em uma nova instalação no desktop, uma solicitação direta de uso divulgada com suas credenciais locais do Claude começa ativada. Instalações existentes sem uma escolha perguntam primeiro."
+                "source": "A linha de status do Claude Code, automaticamente, sempre que o Claude Code aparece. Uma solicitação direta de uso com o seu próprio login do Claude Code fica desativada até que você a ative; ativada, ela é a fonte de todas as barras do Claude e é lida mais ou menos a cada cinco minutos."
               },
               "codex": {
                 "name": "Codex",
@@ -1530,7 +1531,7 @@
               }
             },
             "riskTitle": "Algumas interfaces não são oficiais",
-            "riskBody": "A consulta direta ao Claude e o OpenCode dependem de interfaces privadas dos provedores, que podem mudar ou desaparecer. Uma mudança de contrato produz desconhecido visível para aquele provedor e mantém todos os outros funcionando. O OpenRouter e o app server do Codex são documentados."
+            "riskBody": "A consulta direta ao Claude e o OpenCode dependem de interfaces privadas dos provedores, que podem mudar ou desaparecer. Uma mudança de contrato aparece naquele provedor em vez de ser adivinhada, e todos os outros continuam funcionando. O OpenRouter e o app server do Codex são documentados."
           },
           "privacy": {
             "title": "Limite de privacidade",
@@ -1918,7 +1919,7 @@
             "title": "The commands",
             "capturedFixturesLabel": "captured {date}, synthetic fixtures",
             "capturedLabel": "captured {date}",
-            "claudePoll": "O controle Mostrar limite do Fable no aplicativo para desktop controla o processo do desktop. Para parar essa solicitação, abra Connect Tools, depois o menu no fim da linha do Claude, e desative Mostrar limite do Fable. <code>providers.claude.poll</code> controla o processo da linha de comando. Para parar essa solicitação, execute <code>openlimiter config set providers.claude.poll false</code>. Cada controle é independente. Isso envia uma solicitação direta de uso com suas credenciais locais do Claude, e a política da Anthropic para ferramentas como esta ainda não está resolvida.",
+            "claudePoll": "A consulta direta ao Claude fica desativada até que você a ative, e um único controle vale para o aplicativo para desktop e para esta ferramenta. No aplicativo para desktop, abra Connect Tools, depois o menu no fim da linha do Claude, e ative ou desative Read my Claude usage from Anthropic. No terminal, <code>openlimiter config set providers.claude.poll true</code> ativa e <code>openlimiter config set providers.claude.poll false</code> interrompe. Ativada, ela envia o seu próprio login do Claude Code somente para a Anthropic, mais ou menos a cada cinco minutos, e todas as barras do Claude vêm dessa única fonte. A política da Anthropic para ferramentas como esta ainda não está resolvida.",
             "init": {
               "body": "Writes local configuration to the state directory, recording every connector and whether it was detected. It reports the detected list, or none."
             },
@@ -1967,7 +1968,7 @@
               "body": "Envia uma rodada das barras em cache à central, renovando antes a sessão se ela estiver perto de expirar. <code>refresh</code> já faz isso automaticamente após uma rodada bem sucedida quando há sessão. A execução manual serve para confirmar que o envio chegou."
             },
             "refresh": {
-              "body": "Lê as sessões salvas pelas suas ferramentas e pede a cada provedor seu uso, no máximo uma vez a cada quinze minutos. Guarda as leituras válidas no cache. Pausa enquanto o aplicativo está aberto. <code>statusline</code> e <code>snapshot</code> iniciam o comando automaticamente em segundo plano quando o cache passa de um minuto."
+              "body": "Lê as sessões salvas pelas suas ferramentas e pede a cada provedor seu uso, no máximo uma vez a cada quinze minutos. Guarda as leituras válidas no cache. A solicitação direta de uso do Claude, depois que você a ativa, lê mais ou menos a cada cinco minutos. Pausa enquanto o aplicativo está aberto. <code>statusline</code> e <code>snapshot</code> iniciam o comando automaticamente em segundo plano quando o cache passa de um minuto."
             },
             "terminal": {
               "body": "Lista os terminais compatíveis e sua configuração, oferecendo configurar um ou todos. <code>terminal install '<host>'</code> e <code>terminal uninstall '<host>'</code> configuram ou restauram um terminal. <code>terminal status</code> mostra a tabela, e <code>terminal show</code> e <code>terminal hide</code> escolhem os provedores visíveis. Consulte <docs>contexto do agente</docs> para conhecer os terminais e o formato."
@@ -2295,8 +2296,6 @@
     "accountBalanceDetail": "{purchased} comprados, {used} usados",
     "balance": "Saldo",
     "percentUsed": "{value}% usado",
-    "claudeFableDesktopHint": "O Fable aparece aqui quando o uso do Claude está ativado no OpenLimiter no seu computador.",
-    "claudeWeeklyPollHint": "Ative a consulta de uso em Ferramentas de conexão para ver seus limites semanais.",
     "providers": {
       "title": "Provedores",
       "automaticPrompt": "Abra o aplicativo de desktop. A detecção local começa por lá.",

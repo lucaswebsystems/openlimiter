@@ -117,7 +117,7 @@ export type AcquisitionStatus =
   | "off";
 
 export interface AcquisitionRow {
-  readonly availability?: "expired_credentials" | "access_denied" | "quota_unavailable" | "rate_limited";
+  readonly availability?: "expired_credentials" | "access_denied" | "quota_unavailable" | "rate_limited" | "schema_drift";
   readonly retryAt?: string;
   readonly provider: ProviderCode;
   /** The account these rows were filed under, when one was decided. */
@@ -525,7 +525,11 @@ export async function runAcquisition(
       ...(accountId === null ? {} : { accountId }),
       detected: true,
       status: "stale",
-      ...(outcome === "rate_limited" && nextAttemptAt ? { availability: "rate_limited" as const, retryAt: nextAttemptAt } : outcomeAvailability(outcome)),
+      ...(outcome === "rate_limited" && nextAttemptAt ? { availability: "rate_limited" as const, retryAt: nextAttemptAt }
+        /* A Claude answer this build cannot read is a flag like any other
+           failure, never a withdrawal. Rust twin: claude_oauth.rs. */
+        : spec.provider === "CLAUDE" && outcome === "drift" ? { availability: "schema_drift" as const }
+        : outcomeAvailability(outcome)),
       reason: sentence(outcome),
       nextAttemptAt,
       disclosure

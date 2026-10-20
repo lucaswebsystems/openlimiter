@@ -26,6 +26,9 @@ export const ACCOUNTS = Object.freeze({
   openrouter: "0e0e0e0e0123456789abcdef1f1f1f1f",
 });
 
+/* What the Claude usage request stamps on every row it reads. */
+const POLL = Object.freeze({ sourceKind: "remote_api", observedVia: "remote_http" });
+
 const LOCAL = Object.freeze({
   credentialOrigin: "official-local-tool", dataInterfaceStatus: "internal-endpoint",
   automationRisk: "high", verification: "UNVERIFIED",
@@ -52,9 +55,9 @@ export function messyFixtures(now = Date.now()) {
   const fiveHour = { kind: "rolling", durationSeconds: 18_000 };
   /* Displayable: what the active accounts read in the last few minutes. */
   const shown = [
-    row(at, "CLAUDE", "FIVE_HOUR", 6, { account: ACCOUNTS.claude, reset: HOUR + 55 * MINUTE, window: fiveHour, writer: "cli" }),
-    row(at, "CLAUDE", "SEVEN_DAY", 46, { account: ACCOUNTS.claude, reset: 4 * DAY + 14 * HOUR, writer: "cli" }),
-    row(at, "CLAUDE", "SEVEN_DAY_FABLE", 31, { account: ACCOUNTS.claude, reset: 4 * DAY + 14 * HOUR, writer: "cli" }),
+    row(at, "CLAUDE", "FIVE_HOUR", 6, { account: ACCOUNTS.claude, reset: HOUR + 55 * MINUTE, window: fiveHour, writer: "cli", provenance: POLL }),
+    row(at, "CLAUDE", "SEVEN_DAY", 46, { account: ACCOUNTS.claude, reset: 4 * DAY + 14 * HOUR, writer: "cli", provenance: POLL }),
+    row(at, "CLAUDE", "SEVEN_DAY_FABLE", 31, { account: ACCOUNTS.claude, reset: 4 * DAY + 14 * HOUR, writer: "cli", provenance: POLL }),
     row(at, "CODEX", "SEVEN_DAY", 70, { account: ACCOUNTS.codex, reset: 4 * DAY, writer: "desktop" }),
     {
       ...row(at, "OPENROUTER", "ACCOUNT_BALANCE", 25, { account: ACCOUNTS.openrouter, window: { kind: "lifetime" } }),

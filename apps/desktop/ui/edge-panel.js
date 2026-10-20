@@ -101,16 +101,17 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
     again = false;
     const at = now();
     try {
-      const [cache, manual, rail] = await Promise.allSettled([
-        invoke("read_cache"), invoke("read_manual"), invoke("plugin:rail|rail_snapshot", {}),
+      const [cache, manual, rail, poll] = await Promise.allSettled([
+        invoke("read_cache"), invoke("read_manual"), invoke("plugin:rail|rail_snapshot", {}), invoke("claude_poll_enabled"),
       ]);
       if (stopped) return;
       /* A failed read (native code rejects a cache it cannot read or parse)
          keeps what is still fresh of the rows already drawn, by the one
-         freshness policy, exactly as Home does; only nothing left to show
-         reads as unavailable. */
+         freshness policy and the Claude request switch as it stands now,
+         exactly as Home does; only nothing left to show reads as
+         unavailable. */
       held = cache.status === "rejected"
-        ? holdReadings(held, at)
+        ? holdReadings(held, at, poll.status === "fulfilled" && poll.value?.enabled === true)
         : projectReadings(cache.value, manual.status === "fulfilled" ? manual.value : null, at).snapshots;
       const model = limitsModel(held, at);
       const key = limitsKey(model);
