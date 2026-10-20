@@ -1213,19 +1213,33 @@ export function statuslineColor(
   if (setting === "never") return false;
   if (setting === "always") return true;
   // FORCE_COLOR decides where the setting leaves it to the environment (U47).
-  const force = environment["FORCE_COLOR"];
-  if (force !== undefined && force !== "") return force !== "0" && force.toLowerCase() !== "false";
+  const level = forceColorLevel(environment);
+  if (level !== undefined) return level > 0;
   return automatic || host === "claude";
 }
 
 /**
- * The 256 colour claim: the terminal makes it, Windows Terminal among them
- * (it sets `WT_SESSION` and neither `TERM` nor `COLORTERM`), or FORCE_COLOR 2
- * or 3 asks for it.
+ * FORCE_COLOR as the explicit level it names, read before any terminal hint
+ * (Astra 2.1.7, finding 8): empty and `true` are 1, `false` is 0, a whole
+ * number counts up to 3, and anything else names no level.
+ */
+function forceColorLevel(environment: Readonly<Record<string, string | undefined>>): number | undefined {
+  const force = environment["FORCE_COLOR"];
+  if (force === undefined) return undefined;
+  if (force === "" || force.toLowerCase() === "true") return 1;
+  if (force.toLowerCase() === "false") return 0;
+  return /^\d+$/u.test(force) ? Math.min(3, Number(force)) : undefined;
+}
+
+/**
+ * The 256 colour claim: FORCE_COLOR's level when it names one (2 or 3),
+ * else the terminal's own, Windows Terminal among them (it sets
+ * `WT_SESSION` and neither `TERM` nor `COLORTERM`).
  */
 export function statuslineWide(environment: Readonly<Record<string, string | undefined>>): boolean {
-  return supports256Color(environment) || environment["WT_SESSION"] !== undefined ||
-    Number(environment["FORCE_COLOR"]) >= 2;
+  const level = forceColorLevel(environment);
+  if (level !== undefined) return level >= 2;
+  return supports256Color(environment) || environment["WT_SESSION"] !== undefined;
 }
 
 /** Node writes UTF8 on every OS; fall back only for an explicit encoding limitation. */
