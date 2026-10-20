@@ -21,6 +21,8 @@ import { providerName, say } from "./names.js";
 export const ORDER_CHANGED_EVENT = "provider-order-changed";
 
 const USAGE = Object.freeze({ mode: "usage", providers: Object.freeze([]), revision: 0 });
+/* A list showing a move that did not land, until the order on disk is drawn. */
+const ROLLBACK = Object.freeze({ rollback: true });
 
 /* A press becomes a drag after this many pixels, so a click never drags. */
 const DRAG_THRESHOLD = 4;
@@ -213,11 +215,18 @@ export function reorderList(doc, mount, { store, render, hold = () => {}, scroll
   let drag = null;
   let menu = null;
   let suppressClick = false;
-  /* The revision the order on screen was drawn from or, while a move made
-     here is saving, that save (the revision it lands as). A move is saved
-     from it, so a move made on an order another surface has since replaced
-     is refused rather than written over theirs. */
+  /* The revision the order on screen was drawn from; while a move made here
+     is saving, that save (the revision it lands as); after a move that did
+     not land, ROLLBACK until the order on disk has been drawn. A move is
+     saved from it, so one made on an order another surface has replaced is
+     refused rather than written over theirs, and one made on a list still
+     waiting for its redraw is not written at all. */
   let shownRevision = 0;
+  /* What the last model drawn from the order was drawn from: its revision
+     and the copy's generation then. */
+  let drawnStamp = null;
+  /* What a move refused while ROLLBACK stands says. */
+  let rollbackSays = "orderNotSaved";
 
   const live = doc.createElement("p");
   live.className = "q-live";
@@ -244,12 +253,13 @@ export function reorderList(doc, mount, { store, render, hold = () => {}, scroll
   /* The surface's model, drawn from the order as the copy holds it now. */
   function draw(model) {
     const active = drag ?? menu ?? press;
+    const stamp = { revision: store.state.revision, generation: store.generation };
     if (active === null) {
-      show(model, store.state.revision);
+      show(model, stamp);
       void store.adopt(model.map((provider) => provider.code));
       return;
     }
-    latest = { model, generation: store.generation, revision: store.state.revision };
+    latest = { model, stamp };
     if (!model.some((provider) => provider.code === active.code)) {
       const name = providerName(active.code);
       cancel();
@@ -261,21 +271,32 @@ export function reorderList(doc, mount, { store, render, hold = () => {}, scroll
     render(drawn.map((provider) => fresh.get(provider.code) ?? provider));
   }
 
-  /* Draw a model and note the revision it was drawn from (null: not known). */
-  function show(model, revision) {
+  /* Draw a model and note what it was drawn from (null: not known). Only a
+     rendered model advances the revision the list claims, never a save. */
+  function show(model, stamp) {
     render(model);
     drawn = model;
-    if (revision !== null && typeof shownRevision === "number") shownRevision = revision;
+    drawnStamp = stamp;
+    if (stamp !== null && !(shownRevision instanceof Promise)) shownRevision = stamp.revision;
   }
 
   /* What arrived during the interaction: as it came, or, when the order has
-     changed since, in the order as it is now, its revision then unknown. */
+     changed since, in the order as it is now, what it shows then unknown. */
   function settle() {
     if (latest === null || drag || menu || press) return;
-    const { model, generation, revision } = latest;
+    const { model, stamp } = latest;
     latest = null;
-    if (generation === store.generation) show(model, revision);
+    if (stamp.generation === store.generation) show(model, stamp);
     else show(byOrder(model, store.state), null);
+  }
+
+  /* Newcomers wait while a block is moved, since a redraw during it appends
+     nothing. Once it has ended, and the move it made has saved, they are
+     appended as a draw would (bounded by the store). */
+  function resume() {
+    void Promise.resolve(shownRevision).then(() => {
+      if (drag === null && menu === null && press === null) void store.adopt(shown());
+    });
   }
 
   /* Show the blocks in `codes` order now, any others after them; the focused
@@ -293,11 +314,20 @@ export function reorderList(doc, mount, { store, render, hold = () => {}, scroll
      from the revision its order was drawn from. A move made while the one
      before it is saving waits for it and is saved from it. */
   function moveBlock(code, to, before, after, revision) {
+    if (revision === ROLLBACK) {
+      announce(say(rollbackSays));
+      return;
+    }
     if (typeof revision !== "number" || revision === store.state.revision) place(after);
     const saving = commit(code, to, before, revision);
     shownRevision = saving;
     void saving.then((landed) => {
-      if (shownRevision === saving) shownRevision = landed ?? store.state.revision;
+      if (shownRevision !== saving) return;
+      /* Redrawn from the copy as it is now: that is what the list shows. If
+         not, a move that landed still shows as saved, and one that did not
+         shows until the order on disk is drawn. */
+      if (drawnStamp?.generation === store.generation) shownRevision = drawnStamp.revision;
+      else shownRevision = landed ?? ROLLBACK;
     });
   }
 
@@ -313,7 +343,8 @@ export function reorderList(doc, mount, { store, render, hold = () => {}, scroll
       }
       return result.revision;
     }
-    announce(say(result.outcome === "stale" ? "orderChangedElsewhere" : "orderNotSaved"));
+    rollbackSays = result.outcome === "stale" ? "orderChangedElsewhere" : "orderNotSaved";
+    announce(say(rollbackSays));
     return null;
   }
 
@@ -369,7 +400,7 @@ export function reorderList(doc, mount, { store, render, hold = () => {}, scroll
     if (byKeyboard) [...element.children].find((item) => !item.disabled)?.focus();
   }
 
-  function closeMenu(focus = false) {
+  function closeMenu(focus = false, ended = true) {
     if (menu === null) return;
     const { grip, element } = menu;
     menu = null;
@@ -379,6 +410,7 @@ export function reorderList(doc, mount, { store, render, hold = () => {}, scroll
     grip.removeAttribute("aria-controls");
     hold(false);
     settle();
+    if (ended) resume();
   }
 
   /* A move chosen in the menu, made on the order as it was shown. */
@@ -386,14 +418,16 @@ export function reorderList(doc, mount, { store, render, hold = () => {}, scroll
     const { grip, code } = menu;
     const revision = shownRevision;
     const before = shown();
-    closeMenu(true);
+    closeMenu(true, false);
     const from = before.indexOf(code);
     const to = { up: from - 1, down: from + 1, top: 0, bottom: before.length - 1 }[move];
-    if (from < 0 || to === undefined || to < 0 || to >= before.length || to === from) return;
-    const after = before.filter((entry) => entry !== code);
-    after.splice(to, 0, code);
-    moveBlock(code, to, before, after, revision);
-    grip.scrollIntoView?.({ block: "nearest" });
+    if (from >= 0 && to !== undefined && to >= 0 && to < before.length && to !== from) {
+      const after = before.filter((entry) => entry !== code);
+      after.splice(to, 0, code);
+      moveBlock(code, to, before, after, revision);
+      grip.scrollIntoView?.({ block: "nearest" });
+    }
+    resume();
   }
 
   /* ------------------------------------------------------------ the drag */
@@ -403,6 +437,7 @@ export function reorderList(doc, mount, { store, render, hold = () => {}, scroll
     press = null;
     if (grip.hasPointerCapture?.(pointerId)) grip.releasePointerCapture(pointerId);
     settle();
+    resume();
   }
 
   function begin(clientY) {
@@ -502,6 +537,7 @@ export function reorderList(doc, mount, { store, render, hold = () => {}, scroll
     if (moved) moveBlock(code, to, before, after, revision);
     slide(shownAt);
     hold(false);
+    resume();
   }
 
   function slide(shownAt) {
