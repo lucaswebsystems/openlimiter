@@ -14,7 +14,7 @@
     "core/provider-presentation.ts": "2ce546dce95d154b",
     "core/contracts/claude-presentation.json": "154e17d99423f11c",
     "core/schedule.ts": "8c4afef8c2109573",
-    "core/acquire/antigravity-meters.ts": "e6dc204897fd85ce",
+    "core/acquire/antigravity-meters.ts": "19d7777cfde4f499",
     "connectors/shared.ts": "999163f50865ac4f",
     "connectors/antigravity.ts": "26c316e507acf997",
     "connectors/claude.ts": "48d670bd08d3e341",

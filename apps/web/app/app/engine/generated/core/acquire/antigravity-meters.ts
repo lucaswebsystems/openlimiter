@@ -5,15 +5,23 @@
  * Only import specifiers were rewritten. Edit the package instead, then run
  * the script again.
  */
-/** Shared with the desktop's pool identities. Unknown pools never alias Gemini. */
-export function antigravityMeter(bucketId: string, window?: string): { meter: string; durationSeconds: number } | null {
-  const pool = bucketId === "gemini" || bucketId.startsWith("gemini-") ? "gemini" :
-    bucketId === "3p" || bucketId.startsWith("3p-") ? "3p" : null;
-  const period = window ?? (bucketId.endsWith("-5h") ? "5h" : bucketId.endsWith("-weekly") ? "weekly" : "");
-  if (pool === null || (period !== "5h" && period !== "weekly")) return null;
+/**
+ * The meter one status line bucket earns, from its id: `<pool>-5h` or
+ * `<pool>-weekly`. Rust twin: `antigravity_meter` in native_readers.rs.
+ *
+ * The Google pool keeps FIVE_HOUR and SEVEN_DAY and the third party pool its
+ * THIRD_PARTY codes, because every row already on disk carries them. Any other
+ * pool is named after itself, so a new bucket is its own row and never aliases
+ * the Gemini bars; a pool whose name cannot become a meter code is dropped.
+ */
+export function antigravityMeter(bucketId: string): { meter: string; durationSeconds: number } | null {
+  const [, pool = "", period] = /^(.+)-(5h|weekly)$/u.exec(bucketId) ?? [];
+  if (period === undefined) return null;
+  const fiveHour = period === "5h";
+  const named = pool === "gemini" ? null : pool === "3p" ? "THIRD_PARTY" : pool.replace(/[^A-Za-z0-9]/gu, "_").toUpperCase();
+  if (named !== null && !/^[A-Z]/u.test(named)) return null;
   return {
-    meter: pool === "gemini" ? (period === "5h" ? "FIVE_HOUR" : "SEVEN_DAY") :
-      (period === "5h" ? "THIRD_PARTY_SESSION" : "THIRD_PARTY_WEEKLY"),
-    durationSeconds: period === "5h" ? 18_000 : 604_800
+    meter: named === null ? (fiveHour ? "FIVE_HOUR" : "SEVEN_DAY") : named + (fiveHour ? "_SESSION" : "_WEEKLY"),
+    durationSeconds: fiveHour ? 18_000 : 604_800
   };
 }
