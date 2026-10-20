@@ -3,7 +3,7 @@ import { mkdtemp, realpath, rm, writeFile, mkdir, utimes } from "node:fs/promise
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { acquireMachineLease, freshnessPolicy, leasePolicy, mergeAuthoritativeSnapshotCache, retryPolicy, readSnapshotCache, recordAcquisitionAvailability } from "../src/cache.js";
+import { acquireMachineLease, freshnessPolicy, leasePolicy, mergeAcquiredSnapshots, mergeAuthoritativeSnapshotCache, retryPolicy, readSnapshotCache, recordAcquisitionAvailability } from "../src/cache.js";
 import { shouldStartRefresh } from "../src/acquire/coordination.js";
 import { claudeUsageRequest, retryAfterSeconds } from "../src/acquire/transport.js";
 import { runAcquisition, type AcquisitionSpec } from "../src/acquire/runner.js";
@@ -199,6 +199,52 @@ it("a rewritten credential file releases its refusal only when the token changed
     await runAcquisition([spec], { ...options, schedule: result.schedule });
     expect(calls).toBe(2);
   } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+/*
+ * 2.1.7, plan item 5: a failed read never withdraws the poll's readings. A 429,
+ * a 401 and a response this build cannot read each leave them to age and say
+ * so on the ACQUISITION row alone. Rust twin: claude_oauth.rs,
+ * a_429_a_401_and_a_malformed_response_each_leave_rows_aging_with_a_flag.
+ */
+describe("a failed Claude read leaves the poll's readings aging with a flag", () => {
+  const reading = (meter: string, value: number, observedAt: string) => ({
+    provider: "CLAUDE", meter, value, unit: "PERCENT",
+    window: { kind: "rolling", durationSeconds: meter === "FIVE_HOUR" ? 18_000 : 604_800 },
+    resetAt: new Date(now + 3_600_000).toISOString(), source: "internal_payload", precision: "exact", observedAt,
+    expiresAt: new Date(Date.parse(observedAt) + 465_000).toISOString(),
+    labels: { credentialOrigin: "official-local-tool", dataInterfaceStatus: "internal-endpoint", automationRisk: "high", verification: "UNVERIFIED" },
+    provenance: { sourceKind: "remote_api", observedVia: "remote_http" }
+  });
+  for (const [status, body, flag] of [[429, "", "rate_limited"], [401, "", "expired_credentials"], [200, '{"usage":40}', "schema_drift"]] as const) {
+    it(`after a ${String(status)}${body === "" ? "" : " with an unreadable body"}`, async () => {
+      const dir = await directory();
+      try {
+        const spec: AcquisitionSpec = { provider: "CLAUDE", credentialProvider: "CLAUDE", steps: [({ credential }) => claudeUsageRequest(credential.secret)], disclosure: null,
+          parse: (payload, observedAt) => (payload as Record<string, unknown>)["usage"] === undefined
+            ? [reading("FIVE_HOUR", 23, observedAt), reading("SEVEN_DAY", 41, observedAt), reading("EXTRA_USAGE", 9, observedAt)]
+            : null };
+        const readCredential = async () => ({ ok: true as const, credential: { secret: "fixture", accountId: null, expiresAtMilliseconds: null, origin: "vendor_store" as const } });
+        const first = await runAcquisition([spec], { stateDirectory: dir, now: new Date(now).toISOString(), schedule: {}, readCredential,
+          transport: async () => ({ status: 200, body: "{}", retryAfterSeconds: null }) });
+        /* What the command line's persist does: session and weeklies apart, the rest in the main file. */
+        for (const report of first.reports) {
+          if (!report.ok) continue;
+          const poll = report.snapshots.filter((row) => row.meter !== "EXTRA_USAGE");
+          await mergeAuthoritativeSnapshotCache(poll, dir, report.observedAt);
+          await mergeAcquiredSnapshots({ ...report, snapshots: report.snapshots.filter((row) => !poll.includes(row)) }, dir);
+        }
+        await runAcquisition([spec], { stateDirectory: dir, now: new Date(now + 300_000).toISOString(), schedule: first.schedule, readCredential,
+          transport: async () => ({ status, body, retryAfterSeconds: null }) });
+        const read = await readSnapshotCache(dir);
+        const rows = read.ok ? read.snapshots : [];
+        expect(rows.filter((row) => row.availability === undefined).map((row) => row.meter + " " + String(row.value)).sort())
+          .toEqual(["EXTRA_USAGE 9", "FIVE_HOUR 23", "SEVEN_DAY 41"]);
+        expect(rows.filter((row) => row.availability !== undefined).map((row) => row.meter + " " + String(row.availability)))
+          .toEqual(["ACQUISITION " + flag]);
+      } finally { await rm(dir, { recursive: true, force: true }); }
+    });
+  }
 });
 
 /*

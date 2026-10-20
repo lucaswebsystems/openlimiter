@@ -1699,6 +1699,69 @@ mod tests {
         assert!(!cache.contains("\"value\":40"));
     }
 
+    /// 2.1.7: a failed read never withdraws the request's readings. A 429, a
+    /// 401 and a response this build cannot read each leave the last readings
+    /// to age by the shared rules, and say what happened on the ACQUISITION
+    /// row alone, with nothing suppressed. TypeScript twin:
+    /// acquisition-policy.test.ts, "a failed Claude read leaves the poll's
+    /// readings aging with a flag".
+    #[tokio::test]
+    async fn a_429_a_401_and_a_malformed_response_each_leave_rows_aging_with_a_flag() {
+        for (status, body, flag) in [
+            (429, Vec::new(), "rate_limited"),
+            (401, Vec::new(), "expired_credentials"),
+            (200, br#"{"usage":40}"#.to_vec(), "schema_drift"),
+        ] {
+            let dir = TempDir::new();
+            let runtime = ClaudeOauthRuntime::default();
+            let seeded = collect_with_secret(
+                &runtime,
+                &RecordingTransport::replying(200, valid_body(), None),
+                writer(&dir),
+                ACCOUNT,
+                &secret("seed"),
+                NOW,
+            )
+            .await;
+            assert!(matches!(seeded, ClaudeOauthOutcome::CacheCommitted { .. }));
+            let _ = collect_with_secret(
+                &runtime,
+                &RecordingTransport::replying(status, body, None),
+                writer(&dir),
+                ACCOUNT,
+                &secret("seed"),
+                NOW + REFRESH_SECONDS * 1_000,
+            )
+            .await;
+            let read = |name: &str| -> Value {
+                serde_json::from_str(&fs::read_to_string(dir.path().join(name)).expect("document")).expect("json")
+            };
+            let main = read(CACHE_FILE_NAME);
+            let stored = read(crate::cache_write::AUTHORITATIVE_CACHE_FILE_NAME);
+            let mut readings: Vec<String> = stored["snapshots"]
+                .as_array()
+                .expect("rows")
+                .iter()
+                .map(|row| {
+                    assert!(row.get("availability").is_none(), "{status}: {row}");
+                    format!("{} {}", row["meter"].as_str().unwrap(), row["value"])
+                })
+                .collect();
+            readings.sort();
+            assert_eq!(readings, ["FIVE_HOUR 23.5", "SEVEN_DAY 41.2"], "{status}");
+            let flagged: Vec<&Value> = main["snapshots"]
+                .as_array()
+                .expect("rows")
+                .iter()
+                .filter(|row| row.get("availability").is_some())
+                .collect();
+            assert_eq!(flagged.len(), 1, "{status}");
+            assert_eq!(flagged[0]["meter"], "ACQUISITION", "{status}");
+            assert_eq!(flagged[0]["availability"], flag, "{status}");
+            assert!(main.get("suppressions").is_none(), "{status}");
+        }
+    }
+
     #[tokio::test]
     async fn a_stale_server_response_names_the_only_recovery() {
         let dir = TempDir::new();

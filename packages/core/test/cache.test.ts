@@ -18,8 +18,10 @@ import {
   CACHE_FILE_NAME,
   CACHE_LOCK_NAME,
   LOCK_STALE_MILLISECONDS,
+  mergeAcquiredSnapshots,
   mergeAuthoritativeSnapshotCache,
   mergeSnapshotCache,
+  readCacheState,
   readSnapshotCache,
   resolveStateDirectory,
   writeSnapshotCache,
@@ -426,6 +428,31 @@ describe("a successful poll replaces the account weekly set", () => {
     const rows = await mergeAuthoritativeSnapshotCache([weekly("SEVEN_DAY", "a", T1, 44)], directory, T2,
       { provider: "CLAUDE", accountId: "a", observedAt: T1 });
     expect(shape(rows)).toEqual(["SEVEN_DAY a 50", "SEVEN_DAY_FABLE a 77"]);
+  });
+});
+
+/*
+ * 2.1.7, plan item 5: clearing a failure flag is a change worth writing even
+ * when it is the only change. The poll's session and weeklies now live in the
+ * authoritative file, so a successful read's main report is often empty.
+ */
+describe("a successful read clears a failure flag on its own", () => {
+  const flag = snapshot({
+    meter: "ACQUISITION", value: 0, window: { kind: "unknown" }, resetAt: null, kind: "runtime_info", source: "internal_payload",
+    accountId: "a", writer: "cli", availability: "rate_limited", retryAt: "2026-01-01T00:10:00.000Z"
+  });
+  const other = snapshot({ meter: "EXTRA_USAGE", accountId: "a", writer: "desktop", source: "internal_payload",
+    provenance: { sourceKind: "remote_api", observedVia: "remote_http" } });
+  it.each([["alone", [] as Snapshot[]], ["beside another writer's row", [other]]])("%s", async (_name, others) => {
+    const directory = await temporaryDirectory();
+    await writeSnapshotCache([...others, flag], directory);
+    const result = await mergeAcquiredSnapshots(
+      { ok: true, provider: "CLAUDE", accountId: "a", observedAt: "2026-01-01T00:05:00.000Z", snapshots: [] },
+      directory
+    );
+    expect(result.written).toBe(true);
+    const stored = await readCacheState(directory);
+    expect(stored.ok && stored.state.snapshots.map((row) => row.meter)).toEqual(others.map((row) => row.meter));
   });
 });
 
