@@ -828,6 +828,33 @@ export interface CacheMergeResult {
 }
 
 /**
+ * Write one acquired report the way the command line's refresh does. A
+ * Claude poll's session and weeklies go to the authoritative file, where a
+ * legacy status line payload cannot overwrite them, and a read that stated
+ * the whole weekly set removes a weekly it no longer reports (a partial read
+ * deletes nothing). Every other row folds into the main file beside the rows
+ * other sources wrote. Rust twin: native_snapshot.rs write_report_with.
+ */
+export async function persistAcquiredReport(
+  report: Extract<CollectionReport, { ok: true }>,
+  directory = resolveStateDirectory(),
+  now: string = report.observedAt
+): Promise<void> {
+  const pollRows = report.snapshots.filter((row) =>
+    row.provider === "CLAUDE" && (row.meter === "FIVE_HOUR" || row.meter.startsWith("SEVEN_DAY")));
+  if (report.provider === "CLAUDE") {
+    await mergeAuthoritativeSnapshotCache(pollRows, directory, now,
+      report.complete === true
+        ? { provider: "CLAUDE", accountId: report.accountId, observedAt: report.observedAt }
+        : undefined);
+  }
+  await mergeAcquiredSnapshots({
+    ...report,
+    snapshots: report.snapshots.filter((row) => !pollRows.includes(row))
+  }, directory);
+}
+
+/**
  * Fold fresh snapshots into the cache under the lock.
  *
  * Reading, merging, and writing all happen inside one lock, so two writers that

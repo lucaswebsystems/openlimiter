@@ -8,8 +8,7 @@ import {
   PROVIDER_CODES,
   acquireRefreshLock,
   clearRefreshSpawnFailure,
-  mergeAcquiredSnapshots,
-  mergeAuthoritativeSnapshotCache,
+  persistAcquiredReport,
   createFetchTransport,
   readRefreshSpawnFailure,
   buildAdvice,
@@ -1004,22 +1003,7 @@ async function refreshCommand(
       }
       if (!report.ok) return;
       try {
-        /* The session row joins the weeklies, where a legacy status line
-           payload cannot overwrite it. Rust twin: native_snapshot.rs write_report_with. */
-        const pollRows = report.snapshots.filter((row) =>
-          row.provider === "CLAUDE" && (row.meter === "FIVE_HOUR" || row.meter.startsWith("SEVEN_DAY")));
-        /* A Claude poll that read the account's whole weekly set removes a
-           weekly it no longer reports; a partial read deletes nothing. */
-        if (report.provider === "CLAUDE") {
-          await mergeAuthoritativeSnapshotCache(pollRows, dependencies.stateDirectory, now,
-            report.complete === true
-              ? { provider: "CLAUDE", accountId: report.accountId, observedAt: report.observedAt }
-              : undefined);
-        }
-        await mergeAcquiredSnapshots({
-          ...report,
-          snapshots: report.snapshots.filter((row) => !pollRows.includes(row))
-        }, dependencies.stateDirectory);
+        await persistAcquiredReport(report, dependencies.stateDirectory, now);
       } catch {
         /* One provider's write failing is that provider's problem. The rest of
            the round still has readings worth keeping. */

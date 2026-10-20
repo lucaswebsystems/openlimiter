@@ -21,6 +21,7 @@ import {
   mergeAcquiredSnapshots,
   mergeAuthoritativeSnapshotCache,
   mergeSnapshotCache,
+  persistAcquiredReport,
   readCacheState,
   readSnapshotCache,
   resolveStateDirectory,
@@ -536,4 +537,38 @@ describe("shared Claude source vectors", () => {
         .toEqual(vector.rows.filter((row) => vector.visible.includes(row.ref)).map((row) => key(expand(row))).sort());
     });
   }
+
+  /* Astra fix round, finding 2: committing a poll read keeps every row
+     another source wrote and clears only the account's older flag. Rust twin:
+     state.rs, every_shared_claude_poll_commit_vector. */
+  describe("committing a poll read", () => {
+    const commit = (JSON.parse(readFileSync(path.resolve("packages/core/src/contracts/claude-poll-vectors.json"), "utf8")) as {
+      commit: {
+        observedAt: string;
+        poll: Omit<VectorRow, "store">[];
+        cases: { id: string; main: Omit<VectorRow, "store">[]; kept: string[]; gone: string[] }[];
+      };
+    }).commit;
+    const identity = (row: Snapshot) => [row.provider, row.meter, row.accountId ?? "", row.value].join(" ");
+    for (const vector of commit.cases) {
+      it(vector.id, async () => {
+        const directory = await temporaryDirectory();
+        const main = vector.main.map((row) => expand({ ...row, store: "main" }));
+        await writeFile(path.join(directory, CACHE_FILE_NAME), JSON.stringify({ version: 3, snapshots: main }));
+        await persistAcquiredReport({
+          ok: true,
+          provider: "CLAUDE",
+          accountId: contract.rowDefaults.accountId,
+          observedAt: commit.observedAt,
+          complete: true,
+          snapshots: commit.poll.map((row) => expand({ ...row, store: "main", observedAt: commit.observedAt }))
+        }, directory);
+        const stored = await readCacheState(directory);
+        const left = stored.ok ? stored.state.snapshots.map(identity) : ["unreadable"];
+        const named = (refs: string[]) => vector.main.filter((row) => refs.includes(row.ref)).map((row) => identity(expand({ ...row, store: "main" })));
+        for (const kept of named(vector.kept)) expect(left, kept).toContain(kept);
+        for (const gone of named(vector.gone)) expect(left, gone).not.toContain(gone);
+      });
+    }
+  });
 });

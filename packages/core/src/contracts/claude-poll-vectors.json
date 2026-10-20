@@ -361,5 +361,33 @@
         "rows": [{ "ref": "a", "store": "main", "meter": "FIVE_HOUR", "sourceKind": "statusline_payload", "value": 37 }],
         "visible": ["a"] }
     ]
+  },
+  "commit": {
+    "rule": "Committing a Claude poll read sends its session and weeklies to the authoritative file and keeps every row another source wrote in the main file, a status line payload that arrived while the read was in flight included. It clears the account's ACQUISITION flag recorded no later than the read, and keeps a later one. After the commit, every row listed in kept is still in the main file and every row listed in gone is not. Rows take the source section's rowDefaults; the poll reads at observedAt, a read that stated its whole weekly set.",
+    "observedAt": "2026-10-20T09:55:00.000Z",
+    "poll": [
+      { "ref": "session", "meter": "FIVE_HOUR", "sourceKind": "remote_api", "value": 4 },
+      { "ref": "weekly", "meter": "SEVEN_DAY", "sourceKind": "remote_api", "value": 20 }
+    ],
+    "cases": [
+      { "id": "a-payload-that-arrived-while-the-read-was-in-flight-stays",
+        "main": [{ "ref": "payload", "meter": "FIVE_HOUR", "sourceKind": "statusline_payload", "value": 37, "observedAt": "2026-10-20T09:59:00.000Z" }],
+        "kept": ["payload"], "gone": [] },
+      { "id": "every-other-source-stays",
+        "main": [
+          { "ref": "payload", "meter": "FIVE_HOUR", "sourceKind": "statusline_payload", "value": 37, "observedAt": "2026-10-20T09:50:00.000Z" },
+          { "ref": "ingest", "meter": "SEVEN_DAY_OPUS", "sourceKind": "explicit_ingest", "value": 44 },
+          { "ref": "manual", "meter": "SEVEN_DAY_SONNET", "sourceKind": "manual_document", "value": 45 },
+          { "ref": "unmarked", "meter": "SEVEN_DAY_HAIKU", "sourceKind": null, "value": 46 },
+          { "ref": "otherAccount", "accountId": "other-acct", "meter": "FIVE_HOUR", "sourceKind": "remote_api", "value": 9 }
+        ],
+        "kept": ["payload", "ingest", "manual", "unmarked", "otherAccount"], "gone": [] },
+      { "id": "the-read-clears-its-account-flag-recorded-no-later",
+        "main": [{ "ref": "flag", "meter": "ACQUISITION", "sourceKind": null, "value": 0, "availability": "rate_limited", "retryAt": "2026-10-20T10:10:00.000Z", "observedAt": "2026-10-20T09:54:00.000Z" }],
+        "kept": [], "gone": ["flag"] },
+      { "id": "a-flag-recorded-after-the-read-stays",
+        "main": [{ "ref": "flag", "meter": "ACQUISITION", "sourceKind": null, "value": 0, "availability": "rate_limited", "retryAt": "2026-10-20T10:10:00.000Z", "observedAt": "2026-10-20T09:56:00.000Z" }],
+        "kept": ["flag"], "gone": [] }
+    ]
   }
 }

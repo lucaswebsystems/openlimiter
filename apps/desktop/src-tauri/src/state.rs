@@ -278,6 +278,53 @@ mod tests {
         std::fs::remove_file(&cache).unwrap();
     }
 
+    /// One row of the shared Claude vectors (claude-poll-vectors.json), the
+    /// section's row defaults filled in. TypeScript twin: cache.test.ts expand.
+    fn vector_row(
+        defaults: &serde_json::Map<String, serde_json::Value>,
+        row: &serde_json::Value,
+    ) -> serde_json::Value {
+        let mut spec = defaults.clone();
+        spec.extend(row.as_object().expect("row").clone());
+        let meter = spec["meter"].as_str().expect("meter").to_string();
+        let observed = spec["observedAt"].as_str().expect("observed").to_string();
+        let observed_ms = crate::native_time::epoch_ms_from_rfc3339(&observed).expect("instant");
+        let acquisition = meter == "ACQUISITION";
+        let kind = spec["sourceKind"].as_str().map(str::to_string);
+        let mut value = serde_json::json!({
+            "provider": spec["provider"], "meter": meter, "value": spec["value"], "unit": "PERCENT",
+            "window": if acquisition { serde_json::json!({"kind": "unknown"}) } else {
+                serde_json::json!({"kind": "rolling", "durationSeconds": if meter.starts_with("SEVEN_DAY") { 604_800 } else { 18_000 }})
+            },
+            "resetAt": if acquisition { serde_json::Value::Null } else { spec["resetAt"].clone() },
+            "source": match kind.as_deref() { Some("remote_api") => "internal_payload", Some("manual_document") => "manual_entry", _ => "native_payload" },
+            "precision": "exact", "observedAt": observed,
+            "expiresAt": crate::native_time::iso_from_epoch_ms(observed_ms + 465_000).expect("instant"),
+            "labels": {"credentialOrigin": "official-local-tool", "dataInterfaceStatus": "internal-endpoint", "automationRisk": "high", "verification": "UNVERIFIED"},
+        });
+        if let Some(account) = spec["accountId"].as_str() {
+            value["accountId"] = serde_json::json!(account);
+        }
+        if let Some(kind) = kind {
+            let via = match kind.as_str() {
+                "statusline_payload" => "claude_code_statusline",
+                "remote_api" => "remote_http",
+                "manual_document" => "manual_json",
+                _ => "ingest_command",
+            };
+            value["provenance"] = serde_json::json!({"sourceKind": kind, "observedVia": via});
+        }
+        if acquisition {
+            value["kind"] = serde_json::json!("runtime_info");
+        }
+        for field in ["availability", "retryAt"] {
+            if let Some(text) = spec.get(field).and_then(serde_json::Value::as_str) {
+                value[field] = serde_json::json!(text);
+            }
+        }
+        value
+    }
+
     /// 2.1.7: one source per Claude bar, chosen by the switch and each row's
     /// provenance, never by the file a row sits in. TypeScript twin:
     /// cache.test.ts, "shared Claude source vectors"; both read the same cases.
@@ -290,47 +337,7 @@ mod tests {
         .expect("vectors");
         let source = &contract["source"];
         let defaults = source["rowDefaults"].as_object().expect("defaults").clone();
-        let expand = |row: &Value| -> Value {
-            let mut spec = defaults.clone();
-            spec.extend(row.as_object().expect("row").clone());
-            let meter = spec["meter"].as_str().expect("meter").to_string();
-            let observed = spec["observedAt"].as_str().expect("observed").to_string();
-            let observed_ms = crate::native_time::epoch_ms_from_rfc3339(&observed).expect("instant");
-            let acquisition = meter == "ACQUISITION";
-            let kind = spec["sourceKind"].as_str().map(str::to_string);
-            let mut value = json!({
-                "provider": spec["provider"], "meter": meter, "value": spec["value"], "unit": "PERCENT",
-                "window": if acquisition { json!({"kind": "unknown"}) } else {
-                    json!({"kind": "rolling", "durationSeconds": if meter.starts_with("SEVEN_DAY") { 604_800 } else { 18_000 }})
-                },
-                "resetAt": if acquisition { Value::Null } else { spec["resetAt"].clone() },
-                "source": match kind.as_deref() { Some("remote_api") => "internal_payload", Some("manual_document") => "manual_entry", _ => "native_payload" },
-                "precision": "exact", "observedAt": observed,
-                "expiresAt": crate::native_time::iso_from_epoch_ms(observed_ms + 465_000).expect("instant"),
-                "labels": {"credentialOrigin": "official-local-tool", "dataInterfaceStatus": "internal-endpoint", "automationRisk": "high", "verification": "UNVERIFIED"},
-            });
-            if let Some(account) = spec["accountId"].as_str() {
-                value["accountId"] = json!(account);
-            }
-            if let Some(kind) = kind {
-                let via = match kind.as_str() {
-                    "statusline_payload" => "claude_code_statusline",
-                    "remote_api" => "remote_http",
-                    "manual_document" => "manual_json",
-                    _ => "ingest_command",
-                };
-                value["provenance"] = json!({"sourceKind": kind, "observedVia": via});
-            }
-            if acquisition {
-                value["kind"] = json!("runtime_info");
-            }
-            for field in ["availability", "retryAt"] {
-                if let Some(text) = spec.get(field).and_then(Value::as_str) {
-                    value[field] = json!(text);
-                }
-            }
-            value
-        };
+        let expand = |row: &Value| vector_row(&defaults, row);
         let key = |row: &Value| format!("{} {} {}", row["provider"].as_str().unwrap_or(""), row["meter"].as_str().unwrap_or(""), row["value"].as_f64().unwrap_or(-1.0));
         let directory = super::state_directory().unwrap();
         for case in source["cases"].as_array().expect("cases") {
@@ -385,6 +392,77 @@ mod tests {
         }
         for name in [super::CACHE_FILE_NAME, super::AUTHORITATIVE_CACHE_FILE_NAME, "claude-poll.json"] {
             let _ = std::fs::remove_file(directory.join(name));
+        }
+    }
+
+    /// Astra fix round, finding 2: committing a poll read keeps every row
+    /// another source wrote, a status line payload that arrived while the read
+    /// was in flight included, and clears only the account's flag recorded no
+    /// later than the read. TypeScript twin: cache.test.ts, "committing a poll
+    /// read"; both read the same cases.
+    #[test]
+    fn every_shared_claude_poll_commit_vector() {
+        use serde_json::{json, Value};
+        let contract: Value = serde_json::from_str(include_str!(
+            "../../../../packages/core/src/contracts/claude-poll-vectors.json"
+        ))
+        .expect("vectors");
+        let defaults = contract["source"]["rowDefaults"].as_object().expect("defaults").clone();
+        let commit = &contract["commit"];
+        let observed = commit["observedAt"].as_str().expect("observed");
+        let account = defaults["accountId"].as_str().expect("account").to_string();
+        let identity = |row: &Value| {
+            format!(
+                "{} {} {} {}",
+                row["provider"].as_str().unwrap_or(""),
+                row["meter"].as_str().unwrap_or(""),
+                row["accountId"].as_str().unwrap_or(""),
+                row["value"].as_f64().unwrap_or(-1.0)
+            )
+        };
+        for case in commit["cases"].as_array().expect("cases") {
+            let id = case["id"].as_str().expect("id");
+            let directory = crate::test_support::TempDir::new();
+            let main = case["main"].as_array().expect("main");
+            std::fs::write(
+                directory.path().join(super::CACHE_FILE_NAME),
+                json!({"version": 3, "snapshots": main.iter().map(|row| vector_row(&defaults, row)).collect::<Vec<_>>()}).to_string(),
+            )
+            .unwrap();
+            let poll = commit["poll"]
+                .as_array()
+                .expect("poll")
+                .iter()
+                .map(|row| {
+                    let mut row = row.clone();
+                    row["observedAt"] = json!(observed);
+                    serde_json::from_value(vector_row(&defaults, &row)).expect("snapshot")
+                })
+                .collect::<Vec<crate::native_snapshot::Snapshot>>();
+            let writer = crate::cache_write::CacheWriter::at(Some(directory.path().to_path_buf()));
+            crate::native_snapshot::write_report_with(
+                &writer,
+                "CLAUDE",
+                Some(&account),
+                crate::native_snapshot::CacheReport::Success(poll),
+                true,
+            )
+            .expect(id);
+            let text = std::fs::read_to_string(directory.path().join(super::CACHE_FILE_NAME)).expect("main");
+            let document: Value = serde_json::from_str(&text).expect("document");
+            let left = document["snapshots"].as_array().expect("rows").iter().map(identity).collect::<Vec<_>>();
+            let named = |refs: &Value| {
+                main.iter()
+                    .filter(|row| refs.as_array().expect("refs").contains(&row["ref"]))
+                    .map(|row| identity(&vector_row(&defaults, row)))
+                    .collect::<Vec<_>>()
+            };
+            for kept in named(&case["kept"]) {
+                assert!(left.contains(&kept), "{id}: {kept} stays, left {left:?}");
+            }
+            for gone in named(&case["gone"]) {
+                assert!(!left.contains(&gone), "{id}: {gone} leaves, left {left:?}");
+            }
         }
     }
 
