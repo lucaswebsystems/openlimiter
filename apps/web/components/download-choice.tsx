@@ -65,7 +65,7 @@ function PlatformGlyph({ platform }: { platform: "windows" | "macos" | "linux" }
  * the card, which clears 4.5:1 by a wide margin in both themes.
  */
 const BUTTON =
-  "focus-ring lift-sm inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors";
+  "focus-ring lift-sm inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors";
 const PRIMARY = "border-transparent bg-primary-fill text-on-primary-fill hover:bg-primary-hover";
 const SECONDARY =
   "border-control-border bg-transparent text-heading hover:border-heading hover:bg-surface";
@@ -231,6 +231,8 @@ export function DownloadChoice({
       note: linuxSummary,
     },
   ];
+  /* The platform this browser runs on leads; the other two keep their order. */
+  targets.sort((left, right) => Number(right.id === platform) - Number(left.id === platform));
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col items-center gap-10">
