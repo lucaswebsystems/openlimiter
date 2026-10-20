@@ -233,19 +233,28 @@ const WIDE_RANGES: readonly (readonly [number, number])[] = [
 ];
 const ZERO_WIDTH = /^[\p{Mn}\p{Me}​-‏⁠﻿]$/u;
 const EMOJI = /^\p{Emoji_Presentation}$/u;
+const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
+/* One grapheme cluster: its widest character, and two for a base drawn as
+   emoji by the presentation selector U+FE0F (Astra 2.1.7, round 2). */
+function clusterColumns(cluster: string): number {
+  let columns = 0;
+  for (const char of cluster) {
+    if (ZERO_WIDTH.test(char)) continue;
+    const point = char.codePointAt(0) ?? 0;
+    columns = Math.max(columns, EMOJI.test(char) || WIDE_RANGES.some(([low, high]) => point >= low && point <= high) ? 2 : 1);
+  }
+  return columns === 1 && cluster.includes("️") ? 2 : columns;
+}
 
 /**
  * The terminal columns `text` takes (Astra 2.1.7, finding 5): escape codes,
  * combining marks and zero width characters take none, wide characters and
- * emoji two, everything else one.
+ * emoji two, everything else one, measured per grapheme cluster.
  */
 export function displayColumns(text: string): number {
   let columns = 0;
-  for (const char of text.replace(/\x1b\[[0-9;]*m/gu, "")) {
-    if (ZERO_WIDTH.test(char)) continue;
-    const point = char.codePointAt(0) ?? 0;
-    columns += EMOJI.test(char) || WIDE_RANGES.some(([low, high]) => point >= low && point <= high) ? 2 : 1;
-  }
+  for (const { segment } of GRAPHEMES.segment(text.replace(/\x1b\[[0-9;]*m/gu, ""))) columns += clusterColumns(segment);
   return columns;
 }
 
@@ -254,10 +263,10 @@ function truncateColumns(text: string, columns: number): string {
   if (displayColumns(text) <= columns) return text;
   let kept = "";
   let used = 0;
-  for (const char of text) {
-    const width = displayColumns(char);
+  for (const { segment } of GRAPHEMES.segment(text)) {
+    const width = clusterColumns(segment);
     if (used + width > columns - 1) break;
-    kept += char;
+    kept += segment;
     used += width;
   }
   return kept + "…";
