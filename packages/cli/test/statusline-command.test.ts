@@ -242,6 +242,52 @@ describe("statusline command reference layout", () => {
     expect(problems).toEqual([]);
   });
 
+  /* Astra round 2, finding 3: one render reads the Claude request switch once
+     and filters every input with that value, the path with no ingested rows
+     included, so a switch flip between the cache read and the ingest never
+     draws the source the render did not select. */
+  it("draws one Claude source per render when the switch flips while it runs", async () => {
+    const at = (secondsAgo: number) => new Date(Date.parse(NOW) - secondsAgo * 1000).toISOString();
+    const claude = (meter: string, value: number, sourceKind: "remote_api" | "statusline_payload", observedAt: string) => ({
+      provider: "CLAUDE", meter, value, unit: "PERCENT",
+      window: { kind: "rolling", durationSeconds: meter === "FIVE_HOUR" ? 18_000 : 604_800 },
+      resetAt: meter === "FIVE_HOUR" ? "2026-01-01T03:20:00.000Z" : "2026-01-05T02:00:00.000Z",
+      source: sourceKind === "remote_api" ? "internal_payload" : "native_payload", precision: "exact", observedAt,
+      expiresAt: new Date(Date.parse(observedAt) + 465_000).toISOString(),
+      labels: { credentialOrigin: "official-local-tool", dataInterfaceStatus: "internal-endpoint", automationRisk: "high", verification: "UNVERIFIED" },
+      provenance: { sourceKind, observedVia: sourceKind === "remote_api" ? "remote_http" : "claude_code_statusline" }
+    });
+    const shown = (stdout: string, value: number) => new RegExp("(^|[^0-9])" + String(value) + "%", "u").test(stdout);
+    const problems: string[] = [];
+    for (const start of [true, false]) {
+      const stateDirectory = await mkdtemp(path.join(await realpath(tmpdir()), "openlimiter-statusline-flip-"));
+      const homeDirectory = await mkdtemp(path.join(await realpath(tmpdir()), "openlimiter-statusline-home-"));
+      roots.push(stateDirectory, homeDirectory);
+      await writeFile(path.join(stateDirectory, CACHE_FILE_NAME), JSON.stringify({ version: 3, snapshots: [
+        claude("FIVE_HOUR", 93, "statusline_payload", at(30))
+      ] }));
+      await writeFile(path.join(stateDirectory, AUTHORITATIVE_CACHE_FILE_NAME), JSON.stringify({ version: 3, snapshots: [
+        claude("FIVE_HOUR", 71, "remote_api", at(120)),
+        claude("SEVEN_DAY", 59, "remote_api", at(3_600))
+      ] }));
+      const switchTo = (enabled: boolean) => writeFile(path.join(stateDirectory, "claude-poll.json"), JSON.stringify({ version: 1, enabled }));
+      await switchTo(start);
+      const { stdout } = await runCli(["statusline", "--host", "claude"], {
+        stateDirectory, homeDirectory, now: () => NOW, environment: { NO_COLOR: "" },
+        // The switch flips while the render runs, as the payload is read.
+        readStandardInput: async () => {
+          await switchTo(!start);
+          return JSON.stringify(payload());
+        }
+      });
+      const right = start
+        ? shown(stdout, 71) && shown(stdout, 59) && !shown(stdout, 93) && !shown(stdout, 17)
+        : !shown(stdout, 71) && !shown(stdout, 59) && (shown(stdout, 93) || shown(stdout, 17));
+      if (!right) problems.push((start ? "on, flipped off: " : "off, flipped on: ") + stdout);
+    }
+    expect(problems).toEqual([]);
+  });
+
   it("keeps saved segments, windows and providers hidden", async () => {
     const stateDirectory = await seeded();
     const options = { stateDirectory, now: () => NOW, environment: { NO_COLOR: "" } };
