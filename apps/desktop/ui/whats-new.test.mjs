@@ -10,6 +10,10 @@ const whatsNewForVersion = (version) => selectRelease(version, WHATS_NEW_EN);
 
 /* What each recent release says, word for word; the current version is one of them. */
 const NOTES = {
+  "2.1.8": [
+    { key: "grip", text: "The reorder grip now sits beside each provider's logo instead of replacing it." },
+    { key: "refresh", text: "The edge panel has a refresh button." },
+  ],
   "2.1.7": [
     { key: "claude", text: "Every Claude bar comes from one source. The direct request to Anthropic is off unless you turn it on in Connect Tools; if an earlier version turned it on, it stays on until you turn it off there." },
     { key: "order", text: "Drag a provider by its grip, or use its move menu, to put Usage and the edge panel in your own order. Settings, Order switches back to Most used first." },
