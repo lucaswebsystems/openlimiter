@@ -492,29 +492,43 @@ export async function writeAgentContextSnapshot(
     const cached = await readSnapshotCache(base);
     const committed = cached.ok ? cached.snapshots : snapshots;
     const stamp = agentContextCacheStamp(committed);
-    const context = buildAgentContext(buildAdvice(committed, now, expectedProviders));
-    const generated = Date.parse(now);
     const existing = await currentDocument(file, now);
-    if (supersedes(existing, stamp, generated)) return;
-    if (context === "" || !Number.isFinite(generated)) {
-      await safeRemove(file);
-      return;
-    }
-    const expires = futureExpiry(committed, generated);
-    if (expires <= generated) {
-      await safeRemove(file);
-      return;
-    }
-    await writeDocument(
-      file,
-      "cli_snapshot",
-      context,
-      new Date(generated).toISOString(),
-      new Date(expires).toISOString(),
-      AGENT_CONTEXT_MAX_BYTES,
-      stamp
-    );
+    if (supersedes(existing, stamp, Date.parse(now))) return;
+    await replaceContext(file, contextFor(committed, now, expectedProviders), stamp);
   });
+}
+
+/** The context a set of rows describes now, or null when it describes nothing current. */
+function contextFor(
+  committed: readonly Snapshot[],
+  now: string,
+  expectedProviders: readonly ProviderCode[]
+): { context: string; generated: number; expires: number } | null {
+  const context = buildAgentContext(buildAdvice(committed, now, expectedProviders));
+  const generated = Date.parse(now);
+  if (context === "" || !Number.isFinite(generated)) return null;
+  const expires = futureExpiry(committed, generated);
+  return expires <= generated ? null : { context, generated, expires };
+}
+
+async function replaceContext(
+  file: string,
+  view: ReturnType<typeof contextFor>,
+  stamp: AgentContextCacheStamp
+): Promise<void> {
+  if (view === null) {
+    await safeRemove(file);
+    return;
+  }
+  await writeDocument(
+    file,
+    "cli_snapshot",
+    view.context,
+    new Date(view.generated).toISOString(),
+    new Date(view.expires).toISOString(),
+    AGENT_CONTEXT_MAX_BYTES,
+    stamp
+  );
 }
 
 /**
@@ -531,26 +545,39 @@ function stillWritable(signal: AbortSignal | undefined): boolean {
 async function localLines(
   directory: string,
   now: string,
+  expectedProviders: readonly ProviderCode[],
   signal?: AbortSignal
 ): Promise<string[]> {
-  const read = await readBytesSafely(
-    path.join(directory, AGENT_CONTEXT_FILE_NAME),
-    AGENT_CONTEXT_MAX_BYTES
-  );
+  const file = path.join(directory, AGENT_CONTEXT_FILE_NAME);
+  const read = await readBytesSafely(file, AGENT_CONTEXT_MAX_BYTES);
   if (!read.ok) {
     if (read.reason === "oversized" && stillWritable(signal)) {
-      await safeRemove(path.join(directory, AGENT_CONTEXT_FILE_NAME));
+      await safeRemove(file);
     }
     return [];
   }
   const document = parseDocument(read.bytes, now);
   if (document === null || document.source !== "cli_snapshot") {
     if (stillWritable(signal)) {
-      await safeRemove(path.join(directory, AGENT_CONTEXT_FILE_NAME));
+      await safeRemove(file);
     }
     return [];
   }
-  return validatedUntrustedLines(document.context) ?? [];
+  /* The context is a view of the cache, and a 2.1.5 terminal still writes
+     it from rows the Claude switch does not select. So every read checks it
+     against the guarded cache, and rebuilds it when the two disagree. */
+  const cached = await readSnapshotCache(directory);
+  if (!cached.ok) return [];
+  const stamp = agentContextCacheStamp(cached.snapshots);
+  if (document.cache_stamp?.digest === stamp.digest) {
+    return validatedUntrustedLines(document.context) ?? [];
+  }
+  const view = contextFor(cached.snapshots, now, expectedProviders);
+  if (stillWritable(signal)) {
+    await withContextWriteTurn(directory, async () => await replaceContext(file, view, stamp))
+      .catch(() => undefined);
+  }
+  return view === null ? [] : validatedUntrustedLines(view.context) ?? [];
 }
 
 async function hostedLines(
@@ -696,13 +723,13 @@ export async function clearHostedAgentContext(directory?: string): Promise<void>
 export async function agentContextFromCache(
   directory: string | undefined,
   now: string,
-  _expectedProviders?: readonly ProviderCode[],
+  expectedProviders: readonly ProviderCode[] = PROVIDER_CODES,
   options: AgentContextReadOptions = {}
 ): Promise<string> {
   const base = directory ?? resolveStateDirectory();
   if (!stillWritable(options.signal)) return "";
   const [local, hosted] = await Promise.all([
-    localLines(base, now, options.signal),
+    localLines(base, now, expectedProviders, options.signal),
     hostedLines(base, now, options.hostedTrust, options.signal)
   ]);
   if (local.length === 0 && hosted.length === 0) {

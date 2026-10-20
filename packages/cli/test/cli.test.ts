@@ -215,8 +215,9 @@ describe("CLI", () => {
         "recommendation_code=PREFER",
         "recommendation_provider=ANTIGRAVITY",
         "recommendation_reason=LOWEST_USAGE",
-        "provider=CLAUDE meter=FIVE_HOUR state=fresh usage_percent=42 " +
-          "reset_at=2026-01-01T05:00:00.000Z",
+        /* Rebuilt from the cache the hook reads, where the poll's weekly now stands. */
+        "provider=CLAUDE meter=SEVEN_DAY state=fresh usage_percent=64 " +
+          "reset_at=2026-01-08T00:00:00.000Z",
         "provider=CODEX meter=FIVE_HOUR state=fresh usage_percent=84 " +
           "reset_at=2026-01-01T05:00:00.000Z",
         "provider=ANTIGRAVITY meter=FIVE_HOUR state=fresh usage_percent=28 " +
