@@ -898,7 +898,7 @@
       "lead": "OpenLimiter {version} for {platform}. Here is what happens next.",
       "manual": "If the download did not start, <file>download the file here</file>.",
       "back": "Back to every download option",
-      "firstRun": "The first run opens a window: sign in or skip it, connect your tools, and your bars appear. After that, hover the small tab on the left edge of your screen to see them.",
+      "firstRun": "The first run opens a window that connects your tools and shows your bars, and signing in is optional. After that, hover the small tab on the left edge of your screen to see them.",
       "windows": {
         "open": "Open the installer from your downloads. If your browser asks, keep the file.",
         "smartScreen": "If SmartScreen warns, choose More info, then Run anyway. The build is unsigned, so Windows asks once."

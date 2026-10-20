@@ -898,7 +898,7 @@
       "lead": "OpenLimiter {version} para {platform}. Esto es lo que sigue.",
       "manual": "Si la descarga no empezó, <file>descarga el archivo aquí</file>.",
       "back": "Volver a todas las opciones de descarga",
-      "firstRun": "La primera vez se abre una ventana: inicia sesión o sáltalo, conecta tus herramientas y aparecen tus barras. Después, pasa el cursor por la pestaña pequeña del borde izquierdo de la pantalla para verlas.",
+      "firstRun": "La primera vez se abre una ventana que conecta tus herramientas y muestra tus barras, e iniciar sesión es opcional. Después, pasa el cursor por la pestaña pequeña del borde izquierdo de la pantalla para verlas.",
       "windows": {
         "open": "Abre el instalador desde tus descargas. Si tu navegador pregunta, conserva el archivo.",
         "smartScreen": "Si SmartScreen avisa, elige Más información y luego Ejecutar de todas formas. La compilación no está firmada, así que Windows pregunta una vez."

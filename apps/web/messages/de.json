@@ -898,7 +898,7 @@
       "lead": "OpenLimiter {version} für {platform}. So geht es weiter.",
       "manual": "Falls der Download nicht gestartet ist, <file>lade die Datei hier herunter</file>.",
       "back": "Zurück zu allen Download Optionen",
-      "firstRun": "Beim ersten Start öffnet sich ein Fenster: melde dich an oder überspring das, verbinde deine Tools, und deine Balken erscheinen. Danach zeigst du auf den kleinen Reiter am linken Bildschirmrand, um sie zu sehen.",
+      "firstRun": "Beim ersten Start öffnet sich ein Fenster, das deine Tools verbindet und deine Balken zeigt, und die Anmeldung ist freiwillig. Danach zeigst du auf den kleinen Reiter am linken Bildschirmrand, um sie zu sehen.",
       "windows": {
         "open": "Öffne das Installationsprogramm aus deinen Downloads. Wenn dein Browser fragt, behalte die Datei.",
         "smartScreen": "Wenn SmartScreen warnt, wähle Weitere Informationen und dann Trotzdem ausführen. Der Build ist unsigniert, deshalb fragt Windows einmal."
