@@ -3,31 +3,25 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { entitlementOf } from "@/lib/pro";
 import {
   HUB_DEVICE_ID_KEY,
-  TRIAL_END_OFFER,
   browserDeviceId,
   isAllowedCheckoutUrl,
   locksPro,
-  offerCountdown,
-  offerOpen,
   offersTrial,
-  startOfferCheckout,
   startProTrial,
   trialFailureForStatus,
 } from "@/lib/pro-trial";
 
 /**
- * The trial and the offer, decided without a network.
+ * The trial, decided without a network.
  *
- * Two rules are held here and nothing else in this application holds them: a
- * trial has one door and it is `start_trial`, and the offer's clock is the
- * server's `offer_ends_at` rather than anything the browser worked out. So the
- * request shape is asserted key by key, and the countdown is asserted against
- * a fixed instant rather than against the machine's own time.
+ * One rule is held here and nothing else in this application holds it: a
+ * trial has one door and it is `start_trial`. So the request shape is asserted
+ * key by key. There is no first year offer to count down any more; a plan that
+ * ends is offered the two locked prices.
  */
 
 const NOW = Date.parse("2026-09-07T12:00:00.000Z");
 const IN_THREE_DAYS = new Date(NOW + 3 * 86_400_000 + 4 * 3_600_000 + 7 * 60_000).toISOString();
-const YESTERDAY = new Date(NOW - 86_400_000).toISOString();
 
 /** A client whose one function call answers whatever the test decided. */
 function clientAnswering(answer: unknown): {
@@ -47,24 +41,6 @@ function refusal(status: number): unknown {
 
 afterEach(() => {
   window.localStorage.clear();
-});
-
-describe("the countdown", () => {
-  it("breaks the remaining time into days, hours and minutes", () => {
-    expect(offerCountdown(IN_THREE_DAYS, NOW)).toMatchObject({ days: 3, hours: 4, minutes: 7 });
-  });
-
-  it("is null with no date, an unreadable date, or a date that has passed", () => {
-    expect(offerCountdown(null, NOW)).toBeNull();
-    expect(offerCountdown("not a date", NOW)).toBeNull();
-    expect(offerCountdown(YESTERDAY, NOW)).toBeNull();
-  });
-
-  it("closes exactly on the instant, never a minute after it", () => {
-    const ends = new Date(NOW + 1000).toISOString();
-    expect(offerOpen(ends, NOW)).toBe(true);
-    expect(offerOpen(ends, NOW + 1000)).toBe(false);
-  });
 });
 
 describe("which surfaces a plan draws", () => {
@@ -184,61 +160,18 @@ describe("this browser's stable device id", () => {
   });
 });
 
-describe("the discounted year", () => {
-  it("asks for the year interval and names the offer", async () => {
-    const { client, invoke } = clientAnswering({
-      data: { url: "https://checkout.stripe.com/session" },
-      error: null,
-    });
-    const result = await startOfferCheckout(client);
-    expect(invoke.mock.calls[0]?.[0]).toBe("create-checkout");
-    expect(invoke.mock.calls[0]?.[1]).toEqual({
-      body: { interval: "year", offer: TRIAL_END_OFFER },
-    });
-    expect(result).toEqual({ ok: true, value: "https://checkout.stripe.com/session" });
-  });
-
-  it("has no url to follow when the window is closed", async () => {
-    const { client } = clientAnswering(refusal(409));
-    expect(await startOfferCheckout(client)).toEqual({ ok: false, reason: "alreadyUsed" });
-  });
-
-  it("says the switch is off rather than blaming the service", async () => {
-    const { client } = clientAnswering(refusal(503));
-    expect(await startOfferCheckout(client)).toEqual({ ok: false, reason: "switchedOff" });
-  });
-
-  it("refuses an answer with no address in it", async () => {
-    const { client } = clientAnswering({ data: { url: "" }, error: null });
-    expect(await startOfferCheckout(client)).toEqual({ ok: false, reason: "unavailable" });
-  });
-
-  it("accepts only https URLs on checkout.stripe.com", async () => {
+describe("the checkout address", () => {
+  it("accepts only https URLs on checkout.stripe.com", () => {
     expect(isAllowedCheckoutUrl("https://checkout.stripe.com/c/pay/cs_test_123")).toBe(true);
     expect(isAllowedCheckoutUrl("http://checkout.stripe.com/pay")).toBe(false);
     expect(isAllowedCheckoutUrl("https://attacker.example/session")).toBe(false);
     expect(isAllowedCheckoutUrl("javascript:alert(1)")).toBe(false);
     expect(isAllowedCheckoutUrl("")).toBe(false);
     expect(isAllowedCheckoutUrl(null)).toBe(false);
-
-    const { client } = clientAnswering({
-      data: { url: "javascript:alert(1)" },
-      error: null,
-    });
-    expect(await startOfferCheckout(client)).toEqual({ ok: false, reason: "unavailable" });
   });
 });
 
 describe("the entitlement the trial contract returns", () => {
-  it("reads the offer window the server put on it", () => {
-    const parsed = entitlementOf({
-      plan_state: "expired",
-      trial_ends_at: YESTERDAY,
-      offer_ends_at: IN_THREE_DAYS,
-    });
-    expect(parsed?.offerEndsAt).toBe(IN_THREE_DAYS);
-  });
-
   it("reads the contract's own spelling of the plan", () => {
     expect(entitlementOf({ status: "trialing", trial_ends_at: IN_THREE_DAYS })?.planState).toBe(
       "trialing",

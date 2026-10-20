@@ -29,8 +29,10 @@ import {
   readCurrentPhoneBars,
   readPhoneLastBars,
   readPhonePairMeta,
+  phoneEntitlementOf,
   phonePairOf,
 } from "@/lib/phone-session";
+import type { ProEntitlement } from "@/lib/pro";
 import { createPhoneSessionRuntime } from "@/lib/session-runtime";
 import { serialPoll } from "@/lib/serial-poll";
 import { claimPairingCode, pollPairingClaim } from "@/lib/pro-device";
@@ -338,6 +340,11 @@ function PairedPhone({
   const claudeMeterCopy = useClaudeMeterCopy();
   const [now, setNow] = useState(() => new Date().toISOString());
   const [tab, setTab] = useState<PhoneTab>("usage");
+  /* The plan the newest fresh read reports, and whether any read has answered
+     yet: until one has, the Pro tab says it is reading. A failed read keeps
+     the plan from the last good one, the way the rows are kept. */
+  const [entitlement, setEntitlement] = useState<ProEntitlement | null | undefined>(undefined);
+  const [answered, setAnswered] = useState(false);
   const unpairedRef = useRef(onUnpaired);
   unpairedRef.current = onUnpaired;
 
@@ -355,8 +362,11 @@ function PairedPhone({
         unpairedRef.current();
       } else if (answer.kind === "fresh") {
         setState((previous) => ({ ...previous, bars: answer.body, phase: "ready", generation: previous.generation + 1 }));
+        setEntitlement(phoneEntitlementOf(answer.body, answer.plan));
+        setAnswered(true);
       } else if (answer.kind === "empty") {
         setState((previous) => ({ ...previous, phase: "offline" }));
+        setAnswered(true);
       }
     });
     runtime.start();
@@ -434,7 +444,7 @@ function PairedPhone({
           tabIndex={0}
           hidden={tab !== "pro"}
         >
-          <ProTab />
+          <ProTab entitlement={entitlement} reading={!answered} />
         </section>
       </main>
       <PhoneTabs active={tab} onSelect={setTab} />

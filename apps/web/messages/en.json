@@ -158,7 +158,7 @@
     "closeMenu": "Close menu"
   },
   "announce": {
-    "message": "OpenLimiter Pro is here. Desktop alerts, account access and local meters are free. Pro adds history, phone push and email alerts, extra accounts and cloud API spend metering.",
+    "message": "OpenLimiter Pro adds {features}. Desktop alerts stay free.",
     "short": "Desktop alerts stay free",
     "dismiss": "Close this announcement"
   },
@@ -519,7 +519,7 @@
     "release": {
       "rail": {
         "title": "One small tab. Your limits and agents on hover.",
-        "lead": "OpenLimiter keeps one small tab with its logo on the left edge of your screen, about 70% of the way down. Hover it to open a panel beside it with your limits and your agents. It works the same on Windows, macOS and Linux X11; on Linux Wayland the tray takes its place. Local meters and desktop alerts are free, with one active account per provider.",
+        "lead": "OpenLimiter keeps one small tab with its logo on the left edge of your screen, about 70% of the way down. Hover it to open a panel beside it with your limits and your agents. It works the same on Windows and Linux X11; on Linux Wayland the tray takes its place, and macOS is a preview. Local meters and desktop alerts are free, with one active account per provider.",
         "folded": "The tab rests on the left edge. A small dot appears when something needs a look, like an agent waiting for you.",
         "unfolded": "Hover it and the panel opens: agents first, with Show app for the one that needs you, then limits, tightest first, with reset times.",
         "foldedAlt": "The real OpenLimiter edge tab, a small tab with the OpenLimiter logo and a yellow dot, on the left edge of a desktop with a mountain lake wallpaper.",
@@ -532,9 +532,7 @@
         "alt": "OpenLimiter desktop with three tabs named Usage, Connect Tools and Settings, synthetic limits for Codex, Claude Code and OpenRouter, and a hover panel with agent activity.",
         "desktopHomeAlt": "OpenLimiter desktop Usage tab with synthetic bars for Codex, Claude Code and OpenRouter.",
         "desktopHomeNote": "Usage shows the bars for Codex, Claude Code and OpenRouter.",
-        "desktopConnectAlt": "OpenLimiter desktop Connect Tools tab showing synthetic provider connections.",
         "desktopConnectNote": "Connect Tools shows provider setup and connection status.",
-        "desktopSettingsAlt": "OpenLimiter desktop Settings tab showing choices for the application.",
         "desktopSettingsNote": "Settings shows the choices that shape the desktop."
       },
       "terminal": {
@@ -564,7 +562,7 @@
     "screenshot": {
       "alt": "The OpenLimiter desktop Usage tab window with synthetic bars for Codex, Claude Code and OpenRouter."
     },
-    "caption": "The real Usage tab window rendered headlessly with synthetic fixtures. No personal account, credential or real usage figure appears in it."
+    "caption": "The real Usage tab window, drawn with sample data. No personal account, credential or real usage figure appears in it."
   },
   "phonePanels": {
     "shots": {
@@ -602,7 +600,7 @@
       },
       "codex": {
         "tag": "reads the documented Codex app server",
-        "detail": "Reads usage through the documented Codex app server, with the login Codex already stored, and fails closed if that changes."
+        "detail": "Reads usage through the documented Codex app server, with the login Codex already stored, and shows no number rather than a wrong one if that changes."
       },
       "antigravity": {
         "tag": "reads the documented status line",
@@ -618,11 +616,11 @@
       },
       "grok": {
         "tag": "reads subscription windows from the local session",
-        "detail": "Reads the billing windows exposed to the installed Grok session and fails closed when the shape changes."
+        "detail": "Reads the billing windows the installed Grok session shows, and shows no number rather than a wrong one when Grok changes them."
       },
       "kimi": {
         "tag": "reads subscription windows from the local session",
-        "detail": "Reads the usage windows exposed to the installed Kimi session and fails closed when the shape changes."
+        "detail": "Reads the usage windows the installed Kimi session shows, and shows no number rather than a wrong one when Kimi changes them."
       },
       "manualEntry": {
         "name": "Manual entry",
@@ -672,12 +670,13 @@
       }
     },
     "tile": {
-      "connector": "Connector",
+      "works": "Works today",
+      "mayBreak": "Works, may break when the tool updates",
       "noConnector": "No connector yet",
       "plannedChip": "planned"
     },
     "feedIn": "How to feed one in",
-    "footnote": "No connector has been verified against a live account yet. Codex and Cursor pass their recorded fixtures, and every other connector ships marked <code>UNVERIFIED</code>, the honest default. Gemini CLI, Grok, Kimi, OpenCode and Cursor read interfaces internal to somebody else's tooling, as does the direct Claude request, which is off until you turn it on, and when one changes, that provider shows it rather than guessing. <link>Every connector and its real state</link>.",
+    "footnote": "Claude Code, Codex, Antigravity and OpenRouter are read through interfaces their makers document. Gemini CLI, Grok, Kimi and OpenCode are read through interfaces their makers do not document, as is the direct Claude request, which is off until you turn it on, so an update on their side can stop a bar until OpenLimiter catches up, and it then shows no number rather than a wrong one. <link>Every connector and its real state</link>.",
     "compatibilityNote": "Product names, logos, brands, and other trademarks featured or referred to within OpenLimiter are the property of their respective trademark holders. These trademark holders are not affiliated with OpenLimiter, our products, or our website. They do not sponsor or endorse OpenLimiter. Use of them does not imply any affiliation with or endorsement by them.",
     "manualNote": "Every tool on this page can be metered today. Connect it from the desktop application, or, under Advanced, write the numbers down with manual entry or pipe a payload in with ingest from any script you control. Either way it lands in the same snapshot as a connector."
   },
@@ -706,87 +705,6 @@
     },
     "openApp": "Open the web app",
     "howToProduce": "How to produce a document"
-  },
-  "connections": {
-    "heading": {
-      "title": "What each one actually does",
-      "note": "A parser is not a connection"
-    },
-    "columns": {
-      "parser": "Parser",
-      "reader": "Reader",
-      "auth": "Auth",
-      "verification": "Verification"
-    },
-    "table": {
-      "caption": "Every provider, and which of the four stages of support it has reached today, read from the reviewed provider registry",
-      "provider": "Provider",
-      "state": "State"
-    },
-    "cells": {
-      "unstated": "Unstated"
-    },
-    "support": {
-      "ready": "Ready",
-      "notRequired": "Not required",
-      "none": "None"
-    },
-    "verification": {
-      "unverified": "Unverified",
-      "beta": "Beta",
-      "verified": "Verified",
-      "importOnly": "Import only",
-      "manual": "Manual",
-      "experimental": "Experimental",
-      "planned": "Planned"
-    },
-    "state": {
-      "noSpec": "No spec",
-      "manual": "Manual",
-      "importOnly": "Import only",
-      "localCli": "Local CLI",
-      "connected": "Connected"
-    },
-    "readerLine": {
-      "noSpec": "No reviewed spec in the registry yet, so nothing here claims a state for it.",
-      "implemented": "OpenLimiter reads this one itself.",
-      "notImplemented": "Nothing here fetches it, so the document comes from you."
-    },
-    "providers": {
-      "claude": {
-        "fact": "Claude Code writes a rate limit block to its statusline command."
-      },
-      "openrouter": {
-        "fact": "The credits endpoint is documented and its response parses."
-      },
-      "codex": {
-        "fact": "The documented Codex app server, run on your machine."
-      },
-      "antigravity": {
-        "fact": "The documented Antigravity CLI status line."
-      },
-      "opencode": {
-        "fact": "A usage view behind a session you already hold."
-      },
-      "gemini": {
-        "fact": "Model quota returned through the installed Gemini CLI session."
-      },
-      "grok": {
-        "fact": "Subscription windows returned through the installed Grok session."
-      },
-      "kimi": {
-        "fact": "Subscription windows returned through the installed Kimi session."
-      },
-      "manual": {
-        "fact": "Numbers you keep yourself, for anything with no interface."
-      }
-    },
-    "footnote": {
-      "lead": "Reader means something in OpenLimiter goes and fetches the number. Auth means a credential is held and used. Every cell above is read at build time from the reviewed provider registry rather than written into this page, so a stage cannot be claimed here without a human changing a spec first.",
-      "unspecified": "{count} of the {total} connectors have no reviewed spec yet, and every one of their cells reads Unstated rather than guessing.",
-      "elsewhere": "The registry describes {count} further products that are experimental, manual or planned, which is why they are not rows here.",
-      "tail": "A row on this page is only ever called Connected once a live reader for it is confirmed, never on the strength of a parser alone."
-    }
   },
   "cliTranscript": {
     "captions": {
@@ -849,7 +767,7 @@
       },
       "safeToPoint": {
         "question": "Is it safe to point at my tools?",
-        "answer": "OpenLimiter opens what your installed tools already store, read only, and never rewrites, repairs or migrates them. Every parser keeps bounded numbers and timestamps and discards provider text before anything reaches your agent."
+        "answer": "OpenLimiter opens what your installed tools already store, read only, and never rewrites, repairs or migrates them. It keeps only bounded numbers and timestamps, and drops any text a provider sends before anything reaches your agent."
       },
       "promptHook": {
         "question": "Can the prompt hook break my session?",
@@ -857,7 +775,7 @@
       },
       "providersToday": {
         "question": "Which providers work today?",
-        "answer": "The provider guide lists the available meters, setup steps and verification status for each integration. Quota readings and agent activity are separate capabilities. A provider that reports activity does not necessarily expose a quota, and a parser tested on fixtures is not proof of live acquisition."
+        "answer": "The provider guide lists the available meters, setup steps and the real state of each integration. Quota readings and agent activity are separate capabilities: a provider that reports activity does not necessarily expose a quota."
       },
       "apiKey": {
         "question": "Do I need an API key?",
@@ -869,11 +787,11 @@
       },
       "connectorBreaks": {
         "question": "What happens when a connector breaks?",
-        "answer": "Unofficial shapes change without notice. When one does, parsing fails closed: that provider returns to unknown, the other providers are unaffected, and nothing invents a number to fill the gap. Unknown never becomes zero."
+        "answer": "Interfaces their makers do not document can change without notice. When one does, that provider shows no number until OpenLimiter catches up, the other providers are unaffected, and nothing invents a number to fill the gap. A missing number never becomes zero."
       },
       "desktopOrPhone": {
         "question": "Is there a desktop or phone app?",
-        "answer": "The desktop tray application ships for Windows, macOS and Linux. Windows and macOS are unsigned, so each asks once: on Windows, SmartScreen, choose More info then Run anyway; on macOS, open System Settings, go to Privacy and Security, and choose Open Anyway. macOS ships as one universal disk image and stays out of automatic updates until signed and notarised builds exist. On a phone, the web app opens in the browser and installs to a home screen, and the desktop application pairs a phone by QR code so it can read your quota. Native iOS and Android applications are not built, nothing is in a store, and there is no waiting list. The download page lists every platform with its real state."
+        "answer": "The desktop tray application ships for Windows and Linux, and macOS is a preview. Windows is unsigned, so it asks once: in SmartScreen, choose More info then Run anyway. The macOS preview is one universal disk image, ad hoc signed but not notarised, so you open it once through System Settings, Privacy and Security, Open Anyway, and a new version is a new download. On a phone, the web app opens in the browser and installs to a home screen, and the desktop application pairs a phone by QR code so it can read your quota. Native iOS and Android applications are not built, nothing is in a store, and there is no waiting list. The download page lists every platform with its real state."
       },
       "free": {
         "question": "Is it free?",
@@ -881,7 +799,7 @@
       },
       "pro": {
         "question": "What is OpenLimiter Pro?",
-        "answer": "OpenLimiter Pro is $5 a month or $50 a year, with the first 30 days free and no card required. It adds four things: history with a forecast; email and phone push alerts at 60, 80 and 90 percent and on reset; more than one account per provider; and cloud API spend metering for keys you explicitly enable. Desktop alerts, local meters and account access remain free. A full refund is available on request within 14 days of any charge."
+        "answer": "OpenLimiter Pro is $5 a month or $50 a year, with the first 30 days free and no card required. It adds more than one account per provider; ninety days of hosted history with a forecast; phone push and email alerts at 60, 80 and 90 percent and on reset; cloud API spend metering for keys you explicitly enable; and the Ember theme preset. Desktop alerts, local meters and account access remain free. A full refund is available on request within 14 days of any charge."
       },
       "alerts": {
         "question": "Do I get alerts when a window fills up?",
@@ -899,7 +817,7 @@
   },
   "pricing": {
     "title": "Pricing",
-    "lead": "Local meters, desktop alerts and account access are free, with one active account per provider. Pro adds history, phone push and email alerts, extra accounts and cloud API spend metering.",
+    "lead": "Local meters, desktop alerts and account access are free, with one active account per provider. Pro adds the hosted features and the theme preset listed below.",
     "plannedChip": "planned",
     "free": {
       "status": "available",
@@ -929,14 +847,8 @@
       "perYear": "a year",
       "trialChip": "30 days free",
       "priceNote": "The first 30 days are free with no card required. When access ends, Pro history, phone push and email alerts, extra accounts and cloud API spend metering stop. Local meters, desktop alerts and account access keep working.",
-      "lead": "Four Pro features: history, phone push and email alerts, extra accounts and cloud API spend metering.",
+      "lead": "Everything that is free, plus:",
       "footnote": "After the trial, local meters, local alerts and free account access keep working. Free keeps one active account per provider.",
-      "lines": {
-        "alerts": "Email and phone push alerts. Local desktop alerts are free",
-        "multiSubscription": "Extra accounts per provider",
-        "heavyApi": "Cloud API spend metering from opted in provider keys",
-        "history": "Ninety days of hosted history, with a forecast"
-      },
       "cta": "Start your free 30 day Pro trial",
       "conditions": "Spend meters need an organisation admin key. Full refund within 14 days, cancel any time in the Stripe portal. Sold by Lucas Costa, payments by Stripe.",
       "conditionsLink": "Full conditions"
@@ -958,7 +870,7 @@
       },
       "unknownStaysUnknown": {
         "title": "Unknown stays unknown",
-        "detail": "A missing number never becomes a confident one. When a shape changes underneath a connector, that provider fails closed."
+        "detail": "A missing number never becomes a confident one. When a tool changes what it reports, that provider shows no number rather than a guess."
       }
     },
     "signature": {
@@ -969,20 +881,18 @@
   "download": {
     "updated": "Updated {date}",
     "metaTitle": "Download {version} for desktop and terminal",
-    "metaDescription": "Download OpenLimiter {version} for Windows, macOS or Linux, or install the CLI from npm. Free local meters and alerts. Desktop builds are unsigned.",
+    "metaDescription": "Download OpenLimiter {version} for Windows or Linux, try the macOS preview, or install the CLI from npm. Free local meters and alerts. Windows builds are unsigned. The macOS preview is not notarised.",
     "title": "Download",
-    "lead": "Windows, macOS and Linux desktop builds are available now. Windows and macOS ship unsigned, so each one asks you to allow it once: on Windows choose More info then Run anyway, and on macOS open System Settings, go to Privacy and Security, and choose Open Anyway. macOS ships as one universal disk image that runs on Apple silicon and on Intel. npm and the web app are also available.",
     "choice": {
       "windowsSummary": "Unsigned build. If SmartScreen warns, choose More info, then Run anyway. Install the desktop app in one step.",
-      "macosSummary": "Universal unsigned build for Apple silicon and Intel. Allow it once in Privacy and Security, then open the app.",
-      "linuxSummary": "Choose AppImage, deb or rpm for your distribution. AppImage runs after you set its executable bit.",
+      "macosSummary": "Preview for Apple silicon and Intel, ad hoc signed but not notarised. Allow it once in Privacy and Security, then open the app. Updates come as a new download.",
+      "linuxSummary": "The deb, for Debian and Ubuntu. The rpm and the AppImage are further down; the AppImage needs libfuse2 (libfuse2t64 on Ubuntu 24.04).",
       "detected": "Detected",
       "windows": "Download for Windows",
       "linux": "Download for Linux",
       "macos": "Download for macOS",
       "other": "Other platforms",
       "smartScreen": "Unsigned build. If SmartScreen warns, choose More info, then Run anyway. Install the desktop app in one step.",
-      "openAnyway": "Universal unsigned build for Apple silicon and Intel. Allow it once in Privacy and Security, then open the app.",
       "linuxNote": "Choose AppImage, deb or rpm for your distribution. AppImage runs after you set its executable bit."
     },
     "preview": {
@@ -997,18 +907,18 @@
       "lead": "OpenLimiter {version} for {platform}. Here is what happens next.",
       "manual": "If the download did not start, <file>download the file here</file>.",
       "back": "Back to every download option",
-      "firstRun": "The first run opens a window: sign in or skip it, connect your tools, and your bars appear. After that, hover the small tab on the left edge of your screen to see them.",
+      "firstRun": "The first run opens a window that connects your tools and shows your bars, and signing in is optional. After that, hover the small tab on the left edge of your screen to see them.",
       "windows": {
         "open": "Open the installer from your downloads. If your browser asks, keep the file.",
         "smartScreen": "If SmartScreen warns, choose More info, then Run anyway. The build is unsigned, so Windows asks once."
       },
       "macos": {
         "open": "Open the disk image from your downloads and drag OpenLimiter to Applications.",
-        "gatekeeper": "Open OpenLimiter once. macOS refuses that first attempt because the app is unsigned: open System Settings, go to Privacy and Security, and choose Open Anyway beside the OpenLimiter message."
+        "gatekeeper": "Open OpenLimiter once. macOS refuses that first attempt because the preview is not notarised: open System Settings, go to Privacy and Security, and choose Open Anyway beside the OpenLimiter message."
       },
       "linux": {
-        "open": "Make the AppImage executable, then run it.",
-        "packages": "Prefer a package? The deb and rpm files are on the <download>download page</download>.",
+        "open": "Install the deb with your software installer, or from a terminal:",
+        "packages": "On Fedora or openSUSE, or for the AppImage, the other files are on the <download>download page</download>. The AppImage needs libfuse2 (libfuse2t64 on Ubuntu 24.04).",
         "wayland": "On Wayland, the tray holds your bars instead of the edge tab."
       }
     },
@@ -1024,7 +934,7 @@
     "disclosure": {
       "title": "What the desktop app does on your computer",
       "webview": "On Windows, the installer adds Microsoft's WebView2 runtime when it is missing, because the app draws its window with it.",
-      "updates": "The app checks GitHub for a newer version and asks before installing it. On macOS, a new version is a new download from this page for now.",
+      "updates": "The app checks GitHub for a newer version and asks before installing it. The macOS preview does not update itself: a new version is a new download from this page.",
       "logins": "It reads the logins your coding tools already stored, read only, and sends each one only to its own provider. Your readings reach OpenLimiter only if you sign in, and then only as bounded quota readings.",
       "claude": "Claude bars come from Claude Code's documented status line. A direct request to Anthropic for your Claude usage is off until you turn it on in Connect Tools; when on, it sends your own Claude Code login only to Anthropic, about every five minutes, and every Claude bar comes from that one source. Anthropic's policy for tools like this is unresolved."
     },
@@ -1041,10 +951,6 @@
       "inDevelopment": "coming soon",
       "planned": "planned"
     },
-    "available": {
-      "title": "Available now",
-      "lead": "Windows, macOS and Linux have packaged desktop builds, and every link below goes straight to the file. The command line tool is one npm install on any platform, or one clone if you prefer to build from source. The web app needs nothing installed."
-    },
     "phone": {
       "title": "On your phone",
       "lead": "Pair your phone from the desktop, then install the web app to your home screen. No native iOS or Android application is built.",
@@ -1059,10 +965,6 @@
       "lead": "Choose the package that matches how you manage your machine. Each link downloads the file from the current release.",
       "windows": "Use the MSI for managed installs across several Windows machines. Use the installer above for one normal machine.",
       "linux": "Choose deb for Debian or Ubuntu, rpm for Fedora or openSUSE, or AppImage for a portable install."
-    },
-    "building": {
-      "title": "Coming soon",
-      "lead": "Signed and notarised macOS builds, and the automatic updates that depend on them. The macOS app is downloadable today and is excluded from the update manifest until it can be signed, because an update whose signature cannot be checked is worse than no update at all."
     },
     "notBuilt": {
       "title": "Not built yet",
@@ -1091,14 +993,6 @@
         "note": "Unsigned Windows build. SmartScreen: choose More info, then Run anyway.",
         "requirement": "Node 24 or newer and pnpm 9.15.0, which the repository pins. PowerShell or any terminal you like."
       },
-      "macos": {
-        "name": "macOS",
-        "summary": "The desktop application is packaged for macOS as one universal disk image that runs on Apple silicon and on Intel, and it is attached to the release. The build is unsigned, so Gatekeeper refuses the first open and you allow it once in System Settings. The command line tool installs from npm on macOS like anywhere else.",
-        "note": "Unsigned macOS build. Open the disk image, drag OpenLimiter to Applications, and open it once. macOS refuses that first attempt: open System Settings, go to Privacy and Security, scroll to Security, and choose Open Anyway beside the OpenLimiter message, then confirm. You do this once. macOS is excluded from automatic updates until signed and notarised builds exist, so until then a new version is a new download from this page.",
-        "assets": {
-          "universal": "Universal disk image"
-        }
-      },
       "linux": {
         "name": "Linux",
         "summary": "The desktop application is packaged for Linux three ways, all attached to the release: an AppImage that runs on anything, a deb for Debian and Ubuntu, and an rpm for Fedora and openSUSE. The command line tool installs from npm and is tested on Linux alongside Windows on every push.",
@@ -1109,7 +1003,7 @@
         },
         "note": "Choose one artifact. AppImage works without installation after its executable bit is set. Debian and Ubuntu use the deb file. Fedora and openSUSE use the rpm file. The commands below use the exact release file names.",
         "instructions": {
-          "appImage": "Run the AppImage",
+          "appImage": "Run the AppImage. It needs libfuse2 (libfuse2t64 on Ubuntu 24.04).",
           "deb": "Install on Debian or Ubuntu",
           "rpm": "Install on Fedora or openSUSE"
         },
@@ -1119,11 +1013,6 @@
         "name": "Web app",
         "summary": "Nothing to install. The web app runs the same engine as the command line tool inside the browser tab, and it installs to a phone or desktop home screen and keeps working offline. Sign in to see the percentages your own devices synced, or pair a phone from the desktop application by scanning the code it shows.",
         "hrefLabel": "Open the web app"
-      },
-      "desktop": {
-        "name": "Desktop application",
-        "summary": "A tray icon beside the system clock reads the same local cache as the command line tool, so quota is visible with no terminal open. Packaged releases ship for Windows, macOS and Linux. Automatic updates cover Windows and Linux; macOS joins them when signed builds exist.",
-        "note": "The Windows and macOS builds are unsigned. On Windows, SmartScreen: choose More info, then Run anyway. On macOS: System Settings, Privacy and Security, Open Anyway."
       },
       "iphone": {
         "name": "iOS",
@@ -1168,16 +1057,12 @@
         "description": "Sign in, connect the AI accounts you already pay for, and see your bars. Bars stay free with no account at all.",
         "lead": "OpenLimiter meters the AI subscriptions you already pay for. Bars render from your own machine with no account. Sign in and the same bars sync between your devices, and a free 30 day trial with no card unlocks the rest.",
         "sections": {
-          "what-you-need": {
-            "title": "What you need",
-            "bullets": {
+          "terminal": {
+            "title": "Terminal",
+            "needs": {
               "node": "Node 24 or newer, for the terminal.",
               "npm": "npm, which ships with Node."
             },
-        "local": "Local meters, desktop alerts and the terminal stay free. An account adds sync, and Pro adds hosted history, phone push and email alerts, extra accounts and cloud API spend metering."
-          },
-          "terminal": {
-            "title": "Terminal",
             "intro": "Run the tool with nothing after it and it walks the same three steps everywhere: sign in, connect, then show bars in.",
             "terminalLabel": "terminal",
             "steps": "Sign in prints a short code and a link to <code>openlimiter.com/app/cli</code>, so the terminal never sees a password, and Enter to skip leaves the device signed out. Connect checks every agent CLI already on this machine and reports one of <code>use current login</code>, <code>sign in</code> or <code>install</code> for each row, and offers to run Codex's own sign in on the spot. Show bars in lists the terminal hosts this machine can draw bars into and wires whichever ones you keep.",
@@ -1186,7 +1071,8 @@
           },
           "desktop": {
             "title": "Desktop app",
-            "body": "The desktop app's first run draws the same three steps in its own window: create an account or skip it, connect the providers it can reach directly, then bars in the tray. The tray and its bars never require that account."
+            "download": "<download>Download the desktop app</download> for Windows or Linux, or the macOS preview. It needs nothing else installed and no account.",
+            "body": "Its first run walks you to your first bars in its own window: it connects the providers it can reach directly, and signing in is optional. The tray and its bars never require an account."
           },
           "hub": {
             "title": "Web hub",
@@ -1203,7 +1089,7 @@
           },
           "phone": {
             "title": "Phone",
-            "body": "Open the hub, choose your phone, and scan the QR code it shows. Pairing needs nothing typed. Add it to your home screen from there: Android offers to install it, and on iOS use Share, then Add to Home Screen."
+            "body": "Open OpenLimiter on your computer, choose Pair your phone, and scan the QR code it shows. Pairing needs nothing typed. Add the web app to your home screen from there: Android offers to install it, and on iOS use Share, then Add to Home Screen."
           },
           "claude-code": {
             "title": "Wire Claude Code by hand",
@@ -1763,7 +1649,7 @@
             },
             "grammar": {
               "title": "The grammar",
-              "intro": "On Claude Code the line opens with the model, the effort and how full the context window is. Then comes one cell per window: a tag, a ten block bar, the percentage with its freshness mark, and the reset time. The provider whose own status line this is drops its own tag, since the host already says whose numbers these are; every other provider keeps a short tag ahead of its window code, and a credit balance shows its dollar figure instead of a bar.",
+              "intro": "On Claude Code the line opens with the model, the effort and how full the context window is. Then comes one cell per window, all on one line: the window code, a ten block bar, the percentage with its freshness mark, and the reset after an arrow, such as ↻6d23h, or after the word resets where the terminal is ASCII only. A reading gets ! from 80 percent and !! from 90. The provider whose own status line this is drops its own tag, since the host already says whose numbers these are; every other provider puts a short tag before its window code with a space between them, such as cx 5h, and a credit balance shows its dollar figure instead of a bar. When the line is wider than the terminal, it keeps the readings closest to their caps and ends with +N more.",
               "exampleLabel": "example output, one host's row",
               "freshness": {
                 "title": "The freshness marks",
@@ -1847,11 +1733,11 @@
                 },
                 "width": {
                   "accepts": "a whole number from 40 to 400",
-                  "meaning": "The columns one row may spend before the line stacks. Nothing measures your terminal: a statusline host runs the command with no terminal attached, so the number here is the number honoured. Default <code>140</code>."
+                  "meaning": "The columns a row may spend. In <code>bar</code> style the line keeps to one row: readings that do not fit give way to the ones closest to their caps, and the line ends with <code>+N more</code>. In <code>cells</code> style the line stacks past this width. Nothing measures your terminal: a statusline host runs the command with no terminal attached, so the number here is the number honoured. Default <code>140</code>."
                 },
                 "rows": {
                   "accepts": "<code>1</code> or <code>2</code>",
-                  "meaning": "How many rows the layout may use. Default <code>2</code>."
+                  "meaning": "How many rows the <code>cells</code> style may stack onto. The <code>bar</code> style always keeps to one row. Default <code>2</code>."
                 },
                 "bars": {
                   "accepts": "<code>true</code> or <code>false</code>",
@@ -1884,7 +1770,7 @@
             },
             "statusline-stacking": {
               "title": "When the row runs out of room",
-              "body": "The line stacks instead of truncating. A break lands between two cells and never inside one, and two rows is the ceiling. Past that the providers closest to their caps are the ones kept, and the last row ends by saying how many it could not show."
+              "body": "In bar style the line keeps to one row of ten block bars. When the readings do not fit the width, it keeps the ones closest to their caps and ends with +N more. The cells style stacks instead of truncating: a break lands between two cells and never inside one, two rows is the ceiling, and past that the providers closest to their caps are kept and the last row ends by saying how many it could not show."
             },
             "statusline-plain": {
               "title": "The 0.1.0 line, on request",
@@ -1939,9 +1825,9 @@
             },
             "statusline": {
               "intro": "Renders the status row for a statusline host. It reads standard input first, so a Claude Code session payload is ingested and rendered in the same call, then falls back to the cache. This is the only command that writes as a side effect of being displayed.",
-              "cells": "The default layout draws one cell per window for the host named by <code>--host</code>: a tag, a ten block bar, the percentage, and the reset time, with no header line at all. See <docs>agent context</docs> for the full grammar and the freshness marks.",
+              "cells": "The default layout draws one line for the host named by <code>--host</code>, with one cell per window: a spaced tag such as <code>cx 5h</code>, a ten block bar, the percentage with ! from 80 percent and !! from 90, and the reset after an arrow such as <code>↻6d23h</code>, or after the word resets on an ASCII only terminal. A line wider than the terminal keeps the readings closest to their caps and ends with <code>+N more</code>. See <docs>agent context</docs> for the full grammar and the freshness marks.",
               "order": "<code>statusline.style cells</code> brings back the previous row instead: the overall reason code and the routing recommendation lead, then one compact cell per provider with a five block bar rather than the ten the new default draws.",
-              "stacking": "A row wider than its budget stacks rather than truncating. The break lands between two cells and never inside one, because half a bar reads as a reading and is not one. Two rows is the ceiling. Past that the providers closest to their caps are kept, and the last row ends by saying how many it could not show.",
+              "stacking": "In the cells style, a row wider than its budget stacks rather than truncating. The break lands between two cells and never inside one, because half a bar reads as a reading and is not one. Two rows is the ceiling. Past that the providers closest to their caps are kept, and the last row ends by saying how many it could not show.",
               "calloutTitle": "The old line is still one setting away",
               "calloutBody": "<code>openlimiter config set statusline.bars false</code> returns the single plain line that 0.1.0 printed, byte for byte, for anything already parsing it. A test pins that exact string, so the escape hatch cannot rot quietly."
             },
@@ -2085,20 +1971,20 @@
           "not-available": {
             "title": "Read this first",
             "calloutTitle": "Planned means not built",
-            "calloutBody": "Every item marked planned below does not exist today. There is no native mobile application in any store, no code signing, and no automatic update channel for macOS. OpenLimiter Pro is listed separately as available."
+            "calloutBody": "Every item marked planned below does not exist today. There is no native mobile application in any store, the Windows build carries no code signature, and macOS is a preview that is not notarised and does not update itself. OpenLimiter Pro is listed separately as available."
           },
           "desktop": {
             "title": "Shipped: the desktop application",
-            "intro": "A small desktop application with a tray icon next to the system clock reads the same local cache the command line tool writes, so quota is glanceable without a terminal open. Packaged Windows, macOS and Linux builds are attached to the release.",
+            "intro": "A small desktop application with a tray icon next to the system clock reads the same local cache the command line tool writes, so quota is glanceable without a terminal open. Packaged Windows and Linux builds, and a macOS preview, are attached to the release.",
             "bullets": {
-              "status": "Status: shipped on Windows, macOS and Linux, with a public download for each.",
-              "signing": "Windows and macOS ship unsigned. On Windows, SmartScreen: choose More info, then Run anyway. On macOS: System Settings, Privacy and Security, Open Anyway. macOS is excluded from automatic updates until signing and notarisation exist.",
-              "updates": "Planned: an automatic update channel. There is none today."
+              "status": "Status: shipped on Windows and Linux, and a preview on macOS, with a public download for each.",
+              "signing": "The Windows build is unsigned: in SmartScreen, choose More info, then Run anyway. The macOS preview is ad hoc signed but not notarised: open it once, then System Settings, Privacy and Security, Open Anyway.",
+              "updates": "Updates: the Windows and Linux apps check GitHub and ask before installing a new version. The macOS preview updates by new download."
             }
           },
           "mobile": {
             "title": "Shipped: the phone, planned: a native app",
-            "intro": "The phone pairs from the hub by QR code, with nothing typed, and installs to its home screen from there: Android offers to install it, and iOS uses Share, then Add to Home Screen. Phone access is available today with a free account.",
+            "intro": "The phone pairs from the desktop app by QR code, with nothing typed, and installs to its home screen from there: Android offers to install it, and iOS uses Share, then Add to Home Screen. Phone access is available today with a free account.",
             "bullets": {
               "status": "Status: phone pairing and the installable web app are shipped with a free account.",
               "dependsOnSync": "A native application in an app store remains planned and does not exist today. The paired, installable web app is what replaces the need for one."
@@ -2109,10 +1995,7 @@
             "intro": "OpenLimiter Pro is available at $5 a month or $50 a year, with the first 30 days free and no card required. See <pricing>pricing</pricing> for what each line actually is.",
             "bullets": {
               "status": "Status: available. Sync is on from the moment you sign in.",
-              "alerts": "Threshold and reset email alerts.",
-              "history": "Ninety day hosted usage history with burn rate forecasts.",
-              "localFirst": "Everything you can see is free. The command line tool and the desktop local features work with no Pro account.",
-              "phone": "Phone pairing by QR code, kept alive across the device closing for a day or more."
+              "localFirst": "Everything you can see is free. The command line tool and the desktop local features work with no Pro account."
             }
           },
           "following": {
@@ -2137,6 +2020,7 @@
     "sending": "Sending the link.",
     "sent": "Check {email} and open the link on this device.",
     "failed": "That sign in could not be started. Check your connection and try again.",
+    "emailFailed": "The sign in email could not be sent right now. Continue with GitHub or Google instead.",
     "githubOff": "GitHub sign in is not switched on yet. Use Google, Microsoft or email.",
     "googleOff": "Google sign in is not switched on yet. Use GitHub, Microsoft or email.",
     "emailOff": "Email sign in is not switched on yet. Use GitHub, Google or Microsoft.",
@@ -2149,7 +2033,7 @@
   },
   "proPortal": {
     "title": "OpenLimiter Pro",
-    "lead": "Everything you can see is free. Pro adds history, phone push and email alerts, extra accounts and cloud API spend metering.",
+    "lead": "Everything you can see is free. Pro adds {features}.",
     "metaDescription": "Sign in to manage your OpenLimiter Pro plan, your billing and the devices that read your quota.",
     "loading": "Reading your account.",
     "working": "Working",
@@ -2180,14 +2064,14 @@
       "trial": {
         "chip": "trial",
         "title": "You are on the free trial",
-        "body": "Every Pro service is on: history with a forecast, email and phone push alerts, extra accounts, and cloud API spend metering for keys you explicitly enable. No card was asked for.",
+        "body": "Every Pro service is on: {features}. No card was asked for.",
         "daysLeft": "{count, plural, one {# day left} other {# days left}} of the trial.",
         "ends": "It ends on {date}."
       },
       "active": {
         "chip": "active",
         "title": "Pro is active",
-        "body": "History, phone push and email alerts, extra accounts and cloud API spend metering are all on.",
+        "body": "Every Pro service is on: {features}.",
         "renewsOn": "It renews on {date}.",
         "endsOn": "It ends on {date} and does not renew."
       },
@@ -2225,9 +2109,13 @@
       "neverSeen": "Not seen yet"
     },
     "checkout": {
-      "success": {
-        "title": "Payment received",
-        "body": "Stripe confirmed the payment. Your plan updates here as soon as the service records it, which is usually a few seconds."
+      "pending": {
+        "title": "Confirming your payment",
+        "body": "Pro turns on within a few minutes, once Stripe confirms the payment."
+      },
+      "confirmed": {
+        "title": "Pro is on",
+        "body": "Every Pro service is on for your account."
       },
       "cancel": {
         "title": "Checkout was cancelled",
@@ -2241,24 +2129,12 @@
       "start": "Start Pro free for 30 days",
       "free": "No credit card needed"
     },
-    "offer": {
-      "title": "Your annual offer",
-      "lead": "Your trial has ended, so the first year is discounted while this window is open.",
-      "label": "Your offer ends in",
-      "countdown": "{days}d {hours}h {minutes}m",
-      "countdownLabel": "Time left: {days} days, {hours} hours, {minutes} minutes.",
-      "price": "USD 40 for the first year, then USD 50.",
-      "take": "Take the offer"
-    },
     "lost": {
       "alerts": "{count} alerts stopped.",
       "noAlerts": "No alerts were stopped.",
       "history": "Your history is kept for thirty days, then purged.",
-      "phone": "Phone paired: {status}.",
       "multiAccount": "{count} additional accounts stopped.",
       "hostedContext": "Cloud API spend metering: {status}.",
-      "paired": "yes",
-      "notPaired": "no",
       "on": "on",
       "off": "off",
       "loading": "Reading what stopped.",
@@ -2266,8 +2142,29 @@
     },
     "restore": "Subscribe and everything comes back as it was. Your preferences were kept."
   },
+  "proFeatures": {
+    "multiAccount": "More than one account per provider",
+    "history": "Ninety days of hosted history, with a forecast",
+    "alerts": "Phone push and email alerts. Desktop alerts stay free",
+    "apiSpend": "Cloud API spend metering for the keys you enable",
+    "ember": "The Ember theme preset",
+    "inline": {
+      "multiAccount": "extra accounts",
+      "history": "hosted history",
+      "alerts": "phone push and email alerts",
+      "apiSpend": "cloud API spend metering",
+      "ember": "the Ember theme preset"
+    }
+  },
   "hub": {
     "accountFallback": "Account {count}",
+    "syncFailed": {
+      "line": "The last read of your bars failed. OpenLimiter tries again every minute.",
+      "retry": "Try again"
+    },
+    "alertsGate": {
+      "pro": "Phone push and email alerts are part of Pro. Desktop alerts are free."
+    },
     "updatedMinutes": "Updated {count} min ago",
     "updatedHours": "Updated {count} h ago",
     "updatedDays": "Updated {count} d ago",
@@ -2351,7 +2248,7 @@
       "description": "The app signs you in, finds the tools already on this machine, and your bars appear here.",
       "download": {
         "windows": "Download OpenLimiter for Windows",
-        "macos": "Download OpenLimiter for macOS",
+        "macos": "Download the OpenLimiter macOS preview",
         "linux": "Download OpenLimiter for Linux"
       },
       "platforms": {
@@ -2469,53 +2366,41 @@
     "pro": {
       "label": "Pro",
       "locked": {
-        "title": "History, alerts, extra accounts and cloud metering",
-        "lead": "Your bars and desktop alerts are free. These Pro features are available with a trial."
+        "title": "What Pro adds",
+        "lead": "Your bars and desktop alerts are free. These Pro features are available with a trial.",
+        "price": "After the trial, {monthly} a month or {yearly} a year. Cancel any time, with a full refund on request within 14 days."
+      },
+      "phonePush": "Pairing shows your bars on this phone. It does not turn on push alerts: those go to the browser where you started Pro, signed in, with notifications allowed.",
+      "phonePlan": {
+        "loading": "Reading your plan.",
+        "unavailable": "Your plan could not be read on this phone right now. Your bars still update."
       },
       "expired": {
         "title": "Pro has ended",
         "lead": "Your saved Pro preferences stayed in place, and these are the services that stopped."
       },
-      "feature": {
-        "alerts": "Email and phone push alerts. Local desktop alerts are free.",
-        "history": "Ninety days of history, with a forecast.",
-        "phone": "Cloud API spend meters for keys you explicitly enable.",
-        "multiAccount": "More than one account for every provider."
-      },
     "lost": {
       "alerts": "{count} alerts stopped.",
       "noAlerts": "No alerts were stopped.",
       "history": "Your history is kept for thirty days, then purged.",
-      "phone": "Phone paired: {status}.",
       "multiAccount": "{count} additional accounts stopped.",
       "hostedContext": "Cloud API spend metering: {status}.",
-      "paired": "yes",
-      "notPaired": "no",
       "on": "on",
       "off": "off",
       "loading": "Reading what stopped.",
       "unavailable": "What stopped could not be read."
     },
     "restore": "Subscribe and everything comes back as it was. Your preferences were kept.",
-      "offer": {
-        "label": "Your offer ends in",
-        "countdown": "{days}d {hours}h {minutes}m",
-        "countdownLabel": "Time left: {days} days, {hours} hours, {minutes} minutes.",
-        "price": "USD 40 for the first year, then USD 50.",
-        "take": "Take the offer",
-        "working": "Opening checkout"
-      },
       "prices": {
-        "line": "{yearly} a year.",
-        "take": "Take Pro"
+        "working": "Opening checkout"
       },
       "error": "That did not go through. Nothing was charged and nothing changed."
     },
     "phone": {
       "button": "Open on your phone",
-      "line": "Start pairing from the desktop app, then scan",
+      "line": "Scan to open OpenLimiter on your phone and sign in. To pair without signing in, choose Pair your phone in the desktop app.",
       "download": "Get the desktop app",
-      "qrAlt": "QR code linking to the phone pairing page"
+      "qrAlt": "QR code linking to the OpenLimiter web app"
     },
     "phonePairHint": "Pair with the desktop app to see your bars without signing in",
     "phoneInstall": {
@@ -2568,7 +2453,7 @@
       },
       "revoked": {
         "title": "This phone was unpaired",
-        "body": "Scan again from the hub. The desktop application shows a fresh code and approves the phone again."
+        "body": "Pair it again from the desktop app: open OpenLimiter on your computer, choose Pair your phone, and scan the new code."
       },
       "offline": {
         "title": "The service did not answer",
@@ -2581,7 +2466,7 @@
           "body": "One moment. Nothing has been sent anywhere yet."
         },
         "noCode": {
-          "title": "This link has no pairing code",
+          "title": "Pair this phone from the desktop app",
           "body": "The desktop application generates a pairing code that lives for two minutes. Open OpenLimiter on your computer, choose Pair your phone, and scan the code it shows."
         },
         "waiting": {

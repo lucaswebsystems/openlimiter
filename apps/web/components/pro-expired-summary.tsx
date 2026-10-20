@@ -49,11 +49,12 @@ export function ExpiredProSummary({
     return <p className="text-sm leading-relaxed text-muted" role="alert">{t("lost.unavailable")}</p>;
   }
 
-  const phoneStatus = summary.phonePaired ? t("lost.paired") : t("lost.notPaired");
   const hostedContextStatus = summary.hostedContextEnabled ? t("lost.on") : t("lost.off");
   const listClassName = namespace === "hub.pro" ? "ol-lock-list" : "space-y-1";
   const itemClassName = namespace === "hub.pro" ? undefined : "text-sm leading-relaxed text-muted";
 
+  /* A paired phone is not listed: phone access is free and keeps working, so
+     it is not something that stopped. */
   return (
     <>
       <ul className={listClassName}>
@@ -62,10 +63,6 @@ export function ExpiredProSummary({
           {summary.alertCount === 0
             ? t("lost.noAlerts")
             : t("lost.alerts", { count: summary.alertCount })}
-        </li>
-        <li className={itemClassName}>
-          {namespace === "hub.pro" && <span aria-hidden="true" className="ol-lock-dot" />}
-          {t("lost.phone", { status: phoneStatus })}
         </li>
         <li className={itemClassName}>
           {namespace === "hub.pro" && <span aria-hidden="true" className="ol-lock-dot" />}

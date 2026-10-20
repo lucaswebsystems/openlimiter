@@ -9,17 +9,23 @@ import { isLocale } from "@/i18n/locales";
 import { BandHorizon } from "./horizon";
 import { Button } from "./pieces";
 import { subscribeBrowserPush, type PushOutcome } from "@/lib/pro-notifications";
-import { proAccessState, proTrialDaysLeft, startProCheckout, type ProAccessState, type ProEntitlement } from "@/lib/pro";
+import {
+  proAccessState,
+  proTrialDaysLeft,
+  startProCheckout,
+  type ProAccessState,
+  type ProBillingInterval,
+  type ProEntitlement,
+} from "@/lib/pro";
+import proFeatures from "@/lib/pro-features.json";
 import {
   isAllowedCheckoutUrl,
   locksPro,
   offersTrial,
-  startOfferCheckout,
   startProTrial,
   type TrialFailure,
 } from "@/lib/pro-trial";
-import { useOfferCountdown } from "@/lib/use-offer-countdown";
-import { PRO_YEARLY_PRICE } from "@/lib/site";
+import { PRO_MONTHLY_PRICE, PRO_YEARLY_PRICE } from "@/lib/site";
 import { ExpiredProSummary } from "@/components/pro-expired-summary";
 
 /**
@@ -275,20 +281,18 @@ export function TrialWizard({
 
 /* ----------------------------------------------------------------- the lock */
 
-/** The four services a fresh account can open. */
-const PRO_SURFACES = ["alerts", "history", "phone", "multiAccount"] as const;
-
 /**
  * What a locked Pro surface looks like, before a trial and after one.
  *
- * The same card draws both, because they are the same four services seen from
- * two sides: what somebody has not had yet, and what stopped. Only the verbs
- * and the action change, which is the honest difference between them.
+ * The same card draws both, because they are the same services seen from two
+ * sides: what somebody has not had yet, and what stopped. Only the verbs and
+ * the action change, which is the honest difference between them. What Pro
+ * adds is the one list in lib/pro-features.json, the list the pricing card,
+ * the docs and the phone read too.
  *
- * The offer is a window, not a price change. While `offer_ends_at` is in the
- * future the card carries the countdown and the discounted year; the minute it
- * passes the card falls back to the ordinary prices with no second condition to
- * forget, because the countdown answers null and null is the fallback.
+ * The prices are the locked two, a month and a year, and nothing else: there
+ * is no discounted first year. Before a trial they are written under the
+ * trial button; after one, each is its own button into checkout.
  */
 export function ProLockCard({
   client,
@@ -303,9 +307,10 @@ export function ProLockCard({
   now?: number;
 }) {
   const t = useTranslations("hub.pro");
+  const portal = useTranslations("proPortal");
+  const feature = useTranslations("proFeatures");
   const state: ProAccessState = proAccessState(entitlement, now);
-  const countdown = useOfferCountdown(entitlement?.offerEndsAt ?? null, now);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<ProBillingInterval | null>(null);
   const [failed, setFailed] = useState(false);
   const inFlight = useRef(false);
 
@@ -313,25 +318,30 @@ export function ProLockCard({
   const offering = offersTrial(state);
 
   const checkout = useCallback(
-    (discounted: boolean) => {
-      if (client === null || inFlight.current) return;
+    (interval: ProBillingInterval) => {
+      /* A paired phone has no account session to check out with, so its two
+         plans open /pro, where the account signs in and picks one. */
+      if (client === null) {
+        window.location.assign("/pro");
+        return;
+      }
+      if (inFlight.current) return;
       inFlight.current = true;
-      setBusy(true);
+      setBusy(interval);
       setFailed(false);
-      const call = discounted ? startOfferCheckout(client) : startProCheckout(client, "year");
-      void call.then(
+      void startProCheckout(client, interval).then(
         (result) => {
           if (result.ok && isAllowedCheckoutUrl(result.value)) {
             window.location.assign(result.value);
             return;
           }
           inFlight.current = false;
-          setBusy(false);
+          setBusy(null);
           setFailed(true);
         },
         () => {
           inFlight.current = false;
-          setBusy(false);
+          setBusy(null);
           setFailed(true);
         },
       );
@@ -340,11 +350,10 @@ export function ProLockCard({
   );
 
   /* Nothing to lock and nothing to offer: a running trial and a paid plan both
-     have every one of these four, so the card is simply not on the screen. */
+     have every one of these, so the card is simply not on the screen. */
   if (!locked && !offering) return null;
 
   const group = locked ? "expired" : "locked";
-  const lines = locked ? "lost" : "feature";
 
   return (
     <section className="ol-lock" aria-label={t(`${group}.title`)}>
@@ -359,53 +368,41 @@ export function ProLockCard({
           <p>{t(`${group}.lead`)}</p>
         </div>
 
-        {locked ? (
+        {/* What stopped needs the account session the phone does not have;
+            there the list of what Pro adds stands in for it. */}
+        {locked && client !== null ? (
           <ExpiredProSummary client={client} namespace="hub.pro" />
         ) : (
           <ul className="ol-lock-list">
-            {PRO_SURFACES.map((surface) => (
-              <li key={surface}>
+            {proFeatures.features.map(({ id }) => (
+              <li key={id}>
                 <span aria-hidden="true" className="ol-lock-dot" />
-                {t(`${lines}.${surface}`)}
+                {feature(id)}
               </li>
             ))}
           </ul>
         )}
 
-        {offering && <StartTrialButton onStart={onStartTrial} />}
-
-        {locked && countdown !== null && (
-          <div className="ol-lock-offer">
-            <p className="ol-lock-offer-label">{t("offer.label")}</p>
-            <p
-              className="ol-lock-countdown"
-              aria-label={t("offer.countdownLabel", {
-                days: countdown.days,
-                hours: countdown.hours,
-                minutes: countdown.minutes,
-              })}
-            >
-              {t("offer.countdown", {
-                days: countdown.days,
-                hours: countdown.hours,
-                minutes: countdown.minutes,
-              })}
+        {offering && (
+          <>
+            <StartTrialButton onStart={onStartTrial} />
+            <p className="ol-trial-note">
+              {t("locked.price", { monthly: PRO_MONTHLY_PRICE, yearly: PRO_YEARLY_PRICE })}
             </p>
-            <p className="ol-lock-price">{t("offer.price")}</p>
-            <Button tone="primary" onClick={() => checkout(true)} disabled={busy}>
-              {busy ? t("offer.working") : t("offer.take")}
-            </Button>
-          </div>
+          </>
         )}
 
-        {locked && countdown === null && (
+        {locked && (
           <div className="ol-lock-offer">
-            <p className="ol-lock-price">
-              {t("prices.line", { yearly: PRO_YEARLY_PRICE })}
-            </p>
-            <Button tone="primary" onClick={() => checkout(false)} disabled={busy}>
-              {busy ? t("offer.working") : t("prices.take")}
-            </Button>
+            <div className="ol-lock-plans">
+              <Button tone="primary" onClick={() => checkout("month")} disabled={busy !== null}>
+                {busy === "month" ? t("prices.working") : portal("upgrade.monthly", { price: PRO_MONTHLY_PRICE })}
+              </Button>
+              <Button tone="ghost" onClick={() => checkout("year")} disabled={busy !== null}>
+                {busy === "year" ? t("prices.working") : portal("upgrade.yearly", { price: PRO_YEARLY_PRICE })}
+              </Button>
+            </div>
+            <p className="ol-lock-price">{portal("upgrade.note")}</p>
           </div>
         )}
 

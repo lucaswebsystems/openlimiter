@@ -21,18 +21,19 @@ export default async function GettingStartedPage({ params }: LocaleParams) {
     <DocArticle
       id="index"
       sections={[
+        /* The desktop leads, because it needs nothing installed first; Node is
+           the terminal's own prerequisite, written under the terminal. */
         {
-          id: "what-you-need",
-          title: t("what-you-need.title"),
+          id: "desktop",
+          title: t("desktop.title"),
           body: (
             <>
-              <Bullets
-                items={[
-                  t("what-you-need.bullets.node"),
-                  t("what-you-need.bullets.npm"),
-                ]}
-              />
-              <P>{t("what-you-need.local")}</P>
+              <P>
+                {t.rich("desktop.download", {
+                  download: (chunks) => <DocLink href="/download">{chunks}</DocLink>,
+                })}
+              </P>
+              <P>{t("desktop.body")}</P>
             </>
           ),
         },
@@ -41,6 +42,7 @@ export default async function GettingStartedPage({ params }: LocaleParams) {
           title: t("terminal.title"),
           body: (
             <>
+              <Bullets items={[t("terminal.needs.node"), t("terminal.needs.npm")]} />
               <P>{t("terminal.intro")}</P>
               <CodeBlock label={t("terminal.terminalLabel")} code={`npx openlimiter`} />
               <P>{t.rich("terminal.steps", { code: (chunks) => <Code>{chunks}</Code> })}</P>
@@ -53,11 +55,6 @@ export default async function GettingStartedPage({ params }: LocaleParams) {
               <P>{t.rich("terminal.install", { code: (chunks) => <Code>{chunks}</Code> })}</P>
             </>
           ),
-        },
-        {
-          id: "desktop",
-          title: t("desktop.title"),
-          body: <P>{t("desktop.body")}</P>,
         },
         {
           id: "hub",

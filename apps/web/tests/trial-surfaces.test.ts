@@ -50,12 +50,13 @@ vi.mock("@/lib/pro-notifications", async (importOriginal) => {
 
 const trial = messages.hub.trial;
 const pro = messages.hub.pro;
+const portal = messages.proPortal;
+const MONTHLY = portal.upgrade.monthly.replace("{price}", "$5");
+const YEARLY = portal.upgrade.yearly.replace("{price}", "$50");
 
 const NOW = Date.parse("2026-09-07T12:00:00.000Z");
 const IN_THIRTY_DAYS = new Date(NOW + 30 * 86_400_000).toISOString();
 const YESTERDAY = new Date(NOW - 86_400_000).toISOString();
-/* Two days, six hours and thirty minutes of offer left. */
-const OFFER_OPEN = new Date(NOW + 2 * 86_400_000 + 6 * 3_600_000 + 30 * 60_000).toISOString();
 
 let mounted: Mounted | null = null;
 let answers: unknown[] = [];
@@ -83,7 +84,6 @@ function entitlement(overrides: Partial<ProEntitlement> = {}): ProEntitlement {
     planState: "expired" as ProPlanState,
     features: [],
     trialEndsAt: YESTERDAY,
-    offerEndsAt: null,
     currentPeriodEnd: null,
     cancelAtPeriodEnd: false,
     pastDueUntil: null,
@@ -244,12 +244,15 @@ describe("the lock card", () => {
     return view;
   }
 
-  it("offers the trial, and nothing else, to an account with no plan", () => {
+  it("offers the trial, with the prices after it written out, to an account with no plan", () => {
     const view = lock(null);
     expect(view.container.textContent).toContain(pro.locked.title);
-    expect(view.container.textContent).toContain(pro.feature.alerts);
+    expect(view.container.textContent).toContain(messages.proFeatures.alerts);
     expect(byText(view.container, "button", trial.start)).not.toBeNull();
-    expect(view.container.textContent).not.toContain(pro.offer.take);
+    expect(view.container.textContent).toContain(
+      pro.locked.price.replace("{monthly}", "$5").replace("{yearly}", "$50"),
+    );
+    expect(byText(view.container, "button", MONTHLY)).toBeNull();
   });
 
   it("draws nothing at all while a trial is running and does not read the summary", async () => {
@@ -272,9 +275,9 @@ describe("the lock card", () => {
     await flush(3);
     expect(view.container.textContent).toContain(pro.expired.title);
     const lines = all(view.container, ".ol-lock-list li").map((node) => node.textContent?.trim());
+    /* A paired phone keeps working for free, so it is not on this list. */
     expect(lines).toEqual([
       pro.lost.alerts.replace("{count}", "4"),
-      pro.lost.phone.replace("{status}", pro.lost.paired),
       pro.lost.multiAccount.replace("{count}", "2"),
       pro.lost.hostedContext.replace("{status}", pro.lost.on),
     ]);
@@ -297,27 +300,19 @@ describe("the lock card", () => {
     await flush(3);
     expect(view.container.textContent).toContain(pro.lost.noAlerts);
     expect(view.container.textContent).not.toContain(pro.lost.alerts.replace("{count}", "0"));
-    expect(view.container.textContent).toContain(
-      pro.lost.phone.replace("{status}", pro.lost.notPaired),
-    );
     expect(view.container.textContent).toContain(pro.lost.multiAccount.replace("{count}", "0"));
     expect(view.container.textContent).toContain(
       pro.lost.hostedContext.replace("{status}", pro.lost.off),
     );
   });
 
-  it("carries the countdown and the discounted year inside the window", () => {
-    const view = lock(entitlement({ offerEndsAt: OFFER_OPEN }));
-    expect(view.container.querySelector(".ol-lock-countdown")?.textContent).toBe("2d 6h 30m");
-    expect(view.container.textContent).toContain(pro.offer.price);
-    expect(byText(view.container, "button", pro.offer.take)).not.toBeNull();
-  });
-
-  it("falls back to the ordinary prices once the window has passed", () => {
-    const view = lock(entitlement({ offerEndsAt: YESTERDAY }));
+  it("offers both locked plans and the refund line, never a discounted first year", () => {
+    const view = lock(entitlement());
     expect(view.container.querySelector(".ol-lock-countdown")).toBeNull();
-    expect(view.container.textContent).toContain("$50 a year.");
-    expect(byText(view.container, "button", pro.prices.take)).not.toBeNull();
+    expect(view.container.textContent).not.toContain("USD 40");
+    expect(byText(view.container, "button", MONTHLY)).not.toBeNull();
+    expect(byText(view.container, "button", YEARLY)).not.toBeNull();
+    expect(view.container.textContent).toContain(portal.upgrade.note);
   });
 
   it("mutes the horizon behind a plan that has ended", () => {
@@ -330,23 +325,21 @@ describe("the lock card", () => {
     expect(offering.container.textContent).toContain(pro.locked.lead);
   });
 
-  it("asks for the discounted session and follows it to Stripe", async () => {
-    answers = [{ data: { url: "https://checkout.stripe.com/discounted" }, error: null }];
+  it("asks for the plan pressed and follows it to Stripe", async () => {
+    answers = [{ data: { url: "https://checkout.stripe.com/plan" }, error: null }];
     const assign = vi.fn();
     Object.defineProperty(window, "location", {
       configurable: true,
       value: { assign, href: "https://openlimiter.com/app", search: "" },
     });
-    const view = lock(entitlement({ offerEndsAt: OFFER_OPEN }));
-    press(byText(view.container, "button", pro.offer.take));
+    const view = lock(entitlement());
+    press(byText(view.container, "button", YEARLY));
     await flush(3);
     const checkoutCall = invoke.mock.calls.find(
       (call) => call[1]?.body?.interval === "year",
     );
-    expect(checkoutCall?.[1]).toEqual({
-      body: { interval: "year", offer: "trial_end_annual" },
-    });
-    expect(assign).toHaveBeenCalledWith("https://checkout.stripe.com/discounted");
+    expect(checkoutCall?.[1]).toEqual({ body: { interval: "year" } });
+    expect(assign).toHaveBeenCalledWith("https://checkout.stripe.com/plan");
   });
 
   it("refuses a checkout url that is not on checkout.stripe.com", async () => {
@@ -356,36 +349,13 @@ describe("the lock card", () => {
       configurable: true,
       value: { assign, href: "https://openlimiter.com/app", search: "" },
     });
-    const view = lock(entitlement({ offerEndsAt: OFFER_OPEN }));
-    press(byText(view.container, "button", pro.offer.take));
+    const view = lock(entitlement());
+    press(byText(view.container, "button", MONTHLY));
     await flush(3);
     expect(assign).not.toHaveBeenCalled();
     expect(view.container.textContent).toContain(pro.error);
   });
 
-  it("resyncs the countdown on visibilitychange when the tab becomes visible", async () => {
-    const ends = new Date(Date.now() + 5000).toISOString();
-    const view = render(
-      createElement(ProLockCard, {
-        client: client(),
-        entitlement: entitlement({ offerEndsAt: ends }),
-        onStartTrial: () => undefined,
-      }),
-    );
-    mounted = view;
-    expect(view.container.querySelector(".ol-lock-countdown")).not.toBeNull();
-
-    const dateSpy = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 10_000);
-    try {
-      await view.run(() => {
-        document.dispatchEvent(new Event("visibilitychange"));
-      });
-      expect(view.container.querySelector(".ol-lock-countdown")).toBeNull();
-      expect(view.container.textContent).toContain("$50 a year.");
-    } finally {
-      dateSpy.mockRestore();
-    }
-  });
 });
 
 describe("the button itself", () => {

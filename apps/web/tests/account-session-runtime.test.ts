@@ -107,6 +107,53 @@ it("invalidates quota reads when sync is disabled", async () => {
   expect(fixture.usage).toHaveBeenCalledTimes(2);
 });
 
+/*
+ * A failed read is not an empty account. The hub keeps drawing the last rows
+ * that did arrive, under their own freshness rules, says the read failed, and
+ * the poll keeps asking on its own; only a definite answer replaces the rows.
+ */
+it("keeps the last good rows through a failed or thrown read, flags it, and reads again", async () => {
+  const rows = { ok: true, providers: [{ provider: "CODEX", accountId: "codex", accountLabel: null, windows: [] }] };
+  fixture.usage.mockResolvedValue(rows);
+  runtime.start();
+  await drain();
+  expect(runtime.current().syncedUsage).toEqual(rows);
+  expect(runtime.current().usageFailed).toBe(false);
+
+  fixture.usage.mockResolvedValueOnce({ ok: false, reason: "unavailable" });
+  await runtime.refresh();
+  expect(runtime.current().syncedUsage).toEqual(rows);
+  expect(runtime.current().usageFailed).toBe(true);
+
+  fixture.usage.mockRejectedValueOnce(new Error("offline"));
+  await runtime.refresh();
+  expect(runtime.current().syncedUsage).toEqual(rows);
+  expect(runtime.current().usageFailed).toBe(true);
+
+  const asked = fixture.usage.mock.calls.length;
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(fixture.usage.mock.calls.length).toBeGreaterThan(asked);
+  expect(runtime.current().usageFailed).toBe(false);
+});
+
+it("flags a first read that fails, so the hub never reads it as an empty account", async () => {
+  fixture.usage.mockResolvedValue({ ok: false, reason: "unavailable" });
+  runtime.start();
+  await drain();
+  expect(runtime.current().syncedUsage).toEqual({ ok: false, reason: "unavailable" });
+  expect(runtime.current().usageFailed).toBe(true);
+});
+
+it("lets a definite signed out answer replace the rows, with nothing to retry", async () => {
+  fixture.usage.mockResolvedValue({ ok: true, providers: [{ provider: "CODEX" }] });
+  runtime.start();
+  await drain();
+  fixture.usage.mockResolvedValue({ ok: false, reason: "signed_out" });
+  await runtime.refresh();
+  expect(runtime.current().syncedUsage).toEqual({ ok: false, reason: "signed_out" });
+  expect(runtime.current().usageFailed).toBe(false);
+});
+
 it("rejects a previous account entitlement even when its response arrives last", async () => {
   let finish!: (result: unknown) => void;
   runtime.start();

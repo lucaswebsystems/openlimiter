@@ -28,13 +28,7 @@ import {
   type ProCheckoutOutcome,
   type ProDevice,
 } from "@/lib/pro";
-import {
-  locksPro,
-  offersTrial,
-  startOfferCheckout,
-  type OfferCountdown,
-} from "@/lib/pro-trial";
-import { useOfferCountdown } from "@/lib/use-offer-countdown";
+import { locksPro, offersTrial } from "@/lib/pro-trial";
 import { PRO_MONTHLY_PRICE, PRO_YEARLY_PRICE } from "@/lib/site";
 import { SignInCard } from "./sign-in-card";
 import { Button, Chip, SectionPanel } from "./ui";
@@ -63,7 +57,11 @@ import { ExpiredProSummary } from "./pro-expired-summary";
  */
 
 type AccountState = "loading" | "ready" | "error";
-type Action = "none" | "month" | "year" | "billing" | "offer";
+
+/** How often, and how many times, a success return reads the account again. */
+const CHECKOUT_POLL_MS = 10_000;
+const CHECKOUT_POLLS = 30;
+type Action = "none" | "month" | "year" | "billing";
 
 /**
  * Where the trial actually happens.
@@ -86,7 +84,14 @@ function formatDate(value: string | null, locale: string): string | null {
 /* The one chip on this page: a plan state, spelled out in capitals. */
 const STATE_CHIP = "uppercase tracking-wider";
 
-export function ProPortal({ locale }: { locale: string }) {
+export function ProPortal({
+  locale,
+  features,
+}: {
+  locale: string;
+  /** What Pro adds, as a phrase from the one list (lib/pro-feature-list.ts). */
+  features: string;
+}) {
   const t = useTranslations("proPortal");
   /* Read once, on the first render that has a browser to read from. The panel
      on screen at that moment is the loading one, which says nothing about this
@@ -108,25 +113,19 @@ export function ProPortal({ locale }: { locale: string }) {
   const accountRequest = useRef(0);
   /** The live auth listener, so a client being replaced takes its own with it. */
   const authListener = useRef<{ unsubscribe: () => void } | null>(null);
-  /**
-   * The offer's remaining time, read above every early return.
-   *
-   * It has to be here rather than inside the panel that draws it, because two
-   * decisions depend on it and they must not disagree: whether the discounted
-   * panel is on screen, and whether the ordinary prices are. A page left open
-   * across the closing instant redraws on the same minute tick and moves both.
-   */
-  const offerCountdown = useOfferCountdown(account?.entitlement?.offerEndsAt ?? null);
 
   /* The checkout return, read once and then cleaned out of the address bar so a
      refresh does not replay a state that has already been acknowledged. */
   useEffect(() => {
     const outcome = proCheckoutOutcome(window.location.search);
     if (outcome === null) return;
-    /* A return parameter is not proof of payment. The account read below is
-       the only source allowed to turn a checkout into an entitlement. A
-       cancellation is safe to report because it makes no positive claim. */
-    setCheckout(outcome === "cancel" ? outcome : null);
+    /* A return parameter is not proof of payment: anyone can open this
+       address. A cancel charged nothing; a success says Pro turns on within a
+       few minutes once Stripe confirms the payment, and only an account read
+       that shows Pro on turns it into the confirmed notice (see `proOn`). Even
+       then it claims no payment: a complimentary account reads as on too, and
+       nothing here has verified a checkout. */
+    setCheckout(outcome);
     const url = new URL(window.location.href);
     url.searchParams.delete("checkout");
     window.history.replaceState(null, "", url.pathname + url.search + url.hash);
@@ -189,42 +188,49 @@ export function ProPortal({ locale }: { locale: string }) {
     [attachAuthListener, keepSignedIn, supabase],
   );
 
-  const loadAccount = useCallback(() => {
+  /** Read the account. A quiet read keeps what is on screen until it lands. */
+  const loadAccount = useCallback((quiet = false) => {
     if (supabase === null || session === null || session === undefined) return;
     const requestId = ++accountRequest.current;
     const userId = session.user.id;
-    setAccountState("loading");
+    if (!quiet) setAccountState("loading");
     void readProAccount(supabase).then((result) => {
       if (requestId !== accountRequest.current || session?.user.id !== userId) return;
       if (result.ok) {
         setAccount(result.value);
         setAccountState("ready");
-      } else {
+      } else if (!quiet) {
         setAccountState("error");
       }
     });
   }, [session, supabase]);
 
-  useEffect(loadAccount, [loadAccount]);
+  useEffect(() => loadAccount(), [loadAccount]);
+
+  /* After a success return the account is read again, quietly, until it shows
+     Pro on or a few minutes pass: the service turns Pro on once Stripe's
+     confirmation reaches it, and the notice says so only then. */
+  const proOn = proAccessState(account?.entitlement ?? null) === "active";
+  useEffect(() => {
+    if (checkout !== "success" || proOn || session === null || session === undefined) return;
+    let polls = 0;
+    const timer = window.setInterval(() => {
+      polls += 1;
+      if (polls > CHECKOUT_POLLS) {
+        window.clearInterval(timer);
+        return;
+      }
+      loadAccount(true);
+    }, CHECKOUT_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [checkout, proOn, session, loadAccount]);
+  const notice = checkout === "cancel" ? "cancel" : proOn ? "confirmed" : "pending";
 
   async function upgrade(interval: ProBillingInterval) {
     if (supabase === null) return;
     setAction(interval === "month" ? "month" : "year");
     setActionFailed(false);
     const result = await startProCheckout(supabase, interval);
-    if (result.ok) {
-      window.location.assign(result.value);
-      return;
-    }
-    setAction("none");
-    setActionFailed(true);
-  }
-
-  async function takeOffer() {
-    if (supabase === null || action !== "none") return;
-    setAction("offer");
-    setActionFailed(false);
-    const result = await startOfferCheckout(supabase);
     if (result.ok) {
       window.location.assign(result.value);
       return;
@@ -277,7 +283,7 @@ export function ProPortal({ locale }: { locale: string }) {
   if (session === null) {
     return (
       <div className="mx-auto max-w-md space-y-4">
-        {checkout !== null && <CheckoutNotice outcome={checkout} onDismiss={() => setCheckout(null)} />}
+        {checkout !== null && <CheckoutNotice notice={notice} onDismiss={() => setCheckout(null)} />}
         <SignInCard
           client={supabase}
           heading="h2"
@@ -298,14 +304,10 @@ export function ProPortal({ locale }: { locale: string }) {
      the wizard is the only caller of start_trial in this application. */
   const canStartTrial = accountState === "ready" && offersTrial(state);
   const locked = accountState === "ready" && locksPro(state);
-  /* One price on the screen at a time. While the discounted year is live it is
-     the only offer; the ordinary panel is what the closed window falls back
-     to, which is the same rule the hub's lock card holds. */
-  const offerLive = locked && offerCountdown !== null;
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      {checkout !== null && <CheckoutNotice outcome={checkout} onDismiss={() => setCheckout(null)} />}
+      {checkout !== null && <CheckoutNotice notice={notice} onDismiss={() => setCheckout(null)} />}
 
       <SectionPanel>
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -334,7 +336,7 @@ export function ProPortal({ locale }: { locale: string }) {
           <div className="mt-6 rounded-xl border border-hairline bg-raised p-5">
             <p className="text-sm font-medium text-heading">{t("accountError.title")}</p>
             <p className="mt-1 text-sm leading-relaxed text-muted">{t("accountError.body")}</p>
-            <Button tone="ghost" onClick={loadAccount} className="mt-4">
+            <Button tone="ghost" onClick={() => loadAccount()} className="mt-4">
               {t("accountError.retry")}
             </Button>
           </div>
@@ -343,7 +345,7 @@ export function ProPortal({ locale }: { locale: string }) {
         {accountState === "ready" && (
           <div className="mt-6 space-y-3">
             <h2 className="text-lg font-medium text-heading">{t(`plan.${state}.title`)}</h2>
-            <p className="text-sm leading-relaxed text-muted">{t(`plan.${state}.body`)}</p>
+            <p className="text-sm leading-relaxed text-muted">{t(`plan.${state}.body`, { features })}</p>
             {state === "trial" && daysLeft !== null && (
               <p className="text-sm leading-relaxed text-body">
                 {t("plan.trial.daysLeft", { count: daysLeft })}
@@ -377,17 +379,15 @@ export function ProPortal({ locale }: { locale: string }) {
         </SectionPanel>
       )}
 
+      {/* What stopped, read from the server. The two locked prices follow in
+          the upgrade panel; there is no discounted first year. */}
       {locked && (
-        <OfferPanel
-          client={supabase}
-          countdown={offerCountdown}
-          working={action === "offer"}
-          disabled={action !== "none"}
-          onTake={() => void takeOffer()}
-        />
+        <SectionPanel className="border-accent-subtle">
+          <ExpiredProSummary client={supabase} namespace="proPortal" />
+        </SectionPanel>
       )}
 
-      {accountState === "ready" && proCanUpgrade(state) && !canStartTrial && !offerLive && (
+      {accountState === "ready" && proCanUpgrade(state) && !canStartTrial && (
         <SectionPanel>
           <h2 className="text-lg font-medium text-heading">{t("upgrade.title")}</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted">{t("upgrade.body")}</p>
@@ -405,7 +405,9 @@ export function ProPortal({ locale }: { locale: string }) {
         </SectionPanel>
       )}
 
-      {accountState === "ready" && proCanManageBilling(state) && (
+      {/* A complimentary plan reads as active but has no card, no invoices
+          and no paid period, so it gets no billing panel. */}
+      {accountState === "ready" && proCanManageBilling(state) && entitlement?.planState !== "comped" && (
         <SectionPanel>
           <h2 className="text-lg font-medium text-heading">{t("billing.title")}</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted">{t("billing.body")}</p>
@@ -487,69 +489,12 @@ export function ProPortal({ locale }: { locale: string }) {
   );
 }
 
-/**
- * What a trial that has ended is offered, while the window is open.
- *
- * Four lines saying what stopped, a countdown, and one price. The countdown is
- * the server's own `offer_ends_at` and nothing else: when it answers null the
- * whole panel is gone and the ordinary upgrade panel below it is the offer, so
- * the closed state is the absence of this rather than a second set of prices
- * somebody has to remember to write.
- */
-function OfferPanel({
-  client,
-  countdown,
-  working,
-  disabled,
-  onTake,
-}: {
-  client: SupabaseClient;
-  /** Null once the window has closed, which is what removes the price. */
-  countdown: OfferCountdown | null;
-  working: boolean;
-  disabled: boolean;
-  onTake: () => void;
-}) {
-  const t = useTranslations("proPortal");
-
-  return (
-    <SectionPanel className="border-accent-subtle">
-      <ExpiredProSummary client={client} namespace="proPortal" />
-
-      {countdown !== null && (
-        <>
-          <h2 className="mt-6 text-lg font-medium text-heading">{t("offer.title")}</h2>
-          <p className="mt-2 text-sm leading-relaxed text-muted">{t("offer.lead")}</p>
-          <p className="mt-5 text-xs uppercase tracking-wider text-soft">{t("offer.label")}</p>
-          <p
-            className="mt-1 font-mono text-3xl tabular-nums text-heading"
-            aria-label={t("offer.countdownLabel", {
-              days: countdown.days,
-              hours: countdown.hours,
-              minutes: countdown.minutes,
-            })}
-          >
-            {t("offer.countdown", {
-              days: countdown.days,
-              hours: countdown.hours,
-              minutes: countdown.minutes,
-            })}
-          </p>
-          <p className="mt-3 text-sm leading-relaxed text-body">{t("offer.price")}</p>
-          <Button tone="accent" className="mt-5" disabled={disabled} onClick={onTake}>
-            {working ? t("working") : t("offer.take")}
-          </Button>
-        </>
-      )}
-    </SectionPanel>
-  );
-}
-
 function CheckoutNotice({
-  outcome,
+  notice,
   onDismiss,
 }: {
-  outcome: Exclude<ProCheckoutOutcome, null>;
+  /** A cancel, a success not yet confirmed by the account read, or a confirmed one. */
+  notice: "cancel" | "pending" | "confirmed";
   onDismiss: () => void;
 }) {
   const t = useTranslations("proPortal.checkout");
@@ -557,8 +502,8 @@ function CheckoutNotice({
     <SectionPanel className="border-accent-subtle">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-lg font-medium text-heading">{t(`${outcome}.title`)}</h2>
-          <p className="mt-2 text-sm leading-relaxed text-muted">{t(`${outcome}.body`)}</p>
+          <h2 className="text-lg font-medium text-heading">{t(`${notice}.title`)}</h2>
+          <p className="mt-2 text-sm leading-relaxed text-muted">{t(`${notice}.body`)}</p>
         </div>
         <Button tone="quiet" onClick={onDismiss}>
           {t("dismiss")}

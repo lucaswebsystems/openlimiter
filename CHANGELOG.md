@@ -2,7 +2,7 @@
 
 All notable project changes appear in this file.
 
-## [2.1.6]
+## [2.1.6] (2026-10-20)
 
 Something keeps your bars current. The desktop app starts when you sign in and stays in the tray, so your bars keep refreshing after a restart; Settings turns it off. Opening the app again shows the running window instead of a second copy.
 
@@ -10,7 +10,7 @@ The macOS app is now ad hoc signed, and every release checks that signature befo
 
 The site now says what the app sends and where: GitHub for the update check, each provider for its own usage with the login you already stored, and OpenLimiter only when you sign in. Earlier pages said nothing leaves your computer, which was wrong.
 
-## [2.1.5]
+## [2.1.5] (2026-10-13)
 
 Fresher Claude bars. Claude weekly bars are read every five minutes while the desktop app runs, and while Claude Code draws its status line with the command line poll on. Nothing is read while neither runs.
 
@@ -18,7 +18,7 @@ A reading from before its weekly reset is never shown, on any surface, the paire
 
 The command line recovers from a rotated Claude login. A weekly Anthropic stops reporting disappears after a complete read.
 
-## [2.1.4]
+## [2.1.4] (2026-10-10)
 
 Bars no longer vanish. A Claude usage poll refused right after Claude Code rotated its login no longer blocks polling for a day: a refusal applies only to the login it refused, and a 401 re reads the login and retries once.
 
@@ -26,15 +26,15 @@ Every provider you set up keeps its last reading as a grey stale bar for up to s
 
 The status line says why the Claude weekly is missing: 7d off, 7d refused or 7d waiting.
 
-## [2.1.3]
+## [2.1.3] (2026-10-08)
 
 Antigravity shows its bars on Windows. Its CLI runs the status line command through cmd with escaped quotes, so the quoted command the installer wrote was never found; the installer now writes a quote free command, using a short path when a folder name has a space, and setup repairs an existing Antigravity setup.
 
-## [2.1.2]
+## [2.1.2] (2026-10-08)
 
 The desktop no longer repeats the "usage window reset" alert every second. Two sources of the same Claude session window could report its end a few seconds apart, and each difference counted as a new window; a reset now needs the window end to move forward by at least a minute, and a source still reporting an earlier window end is ignored.
 
-## [2.1.1]
+## [2.1.1] (2026-10-07)
 
 Desktop sign in works again. The app no longer refuses the twelve character refresh tokens Supabase issues, so Google, GitHub and email sign in finish in the app, and a refused sign in now shows its error code.
 
@@ -46,7 +46,7 @@ Stuck background refresh processes no longer pile up on Windows. A new one start
 
 DeepSeek shows its official mark in Connect Tools.
 
-## [2.1.0]
+## [2.1.0] (2026-10-07)
 
 Claude now shows one number per bar on the desktop, in the terminal and on the phone. The Claude bucket allowlist keeps only supported windows, including Current session, Weekly all models and Weekly Fable.
 
@@ -64,7 +64,7 @@ The phone app installs to a Home Screen, follows the phone light or dark theme, 
 
 OpenRouter management keys can now be added from Connect Tools.
 
-## [2.0.4]
+## [2.0.4] (2026-10-06)
 
 ### Providers
 
@@ -78,7 +78,7 @@ OpenRouter management keys can now be added from Connect Tools.
 
 * Sync never uploads unreadable or placeholder readings. Stale bars are flat grey instead of striped.
 
-## [2.0.3]
+## [2.0.3] (2026-10-01)
 
 ### Desktop
 
@@ -105,7 +105,7 @@ OpenRouter management keys can now be added from Connect Tools.
 * On Windows, every helper OpenLimiter starts now runs from the Windows system folder in a trusted working folder, never from the project you are working in.
 * The terminal sign in link opens without passing through the command shell.
 
-## [2.0.2]
+## [2.0.2] (2026-09-29)
 
 ### Desktop
 
@@ -117,13 +117,13 @@ OpenRouter management keys can now be added from Connect Tools.
 
 - The terminal status line goes from the model and effort straight to the context window. The folder is opt in with `openlimiter terminal show dir`, and a provider that cannot be measured right now is left out of the line.
 
-## [2.0.1]
+## [2.0.1] (2026-09-29)
 
 ### Fixed
 
 Fixes a freeze at startup on Windows.
 
-## [2.0.0]
+## [2.0.0] (2026-09-29)
 
 Release preparation, not yet published. The entries below describe the intended release and remain subject to the final platform, provider and session checks.
 

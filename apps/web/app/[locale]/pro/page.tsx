@@ -4,6 +4,7 @@ import { PageShell } from "@/components/page-shell";
 import { ProPortal } from "@/components/pro-portal";
 import { type LocaleParams, pageLocale } from "@/i18n/params";
 import { pageMetadata } from "@/lib/metadata";
+import { proFeaturePhrase } from "@/lib/pro-feature-list";
 
 /**
  * The Pro account page.
@@ -35,9 +36,13 @@ export async function generateMetadata({ params }: LocaleParams): Promise<Metada
 export default async function ProPage({ params }: LocaleParams) {
   const locale = await pageLocale(params);
   const t = await getTranslations("proPortal");
+  const feature = await getTranslations("proFeatures");
+  /* What Pro adds, read from the one list, for the lead and the plan
+     sentences; the portal gets the phrase rather than the whole namespace. */
+  const features = proFeaturePhrase((id) => feature(`inline.${id}`), locale);
   return (
-    <PageShell title={t("title")} lead={t("lead")} quietChrome>
-      <ProPortal locale={locale} />
+    <PageShell title={t("title")} lead={t("lead", { features })} quietChrome>
+      <ProPortal locale={locale} features={features} />
     </PageShell>
   );
 }

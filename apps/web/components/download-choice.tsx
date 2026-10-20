@@ -65,7 +65,7 @@ function PlatformGlyph({ platform }: { platform: "windows" | "macos" | "linux" }
  * the card, which clears 4.5:1 by a wide margin in both themes.
  */
 const BUTTON =
-  "focus-ring lift-sm inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors";
+  "focus-ring lift-sm inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors";
 const PRIMARY = "border-transparent bg-primary-fill text-on-primary-fill hover:bg-primary-hover";
 const SECONDARY =
   "border-control-border bg-transparent text-heading hover:border-heading hover:bg-surface";
@@ -176,11 +176,11 @@ export function DownloadChoice({
   otherLabel: string;
   windowsSummary: string;
   /**
-   * What a Mac reader has to do the first time, and what they do not get yet.
+   * What a Mac reader has to do the first time, and what the preview is.
    *
-   * Both builds this site offers are unsigned, and an unsigned build is only
-   * honest if the note is beside the button rather than three sections below
-   * it. macOS gets the same treatment Windows already had.
+   * The Windows build is unsigned and the macOS preview is not notarised, and
+   * either is only honest if the note is beside the button rather than three
+   * sections below it.
    */
   macosSummary: string;
   linuxSummary: string;
@@ -231,6 +231,8 @@ export function DownloadChoice({
       note: linuxSummary,
     },
   ];
+  /* The platform this browser runs on leads; the other two keep their order. */
+  targets.sort((left, right) => Number(right.id === platform) - Number(left.id === platform));
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col items-center gap-10">

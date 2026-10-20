@@ -438,6 +438,26 @@
 }
 
 /*
+  A read that failed. It says only that the newest read did not arrive and
+  offers to ask again; the rows beside it keep their own freshness rules and
+  their own look, so this line is the product talking, never a reading.
+*/
+.ol-sync-failed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ol-space-3);
+  padding: var(--ol-space-3) var(--ol-space-5);
+  border: 1px solid var(--ol-hairline);
+  border-radius: var(--ol-radius-sm);
+  background-color: var(--ol-surface);
+  font-size: var(--ol-text-body);
+  line-height: 1.5;
+  color: var(--ol-body);
+}
+
+/*
   The per panel strip. Full width of whatever it sits at the top of, which is
   why the caller passes the pull that cancels that panel's own padding.
 
@@ -1915,6 +1935,26 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell.ol-phone-shell {
 .ol-control-primary:hover {
   border-color: var(--ol-primary-hover);
   background: var(--ol-primary-hover);
+}
+
+/* The paired phone's Pro tab: the plan or the offer, then the pairing note. */
+.ol-phone-pro {
+  display: grid;
+  gap: var(--ol-space-3);
+}
+
+body:has(.ol-phone-shell) .ol-sheet .ol-install-done.ol-control-primary,
+body:has(.ol-phone-shell) .ol-phone-pro .ol-control-primary {
+  border-color: var(--ol-primary-fill);
+  background: var(--ol-primary-fill);
+  color: var(--ol-on-primary-fill);
+}
+
+body:has(.ol-phone-shell) .ol-sheet .ol-install-done.ol-control-primary:hover,
+body:has(.ol-phone-shell) .ol-phone-pro .ol-control-primary:hover {
+  border-color: color-mix(in srgb, var(--ol-primary-fill) 88%, black);
+  background: color-mix(in srgb, var(--ol-primary-fill) 88%, black);
+  color: var(--ol-on-primary-fill);
 }
 
 .ol-control-ghost {
@@ -3448,6 +3488,20 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell.ol-phone-shell {
   color: var(--ol-body);
   font-size: var(--ol-text-label);
   line-height: var(--ol-leading-body);
+}
+
+/* The two plans side by side where they fit; a phone stacks them full width
+   through the rule on .ol-lock-offer .ol-control below. */
+.ol-lock-plans {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ol-space-2);
+  width: 100%;
+}
+
+/* The prices under the trial button read from the card's own left edge. */
+.ol-lock .ol-trial-note {
+  text-align: start;
 }
 
 .ol-lock-offer .ol-control {

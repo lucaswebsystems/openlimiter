@@ -30,6 +30,7 @@
 
 import { readDeviceSnapshots, renewPhoneCredential, type HostedResponse } from "./pro-device";
 import { meterRowsOf } from "./device-snapshots";
+import { PRO_PLAN_STATES, entitlementOf, type ProEntitlement } from "./pro";
 
 /** Renew once the token is this close to its end, rather than at it. */
 export const PHONE_RENEW_WITHIN_SECONDS = 12 * 3_600;
@@ -280,6 +281,64 @@ export async function renewPhonePair(
   if (now() - startedAt >= PHONE_RENEW_GRACE_SECONDS * 1_000) return { kind: "unavailable" };
   const second = await renewAttempt(pair, call);
   return second.outcome;
+}
+
+/* -------------------------------------------------------------- the plan */
+
+/**
+ * The plan for the phone's Pro tab.
+ *
+ * The server read answers the account's `entitlement` in the shape the hub's
+ * status read uses, read at request time, so `entitlementOf` and
+ * `proAccessState` sort it exactly as they do there. Null is an account that
+ * never had a plan row. An answer with no `entitlement` key at all comes from
+ * an older server or a rollback; only then does the token's own plan stand in
+ * (see `phoneTokenPlanOf`). A value that is there but cannot be read gives
+ * undefined, which the tab reports instead of guessing.
+ */
+export function phoneEntitlementOf(body: unknown, tokenPlan?: unknown): ProEntitlement | null | undefined {
+  const answer = record(body);
+  if (answer !== null && "entitlement" in answer) {
+    if (answer.entitlement === null) return null;
+    return entitlementOf(answer.entitlement) ?? undefined;
+  }
+  return entitlementOf(tokenPlan) ?? undefined;
+}
+
+/**
+ * The plan signed into a read token, in the entitlement shape, for an answer
+ * that does not report one.
+ *
+ * Decoded on the server from the cookie, without checking the signature: it
+ * only decides what the Pro tab says, and every hosted read is still verified
+ * by the server. ponytail: the token's plan holds until renewal, normally
+ * twelve hours, and its expiry stands in for the trial or grace end; it is
+ * used only when the server read sends no entitlement key. Null for anything
+ * that is not a three part token with a known plan state and a feature list.
+ */
+export function phoneTokenPlanOf(token: string): Record<string, unknown> | null {
+  const segments = token.split(".");
+  if (segments.length !== 3) return null;
+  try {
+    const base64 = segments[1].replace(/-/gu, "+").replace(/_/gu, "/");
+    const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
+    const claims = record(JSON.parse(new TextDecoder().decode(bytes)));
+    const state = claims?.plan_state;
+    const features = claims?.features;
+    if (!(PRO_PLAN_STATES as readonly unknown[]).includes(state)) return null;
+    if (!Array.isArray(features) || !features.every((code) => typeof code === "string")) return null;
+    const until = typeof claims?.exp === "number" ? new Date(claims.exp * 1_000).toISOString() : null;
+    return {
+      plan_state: state,
+      features,
+      trial_ends_at: state === "trialing" ? until : null,
+      current_period_end: null,
+      cancel_at_period_end: false,
+      past_due_until: state === "past_due" ? until : null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /* -------------------------------------------------------------- the read */
@@ -623,7 +682,7 @@ export function requestPhoneRenewal(force = false): Promise<RenewSessionOutcome>
 }
 
 export type PhoneReadOutcome =
-  | { kind: "fresh"; body: unknown }
+  | { kind: "fresh"; body: unknown; plan?: unknown }
   | { kind: "revoked" }
   | { kind: "unpaired" }
   | { kind: "superseded" }
@@ -713,7 +772,8 @@ export async function requestPhoneRead(recoveredLabel = "This phone"): Promise<P
     });
   }
   writePhoneLastBars(fresh);
-  return { kind: "fresh", body: fresh };
+  /* The token's plan, present only when the read sent no entitlement key. */
+  return body?.plan === undefined ? { kind: "fresh", body: fresh } : { kind: "fresh", body: fresh, plan: body.plan };
 }
 
 /** Renew before reading, and recover a missing access cookie without deleting the refresh cookie. */

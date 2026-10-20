@@ -80,8 +80,10 @@ const linkClass =
  * Solid in both header states, so it never turns into a ghost over footage, and
  * on the mark blue, where its white label clears AA.
  */
+/* Narrower padding below 360 pixels: the Japanese label pushed the menu
+   button eleven pixels past a 320 pixel screen. */
 const proClass =
-  "focus-ring inline-flex flex-none items-center rounded-lg bg-primary px-3.5 py-2 " +
+  "focus-ring inline-flex flex-none items-center rounded-lg bg-primary px-3.5 max-[359px]:px-2 py-2 " +
   "text-sm font-medium text-on-primary transition-colors duration-200 hover:bg-primary-hover";
 
 /* The web app button, white in both header states, the founder's order:
@@ -190,7 +192,7 @@ export async function Nav({ localised = true }: { localised?: boolean }) {
             {/* The compact row, everywhere below the large breakpoint. A tablet
                 at 768 wrapped the wide row into two lines, so the sheet owns
                 that width too: two controls beside the mark, and never a third. */}
-            <div className="flex items-center gap-2 lg:hidden">
+            <div className="flex items-center gap-2 max-[359px]:gap-1 lg:hidden">
               <SiteLink href="/pro" className={proClass}>
                 {t("getPro")}
               </SiteLink>

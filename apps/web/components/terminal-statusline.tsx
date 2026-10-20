@@ -49,7 +49,7 @@ export function TerminalStatusline({ caption }: { caption: string }) {
           <p className="font-sans text-sm text-[var(--ol-fixed-dark-muted)] sm:text-base">openlimiter statusline</p>
           {/* The sample is one terminal row. Narrow screens scroll this code
               sample horizontally, so separators never become line leaders. */}
-          <div data-statusline-row className="mt-6 overflow-x-auto whitespace-nowrap font-mono text-sm leading-8 sm:text-base">
+          <div data-statusline-row className="relative mt-6 overflow-x-auto whitespace-nowrap font-mono text-sm leading-8 sm:text-base">
             {cells.map((cell, cellIndex) => (
               <span data-statusline-cell className="whitespace-pre" key={cellIndex}>
                 {cellIndex > 0 && <span data-statusline-separator aria-hidden="true"> | </span>}

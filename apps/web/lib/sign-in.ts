@@ -112,12 +112,28 @@ export function emailSwitchedOff(message: string | null | undefined): boolean {
   );
 }
 
+/**
+ * Why a link did not go out: email sign in is switched off, or the mail could
+ * not be sent at all, for the mail provider's daily cap or any other send
+ * error. The second is said plainly with the ways in that need no mail.
+ */
+export function emailFailureReason(message: string | null | undefined): "emailOff" | "emailFailed" {
+  return emailSwitchedOff(message) ? "emailOff" : "emailFailed";
+}
+
 /** Every state the card draws. Each one has a shape and a sentence. */
 export type SignInState =
   | { kind: "idle" }
   | { kind: "working"; via: OAuthProvider | "email" }
   | { kind: "sent"; email: string }
-  | { kind: "error"; reason: "failed" | "providerOff" | "emailOff"; provider?: OAuthProvider };
+  | {
+      kind: "error";
+      reason: "failed" | "providerOff" | "emailOff" | "emailFailed";
+      provider?: OAuthProvider;
+    };
+
+/** The two providers a failed email link points at instead. */
+export const EMAIL_FALLBACK_PROVIDERS: readonly OAuthProvider[] = ["github", "google"];
 
 export type StartOutcome = { ok: true } | { ok: false; reason: "failed" | "providerOff" };
 
