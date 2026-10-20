@@ -135,6 +135,8 @@ export interface AccountSessionState {
   syncEnabled: boolean;
   live: readonly Snapshot[];
   syncedUsage: SyncedUsageResult | null;
+  /** The newest usage read failed. `syncedUsage` still holds the last good rows, if any. */
+  usageFailed: boolean;
   syncedSpend: SyncedApiSpend[];
   cloudRows: CloudMeterKey[];
   spendFailed: boolean;
@@ -166,7 +168,7 @@ function readLiveSnapshots(): Snapshot[] {
 export function createAccountSessionRuntime(): AccountSessionRuntime {
   let state: AccountSessionState = {
     client: null, session: undefined, keepSignedIn: readKeepSignedIn(), syncEnabled: true,
-    live: [], syncedUsage: null, syncedSpend: [], cloudRows: [],
+    live: [], syncedUsage: null, usageFailed: false, syncedSpend: [], cloudRows: [],
     spendFailed: false, cloudFailed: false, entitlement: undefined,
   };
   let active = false;
@@ -191,13 +193,13 @@ export function createAccountSessionRuntime(): AccountSessionRuntime {
     poll = undefined;
   };
   const clearResults = () => publish({
-    syncedUsage: null, syncedSpend: [], cloudRows: [], spendFailed: false,
+    syncedUsage: null, usageFailed: false, syncedSpend: [], cloudRows: [], spendFailed: false,
     cloudFailed: false, entitlement: undefined,
   });
   const read = (): Promise<void> => {
     if (!active || locallySignedOut || pendingAccountCleanup(state.client)) return Promise.resolve();
     if (!state.syncEnabled) {
-      publish({ syncedUsage: { ok: false, reason: "signed_out" } });
+      publish({ syncedUsage: { ok: false, reason: "signed_out" }, usageFailed: false });
       return Promise.resolve();
     }
     if (flight) return flight;
@@ -208,8 +210,15 @@ export function createAccountSessionRuntime(): AccountSessionRuntime {
       client === null ? Promise.resolve(null) : listCloudKeys(client),
     ]).then(([usage, spend, cloud]) => {
       if (!active || turn !== generation) return;
+      /* A failed read is not an empty account. The last rows that arrived stay,
+         aging under their own freshness rules, the failure is flagged for the
+         hub to say, and the poll asks again. Only a definite answer replaces
+         them. */
+      const answer: SyncedUsageResult = usage.status === "fulfilled" ? usage.value : { ok: false, reason: "unavailable" };
+      const failed = !answer.ok && answer.reason === "unavailable";
       publish({
-        syncedUsage: usage.status === "fulfilled" ? usage.value : { ok: false, reason: "unavailable" },
+        syncedUsage: failed && state.syncedUsage?.ok === true ? state.syncedUsage : answer,
+        usageFailed: failed,
         ...(spend.status === "fulfilled" && spend.value.ok
           ? { syncedSpend: spend.value.sources, spendFailed: false } : { spendFailed: true }),
         ...(cloud.status === "fulfilled" && cloud.value?.ok

@@ -2260,6 +2260,10 @@
   },
   "hub": {
     "accountFallback": "アカウント {count}",
+    "syncFailed": {
+      "line": "バーの最新の読み取りに失敗しました。OpenLimiter は1分ごとに再試行します。",
+      "retry": "もう一度試す"
+    },
     "updatedMinutes": "{count} 分前に更新",
     "updatedHours": "{count} 時間前に更新",
     "updatedDays": "{count} 日前に更新",

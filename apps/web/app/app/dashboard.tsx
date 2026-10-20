@@ -247,7 +247,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
    */
   const [sessionRuntime] = useState(createAccountSessionRuntime);
   const [accountState, setAccountState] = useState(sessionRuntime.current);
-  const { live, session, syncedUsage, syncedSpend, cloudRows, spendFailed, cloudFailed,
+  const { live, session, syncedUsage, usageFailed, syncedSpend, cloudRows, spendFailed, cloudFailed,
     entitlement, keepSignedIn, syncEnabled, client: syncClient } = accountState;
   const refreshSyncedUsage = sessionRuntime.refresh;
   const refreshEntitlement = sessionRuntime.refreshEntitlement;
@@ -597,6 +597,18 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
      command a second before their own bars arrive. */
   const awaitingFirstRead =
     syncEnabled && !demo && !isDevPreview && syncedUsage === null;
+  /* The newest read failed. The rows already on screen stay as they are, and
+     an account with none is told the read failed rather than to install what
+     it already runs. The poll keeps asking; the button asks now. */
+  const syncFailed = syncEnabled && !demo && !isDevPreview && usageFailed;
+  const syncFailedLine = syncFailed ? (
+    <div role="status" className="ol-sync-failed">
+      <p>{t("syncFailed.line")}</p>
+      <Button tone="ghost" onClick={() => void refreshSyncedUsage()} className="flex-none">
+        {t("syncFailed.retry")}
+      </Button>
+    </div>
+  ) : null;
 
   const barsPanel = (interactive: boolean) => {
     const addAccount = interactive ? () => setView("connect") : undefined;
@@ -615,7 +627,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
       );
     }
     if (hasReadings) {
-      return (
+      const rows = (
         <ProviderRows
           rows={providerRows}
           orderScope={interactive ? cardOrderScope : undefined}
@@ -624,10 +636,11 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
           claudeFableHintText={readingsT("claudeFableDesktopHint")}
         />
       );
+      return syncFailedLine === null ? rows : <div className="ol-home-stack">{syncFailedLine}{rows}</div>;
     }
     return (
       <div className="ol-home-stack">
-        <BarsEmpty />
+        {syncFailedLine ?? <BarsEmpty />}
         {addAccount !== undefined && (
           <ProviderRows
             rows={[]}

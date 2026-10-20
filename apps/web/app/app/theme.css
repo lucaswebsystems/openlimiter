@@ -438,6 +438,26 @@
 }
 
 /*
+  A read that failed. It says only that the newest read did not arrive and
+  offers to ask again; the rows beside it keep their own freshness rules and
+  their own look, so this line is the product talking, never a reading.
+*/
+.ol-sync-failed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ol-space-3);
+  padding: var(--ol-space-3) var(--ol-space-5);
+  border: 1px solid var(--ol-hairline);
+  border-radius: var(--ol-radius-sm);
+  background-color: var(--ol-surface);
+  font-size: var(--ol-text-body);
+  line-height: 1.5;
+  color: var(--ol-body);
+}
+
+/*
   The per panel strip. Full width of whatever it sits at the top of, which is
   why the caller passes the pull that cancels that panel's own padding.
 

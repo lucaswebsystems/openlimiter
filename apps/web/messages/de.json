@@ -2260,6 +2260,10 @@
   },
   "hub": {
     "accountFallback": "Konto {count}",
+    "syncFailed": {
+      "line": "Das letzte Abrufen deiner Balken ist fehlgeschlagen. OpenLimiter versucht es jede Minute erneut.",
+      "retry": "Erneut versuchen"
+    },
     "updatedMinutes": "Aktualisiert vor {count} Min.",
     "updatedHours": "Aktualisiert vor {count} Std.",
     "updatedDays": "Aktualisiert vor {count} Tg.",

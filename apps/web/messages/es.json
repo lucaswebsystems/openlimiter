@@ -2260,6 +2260,10 @@
   },
   "hub": {
     "accountFallback": "Cuenta {count}",
+    "syncFailed": {
+      "line": "La última lectura de tus barras falló. OpenLimiter vuelve a intentarlo cada minuto.",
+      "retry": "Intentar de nuevo"
+    },
     "updatedMinutes": "Actualizado hace {count} min",
     "updatedHours": "Actualizado hace {count} h",
     "updatedDays": "Actualizado hace {count} d",
