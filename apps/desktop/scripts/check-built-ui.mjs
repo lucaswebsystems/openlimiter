@@ -990,7 +990,8 @@ try {
     if (!(await gemini.innerText()).includes("Signed out") || await gemini.locator("button", { hasText: "Sign in again" }).count() !== 1) {
       findings.push("the signed out tool has no row with its action on Usage");
     }
-    if (await usage.locator('[data-provider-card][data-provider="CODEX"] button').count()) findings.push("a waiting row offers a button");
+    /* No action on a waiting row; its grip is the one every Usage block carries. */
+    if (await usage.locator('[data-provider-card][data-provider="CODEX"] button:not(.q-grip)').count()) findings.push("a waiting row offers a button");
     findings.push(...await inspectFit(page));
     assert.deepEqual(errors, [], `waiting ${width}x${height} browser errors`);
     if (shots) await page.screenshot({ path: path.join(shots, `usage-waiting-${width}x${height}.png`), fullPage: true });
