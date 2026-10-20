@@ -16,6 +16,7 @@ import {
   PHONE_RENEW_WITHIN_SECONDS,
   PHONE_TOKEN_COOKIE,
   isRevokedEpochResponse,
+  phoneEntitlementOf,
   phonePairNeedsRenewal,
   phonePairOf,
   readPhoneBars,
@@ -755,30 +756,37 @@ describe("the read route: reads the token cookie, never a body", () => {
     expect(response.status).toBe(503);
   });
 
-  /* The read token is signed by the Pro server and carries the plan it was
-     issued for. The route already holds it, so it hands the phone that plan
-     beside the rows; the token itself still never leaves the cookie. */
-  it("answers the plan its own token carries beside the rows, and nothing for a token it cannot read", async () => {
+  /* Astra finding 1. The read token carries the plan it was signed with, which
+     stays the same until the token is renewed, normally twelve hours later. A
+     plan that changed in between must not be told from it: the phone shows
+     only what the server read itself reports, now. */
+  it("answers what the server read reports about the plan, never the plan signed into its own token", async () => {
     const segment = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
     const token = [
       segment({ alg: "EdDSA", kid: "test", typ: "OLP2" }),
       segment({ aud: "phone", scope: "read", plan_state: "active", interval: "monthly", features: ["alerts", "history"] }),
       "signature",
     ].join(".");
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ rows: [] }), { status: 200 })));
-    const response = await readPost(
-      jsonRequest("https://openlimiter.com/app/pair/api/read", undefined, `${PHONE_TOKEN_COOKIE}=${token}`),
-    );
-    const answer = await response.json();
-    expect(answer).toEqual({ body: { rows: [] }, plan: { state: "active", features: ["alerts", "history"] } });
-    expect(JSON.stringify(answer)).not.toContain(token);
-
-    for (const unreadable of ["read.token", `${segment({})}.${segment({ plan_state: "made_up", features: [] })}.x`]) {
-      const plain = await readPost(
-        jsonRequest("https://openlimiter.com/app/pair/api/read", undefined, `${PHONE_TOKEN_COOKIE}=${unreadable}`),
+    const cancelled = {
+      rows: [],
+      entitlement: { plan_state: "canceled", features: [], trial_ends_at: null, current_period_end: "2026-10-01T00:00:00.000Z", cancel_at_period_end: true, past_due_until: null },
+    };
+    for (const upstream of [cancelled, { rows: [] }]) {
+      vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(upstream), { status: 200 })));
+      const response = await readPost(
+        jsonRequest("https://openlimiter.com/app/pair/api/read", undefined, `${PHONE_TOKEN_COOKIE}=${token}`),
       );
-      expect(await plain.json()).toEqual({ body: { rows: [] } });
+      const answer = await response.json();
+      expect(answer).toEqual({ body: upstream });
+      expect(JSON.stringify(answer)).not.toContain(token);
     }
+  });
+
+  it("reads the plan from the server read: none ever, a plan, or not reported", () => {
+    expect(phoneEntitlementOf({ rows: [] })).toBeUndefined();
+    expect(phoneEntitlementOf({ rows: [], entitlement: null })).toBeNull();
+    expect(phoneEntitlementOf({ rows: [], entitlement: { plan_state: "made_up" } })).toBeUndefined();
+    expect(phoneEntitlementOf({ rows: [], entitlement: { plan_state: "active", features: ["alerts"] } })?.planState).toBe("active");
   });
 });
 
@@ -1583,54 +1591,105 @@ describe("the pair page", () => {
 });
 
 /*
- * The paired phone's Pro tab, with the plan its read token carries.
+ * The paired phone's Pro tab, with the plan the latest server read reports.
  *
- * It used to draw the hub's card with no plan at all, so a paying account was
- * sold a trial on its own phone. It now says what the account has, offers the
- * trial and the prices only to an account without Pro, and says plainly that
- * pairing shows bars and never turns push alerts on.
+ * It first drew the hub's card with no plan at all, so a paying account was
+ * sold a trial on its own phone; then it read the plan signed into its token,
+ * which can be twelve hours old (Astra finding 1). It now draws what the server
+ * read says and tells the cases apart (finding 3): a plan that is on, a plan
+ * that ended (the two subscriptions, never a second trial), an account that
+ * never had one (the trial), and a plan the read did not report (reading, then
+ * unavailable, with nothing offered).
  */
 describe("the paired phone's Pro tab", () => {
-  function pairedWith(plan: unknown) {
+  const LATER = new Date(Date.now() + 10 * 86_400_000).toISOString();
+  const EARLIER = new Date(Date.now() - 86_400_000).toISOString();
+
+  function pairedWith(entitlement?: unknown) {
     window.localStorage.setItem(PHONE_PAIR_META_KEY, JSON.stringify({ label: "Test phone", expiresAt: Date.now() / 1000 + 80_000 }));
+    const body = entitlement === undefined ? { rows: [] } : { rows: [], entitlement };
     vi.stubGlobal("fetch", fetchRoutedTo({
-      "/app/pair/api/read": () => new Response(JSON.stringify({ body: { rows: [] }, ...(plan === null ? {} : { plan }) }), { status: 200 }),
+      "/app/pair/api/read": () => new Response(JSON.stringify({ body }), { status: 200 }),
     }));
   }
 
-  async function proPanel(): Promise<Element | null> {
+  async function proPanel(): Promise<HTMLElement> {
     mounted = render(createElement(PairFlow));
     await flush(6);
     press(byText(mounted.container, "button", hub.phoneTabs.pro));
     await flush();
-    return mounted.container.querySelector("#ol-phone-panel-pro");
+    return mounted.container.querySelector("#ol-phone-panel-pro") as HTMLElement;
+  }
+
+  function reset(): void {
+    mounted?.unmount();
+    mounted = null;
+    window.localStorage.clear();
   }
 
   it("shows a paying account its plan, not a trial", async () => {
-    pairedWith({ state: "active", features: ["alerts", "history", "multi_account"] });
+    pairedWith({ plan_state: "active", features: ["alerts", "history", "multi_account"], current_period_end: LATER });
     const panel = await proPanel();
-    expect(panel?.textContent).toContain(messages.proPortal.plan.active.title);
-    expect(panel?.textContent).not.toContain(hub.trial.start);
-    expect(panel?.textContent).toContain(hub.pro.phonePush);
+    expect(panel.textContent).not.toContain(hub.trial.start);
+    expect(panel.textContent).toContain(messages.proPortal.plan.active.title);
+    expect(panel.textContent).toContain(hub.pro.phonePush);
   });
 
   it("shows a running trial as a trial", async () => {
-    pairedWith({ state: "trialing", features: ["alerts"] });
+    pairedWith({ plan_state: "trialing", features: ["alerts"], trial_ends_at: LATER });
     const panel = await proPanel();
-    expect(panel?.textContent).toContain(messages.proPortal.plan.trial.title);
-    expect(panel?.textContent).not.toContain(hub.trial.start);
+    expect(panel.textContent).not.toContain(hub.trial.start);
+    expect(panel.textContent).toContain(messages.proPortal.plan.trial.title);
   });
 
-  it("offers the trial and the prices after it to an account without Pro, and when the plan is unknown", async () => {
-    for (const plan of [{ state: "canceled", features: [] }, null]) {
-      pairedWith(plan);
-      const panel = await proPanel();
-      expect(panel?.textContent).toContain(hub.trial.start);
-      expect(panel?.textContent).toContain(hub.pro.locked.price.replace("{monthly}", "$5").replace("{yearly}", "$50"));
-      expect(panel?.textContent).toContain(hub.pro.phonePush);
-      mounted?.unmount();
-      mounted = null;
-      window.localStorage.clear();
+  it("offers the trial and the prices after it only to an account that never had a plan", async () => {
+    pairedWith(null);
+    const panel = await proPanel();
+    expect(panel.textContent).toContain(hub.trial.start);
+    expect(panel.textContent).toContain(hub.pro.locked.price.replace("{monthly}", "$5").replace("{yearly}", "$50"));
+    expect(panel.textContent).toContain(hub.pro.phonePush);
+  });
+
+  it("offers an ended plan the two subscriptions, never a second trial", async () => {
+    const assign = vi.fn();
+    const real = window.location;
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { assign, href: "https://openlimiter.com/app/pair", origin: "https://openlimiter.com", pathname: "/app/pair", search: "", hash: "" },
+    });
+    try {
+      for (const ended of [
+        { plan_state: "canceled", features: [], current_period_end: EARLIER },
+        { plan_state: "expired", features: [], trial_ends_at: EARLIER },
+        { plan_state: "trialing", features: ["alerts"], trial_ends_at: EARLIER },
+      ]) {
+        pairedWith(ended);
+        const panel = await proPanel();
+        expect(panel.textContent, ended.plan_state).not.toContain(hub.trial.start);
+        expect(panel.textContent).toContain(hub.pro.expired.title);
+        expect(byText(panel, "button", messages.proPortal.upgrade.yearly.replace("{price}", "$50"))).not.toBeNull();
+        press(byText(panel, "button", messages.proPortal.upgrade.monthly.replace("{price}", "$5")));
+        expect(assign).toHaveBeenLastCalledWith("/pro");
+        reset();
+      }
+    } finally {
+      Object.defineProperty(window, "location", { configurable: true, value: real });
     }
+  });
+
+  it("offers nothing and says so when the server read does not report the plan", async () => {
+    pairedWith();
+    const panel = await proPanel();
+    expect(panel.textContent).not.toContain(hub.trial.start);
+    expect(panel.textContent).not.toContain(hub.pro.expired.title);
+    expect(panel.textContent).toContain(hub.pro.phonePlan.unavailable);
+  });
+
+  it("says it is reading the plan until the first read arrives", async () => {
+    window.localStorage.setItem(PHONE_PAIR_META_KEY, JSON.stringify({ label: "Test phone", expiresAt: Date.now() / 1000 + 80_000 }));
+    vi.stubGlobal("fetch", fetchRoutedTo({ "/app/pair/api/read": () => new Promise<Response>(() => undefined) }));
+    const panel = await proPanel();
+    expect(panel.textContent).not.toContain(hub.trial.start);
+    expect(panel.textContent).toContain(hub.pro.phonePlan.loading);
   });
 });
