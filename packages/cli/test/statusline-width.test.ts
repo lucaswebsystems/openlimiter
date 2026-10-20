@@ -105,6 +105,19 @@ describe("Astra finding 5: display columns, and a bounded session head", () => {
     expect(displayColumns("🔥")).toBe(2);
   });
 
+  it("measures grapheme clusters: a presentation selector, a family and a flag take two columns each", () => {
+    expect(displayColumns("❤️")).toBe(2);
+    expect(displayColumns("\u{1F468}‍\u{1F469}‍\u{1F467}")).toBe(2);
+    expect(displayColumns("\u{1F1E7}\u{1F1F7}")).toBe(2);
+    expect(displayColumns("é")).toBe(1);
+  });
+
+  it("keeps a session head of forty hearts inside the width (Astra round 2)", () => {
+    const session = { model: "opus-5-5", effort: "high", dir: "❤️".repeat(40), ctx: 42 };
+    const line = render({ width: 80, visibility: { dir: true } }, { session });
+    expect(displayColumns(line)).toBeLessThanOrEqual(80);
+  });
+
   it("keeps a session head of wide and combining characters inside the width", () => {
     const session = { model: "opus-5-5", effort: "high", dir: "漢字漢字漢字漢字漢字 café", ctx: 42 };
     for (const width of [60, 80, 120]) {
