@@ -23,8 +23,10 @@ const payload = (directory = "/work/Olá projeto") => ({
     seven_day: { used_percentage: 65, resets_at: "2026-01-05T02:00:00Z" }
   }
 });
-const plain = "opus-5-5 high | ctx 42% | 5h [█░░░░░░░░░] 17% ·3h20m | 7d [██████░░░░] 65% ·4d2h | cx7d [████████░░] 85% ·4d2h | concise";
-const painted = "opus-5-5 high | ctx 42% | 5h \x1b[32m[█░░░░░░░░░]\x1b[0m \x1b[32m17%\x1b[0m ·3h20m | 7d \x1b[33m[██████░░░░]\x1b[0m \x1b[33m65%\x1b[0m ·4d2h | cx7d \x1b[38;5;208m[████████░░]\x1b[0m \x1b[38;5;208m85%\x1b[0m ·4d2h | concise";
+const plain = "opus-5-5 high | ctx 42% | 5h [█░░░░░░░░░] 17% ↻3h20m | 7d [██████░░░░] 65% ↻4d2h | cx 7d [████████░░] 85%! ↻4d2h | concise";
+const painted = "opus-5-5 high | ctx 42% | 5h \x1b[32m[█░░░░░░░░░]\x1b[0m \x1b[32m17%\x1b[0m ↻3h20m | 7d \x1b[33m[██████░░░░]\x1b[0m \x1b[33m65%\x1b[0m ↻4d2h | cx 7d \x1b[38;5;208m[████████░░]\x1b[0m \x1b[38;5;208m85%!\x1b[0m ↻4d2h | concise";
+/* A terminal that claims 256 colours, as Claude Code's own terminal does: orange is drawn there (2.1.7, U47). */
+const TERMINAL = { TERM: "xterm-256color" };
 
 const roots: string[] = [];
 /* The request on, with its own session and weekly readings, and older host
@@ -59,14 +61,14 @@ describe("statusline command reference layout", () => {
     ["Linux", "/workspace/Olá projeto"]
   ])("prints exact ANSI and NO_COLOR lines from one stdin read for %s", async (_os, directory) => {
     const stateDirectory = await seeded();
-    for (const environment of [{}, { NO_COLOR: "" }]) {
+    for (const environment of [TERMINAL, { NO_COLOR: "" }]) {
       const readStandardInput = vi.fn(async () => JSON.stringify(payload(directory)));
       const result = await runCli(["statusline", "--host", "claude"], {
         stateDirectory, now: () => NOW, environment, colorOutput: false, readStandardInput
       });
       expect(result).toEqual({ exitCode: 0, stdout: "NO_COLOR" in environment ? plain : painted, stderr: "" });
       expect(readStandardInput).toHaveBeenCalledTimes(1);
-      expect(result.stdout.match(/cx7d/g)).toHaveLength(1);
+      expect(result.stdout.match(/cx 7d/g)).toHaveLength(1);
     }
     const cache = await readFile(path.join(stateDirectory, CACHE_FILE_NAME), "utf8");
     expect(cache).not.toContain("Olá projeto");
@@ -78,13 +80,35 @@ describe("statusline command reference layout", () => {
     const input = payload();
     input.rate_limits.five_hour.used_percentage = 95;
     const result = await runCli(["statusline", "--host", "claude"], {
-      stateDirectory, now: () => NOW, environment: {}, colorOutput: false,
+      stateDirectory, now: () => NOW, environment: TERMINAL, colorOutput: false,
       readStandardInput: async () => JSON.stringify(input)
     });
     expect(result.stdout).toBe(painted.replace(
       "\x1b[32m[█░░░░░░░░░]\x1b[0m \x1b[32m17%\x1b[0m",
-      "\x1b[31m[█████████░]\x1b[0m \x1b[31m95%\x1b[0m"
+      "\x1b[31m[█████████░]\x1b[0m \x1b[31m95%!!\x1b[0m"
     ));
+  });
+
+  it("draws colour where FORCE_COLOR asks for it, under a host that captures the output (2.1.7, U47)", async () => {
+    const stateDirectory = await seeded();
+    const run = async (environment: Record<string, string>) => (await runCli(["statusline", "--host", "codex"], {
+      stateDirectory, now: () => NOW, environment, colorOutput: false, readStandardInput: async () => ""
+    })).stdout;
+    expect(await run({})).not.toContain("\x1b[");
+    // FORCE_COLOR 1 is the 16 colour palette: the 85 percent weekly is yellow and marked.
+    expect(await run({ FORCE_COLOR: "1" })).toContain("\x1b[33m85%!\x1b[0m");
+    expect(await run({ FORCE_COLOR: "3" })).toContain("\x1b[38;5;208m85%!\x1b[0m");
+    expect(await run({ FORCE_COLOR: "0" })).not.toContain("\x1b[");
+    expect(await run({ FORCE_COLOR: "1", NO_COLOR: "" })).not.toContain("\x1b[");
+  });
+
+  it("falls back to the 16 colour yellow where no 256 colour palette is claimed, and keeps the mark", async () => {
+    const stateDirectory = await seeded();
+    const result = await runCli(["statusline", "--host", "claude"], {
+      stateDirectory, now: () => NOW, environment: {}, colorOutput: false,
+      readStandardInput: async () => JSON.stringify(payload())
+    });
+    expect(result.stdout).toBe(painted.replaceAll("38;5;208", "33"));
   });
 
   it("says why the Claude weekly is missing: off, refused, or waiting", async () => {
@@ -161,7 +185,7 @@ describe("statusline command reference layout", () => {
       stateDirectory, homeDirectory: home, now: () => NOW, environment: { NO_COLOR: "" },
       readStandardInput: async () => JSON.stringify(input)
     });
-    expect(result.stdout).toContain("5h [███░░░░░░░] 37% ·3h20m");
+    expect(result.stdout).toContain("5h [███░░░░░░░] 37% ↻3h20m");
     expect(result.stdout).not.toContain("4%");
   });
 
@@ -251,7 +275,7 @@ describe("statusline command reference layout", () => {
     });
     expect(result).toEqual({
       exitCode: 0, stderr: "",
-      stdout: "opus-5-5 | ctx 42% | 7d [██████░░░░] 65% ·4d2h | concise"
+      stdout: "opus-5-5 | ctx 42% | 7d [██████░░░░] 65% ↻4d2h | concise"
     });
   });
 
@@ -261,7 +285,7 @@ describe("statusline command reference layout", () => {
       stateDirectory, now: () => NOW, environment: { NO_COLOR: "", LC_ALL: "C" },
       readStandardInput: async () => JSON.stringify(payload())
     });
-    expect(result.stdout).toBe(plain.replaceAll("█", "#").replaceAll("░", ".").replaceAll("·", "."));
+    expect(result.stdout).toBe(plain.replaceAll("█", "#").replaceAll("░", ".").replaceAll("↻", "resets "));
   });
 
   it("NO_COLOR wins over the saved always setting", async () => {

@@ -309,20 +309,18 @@ describe("CLI", () => {
       /* `statusline.style` defaults to `bar`, decision D6's reference grammar,
          since this lane. Host defaults to `claude`, so the provider's own
          windows (`5h`, `7d`) carry no tag and every other provider's window
-         is tagged with its short code. The 0.1.0 line this pinned before is
-         still reachable byte for byte through `statusline.bars false`, tested
-         below in "returns the 0.1.0 line byte for byte when bars are turned
-         off", and the pre D6 `cells` grammar through `statusline.style
-         cells`, tested in statusline.test.ts. */
-      expect(statusline.stdout).toBe([
-        "5h [████░░░░░░] 42% ·5h | 7d [██████░░░░] 64% ·7d | " +
-          "cx5h [████████░░] 84% ·5h | ag5h [██░░░░░░░░] ~28% ·5h | " +
-          "ag7d [█░░░░░░░░░] ~10% ·7d | oc5h [█████████░] ~92% ·4h | " +
-          "oc7d [████░░░░░░] ~40% ·5d20h | ocmo [█░░░░░░░░░] ~15% ·21d | " +
-          "gk7d [████░░░░░░] ~43% ·7d | gkmo [█░░░░░░░░░] ~6% | " +
-          "km Weekly used [█░░░░░░░░░] ~10% ·7d | km 5h used [██████░░░░] ~70% ·5h | " +
-          "mnmo [███░░░░░░░] 35% ·31d | or $7.53"
-      ].join("").replace("km Weekly used", "km7d").replace("km 5h used", "km5h"));
+         is tagged with its short code, spaced. Since 2.1.7 the line keeps to
+         the default 140 columns on one row of ten block bars (UX audit U44,
+         fix round decision A): it keeps the readings closest to their caps
+         and counts the rest, a reset reads `↻` and a band of 80 or 90 is
+         marked `!` or `!!`.
+         The 0.1.0 line this pinned before is still reachable byte for byte
+         through `statusline.bars false`, and the pre D6 `cells` grammar
+         through `statusline.style cells`, tested in statusline.test.ts. */
+      expect(statusline.stdout).toBe(
+        "7d [██████░░░░] 64% ↻7d | cx 5h [████████░░] 84%! ↻5h | oc 5h [█████████░] ~92%!! ↻4h | " +
+          "km 5h [██████░░░░] ~70% ↻5h | +10 more"
+      );
     });
   });
 
@@ -341,7 +339,7 @@ describe("CLI", () => {
        NEAR_CAP. The bar grammar (decision D6, the default since this lane)
        states pressure as a reading rather than as that reason word, so the
        assertion looks for the reading itself. */
-    expect(statusline.stdout).toContain("oc5h");
+    expect(statusline.stdout).toContain("oc 5h");
     expect(statusline.stdout).toContain("92%");
     const hook = await runCli(["hook"], {
       stateDirectory: directory,
@@ -938,15 +936,17 @@ describe("CLI", () => {
       now: () => FIXTURE_NOW,
       payloads
     });
-    /* The `cells` style, kept byte for byte for anyone who set it, is the one
-       that states pressure without ever drawing money. The default `bar`
-       style is decision D6's reference line, which states an API key
-       provider's balance as a dollar figure on purpose; that is covered in
-       "pins the whole statusline" above. */
-    await runCli(["config", "set", "statusline.style", "cells"], {
-      stateDirectory: directory,
-      now: () => FIXTURE_NOW
-    });
+    /* The `cells` style is the one that states pressure without ever drawing
+       money. The default `bar` style is decision D6's reference line, which
+       states an API key provider's balance as a dollar figure on purpose;
+       that is covered in "pins the whole statusline" above. A wide budget
+       keeps every cell on the line, so nothing here is shed. */
+    for (const [key, value] of [["statusline.style", "cells"], ["statusline.width", "400"]] as const) {
+      await runCli(["config", "set", key, value], {
+        stateDirectory: directory,
+        now: () => FIXTURE_NOW
+      });
+    }
     const statusline = await runCli(["statusline"], {
       stateDirectory: directory,
       now: () => FIXTURE_NOW,
@@ -954,9 +954,9 @@ describe("CLI", () => {
       environment: { NO_COLOR: "" }
     });
     expect(statusline.stdout).toMatch(/^OpenLimiter [A-Z_]+ /u);
-    expect(statusline.stdout).toContain("oc5h ####. 92%");
+    expect(statusline.stdout).toContain("oc 5h ####. 92%!!");
     /* A statusline states pressure. Money and failure text belong elsewhere. */
-    expect(statusline.stdout).toContain("or $7.53");
+    expect(statusline.stdout).toContain("or bal $7.53");
     expect(statusline.stdout).not.toContain("PAYLOAD_UNREADABLE");
     expect(statusline.stdout).not.toContain(ESCAPE);
   });
@@ -1004,7 +1004,7 @@ describe("CLI", () => {
     expect(statusline.stdout).not.toContain("#");
   });
 
-  it("leaves reference line wrapping to the host at every configured width", async () => {
+  it("keeps the reference line inside every configured width (2.1.7, U44)", async () => {
     const directory = await temporaryDirectory();
     await runCli(["snapshot", "--refresh"], {
       stateDirectory: directory,
@@ -1016,10 +1016,15 @@ describe("CLI", () => {
       now: () => FIXTURE_NOW,
       colorOutput: false
     });
+    /* The claude host paints by default, so the budget is read on the text. */
+    const text = (line: string): string => line.replace(/\x1b\[[0-9;]*m/gu, "");
     const rows = stacked.stdout.split("\n");
     expect(rows).toHaveLength(1);
-    expect(stacked.stdout).toContain("oc7d");
-    await runCli(["config", "set", "statusline.width", "260"], {
+    for (const row of rows) expect(text(row).length).toBeLessThanOrEqual(140);
+    /* The tightest reading, OpenCode's 92, always stays. */
+    expect(stacked.stdout).toContain("oc 5h");
+    expect(stacked.stdout).toMatch(/\+\d+ more$/u);
+    await runCli(["config", "set", "statusline.width", "400"], {
       stateDirectory: directory,
       now: () => FIXTURE_NOW
     });
@@ -1028,8 +1033,12 @@ describe("CLI", () => {
       now: () => FIXTURE_NOW,
       colorOutput: false
     });
+    /* Room for every reading on the one row: nothing is counted out. */
     expect(wide.stdout.split("\n")).toHaveLength(1);
-    expect(wide.stdout).toBe(stacked.stdout);
+    expect(text(wide.stdout).length).toBeLessThanOrEqual(400);
+    expect(wide.stdout).toContain("or bal $7.53");
+    expect(wide.stdout).not.toContain("more");
+    expect(wide.stdout).not.toBe(stacked.stdout);
   });
 
   it("obeys the configured order, meter mode and colour setting", async () => {
@@ -1063,8 +1072,8 @@ describe("CLI", () => {
     expect(statusline.stdout).toContain(ESCAPE + "[31m");
     expect(statusline.stdout).toContain("5h");
     expect(statusline.stdout).toContain("7d");
-    expect(statusline.stdout).toContain("or $7.53");
-    expect(statusline.stdout.indexOf("or $7.53"))
+    expect(statusline.stdout).toContain("or bal $7.53");
+    expect(statusline.stdout.indexOf("or bal $7.53"))
       .toBeLessThan(statusline.stdout.indexOf("5h"));
   });
 
@@ -1089,9 +1098,9 @@ describe("CLI", () => {
       now: () => FIXTURE_NOW,
       colorOutput: false
     });
-    /* Every unusable key falls back to the complete reference line. */
+    /* Every unusable key falls back to its default: one row of 140 columns. */
     expect(statusline.stdout.split("\n")).toHaveLength(1);
-    expect(statusline.stdout).toContain("oc5h");
+    expect(statusline.stdout).toContain("oc 5h");
     expect(statusline.stdout).toContain("92%");
   });
 

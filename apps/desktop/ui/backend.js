@@ -767,6 +767,11 @@ export async function installUpdate() {
   return call("install_update");
 }
 
+/** Open https://openlimiter.com/download natively: the one address this action has. */
+export async function openDownloadPage() {
+  return call("open_download_page");
+}
+
 /* ------------------------------------------------------------ record shapes */
 
 /** The first defined value under any of several key spellings. */

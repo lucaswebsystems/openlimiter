@@ -190,13 +190,13 @@ describe("P1 audit regressions", () => {
     const snapshots = normalizeMeters(parseOpenrouterPayload({ data: { total_credits: 20, total_usage: 6.4 } }, NOW) ?? []);
     for (const host of STATUSLINE_HOSTS) {
       const render = (now: string) => barStyleCells(snapshots, now, ["OPENROUTER"], host, [], "all", false).map((cell) => cell.plain).join(" ");
-      expect(render(NOW)).toBe("or $13.60");
+      expect(render(NOW)).toBe("or bal $13.60");
       // Hotfix 2.1.5: past its expiry a balance is grey with
       // colour and keeps the 2.1.4 tilde without (fix 6).
-      expect(render("2026-09-07T12:03:01.000Z")).toBe("or ~$13.60");
-      expect(render("2026-09-07T12:16:00.000Z")).toBe("or ~$13.60");
+      expect(render("2026-09-07T12:03:01.000Z")).toBe("or bal ~$13.60");
+      expect(render("2026-09-07T12:16:00.000Z")).toBe("or bal ~$13.60");
       expect(barStyleCells(snapshots, "2026-09-07T12:16:00.000Z", ["OPENROUTER"], host, [], "all", true).map((cell) => cell.painted).join(" "))
-        .toBe("or \x1b[90m$13.60\x1b[0m");
+        .toBe("or bal \x1b[90m$13.60\x1b[0m");
     }
   });
 

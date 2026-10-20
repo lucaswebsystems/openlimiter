@@ -22,7 +22,10 @@ import {
   BACKEND_ABSENT,
   accountStatus,
   autostartStatus,
+  checkForUpdate,
+  installUpdate,
   notificationSettings,
+  openDownloadPage,
   proStatus,
   proService,
   setAutostart,
@@ -74,6 +77,73 @@ export const TRIAL_URL = "https://openlimiter.com/app?trial=1";
 /** Open the fixed web trial flow with the desktop's existing safe link shape. */
 export function openTrialInBrowser(url = TRIAL_URL) {
   return window.open(url, "_blank", "noopener,noreferrer");
+}
+
+/** Where a platform with no installer in the release manifest gets the release. */
+export const DOWNLOAD_URL = "https://openlimiter.com/download";
+
+/**
+ * What the window says after an update check that answered: nothing new, a
+ * newer version this app installs itself, or a newer version the release
+ * manifest has no installer for here (macOS while it is unsigned), whose
+ * banner links to the download page instead (2.1.7).
+ */
+export function updateView(update) {
+  if (update === null || update === undefined) return { menu: "OpenLimiter is current", banner: null, href: null };
+  const version = String(update.version ?? "new version");
+  if (update.manual === true) {
+    const out = say("updateOut", { version });
+    return { menu: out, banner: out, href: DOWNLOAD_URL };
+  }
+  return { menu: "Install OpenLimiter " + version, banner: "OpenLimiter " + version + " is ready. Install now.", href: null };
+}
+
+/**
+ * The two update controls, Settings' "Check for updates" and the banner over
+ * the tabs. A release this app installs is offered as an install, and the
+ * menu checks again. A release the manifest has no installer for here
+ * (macOS) sends both controls to the download page through the app's one
+ * native opener action (Astra 2.1.7, finding 2). Returns the check, which the
+ * window also runs once, silently, at start.
+ */
+export function wireUpdates({ menu, banner }, api = { checkForUpdate, installUpdate, openDownloadPage }) {
+  let href = null;
+  const run = async (silent) => {
+    if (!silent) menu.textContent = "Checking for updates";
+    const result = await api.checkForUpdate();
+    if (!result.ok) {
+      if (!silent) menu.textContent = "Update check unavailable";
+      return;
+    }
+    const view = updateView(result.value);
+    if (view.banner === null) {
+      if (!silent) menu.textContent = view.menu;
+      return;
+    }
+    href = view.href;
+    banner.textContent = view.banner;
+    banner.hidden = false;
+    menu.textContent = view.menu;
+  };
+  menu.addEventListener("click", () => {
+    if (href !== null) void api.openDownloadPage();
+    else void run(false);
+  });
+  banner.addEventListener("click", () => {
+    if (href !== null) {
+      void api.openDownloadPage();
+      return;
+    }
+    banner.disabled = true;
+    banner.textContent = "Installing update";
+    void api.installUpdate().then((result) => {
+      if (!result.ok) {
+        banner.disabled = false;
+        banner.textContent = "Update install unavailable";
+      }
+    });
+  });
+  return run;
 }
 
 /** Bring the plan card into view: open the menu when it is closed, then scroll. */

@@ -33,10 +33,10 @@ function document(pairs: Array<[ReturnType<typeof source>, Record<string, unknow
   };
 }
 
-function render(apiSpend: unknown, snapshots: readonly Snapshot[] = [], color = false, visibility: Record<string, boolean> = {}) {
+function render(apiSpend: unknown, snapshots: readonly Snapshot[] = [], color = false, visibility: Record<string, boolean> = {}, wide = false) {
   return renderStatuslineLayout({
     advice: buildAdvice(snapshots, NOW, []),
-    snapshots, now: NOW, color, host: "shell", apiSpend,
+    snapshots, now: NOW, color, wide, host: "shell", apiSpend,
     config: { ...DEFAULT_STATUSLINE, style: "bar", visibility }
   });
 }
@@ -70,7 +70,9 @@ describe("api money cells in the bar status line", () => {
 
   it("colours budget spend by band and balances like the or cell", () => {
     const painted = render(fullDocument(), [], true);
-    expect(painted).toContain("oa $12.34 | an " + ESC + "[38;5;208m$85.00" + ESC + "[0m");
+    // Orange only where the terminal claims 256 colours, the 16 colour yellow otherwise (2.1.7, U47).
+    expect(painted).toContain("oa $12.34 | an " + ESC + "[33m$85.00" + ESC + "[0m");
+    expect(render(fullDocument(), [], true, {}, true)).toContain("oa $12.34 | an " + ESC + "[38;5;208m$85.00" + ESC + "[0m");
     expect(painted).toContain("ms " + ESC + "[33m$3.00" + ESC + "[0m");
     expect(painted).toContain("ds " + ESC + "[31m$0.80" + ESC + "[0m");
     expect(painted).not.toContain("oa " + ESC);
@@ -78,8 +80,8 @@ describe("api money cells in the bar status line", () => {
 
   it("adds no second or cell when the cache already has one", () => {
     const line = render(fullDocument(), [orCache]);
-    expect(line.match(/\bor \$/g)).toHaveLength(1);
-    expect(line).toContain("or $12.34");
+    expect(line.match(/\bor bal \$/g)).toHaveLength(1);
+    expect(line).toContain("or bal $12.34");
     expect(line).not.toContain("spent");
   });
 
@@ -87,9 +89,9 @@ describe("api money cells in the bar status line", () => {
     const older = { ...orCache, accountId: "account-a", value: 12.34, observedAt: "2026-09-07T12:28:00Z" };
     const newer = { ...orCache, accountId: "account-b", value: 56.78, observedAt: "2026-09-07T12:29:00Z" };
     const line = render(fullDocument(), [older, newer]);
-    expect(line.match(/\bor \$/g)).toHaveLength(1);
-    expect(line).toContain("or $56.78");
-    expect(line).not.toContain("or $12.34");
+    expect(line.match(/\bor bal \$/g)).toHaveLength(1);
+    expect(line).toContain("or bal $56.78");
+    expect(line).not.toContain("or bal $12.34");
     expect(line).not.toContain("spent");
   });
 
@@ -98,8 +100,8 @@ describe("api money cells in the bar status line", () => {
     const removed = { ...orCache, accountId: "account-b", value: 2, observedAt: "2026-09-07T12:29:00Z" };
     const purged = [active, removed].filter((row) => row.accountId !== removed.accountId);
     const line = render(fullDocument(), purged);
-    expect(line).toContain("or $40.00");
-    expect(line).not.toContain("or $2.00");
+    expect(line).toContain("or bal $40.00");
+    expect(line).not.toContain("or bal $2.00");
     expect(line).not.toContain("spent");
   });
 
@@ -119,8 +121,8 @@ describe("api money cells in the bar status line", () => {
       [source("openrouter"), { spendUsd: "2" }]
     ]);
     const line = render(doc, [orCache]);
-    expect(line.match(/\bor \$/g)).toHaveLength(1);
-    expect(line).toContain("or $12.34");
+    expect(line.match(/\bor bal \$/g)).toHaveLength(1);
+    expect(line).toContain("or bal $12.34");
   });
 
   it("draws xai spend and a red DeepSeek amount for a too low balance", () => {

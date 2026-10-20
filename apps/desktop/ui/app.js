@@ -41,7 +41,7 @@ import {
 import { providerCode, providerName, say } from "./names.js";
 import { createOrderStore, ORDER_CHANGED_EVENT, reorderList } from "./reorder.js";
 import { renderPlanCap } from "./plan-cap.js";
-import { refreshDesktopTrial, renderSettings, tickDesktopTrial, useOrderStore } from "./settings.js";
+import { refreshDesktopTrial, renderSettings, tickDesktopTrial, useOrderStore, wireUpdates } from "./settings.js";
 import { mountAgents } from "./agents.js";
 import { keyRepaintGate, keyRows, proEntitled, refreshEntitlement, renderKeys, renderPro, saveOpenrouterConnection } from "./pro.js";
 /* The phone panel and the device list it produces. Both live behind an
@@ -83,13 +83,11 @@ import {
   apiSpendSaveSource,
   apiSpendStatus,
   autostartFirstRunComplete,
-  checkForUpdate,
   claudePollEnabled,
   codexDeviceLoginCancel,
   codexDeviceLoginStart,
   codexDeviceLoginStatus,
   evaluateNotifications,
-  installUpdate,
   listConnections,
   listDetectedProviders,
   listen,
@@ -589,22 +587,8 @@ elements.signInGithub?.addEventListener("click", () => void continueWith("github
 elements.signInGoogle?.addEventListener("click", () => void continueWith("google"));
 elements.signInMicrosoft?.addEventListener("click", () => void continueWith("azure"));
 
-async function runUpdateCheck(silent) {
-  if (!silent) elements.menuUpdate.textContent = "Checking for updates";
-  const result = await checkForUpdate();
-  if (!result.ok) {
-    if (!silent) elements.menuUpdate.textContent = "Update check unavailable";
-    return;
-  }
-  if (result.value === null) {
-    if (!silent) elements.menuUpdate.textContent = "OpenLimiter is current";
-    return;
-  }
-  const version = String(result.value.version ?? "new version");
-  elements.updateBanner.textContent = "OpenLimiter " + version + " is ready. Install now.";
-  elements.updateBanner.hidden = false;
-  elements.menuUpdate.textContent = "Install OpenLimiter " + version;
-}
+/* Settings' "Check for updates" and the banner: one wiring (settings.js). */
+const runUpdateCheck = wireUpdates({ menu: elements.menuUpdate, banner: elements.updateBanner });
 
 /* Ask once per window, when the menu that holds the Alerts switch opens.
    Local desktop alerts are free, with or without an account. */
@@ -669,22 +653,8 @@ elements.menuSync?.addEventListener("change", () => {
   });
 });
 
-elements.menuUpdate?.addEventListener("click", () => {
-  void runUpdateCheck(false);
-});
 elements.menuWhatsNew = document.getElementById("menu-whats-new");
 elements.menuWhatsNew?.addEventListener("click", () => { void openWhatsNew(); });
-
-elements.updateBanner?.addEventListener("click", () => {
-  elements.updateBanner.disabled = true;
-  elements.updateBanner.textContent = "Installing update";
-  void installUpdate().then((result) => {
-    if (!result.ok) {
-      elements.updateBanner.disabled = false;
-      elements.updateBanner.textContent = "Update install unavailable";
-    }
-  });
-});
 
 elements.menuLogout?.addEventListener("click", () => {
   void (async () => {

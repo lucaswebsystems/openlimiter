@@ -554,9 +554,11 @@ async function statuslineOutput(snapshots, now) {
   const { renderStatuslineLayout } = await import(pathToFileURL(path.join(REPOSITORY, "packages/cli/dist/statusline.js")));
   const { DEFAULT_STATUSLINE } = await import(pathToFileURL(path.join(REPOSITORY, "packages/cli/dist/config.js")));
   /* Limits and money only: the session cells (model, effort, context) would
-     push the line past one row on a wide screen, and the owner wants one row. */
-  return renderStatuslineLayout({ snapshots: statuslineSnapshots(snapshots), now, config: DEFAULT_STATUSLINE,
-    apiSpend: statuslineApiSpend(now), advice: { inject: false, reason: "UNKNOWN" }, host: "claude", color: true, unicode: true });
+     push the line past one row on a wide screen, and the owner wants one row.
+     The line keeps to its width budget since 2.1.7, so the capture gives it
+     the widest one, and draws a terminal that claims 256 colours (orange). */
+  return renderStatuslineLayout({ snapshots: statuslineSnapshots(snapshots), now, config: { ...DEFAULT_STATUSLINE, width: 400 },
+    apiSpend: statuslineApiSpend(now), advice: { inject: false, reason: "UNKNOWN" }, host: "claude", color: true, wide: true, unicode: true });
 }
 
 /** Interpret only the colour escapes emitted by the real CLI band renderer. */

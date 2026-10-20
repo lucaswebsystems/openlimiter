@@ -23,6 +23,8 @@ mod deps_smoke;
 mod fsx;
 mod gemini_cli_oauth;
 mod grok_oauth;
+#[cfg(any(target_os = "macos", target_os = "linux", test))]
+mod host;
 mod kimi_oauth;
 mod native_opencode;
 mod native_readers;
@@ -206,6 +208,10 @@ pub(crate) fn app_context<R: tauri::Runtime>() -> tauri::Context<R> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    /* Before anything reads PATH or starts a thread: detection scans while
+    the builder below is assembled (2.1.7). */
+    #[cfg(target_os = "macos")]
+    host::import_login_path();
     tauri::Builder::default()
         /* One running copy (2.1.6), registered first, so a second launch
         hands its arguments over and exits before anything else starts. */
@@ -321,7 +327,8 @@ pub fn run() {
             notifications::notification_settings,
             notifications::set_notification_settings,
             updates::check_for_update,
-            updates::install_update
+            updates::install_update,
+            updates::open_download_page
         ])
         .setup(|app| {
             /* The main window starts hidden (tauri.conf.json) and is shown
@@ -413,8 +420,27 @@ pub fn run() {
                 provider_detection::request_focus_scan(window.app_handle().clone());
             }
             if let WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                let _ = window.hide();
+                /* Linux with no tray: a hidden window would leave the app
+                running where nothing can bring it back, so closing quits
+                there (2.1.7). The tray is asked off this thread. */
+                #[cfg(target_os = "linux")]
+                {
+                    let hidden = window.clone();
+                    let app = window.app_handle().clone();
+                    host::close_without_waiting(
+                        || api.prevent_close(),
+                        host::tray_present,
+                        move || {
+                            let _ = hidden.hide();
+                        },
+                        move || app.exit(0),
+                    );
+                }
+                #[cfg(not(target_os = "linux"))]
+                {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
             }
         })
         .build(app_context())
