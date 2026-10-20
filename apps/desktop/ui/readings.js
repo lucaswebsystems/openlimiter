@@ -11,6 +11,7 @@
  * the constant artwork of a provider mark, a band shape or a state icon.
  */
 import {
+  claudeRowCounts,
   dedupeFailures,
   freshness,
   mergeSnapshots,
@@ -108,10 +109,12 @@ export function switchedOff(flags, removed = []) {
 /**
  * What is still displayable of rows already on screen, at `now`. When a read
  * fails the window keeps only these: fresh rows, and stale rows the data rules
- * still hold, drawn grey with their age rather than frozen as if current.
+ * still hold, drawn grey with their age rather than frozen as if current. A
+ * Claude row counts only from the source the request switch selects as it
+ * stands now (`pollOn`), so a number from the source it left never stays.
  */
-export function holdReadings(snapshots, now) {
-  return projectSnapshots(snapshots, now).snapshots;
+export function holdReadings(snapshots, now, pollOn) {
+  return projectSnapshots(snapshots.filter((row) => claudeRowCounts(row, pollOn === true)), now).snapshots;
 }
 
 /**

@@ -17,6 +17,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import {
   applyCollectionReport,
+  claudeRowCounts,
   readSuppressions,
   snapshotBelongsTo,
   visibleSnapshots,
@@ -44,21 +45,6 @@ export async function readClaudePoll(directory = resolveStateDirectory()): Promi
   const document = await readJsonFileSafely(path.join(directory, CLAUDE_POLL_FILE_NAME));
   return document.ok && isRecord(document.value) &&
     document.value["version"] === 1 && document.value["enabled"] === true;
-}
-
-/**
- * Whether a row may reach a surface, by provenance and never by the file it
- * sits in. With the request on, a Claude row counts only when the request read
- * it, plus the ACQUISITION row that carries the request's availability. With it
- * off, every Claude row except the request's counts, as in 2.1.5, with no
- * weekly. Other providers always count. Rust twin: state.rs claude_row_counts;
- * both prove claude-poll-vectors.json `source`.
- */
-export function claudeRowCounts(row: Snapshot, pollOn: boolean): boolean {
-  if (row.provider !== "CLAUDE") return true;
-  if (row.meter === "ACQUISITION") return pollOn;
-  const remote = row.provenance?.sourceKind === "remote_api";
-  return pollOn ? remote : !remote && !row.meter.startsWith("SEVEN_DAY");
 }
 
 /** Pure policy shared with the desktop contract. All instants are UTC. */

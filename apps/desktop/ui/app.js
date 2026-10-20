@@ -755,13 +755,16 @@ async function repaintHome() {
   if (elements.loading !== null && heldSnapshots.length === 0 && drawnTools === "") elements.loading.hidden = false;
   try {
     const now = new Date().toISOString();
-    const [collected, detectionResult, connectionResult, spendResult, pollResult] = await Promise.all([
-      collect(now), listDetectedProviders(), listConnections(), apiSpendStatus(), claudePollEnabled(),
-    ]);
+    /* The Claude request switch first, so every row this pass draws, held
+       ones included, is validated against it as it stands now. */
+    const pollResult = await claudePollEnabled();
     claudePoll = pollResult.ok && typeof pollResult.value?.enabled === "boolean"
       ? pollResult.value.enabled
       : null;
     claudePollMirrorFailed = pollResult.ok && pollResult.value?.mirrorFailed === true;
+    const [collected, detectionResult, connectionResult, spendResult] = await Promise.all([
+      collect(now), listDetectedProviders(), listConnections(), apiSpendStatus(),
+    ]);
     const detections = detectionResult.ok ? detectionResult.value : null;
     const connections = connectionResult.ok ? normalizeConnectionList(connectionResult.value) : [];
     adoptDetectedProviders(detections);
@@ -808,7 +811,7 @@ async function repaintHome() {
     /* A failed read keeps what the data rules still draw of the rows already
        on screen (fresh, or stale with its age), and says why in one sentence. */
     const now = new Date().toISOString();
-    heldSnapshots = holdReadings(heldSnapshots, now);
+    heldSnapshots = holdReadings(heldSnapshots, now, claudePoll === true);
     paintTools(heldSnapshots, now);
     if (elements.refreshStatus) elements.refreshStatus.textContent = say("cacheUnreadable");
     await setTrayStatus({ providers: [], trialOffered });
