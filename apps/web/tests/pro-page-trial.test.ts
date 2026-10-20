@@ -1,6 +1,7 @@
 import { act, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProPortal } from "@/components/pro-portal";
+import { proFeaturePhrase } from "@/lib/pro-feature-list";
 import { all, byText, flush, messages, render, type Mounted } from "./render";
 
 /**
@@ -128,7 +129,9 @@ afterEach(() => {
 });
 
 async function open(): Promise<Mounted> {
-  const view = render(createElement(ProPortal, { locale: "en" }));
+  /* The page hands the portal the one Pro list as a phrase; so does this. */
+  const inline = (messages.proFeatures as unknown as { inline: Record<string, string> }).inline;
+  const view = render(createElement(ProPortal, { locale: "en", features: proFeaturePhrase((id) => inline[id], "en") }));
   mounted = view;
   await flush(4);
   return view;

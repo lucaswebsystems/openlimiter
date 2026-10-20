@@ -149,7 +149,7 @@
     "closeMenu": "Close menu"
   },
   "announce": {
-    "message": "OpenLimiter Pro is here. Desktop alerts, account access and local meters are free. Pro adds history, phone push and email alerts, extra accounts and cloud API spend metering.",
+    "message": "OpenLimiter Pro is here. Desktop alerts, account access and local meters are free. Pro adds {features}.",
     "short": "Desktop alerts stay free",
     "dismiss": "Close this announcement"
   },
@@ -2024,7 +2024,7 @@
   },
   "proPortal": {
     "title": "OpenLimiter Pro",
-    "lead": "Everything you can see is free. Pro adds history, phone push and email alerts, extra accounts and cloud API spend metering.",
+    "lead": "Everything you can see is free. Pro adds {features}.",
     "metaDescription": "Sign in to manage your OpenLimiter Pro plan, your billing and the devices that read your quota.",
     "loading": "Reading your account.",
     "working": "Working",
@@ -2055,14 +2055,14 @@
       "trial": {
         "chip": "trial",
         "title": "You are on the free trial",
-        "body": "Every Pro service is on: history with a forecast, email and phone push alerts, extra accounts, and cloud API spend metering for keys you explicitly enable. No card was asked for.",
+        "body": "Every Pro service is on: {features}. No card was asked for.",
         "daysLeft": "{count, plural, one {# day left} other {# days left}} of the trial.",
         "ends": "It ends on {date}."
       },
       "active": {
         "chip": "active",
         "title": "Pro is active",
-        "body": "History, phone push and email alerts, extra accounts and cloud API spend metering are all on.",
+        "body": "Every Pro service is on: {features}.",
         "renewsOn": "It renews on {date}.",
         "endsOn": "It ends on {date} and does not renew."
       },
@@ -2138,7 +2138,14 @@
     "history": "Ninety days of hosted history, with a forecast",
     "alerts": "Phone push and email alerts. Desktop alerts stay free",
     "apiSpend": "Cloud API spend metering for the keys you enable",
-    "ember": "The Ember theme preset"
+    "ember": "The Ember theme preset",
+    "inline": {
+      "multiAccount": "extra accounts",
+      "history": "hosted history with a forecast",
+      "alerts": "phone push and email alerts",
+      "apiSpend": "cloud API spend metering",
+      "ember": "the Ember theme preset"
+    }
   },
   "hub": {
     "accountFallback": "Account {count}",

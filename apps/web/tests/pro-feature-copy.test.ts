@@ -41,7 +41,16 @@ vi.mock("next-intl", () => ({
   useLocale: () => state.locale,
   useTranslations: (namespace: string) => translatorFor(namespace),
 }));
-vi.mock("@/i18n/navigation", () => ({ Link: () => null, redirect: () => undefined, usePathname: () => "/pro" }));
+/* The banner is one link around its sentences, so the link renders its children. */
+vi.mock("@/i18n/navigation", async () => {
+  const { createElement } = await import("react");
+  return {
+    Link: ({ href, children, ...rest }: { href: string; children?: unknown }) =>
+      createElement("a", { href, ...rest }, children as never),
+    redirect: () => undefined,
+    usePathname: () => "/pro",
+  };
+});
 vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("not found"); } }));
 
 const catalogs = { en, de, es, ja, "pt-BR": ptBR } as const;

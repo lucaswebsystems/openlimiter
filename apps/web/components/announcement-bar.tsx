@@ -1,8 +1,9 @@
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { AnnouncementDismiss } from "./announcement-dismiss";
 import { SiteLink } from "./site-link";
 import { SHELL } from "./ui";
 import { ANNOUNCE_HREF } from "@/lib/announce";
+import { proFeaturePhrase } from "@/lib/pro-feature-list";
 
 /**
  * The announcement bar.
@@ -49,6 +50,9 @@ function ChevronGlyph() {
 
 export async function AnnouncementBar() {
   const t = await getTranslations("announce");
+  const feature = await getTranslations("proFeatures");
+  /* What Pro adds, read from the one list. See lib/pro-feature-list.ts. */
+  const features = proFeaturePhrase((id) => feature(`inline.${id}`), await getLocale());
 
   return (
     <div className="announce-bar bg-announce text-announce-fg">
@@ -59,7 +63,7 @@ export async function AnnouncementBar() {
           href={ANNOUNCE_HREF}
           className="focus-ring-inset group flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded text-xs font-medium transition-colors duration-200"
         >
-          <span className="sr-only">{t("message")}</span>
+          <span className="sr-only">{t("message", { features })}</span>
           {/* A small spark on the left, drawn here: the promo is a founding
              offer rather than a warning, so the mark is celebratory and not a
              megaphone. Founder's ask (2026-08-11). */}
@@ -79,7 +83,7 @@ export async function AnnouncementBar() {
               language, the visible pair is hidden from assistive technology, and
               the sentence a screen reader gets sits above them. */}
           <span aria-hidden="true" className="truncate">
-            <span className="hidden sm:inline">{t("message")}</span>
+            <span className="hidden sm:inline">{t("message", { features })}</span>
             <span className="sm:hidden">{t("short")}</span>
           </span>
           <ChevronGlyph />

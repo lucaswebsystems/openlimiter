@@ -149,7 +149,7 @@
     "closeMenu": "Fechar menu"
   },
   "announce": {
-    "message": "O OpenLimiter Pro chegou. Alertas do desktop, acesso à conta e medidores locais são gratuitos. O Pro acrescenta histórico, alertas por push no celular e por email, contas extras e medição de gasto de API na nuvem.",
+    "message": "O OpenLimiter Pro chegou. Alertas do desktop, acesso à conta e medidores locais são gratuitos. O Pro acrescenta {features}.",
     "short": "Os alertas do desktop continuam gratuitos",
     "dismiss": "Fechar este aviso"
   },
@@ -2024,7 +2024,7 @@
   },
   "proPortal": {
     "title": "OpenLimiter Pro",
-    "lead": "Tudo o que você vê é gratuito. O Pro acrescenta histórico, alertas por push no celular e por email, contas extras e medição de gasto de API na nuvem.",
+    "lead": "Tudo o que você vê é gratuito. O Pro acrescenta {features}.",
     "metaDescription": "Entre para gerenciar seu plano OpenLimiter Pro, sua cobrança e os dispositivos que leem sua quota.",
     "loading": "Lendo sua conta.",
     "working": "Processando",
@@ -2055,14 +2055,14 @@
       "trial": {
         "chip": "teste",
         "title": "Você está no teste gratuito",
-        "body": "Todos os serviços Pro estão ativos: histórico com previsão, alertas por email e push no celular, contas extras e medição de gasto de API na nuvem para chaves que você autorizar. Nenhum cartão foi pedido.",
+        "body": "Todos os serviços Pro estão ativos: {features}. Nenhum cartão foi pedido.",
         "daysLeft": "{count, plural, one {# dia restante} other {# dias restantes}} de teste.",
         "ends": "Ele termina em {date}."
       },
       "active": {
         "chip": "ativo",
         "title": "O Pro está ativo",
-        "body": "Histórico, alertas por push no celular e por email, contas extras e medição de gasto de API na nuvem estão todos ativos.",
+        "body": "Todos os serviços Pro estão ativos: {features}.",
         "renewsOn": "Ele renova em {date}.",
         "endsOn": "Ele termina em {date} e não renova."
       },
@@ -2138,7 +2138,14 @@
     "history": "Noventa dias de histórico hospedado, com uma previsão",
     "alerts": "Alertas por push no celular e por email. Os alertas do desktop continuam gratuitos",
     "apiSpend": "Medição de gasto de API na nuvem para as chaves que você ativar",
-    "ember": "O tema predefinido Ember"
+    "ember": "O tema predefinido Ember",
+    "inline": {
+      "multiAccount": "contas extras",
+      "history": "histórico hospedado com previsão",
+      "alerts": "alertas por push no celular e por email",
+      "apiSpend": "medição de gasto de API na nuvem",
+      "ember": "o tema predefinido Ember"
+    }
   },
   "hub": {
     "accountFallback": "Conta {count}",

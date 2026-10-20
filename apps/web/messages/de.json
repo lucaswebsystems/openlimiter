@@ -149,7 +149,7 @@
     "closeMenu": "Menü schließen"
   },
   "announce": {
-    "message": "OpenLimiter Pro ist da. Desktop Benachrichtigungen, Kontozugriff und lokale Meter sind kostenlos. Pro ergänzt Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung von API Ausgaben.",
+    "message": "OpenLimiter Pro ist da. Desktop Benachrichtigungen, Kontozugriff und lokale Meter sind kostenlos. Pro ergänzt {features}.",
     "short": "Desktop Benachrichtigungen bleiben kostenlos",
     "dismiss": "Diese Ankündigung schließen"
   },
@@ -2024,7 +2024,7 @@
   },
   "proPortal": {
     "title": "OpenLimiter Pro",
-    "lead": "Alles, was du sehen kannst, ist kostenlos. Pro ergänzt Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung von API Ausgaben.",
+    "lead": "Alles, was du sehen kannst, ist kostenlos. Pro ergänzt {features}.",
     "metaDescription": "Melde dich an, um deinen OpenLimiter Pro Plan, deine Abrechnung und die Geräte zu verwalten, die deine quota lesen.",
     "loading": "Dein Konto wird gelesen.",
     "working": "Läuft",
@@ -2055,14 +2055,14 @@
       "trial": {
         "chip": "Testphase",
         "title": "Du bist in der kostenlosen Testphase",
-        "body": "Alle Pro Dienste sind aktiv: Verlauf mit Prognose, E Mail und Push Benachrichtigungen auf dem Telefon, zusätzliche Konten und Cloud Messung von API Ausgaben für ausdrücklich aktivierte Schlüssel. Es wurde keine Karte verlangt.",
+        "body": "Alle Pro Dienste sind aktiv: {features}. Es wurde keine Karte verlangt.",
         "daysLeft": "Noch {count, plural, one {# Tag} other {# Tage}} Testphase.",
         "ends": "Sie endet am {date}."
       },
       "active": {
         "chip": "aktiv",
         "title": "Pro ist aktiv",
-        "body": "Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung von API Ausgaben sind alle aktiv.",
+        "body": "Alle Pro Dienste sind aktiv: {features}.",
         "renewsOn": "Er verlängert sich am {date}.",
         "endsOn": "Er endet am {date} und verlängert sich nicht."
       },
@@ -2138,7 +2138,14 @@
     "history": "Neunzig Tage gehosteter Verlauf, mit einer Prognose",
     "alerts": "Push Benachrichtigungen auf dem Telefon und per E Mail. Desktop Benachrichtigungen bleiben kostenlos",
     "apiSpend": "Cloud Messung von API Ausgaben für die Schlüssel, die du aktivierst",
-    "ember": "Die Designvorlage Ember"
+    "ember": "Die Designvorlage Ember",
+    "inline": {
+      "multiAccount": "zusätzliche Konten",
+      "history": "Verlauf mit Prognose",
+      "alerts": "Push und E Mail Benachrichtigungen",
+      "apiSpend": "Cloud Messung von API Ausgaben",
+      "ember": "die Designvorlage Ember"
+    }
   },
   "hub": {
     "accountFallback": "Konto {count}",

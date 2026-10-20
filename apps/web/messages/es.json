@@ -149,7 +149,7 @@
     "closeMenu": "Cerrar menú"
   },
   "announce": {
-    "message": "OpenLimiter Pro ya está aquí. Las alertas del escritorio, el acceso a la cuenta y los medidores locales son gratis. Pro añade historial, alertas por correo y push en el teléfono, cuentas adicionales y medición de gasto de API en la nube.",
+    "message": "OpenLimiter Pro ya está aquí. Las alertas del escritorio, el acceso a la cuenta y los medidores locales son gratis. Pro añade {features}.",
     "short": "Las alertas del escritorio siguen siendo gratis",
     "dismiss": "Cerrar este aviso"
   },
@@ -2024,7 +2024,7 @@
   },
   "proPortal": {
     "title": "OpenLimiter Pro",
-    "lead": "Todo lo que ves es gratis. Pro añade historial, alertas por correo y push en el teléfono, cuentas adicionales y medición de gasto de API en la nube.",
+    "lead": "Todo lo que ves es gratis. Pro añade {features}.",
     "metaDescription": "Inicia sesión para gestionar tu plan OpenLimiter Pro, tu facturación y los dispositivos que leen tu quota.",
     "loading": "Leyendo tu cuenta.",
     "working": "Procesando",
@@ -2055,14 +2055,14 @@
       "trial": {
         "chip": "prueba",
         "title": "Estás en la prueba gratuita",
-        "body": "Todos los servicios Pro están activos: historial con pronóstico, alertas por correo y push en el teléfono, cuentas adicionales y medición de gasto de API en la nube para las claves que autorices. No se pidió ninguna tarjeta.",
+        "body": "Todos los servicios Pro están activos: {features}. No se pidió ninguna tarjeta.",
         "daysLeft": "Prueba: {count, plural, one {# día restante} other {# días restantes}}.",
         "ends": "Termina el {date}."
       },
       "active": {
         "chip": "activo",
         "title": "Pro está activo",
-        "body": "El historial, las alertas por correo y push en el teléfono, las cuentas adicionales y la medición de gasto de API en la nube están activos.",
+        "body": "Todos los servicios Pro están activos: {features}.",
         "renewsOn": "Se renueva el {date}.",
         "endsOn": "Termina el {date} y no se renueva."
       },
@@ -2138,7 +2138,14 @@
     "history": "Noventa días de historial alojado, con un pronóstico",
     "alerts": "Alertas push en el teléfono y por correo. Las alertas del escritorio siguen siendo gratis",
     "apiSpend": "Medición de gasto de API en la nube para las claves que actives",
-    "ember": "El tema predefinido Ember"
+    "ember": "El tema predefinido Ember",
+    "inline": {
+      "multiAccount": "cuentas adicionales",
+      "history": "historial alojado con pronóstico",
+      "alerts": "alertas push en el teléfono y por correo",
+      "apiSpend": "medición de gasto de API en la nube",
+      "ember": "el tema predefinido Ember"
+    }
   },
   "hub": {
     "accountFallback": "Cuenta {count}",

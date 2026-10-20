@@ -84,7 +84,14 @@ function formatDate(value: string | null, locale: string): string | null {
 /* The one chip on this page: a plan state, spelled out in capitals. */
 const STATE_CHIP = "uppercase tracking-wider";
 
-export function ProPortal({ locale }: { locale: string }) {
+export function ProPortal({
+  locale,
+  features,
+}: {
+  locale: string;
+  /** What Pro adds, as a phrase from the one list (lib/pro-feature-list.ts). */
+  features: string;
+}) {
   const t = useTranslations("proPortal");
   /* Read once, on the first render that has a browser to read from. The panel
      on screen at that moment is the loading one, which says nothing about this
@@ -336,7 +343,7 @@ export function ProPortal({ locale }: { locale: string }) {
         {accountState === "ready" && (
           <div className="mt-6 space-y-3">
             <h2 className="text-lg font-medium text-heading">{t(`plan.${state}.title`)}</h2>
-            <p className="text-sm leading-relaxed text-muted">{t(`plan.${state}.body`)}</p>
+            <p className="text-sm leading-relaxed text-muted">{t(`plan.${state}.body`, { features })}</p>
             {state === "trial" && daysLeft !== null && (
               <p className="text-sm leading-relaxed text-body">
                 {t("plan.trial.daysLeft", { count: daysLeft })}

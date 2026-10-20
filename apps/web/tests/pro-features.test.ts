@@ -37,7 +37,10 @@ describe("the one Pro feature list", () => {
   it("has a sentence for every entry in all five catalogs, and English is the list's own", () => {
     const ids = list.features.map((feature) => feature.id);
     for (const [locale, catalog] of Object.entries(catalogs)) {
-      expect(Object.keys((catalog as { proFeatures: object }).proFeatures), locale).toEqual(ids);
+      /* Each entry's line, then the same entries' words for inside a sentence. */
+      const namespace = (catalog as { proFeatures: { inline: object } }).proFeatures;
+      expect(Object.keys(namespace), locale).toEqual([...ids, "inline"]);
+      expect(Object.keys(namespace.inline), locale).toEqual(ids);
     }
     for (const feature of list.features) {
       expect(en.proFeatures[feature.id as keyof typeof en.proFeatures]).toBe(feature.label);

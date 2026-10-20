@@ -1,7 +1,8 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { proAccessState, type ProEntitlement } from "@/lib/pro";
+import { proFeaturePhrase } from "@/lib/pro-feature-list";
 import { offersTrial, locksPro } from "@/lib/pro-trial";
 import { ProLockCard } from "../trial";
 
@@ -31,6 +32,8 @@ export function ProTab({
 }) {
   const pro = useTranslations("hub.pro");
   const portal = useTranslations("proPortal");
+  const feature = useTranslations("proFeatures");
+  const features = proFeaturePhrase((id) => feature(`inline.${id}`), useLocale());
   const state = entitlement === undefined ? null : proAccessState(entitlement);
   return (
     <div className="ol-phone-pro">
@@ -55,7 +58,7 @@ export function ProTab({
             <div className="ol-lock-head">
               <span className="ol-lock-chip">{pro("label")}</span>
               <h2>{portal(`plan.${state}.title`)}</h2>
-              <p>{portal(`plan.${state}.body`)}</p>
+              <p>{portal(`plan.${state}.body`, { features })}</p>
             </div>
           </div>
         </section>
