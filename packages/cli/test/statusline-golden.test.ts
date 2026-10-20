@@ -11,10 +11,11 @@ import {
 import { GOLDEN_NOW, GOLDEN_SNAPSHOTS } from "./fixtures/statusline-snapshots.js";
 
 /**
- * Reference bars keep every enabled window and leave wrapping to the host.
- * These goldens changed from width shedding, truncated percentages and spend
- * amounts to the reference line, rounded percentages and remaining credits.
- * Legacy cells retain their width budget and explicitly request worst meters.
+ * Reference bars keep to the width budget (2.1.7, UX audit U44): a line that
+ * does not fit stacks onto two rows, then draws five blocks, then keeps the
+ * readings closest to their caps and counts the rest. So the 80, 120 and 160
+ * goldens differ, and every row stays inside its width. Legacy cells retain
+ * their width budget and explicitly request worst meters.
  */
 
 const GOLDEN_DIR = path.join(process.cwd(), "packages/cli/test/golden");
@@ -45,7 +46,7 @@ describe("account and freshness status line goldens", () => {
     const rows = [row({ value: 16 }),
       row({ provider: "CODEX", accountId: "old", meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604800 }, observedAt: ago(19 * 86400), value: 99 }),
       row({ provider: "CODEX", accountId: "active", meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604800 }, observedAt: ago(840), value: 26 })];
-    expect(render(rows)).toBe("5h [█░░░░░░░░░] 16% | cx7d [██░░░░░░░░] 26%");
+    expect(render(rows)).toBe("5h [█░░░░░░░░░] 16% | cx 7d [██░░░░░░░░] 26%");
     expect(render([...rows].reverse())).toBe(render(rows));
   });
   it.each([180, 900, 7200, 86400])("greys the last value once it is stale at %s seconds", (seconds) => {
@@ -59,11 +60,11 @@ describe("account and freshness status line goldens", () => {
   });
   it("marks spend and unknown window readings by freshness, never by age", () => {
     expect(render([row({ provider: "GROK", meter: "SPEND", usedAmount: 12.5, currency: "USD", observedAt: ago(900) })]))
-      .toBe("gk5h spend $12.50");
+      .toBe("gk 5h spend $12.50");
     expect(render([row({ provider: "GROK", meter: "UNSPECIFIED", window: { kind: "unknown" }, observedAt: ago(900) })]))
       .toBe("gk [████░░░░░░] 42%");
     expect(render([row({ provider: "GROK", meter: "SPEND", usedAmount: 12.5, currency: "USD", observedAt: ago(900), expiresAt: ago(840) })], [], true))
-      .toBe("gk5h spend " + grey("$12.50"));
+      .toBe("gk 5h spend " + grey("$12.50"));
   });
   it.each([
     ["missing_credentials", null],
@@ -106,7 +107,7 @@ describe("account and freshness status line goldens", () => {
   });
   it("keeps a quiet provider's only account, stale, for seven days and then leaves it out", () => {
     expect(render([row({ value: 16 }), row({ provider: "CODEX", observedAt: ago(86401) })]))
-      .toBe("5h [█░░░░░░░░░] 16% | cx5h [████░░░░░░] 42%");
+      .toBe("5h [█░░░░░░░░░] 16% | cx 5h [████░░░░░░] 42%");
     expect(render([row({ value: 16 }), row({ provider: "CODEX", observedAt: ago(7 * 86400 + 1) })]))
       .toBe("5h [█░░░░░░░░░] 16%");
   });
@@ -164,8 +165,8 @@ describe("account and freshness status line goldens", () => {
       advice: buildAdvice(snapshots, GOLDEN_NOW), snapshots, now: GOLDEN_NOW, color: false, host: "codex",
       config: { ...DEFAULT_STATUSLINE, style: "bar", meters: "worst", width: 1000, rows: 2 }
     });
-    expect(worst([fresh, stale])).toBe("cl7d " + tenBlockBar(10) + " 10%");
-    expect(worst([stale])).toBe("cl7d " + tenBlockBar(99) + " ~99%");
+    expect(worst([fresh, stale])).toBe("cl 7d " + tenBlockBar(10) + " 10%");
+    expect(worst([stale])).toBe("cl 7d " + tenBlockBar(99) + " ~99%");
   });
   it("measures last seen per account, rather than discarding every older meter", () => {
     expect(render([row({ accountId: "active", value: 16 }), row({ accountId: "active", meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604800 }, observedAt: ago(90000), value: 26 })]))
@@ -179,7 +180,17 @@ function golden(name: string): string {
 
 describe("statusline golden files", () => {
   it("keeps reset markers compact for provider rows", () => {
-    expect(golden("claude-bar-80")).toMatch(/cx5h [^|]+ 51% ·4h59m/u);
+    expect(golden("claude-bar-80")).toMatch(/cx 5h [^|]+ 51% ↻4h59m/u);
+  });
+
+  it("differs at 80, 120 and 160 columns and keeps every row inside its width", () => {
+    for (const host of STATUSLINE_HOSTS) {
+      const files = WIDTHS.map((width) => golden(host + "-bar-" + String(width)));
+      expect(new Set(files).size).toBe(WIDTHS.length);
+      WIDTHS.forEach((width, index) => {
+        for (const row of files[index]!.trimEnd().split("\n")) expect(row.length).toBeLessThanOrEqual(width);
+      });
+    }
   });
 
   describe("bar style, per host shape", () => {
@@ -241,13 +252,13 @@ describe("statusline golden files", () => {
           });
           const hostGolden = host === "claude"
             ? goldenText
-            : goldenText.replace("  7d ", "  cl7d ");
+            : goldenText.replace("  7d ", "  cl 7d ");
           const hostAwareGolden = host === "antigravity"
-            ? hostGolden.replaceAll("ag5h", "5h").replaceAll("ag7d", "7d")
+            ? hostGolden.replaceAll("ag 5h", "5h").replaceAll("ag 7d", "7d")
             : host === "grok"
-            ? hostGolden.replaceAll("gk7d", "7d").replaceAll("gkmo", "mo")
+            ? hostGolden.replaceAll("gk 7d", "7d").replaceAll("gk mo", "mo")
             : host === "codex"
-            ? hostGolden.replaceAll("cx5h", "5h").replaceAll("cx7d", "7d")
+            ? hostGolden.replaceAll("cx 5h", "5h").replaceAll("cx 7d", "7d")
             : hostGolden;
           expect(rendered + "\n").toBe(hostAwareGolden);
         }

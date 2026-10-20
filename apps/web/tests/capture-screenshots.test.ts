@@ -101,14 +101,14 @@ describe("synthetic screenshot pipeline", () => {
       const dom = new JSDOM(await terminalPage(theme, snapshots, now));
       for (const band of ["green", "yellow", "orange", "red"]) expect(dom.window.document.querySelector(`.band-${band}`)?.textContent).toBeTruthy();
       const line = dom.window.document.querySelector("pre")?.textContent ?? "";
-      /* The terminal shows Codex weekly only (cx7d), never its five hour cell. */
+      /* The terminal shows Codex weekly only (cx 7d), never its five hour cell. */
       for (const percentage of [37, 58, 63, 82, 91]) expect(line).toContain(`${percentage}%`);
       expect(line).toMatch(/^5h \[/u);
       expect(line).toContain("7d ");
       expect(line).toContain("fable7d ");
-      expect(line).toContain("cx7d ");
-      expect(line).toContain("ag5h ");
-      for (const money of ["or $12.54", "oa $8.20", "an $3.10"]) expect(line).toContain(money);
+      expect(line).toContain("cx 7d ");
+      expect(line).toContain("ag 5h ");
+      for (const money of ["or bal $12.54", "oa $8.20", "an $3.10"]) expect(line).toContain(money);
       // Limits and money only, so the line keeps one row on a wide screen.
       expect(line).not.toContain("[?]");
       // Cells are measured first, then regrouped into complete lines.

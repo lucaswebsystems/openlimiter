@@ -16,7 +16,7 @@
         "band": "green"
       },
       {
-        "text": " ·1h12m"
+        "text": " ↻1h12m"
       }
     ],
     [
@@ -35,7 +35,7 @@
         "band": "green"
       },
       {
-        "text": " ·2d5h"
+        "text": " ↻2d5h"
       }
     ],
     [
@@ -54,12 +54,12 @@
         "band": "yellow"
       },
       {
-        "text": " ·4d19h"
+        "text": " ↻4d19h"
       }
     ],
     [
       {
-        "text": "cx7d "
+        "text": "cx 7d "
       },
       {
         "text": "[████████░░]",
@@ -69,16 +69,16 @@
         "text": " "
       },
       {
-        "text": "82%",
+        "text": "82%!",
         "band": "orange"
       },
       {
-        "text": " ·5d8h"
+        "text": " ↻5d8h"
       }
     ],
     [
       {
-        "text": "ag5h "
+        "text": "ag 5h "
       },
       {
         "text": "[█████████░]",
@@ -88,16 +88,16 @@
         "text": " "
       },
       {
-        "text": "~91%",
+        "text": "~91%!!",
         "band": "red"
       },
       {
-        "text": " ·2h26m"
+        "text": " ↻2h26m"
       }
     ],
     [
       {
-        "text": "or $12.54"
+        "text": "or bal $12.54"
       }
     ],
     [

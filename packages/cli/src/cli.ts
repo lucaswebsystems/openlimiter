@@ -162,6 +162,7 @@ import {
   resolveProviderOrder,
   statuslineColor,
   statuslineUnicode,
+  statuslineWide,
   type StatuslineHost
 } from "./statusline.js";
 import { parseStatuslineSession } from "./statusline-ingest.js";
@@ -1568,6 +1569,7 @@ async function statuslineCommand(
       dependencies.colorOutput,
       host
     ),
+    wide: statuslineWide(dependencies.environment),
     unicode: statuslineUnicode(dependencies.environment),
     host,
     ...(pollHint === undefined ? {} : { pollHint })

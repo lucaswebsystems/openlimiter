@@ -31,12 +31,12 @@ function freshEnvironment(profile: string): NodeJS.ProcessEnv {
 
 describe("built statusline entry on a fresh install", () => {
   it.each([
-    { noColor: true, used: 18, band: 32, bar: "█░░░░░░░░░" },
-    { noColor: false, used: 18, band: 32, bar: "█░░░░░░░░░" },
-    { noColor: false, used: 65, band: 33, bar: "██████░░░░" },
-    { noColor: false, used: 85, band: "38;5;208", bar: "████████░░" },
-    { noColor: false, used: 95, band: 31, bar: "█████████░" }
-  ])("renders real stdin with NO_COLOR=$noColor, usage=$used", ({ noColor, used, band, bar }) => {
+    { noColor: true, used: 18, band: 32, bar: "█░░░░░░░░░", mark: "" },
+    { noColor: false, used: 18, band: 32, bar: "█░░░░░░░░░", mark: "" },
+    { noColor: false, used: 65, band: 33, bar: "██████░░░░", mark: "" },
+    { noColor: false, used: 85, band: "38;5;208", bar: "████████░░", mark: "!" },
+    { noColor: false, used: 95, band: 31, bar: "█████████░", mark: "!!" }
+  ])("renders real stdin with NO_COLOR=$noColor, usage=$used", ({ noColor, used, band, bar, mark }) => {
     const root = mkdtempSync(path.join(realpathSync(tmpdir()), "openlimiter-statusline-entry-"));
     roots.push(root);
     const profile = path.join(root, "profile");
@@ -80,8 +80,8 @@ describe("built statusline entry on a fresh install", () => {
     expect(readFileSync(errors, "utf8")).toBe("");
     expect(readFileSync(output, "utf8").replace(/ \| 7d [^\n]+/u, "")).toBe((
       "opus-5-5 high | ctx 31% | 5h " +
-      paint(`[${bar}]`, band) + " " + paint(`${used}%`, band) + " ·3h20m | 7d " +
-      paint("[██░░░░░░░░]", 32) + " " + paint("27%", 32) + " ·4d2h\n"
+      paint(`[${bar}]`, band) + " " + paint(`${used}%${mark}`, band) + " ↻3h20m | 7d " +
+      paint("[██░░░░░░░░]", 32) + " " + paint("27%", 32) + " ↻4d2h\n"
     ).replace(/ \| 7d [^\n]+/u, ""));
   });
 });

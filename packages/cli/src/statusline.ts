@@ -17,15 +17,16 @@ import {
   type Snapshot,
   type SnapshotAvailability
 } from "@openlimiter/core";
-import { STATUSLINE_BAR_SEGMENTS, meterBar } from "./render.js";
+import { BAR_SEGMENTS, STATUSLINE_BAR_SEGMENTS, bandCode, meterBar, pressureOf, supports256Color } from "./render.js";
 import type { StatuslineColor, StatuslineConfig, StatuslineCaptions } from "./config.js";
 import type { StatuslineSession } from "./statusline-ingest.js";
 import { MONEY_TAGS, moneyCells } from "./api-spend.js";
 
 /**
  * Reference terminal layout with host session details and labelled quota bars.
- * The host wraps the bar line. The optional legacy cells style keeps its own
- * width budget and advice header for existing configurations.
+ * Both styles keep to the width budget: a line that does not fit stacks onto
+ * the rows allowed, then keeps the readings closest to their caps and says how
+ * many it left out (2.1.7, UX audit U44).
  */
 
 /**
@@ -230,6 +231,16 @@ function staleTilde(estimated: boolean, stale: boolean, color: boolean): string 
   return estimated || (stale && !color) ? "~" : "";
 }
 
+/**
+ * The band in characters, after the percent, so crossing 80 or 90 never rests
+ * on colour alone: `!` from 80, `!!` from 90 (2.1.7, U47). A reading that could
+ * not be refreshed is drawn in no band, so it carries no mark either.
+ */
+function bandMark(value: number, state: "fresh" | "stale"): string {
+  const band = state === "fresh" ? pressureOf(value) : "none";
+  return band === "critical" ? "!!" : band === "urgent" ? "!" : "";
+}
+
 function buildCell(
   label: string,
   snapshot: Snapshot,
@@ -246,9 +257,12 @@ function buildCell(
     return { plain: text, painted: text, percent: snapshot.value };
   }
   const bar = meterBar(snapshot.value, state, false, STATUSLINE_BAR_SEGMENTS, wide);
+  const marked = percent + bandMark(snapshot.value, state);
   return {
-    plain: label + " " + bar + " " + percent,
-    painted: label + " " + (color ? paintBand(bar, snapshot.value, state) + " " + paintBand(percent, snapshot.value, state) : bar + " " + percent),
+    plain: label + " " + bar + " " + marked,
+    painted: label + " " + (color
+      ? paintBand(bar, snapshot.value, state, wide === true) + " " + paintBand(marked, snapshot.value, state, wide === true)
+      : bar + " " + marked),
     percent: snapshot.value
   };
 }
@@ -413,16 +427,18 @@ export function statuslineCells(
   captions: StatuslineCaptions = "short"
 ): readonly StatuslineCell[] {
   const cells: StatuslineCell[] = [];
+  // The plain line is an escape hatch for parsers, so it keeps its own captions.
+  const caption = bars ? captionFor : plainCaptionFor;
   for (const provider of order) {
     const readings = readingsFor(snapshots, provider, now);
     if (readings.length === 0) continue;
     if (meters === "all") {
       for (const reading of readings) {
         if (isAvailabilitySnapshot(reading.snapshot)) {
-          cells.push(availabilityCell(captionFor(reading.snapshot, hostProvider, captions, claudeFamilyCodesFor(reading.snapshot, snapshots)), reading.snapshot, now));
+          cells.push(availabilityCell(caption(reading.snapshot, hostProvider, captions, claudeFamilyCodesFor(reading.snapshot, snapshots)), reading.snapshot, now));
           continue;
         }
-        const meterTag = captionFor(reading.snapshot, hostProvider, captions, claudeFamilyCodesFor(reading.snapshot, snapshots));
+        const meterTag = caption(reading.snapshot, hostProvider, captions, claudeFamilyCodesFor(reading.snapshot, snapshots));
         if (providerMeterPresentation(provider, reading.snapshot.meter)?.valueSemantics === "balance") {
           cells.push(balanceCell(meterTag, reading.snapshot, staleTilde(false, reading.state === "stale", color), reading.state === "stale", color));
           continue;
@@ -439,7 +455,7 @@ export function statuslineCells(
       continue;
     }
     for (const worst of worstReadings(provider, readings)) {
-      const label = captionFor(worst.snapshot, hostProvider, captions, claudeFamilyCodesFor(worst.snapshot, snapshots));
+      const label = caption(worst.snapshot, hostProvider, captions, claudeFamilyCodesFor(worst.snapshot, snapshots));
       if (isAvailabilitySnapshot(worst.snapshot)) {
         cells.push(availabilityCell(label, worst.snapshot, now));
         continue;
@@ -567,7 +583,8 @@ function packed(
   head: string,
   cells: readonly StatuslineCell[],
   width: number,
-  rows: number
+  rows: number,
+  gap: string
 ): StatuslineCell[][] {
   const laid: StatuslineCell[][] = [];
   let index = 0;
@@ -578,7 +595,7 @@ function packed(
       const cell = cells[index]!;
       const needed = used === 0
         ? cell.plain.length
-        : used + CELL_GAP.length + cell.plain.length;
+        : used + gap.length + cell.plain.length;
       if (needed > width) break;
       used = needed;
       current.push(cell);
@@ -614,17 +631,47 @@ function worstCells(
     .map((entry) => entry.cell);
 }
 
-function paintRows(head: string, rows: readonly StatuslineCell[][]): string {
+function paintRows(head: string, rows: readonly StatuslineCell[][], gap: string): string {
   const lines: string[] = [];
   rows.forEach((row, index) => {
-    const body = row.map((cell) => cell.painted).join(CELL_GAP);
+    const body = row.map((cell) => cell.painted).join(gap);
     if (index === 0) {
-      lines.push(body === "" ? head : head + CELL_GAP + body);
+      lines.push([head, body].filter((part) => part !== "").join(gap));
       return;
     }
     if (body !== "") lines.push(body);
   });
   return lines.join("\n");
+}
+
+/** Every cell inside the budget, or null when they do not all fit. */
+function stacked(
+  head: string,
+  cells: readonly StatuslineCell[],
+  width: number,
+  rows: number,
+  gap: string
+): string | null {
+  const laid = packed(head, cells, width, rows, gap);
+  return fittedCount(laid) === cells.length ? paintRows(head, laid, gap) : null;
+}
+
+/**
+ * The worst cells that fit beside a `+N more` cell counting the rest. The
+ * head is never dropped: when not even one cell fits, the head is the line.
+ */
+function shed(
+  head: string,
+  cells: readonly StatuslineCell[],
+  width: number,
+  rows: number,
+  gap: string
+): string {
+  for (let keep = fittedCount(packed(head, cells, width, rows, gap)); keep >= 0; keep -= 1) {
+    const line = stacked(head, [...worstCells(cells, keep), moreCell(cells.length - keep)], width, rows, gap);
+    if (line !== null) return line;
+  }
+  return head;
 }
 
 export type StatuslineHost =
@@ -696,8 +743,49 @@ export function windowCode(snapshot: Snapshot): string {
   return "";
 }
 
-/** The one caption rule used by bar cells, legacy cells, and availability. */
+/**
+ * What a cell says about its meter before any tool tag: a window (`5h`), a
+ * Claude model or extra (`fable7d`, `extra`), Antigravity's third party
+ * windows, OpenRouter's `key`, `bal` for a balance, or nothing.
+ */
+function meterCaption(snapshot: Snapshot, familyCodes: readonly string[]): string {
+  const provider = snapshot.provider;
+  const presentation = providerMeterPresentation(provider, snapshot.meter, familyCodes);
+  const claude = provider === "CLAUDE" ? claudeMeterPresentation(snapshot.meter, familyCodes) : null;
+  if (claude !== null && (claude.model !== null || claude.labelKey === "claudeExtraUsage")) {
+    return claude.compactLabel.toLowerCase();
+  }
+  if (provider === "ANTIGRAVITY" &&
+      (snapshot.meter === "THIRD_PARTY_SESSION" || snapshot.meter === "THIRD_PARTY_WEEKLY")) {
+    return presentation?.compactLabel.toLowerCase() ?? windowCode(snapshot);
+  }
+  if (provider === "OPENROUTER" && snapshot.meter === "KEY_LIMIT" && snapshot.availability === undefined) {
+    return presentation?.compactLabel.toLowerCase() ?? "key";
+  }
+  const code = windowCode(snapshot);
+  return code === "" && isBalanceSnapshot(snapshot) ? "bal" : code;
+}
+
+/**
+ * The one caption rule used by bar cells, cells and availability (2.1.7, U46
+ * and U48). Tagged puts the tool's tag on every cell; Short leaves only the
+ * host tool's own cells untagged. A tag is always its own word: `cx 5h`,
+ * `gk mo`, `or bal`, `cl fable7d`.
+ */
 export function captionFor(
+  snapshot: Snapshot,
+  hostProvider: ProviderCode | null,
+  captions: StatuslineCaptions = "short",
+  familyCodes: readonly string[] = []
+): string {
+  const tag = PROVIDER_SHORT_TAGS[snapshot.provider];
+  const meter = meterCaption(snapshot, familyCodes);
+  if (meter === "") return tag;
+  return captions === "tagged" || hostProvider !== snapshot.provider ? tag + " " + meter : meter;
+}
+
+/** The captions of the plain `statusline.bars false` line, which never change. */
+function plainCaptionFor(
   snapshot: Snapshot,
   hostProvider: ProviderCode | null,
   captions: StatuslineCaptions = "short",
@@ -752,9 +840,14 @@ function windowVisible(snapshot: Snapshot, visibility: Readonly<Record<string, b
 }
 
 export function tenBlockBar(value: number, unicode = true): string {
+  return blockBar(value, BAR_SEGMENTS, unicode);
+}
+
+/** Ten blocks by default, five where the width needs them (2.1.7, U44). */
+function blockBar(value: number, segments: number, unicode: boolean): string {
   const clamped = Math.min(100, Math.max(0, value));
-  const filled = clamped > 0 ? Math.max(1, Math.floor(clamped / 10)) : 0;
-  const empty = 10 - filled;
+  const filled = clamped > 0 ? Math.max(1, Math.floor(clamped / (100 / segments))) : 0;
+  const empty = segments - filled;
   return "[" + (unicode ? TEN_BLOCK_FULL : "#").repeat(filled) + (unicode ? TEN_BLOCK_EMPTY : ".").repeat(empty) + "]";
 }
 
@@ -777,22 +870,25 @@ export function formatResetTime(resetAt: string | null | undefined, now: string)
   const diffMs = new Date(resetAt).getTime() - new Date(now).getTime();
   const diffSec = Math.floor(diffMs / 1000);
   if (!Number.isFinite(diffSec) || diffSec <= 0) return "";
-  return "·" + compactResetDuration(diffSec);
+  // A reset arrow, so the time left never reads as a second window (2.1.7, U45).
+  return "↻" + compactResetDuration(diffSec);
 }
 
+/**
+ * One band, one colour, through the shared rule in `render.ts`: orange from
+ * the 256 colour palette only where the terminal claims one (`wide`), and the
+ * 16 colour yellow otherwise, which the `!` mark tells apart (2.1.7, U47).
+ */
 export function paintBand(
   text: string,
   value: number,
   state: "fresh" | "stale",
-  _wide = false
+  wide = false
 ): string {
   /* A reading that could not be refreshed never paints as live: it is grey,
      whatever band its old value sat in. */
   if (state === "stale") return "\x1b[90m" + text + "\x1b[0m";
-  if (value >= 90) return "\x1b[31m" + text + "\x1b[0m";
-  if (value >= 80) return "\x1b[38;5;208m" + text + "\x1b[0m";
-  if (value >= 60) return "\x1b[33m" + text + "\x1b[0m";
-  return "\x1b[32m" + text + "\x1b[0m";
+  return "\x1b[" + bandCode(pressureOf(value), wide) + "m" + text + "\x1b[0m";
 }
 
 export function barStyleCells(
@@ -807,7 +903,8 @@ export function barStyleCells(
   explicitSelection = false,
   visibility: Readonly<Record<string, boolean>> = {},
   unicode = true,
-  inputCaptions: StatuslineCaptions = "short"
+  inputCaptions: StatuslineCaptions = "short",
+  segments = BAR_SEGMENTS
 ): readonly StatuslineCell[] {
   const cells: StatuslineCell[] = [];
   const hostProvider = HOST_PROVIDER[host];
@@ -889,9 +986,9 @@ export function barStyleCells(
 
       const tag = captionFor(snapshot, hostProvider, inputCaptions, claudeFamilyCodesFor(snapshot, snapshots));
 
-      const bar = tenBlockBar(snapshot.value, unicode);
-      const percentStr = mark + Math.round(snapshot.value) + "%";
-      const resetStr = formatResetTime(snapshot.resetAt, now).replace("·", unicode ? "·" : ".");
+      const bar = blockBar(snapshot.value, segments, unicode);
+      const percentStr = mark + Math.round(snapshot.value) + "%" + bandMark(snapshot.value, state);
+      const resetStr = formatResetTime(snapshot.resetAt, now).replace("↻", unicode ? "↻" : "resets ");
 
       const label = tag;
       const plain = resetStr !== ""
@@ -918,10 +1015,15 @@ export function barStyleCells(
   return cells;
 }
 
+/** Words with no reading behind them, which go before any reading does. */
+function noteCell(text: string): StatuslineCell {
+  return { plain: text, painted: text, percent: Number.NEGATIVE_INFINITY };
+}
+
 function renderBarStatusline(input: StatuslineLayoutInput): string {
   const { config } = input;
   const host = input.host ?? "claude";
-  const cells = barStyleCells(
+  const readings = (segments: number): readonly StatuslineCell[] => barStyleCells(
     input.snapshots,
     input.now,
     resolveProviderOrder(config.order),
@@ -933,7 +1035,8 @@ function renderBarStatusline(input: StatuslineLayoutInput): string {
     config.showMode === "explicit",
     config.visibility,
     input.unicode,
-    config.captions
+    config.captions,
+    segments
   );
   const listed = new Set(config.show.map((entry) => entry.toLowerCase()));
   const apiMoney = moneyCells(input.apiSpend, {
@@ -943,7 +1046,13 @@ function renderBarStatusline(input: StatuslineLayoutInput): string {
       return config.visibility?.[name] ??
         (config.show.length === 0 && config.showMode !== "explicit" || listed.has(name) || tag !== undefined && listed.has(tag));
     }
-  });
+  }).map((cell): StatuslineCell => ({
+    plain: cell.plain,
+    painted: input.color && (cell.stale || cell.band !== null)
+      ? cell.prefix + paintBand(cell.amount, cell.band ?? 0, cell.stale ? "stale" : "fresh", input.wide)
+      : cell.plain,
+    percent: Number.NEGATIVE_INFINITY
+  }));
   const session = input.session ?? {};
   const shown = (key: string): boolean => config.visibility?.[key] !== false;
   const parts: string[] = [];
@@ -953,14 +1062,21 @@ function renderBarStatusline(input: StatuslineLayoutInput): string {
   // context window unless someone runs `openlimiter terminal show dir`.
   if (config.visibility?.["dir"] === true && session.dir) parts.push(session.dir);
   if (shown("ctx") && session.ctx !== undefined) parts.push("ctx " + Math.round(session.ctx) + "%");
-  parts.push(...cells.map((cell) => cell.painted));
-  parts.push(...apiMoney.map((cell) => input.color && (cell.stale || cell.band !== null)
-    ? cell.prefix + paintBand(cell.amount, cell.band ?? 0, cell.stale ? "stale" : "fresh")
-    : cell.plain));
-  if (shown("style") && session.style) parts.push(session.style);
-  if (input.pollHint && shown("7d")) parts.push(input.pollHint);
-  // The host owns wrapping. A column guess must not silently hide a provider.
-  return parts.join(BAR_CELL_SEPARATOR) || STATUSLINE_UNKNOWN;
+  const head = parts.join(BAR_CELL_SEPARATOR);
+  const notes = [shown("style") ? session.style : undefined, shown("7d") ? input.pollHint : undefined]
+    .filter((note): note is string => Boolean(note))
+    .map(noteCell);
+  const fit = (cells: readonly StatuslineCell[]): string | null =>
+    stacked(head, cells, config.width, config.rows, BAR_CELL_SEPARATOR);
+  /* The width is honoured, never left to the host to cut (2.1.7, U44). A line
+     that does not fit drops its notes first, then halves its bars to five
+     blocks, then keeps the readings closest to their caps and ends by saying
+     how many it left out. The session head is never dropped. */
+  const tenBlocks = [...readings(BAR_SEGMENTS), ...apiMoney];
+  const fiveBlocks = [...readings(STATUSLINE_BAR_SEGMENTS), ...apiMoney];
+  const drawn = fit([...tenBlocks, ...notes]) ?? fit(tenBlocks) ?? fit(fiveBlocks) ??
+    shed(head, fiveBlocks, config.width, config.rows, BAR_CELL_SEPARATOR);
+  return drawn || STATUSLINE_UNKNOWN;
 }
 
 export interface StatuslineLayoutInput {
@@ -969,7 +1085,7 @@ export interface StatuslineLayoutInput {
   now: string;
   config: StatuslineConfig;
   color: boolean;
-  /** Legacy caller compatibility; the reference palette is locked. */
+  /** The terminal's 256 colour claim (`statuslineWide`): orange where true, the 16 colour yellow otherwise. */
   wide?: boolean;
   host?: StatuslineHost;
   session?: StatuslineSession;
@@ -1009,14 +1125,8 @@ export function renderStatuslineLayout(input: StatuslineLayoutInput): string {
     );
     if (cells.length === 0) return STATUSLINE_UNKNOWN;
     const head = statuslineHead(advice);
-    const whole = packed(head, cells, config.width, config.rows);
-    if (fittedCount(whole) === cells.length) return paintRows(head, whole);
-    for (let keep = fittedCount(whole); keep >= 0; keep -= 1) {
-      const shown = [...worstCells(cells, keep), moreCell(cells.length - keep)];
-      const attempt = packed(head, shown, config.width, config.rows);
-      if (fittedCount(attempt) === shown.length) return paintRows(head, attempt);
-    }
-    return head;
+    return stacked(head, cells, config.width, config.rows, CELL_GAP) ??
+      shed(head, cells, config.width, config.rows, CELL_GAP);
   }
 
   return renderBarStatusline(input);
@@ -1038,7 +1148,20 @@ export function statuslineColor(
   if (environment["NO_COLOR"] !== undefined) return false;
   if (setting === "never") return false;
   if (setting === "always") return true;
+  // FORCE_COLOR decides where the setting leaves it to the environment (U47).
+  const force = environment["FORCE_COLOR"];
+  if (force !== undefined && force !== "") return force !== "0" && force.toLowerCase() !== "false";
   return automatic || host === "claude";
+}
+
+/**
+ * The 256 colour claim: the terminal makes it, Windows Terminal among them
+ * (it sets `WT_SESSION` and neither `TERM` nor `COLORTERM`), or FORCE_COLOR 2
+ * or 3 asks for it.
+ */
+export function statuslineWide(environment: Readonly<Record<string, string | undefined>>): boolean {
+  return supports256Color(environment) || environment["WT_SESSION"] !== undefined ||
+    Number(environment["FORCE_COLOR"]) >= 2;
 }
 
 /** Node writes UTF8 on every OS; fall back only for an explicit encoding limitation. */
