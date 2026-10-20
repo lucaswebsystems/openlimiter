@@ -25,6 +25,81 @@ test("splitInventory keeps measured bars separate and strips Usage actions", () 
   assert.deepEqual(result.tools, [{ ...measured, windows: [], note: "old" }, setup]);
 });
 
+test("a tool that is set up but has no reading waits on Usage and in Connect Tools, with no action", () => {
+  const detections = { providers: [{ provider_id: "codex", state: "present" }, { provider_id: "kimi", state: "present" }] };
+  const model = inventoryModel({ detections, claude: "READY_TO_ENABLE" }, now);
+  const byCode = Object.fromEntries(model.map((tool) => [tool.code, tool]));
+  for (const code of ["CLAUDE", "CODEX", "KIMI"]) {
+    assert.deepEqual([byCode[code].action, byCode[code].note], [null, "Waiting for first reading"], code);
+  }
+  const { usage, tools } = splitInventory(model);
+  /* Usage no longer says "No bars yet" over tools that are connected: each
+     one waiting has its row there, and a tool not set up stays off it. */
+  assert.deepEqual(usage.map((tool) => [tool.code, tool.note, tool.action]), [
+    ["CLAUDE", "Waiting for first reading", null],
+    ["CODEX", "Waiting for first reading", null],
+    ["KIMI", "Waiting for first reading", null],
+  ]);
+  assert.deepEqual(tools.map((tool) => tool.code), ["CLAUDE", "ANTIGRAVITY", "OPENROUTER", "CODEX", "KIMI"]);
+  const doc = fakeDocument();
+  const mount = doc.createElement("div");
+  renderLimits(doc, mount, usage, { handlers: {} });
+  for (const row of rowsOf(mount)) {
+    assert.equal(buttonIn(row), null, row.dataset.provider);
+    assert.equal(noteIn(row).textContent, "Waiting for first reading");
+    assert.equal(row.all((node) => node.className === "q-row").length, 0, "no bar without a reading");
+  }
+  assert.deepEqual(leaks(spoken(mount)), []);
+});
+
+test("a stored connection keeps its tool on Usage: connected waits, signed out offers Connect", () => {
+  /* Classified before any provider's own steps, so OpenRouter, whose key is
+     its connection, behaves like every other connected tool. */
+  for (const code of ["OPENROUTER", "CODEX", "OPENCODE"]) {
+    for (const [state, expected] of [
+      ["CONNECTED", ["waiting", "Waiting for first reading", null]],
+      ["NEEDS_AUTH", ["signin", "Signed out", "Connect"]],
+      ["AUTH_EXPIRED", ["signin", "Signed out", "Connect"]],
+    ]) {
+      const model = inventoryModel({ connections: [{ provider: code, state }] }, now);
+      const tool = model.find((entry) => entry.code === code);
+      assert.equal(tool.usage, expected[0], `${code} ${state}`);
+      const { usage } = splitInventory(model);
+      const row = usage.find((entry) => entry.code === code);
+      assert.ok(row, `${code} ${state} vanished from Usage`);
+      assert.deepEqual([row.note, row.action?.label ?? null], [expected[1], expected[2]], `${code} ${state}`);
+    }
+    /* A connection that errored is a fix in Connect Tools, not a sign in. */
+    const broken = inventoryModel({ connections: [{ provider: code, state: "ERROR" }] }, now).find((entry) => entry.code === code);
+    assert.equal(broken.action.label, "Connect", `${code} ERROR`);
+    assert.equal(broken.usage, undefined, `${code} ERROR`);
+  }
+  /* With no connection at all, OpenRouter is a setup step and stays off Usage. */
+  const unset = splitInventory(inventoryModel({}, now)).usage.find((entry) => entry.code === "OPENROUTER");
+  assert.equal(unset, undefined);
+});
+
+test("a tool that needs a sign in keeps a row on Usage, with the same action Connect Tools offers", async () => {
+  const detections = { providers: [{ provider_id: "gemini-cli", state: "installed_logged_out" }] };
+  const model = inventoryModel({ detections, flags: [{ provider: "GROK", reason: "account_not_connected", fixKind: "sign_in" }] }, now);
+  const { usage, tools } = splitInventory(model);
+  const tool = (list, code) => list.find((entry) => entry.code === code);
+  for (const code of ["GEMINI_CLI", "GROK"]) {
+    assert.equal(tool(tools, code).action.label, "Sign in again", code);
+    assert.deepEqual([tool(usage, code).note, tool(usage, code).action], ["Signed out", tool(tools, code).action], code);
+  }
+  assert.equal(tool(usage, "CLAUDE"), undefined, "a tool that is not set up is not on Usage");
+  const pressed = [];
+  const doc = fakeDocument();
+  const mount = doc.createElement("div");
+  renderLimits(doc, mount, usage, { handlers: { check: async (code) => { pressed.push(code); return true; } } });
+  const gemini = rowsOf(mount).find((row) => row.dataset.provider === "GEMINI_CLI");
+  assert.equal(noteIn(gemini).textContent, "Signed out");
+  await buttonIn(gemini).fire("click");
+  assert.deepEqual(pressed, ["GEMINI_CLI"]);
+  assert.deepEqual(leaks(spoken(mount)), []);
+});
+
 test("one case insensitive name for every provider code, from the registry", () => {
   for (const code of ["CLAUDE", "claude", "Claude"]) assert.equal(providerName(code), "Claude Code");
   for (const code of ["GEMINI_CLI", "gemini-cli", "gemini_cli"]) assert.equal(providerName(code), "Gemini CLI");
@@ -646,7 +721,7 @@ test("Claude waits for Claude Code with no button, asks to sign in again, and co
   const waiting = inventoryModel({ flags: [{ provider: "CLAUDE", reason: "awaiting_statusline", fixKind: "open_app" }] }, now)[0];
   assert.deepEqual([waiting.code, waiting.action, waiting.note], ["CLAUDE", null, "Waiting for Claude Code"]);
   const wired = inventoryModel({ claude: "READY_TO_ENABLE" }, now)[0];
-  assert.deepEqual([wired.action, wired.note], [null, "Waiting for Claude Code"]);
+  assert.deepEqual([wired.action, wired.note], [null, "Waiting for first reading"]);
   const unresolved = inventoryModel({ flags: [{ provider: "CLAUDE", reason: "account_unresolved", fixKind: "sign_in" }] }, now)[0];
   assert.deepEqual(unresolved.action, { kind: "check", label: "Check again", title: say("fixToolDetail", { name: "Claude Code" }) });
   assert.equal(inventoryModel({ claude: "DETECTED" }, now)[0].action.label, "Connect");
@@ -658,14 +733,17 @@ test("Claude waits for Claude Code with no button, asks to sign in again, and co
   assert.equal(noteIn(row).textContent, "Waiting for Claude Code");
 });
 
-test("every Claude card with the direct check off offers the one click Fable action", async () => {
+test("a waiting Claude card reads the same with the direct request on or off, and never offers it", async () => {
   const waitingFlag = [{ provider: "CLAUDE", reason: "awaiting_statusline", fixKind: "open_app" }];
-  const title = READINGS_COPY.showClaudeFableNote;
-  for (const input of [{ flags: waitingFlag }, { claude: "READY_TO_ENABLE" }, { claude: "CONNECTED" }]) {
-    const off = inventoryModel({ ...input, claudePoll: false }, now)[0];
-    assert.deepEqual([off.note, off.action], [null, null]);
-    const on = inventoryModel({ ...input, claudePoll: true }, now)[0];
-    assert.deepEqual([on.action, on.note], [null, "Waiting for Claude Code"]);
+  for (const [input, note] of [
+    [{ flags: waitingFlag }, "Waiting for Claude Code"],
+    [{ claude: "READY_TO_ENABLE" }, "Waiting for first reading"],
+    [{ claude: "CONNECTED" }, "Waiting for first reading"],
+  ]) {
+    for (const claudePoll of [false, true, null]) {
+      const tool = inventoryModel({ ...input, claudePoll }, now)[0];
+      assert.deepEqual([tool.action, tool.note], [null, note], JSON.stringify({ input, claudePoll }));
+    }
   }
   const measured = inventoryModel({ snapshots: fixtures.projected.snapshots, claudePoll: false }, now)
     .find((tool) => tool.code === "CLAUDE");
@@ -707,7 +785,7 @@ test("every tool in play gets one row with one fix; a switched off one leaves un
   const off = inventoryModel({ removed: ["ANTIGRAVITY"] }, now).find((tool) => tool.code === "ANTIGRAVITY");
   assert.deepEqual([off.action, off.note], [null, "Off"]);
   const connected = inventoryModel({ connections: [{ provider: "OPENROUTER", state: "CONNECTED" }] }, now).find((tool) => tool.code === "OPENROUTER");
-  assert.equal(connected.action.label, "Check again");
+  assert.deepEqual([connected.action, connected.note], [null, "Waiting for first reading"]);
   const lost = inventoryModel({ connections: [{ provider: "OPENROUTER", state: "NEEDS_AUTH" }] }, now).find((tool) => tool.code === "OPENROUTER");
   assert.equal(lost.action.label, "Connect");
   const doc = fakeDocument();

@@ -177,8 +177,8 @@
   --ol-band-stale-subtle: rgb(114 131 155 / 0.14);
   --ol-band-stale-opacity: 0.88;
 
-  --ol-announce: var(--ol-accent-solid);
-  --ol-announce-fg: var(--ol-on-accent);
+  --ol-announce: var(--ol-primary);
+  --ol-announce-fg: var(--ol-on-primary);
   --ol-announce-h: var(--ol-control-height);
   --ol-nav-dark-surface: var(--ol-fixed-dark-canvas);
   --ol-nav-dark-line: var(--ol-fixed-dark-hairline);

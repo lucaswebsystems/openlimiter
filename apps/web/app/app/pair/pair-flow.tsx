@@ -197,6 +197,8 @@ interface PhoneBarsProps {
   stateAnnouncement: (state: string) => string;
   accountLabel: (count: number) => string;
   claudeMeterCopy?: ClaudeMeterCopy;
+  /** What a finished read with no rows says, instead of loading forever. */
+  emptyLabel: string;
 }
 
 /**
@@ -204,7 +206,7 @@ interface PhoneBarsProps {
  * browser dashboard draw, so one reading cannot look like two different
  * readings on two screens.
  */
-function PhoneBars({ body, stale, locale, staleLabel, now, freshLabel, staleStateLabel, unknownAgeLabel, ageLabel, stateAnnouncement, accountLabel, claudeMeterCopy = {} }: PhoneBarsProps) {
+export function PhoneBars({ body, stale, locale, staleLabel, now, freshLabel, staleStateLabel, unknownAgeLabel, ageLabel, stateAnnouncement, accountLabel, claudeMeterCopy = {}, emptyLabel }: PhoneBarsProps) {
   const rows = useMemo(
     () => meterRowsOf(body).map((row) => stale ? { ...row, stale: true } : row),
     [body, stale],
@@ -257,8 +259,10 @@ function PhoneBars({ body, stale, locale, staleLabel, now, freshLabel, staleStat
             ))}
           </div>
         )}
+        {/* Only a finished read reaches here, so no rows means none were
+            synced yet: say so and say where they come from. */}
         {snapshots.length === 0 && money.length === 0 && (
-          <SkeletonRows />
+          <p className={`${CARD} text-sm text-muted`}>{emptyLabel}</p>
         )}
       </div>
     </section>
@@ -410,6 +414,7 @@ function PairedPhone({
               stale={state.phase === "offline"}
               locale={locale.current}
               staleLabel={t("pairPage.offline.staleMark")}
+              emptyLabel={t("pairPage.bars.empty")}
               now={now}
               freshLabel={t("cloud.fresh")}
               staleStateLabel={t("cloud.stale")}

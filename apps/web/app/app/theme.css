@@ -1904,29 +1904,17 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell.ol-phone-shell {
   transform: translateY(1px);
 }
 
+/* The mark blue, on the hub and the phone alike: a white label on it measures
+   4.8:1, and 6.2:1 on its hover, where the brand blue gave 3.75:1. */
 .ol-control-primary {
-  border-color: var(--ol-accent-solid);
-  background: var(--ol-accent-solid);
-  color: var(--ol-on-accent);
+  border-color: var(--ol-primary);
+  background: var(--ol-primary);
+  color: var(--ol-on-primary);
 }
 
 .ol-control-primary:hover {
-  border-color: var(--ol-accent-solid-hover);
-  background: var(--ol-accent-solid-hover);
-}
-
-body:has(.ol-phone-shell) .ol-sheet .ol-install-done.ol-control-primary,
-body:has(.ol-phone-shell) .ol-phone-pro .ol-control-primary {
-  border-color: var(--ol-primary-fill);
-  background: var(--ol-primary-fill);
-  color: var(--ol-on-primary-fill);
-}
-
-body:has(.ol-phone-shell) .ol-sheet .ol-install-done.ol-control-primary:hover,
-body:has(.ol-phone-shell) .ol-phone-pro .ol-control-primary:hover {
-  border-color: color-mix(in srgb, var(--ol-primary-fill) 88%, black);
-  background: color-mix(in srgb, var(--ol-primary-fill) 88%, black);
-  color: var(--ol-on-primary-fill);
+  border-color: var(--ol-primary-hover);
+  background: var(--ol-primary-hover);
 }
 
 .ol-control-ghost {

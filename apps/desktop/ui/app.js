@@ -27,7 +27,6 @@ import {
 } from "./engine/core/index.js";
 /* The one projection, names and drawing Home shares with the edge panel. */
 import {
-  ALWAYS_LISTED,
   alertSamples,
   fixWords,
   holdReadings,
@@ -41,7 +40,7 @@ import {
 } from "./readings.js";
 import { providerCode, providerName, say } from "./names.js";
 import { renderPlanCap } from "./plan-cap.js";
-import { refreshDesktopTrial, renderSettings, themeLabel, tickDesktopTrial } from "./settings.js";
+import { refreshDesktopTrial, renderSettings, tickDesktopTrial } from "./settings.js";
 import { mountAgents } from "./agents.js";
 import { keyRepaintGate, keyRows, proEntitled, refreshEntitlement, renderKeys, renderPro, saveOpenrouterConnection } from "./pro.js";
 /* The phone panel and the device list it produces. Both live behind an
@@ -92,6 +91,7 @@ import {
   installUpdate,
   listConnections,
   listDetectedProviders,
+  listen,
   normalizeConnectionList,
   notificationGate,
   proDisconnect,
@@ -102,12 +102,11 @@ import {
   setClaudePollEnabled,
   setProviderEnabled,
   setTrayStatus,
-  setTerminalCaptions,
 } from "./backend.js";
 import { readConfiguredProviders, readRemovedProviders, adoptDetectedProviders, homeSelectionControl } from "./configured-providers.js";
 import { bindHomeRefresh } from "./home-refresh.js";
 import { headerPopovers } from "./header-popovers.js";
-import { homeProviders } from "./home-state.js";
+import { accountOfferShown, homeProviders } from "./home-state.js";
 /* Every value on a failure card came off a file this window did not write, so
    the card is built out of nodes and text rather than out of a markup string. */
 import { buildFailureRow } from "./failure-rows.js";
@@ -127,8 +126,7 @@ import {
   replaceOpenrouterKey,
   saveOpenrouterKey,
 } from "./connections.js";
-import { initFirstRun } from "./first-run.js";
-import { useClaudeSignIn } from "./claude-sign-in.js";
+import { ACCOUNT_OFFER_STORAGE_KEY, initFirstRun } from "./first-run.js";
 import { initWhatsNew, openWhatsNew } from "./whats-new.js";
 import { tabSwitcher } from "./tabs.js";
 
@@ -150,7 +148,6 @@ const elements = {
   keyRows: document.getElementById("key-rows"),
   agentsSection: document.getElementById("agents-section"),
   agentsMount: document.getElementById("agents-mount"),
-  theme: document.getElementById("theme"),
   menuButton: document.getElementById("menu-button"),
   menu: document.getElementById("app-menu"),
   menuEmail: document.getElementById("menu-account-email"),
@@ -164,7 +161,6 @@ const elements = {
   phoneButton: document.getElementById("phone-button"),
   phonePopover: document.getElementById("phone-popover"),
   signIn: document.getElementById("sign-in"),
-  signInSlot: document.getElementById("sign-in-slot"),
   signInBody: document.getElementById("sign-in-body"),
   signInClose: document.getElementById("sign-in-close"),
   signInStatus: document.getElementById("sign-in-status"),
@@ -182,6 +178,10 @@ const elements = {
   signInCreate: document.getElementById("account-email-create"),
   signInGoogle: document.getElementById("account-google"),
   signInGithub: document.getElementById("account-github"),
+  signInMicrosoft: document.getElementById("account-microsoft"),
+  accountOffer: document.getElementById("account-offer"),
+  accountOfferSignIn: document.getElementById("account-offer-sign-in"),
+  accountOfferDismiss: document.getElementById("account-offer-dismiss"),
   updateBanner: document.getElementById("update-banner"),
   offlineBanner: document.getElementById("offline-banner"),
   refreshStatus: document.getElementById("home-refresh-status"),
@@ -207,11 +207,7 @@ async function readPlan() {
   const pro = result.ok ? result.value : null;
   const entitled = proEntitled(pro);
   trialOffered = !entitled;
-  if (result.ok && pro?.theme_preset !== true) {
-    const reset = await setTerminalCaptions("short");
-    return { ...result, captionsReset: reset.ok };
-  }
-  return { ...result, captionsReset: true };
+  return result;
 }
 
 /* ------------------------------------------------ account, menu and alerts */
@@ -223,10 +219,47 @@ function closeHeaderPopovers() {
 /** Whether a session exists right now. The menu and the phone panel both
     branch on it, so it has one owner and is read rather than guessed. */
 let signedIn = false;
+/* False until the account answers, so the offer never flashes for a person
+   who turns out to be signed in. */
+let accountKnown = false;
+/* Whether Usage draws at least one bar: the offer waits for the first one. */
+let hasBars = false;
+
+function readAccountOffer() {
+  try {
+    return window.localStorage.getItem(ACCOUNT_OFFER_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function settleAccountOffer(value) {
+  try {
+    window.localStorage.setItem(ACCOUNT_OFFER_STORAGE_KEY, value);
+  } catch {
+    /* Storage refused. The card still goes for this window. */
+  }
+}
+
+/** The account card under the bars: a fresh install's one offer, once. */
+function paintAccountOffer() {
+  if (elements.accountOffer === null) return;
+  elements.accountOffer.hidden = !accountOfferShown({ offer: readAccountOffer(), accountKnown, signedIn, hasBars });
+}
+
+elements.accountOfferSignIn?.addEventListener("click", openSignIn);
+elements.accountOfferDismiss?.addEventListener("click", () => {
+  settleAccountOffer("dismissed");
+  paintAccountOffer();
+});
 
 function applyAccountState(status) {
   if (status === null || typeof status !== "object") return;
   signedIn = status.signedIn === true;
+  accountKnown = true;
+  /* A person with an account has nothing left to be offered. */
+  if (signedIn) settleAccountOffer("done");
+  paintAccountOffer();
   elements.menuEmail.textContent = signedIn
     ? String(status.email ?? "Signed in")
     : "Signed out";
@@ -247,13 +280,13 @@ function applyAccountState(status) {
 /* ------------------------------------------------------------- signing in */
 
 /**
- * One sign in body, two hosts.
+ * One sign in body, in the sheet.
  *
- * The body, the two provider buttons with their marks, the rule, the email
- * form behind its quiet link and the status line, is one set of nodes. The
- * sheet owns it; the first run account step borrows it for the length of
- * that step and hands it back, so there is exactly one password field in the
- * document and one place for a sign in bug to live.
+ * The body, the three provider buttons with their marks, the rule, the email
+ * form behind its quiet link and the status line, is one set of nodes, and
+ * the sheet owns it: the account menu, the phone popover and the offer under
+ * the first bar all open the sheet, so there is exactly one password field in
+ * the document and one place for a sign in bug to live.
  *
  * Every state the body can be in is drawn rather than printed: a browser tab
  * opening, the service refusing a provider it has not switched on, a session
@@ -264,6 +297,7 @@ function signInControls() {
   return [
     elements.signInGithub,
     elements.signInGoogle,
+    elements.signInMicrosoft,
     elements.signInToggle,
     elements.signInEmail,
     elements.signInPassword,
@@ -370,38 +404,62 @@ function resetSignInBody() {
   }
 }
 
-function signInIsInSheet() {
-  return elements.signInBody?.parentElement === elements.signInSlot;
-}
+/** Where focus was when the sheet opened, so closing can put it back. */
+let signInOpener = null;
 
-/** Lend the body to another host, the first run account step. */
-function mountSignIn(host) {
-  if (elements.signInBody === null || !(host instanceof HTMLElement)) return;
-  host.append(elements.signInBody);
-  resetSignInBody();
-  elements.signInGithub?.focus();
-}
-
-/** Take the body back into the sheet, wherever it was. */
-function unmountSignIn() {
-  if (elements.signInBody === null || elements.signInSlot === null) return;
-  if (!signInIsInSheet()) elements.signInSlot.append(elements.signInBody);
-  resetSignInBody();
-}
-
+/*
+ * The sheet is a native modal dialog. showModal puts it in the top layer and
+ * makes the window behind it inert, so focus cannot wander out of it, and
+ * Escape is the dialog's own cancel.
+ */
 function openSignIn() {
   if (elements.signIn === null) return;
   closeHeaderPopovers();
-  unmountSignIn();
-  elements.signIn.hidden = false;
+  signInOpener = document.activeElement;
+  resetSignInBody();
+  if (!elements.signIn.open) elements.signIn.showModal();
   elements.signInGithub?.focus();
 }
 
 function closeSignIn() {
   if (elements.signIn === null) return;
-  elements.signIn.hidden = true;
-  resetSignInBody();
+  if (elements.signIn.open) elements.signIn.close();
 }
+
+/* Back to the control that opened the sheet. When it has gone (the offer
+   card hides once somebody signs in, the phone popover closes as the sheet
+   opens), focus lands on the selected tab rather than nowhere. */
+function restoreFocus(opener) {
+  if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+  if (opener instanceof HTMLElement && document.activeElement === opener) return;
+  document.querySelector('[role="tab"][aria-selected="true"]')?.focus();
+}
+
+/* Tab wraps at both ends of the sheet: the window behind is inert, and the
+   keyboard never walks out of the dialog into the browser's own chrome. */
+elements.signIn?.addEventListener("keydown", (event) => {
+  if (event.key !== "Tab") return;
+  const stops = [...elements.signIn.querySelectorAll("button, input, select, textarea, [href]")]
+    .filter((node) => !node.disabled && node.getClientRects().length > 0);
+  if (stops.length === 0) return;
+  const first = stops[0];
+  const last = stops[stops.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+});
+
+/* Every way out ends here: Not now, the backdrop, Escape and a finished
+   sign in all close the dialog. */
+elements.signIn?.addEventListener("close", () => {
+  resetSignInBody();
+  restoreFocus(signInOpener);
+  signInOpener = null;
+});
 
 /**
  * Run one sign in to its drawn end.
@@ -443,25 +501,21 @@ async function runSignIn(action, provider, working, pressed) {
   setSignInBusy(false);
   showSignedIn(signedInSentence(result.value.email));
   void refresh();
-  window.setTimeout(() => {
-    if (signInIsInSheet()) closeSignIn();
-    window.dispatchEvent(new CustomEvent("openlimiter:signed-in"));
-  }, SIGNED_IN_DWELL_MILLISECONDS);
+  window.setTimeout(closeSignIn, SIGNED_IN_DWELL_MILLISECONDS);
   return { ok: true, displayed: true };
 }
 
 /**
  * One way in, whichever button was pressed and wherever it was drawn.
  *
- * GitHub and Google are buttons in the shared body; Microsoft is drawn by the
- * first run step, which hands its own element in so the busy state lands on
- * the control somebody actually pressed. All three reach `runSignIn`, which is
- * what applies the account state, draws the arrival and announces it. A path
- * that skips it signs somebody in and leaves the screen where it was.
+ * GitHub, Google and Microsoft are buttons in the one body, and all three
+ * reach `runSignIn`, which is what applies the account state and draws the
+ * arrival; the busy state lands on the button that was pressed. A path that
+ * skips it signs somebody in and leaves the screen where it was.
  */
-function continueWith(provider, pressed = null) {
-  const known = { google: elements.signInGoogle, github: elements.signInGithub };
-  const control = pressed ?? known[provider] ?? elements.signInGithub;
+function continueWith(provider) {
+  const known = { google: elements.signInGoogle, github: elements.signInGithub, azure: elements.signInMicrosoft };
+  const control = known[provider] ?? elements.signInGithub;
   return runSignIn(() => accountOauth(provider), provider, openingSentence(provider), control);
 }
 
@@ -491,10 +545,6 @@ document.addEventListener("click", (event) => {
    second attempt started meanwhile is answered by the broker as busy. */
 elements.signIn?.addEventListener("click", (event) => {
   if (event.target === elements.signIn) closeSignIn();
-});
-document.addEventListener("keydown", (event) => {
-  if (event.key !== "Escape" || elements.signIn === null || elements.signIn.hidden) return;
-  closeSignIn();
 });
 
 elements.signInToggle?.addEventListener("click", () => showEmailForm(true));
@@ -534,6 +584,7 @@ elements.signInCreate?.addEventListener("click", () => {
 
 elements.signInGithub?.addEventListener("click", () => void continueWith("github"));
 elements.signInGoogle?.addEventListener("click", () => void continueWith("google"));
+elements.signInMicrosoft?.addEventListener("click", () => void continueWith("azure"));
 
 async function runUpdateCheck(silent) {
   if (!silent) elements.menuUpdate.textContent = "Checking for updates";
@@ -651,13 +702,12 @@ window.addEventListener("focus", () => {
   void refreshEntitlement();
 });
 
-/* The three Settings blocks, mounted only after entitlement normalization so a
-   downgraded Tagged caption choice never paints for one frame. */
+/* The three Settings blocks, mounted once the plan is read. */
 const mountPlanCap = () => renderPlanCap(elements.planCapMount, { onChange: () => void refresh() });
 void (async () => {
-  const plan = await readPlan();
+  await readPlan();
   await renderPro(elements.proMount);
-  if (plan.captionsReset !== false) await renderSettings(elements.settingsMount);
+  await renderSettings(elements.settingsMount);
   await mountPlanCap();
 })();
 
@@ -665,10 +715,10 @@ void (async () => {
    offer, the account cap, the plan card and the preset. */
 window.addEventListener("openlimiter:pro-changed", () => {
   void (async () => {
-    const plan = await readPlan();
+    await readPlan();
     await mountPlanCap();
     await renderPro(elements.proMount);
-    if (plan.captionsReset !== false) await renderSettings(elements.settingsMount);
+    await renderSettings(elements.settingsMount);
   })();
 });
 
@@ -835,17 +885,6 @@ const toolHandlers = {
     return code === "OPENROUTER" ? focusKey("openrouter") : connectTool(code);
   },
   check: (code) => checkTool(code),
-  /* Claude's one click: the direct check on, the menu switch repainted, one read. */
-  poll: async () => {
-    const done = await useClaudeSignIn({
-      setPoll: setClaudePollEnabled,
-      repaintMenu: () => renderSettings(elements.settingsMount),
-      check: checkTool,
-    });
-    claudePoll = done ? true : claudePoll;
-    void refresh();
-    return done;
-  },
 };
 
 const catalogueHandlers = {
@@ -863,17 +902,18 @@ function paintTools(snapshots, now) {
     configured: readConfiguredProviders(),
     removed: inventory.removed,
     claude: claudeState(),
-    claudePoll,
   }, now);
   /* Redrawn only when something on it changed, so a step in flight keeps
      its button and its line. */
   const { usage, tools } = splitInventory(model);
+  hasBars = usage.some((tool) => tool.windows.length > 0);
+  paintAccountOffer();
   /* Under Claude's bars while the terminal runtime is older than this app. */
   const runtimeNotice = claudeRuntimeNotice();
   const usageKey = limitsKey(usage) + (runtimeNotice === null ? "" : "runtime notice");
   if (usageKey !== drawnUsage) {
     drawnUsage = usageKey;
-    renderLimits(document, elements.usageRows, usage);
+    renderLimits(document, elements.usageRows, usage, { handlers: toolHandlers });
     if (runtimeNotice !== null) {
       elements.usageRows.querySelector('[data-provider-card][data-provider="CLAUDE"]')?.append(runtimeNotice);
     }
@@ -1094,24 +1134,24 @@ bindHomeRefresh({
  * The theme, and the only thing this window persists.
  *
  * Dark is the default and the head script has already applied any stored
- * choice, so all this does is flip the attribute the stylesheet keys off and
- * write the new choice down, under the key the site's own toggle uses.
+ * choice, so all this does is set the attribute the stylesheet keys off,
+ * press the tile that was chosen and write the choice down, under the key the
+ * site's own toggle uses.
  */
-function toggleTheme() {
-  const light = document.documentElement.getAttribute("data-theme") === "light";
-  const next = light ? "dark" : "light";
-  document.documentElement.setAttribute("data-theme", next);
-  const theme = document.getElementById("theme");
-  theme?.setAttribute("aria-pressed", next === "dark" ? "true" : "false");
-  if (theme) theme.textContent = themeLabel(next);
+function setTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  for (const button of document.querySelectorAll("[data-theme-choice]")) {
+    button.setAttribute("aria-pressed", String(button.getAttribute("data-theme-choice") === theme));
+  }
   try {
-    window.localStorage.setItem(THEME_KEY, next);
+    window.localStorage.setItem(THEME_KEY, theme);
   } catch {
     /* Storage refused. The choice still applies to this window. */
   }
 }
 document.addEventListener("click", (event) => {
-  if (event.target instanceof Element && event.target.closest("#theme")) toggleTheme();
+  const choice = event.target instanceof Element ? event.target.closest("[data-theme-choice]") : null;
+  if (choice !== null) setTheme(choice.getAttribute("data-theme-choice") === "light" ? "light" : "dark");
 });
 
 /* The tools' steps: Claude Code's setup, the pasted keys, Codex's import. */
@@ -1135,51 +1175,32 @@ void initWhatsNew().catch(() => {
   // Release notes must not prevent startup if the local resource is unavailable.
 });
 
+/* The account is read once at launch: the menu, the phone panel, the plan
+   and the offer under the first bar all wait on this answer. */
+void accountStatus().then(async (result) => {
+  if (!result.ok) return;
+  applyAccountState(result.value);
+  await readPlan();
+  await renderSettings(elements.settingsMount);
+  if (result.value.syncEnabled !== false) {
+    void accountSyncConfiguredSnapshot(readConfiguredProviders());
+  }
+}, () => {});
+
 initFirstRun({
   setProviderEnabled,
-  accountStatus,
   detectProviders: listDetectedProviders,
   markFor: officialMark,
-  isSignedIn: () => signedIn,
-  mountSignIn,
-  unmountSignIn,
-  /* Step one hands the wire value straight through, so the one place that
-     owns sign in stays the one place that owns sign in. */
-  signInWithProvider: (wire, pressed) => continueWith(wire, pressed),
-  /* Step two's install rows show a command rather than running one. The
-     clipboard is the whole of the help this product offers there. */
-  copyText: async (value) => {
-    try {
-      await navigator.clipboard.writeText(String(value));
-      return { ok: true };
-    } catch (error) {
-      /* A webview with no clipboard permission is a fact, not a failure: the
-         line is on screen and can be selected by hand. */
-      return { ok: false };
-    }
-  },
-  claudePollEnabled,
-  setClaudePoll: (enabled) => setClaudePollEnabled(enabled),
   autostartFirstRun: autostartFirstRunComplete,
   codexSignIn: codexDeviceLoginStart,
   codexSignInPoll: codexDeviceLoginStatus,
   codexSignInCancel: codexDeviceLoginCancel,
-  onAccountState: async (status) => {
-    applyAccountState(status);
-    await readPlan();
-    await renderSettings(elements.settingsMount);
-    if (status.syncEnabled !== false) {
-      void accountSyncConfiguredSnapshot(readConfiguredProviders());
-    }
-  },
+  /* Rust says so once its first scan lands, and after every collection, so
+     Connect fills in from the real scan rather than the empty inventory a
+     window opened before it. */
+  onScanUpdate: (handler) => listen("collector-updated", handler),
   onContinue: () => {
     void refresh();
-  },
-  /* An install row's tool gets its own step on the one screen. */
-  onInstall: (provider) => {
-    document.getElementById("tab-tools")?.click();
-    const code = providerCode(provider);
-    void (ALWAYS_LISTED.includes(code) || code === "CODEX" ? toolHandlers.connect(code) : checkTool(code));
   },
 });
 

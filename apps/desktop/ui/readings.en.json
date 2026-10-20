@@ -55,6 +55,7 @@
   "fixSignInAgainIssue": "Sign in again",
   "fixWaitingIssue": "Waiting for {name}",
   "fixWaitingDetail": "The last window reset. Use {name} once and its limits show again.",
+  "waitingFirstReading": "Waiting for first reading",
   "meterFallback": "Limit",
   "cacheUnreadable": "The saved readings could not be read just now, so only readings that are still fresh are shown.",
   "connect": "Connect",
@@ -113,7 +114,6 @@
   "pairPhone": "Pair your phone",
   "updatesAbout": "Updates and About",
   "theme": "Theme",
-  "themeToggle": "Switch between the light and dark theme",
   "themeDark": "Dark",
   "themeLight": "Light",
   "locked": "Locked",
@@ -135,11 +135,6 @@
   "claudeRequestDrift": "Anthropic answered in a form OpenLimiter cannot read, so your Claude usage could not be read.",
   "startAtSignIn": "Start OpenLimiter when you sign in",
   "startAtSignInNote": "Keeps your bars current after a restart.",
-  "claudePollConsentTitle": "Show your Fable limit?",
-  "claudePollNotNow": "Not now",
-  "claudePollSaveFailed": "The choice could not be saved, so Claude usage stays off.",
-  "claudePollContinueOff": "Continue with Claude off",
   "pasteOpenRouterKey": "Paste your OpenRouter key in the API keys list below.",
-  "checkingSignIn": "Checking your sign in...",
   "cliNotFound": "{name} CLI not found. Put it on PATH, then check again."
 }

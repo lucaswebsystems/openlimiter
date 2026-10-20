@@ -13,8 +13,132 @@
  * a camera, and a camera needs dark modules on a light field. A dark themed
  * window that inverted them would be a window whose pairing code no phone can
  * scan, which is a broken feature rather than a styling preference.
+ *
+ * Beside them, the swatches the four theme presets show in Settings. They are
+ * fixed values rather than live tokens, so every tile shows its own preset
+ * whatever preset the window wears; Product's equal the token sheet, and a
+ * test holds them to it.
  */
 :root {
   --ol-qr-ground: #ffffff;
   --ol-qr-ink: #000000;
+  --ol-preset-product-canvas: #080b10;
+  --ol-preset-product-surface: #0e131b;
+  --ol-preset-product-accent: #2f81f7;
+  --ol-preset-graphite-canvas: #070a0f;
+  --ol-preset-graphite-surface: #0e131b;
+  --ol-preset-graphite-accent: #c3ccd8;
+  --ol-preset-meadow-canvas: #080b10;
+  --ol-preset-meadow-surface: #0e131b;
+  --ol-preset-meadow-accent: #3fb950;
+  --ol-preset-ember-canvas: #080b10;
+  --ol-preset-ember-surface: #0e131b;
+  --ol-preset-ember-accent: #ffa657;
+}
+
+:root[data-theme="light"] {
+  --ol-preset-product-canvas: #f4f7fb;
+  --ol-preset-product-surface: #ffffff;
+  --ol-preset-product-accent: #2f81f7;
+  --ol-preset-graphite-canvas: #edf2f8;
+  --ol-preset-graphite-surface: #ffffff;
+  --ol-preset-graphite-accent: #46566b;
+  --ol-preset-meadow-canvas: #f4f7fb;
+  --ol-preset-meadow-surface: #ffffff;
+  --ol-preset-meadow-accent: #1a7f37;
+  --ol-preset-ember-canvas: #f4f7fb;
+  --ol-preset-ember-surface: #ffffff;
+  --ol-preset-ember-accent: #bc4c00;
+}
+
+/*
+ * The three presets beside Product, as overrides of the accent family (and,
+ * for Graphite, a darker canvas). data-preset on the root applies one: Graphite
+ * and Meadow are free, Ember needs the theme_preset entitlement, and
+ * settings.js decides which one the window wears.
+ *
+ * Each is written per theme, with its contrast measured and held by a test:
+ * a filled primary keeps a 4.5:1 label at rest and on hover, the accent and
+ * its text tints read at 4.5:1 on the canvas and on the surface, and a switch
+ * knob keeps 3:1 against its lit track. The selectors outrank the token
+ * sheet's own theme blocks whichever stylesheet loads first.
+ */
+:root[data-preset="graphite"]:not([data-theme="light"]) {
+  --ol-canvas: #070a0f;
+  --ol-accent: #c3ccd8;
+  --ol-accent-hover: #e4e4e7;
+  --ol-accent-subtle: rgb(195 204 216 / 0.12);
+  --ol-accent-solid-hover: #e4e4e7;
+  --ol-on-accent: #080b10;
+  --ol-primary: #c3ccd8;
+  --ol-primary-hover: #e4e4e7;
+  --ol-on-primary: #080b10;
+  --ol-primary-fill: #c3ccd8;
+  --ol-on-primary-fill: #080b10;
+}
+
+:root[data-preset="graphite"][data-theme="light"] {
+  --ol-canvas: #edf2f8;
+  --ol-accent: #46566b;
+  --ol-accent-hover: #263446;
+  --ol-accent-subtle: rgb(70 86 107 / 0.1);
+  --ol-accent-solid-hover: #263446;
+  --ol-on-accent: #ffffff;
+  --ol-primary: #46566b;
+  --ol-primary-hover: #263446;
+  --ol-on-primary: #ffffff;
+  --ol-primary-fill: #46566b;
+  --ol-on-primary-fill: #ffffff;
+}
+
+:root[data-preset="meadow"]:not([data-theme="light"]) {
+  --ol-accent: #3fb950;
+  --ol-accent-hover: #7ee787;
+  --ol-accent-subtle: rgb(63 185 80 / 0.14);
+  --ol-accent-solid-hover: #56d364;
+  --ol-on-accent: #080b10;
+  --ol-primary: #1a7f37;
+  --ol-primary-hover: #116329;
+  --ol-on-primary: #ffffff;
+  --ol-primary-fill: #1a7f37;
+  --ol-on-primary-fill: #ffffff;
+}
+
+:root[data-preset="meadow"][data-theme="light"] {
+  --ol-accent: #1a7f37;
+  --ol-accent-hover: #116329;
+  --ol-accent-subtle: rgb(26 127 55 / 0.1);
+  --ol-accent-solid-hover: #116329;
+  --ol-on-accent: #ffffff;
+  --ol-primary: #1a7f37;
+  --ol-primary-hover: #116329;
+  --ol-on-primary: #ffffff;
+  --ol-primary-fill: #1a7f37;
+  --ol-on-primary-fill: #ffffff;
+}
+
+:root[data-preset="ember"]:not([data-theme="light"]) {
+  --ol-accent: #ffa657;
+  --ol-accent-hover: #ffc680;
+  --ol-accent-subtle: rgb(219 109 40 / 0.14);
+  --ol-accent-solid-hover: #ffc680;
+  --ol-on-accent: #080b10;
+  --ol-primary: #bc4c00;
+  --ol-primary-hover: #872b00;
+  --ol-on-primary: #ffffff;
+  --ol-primary-fill: #bc4c00;
+  --ol-on-primary-fill: #ffffff;
+}
+
+:root[data-preset="ember"][data-theme="light"] {
+  --ol-accent: #bc4c00;
+  --ol-accent-hover: #872b00;
+  --ol-accent-subtle: rgb(188 76 0 / 0.1);
+  --ol-accent-solid-hover: #872b00;
+  --ol-on-accent: #ffffff;
+  --ol-primary: #bc4c00;
+  --ol-primary-hover: #872b00;
+  --ol-on-primary: #ffffff;
+  --ol-primary-fill: #bc4c00;
+  --ol-on-primary-fill: #ffffff;
 }

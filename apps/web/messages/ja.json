@@ -11,7 +11,6 @@
     "settingsTab": "設定",
     "apiSpend": "API 支出",
     "pasteOpenRouterKey": "下の API キー一覧に OpenRouter のキーを貼り付けてください。",
-    "checkingSignIn": "サインインを確認しています...",
     "cliNotFound": "{name} CLI が見つかりません。PATH に追加してから、もう一度確認してください。",
     "limits": "上限",
     "agents": "エージェント",
@@ -46,7 +45,6 @@
     "pairPhone": "スマートフォンをペアリング",
     "updatesAbout": "更新と概要",
     "theme": "テーマ",
-    "themeToggle": "ライトテーマとダークテーマを切り替え",
     "themeDark": "ダーク",
     "themeLight": "ライト",
     "locked": "ロック中",
@@ -87,6 +85,7 @@
     "fixSignInAgainIssue": "もう一度サインイン",
     "fixWaitingIssue": "{name} を待っています",
     "fixWaitingDetail": "前回の枠がリセットされました。{name} を一度使うと、上限が再び表示されます。",
+    "waitingFirstReading": "最初の読み取りを待っています",
     "meterFallback": "上限",
     "cacheUnreadable": "保存された読み取り値を今は読み込めなかったため、まだ新しい読み取り値だけを表示しています。",
     "connect": "接続",
@@ -113,11 +112,7 @@
     "claudeRequestRateLimited": "Anthropic から待機を求められたため、Claude の使用量を読み取れませんでした。後でもう一度試します。",
     "claudeRequestDrift": "Anthropic の応答が OpenLimiter で読み取れない形式だったため、Claude の使用量を読み取れませんでした。",
     "startAtSignIn": "ログイン時に OpenLimiter を起動",
-    "startAtSignInNote": "再起動後もバーを最新の状態に保ちます。",
-    "claudePollConsentTitle": "Fable の上限を表示しますか？",
-    "claudePollNotNow": "今はしない",
-    "claudePollSaveFailed": "選択を保存できなかったため、Claude の使用量はオフのままです。",
-    "claudePollContinueOff": "Claude の使用量をオフにして続行"
+    "startAtSignInNote": "再起動後もバーを最新の状態に保ちます。"
   },
   "meta": {
     "title": "OpenLimiter、AIコーディングの制限とエージェントの活動",
@@ -2547,7 +2542,8 @@
       "retry": "読み取りを更新",
       "defaultLabel": "このスマートフォン",
       "bars": {
-        "title": "利用状況"
+        "title": "利用状況",
+        "empty": "まだ読み取りがありません。お使いのコンピューターで OpenLimiter を開き、ツールを接続してください。"
       },
       "reading": {
         "title": "利用状況を読み込んでいます",

@@ -1,3 +1,5 @@
+import { FIRST_RUN_STORAGE_KEY } from "./first-run.js";
+
 export const WHATS_NEW_STORAGE_KEY = "openlimiter-whats-new-seen";
 
 export function whatsNewForVersion(version, catalog) {
@@ -13,7 +15,14 @@ export function whatsNewForVersion(version, catalog) {
   };
 }
 
-/** Wait for the existing onboarding flow before taking focus. */
+/**
+ * Wait for the existing onboarding flow before taking focus.
+ *
+ * Release notes are for an upgrade. An install whose first run has never
+ * finished is a fresh one, and its first bars are not covered by a list of
+ * what changed since a version it never ran: when its first run ends, this
+ * release is marked seen and nothing opens.
+ */
 export async function initWhatsNew({
   document: doc = document,
   storage = () => window.localStorage,
@@ -21,6 +30,12 @@ export async function initWhatsNew({
   load = () => import("./whats-new-data.js"),
   observe = (callback) => new MutationObserver(callback),
 } = {}) {
+  let fresh = false;
+  try {
+    fresh = storage().getItem(FIRST_RUN_STORAGE_KEY) !== "complete";
+  } catch {
+    // Unreadable storage cannot prove a fresh install, so it shows the notes.
+  }
   const { version, catalog } = await load();
   const entry = whatsNewForVersion(version, catalog);
   if (!entry) return;
@@ -28,6 +43,15 @@ export async function initWhatsNew({
   const watcher = observe(show);
   function show() {
     if (shown || doc.documentElement.dataset.firstRun !== "complete") return;
+    if (fresh) {
+      watcher.disconnect();
+      try {
+        storage().setItem(WHATS_NEW_STORAGE_KEY, version);
+      } catch {
+        // Storage refused: nothing is remembered, and nothing was shown.
+      }
+      return;
+    }
     try {
       if (storage().getItem(WHATS_NEW_STORAGE_KEY) === version) {
         watcher.disconnect();

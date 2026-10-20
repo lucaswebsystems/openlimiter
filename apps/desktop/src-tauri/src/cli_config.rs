@@ -5,7 +5,6 @@ use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde_json::{Map, Value};
-use tauri::Manager;
 use uuid::Uuid;
 
 const CONFIG_FILE_NAME: &str = "openlimiter-config.json";
@@ -219,21 +218,16 @@ fn read_captions(directory: &Path) -> Result<String, String> {
     Ok(document.get("statusline").and_then(Value::as_object).and_then(|statusline| statusline.get("captions")).and_then(Value::as_str).filter(|value| *value == "short" || *value == "tagged").unwrap_or("short").to_string())
 }
 
-fn caption_request_allowed(captions: &str, theme_preset: bool) -> Result<(), String> {
-    if captions != "short" && captions != "tagged" { return Err("invalid_input".to_string()); }
-    if captions == "tagged" && !theme_preset { return Err("entitlement_required".to_string()); }
-    Ok(())
-}
-
 #[tauri::command]
 pub fn terminal_captions() -> Result<Value, String> {
     let directory = crate::state::state_directory().ok_or_else(|| "config_refused".to_string())?;
     Ok(serde_json::json!({ "captions": read_captions(&directory)? }))
 }
 
+/// Terminal captions are free on every plan; write_captions refuses anything
+/// but the two modes, so no entitlement is read here.
 #[tauri::command]
-pub fn set_terminal_captions(captions: String, app: tauri::AppHandle) -> Result<Value, String> {
-    caption_request_allowed(&captions, crate::pro::theme_preset_enabled(&*app.state::<crate::credentials::KeyringStore>()))?;
+pub fn set_terminal_captions(captions: String) -> Result<Value, String> {
     let directory = crate::state::state_directory().ok_or_else(|| "config_refused".to_string())?;
     write_captions(&directory, &captions)?;
     Ok(serde_json::json!({ "captions": captions }))
@@ -440,11 +434,14 @@ mod tests {
     }
 
     #[test]
-    fn caption_command_distinguishes_free_and_theme_preset_entitlements() {
-        assert_eq!(caption_request_allowed("short", false), Ok(()));
-        assert_eq!(caption_request_allowed("tagged", false), Err("entitlement_required".to_string()));
-        assert_eq!(caption_request_allowed("tagged", true), Ok(()));
-        assert_eq!(caption_request_allowed("other", true), Err("invalid_input".to_string()));
+    fn both_caption_modes_are_free_and_nothing_else_is_written() {
+        let dir = TempDir::new();
+        for captions in ["tagged", "short"] {
+            write_captions(dir.path(), captions).unwrap();
+            assert_eq!(read_captions(dir.path()).unwrap(), captions);
+        }
+        assert_eq!(write_captions(dir.path(), "other"), Err("invalid_input".to_string()));
+        assert_eq!(read_captions(dir.path()).unwrap(), "short");
     }
 
     #[test]

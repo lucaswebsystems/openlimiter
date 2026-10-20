@@ -1,0 +1,10 @@
+{
+  "note": "The one list of what Pro adds. The pricing card, the hub, the phone, the docs and llms.txt read it here; each web surface takes its words from the proFeatures namespace of the five catalogs, and the English label below is the same sentence for readers with no catalog, such as the desktop. entitlement is the feature code a signed Pro token carries. Change the list here and nowhere else.",
+  "features": [
+    { "id": "multiAccount", "entitlement": "multi_account", "label": "More than one account per provider" },
+    { "id": "history", "entitlement": "history", "label": "Ninety days of hosted history, with a forecast" },
+    { "id": "alerts", "entitlement": "alerts", "label": "Phone push and email alerts. Desktop alerts stay free" },
+    { "id": "apiSpend", "entitlement": "api_spend_beta", "label": "Cloud API spend metering for the keys you enable" },
+    { "id": "ember", "entitlement": "theme_preset", "label": "The Ember theme preset" }
+  ]
+}

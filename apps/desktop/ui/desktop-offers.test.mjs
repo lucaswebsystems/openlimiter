@@ -8,15 +8,8 @@ const assurance = "No credit card needed";
 
 test("every trial offer keeps its duration and card assurance together without dashes", () => {
   const html = read("./index.html");
-  const firstRun = html.slice(html.indexOf('id="first-run-account"'), html.indexOf('id="first-run-setup"'));
-  for (const source of [firstRun]) {
-    const block = source.match(/<div class="trial-offer">(.*?)<\/div>/su)?.[1];
-    assert.ok(block);
-    const text = block.replace(/<[^>]+>/gu, " ");
-    assert.ok(text.includes(offer));
-    assert.ok(text.includes(assurance));
-    assert.doesNotMatch(text, /[-\u2010-\u2015]/u);
-  }
+  /* The first run asks for nothing, so no trial banner rides on it. */
+  assert.doesNotMatch(html, /class="trial-offer"/u);
   /* The menu's trial control keeps the duration and its assurance together. */
   assert.match(read("./settings.js"), /start: "Start your free 30 day Pro trial",\s*free: "No card needed",/u);
   assert.match(read("./settings.js"), /TRIAL_EN\.start[\s\S]*?TRIAL_EN\.free/u);
@@ -44,10 +37,24 @@ test("the unchanged trademark notice belongs only to the menu, beside the links,
   assert.equal(notice, "Product names, logos, brands, and other trademarks featured or referred to within OpenLimiter are the property of their respective trademark holders. These trademark holders are not affiliated with OpenLimiter, our products, or our website. They do not sponsor or endorse OpenLimiter. Use of them does not imply any affiliation with or endorsement by them.");
 });
 
-test("first run retains exactly one clearly labelled account bypass", () => {
+test("the account is offered under the bars, with Sign in and a Not now that sticks", () => {
   const html = read("./index.html");
-  assert.equal((html.match(/>Create account later<\/button>/gu) ?? []).length, 1);
-  assert.match(read("./first-run.js"), /#first-run-later"\)\?\.addEventListener\("click", \(\) => \{\s*void showConnect\(\);/u);
+  const usage = html.slice(html.indexOf('id="tab-panel-usage"'), html.indexOf('id="tab-panel-tools"'));
+  const card = usage.match(/<section id="account-offer"[^>]*>([\s\S]*?)<\/section>/u);
+  assert.ok(card, "no account offer under the bars");
+  assert.match(card[0], /^<section id="account-offer"[^>]*\bhidden\b/u);
+  assert.ok(usage.indexOf('id="usage-rows"') < usage.indexOf('id="account-offer"'), "the offer is not under the bars");
+  assert.match(card[1], /<h2 id="account-offer-title">See your bars on your phone<\/h2>/u);
+  assert.match(card[1], /data-i18n="alerts\.signInLead">Every bar and every desktop alert is free with no account/u);
+  assert.match(card[1], /<button type="button" id="account-offer-sign-in" class="q-btn q-btn-primary">Sign in<\/button>/u);
+  assert.match(card[1], /<button type="button" id="account-offer-dismiss" class="q-btn q-btn-ghost">Not now<\/button>/u);
+  assert.doesNotMatch(card[1].replace(/<[^>]+>/gu, " "), /[-‐-―]/u);
+  const app = read("./app.js");
+  assert.match(app, /accountOfferSignIn\?\.addEventListener\("click", openSignIn\)/u);
+  assert.match(app, /accountOfferDismiss\?\.addEventListener\("click", \(\) => \{\s*settleAccountOffer\("dismissed"\);/u);
+  assert.match(app, /window\.localStorage\.setItem\(ACCOUNT_OFFER_STORAGE_KEY, value\)/u);
+  assert.match(app, /if \(signedIn\) settleAccountOffer\("done"\);/u);
+  assert.match(app, /accountOfferShown\(\{/u);
 });
 
 test("switch styles expose a real track, moving knob and keyboard focus using product colours", () => {

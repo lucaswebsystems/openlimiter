@@ -114,8 +114,10 @@ const buttonTone = {
   /* The one accent control. It is the trial and the offer, and nothing else:
      the product's blue means "this is the thing to press" and stops meaning it
      the moment two buttons on a page wear it. Same metrics as every tone here,
-     one property apart, so the rows still line up. */
-  accent: "border-transparent bg-accent-solid text-on-accent hover:bg-accent-solid-hover",
+     one property apart, so the rows still line up. It wears the mark blue,
+     because a white label on the brand blue measures 3.75:1 and on the mark
+     blue 4.8:1 (6.2:1 on its hover). */
+  accent: "border-transparent bg-primary text-on-primary hover:bg-primary-hover",
 } as const;
 
 export type ButtonTone = keyof typeof buttonTone;

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import * as settingsModule from "./settings.js";
 import { captionsMarkup, presetMarkup, renderSettings, themeLabel, wireAutostart } from "./settings.js";
 
 const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
@@ -11,28 +12,160 @@ const tokens = readFileSync(new URL("../../../packages/ui/src/tokens.css", impor
 const webUi = readFileSync(new URL("../../web/components/ui.tsx", import.meta.url), "utf8");
 const hero = readFileSync(new URL("../../web/components/hero.tsx", import.meta.url), "utf8");
 
-test("Settings mounts its account hooks and gates captions by the feature entitlement", () => {
+test("Settings mounts its account hooks; terminal captions are free and Ember is the one Pro preset", () => {
   for (const id of ["menu-account-email", "menu-signed-in", "devices-mount", "pro-mount", "plan-cap-mount", "menu-logout"]) assert.match(html, new RegExp(`id=\"${id}\"`, "u"));
-  const free = captionsMarkup("tagged", false);
-  assert.match(free, /data-caption="tagged"[^>]* disabled/u);
-  assert.match(free, /<span class="menu-lock" aria-hidden="true"><svg/u);
-  const pro = captionsMarkup("tagged", true);
-  assert.doesNotMatch(pro, /data-caption="tagged"[^>]* disabled/u);
-  assert.match(pro, /aria-pressed="true"/u);
-  const freePresets = presetMarkup(false, "graphite");
-  assert.match(freePresets, /data-preset="default"(?![^>]* disabled)/u);
-  assert.match(freePresets, /data-preset="graphite"[^>]* disabled/u);
-  assert.match(settings, /theme_preset/u);
+  for (const entitled of [false, true]) {
+    const captions = captionsMarkup("tagged", entitled);
+    assert.doesNotMatch(captions, /disabled|menu-lock/u, "captions are gated");
+    assert.match(captions, /data-caption="tagged" aria-pressed="true">Tagged everywhere</u);
+  }
+  const free = presetMarkup(false, "graphite");
+  for (const id of ["default", "graphite", "meadow"]) {
+    assert.match(free, new RegExp(`data-preset="${id}" aria-pressed="(?:true|false)">`, "u"), id);
+  }
+  /* The one locked tile stays focusable and says what it is. */
+  assert.match(free, /data-preset="ember" aria-pressed="false" aria-disabled="true" aria-label="Ember, Pro">/u);
+  assert.doesNotMatch(free, /\sdisabled[\s>]/u, "a locked preset cannot be focused");
+  assert.equal((free.match(/menu-lock/gu) ?? []).length, 1);
+  assert.doesNotMatch(presetMarkup(true, "ember"), /aria-disabled|menu-lock/u);
+  const { appliedPreset } = settingsModule;
+  assert.equal(typeof appliedPreset, "function", "no rule for which preset applies");
+  assert.equal(appliedPreset("graphite", false), "graphite");
+  assert.equal(appliedPreset("meadow", false), "meadow");
+  assert.equal(appliedPreset("ember", false), "default", "Ember applied without Pro");
+  assert.equal(appliedPreset("ember", true), "ember");
+  assert.equal(appliedPreset("unknown", true), "default");
+  /* Pressing the locked tile shows the plan rather than doing nothing. */
+  assert.match(settings, /if \(control\.getAttribute\("aria-disabled"\) === "true"\) \{\s*showPlan\(\);\s*return;/u);
   assert.equal(themeLabel("dark"), "Dark");
   assert.equal(themeLabel("light"), "Light");
+});
+
+/* ------------------------------------------------------- the four presets */
+
+const themeCss = readFileSync(new URL("./theme.css", import.meta.url), "utf8");
+
+function block(css, selector) {
+  const at = css.indexOf(selector + " {");
+  if (at < 0) return null;
+  const body = css.slice(at + selector.length + 2, css.indexOf("}", at));
+  return Object.fromEntries([...body.matchAll(/(--[\w-]+):\s*([^;]+);/gu)].map((match) => [match[1], match[2].trim()]));
+}
+
+function hex(value) {
+  const text = String(value ?? "").trim();
+  if (!/^#[0-9a-fA-F]{6}$/u.test(text)) throw new Error(`not a six digit colour: ${text}`);
+  return [1, 3, 5].map((at) => Number.parseInt(text.slice(at, at + 2), 16));
+}
+
+function luminance(rgb) {
+  const [r, g, b] = rgb.map((channel) => channel / 255)
+    .map((channel) => (channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrast(left, right) {
+  const [light, dark] = [luminance(left), luminance(right)].sort((a, b) => b - a);
+  return (light + 0.05) / (dark + 0.05);
+}
+
+/* color-mix(in srgb, X 88%, black), the hover the quiet buttons draw. */
+const darkened = (rgb) => rgb.map((channel) => Math.round(channel * 0.88));
+
+const base = {
+  dark: block(tokens, ":root"),
+  light: block(tokens, ':root[data-theme="light"]'),
+};
+
+test("Graphite, Meadow and Ember are real token overrides, readable in light and dark", () => {
+  for (const preset of ["graphite", "meadow", "ember"]) {
+    for (const theme of ["dark", "light"]) {
+      const selector = theme === "dark"
+        ? `:root[data-preset="${preset}"]:not([data-theme="light"])`
+        : `:root[data-preset="${preset}"][data-theme="light"]`;
+      const own = block(themeCss, selector);
+      assert.ok(own, `no ${preset} ${theme} override in theme.css`);
+      const token = (name) => own[name] ?? base[theme][name];
+      const label = `${preset} ${theme}`;
+      const canvas = hex(token("--ol-canvas"));
+      const surface = hex(token("--ol-surface"));
+      /* A filled primary keeps a readable label, at rest and on hover. */
+      assert.ok(contrast(hex(token("--ol-on-primary")), hex(token("--ol-primary"))) >= 4.5, `${label} primary`);
+      assert.ok(contrast(hex(token("--ol-on-primary")), hex(token("--ol-primary-hover"))) >= 4.5, `${label} primary hover`);
+      assert.ok(contrast(hex(token("--ol-on-primary-fill")), hex(token("--ol-primary-fill"))) >= 4.5, `${label} primary fill`);
+      assert.ok(contrast(hex(token("--ol-on-primary-fill")), darkened(hex(token("--ol-primary-fill")))) >= 4.5, `${label} quiet primary hover`);
+      /* The accent and its text tints read as text on the window and its cards. */
+      for (const name of ["--ol-accent", "--ol-accent-hover", "--ol-accent-solid-hover"]) {
+        assert.ok(contrast(hex(token(name)), surface) >= 4.5, `${label} ${name} on the surface`);
+        assert.ok(contrast(hex(token(name)), canvas) >= 4.5, `${label} ${name} on the canvas`);
+      }
+      /* A switch knob against its lit track, and the focus ring on the canvas. */
+      assert.ok(contrast(hex(token("--ol-on-accent")), hex(token("--ol-accent"))) >= 3, `${label} switch knob`);
+      /* Each tile shows the colours its preset applies, in this theme. */
+      const swatches = block(themeCss, theme === "dark" ? ":root" : ':root[data-theme="light"]');
+      assert.equal(swatches[`--ol-preset-${preset}-canvas`], token("--ol-canvas"), `${label} canvas swatch`);
+      assert.equal(swatches[`--ol-preset-${preset}-surface`], token("--ol-surface"), `${label} surface swatch`);
+      assert.equal(swatches[`--ol-preset-${preset}-accent`], token("--ol-accent"), `${label} accent swatch`);
+    }
+  }
+  /* Product's swatches are the token sheet's own values, so they cannot drift. */
+  for (const theme of ["dark", "light"]) {
+    const swatches = block(themeCss, theme === "dark" ? ":root" : ':root[data-theme="light"]');
+    assert.equal(swatches["--ol-preset-product-canvas"], base[theme]["--ol-canvas"]);
+    assert.equal(swatches["--ol-preset-product-surface"], base[theme]["--ol-surface"]);
+    assert.equal(swatches["--ol-preset-product-accent"], base[theme]["--ol-brand"]);
+  }
+  const settingsSource = readFileSync(new URL("./settings.js", import.meta.url), "utf8");
+  for (const id of ["product", "graphite", "meadow", "ember"]) {
+    assert.match(settingsSource, new RegExp(`swatches: \\["var\\(--ol-preset-${id}-canvas\\)", "var\\(--ol-preset-${id}-surface\\)", "var\\(--ol-preset-${id}-accent\\)"\\]`, "u"), id);
+  }
+});
+
+test("a free preset applies before the first paint; Ember waits for the plan", async () => {
+  const { default: vm } = await import("node:vm");
+  const script = html.slice(html.indexOf("<script>") + "<script>".length, html.indexOf("</script>"));
+  const painted = (stored) => {
+    const values = new Map(Object.entries(stored));
+    const attributes = {};
+    vm.runInNewContext(script, {
+      window: { localStorage: { getItem: (key) => values.get(key) ?? null } },
+      document: { documentElement: { setAttribute: (name, value) => { attributes[name] = value; } } },
+    });
+    return attributes["data-preset"];
+  };
+  assert.equal(painted({ "openlimiter-theme-preset": "graphite" }), "graphite");
+  assert.equal(painted({ "openlimiter-theme-preset": "meadow" }), "meadow");
+  assert.equal(painted({ "openlimiter-theme-preset": "ember" }), undefined, "Ember painted before the plan was read");
+  assert.equal(painted({}), undefined);
+});
+
+test("no gate on terminal captions is left: not the window, not the plan read, not Rust", () => {
+  const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
+  assert.doesNotMatch(app, /setTerminalCaptions\("short"\)|captionsReset/u);
+  const rust = readFileSync(new URL("../src-tauri/src/cli_config.rs", import.meta.url), "utf8");
+  assert.doesNotMatch(rust, /entitlement_required|theme_preset/u);
+  /* The one shared Pro list names Ember as the Pro preset. */
+  const shared = JSON.parse(readFileSync(new URL("../../web/lib/pro-features.json", import.meta.url), "utf8")).features;
+  assert.ok(shared.some((feature) => feature.entitlement === "theme_preset" && feature.label === "The Ember theme preset"));
+});
+
+test("the theme is a Light and Dark pair whose names are their labels", async () => {
+  const mount = { innerHTML: "", querySelector: () => fakeSwitch() };
+  await renderSettings(mount);
+  assert.match(mount.innerHTML, /<span class="preset-grid" role="group" aria-label="Theme"><button type="button" class="preset" data-theme-choice="light" aria-pressed="false">Light<\/button><button type="button" class="preset" data-theme-choice="dark" aria-pressed="true">Dark<\/button><\/span>/u);
+  assert.doesNotMatch(mount.innerHTML, /id="theme"|Switch between the light and dark theme/u);
+  const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
+  assert.match(app, /closest\("\[data-theme-choice\]"\)/u);
+  assert.match(app, /setAttribute\("aria-pressed", String\(button\.getAttribute\("data-theme-choice"\) === theme\)\)/u);
 });
 
 test("Settings aligns caption tiles and keeps filled controls on the shared brand token", () => {
   assert.match(surfaces, /\.preset \{[^}]*justify-items: center;[^}]*text-align: center;/u);
   assert.match(surfaces, /\.preset \.menu-lock \{\s*position: absolute;/u);
-  assert.doesNotMatch(surfaces, /\.preset\[disabled\] \{[^}]*opacity/u);
-  assert.match(appCss, /#settings-appearance #theme \{\s*padding-right: 0;/u);
-  assert.doesNotMatch(appCss, /\.app-menu #theme/u);
+  /* A locked tile is not dimmed: its name is muted, its lock at full contrast. */
+  assert.doesNotMatch(surfaces, /\.preset\[(?:aria-)?disabled[^\]]*\][^{]*\{[^}]*opacity/u);
+  assert.match(surfaces, /\.preset\[aria-disabled="true"\] \.preset-name \{\s*color: var\(--ol-muted\);/u);
+  assert.doesNotMatch(appCss, /#theme\b/u);
   assert.match(tokens, /:root \{[\s\S]*?--ol-primary-fill: #0866FF;[\s\S]*?--ol-on-primary-fill: #ffffff;/u);
   assert.match(tokens, /:root\[data-theme="light"\] \{[\s\S]*?--ol-primary-fill: #0866FF;[\s\S]*?--ol-on-primary-fill: #ffffff;/u);
   assert.doesNotMatch(webUi, /ol-primary-fill/u);

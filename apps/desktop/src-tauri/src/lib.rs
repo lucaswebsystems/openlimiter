@@ -152,12 +152,14 @@ async fn set_tray_status(
             now,
         );
         let mut values = std::collections::BTreeMap::<String, f64>::new();
-        // A stale reading draws flat grey everywhere, so it never colours the tray.
-        for row in projection
-            .snapshots
-            .into_iter()
-            .filter(|row| row.unit == "PERCENT" && data_rules::reason(row, now) != Some("stale"))
-        {
+        // A stale reading draws flat grey everywhere, so it never colours the
+        // tray; it only keeps the tooltip from saying there is no reading.
+        let mut stale_readings = false;
+        for row in projection.snapshots.into_iter().filter(|row| row.unit == "PERCENT") {
+            if data_rules::reason(&row, now) == Some("stale") {
+                stale_readings = true;
+                continue;
+            }
             values
                 .entry(row.provider)
                 .and_modify(|value| *value = value.max(row.value))
@@ -173,6 +175,7 @@ async fn set_tray_status(
                 })
                 .collect(),
             trial_offered.unwrap_or(true),
+            stale_readings,
         )
     }).await.map_err(|e| e.to_string())?
 }

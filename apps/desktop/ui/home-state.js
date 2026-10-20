@@ -24,3 +24,14 @@ export function homeProviders(configured, detections, connections, snapshots, re
     ...snapshots.map((entry) => code(entry.provider)),
   ].filter((provider) => provider && !removed.includes(provider)))];
 }
+
+/**
+ * Whether the account card shows under the bars.
+ *
+ * Only a fresh install is offered it (its first run marks the offer pending),
+ * only once a bar is drawn, only after the account has answered, and never to
+ * a person who is signed in. Not now, or a sign in, settles it for good.
+ */
+export function accountOfferShown({ offer, accountKnown, signedIn, hasBars }) {
+  return offer === "pending" && accountKnown === true && signedIn !== true && hasBars === true;
+}

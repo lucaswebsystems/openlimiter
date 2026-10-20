@@ -11,7 +11,6 @@
     "settingsTab": "Einstellungen",
     "apiSpend": "API Ausgaben",
     "pasteOpenRouterKey": "Fügen Sie Ihren OpenRouter Schlüssel unten in die Liste der API Schlüssel ein.",
-    "checkingSignIn": "Ihre Anmeldung wird geprüft...",
     "cliNotFound": "{name} CLI nicht gefunden. Nehmen Sie sie in PATH auf und prüfen Sie dann erneut.",
     "limits": "Limits",
     "agents": "Agenten",
@@ -46,7 +45,6 @@
     "pairPhone": "Telefon koppeln",
     "updatesAbout": "Aktualisierungen und Über OpenLimiter",
     "theme": "Erscheinungsbild",
-    "themeToggle": "Zwischen hellem und dunklem Erscheinungsbild wechseln",
     "themeDark": "Dunkel",
     "themeLight": "Hell",
     "locked": "Gesperrt",
@@ -87,6 +85,7 @@
     "fixSignInAgainIssue": "Erneut anmelden",
     "fixWaitingIssue": "Warten auf {name}",
     "fixWaitingDetail": "Das letzte Fenster wurde zurückgesetzt. Nutze {name} einmal, dann erscheinen die Limits wieder.",
+    "waitingFirstReading": "Warten auf die erste Messung",
     "meterFallback": "Limit",
     "cacheUnreadable": "Die gespeicherten Messungen konnten gerade nicht gelesen werden, daher werden nur noch aktuelle Messungen angezeigt.",
     "connect": "Verbinden",
@@ -113,11 +112,7 @@
     "claudeRequestRateLimited": "Anthropic hat OpenLimiter um eine Pause gebeten, daher konnte deine Claude Nutzung nicht gelesen werden. Später folgt ein neuer Versuch.",
     "claudeRequestDrift": "Anthropic hat in einer Form geantwortet, die OpenLimiter nicht lesen kann, daher konnte deine Claude Nutzung nicht gelesen werden.",
     "startAtSignIn": "OpenLimiter beim Anmelden am Computer starten",
-    "startAtSignInNote": "Hält deine Balken nach einem Neustart aktuell.",
-    "claudePollConsentTitle": "Dein Fable Limit anzeigen?",
-    "claudePollNotNow": "Jetzt nicht",
-    "claudePollSaveFailed": "Die Auswahl konnte nicht gespeichert werden, deshalb bleibt die Claude Nutzung ausgeschaltet.",
-    "claudePollContinueOff": "Mit ausgeschalteter Claude Nutzung fortfahren"
+    "startAtSignInNote": "Hält deine Balken nach einem Neustart aktuell."
   },
   "meta": {
     "title": "OpenLimiter, KI Programmierlimits und Agentenaktivität",
@@ -2547,7 +2542,8 @@
       "retry": "Messungen aktualisieren",
       "defaultLabel": "Dieses Telefon",
       "bars": {
-        "title": "Ihr Kontingent"
+        "title": "Ihr Kontingent",
+        "empty": "Noch keine Werte. Öffnen Sie OpenLimiter auf Ihrem Computer und verbinden Sie ein Tool."
       },
       "reading": {
         "title": "Ihr Kontingent wird gelesen",

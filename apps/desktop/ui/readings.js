@@ -459,7 +459,14 @@ export function renderLimits(doc, mount, model, { compact = false, handlers = nu
   }));
 }
 
-/** Split the measured bars from the full connection inventory used by Tools. */
+/**
+ * Split the measured bars from the full connection inventory used by Tools.
+ *
+ * Usage keeps a row for a tool that is set up and waiting for its first
+ * reading, and for one that needs its sign in, with the same step Connect
+ * Tools offers: a connected tool never vanishes from Usage, and Usage never
+ * says "No bars yet" over tools that are already connected.
+ */
 export function splitInventory(model = []) {
   const usage = [];
   const tools = [];
@@ -470,6 +477,8 @@ export function splitInventory(model = []) {
       tools.push({ ...tool, windows: [], note: tool.failure ?? tool.note ?? say("connected") });
     } else {
       tools.push(tool);
+      if (tool.usage === "waiting") usage.push({ ...tool, extra: [] });
+      if (tool.usage === "signin") usage.push({ ...tool, note: say("fixSignInIssue"), extra: [] });
     }
   }
   return { usage, tools };
@@ -485,6 +494,12 @@ const CONNECTABLE = new Set(["CLAUDE", "CODEX", "ANTIGRAVITY", "OPENCODE", "OPEN
 
 /* Connection states a stored credential cannot read through. */
 const REFUSED = new Set(["NEEDS_AUTH", "AUTH_EXPIRED", "ERROR"]);
+
+/* The ones among them that a new sign in fixes. */
+const SIGNED_OUT = new Set(["NEEDS_AUTH", "AUTH_EXPIRED"]);
+
+/* Connection states that read on their own once they have something to read. */
+const LIVE = new Set(["CONNECTING", "CONNECTED", "DEGRADED", "STALE"]);
 
 /* Fixes worth offering for another account of a tool that already reads. */
 const ACCOUNT_FIXES = new Set(["sign_in", "reconnect", "open_app"]);
@@ -514,33 +529,34 @@ const step = (kind, key, title = null) => ({ action: { kind, label: say(key), ti
  * setup. "connect" opens this window's own setup or key field for the tool;
  * "check" looks again after the person did the step in the tool itself.
  */
-function nextStep(code, name, { flag, flags, records, detection, claude, claudePoll }) {
+function nextStep(code, name, { flag, flags, records, detection, claude }) {
   const title = (key) => say(key, { name });
   const reasons = new Set(flags.map((entry) => entry.reason));
-  /* A failed Claude usage request says what happened, before any setup step. */
+  /* A failed Claude usage request says what happened, before any setup step;
+     like any connected tool it keeps its row on Usage, with that note. */
   const failure = code === "CLAUDE" ? claudeRequestNote(flags) : null;
-  if (failure !== null) return { note: failure };
-  /* Waiting with the direct check still off: one click turns it on and reads. */
-  const waiting = code === "CLAUDE" && claudePoll === false
-    ? {}
-    : { note: say("fixWaitingIssue", { name }) };
-  if (reasons.has("awaiting_statusline")) return waiting;
+  if (failure !== null) return { note: failure, usage: "waiting" };
+  /* Set up, quiet and with nothing wrong: its first reading is on the way, so
+     the row waits with no button, in Connect Tools and on Usage alike. */
+  const waiting = { note: say("waitingFirstReading"), usage: "waiting" };
+  if (reasons.has("awaiting_statusline")) return { note: say("fixWaitingIssue", { name }), usage: "waiting" };
   /* A CLI that is not installed blocks every other step, a connect or a sign
      in included, so it is named first; native code marks it per account. */
   if (detection?.accounts?.some((account) => account.recovery === "install_cli")) {
     return { ...step("check", "fixOpenAppAction"), note: say("cliNotFound", { name }) };
   }
-  const signInAgain = step("check", "fixSignInAgainIssue", title("fixToolDetail"));
+  /* A tool that needs its sign in keeps a row on Usage with this same step. */
+  const signInAgain = { ...step("check", "fixSignInAgainIssue", title("fixToolDetail")), usage: "signin" };
   /* Its action only looks again, so it says so. */
   if (reasons.has("account_unresolved")) return step("check", "fixOpenAppAction", title("fixToolDetail"));
   const refused = records.some((record) => REFUSED.has(record.state));
+  const signedOut = records.some((record) => SIGNED_OUT.has(record.state)) || flag?.fixKind === "sign_in";
   const loggedOut = detection?.state === "installed_logged_out";
   if (code === "CLAUDE") {
     if (loggedOut) return signInAgain;
     if (claude === "READY_TO_ENABLE" || claude === "CONNECTED") return waiting;
     return step("connect", "connect");
   }
-  if (code === "OPENROUTER") return records.length === 0 || refused ? step("connect", "connect") : step("check", "fixOpenAppAction");
   if (code === "ANTIGRAVITY") {
     if (detection?.statusline_state === "legacy") {
       return { ...step("connect", "setupAntigravityStatusLine"), note: say("antigravityStatusLineLegacy") };
@@ -549,13 +565,21 @@ function nextStep(code, name, { flag, flags, records, detection, claude, claudeP
       return { ...step("check", "fixOpenAppAction"), note: say("antigravityStatusLineDisabled") };
     }
     return detection?.statusline_configured === true
-      ? { note: say("antigravityStatusLineIdle") }
+      ? { note: say("antigravityStatusLineIdle"), usage: "waiting" }
       : step("connect", "setupAntigravityStatusLine");
   }
   if (code === "GEMINI_CLI" && flag?.reason === "quota_unavailable") return { note: say("geminiCliConsumerRetired") };
   if (flag?.fixKind === "unsupported") return { note: say("fixUnsupportedIssue") };
-  if (CONNECTABLE.has(code) && (refused || flag?.fixKind === "reconnect" || flag?.fixKind === "sign_in")) return step("connect", "connect");
+  /* A stored connection says where its tool stands before any provider's own
+     steps, OpenRouter's included: signed out offers Connect and keeps a row
+     on Usage, an error offers Connect, and a live one that has not read yet
+     waits, on Usage too. */
+  if (CONNECTABLE.has(code) && signedOut) return { ...step("connect", "connect"), usage: "signin" };
+  if (CONNECTABLE.has(code) && (refused || flag?.fixKind === "reconnect")) return step("connect", "connect");
+  if (records.some((record) => LIVE.has(record.state)) && flag === undefined) return waiting;
+  if (code === "OPENROUTER") return records.length === 0 ? step("connect", "connect") : step("check", "fixOpenAppAction");
   if (loggedOut || flag?.fixKind === "sign_in") return signInAgain;
+  if (detection?.state === "present" && flag === undefined) return waiting;
   return step("check", "fixOpenAppAction", title(flag?.fixKind === "open_app" ? "fixOpenAppDetail" : "fixToolDetail"));
 }
 
@@ -565,10 +589,11 @@ function nextStep(code, name, { flag, flags, records, detection, claude, claudeP
  * row, is detected or connected, is flagged, or a person chose it; one that
  * was switched off leaves unless it always has a row. Measured tools come
  * first, tightest first, with their bars; every other tool follows with a
- * note or one step. `claude` is the Claude Code setup state Connections reads, `claudePoll` the
- * direct Claude check setting (false offers its one click, null is unknown).
+ * note or one step. `claude` is the Claude Code setup state Connections reads.
+ * A tool waiting for its first reading, or for its sign in, is marked with
+ * `usage` so Usage keeps its row too.
  */
-export function inventoryModel({ snapshots = [], flags = [], detections = null, connections = [], configured = [], removed = [], claude = null, claudePoll = null } = {}, now) {
+export function inventoryModel({ snapshots = [], flags = [], detections = null, connections = [], configured = [], removed = [], claude = null } = {}, now) {
   const measured = limitsModel(snapshots, now);
   const shown = new Set(measured.map((tool) => tool.code));
   const off = switchedOff(flags, removed);
@@ -589,7 +614,7 @@ export function inventoryModel({ snapshots = [], flags = [], detections = null, 
     ...measured.map((tool) => {
       const detection = detected.find((entry) => providerCode(entry.provider_id) === tool.code);
       const antigravity = tool.code === "ANTIGRAVITY"
-        ? nextStep(tool.code, tool.name, { flag: best.get(tool.code), flags: [], records: [], detection, claude, claudePoll })
+        ? nextStep(tool.code, tool.name, { flag: best.get(tool.code), flags: [], records: [], detection, claude })
         : null;
       const failure = tool.code === "CLAUDE" ? claudeRequestNote(flags) : null;
       return {
@@ -608,9 +633,11 @@ export function inventoryModel({ snapshots = [], flags = [], detections = null, 
         records: connections.filter((entry) => providerCode(entry.provider) === code),
         detection: detected.find((entry) => providerCode(entry.provider_id) === code),
         claude,
-        claudePoll,
       });
-      return { code, name, windows: [], age: null, action: next.action ?? null, note: next.note ?? null, extra: [] };
+      return {
+        code, name, windows: [], age: null, action: next.action ?? null, note: next.note ?? null, extra: [],
+        ...(next.usage ? { usage: next.usage } : {}),
+      };
     }),
   ];
 }

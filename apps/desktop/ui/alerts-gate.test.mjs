@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { trialDaysRemaining, trialSentence } from "./pro.js";
-import { ALERTS_EN, CLAUDE_POLL_EN, quietOn } from "./settings.js";
+import { say } from "./names.js";
+import { ALERTS_EN, quietOn } from "./settings.js";
 import { shouldNotifyLocally, shouldSendRemote, thresholdDedupeKey } from "../../../packages/core/dist/contracts/notify.js";
 
 const read = (name) => readFileSync(new URL("./" + name, import.meta.url), "utf8");
@@ -33,7 +34,7 @@ test("the operating system is asked for alerts once, when the menu with the Aler
   assert.equal(read("index.html").includes("first-run-permission"), false);
 });
 
-test("the menu names its controls in short labels, and keeps the Claude poll's one sentence", () => {
+test("the menu names its controls in short labels, and never asks about the Claude request", () => {
   const settings = read("settings.js");
   const html = read("index.html");
   for (const key of Object.keys(ALERTS_EN)) {
@@ -45,8 +46,12 @@ test("the menu names its controls in short labels, and keeps the Claude poll's o
     }
     assert.doesNotMatch(ALERTS_EN[key], /[-\u2010-\u2015]/u);
   }
+  /* Settings neither shows nor saves the Claude direct usage request: its one
+     switch lives on the Claude row in Connect Tools, and nowhere else. */
+  assert.doesNotMatch(settings, /claude-poll|setClaudePollEnabled|CLAUDE_POLL_EN|showClaudeFable/u);
+  /* The switch's note on the Claude row in Connect Tools. */
   assert.equal(
-    CLAUDE_POLL_EN.note,
+    say("showClaudeFableNote"),
     "Off unless you turn it on. When on, OpenLimiter sends your Claude Code login only to Anthropic, about every five minutes, to read your usage, and that reading becomes the source of every Claude bar. Anthropic's policy for tools like this is unresolved."
   );
   /* Contract 5.2: equal times are no quiet period, so the switch is the truth. */

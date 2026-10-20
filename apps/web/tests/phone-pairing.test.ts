@@ -1238,7 +1238,10 @@ describe("the pair page", () => {
     mounted = render(createElement(PairFlow));
     await findByText(mounted.container, hub.install.action);
     const row = mounted.container.querySelector(".ol-install-row");
-    const bars = mounted.container.querySelector(".ol-telemetry-table");
+    /* A read with no rows says so where the bars go, never loading forever. */
+    await findByText(mounted.container, hub.pairPage.bars.empty);
+    const bars = [...mounted.container.querySelectorAll("p")].find((node) => node.textContent === hub.pairPage.bars.empty) ?? null;
+    expect(mounted.container.querySelector(".ol-telemetry-table")).toBeNull();
     expect(row).not.toBeNull();
     expect(bars).not.toBeNull();
     expect((row as Node).compareDocumentPosition(bars as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

@@ -64,6 +64,11 @@ test("only a waiting agent offers Show app, and it locates that session", async 
   await buttons[0].fire("click");
   assert.deepEqual(located, ["opaque"]);
   assert.deepEqual(mount.all((node) => node.className === "q-mark").map((mark) => mark.dataset.provider), ["CLAUDE", "CLAUDE"]);
+  /* The list the mount announces is made of list items, as assistive
+     technology expects of a role list. */
+  const rows = mount.children;
+  assert.equal(rows.length, 2);
+  assert.ok(rows.every((row) => row.getAttribute("role") === "listitem"));
 });
 
 test("mount renders safely, locates only on click, reports its count and carries no alert settings", async () => {

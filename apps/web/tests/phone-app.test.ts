@@ -202,4 +202,19 @@ describe("the paired phone shell", () => {
     expect(unpaired).toHaveBeenCalledOnce();
     expect(readPhonePairMeta()).toBeNull();
   });
+
+  it("a read that brings back no rows says so instead of loading forever", async () => {
+    const pairFlow = await import("@/app/app/pair/pair-flow");
+    const PhoneBars = (pairFlow as Record<string, unknown>).PhoneBars as ((props: Record<string, unknown>) => ReactNode) | undefined;
+    expect(PhoneBars, "the phone bars are not exported").toBeTypeOf("function");
+    const empty = (messages.hub.pairPage.bars as Record<string, string>).empty;
+    expect(empty).toBe("No readings yet. Open OpenLimiter on your computer and connect a tool.");
+    render(createElement(PhoneBars!, {
+      body: { rows: [] }, stale: false, locale: "en", staleLabel: "Stale", now: "2026-10-20T12:00:00.000Z",
+      freshLabel: "Fresh", staleStateLabel: "Stale", unknownAgeLabel: "Unknown", ageLabel: () => "",
+      stateAnnouncement: () => "", accountLabel: (count: number) => `Account ${count}`, emptyLabel: empty,
+    }));
+    expect(container.textContent).toContain(empty);
+    expect(container.querySelector(".ol-row-skeleton")).toBeNull();
+  });
 });

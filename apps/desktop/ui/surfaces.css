@@ -366,6 +366,32 @@ button.danger:hover {
   background: var(--ol-backdrop);
 }
 
+/* The sign in sheet is a native modal dialog. Its own box gives way to the
+   same full window backdrop the keeper sheet draws, and it shows only while
+   open; the top layer already sits above everything, the browser's own
+   backdrop is left clear. */
+dialog.sheet {
+  width: auto;
+  max-width: none;
+  height: auto;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  color: inherit;
+}
+
+dialog.sheet:not([open]) {
+  display: none;
+}
+
+dialog.sheet[open] {
+  display: grid;
+}
+
+dialog.sheet::backdrop {
+  background: transparent;
+}
+
 .sheet-panel {
   width: min(100%, 28rem);
   max-height: calc(100vh - var(--ol-space-6));
@@ -595,19 +621,10 @@ select.field:focus-visible {
   background: var(--accent-subtle);
 }
 
-.preset[disabled] {
-  cursor: default;
-}
-
-/* Dim what is locked, never the lock itself, so the badge keeps its contrast. */
-.preset[disabled] .preset-swatches,
-.preset[disabled] .preset-name {
-  opacity: 0.55;
-}
-
-:root[data-theme="light"] .preset[disabled] .preset-swatches,
-:root[data-theme="light"] .preset[disabled] .preset-name {
-  opacity: 1;
+/* A locked tile is not dimmed: its name is muted, its swatches and lock keep
+   their full contrast, and it stays focusable, saying it is Pro. */
+.preset[aria-disabled="true"] .preset-name {
+  color: var(--ol-muted);
 }
 
 .preset-swatches {
@@ -1073,16 +1090,6 @@ select.field:focus-visible {
   font-size: var(--ol-text-micro);
 }
 
-.trial-offer {
-  margin-block: var(--ol-space-3);
-  color: var(--ol-heading);
-}
-
-.trial-offer > p {
-  margin: var(--ol-space-1) 0 0;
-  color: var(--ol-body);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .provider-switch-track::before {
     transition: none;
@@ -1190,16 +1197,6 @@ select.field:focus-visible {
   color: var(--muted);
   font-size: var(--ol-text-caption);
   line-height: var(--ol-leading-body);
-}
-
-/* The first run step wears the same head, so the panel's own lockup steps
-   aside for it and the step marks sit on the centre line. */
-.first-run[data-step="account"] .first-run-lockup {
-  display: none;
-}
-
-.first-run[data-step="account"] .first-run-steps {
-  justify-content: center;
 }
 
 .sign-in-body {
