@@ -21,7 +21,10 @@ import {
   BACKEND_ABSENT,
   accountStatus,
   autostartStatus,
+  checkForUpdate,
+  installUpdate,
   notificationSettings,
+  openDownloadPage,
   proStatus,
   proService,
   setAutostart,
@@ -100,9 +103,15 @@ export function updateView(update) {
   return { menu: "Install OpenLimiter " + version, banner: "OpenLimiter " + version + " is ready. Install now.", href: null };
 }
 
-/* Stub with today's behaviour (moved from app.js): the banner calls
-   window.open for the download page and the menu always checks again. */
-export function wireUpdates({ menu, banner }, api) {
+/**
+ * The two update controls, Settings' "Check for updates" and the banner over
+ * the tabs. A release this app installs is offered as an install, and the
+ * menu checks again. A release the manifest has no installer for here
+ * (macOS) sends both controls to the download page through the app's one
+ * native opener action (Astra 2.1.7, finding 2). Returns the check, which the
+ * window also runs once, silently, at start.
+ */
+export function wireUpdates({ menu, banner }, api = { checkForUpdate, installUpdate, openDownloadPage }) {
   let href = null;
   const run = async (silent) => {
     if (!silent) menu.textContent = "Checking for updates";
@@ -121,10 +130,13 @@ export function wireUpdates({ menu, banner }, api) {
     banner.hidden = false;
     menu.textContent = view.menu;
   };
-  menu.addEventListener("click", () => { void run(false); });
+  menu.addEventListener("click", () => {
+    if (href !== null) void api.openDownloadPage();
+    else void run(false);
+  });
   banner.addEventListener("click", () => {
     if (href !== null) {
-      globalThis.window?.open(href, "_blank", "noopener,noreferrer");
+      void api.openDownloadPage();
       return;
     }
     banner.disabled = true;

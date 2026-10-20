@@ -17,10 +17,21 @@ pub enum UpdateFailure {
     DownloadPageUnavailable,
 }
 
-/// Stub with today's behaviour: nothing native opens the download page.
+/// Where a release the manifest has no installer for here (macOS while it is
+/// unsigned) is downloaded from.
+const DOWNLOAD_PAGE: &str = "https://openlimiter.com/download";
+
+/// Open the download page in the person's browser: the one native action both
+/// manual update controls use (Astra 2.1.7, finding 2). It takes no address
+/// from the window, so it can open nothing else.
+#[tauri::command]
+pub fn open_download_page(app: AppHandle) -> Result<(), UpdateFailure> {
+    use tauri_plugin_opener::OpenerExt as _;
+    open_download_page_with(|url| app.opener().open_url(url, None::<&str>))
+}
+
 fn open_download_page_with<E>(open: impl FnOnce(&str) -> Result<(), E>) -> Result<(), UpdateFailure> {
-    let _ = open;
-    Ok(())
+    open(DOWNLOAD_PAGE).map_err(|_| UpdateFailure::DownloadPageUnavailable)
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize)]

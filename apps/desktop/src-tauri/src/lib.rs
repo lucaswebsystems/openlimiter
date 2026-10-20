@@ -318,7 +318,8 @@ pub fn run() {
             notifications::notification_settings,
             notifications::set_notification_settings,
             updates::check_for_update,
-            updates::install_update
+            updates::install_update,
+            updates::open_download_page
         ])
         .setup(|app| {
             /* The main window starts hidden (tauri.conf.json) and is shown
