@@ -757,37 +757,50 @@ describe("the read route: reads the token cookie, never a body", () => {
     expect(response.status).toBe(503);
   });
 
-  /* Astra finding 1. The read token carries the plan it was signed with, which
-     stays the same until the token is renewed, normally twelve hours later. A
-     plan that changed in between must not be told from it: the phone shows
-     only what the server read itself reports, now. */
-  it("answers what the server read reports about the plan, never the plan signed into its own token", async () => {
+  /* Astra finding 1, with the PRO lane's server change (Pro PR #6): the read
+     answers { schema_version, rows, entitlement }, entitlement null when the
+     account never had a plan row. The phone shows what that read reports.
+     An older server, or a rollback, sends no entitlement key at all; only then
+     does the route add the plan signed into its own read token, as before. */
+  it("answers the server read's plan as it is, and the token's plan only when the read has no entitlement key", async () => {
     const segment = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
     const token = [
       segment({ alg: "EdDSA", kid: "test", typ: "OLP2" }),
-      segment({ aud: "phone", scope: "read", plan_state: "active", interval: "monthly", features: ["alerts", "history"] }),
+      segment({ aud: "phone", scope: "read", plan_state: "active", interval: "monthly", features: ["alerts", "history"], exp: 4_102_444_800 }),
       "signature",
     ].join(".");
-    const cancelled = {
-      rows: [],
-      entitlement: { plan_state: "canceled", features: [], trial_ends_at: null, current_period_end: "2026-10-01T00:00:00.000Z", cancel_at_period_end: true, past_due_until: null },
-    };
-    for (const upstream of [cancelled, { rows: [] }]) {
+    const read = async (upstream: unknown) => {
       vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(upstream), { status: 200 })));
       const response = await readPost(
         jsonRequest("https://openlimiter.com/app/pair/api/read", undefined, `${PHONE_TOKEN_COOKIE}=${token}`),
       );
       const answer = await response.json();
-      expect(answer).toEqual({ body: upstream });
       expect(JSON.stringify(answer)).not.toContain(token);
-    }
+      return answer;
+    };
+    const cancelled = {
+      schema_version: 3,
+      rows: [],
+      entitlement: { plan_state: "canceled", features: [], trial_ends_at: null, current_period_end: "2026-10-01T00:00:00.000Z", cancel_at_period_end: true, past_due_until: null },
+    };
+    expect(await read(cancelled)).toEqual({ body: cancelled });
+    const never = { schema_version: 3, rows: [], entitlement: null };
+    expect(await read(never)).toEqual({ body: never });
+    const older = { schema_version: 3, rows: [] };
+    expect(await read(older)).toEqual({
+      body: older,
+      plan: { plan_state: "active", features: ["alerts", "history"], trial_ends_at: null, current_period_end: null, cancel_at_period_end: false, past_due_until: null },
+    });
   });
 
-  it("reads the plan from the server read: none ever, a plan, or not reported", () => {
+  it("reads the plan: the read's own, none ever, the token's when the read has no key, and nothing it cannot read", () => {
+    const token = { plan_state: "canceled", features: [] };
+    const active = { plan_state: "active", features: ["alerts"] };
+    expect(phoneEntitlementOf({ rows: [], entitlement: active }, token)?.planState).toBe("active");
+    expect(phoneEntitlementOf({ rows: [], entitlement: null }, active)).toBeNull();
+    expect(phoneEntitlementOf({ rows: [] }, active)?.planState).toBe("active");
     expect(phoneEntitlementOf({ rows: [] })).toBeUndefined();
-    expect(phoneEntitlementOf({ rows: [], entitlement: null })).toBeNull();
-    expect(phoneEntitlementOf({ rows: [], entitlement: { plan_state: "made_up" } })).toBeUndefined();
-    expect(phoneEntitlementOf({ rows: [], entitlement: { plan_state: "active", features: ["alerts"] } })?.planState).toBe("active");
+    expect(phoneEntitlementOf({ rows: [], entitlement: { plan_state: "made_up" } }, active)).toBeUndefined();
   });
 });
 
@@ -1606,11 +1619,14 @@ describe("the paired phone's Pro tab", () => {
   const LATER = new Date(Date.now() + 10 * 86_400_000).toISOString();
   const EARLIER = new Date(Date.now() - 86_400_000).toISOString();
 
-  function pairedWith(entitlement?: unknown) {
+  /* `entitlement` is what the server read reports (left out: an older server);
+     `tokenPlan` is what the route adds from the read token in that case. */
+  function pairedWith(entitlement?: unknown, tokenPlan?: unknown) {
     window.localStorage.setItem(PHONE_PAIR_META_KEY, JSON.stringify({ label: "Test phone", expiresAt: Date.now() / 1000 + 80_000 }));
     const body = entitlement === undefined ? { rows: [] } : { rows: [], entitlement };
+    const answer = tokenPlan === undefined ? { body } : { body, plan: tokenPlan };
     vi.stubGlobal("fetch", fetchRoutedTo({
-      "/app/pair/api/read": () => new Response(JSON.stringify({ body }), { status: 200 }),
+      "/app/pair/api/read": () => new Response(JSON.stringify(answer), { status: 200 }),
     }));
   }
 
@@ -1680,11 +1696,27 @@ describe("the paired phone's Pro tab", () => {
     }
   });
 
-  it("offers nothing and says so when the server read does not report the plan", async () => {
+  it("falls back to the token's plan when an older server read has no entitlement key", async () => {
+    pairedWith(undefined, { plan_state: "active", features: ["alerts", "history"] });
+    const panel = await proPanel();
+    expect(panel.textContent).not.toContain(hub.trial.start);
+    expect(panel.textContent).not.toContain(hub.pro.phonePlan.unavailable);
+    expect(panel.textContent).toContain(messages.proPortal.plan.active.title);
+  });
+
+  it("offers nothing and says so when neither the read nor its token reports the plan", async () => {
     pairedWith();
     const panel = await proPanel();
     expect(panel.textContent).not.toContain(hub.trial.start);
     expect(panel.textContent).not.toContain(hub.pro.expired.title);
+    expect(panel.textContent).toContain(hub.pro.phonePlan.unavailable);
+  });
+
+  it("says the plan cannot be read when the read reports one it cannot read, whatever the token says", async () => {
+    pairedWith({ plan_state: "made_up" }, { plan_state: "active", features: ["alerts"] });
+    const panel = await proPanel();
+    expect(panel.textContent).not.toContain(messages.proPortal.plan.active.title);
+    expect(panel.textContent).not.toContain(hub.trial.start);
     expect(panel.textContent).toContain(hub.pro.phonePlan.unavailable);
   });
 
