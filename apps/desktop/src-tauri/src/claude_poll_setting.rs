@@ -99,8 +99,8 @@ impl ClaudePollSetting {
         if let Some(directory) = self.directory.as_deref() {
             let due = || read() == Ok(None) && crate::cli_config::legacy_claude_poll(directory);
             if due() {
-                let _ = crate::cli_config::with_lock(directory, || {
-                    if due() {
+                let _ = crate::cli_config::with_lock(directory, |held| {
+                    if due() && held.owned() {
                         let _ = write_document(directory, true);
                     }
                 });
@@ -127,22 +127,27 @@ impl ClaudePollSetting {
     /// 2.1.5 runtime still installed reads. `Ok(true)` when this turned it on.
     ///
     /// Both writes happen under the state lock the command line tool's setter
-    /// takes too, so concurrent changes end in one state. The store of truth
-    /// is written first and the answer changes only once it succeeded: a
-    /// switch that turns on when its own storage failed is a switch nobody
-    /// consented to. A mirror that cannot be written leaves the switch as set
-    /// and is reported through the view. TypeScript twin: config.ts
-    /// setClaudePoll.
+    /// takes too, so concurrent changes end in one state, and each is fenced
+    /// on that lock still being this setter's: one reclaimed before the store
+    /// of truth fails the set, and one reclaimed before the mirror leaves the
+    /// other writer's mirror alone. The store of truth is written first and
+    /// the answer changes only once it succeeded: a switch that turns on when
+    /// its own storage failed is a switch nobody consented to. A mirror not
+    /// written leaves the switch as set and is reported through the view.
+    /// TypeScript twin: config.ts setClaudePoll.
     pub fn set(&self, enabled: bool) -> Result<bool, String> {
         let directory = self.directory.as_deref().ok_or_else(storage_error)?;
-        let (newly_enabled, mirrored) = crate::cli_config::with_lock(directory, || {
+        let (newly_enabled, mirrored) = crate::cli_config::with_lock(directory, |held| {
             let was_enabled = crate::state::read_claude_poll(Some(directory)) == Ok(Some(true));
             #[cfg(test)]
             pause("store");
+            if !held.owned() {
+                return Err(storage_error());
+            }
             write_document(directory, enabled)?;
             #[cfg(test)]
             pause("mirror");
-            let mirrored = crate::cli_config::mirror_claude_poll(directory, enabled).is_ok();
+            let mirrored = held.owned() && crate::cli_config::mirror_claude_poll(directory, enabled).is_ok();
             Ok::<_, String>((enabled && !was_enabled, mirrored))
         })
         .map_err(|_| storage_error())??;
@@ -432,7 +437,7 @@ mod tests {
         std::fs::write(&config, r#"{"version":1,"providers":{"claude":{"poll":true,"recorded":true}}}"#).expect("fixture");
         let root = dir.path().to_path_buf();
         // This thread holds the shared lock, as a 2.1.5 setter does while it saves.
-        let mover = crate::cli_config::with_lock(dir.path(), || {
+        let mover = crate::cli_config::with_lock(dir.path(), |_| {
             let mover = std::thread::spawn(move || ClaudePollSetting::at(Some(root)).status());
             std::thread::sleep(std::time::Duration::from_millis(300));
             std::fs::write(&config, r#"{"version":1,"providers":{"claude":{"poll":false,"recorded":true}}}"#)

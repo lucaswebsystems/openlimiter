@@ -377,9 +377,11 @@ async function writeClaudePollDocument(directory: string, enabled: boolean): Pro
  * Set the Claude request switch in its one store of truth, then mirror the
  * legacy keys so a 2.1.5 runtime still installed follows the same choice.
  * Both writes happen under the state lock the desktop's switch takes too, so
- * concurrent changes end in one state. A mirror that cannot be written leaves
- * the store of truth as set and comes back as `mirrored: false`. Rust twin:
- * claude_poll_setting.rs set.
+ * concurrent changes end in one state, and each is fenced on that lock still
+ * being this setter's: one reclaimed before the store of truth fails the set,
+ * and one reclaimed before the mirror leaves the other writer's mirror alone.
+ * A mirror not written leaves the store of truth as set and comes back as
+ * `mirrored: false`. Rust twin: claude_poll_setting.rs set.
  */
 export async function setClaudePoll(
   enabled: boolean,
@@ -388,14 +390,16 @@ export async function setClaudePoll(
   /* A test's stand in for this setter pausing before a write. */
   pause: (step: "store" | "mirror") => Promise<void> = async () => undefined
 ): Promise<{ mirrored: boolean }> {
-  return withStateLock(directory, async () => {
+  return withStateLock(directory, async (owned) => {
     await pause("store");
+    if (!(await owned())) throw new Error("The state lock passed to another writer");
     await writeClaudePollDocument(directory, enabled);
     try {
       const stored = await readConfig(directory);
       if (!stored.ok && stored.reason !== "missing") return { mirrored: false };
       const current = stored.ok ? stored.config : defaultConfig(environment);
       await pause("mirror");
+      if (!(await owned())) return { mirrored: false };
       await writeConfig({ ...current, providers: { claude: { poll: enabled, recorded: true } } }, directory);
       return { mirrored: true };
     } catch {
@@ -419,8 +423,8 @@ export async function migrateLegacyClaudePoll(directory = resolveStateDirectory(
     return legacy.recorded && legacy.poll;
   };
   if (!(await due())) return;
-  await withStateLock(directory, async () => {
-    if (await due()) await writeClaudePollDocument(directory, true);
+  await withStateLock(directory, async (owned) => {
+    if (await due() && await owned()) await writeClaudePollDocument(directory, true);
   });
 }
 

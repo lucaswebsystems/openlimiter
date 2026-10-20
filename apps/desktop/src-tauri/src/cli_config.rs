@@ -105,16 +105,19 @@ fn pid_alive(pid: u64) -> bool {
     true
 }
 
-struct ConfigLock { path: PathBuf, token: String }
+pub(crate) struct ConfigLock { path: PathBuf, token: String }
+
+impl ConfigLock {
+    /// Whether the lock still names this holder. One held past MAX_LOCK_AGE
+    /// is reclaimed even from a live owner.
+    pub(crate) fn owned(&self) -> bool {
+        read_owner(&self.path).is_some_and(|(_, _, token)| token == self.token)
+    }
+}
 
 impl Drop for ConfigLock {
     fn drop(&mut self) {
-        let owned = fs::read_to_string(self.path.join("owner.json"))
-            .ok()
-            .and_then(|text| serde_json::from_str::<Value>(&text).ok())
-            .and_then(|value| value.get("token").and_then(Value::as_str).map(str::to_owned))
-            .is_some_and(|token| token == self.token);
-        if owned { let _ = fs::remove_dir_all(&self.path); }
+        if self.owned() { let _ = fs::remove_dir_all(&self.path); }
     }
 }
 
@@ -168,10 +171,11 @@ pub fn write_captions(directory: &Path, captions: &str) -> Result<(), String> {
 }
 
 /// Run `action` holding the state lock every OpenLimiter writer shares, the
-/// command line tool's included.
-pub(crate) fn with_lock<R>(directory: &Path, action: impl FnOnce() -> R) -> Result<R, String> {
-    let _held = lock(directory)?;
-    Ok(action())
+/// command line tool's included. It is handed the lock, to check before a
+/// write that the lock is still its own.
+pub(crate) fn with_lock<R>(directory: &Path, action: impl FnOnce(&ConfigLock) -> R) -> Result<R, String> {
+    let held = lock(directory)?;
+    Ok(action(&held))
 }
 
 /// Mirror the Claude request switch into the legacy `providers.claude` keys a

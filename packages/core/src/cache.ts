@@ -626,13 +626,19 @@ async function acquireLock(
   }
 }
 
-async function releaseLock(lockPath: string, token: string): Promise<void> {
+/* Whether the lock still names this holder. One held past
+   LOCK_STALE_MILLISECONDS is reclaimed even from a live owner. */
+async function lockOwned(lockPath: string, token: string): Promise<boolean> {
   try {
     const parsed: unknown = JSON.parse(await readFile(path.join(lockPath, "owner.json"), "utf8"));
-    if (!isRecord(parsed) || parsed["token"] !== token) return;
+    return isRecord(parsed) && parsed["token"] === token;
   } catch {
-    return;
+    return false;
   }
+}
+
+async function releaseLock(lockPath: string, token: string): Promise<void> {
+  if (!(await lockOwned(lockPath, token))) return;
   await rm(lockPath, { recursive: true, force: true }).catch(() => undefined);
 }
 
@@ -654,11 +660,13 @@ const processLockQueues = new Map<string, Promise<void>>();
  * Run one cache mutation while holding the single cache lock.
  *
  * Readers never take this lock. They rely on the atomic replacement below, so
- * the lock exists only to keep two writers from interleaving.
+ * the lock exists only to keep two writers from interleaving. `owned` says
+ * whether the lock still names this holder, for an action that must not write
+ * once another writer reclaimed it.
  */
 export async function withStateLock<Result>(
   directory: string,
-  action: () => Promise<Result>
+  action: (owned: () => Promise<boolean>) => Promise<Result>
 ): Promise<Result> {
   const absoluteDirectory = path.resolve(directory);
   const queueKey = process.platform === "win32"
@@ -677,7 +685,7 @@ export async function withStateLock<Result>(
     await rejectSymlink(lockPath);
     const { token } = await acquireLock(lockPath);
     try {
-      return await action();
+      return await action(() => lockOwned(lockPath, token));
     } finally {
       await releaseLock(lockPath, token);
     }
