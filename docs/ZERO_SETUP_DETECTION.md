@@ -136,7 +136,3 @@ days. Status 401, 403, 404 or 410 waits one day whatever Retry-After says, and
 credential revision ends that wait at once. A failed read, including one this
 build cannot parse, never hands the bars to the status line: the last readings
 stay and age, and the failure shows as a flag on the account.
-
-Current OAuth data suppresses only the anonymous Claude statusline row for the
-same meter. A statusline event observed after OAuth expiry is accepted again.
-Manual entry remains available if both sources fail.
