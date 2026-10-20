@@ -280,6 +280,9 @@ export function normalizeMeter(input: unknown): Snapshot | null {
       : { accountLabel }),
     ...(provenance === null ? {} : { provenance }),
     ...(writer === null ? {} : { writer }),
+    /* Like the writer, a certainty this build cannot read is dropped and the
+       reading stands: absent falls back to what the provenance says. */
+    ...(typeof raw.certain === "boolean" ? { certain: raw.certain } : {}),
     ...(raw.kind === undefined ? {} : { kind: raw.kind as SnapshotKind }),
     ...(raw.availability === undefined ? {} : { availability: raw.availability as SnapshotAvailability }),
     ...(raw.retryAt === undefined ? {} : { retryAt: raw.retryAt as string })

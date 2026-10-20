@@ -139,11 +139,13 @@ describe("statusline command reference layout", () => {
     }
   });
 
-  it("draws a payload's own 37 over an older poll reading of the same account", async () => {
+  it("draws a payload's own 37 over an older poll reading of the same account once it is a new API response", async () => {
     /* 37 rendered as 4 only for a payload no login on the machine names: an
        unattributed status line row stands aside while a row of a known
        account is unexpired. A payload from a signed in session is the
-       account's newest reading and wins. */
+       account's newest reading and wins once the ingest proves it a new API
+       response; the session's first reading, whose time is uncertain, never
+       overrides the poll's certain one (2.1.6, fix 4). */
     const home = await mkdtemp(path.join(await realpath(tmpdir()), "openlimiter-statusline-home-"));
     roots.push(home);
     await writeFile(path.join(home, ".claude.json"), JSON.stringify({ oauthAccount: { accountUuid: "synthetic-account-uuid" } }));
@@ -155,12 +157,18 @@ describe("statusline command reference layout", () => {
       source: "internal_payload", provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
       observedAt: "2025-12-31T23:55:00.000Z", expiresAt: "2026-01-01T00:14:00.000Z"
     }], stateDirectory, NOW);
-    const input = payload();
-    input.rate_limits.five_hour.used_percentage = 37;
-    const result = await runCli(["statusline", "--host", "claude"], {
-      stateDirectory, homeDirectory: home, now: () => NOW, environment: { NO_COLOR: "" },
-      readStandardInput: async () => JSON.stringify(input)
-    });
+    const render = (apiMilliseconds: number) => {
+      const input = { ...payload(), session_id: "synthetic-session", cost: { total_api_duration_ms: apiMilliseconds } };
+      input.rate_limits.five_hour.used_percentage = 37;
+      return runCli(["statusline", "--host", "claude"], {
+        stateDirectory, homeDirectory: home, now: () => NOW, environment: { NO_COLOR: "" },
+        readStandardInput: async () => JSON.stringify(input)
+      });
+    };
+    const first = await render(1_000);
+    expect(first.stdout).toMatch(/5h \[[█░]+\] 4% ·3h20m/u);
+    expect(first.stdout).not.toContain("37%");
+    const result = await render(2_000);
     expect(result.stdout).toContain("5h [███░░░░░░░] 37% ·3h20m");
     expect(result.stdout).not.toContain("4%");
   });

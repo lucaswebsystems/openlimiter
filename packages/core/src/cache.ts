@@ -672,7 +672,10 @@ const withCacheLock = withStateLock;
  * Document version of the snapshot cache.
  *
  * It stayed at 1 through `accountId` and `provenance`, because both were
- * optional fields an old reader could ignore without being wrong.
+ * optional fields an old reader could ignore without being wrong. Version 3
+ * stays through `certain` (2.1.6) for the same reason: a reader that ignores
+ * it orders readings by time, as every build before 2.1.6 did, and absent
+ * reads as certain for a poll row and uncertain for any other.
  *
  * Version 2 is the first change that fails that test. A `suppressions` array is
  * an instruction to DISTRUST rows that are still present in the document, so a
@@ -838,11 +841,11 @@ export async function mergeSnapshotCache(
  * desktop wrote a fresher row for the same identity a moment ago.
  *
  * So the decision is made INSIDE the cache lock, which both processes do share,
- * and it is made per row: the newer reading wins (a Claude window by content,
- * anything else by `observedAt`; see `readingOrder`), and on a tie the row
- * already in the cache wins. Ties go to the incumbent because the only way to
- * get one is two writers reading the same instant, and in that case the row
- * that is already visible should not flicker.
+ * and it is made per row: the newer reading wins (a Claude window by certainty
+ * and content, anything else by `observedAt`; see `readingOrder`), and on a
+ * tie the row already in the cache wins. Ties go to the incumbent because the
+ * only way to get one is two writers reading the same instant, and in that
+ * case the row that is already visible should not flicker.
  *
  * When nothing was deferred this behaves exactly like a collection report, so a
  * provider that stops reporting a window still loses that row. When something

@@ -267,7 +267,7 @@
     ]
   },
   "order": {
-    "rule": "Two readings of one Claude rate limit window (FIVE_HOUR or a SEVEN_DAY meter, same account) are ordered by content, never by time. Resets at most an hour apart name the same window, where usage never falls: the higher value wins, an equal value goes to the later observation (it refreshes the age), and a lower value is ignored and refreshes nothing. A reset more than an hour later is a new window and replaces the row even at a lower value; one more than an hour earlier is an old window and is ignored. Only a row without a reset time, a row whose availability says it holds no reading, and every other meter or provider keep the later observation. Each vector names the row held and the one arriving; expected names the row the merge keeps, as it was read. Provider defaults to CLAUDE and meter to FIVE_HOUR.",
+    "rule": "Two readings of one Claude rate limit window (FIVE_HOUR or a SEVEN_DAY meter, same account) are ordered by certainty first and content second. Resets at most an hour apart name the same window; a reset more than an hour later is a new window and replaces the row even at a lower value, and one more than an hour earlier is an old window and is ignored, whatever either reading's certainty. A reading is certain when it is the usage poll's own response or a status line reading the ingest proved to be a new API response; a replay, or a reading whose time had to be guessed, is not. Inside one window two certain readings go by observation time, so a genuine reset lowers the bar (identical times go to the higher value); an uncertain reading never overrides a certain row; a certain reading observed before an uncertain row wins only with a higher value, and one observed at or after it wins; two uncertain readings go by content, where usage never falls: the higher value wins, an equal value goes to the later observation (it refreshes the age), and a lower value is ignored and refreshes nothing. A marker (availability) never changes the order: the row's last reading and its certainty decide. A row without a reset time and every other meter or provider keep the later observation. Each vector names the row held and the one arriving; expected names the row the merge keeps, as it was read (value, time, marker and certainty). Provider defaults to CLAUDE and meter to FIVE_HOUR. A side is a poll row unless via says statusline; certain, when present, is stored on the row, and when absent the row reads as certain for a poll row and uncertain for a status line row, the way a cache row written before the field reads.",
     "vectors": [
       {
         "id": "identical-times-the-higher-value-stays",
@@ -277,50 +277,50 @@
       },
       {
         "id": "a-higher-value-observed-earlier-wins",
-        "held": { "value": 30, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:01:00.000Z" },
-        "incoming": { "value": 80, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
+        "held": { "value": 30, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:01:00.000Z", "via": "statusline" },
+        "incoming": { "value": 80, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z", "via": "statusline" },
         "expected": "incoming"
       },
       {
         "id": "a-lower-value-observed-later-is-ignored",
-        "held": { "value": 30, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T11:30:00.000Z" },
-        "incoming": { "value": 20, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:10:00.000Z" },
+        "held": { "value": 30, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T11:30:00.000Z", "via": "statusline" },
+        "incoming": { "value": 20, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:10:00.000Z", "via": "statusline" },
         "expected": "held"
       },
       {
         "id": "a-new-window-replaces-a-higher-value",
         "held": { "value": 90, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T15:05:00.000Z" },
-        "incoming": { "value": 5, "resetAt": "2026-10-19T20:02:00.000Z", "observedAt": "2026-10-19T15:02:00.000Z" },
+        "incoming": { "value": 5, "resetAt": "2026-10-19T20:02:00.000Z", "observedAt": "2026-10-19T15:02:00.000Z", "via": "statusline" },
         "expected": "incoming"
       },
       {
         "id": "a-late-reading-from-the-old-window-is-ignored",
-        "held": { "value": 5, "resetAt": "2026-10-19T20:02:00.000Z", "observedAt": "2026-10-19T15:02:00.000Z" },
+        "held": { "value": 5, "resetAt": "2026-10-19T20:02:00.000Z", "observedAt": "2026-10-19T15:02:00.000Z", "via": "statusline" },
         "incoming": { "value": 90, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T15:05:00.000Z" },
         "expected": "held"
       },
       {
         "id": "an-equal-value-refreshes-the-age",
-        "held": { "value": 40, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
-        "incoming": { "value": 40, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z" },
+        "held": { "value": 40, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z", "via": "statusline" },
+        "incoming": { "value": 40, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z", "via": "statusline" },
         "expected": "incoming"
       },
       {
         "id": "an-equal-value-observed-earlier-keeps-the-later-age",
-        "held": { "value": 40, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z" },
-        "incoming": { "value": 40, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
+        "held": { "value": 40, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z", "via": "statusline" },
+        "incoming": { "value": 40, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z", "via": "statusline" },
         "expected": "held"
       },
       {
         "id": "a-lower-replay-does-not-refresh-the-age",
-        "held": { "value": 40, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
-        "incoming": { "value": 39, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z" },
+        "held": { "value": 40, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z", "via": "statusline" },
+        "incoming": { "value": 39, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z", "via": "statusline" },
         "expected": "held"
       },
       {
         "id": "a-reset-under-an-hour-later-is-the-same-window",
-        "held": { "value": 80, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
-        "incoming": { "value": 70, "resetAt": "2026-10-19T15:59:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z" },
+        "held": { "value": 80, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z", "via": "statusline" },
+        "incoming": { "value": 70, "resetAt": "2026-10-19T15:59:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z", "via": "statusline" },
         "expected": "held"
       },
       {
@@ -342,7 +342,7 @@
         "expected": "held"
       },
       {
-        "id": "a-row-marked-unavailable-keeps-time-order",
+        "id": "a-marker-gives-way-to-a-later-certain-reading",
         "held": { "value": 40, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z", "availability": "rate_limited" },
         "incoming": { "value": 39, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z" },
         "expected": "incoming"
@@ -350,15 +350,15 @@
       {
         "id": "a-weekly-lower-value-is-ignored",
         "meter": "SEVEN_DAY",
-        "held": { "value": 40, "resetAt": "2026-10-22T12:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
-        "incoming": { "value": 39, "resetAt": "2026-10-22T12:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z" },
+        "held": { "value": 40, "resetAt": "2026-10-22T12:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z", "certain": false },
+        "incoming": { "value": 39, "resetAt": "2026-10-22T12:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z", "certain": false },
         "expected": "held"
       },
       {
         "id": "a-weekly-model-bucket-higher-value-observed-earlier-wins",
         "meter": "SEVEN_DAY_FABLE",
-        "held": { "value": 50, "resetAt": "2026-10-22T12:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z" },
-        "incoming": { "value": 60, "resetAt": "2026-10-22T12:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
+        "held": { "value": 50, "resetAt": "2026-10-22T12:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z", "certain": false },
+        "incoming": { "value": 60, "resetAt": "2026-10-22T12:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z", "certain": false },
         "expected": "incoming"
       },
       {
@@ -380,6 +380,103 @@
         "provider": "CODEX",
         "held": { "value": 40, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
         "incoming": { "value": 10, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z" },
+        "expected": "incoming"
+      },
+      {
+        "id": "a-marker-never-lets-a-lower-replay-win",
+        "held": { "value": 30, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z", "via": "statusline", "availability": "rate_limited" },
+        "incoming": { "value": 20, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z", "via": "statusline" },
+        "expected": "held"
+      },
+      {
+        "id": "a-marked-poll-row-keeps-its-reading-against-an-uncertain-one",
+        "held": { "value": 40, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z", "availability": "rate_limited" },
+        "incoming": { "value": 39, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z", "via": "statusline" },
+        "expected": "held"
+      },
+      {
+        "id": "a-genuine-reset-lowers-the-bar",
+        "held": { "value": 95, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
+        "incoming": { "value": 0, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z" },
+        "expected": "incoming"
+      },
+      {
+        "id": "a-genuine-weekly-reset-lowers-the-bar",
+        "meter": "SEVEN_DAY",
+        "held": { "value": 95, "resetAt": "2026-10-22T12:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
+        "incoming": { "value": 0, "resetAt": "2026-10-22T12:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z" },
+        "expected": "incoming"
+      },
+      {
+        "id": "a-replay-from-before-a-reset-is-ignored",
+        "held": { "value": 0, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z" },
+        "incoming": { "value": 95, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z", "via": "statusline" },
+        "expected": "held"
+      },
+      {
+        "id": "an-uncertain-higher-reading-never-overrides-a-certain-row",
+        "held": { "value": 30, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z", "via": "statusline", "certain": true },
+        "incoming": { "value": 50, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z", "via": "statusline" },
+        "expected": "held"
+      },
+      {
+        "id": "a-certain-reading-observed-before-an-uncertain-row-wins-with-a-higher-value",
+        "held": { "value": 30, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z", "via": "statusline" },
+        "incoming": { "value": 50, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
+        "expected": "incoming"
+      },
+      {
+        "id": "a-certain-reading-observed-before-an-uncertain-row-is-ignored-when-lower",
+        "held": { "value": 30, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z", "via": "statusline" },
+        "incoming": { "value": 20, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
+        "expected": "held"
+      },
+      {
+        "id": "a-certain-reading-observed-before-an-uncertain-row-is-ignored-when-equal",
+        "held": { "value": 30, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z", "via": "statusline" },
+        "incoming": { "value": 30, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
+        "expected": "held"
+      },
+      {
+        "id": "a-certain-reading-observed-with-an-uncertain-row-wins-even-lower",
+        "held": { "value": 30, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z", "via": "statusline" },
+        "incoming": { "value": 20, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
+        "expected": "incoming"
+      },
+      {
+        "id": "a-certain-reading-observed-after-an-uncertain-row-wins-even-lower",
+        "held": { "value": 30, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z", "via": "statusline" },
+        "incoming": { "value": 20, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z" },
+        "expected": "incoming"
+      },
+      {
+        "id": "two-certain-readings-out-of-order-keep-time-order",
+        "held": { "value": 40, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z" },
+        "incoming": { "value": 60, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
+        "expected": "held"
+      },
+      {
+        "id": "two-certain-status-line-readings-keep-time-order",
+        "held": { "value": 40, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z", "via": "statusline", "certain": true },
+        "incoming": { "value": 60, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z", "via": "statusline", "certain": true },
+        "expected": "held"
+      },
+      {
+        "id": "an-old-poll-row-without-the-field-is-certain",
+        "held": { "value": 40, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z" },
+        "incoming": { "value": 60, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z", "via": "statusline" },
+        "expected": "held"
+      },
+      {
+        "id": "an-old-status-line-row-without-the-field-is-uncertain",
+        "held": { "value": 40, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:00:00.000Z", "via": "statusline" },
+        "incoming": { "value": 60, "resetAt": "2026-10-19T15:00:00.000Z", "observedAt": "2026-10-19T12:05:00.000Z", "via": "statusline" },
+        "expected": "incoming"
+      },
+      {
+        "id": "a-row-without-a-reset-ignores-certainty",
+        "held": { "value": 40, "resetAt": null, "observedAt": "2026-10-19T12:00:00.000Z" },
+        "incoming": { "value": 10, "resetAt": null, "observedAt": "2026-10-19T12:05:00.000Z", "via": "statusline" },
         "expected": "incoming"
       }
     ]

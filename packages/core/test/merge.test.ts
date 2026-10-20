@@ -125,12 +125,16 @@ describe("snapshot merge", () => {
 });
 
 /*
- * 2.1.6: Claude readings are ordered by content, not by time. Every merge that
- * reconciles two rows for one meter keeps the row the shared vectors name.
- * Rust twin: native_snapshot.rs, every_shared_claude_order_vector.
+ * 2.1.6: Claude readings are ordered by certainty first and content second.
+ * Every merge that reconciles two rows for one meter keeps the row the shared
+ * vectors name, with its marker and its certainty. Rust twin:
+ * native_snapshot.rs, every_shared_claude_order_vector.
  */
-describe("Claude readings ordered by content, shared with the desktop", () => {
-  interface Side { value: number; resetAt: string | null; observedAt: string; availability?: Snapshot["availability"] }
+describe("Claude readings ordered by certainty and content, shared with the desktop", () => {
+  interface Side {
+    value: number; resetAt: string | null; observedAt: string; availability?: Snapshot["availability"];
+    via?: "poll" | "statusline"; certain?: boolean;
+  }
   interface Vector { id: string; provider?: ProviderCode; meter?: string; held: Side; incoming: Side; expected: "held" | "incoming" }
   const vectors = (JSON.parse(readFileSync(path.resolve("packages/core/src/contracts/claude-poll-vectors.json"), "utf8")) as {
     order: { vectors: Vector[] };
@@ -149,17 +153,21 @@ describe("Claude readings ordered by content, shared with the desktop", () => {
       observedAt: side.observedAt,
       expiresAt: new Date(Date.parse(side.observedAt) + 465_000).toISOString(),
       labels: { credentialOrigin: "official-local-tool", dataInterfaceStatus: "internal-endpoint", automationRisk: "high", verification: "UNVERIFIED" },
-      provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
+      provenance: side.via === "statusline"
+        ? { sourceKind: "statusline_payload", observedVia: "claude_code_statusline" }
+        : { sourceKind: "remote_api", observedVia: "remote_http" },
+      ...(side.certain === undefined ? {} : { certain: side.certain }),
       ...(side.availability === undefined ? {} : { availability: side.availability })
     });
   };
-  const kept = (rows: readonly Snapshot[]) => rows.map(({ value, observedAt }) => ({ value, observedAt }));
+  const kept = (rows: readonly Snapshot[]) => rows.map(({ value, observedAt, availability, certain }) =>
+    ({ value, observedAt, availability: availability ?? null, certain: certain ?? null }));
   for (const vector of vectors) {
     it(vector.id, async () => {
       const held = row(vector, vector.held);
       const incoming = row(vector, vector.incoming);
-      const { value, observedAt } = vector[vector.expected];
-      const expected = [{ value, observedAt }];
+      const { value, observedAt, availability, certain } = vector[vector.expected];
+      const expected = [{ value, observedAt, availability: availability ?? null, certain: certain ?? null }];
       expect(kept(mergeSnapshots([held], [incoming])), "mergeSnapshots").toEqual(expected);
       const report = { ok: true as const, provider: incoming.provider, accountId: "vector-account", observedAt: incoming.observedAt, snapshots: [incoming] };
       expect(kept(applyCollectionReport({ snapshots: [held], suppressions: [] }, report).snapshots), "applyCollectionReport")

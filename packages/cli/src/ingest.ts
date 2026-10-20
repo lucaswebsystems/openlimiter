@@ -16,6 +16,7 @@ import {
   opaqueAccountId,
   readJsonFileSafely,
   readSnapshotCache,
+  readingOrder,
   resolveStateDirectory,
   writeFileAtomically,
   type CacheMergeResult,
@@ -447,24 +448,34 @@ async function cachedFiveHour(directory: string, accountId: string | undefined):
  *
  * Claude Code reruns an idle window's status line on a timer and hands it the
  * rate limits its last API response carried. A rerun is not a new reading, so
- * the time is the API response's, never the render's. A reading this session
- * already showed keeps the time stored when it first appeared, and a new
- * reading in a known session is a new API response, now. Which reading the
- * cache keeps is decided by content in the merge (`readingOrder`), never by
- * this time, so an older window's reading or a lower replay is ignored there
- * whatever time it carries. Any other time is uncertain (a session not in the
- * log, no session id, a log that cannot be read or locked): it is the
- * transcript's last write capped at now (now without one), and since an
- * uncertain time must never refresh an age, such a reading is written only
- * when its content is newer than the cached row (`contentOrder`), or the row
- * holds no reading at all (its availability says so). One that is not leaves
- * a log entry stored below the row's time, so its reruns cannot refresh the
- * age either.
+ * the time is the API response's, never the render's, and which reading the
+ * cache keeps is decided in the merge (`readingOrder`, certainty first).
+ *
+ * A reading this session already showed is a replay: it keeps the time stored
+ * when it first appeared and is not certain, so it never overrides a certain
+ * row. A new reading in a known session is a new API response, now, and
+ * certain, when its content does not contradict that: no cached row, a later
+ * window, or the same window at an equal or higher value. The last reading of
+ * a row a marker covers counts, since a marker changes no order. Two windows
+ * resumed on one session id can hand over an older reading for the first time
+ * after a newer one, so a lower reading in a known session proves nothing and
+ * is decided like any reading of uncertain time. When another render's proven
+ * reading already holds the row with a later render clock, the two clocks say
+ * nothing about which response is newer, so this one meets that clock and
+ * content decides between them.
+ *
+ * Any other time is uncertain (a session not in the log, no session id, a log
+ * that cannot be read or locked): it is the transcript's last write capped at
+ * now (now without one), and since an uncertain time must never refresh an
+ * age, such a reading is written only when it would win the merge on content
+ * (`contentOrder`, and `readingOrder` as an uncertain reading, which no
+ * certain row of its window gives way to). One that is not leaves a log entry
+ * stored below the row's time, so its reruns cannot refresh the age either.
  *
  * The caller holds the state lock, which the log shares with the cache, and
  * writes the result before releasing it, so the row checked here is the row
  * the write meets. `logged` false, for a caller that could not take the lock,
- * decides the same way and leaves the log untouched.
+ * decides as if every time were uncertain and leaves the log untouched.
  */
 export async function observedClaudeReading(
   meters: readonly RawMeter[],
@@ -478,18 +489,26 @@ export async function observedClaudeReading(
   const fiveHour = meters.find((meter) => meter.meter === "FIVE_HOUR");
   const measured = fiveHour === undefined ? null : normalizeMeter(fiveHour);
   if (measured === null || root["rate_limits"] === undefined) return [...meters];
-  type Decision = { time: string; write: boolean };
-  const uncertain = async (): Promise<Decision> => {
+  type Decision = { time: string; write: boolean; certain?: true };
+  const uncertain = async (row: Snapshot | undefined): Promise<Decision> => {
     const time = await transcriptWritten(root["transcript_path"], now) ?? now;
-    const row = await cachedFiveHour(directory, accountId);
-    return row === undefined || row.availability !== undefined || contentOrder(row, measured) > 0
+    return row === undefined ||
+      contentOrder(row, measured) > 0 && readingOrder(row, { ...measured, observedAt: time, certain: false }) > 0
       ? { time, write: true }
       : { time: new Date(Math.min(Date.parse(time), Date.parse(row.observedAt) - 1)).toISOString(), write: false };
+  };
+  const proven = async (): Promise<Decision> => {
+    const row = await cachedFiveHour(directory, accountId);
+    if (row === undefined) return { time: now, write: true, certain: true };
+    if (contentOrder(row, measured) < 0) return uncertain(row);
+    const raced = row.provenance?.sourceKind === "statusline_payload" && row.certain === true &&
+      readingOrder(row, { ...measured, observedAt: now, certain: true }) < 0;
+    return { time: raced ? row.observedAt : now, write: true, certain: true };
   };
   const sessionId = root["session_id"];
   let decided: Decision;
   if (!logged || typeof sessionId !== "string" || sessionId.length === 0 || sessionId.length > 256) {
-    decided = await uncertain();
+    decided = await uncertain(await cachedFiveHour(directory, accountId));
   } else {
     const session = digest(sessionId);
     const reading = digest(canonicalJson({
@@ -503,8 +522,8 @@ export async function observedClaudeReading(
       decided = { time: known, write: true };
     } else {
       decided = entries?.some((entry) => entry.session === session) === true
-        ? { time: now, write: true }
-        : await uncertain();
+        ? await proven()
+        : await uncertain(await cachedFiveHour(directory, accountId));
       await writeFileAtomically(file, canonicalJson({
         readings: keptClaudeReadings([{ observedAt: decided.time, reading, session }, ...(entries ?? [])], now, session),
         version: 1
@@ -512,16 +531,17 @@ export async function observedClaudeReading(
     }
   }
   if (!decided.write) return null;
-  /* Never past the render's clock. */
-  const observedAt = Date.parse(decided.time) < Date.parse(now) ? decided.time : now;
-  if (observedAt === now) return [...meters];
+  /* Never past the render's clock, except to meet another render's proven
+     reading (above). */
+  const observedAt = decided.certain === true || Date.parse(decided.time) < Date.parse(now) ? decided.time : now;
   const shift = Date.parse(observedAt) - Date.parse(now);
   return meters.map((meter) => ({
     ...meter,
     observedAt,
     expiresAt: typeof meter.expiresAt === "string"
       ? new Date(Date.parse(meter.expiresAt) + shift).toISOString()
-      : meter.expiresAt
+      : meter.expiresAt,
+    ...(decided.certain === true ? { certain: true } : {})
   }));
 }
 

@@ -47,20 +47,31 @@ function observedMilliseconds(snapshot: Snapshot): number {
 export const SAME_WINDOW_MILLISECONDS = 3_600_000;
 
 /**
+ * Whether a reading is known to be new at its observation time (2.1.6): the
+ * row's own `certain`, else certain only for a poll row. Rust twin:
+ * native_snapshot.rs is_certain.
+ */
+export function isCertainReading(snapshot: Snapshot): boolean {
+  return snapshot.certain ?? snapshot.provenance?.sourceKind === "remote_api";
+}
+
+function isClaudeWindow(snapshot: Snapshot): boolean {
+  return snapshot.provider === "CLAUDE" &&
+    (snapshot.meter === "FIVE_HOUR" || snapshot.meter.startsWith("SEVEN_DAY"));
+}
+
+/**
  * How a reading compares with the row it would replace, by content alone
  * (2.1.6). Only a Claude rate limit window has such an order. Inside one
- * window usage never falls, so a higher value is newer and a lower one is a
- * replay or a stale reading; a later reset is a new window and an earlier one
- * an old window. Positive is newer, negative older, and zero is a question
- * content cannot answer (an equal value, a row without a reset, a row whose
- * availability says it holds no reading, any other meter or provider).
- * Shared vectors: contracts/claude-poll-vectors.json `order`. Rust twin:
- * native_snapshot.rs content_order.
+ * window usage only grows unless a reset intervenes, so a higher value is
+ * newer; a later reset is a new window and an earlier one an old window.
+ * Positive is newer, negative older, and zero is a question content cannot
+ * answer (an equal value, a row without a reset, any other meter or
+ * provider). A marker (availability) changes nothing: a marked row still
+ * holds its last reading. Rust twin: native_snapshot.rs content_order.
  */
 export function contentOrder(current: Snapshot, incoming: Snapshot): number {
-  if (incoming.provider !== "CLAUDE" ||
-    incoming.meter !== "FIVE_HOUR" && !incoming.meter.startsWith("SEVEN_DAY") ||
-    current.availability !== undefined || incoming.availability !== undefined) return 0;
+  if (!isClaudeWindow(incoming)) return 0;
   const held = Date.parse(current.resetAt ?? "");
   const reset = Date.parse(incoming.resetAt ?? "");
   if (!Number.isFinite(held) || !Number.isFinite(reset)) return 0;
@@ -69,14 +80,33 @@ export function contentOrder(current: Snapshot, incoming: Snapshot): number {
 }
 
 /**
- * `contentOrder`, and the later observation where content cannot tell, so
- * an equal value refreshes the age and a lower one refreshes nothing. Each
- * merge keeps its own rule for zero, a tie. Observation times still decide
- * freshness and the stale state. Rust twin: native_snapshot.rs reading_order.
+ * Which of two readings of one meter is newer, the one rule every merge
+ * applies (2.1.6). Positive is newer, negative older, and zero a tie that
+ * each merge settles its own way.
+ *
+ * Two readings of one Claude window go by certainty first: two certain ones
+ * by observation time, so a genuine reset (Settings, Usage) lowers the bar,
+ * with the higher value at identical times; an uncertain one never overrides
+ * a certain row; a certain one observed before an uncertain row wins only
+ * with a higher value, and at or after it wins; two uncertain ones by content
+ * (`contentOrder`), the later observation where content is equal, so an
+ * equal value refreshes the age and a lower one refreshes nothing. A new or
+ * an old window, a row without a reset, and every other meter or provider go
+ * by `contentOrder`, then time. Markers never change the order. Shared
+ * vectors: contracts/claude-poll-vectors.json `order`. Rust twin:
+ * native_snapshot.rs reading_order.
  */
 export function readingOrder(current: Snapshot, incoming: Snapshot): number {
-  return contentOrder(current, incoming) ||
-    Math.sign(observedMilliseconds(incoming) - observedMilliseconds(current));
+  const time = Math.sign(observedMilliseconds(incoming) - observedMilliseconds(current));
+  const content = contentOrder(current, incoming);
+  const held = Date.parse(current.resetAt ?? "");
+  const reset = Date.parse(incoming.resetAt ?? "");
+  const window = isClaudeWindow(incoming) && Math.abs(reset - held) <= SAME_WINDOW_MILLISECONDS;
+  if (!window) return content || time;
+  const certain = isCertainReading(current);
+  if (!isCertainReading(incoming)) return certain ? -1 : content || time;
+  if (certain) return time || content;
+  return time >= 0 || content > 0 ? 1 : -1;
 }
 
 function isClaudeStatuslineFallback(snapshot: Snapshot): boolean {

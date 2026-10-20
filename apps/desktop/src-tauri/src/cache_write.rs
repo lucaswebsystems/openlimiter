@@ -293,10 +293,10 @@ fn release_session(lock_path: &Path, session: PendingWrite) {
 
 impl CacheWriter {
     /// Upsert `incoming`, a newer or equal reading wins (a Claude window by
-    /// content, `reading_order`). With a weekly set, the account's weeklies
-    /// the poll did not report and observed no later than it are removed
-    /// first, so a bucket the endpoint stops reporting leaves; another
-    /// account and a newer observation stay.
+    /// certainty and content, `reading_order`). With a weekly set, the
+    /// account's weeklies the poll did not report and observed no later than
+    /// it are removed first, so a bucket the endpoint stops reporting leaves;
+    /// another account and a newer observation stay.
     /// TypeScript twin: `mergeAuthoritativeSnapshotCache`.
     fn replace_authoritative_rows(
         directory: &Path,

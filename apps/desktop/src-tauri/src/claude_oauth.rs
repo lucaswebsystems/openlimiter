@@ -454,6 +454,7 @@ fn snapshot(
         account_id: Some(account_id.to_string()),
         account_label: None,
         writer: None,
+        certain: None,
         kind: None,
         availability: None,
         retry_at: None,

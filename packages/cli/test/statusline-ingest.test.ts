@@ -422,7 +422,7 @@ describe("statusline ingestion by host", () => {
       expect(await fiveHour(directory)).toEqual({ value: 80, observedAt: T1209 });
     });
 
-    it("a reading whose time is uncertain is written only when its content proves it newer", async () => {
+    it("a reading whose time is uncertain never overrides a certain row and meets an uncertain one by content", async () => {
       const { home, directory } = await claudeHome();
       await seedPoll(directory, 80, T1209);
       /* A transcript written after the poll (a prompt, not an API response)
@@ -433,21 +433,26 @@ describe("statusline ingestion by host", () => {
       /* Its replay is now a known one, and it still stays out. */
       await render(home, directory, T1211, payload("s8", fresh, 1_000, 10));
       expect(await fiveHour(directory)).toEqual({ value: 80, observedAt: T1209 });
-      /* The same window at a higher value is newer, whatever its transcript
-         says, and it keeps the time it was read at: content decides which
-         reading wins, never a time raised to win. */
+      /* Nor does a higher value of uncertain time: the poll's own response is
+         certain, and only a certain reading replaces it (2.1.6, fix 4). */
       await render(home, directory, T1211, payload("s9", await transcriptAt(home, "s9", T1100), 1_000, 85));
-      expect(await fiveHour(directory)).toEqual({ value: 85, observedAt: T1100 });
-      /* A later window is newer too, even at a lower value. */
+      expect(await fiveHour(directory)).toEqual({ value: 80, observedAt: T1209 });
+      /* A later window is newer whatever its certainty, even at a lower value. */
       const later = "2026-01-01T17:30:00.000Z";
-      await render(home, directory, T1212, payload("s10", path.join(home, "missing.jsonl"), 1_000, 5, { reset: later }));
+      const missing = path.join(home, "missing.jsonl");
+      await render(home, directory, T1212, payload("s10", missing, 1_000, 5, { reset: later }));
       expect(await fiveHour(directory)).toEqual({ value: 5, observedAt: T1212 });
       /* An earlier window never is. */
-      await render(home, directory, "2026-01-01T12:13:00.000Z", payload("s11", path.join(home, "missing.jsonl"), 1_000, 99));
+      await render(home, directory, "2026-01-01T12:13:00.000Z", payload("s11", missing, 1_000, 99));
       expect(await fiveHour(directory)).toEqual({ value: 5, observedAt: T1212 });
+      /* Against that uncertain row, content decides: higher in, lower out. */
+      await render(home, directory, "2026-01-01T12:14:00.000Z", payload("s12", missing, 1_000, 7, { reset: later }));
+      expect(await fiveHour(directory)).toEqual({ value: 7, observedAt: "2026-01-01T12:14:00.000Z" });
+      await render(home, directory, "2026-01-01T12:15:00.000Z", payload("s13", missing, 1_000, 6, { reset: later }));
+      expect(await fiveHour(directory)).toEqual({ value: 7, observedAt: "2026-01-01T12:14:00.000Z" });
     });
 
-    it("no session id and an unreadable log follow the same content rule", async () => {
+    it("no session id and an unreadable log are uncertain like an unknown session", async () => {
       const { home, directory } = await claudeHome();
       await seedPoll(directory, 80, T1209);
       const fresh = await transcriptAt(home, "s12", "2026-01-01T12:09:30.000Z");
@@ -457,7 +462,7 @@ describe("statusline ingestion by host", () => {
       await render(home, directory, T1211, payload("s12", fresh, 1_000, 10));
       expect(await fiveHour(directory)).toEqual({ value: 80, observedAt: T1209 });
       await render(home, directory, T1212, payload(null, fresh, 1_000, 81));
-      expect(await fiveHour(directory)).toEqual({ value: 81, observedAt: "2026-01-01T12:09:30.000Z" });
+      expect(await fiveHour(directory)).toEqual({ value: 80, observedAt: T1209 });
     });
 
     it("the log drops readings older than six hours and evicts whole sessions, oldest first", () => {
@@ -524,7 +529,24 @@ describe("statusline ingestion by host", () => {
       expect((await fiveHour(directory))?.value).toBe(30);
     });
 
-    /* Claude readings are ordered by content, not by time (2.1.6, fix 3). */
+    it("a proven reading meets the later clock of another render's proven reading, never a poll's", async () => {
+      const { home, directory } = await claudeHome();
+      const transcript = await transcriptAt(home, "s18", T1100);
+      await render(home, directory, T1100, payload("s18", transcript, 1_000, 10));
+      /* Window B's older reading is decided first, on the later clock. */
+      await render(home, directory, "2026-01-01T12:10:30.000Z", payload("s18", transcript, 1_500, 20));
+      /* Window A's newer one, rendered earlier, is decided after it: the two
+         render clocks cannot order them, so A meets B's and content decides. */
+      await render(home, directory, T1210, payload("s18", transcript, 2_000, 30));
+      expect(await fiveHour(directory)).toEqual({ value: 30, observedAt: "2026-01-01T12:10:30.000Z" });
+      /* A poll's own time is a real observation, so it is never met. */
+      await seedPoll(directory, 31, "2026-01-01T12:11:30.000Z");
+      await render(home, directory, T1211, payload("s18", transcript, 2_500, 35));
+      expect(await fiveHour(directory)).toEqual({ value: 31, observedAt: "2026-01-01T12:11:30.000Z" });
+    });
+
+    /* Claude readings are ordered by certainty first and content second
+       (2.1.6, fixes 3 and 4). */
     it("a replay at a lower value never wins a tie of identical times", async () => {
       const { home, directory } = await claudeHome();
       const missing = path.join(home, "missing.jsonl");
@@ -537,28 +559,76 @@ describe("statusline ingestion by host", () => {
       expect(await fiveHour(directory)).toEqual({ value: 30, observedAt: T1210 });
     });
 
-    it("a poll that started before an uncertain write still lands its higher value", async () => {
-      const { home, directory } = await claudeHome();
-      await seedPoll(directory, 10, T1100);
-      /* A poll starts at 12:09; a reading of uncertain time is written at 12:10. */
-      await render(home, directory, T1210, payload(null, path.join(home, "missing.jsonl"), 1_000, 30));
-      expect(await fiveHour(directory)).toEqual({ value: 30, observedAt: T1210 });
-      /* The poll's answer, stamped when its request started, lands after it. */
-      await mergeAcquiredSnapshots({
-        ok: true, provider: "CLAUDE", accountId: account, observedAt: T1209, snapshots: pollRows(80, T1209)
-      }, directory);
-      expect(await fiveHour(directory)).toEqual({ value: 80, observedAt: T1209 });
+    it("a poll that started before an uncertain write lands only a higher value, and one after it always lands", async () => {
+      for (const [percent, at, shown] of [[80, T1209, 80], [20, T1209, 30], [20, T1211, 20]] as const) {
+        const { home, directory } = await claudeHome();
+        /* A poll starts; a reading of uncertain time is written at 12:10. */
+        await render(home, directory, T1210, payload(null, path.join(home, "missing.jsonl"), 1_000, 30));
+        expect(await fiveHour(directory)).toEqual({ value: 30, observedAt: T1210 });
+        /* The poll's answer, stamped when its request started, lands after it. */
+        await mergeAcquiredSnapshots({
+          ok: true, provider: "CLAUDE", accountId: account, observedAt: at, snapshots: pollRows(percent, at)
+        }, directory);
+        expect((await fiveHour(directory))?.value, String(percent) + " at " + at).toBe(shown);
+      }
     });
 
-    it("a reading of uncertain time replaces a row that holds no reading, even at a lower value", async () => {
+    /* A marker never changes the order (2.1.6, fix 4): the row keeps its last
+       reading and that reading's certainty, so recovery after a marker cannot
+       admit a lower replay. */
+    async function claudeRow(directory: string) {
+      const cache = await readSnapshotCache(directory);
+      const row = cache.ok ? cache.snapshots.find((item) => item.meter === "FIVE_HOUR") : undefined;
+      return [row?.value, row?.observedAt, row?.availability];
+    }
+
+    it("a marked row never lets a lower replay or a lower reading of uncertain time win", async () => {
+      const { home, directory } = await claudeHome();
+      const missing = path.join(home, "missing.jsonl");
+      /* 20 percent, then 30 percent read at the same instant. */
+      await render(home, directory, T1210, payload("s20", missing, 1_000, 20));
+      await render(home, directory, T1210, payload("s21", missing, 1_000, 30));
+      /* A poll was refused, so the row is marked. */
+      await recordAcquisitionAvailability("CLAUDE", "rate_limited", T1210, undefined, directory, account);
+      expect(await claudeRow(directory)).toEqual([30, T1210, "rate_limited"]);
+      /* The known 20 percent replays with its stored time, the same instant. */
+      await render(home, directory, T1211, payload("s20", missing, 1_000, 20));
+      expect(await claudeRow(directory)).toEqual([30, T1210, "rate_limited"]);
+      await render(home, directory, T1211, payload(null, missing, 1_000, 25));
+      expect(await claudeRow(directory)).toEqual([30, T1210, "rate_limited"]);
+      /* A certain reading after it still replaces it, marker and all. */
+      await mergeAcquiredSnapshots({
+        ok: true, provider: "CLAUDE", accountId: account, observedAt: T1212, snapshots: pollRows(28, T1212)
+      }, directory);
+      expect(await claudeRow(directory)).toEqual([28, T1212, undefined]);
+    });
+
+    it("a marked poll row keeps its reading against a lower reading of uncertain time", async () => {
       const { home, directory } = await claudeHome();
       await seedPoll(directory, 40, T1209);
       /* The next poll was refused, so the row says so instead of a number. */
       await recordAcquisitionAvailability("CLAUDE", "rate_limited", T1209, undefined, directory, account);
       await render(home, directory, T1210, payload(null, path.join(home, "missing.jsonl"), 1_000, 39));
-      const cache = await readSnapshotCache(directory);
-      const row = cache.ok ? cache.snapshots.find((item) => item.meter === "FIVE_HOUR") : undefined;
-      expect([row?.value, row?.observedAt, row?.availability]).toEqual([39, T1210, undefined]);
+      expect(await claudeRow(directory)).toEqual([40, T1209, "rate_limited"]);
+    });
+
+    it("a genuine reset lowers the bar, and a replay from before it never undoes it", async () => {
+      const { home, directory } = await claudeHome();
+      const transcript = await transcriptAt(home, "s22", T1100);
+      await render(home, directory, T1100, payload("s22", transcript, 1_000, 60));
+      await seedPoll(directory, 95, T1130);
+      expect(await fiveHour(directory)).toEqual({ value: 95, observedAt: T1130 });
+      /* Settings, Usage: the limit is restored and the reset time stays. */
+      await mergeAcquiredSnapshots({
+        ok: true, provider: "CLAUDE", accountId: account, observedAt: T1209, snapshots: pollRows(0, T1209)
+      }, directory);
+      expect(await fiveHour(directory)).toEqual({ value: 0, observedAt: T1209 });
+      /* The idle window's rerun hands over its pre reset reading again. */
+      await render(home, directory, T1210, payload("s22", transcript, 1_000, 60));
+      expect(await fiveHour(directory)).toEqual({ value: 0, observedAt: T1209 });
+      /* Its next API response is new, and certain, so it shows at once. */
+      await render(home, directory, T1211, payload("s22", transcript, 2_000, 2));
+      expect(await fiveHour(directory)).toEqual({ value: 2, observedAt: T1211 });
     });
 
     it("two windows' first readings on one session id never show the lower one, in either order", async () => {
