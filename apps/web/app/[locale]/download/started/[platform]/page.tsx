@@ -28,7 +28,8 @@ const STEPS: Record<DesktopPlatform, readonly string[]> = {
   linux: ["linux.open", "linux.packages", "firstRun", "linux.wayland"],
 };
 
-const APPIMAGE = "chmod +x OpenLimiter-linux-x86_64.AppImage\n./OpenLimiter-linux-x86_64.AppImage";
+/* The Linux button downloads the deb, so the first step installs it. */
+const DEB = "sudo apt install ./OpenLimiter-linux-amd64.deb";
 
 interface StartedParams {
   params: Promise<{ locale: string; platform: string }>;
@@ -79,7 +80,7 @@ export default async function DownloadStartedPage({ params }: StartedParams) {
             })}
             {step === "linux.open" && (
               <pre className="mx-auto mt-3 block w-fit max-w-full overflow-x-auto rounded-xl border border-hairline bg-frame px-5 py-4 text-left text-sm text-heading">
-                <code>{APPIMAGE}</code>
+                <code>{DEB}</code>
               </pre>
             )}
           </li>

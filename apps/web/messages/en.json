@@ -877,7 +877,7 @@
     "choice": {
       "windowsSummary": "Unsigned build. If SmartScreen warns, choose More info, then Run anyway. Install the desktop app in one step.",
       "macosSummary": "Preview for Apple silicon and Intel, ad hoc signed but not notarised. Allow it once in Privacy and Security, then open the app. Updates come as a new download.",
-      "linuxSummary": "Choose AppImage, deb or rpm for your distribution. AppImage runs after you set its executable bit.",
+      "linuxSummary": "The deb, for Debian and Ubuntu. The rpm and the AppImage are further down; the AppImage needs libfuse2 (libfuse2t64 on Ubuntu 24.04).",
       "detected": "Detected",
       "windows": "Download for Windows",
       "linux": "Download for Linux",
@@ -908,8 +908,8 @@
         "gatekeeper": "Open OpenLimiter once. macOS refuses that first attempt because the preview is not notarised: open System Settings, go to Privacy and Security, and choose Open Anyway beside the OpenLimiter message."
       },
       "linux": {
-        "open": "Make the AppImage executable, then run it.",
-        "packages": "Prefer a package? The deb and rpm files are on the <download>download page</download>.",
+        "open": "Install the deb with your software installer, or from a terminal:",
+        "packages": "On Fedora or openSUSE, or for the AppImage, the other files are on the <download>download page</download>. The AppImage needs libfuse2 (libfuse2t64 on Ubuntu 24.04).",
         "wayland": "On Wayland, the tray holds your bars instead of the edge tab."
       }
     },
@@ -994,7 +994,7 @@
         },
         "note": "Choose one artifact. AppImage works without installation after its executable bit is set. Debian and Ubuntu use the deb file. Fedora and openSUSE use the rpm file. The commands below use the exact release file names.",
         "instructions": {
-          "appImage": "Run the AppImage",
+          "appImage": "Run the AppImage. It needs libfuse2 (libfuse2t64 on Ubuntu 24.04).",
           "deb": "Install on Debian or Ubuntu",
           "rpm": "Install on Fedora or openSUSE"
         },

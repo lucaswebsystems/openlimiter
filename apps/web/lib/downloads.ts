@@ -148,18 +148,20 @@ export const downloadTargets: readonly DownloadTarget[] = [
   {
     id: "linux",
     state: "available",
+    /* The deb leads, as the README does: the AppImage needs libfuse2 and
+       says nothing when it is missing. */
     assets: [
-      { id: "appImage", href: releaseAsset(LINUX_APPIMAGE), primary: true },
-      { id: "deb", href: releaseAsset(LINUX_DEB) },
+      { id: "deb", href: releaseAsset(LINUX_DEB), primary: true },
       { id: "rpm", href: releaseAsset(LINUX_RPM) },
+      { id: "appImage", href: releaseAsset(LINUX_APPIMAGE) },
     ],
     instructions: [
+      { id: "deb", command: `sudo apt install ./${LINUX_DEB}` },
+      { id: "rpm", command: `sudo dnf install ./${LINUX_RPM}` },
       {
         id: "appImage",
         command: `chmod +x ${LINUX_APPIMAGE}\n./${LINUX_APPIMAGE}`,
       },
-      { id: "deb", command: `sudo apt install ./${LINUX_DEB}` },
-      { id: "rpm", command: `sudo dnf install ./${LINUX_RPM}` },
     ],
   },
   {

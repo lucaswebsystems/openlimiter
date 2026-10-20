@@ -877,7 +877,7 @@
     "choice": {
       "windowsSummary": "Unsignierter Build. Wenn SmartScreen warnt, wähle Weitere Informationen und dann Trotzdem ausführen.",
       "macosSummary": "Vorschau für Apple silicon und Intel, ad hoc signiert, aber nicht notarisiert. Einmal in Datenschutz und Sicherheit erlauben, dann die App öffnen. Updates kommen als neuer Download.",
-      "linuxSummary": "Wähle AppImage, deb oder rpm für deine Distribution. AppImage läuft nach dem Setzen des Ausführungsbits.",
+      "linuxSummary": "Das deb Paket für Debian und Ubuntu. rpm und AppImage findest du weiter unten; das AppImage braucht libfuse2 (libfuse2t64 unter Ubuntu 24.04).",
       "detected": "Erkannt",
       "windows": "Für Windows herunterladen",
       "linux": "Für Linux herunterladen",
@@ -908,8 +908,8 @@
         "gatekeeper": "Öffne OpenLimiter einmal. macOS verweigert diesen ersten Versuch, weil die Vorschau nicht notarisiert ist: öffne die Systemeinstellungen, gehe zu Datenschutz und Sicherheit und wähle neben der OpenLimiter Meldung Trotzdem öffnen."
       },
       "linux": {
-        "open": "Mach das AppImage ausführbar und starte es.",
-        "packages": "Lieber ein Paket? Die deb und rpm Dateien findest du auf der <download>Download Seite</download>.",
+        "open": "Installiere das deb Paket mit deiner Softwareverwaltung oder im Terminal:",
+        "packages": "Für Fedora oder openSUSE oder für das AppImage liegen die anderen Dateien auf der <download>Download Seite</download>. Das AppImage braucht libfuse2 (libfuse2t64 unter Ubuntu 24.04).",
         "wayland": "Unter Wayland zeigt der Infobereich deine Balken statt des Reiters am Rand."
       }
     },
@@ -994,7 +994,7 @@
         },
         "note": "Wähl ein Artefakt. Das AppImage läuft ohne Installation, nachdem sein ausführbares Bit gesetzt wurde. Debian und Ubuntu nutzen die deb Datei. Fedora und openSUSE nutzen die rpm Datei. Die Befehle unten verwenden die genauen Dateinamen des Releases.",
         "instructions": {
-          "appImage": "AppImage ausführen",
+          "appImage": "AppImage ausführen. Es braucht libfuse2 (libfuse2t64 unter Ubuntu 24.04).",
           "deb": "Unter Debian oder Ubuntu installieren",
           "rpm": "Unter Fedora oder openSUSE installieren"
         },

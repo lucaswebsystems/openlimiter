@@ -877,7 +877,7 @@
     "choice": {
       "windowsSummary": "Compilación sin firmar. Si SmartScreen avisa, elige Más información y luego Ejecutar de todas formas.",
       "macosSummary": "Versión preliminar para Apple silicon e Intel, con firma ad hoc pero sin notarizar. Permítela una vez en Privacidad y Seguridad y luego abre la app. Las actualizaciones llegan como una nueva descarga.",
-      "linuxSummary": "Elige AppImage, deb o rpm para tu distribución. AppImage funciona después de darle permiso de ejecución.",
+      "linuxSummary": "El paquete deb, para Debian y Ubuntu. El rpm y el AppImage están más abajo; el AppImage necesita libfuse2 (libfuse2t64 en Ubuntu 24.04).",
       "detected": "Detectado",
       "windows": "Descargar para Windows",
       "linux": "Descargar para Linux",
@@ -908,8 +908,8 @@
         "gatekeeper": "Abre OpenLimiter una vez. macOS rechaza ese primer intento porque la versión preliminar no está notarizada: abre Ajustes del Sistema, ve a Privacidad y seguridad y elige Abrir igualmente junto al mensaje de OpenLimiter."
       },
       "linux": {
-        "open": "Haz ejecutable el AppImage y ejecútalo.",
-        "packages": "¿Prefieres un paquete? Los archivos deb y rpm están en la <download>página de descargas</download>.",
+        "open": "Instala el paquete deb con tu instalador de software, o desde una terminal:",
+        "packages": "Para Fedora u openSUSE, o para el AppImage, los otros archivos están en la <download>página de descargas</download>. El AppImage necesita libfuse2 (libfuse2t64 en Ubuntu 24.04).",
         "wayland": "En Wayland, la bandeja muestra tus barras en lugar de la pestaña del borde."
       }
     },
@@ -994,7 +994,7 @@
         },
         "note": "Elige un artefacto. AppImage funciona sin instalación después de activar su bit de ejecución. Debian y Ubuntu usan el archivo deb. Fedora y openSUSE usan el archivo rpm. Los comandos de abajo usan los nombres exactos de los archivos del release.",
         "instructions": {
-          "appImage": "Ejecutar AppImage",
+          "appImage": "Ejecutar AppImage. Necesita libfuse2 (libfuse2t64 en Ubuntu 24.04).",
           "deb": "Instalar en Debian o Ubuntu",
           "rpm": "Instalar en Fedora u openSUSE"
         },

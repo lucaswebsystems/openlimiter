@@ -106,6 +106,8 @@ export default async function DownloadPage({ params }: LocaleParams) {
               <div className="mt-3 flex flex-wrap justify-center gap-4 text-sm">
                 <a className="focus-ring text-accent underline underline-offset-4" href={downloadAssetHref("linux", "deb")}>{t("targets.linux.assets.deb")}</a>
                 <a className="focus-ring text-accent underline underline-offset-4" href={downloadAssetHref("linux", "rpm")}>{t("targets.linux.assets.rpm")}</a>
+                {/* The button above is the deb now, so the AppImage is offered here. */}
+                <a className="focus-ring text-accent underline underline-offset-4" href={downloadAssetHref("linux", "appImage")}>{t("targets.linux.assets.appImage")}</a>
               </div>
               <p className="mt-5 text-sm text-muted">{t("targets.linux.instructions.appImage")}</p>
               <code className="mt-2 inline-block max-w-full overflow-x-auto rounded-xl border border-hairline bg-frame px-4 py-3 text-left text-xs text-heading">chmod +x OpenLimiter-linux-x86_64.AppImage && ./OpenLimiter-linux-x86_64.AppImage</code>

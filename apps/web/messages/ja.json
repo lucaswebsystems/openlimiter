@@ -877,7 +877,7 @@
     "choice": {
       "windowsSummary": "未署名のビルドです。SmartScreenが警告したら、詳細情報を選び、実行を選択してください。",
       "macosSummary": "Apple siliconとIntel向けのプレビュー版で、アドホック署名はありますが公証はされていません。プライバシーとセキュリティで一度だけ許可してから、アプリを開きます。更新は新しいダウンロードで入手します。",
-      "linuxSummary": "ディストリビューションに合わせてAppImage、deb、rpmを選べます。AppImageは実行権限を設定して起動します。",
+      "linuxSummary": "Debian と Ubuntu 向けの deb パッケージです。rpm と AppImage はこの下にあります。AppImage には libfuse2 が必要です（Ubuntu 24.04 では libfuse2t64）。",
       "detected": "検出済み",
       "windows": "Windows版をダウンロード",
       "linux": "Linux版をダウンロード",
@@ -908,8 +908,8 @@
         "gatekeeper": "OpenLimiterを一度開きます。プレビュー版は公証されていないため、macOSはこの初回を拒否します。システム設定を開き、プライバシーとセキュリティに進み、OpenLimiterの案内の横にある「このまま開く」を選んでください。"
       },
       "linux": {
-        "open": "AppImageに実行権限を付けてから起動します。",
-        "packages": "パッケージを使いたい場合は、debとrpmのファイルが<download>ダウンロードページ</download>にあります。",
+        "open": "deb パッケージをソフトウェアのインストーラーで開くか、ターミナルでインストールします。",
+        "packages": "Fedora や openSUSE、または AppImage を使う場合は、ほかのファイルが<download>ダウンロードページ</download>にあります。AppImage には libfuse2 が必要です（Ubuntu 24.04 では libfuse2t64）。",
         "wayland": "Waylandでは、端のタブの代わりにトレイにバーが表示されます。"
       }
     },
@@ -994,7 +994,7 @@
         },
         "note": "一つの形式を選んでください。AppImageは実行権限を設定すればインストールせずに動きます。DebianとUbuntuではdebファイルを使います。FedoraとopenSUSEではrpmファイルを使います。下のコマンドはリリースにある正確なファイル名を使っています。",
         "instructions": {
-          "appImage": "AppImageを実行",
+          "appImage": "AppImageを実行。libfuse2 が必要です（Ubuntu 24.04 では libfuse2t64）。",
           "deb": "DebianまたはUbuntuへインストール",
           "rpm": "FedoraまたはopenSUSEへインストール"
         },
