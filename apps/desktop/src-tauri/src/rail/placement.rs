@@ -8,8 +8,6 @@ pub const PANEL_WIDTH: f64 = 360.0;
 pub const PANEL_HEIGHT: f64 = 480.0;
 /// The shortest panel: its header, one limit line and its footer.
 pub const MIN_PANEL_HEIGHT: f64 = 160.0;
-/// The tallest panel, as a share of the work area. Beyond it the panel scrolls.
-pub const MAX_PANEL_SHARE: f64 = 0.9;
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -85,8 +83,9 @@ pub fn place(monitor: &Monitor, _edge: Edge, _offset: f64, _unfolded: bool) -> R
 }
 
 /// The panel beside the tab, `height` logical pixels tall: the height its own
-/// content asked for, never shorter than MIN_PANEL_HEIGHT and never taller
-/// than MAX_PANEL_SHARE of the work area.
+/// content asked for, never shorter than MIN_PANEL_HEIGHT. `fit` raises it as
+/// far as it must to stay in the work area and cuts it only where it is taller
+/// than the whole work area, the one case where the panel scrolls.
 pub fn card(monitor: &Monitor, _edge: Edge, rail: Rect, _anchor: f64, height: f64) -> Rect {
     let gap = pixels(4.0, monitor.scale);
     let requested = if height.is_finite() {
@@ -94,13 +93,12 @@ pub fn card(monitor: &Monitor, _edge: Edge, rail: Rect, _anchor: f64, height: f6
     } else {
         PANEL_HEIGHT
     };
-    let tallest = (monitor.work.height as f64 * MAX_PANEL_SHARE).floor() as i32;
     fit(
         monitor.work,
         rail.x + rail.width + gap,
         rail.y,
         pixels(PANEL_WIDTH, monitor.scale),
-        pixels(requested, monitor.scale).min(tallest),
+        pixels(requested, monitor.scale),
     )
 }
 
@@ -270,7 +268,7 @@ mod tests {
     }
 
     #[test]
-    fn card_height_follows_its_content_between_the_minimum_and_ninety_percent() {
+    fn card_height_follows_its_content_between_the_minimum_and_the_work_area() {
         for scale in [1.0, 1.5, 2.0] {
             let m = monitor(scale);
             let rail = place(&m, Edge::Left, 0.0, true);
@@ -281,13 +279,42 @@ mod tests {
             assert_eq!(fits.width, px(PANEL_WIDTH));
             // A tiny report never shrinks the panel below its header and footer.
             assert_eq!(card(&m, Edge::Left, rail, 0.0, 20.0).height, px(MIN_PANEL_HEIGHT));
-            // A tall report stops at 90% of the work area and the panel scrolls.
+            // Only a report taller than the work area is cut short, and scrolls.
             let tall = card(&m, Edge::Left, rail, 0.0, 99_999.0);
-            assert_eq!(tall.height, (m.work.height as f64 * 0.9).floor() as i32);
+            assert_eq!(tall.height, m.work.height);
             assert!(m.work.contains(tall.x, tall.y));
             assert!(m.work.contains(tall.x + tall.width - 1, tall.y + tall.height - 1));
             // No report yet, or a nonsense one, keeps the default.
             assert_eq!(card(&m, Edge::Left, rail, 0.0, f64::NAN).height, px(PANEL_HEIGHT));
+        }
+    }
+
+    /// The panel is as tall as its rows need (the heights three, six and nine
+    /// providers report), rising as far as it must to stay in the work area,
+    /// and only a panel taller than the whole work area is cut short and
+    /// scrolls. Two work areas: 1080 and 768 tall.
+    #[test]
+    fn the_panel_fits_its_rows_whenever_the_work_area_has_room() {
+        for (work_height, scale) in [(1080, 1.0), (768, 1.0), (1080, 1.5)] {
+            let m = Monitor {
+                id: "primary".into(),
+                bounds: Rect { x: 0, y: 0, width: 1920, height: work_height + 40 },
+                work: Rect { x: 0, y: 0, width: 1920, height: work_height },
+                scale,
+                primary: true,
+            };
+            let rail = place(&m, Edge::Left, 0.0, true);
+            let px = |logical: f64| (logical * scale).round() as i32;
+            for content in [330.0, 600.0, 760.0, 900.0, 1040.0, 1300.0] {
+                let panel = card(&m, Edge::Left, rail, 0.0, content);
+                let fits = px(content) <= work_height;
+                assert_eq!(panel.height, if fits { px(content) } else { work_height }, "{content} on {work_height}");
+                assert!(panel.y >= m.work.y && panel.y + panel.height <= m.work.y + m.work.height);
+                if px(content) <= m.work.y + m.work.height - rail.y {
+                    assert_eq!(panel.y, rail.y, "a panel that fits below the tab starts at it");
+                }
+                assert!(inside(rail, Some(panel), rail.x + rail.width + 1, rail.y + 1));
+            }
         }
     }
 

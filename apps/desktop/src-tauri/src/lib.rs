@@ -34,6 +34,7 @@ mod pairing;
 mod poll_identity;
 mod pro;
 mod provider_detection;
+mod provider_order;
 mod provider_switches;
 mod providers_plugin;
 mod rail;
@@ -173,6 +174,8 @@ async fn set_tray_status(
                 })
                 .collect(),
             trial_offered.unwrap_or(true),
+            // The menu lists providers in the order the window shows them.
+            &app.state::<provider_order::OrderStore>().read(),
         )
     }).await.map_err(|e| e.to_string())?
 }
@@ -217,6 +220,7 @@ pub fn run() {
         .manage(autostart::SecondLaunch::default())
         .manage(connections::ConnectionsStore::at_state_directory())
         .manage(claude_poll_setting::ClaudePollSetting::default())
+        .manage(provider_order::OrderStore::at_state_directory())
         .manage(codex_device_login::OpenDeviceLogin::default())
         .manage(credentials::KeyringStore)
         .manage(credentials::ApiSpendKeyringStore)
@@ -252,6 +256,8 @@ pub fn run() {
             cli_config::set_terminal_captions,
             cli_config::terminal_runtime_status,
             set_tray_status,
+            provider_order::provider_order,
+            provider_order::set_provider_order,
             api_spend::api_spend_status,
             api_spend::api_spend_save_source,
             api_spend::api_spend_refresh,

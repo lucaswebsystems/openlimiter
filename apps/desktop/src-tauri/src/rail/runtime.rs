@@ -16,6 +16,9 @@ use tauri::{
 
 /// Sent to the panel whenever it is shown or hidden, with that state.
 pub const PANEL_SHOWN_EVENT: &str = "edge-panel-shown";
+/// Sent to the panel for an Escape that arrives while it holds itself open:
+/// it cancels its drag or closes its menu, and the panel stays.
+pub const PANEL_ESCAPE_EVENT: &str = "edge-panel-escape";
 
 #[derive(Default)]
 struct Applied {
@@ -381,9 +384,7 @@ fn tick<R: Runtime>(
     #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
     let (pointer, fullscreen, escape) = (None::<(i32, i32)>, false, false);
     let inside = pointer.is_some_and(|(x, y)| placement::inside(old_rail, old_card, x, y));
-    if escape && !applied.escape_down {
-        inner.behavior.close_card();
-    }
+    let escape_to_panel = escape && !applied.escape_down && inner.behavior.escape(Instant::now());
     applied.escape_down = escape;
     inner
         .behavior
@@ -414,6 +415,9 @@ fn tick<R: Runtime>(
         applied.card = Some((card_bounds, card_visible));
     }
     announce(app, was_shown, card_visible);
+    if escape_to_panel {
+        let _ = app.emit_to(EventTarget::webview_window("rail-card"), PANEL_ESCAPE_EVENT, ());
+    }
     Ok(visible)
 }
 

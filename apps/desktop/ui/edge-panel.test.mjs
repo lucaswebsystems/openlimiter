@@ -263,14 +263,16 @@ test("the panel window may invoke only what its capability grants", () => {
   }
   for (const permission of ["rail:default", "activity:allow-activity-locate", "core:window:allow-get-all-windows",
     "core:window:allow-show", "core:window:allow-unminimize", "core:window:allow-set-focus",
-    "rail:allow-rail-card-height", "core:event:allow-listen", "core:event:allow-unlisten"]) {
+    "rail:allow-rail-card-height", "rail:allow-rail-card-hold", "core:event:allow-listen", "core:event:allow-unlisten"]) {
     assert.ok(granted.has(permission), permission);
   }
   const edge = read("../src-tauri/capabilities/edge-panel.json");
   assert.deepEqual(edge.windows, ["rail-card"]);
-  assert.equal(edge.permissions.length, 7, "Open app, its own height and its shown state; nothing else");
-  // The height command is the panel's alone: not part of rail:default, which main and the tab also hold.
+  assert.equal(edge.permissions.length, 8, "Open app, its own height, its hold and its shown state; nothing else");
+  // The height and hold commands are the panel's alone: not part of rail:default, which main and the tab also hold.
   const railDefault = readFileSync(new URL("../src-tauri/permissions/rail/default.toml", import.meta.url), "utf8");
-  assert.doesNotMatch(railDefault, /rail-card-height/u);
-  assert.match(readFileSync(new URL("../src-tauri/build_support/rail.rs", import.meta.url), "utf8"), /"rail_card_height"/u);
+  assert.doesNotMatch(railDefault, /rail-card-height|rail-card-hold/u);
+  const commands = readFileSync(new URL("../src-tauri/build_support/rail.rs", import.meta.url), "utf8");
+  assert.match(commands, /"rail_card_height"/u);
+  assert.match(commands, /"rail_card_hold"/u);
 });

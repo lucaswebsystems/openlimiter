@@ -353,6 +353,26 @@ fn rail_controls_denied_to_ungranted_and_tray_windows() {
     }
 }
 
+/// The hold is the edge panel's alone, like its own height: no other window
+/// can keep it open.
+#[test]
+fn only_the_edge_panel_may_hold_itself_open() {
+    let root = test_support::TempDir::new();
+    let app = app_with_snapshot_root(root.path());
+    let panel = WebviewWindowBuilder::new(&app, "rail-card", Default::default())
+        .build()
+        .unwrap();
+    for held in [true, false] {
+        assert_eq!(
+            invoke_body(&panel, "plugin:rail|rail_card_hold", InvokeBody::Json(json!({ "held": held }))),
+            Ok(Value::Null)
+        );
+    }
+    for label in ["main", "rail", "tray", "ungranted"] {
+        assert_denied(label, "plugin:rail|rail_card_hold");
+    }
+}
+
 #[test]
 fn rail_ungranted_window_denied() {
     assert_denied("ungranted", "plugin:rail|rail_snapshot");
