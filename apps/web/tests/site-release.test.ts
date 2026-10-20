@@ -41,14 +41,14 @@ describe("2.0 site release", () => {
 
   it("distinguishes free local alerts from remote Pro alerts without prose dashes", () => {
     expect(en.pricing.pro.cta).toBe("Start your free 30 day Pro trial");
-    expect(en.pricing.pro.lines.alerts).toContain("Local desktop alerts are free");
+    expect(en.proFeatures.alerts).toContain("Desktop alerts stay free");
     expect(en.announce.message).toContain("Desktop alerts");
     expect(en.announce.message).not.toContain("$100");
-    expect(en.pricing.pro.lead).toContain("history");
-    /* "Four Pro features" heads exactly four lines, with no second history line. */
-    expect(Object.keys(en.pricing.pro.lines)).toHaveLength(4);
+    /* The card reads the one Pro list, so its lead never counts the lines. */
+    expect(en.pricing.pro).not.toHaveProperty("lines");
+    expect(en.pricing.pro.lead).not.toMatch(/four|five/iu);
     expect(en.integrations.connectors.claude.detail).not.toMatch(/asks nothing/u);
-    expect(en.pricing.pro.lines.heavyApi).not.toContain("$100");
+    expect(en.proFeatures.apiSpend).not.toContain("$100");
     expect(en.faq.items.phoneAccess.answer).toContain("does not require Pro");
     expect(en.docs.pages.providers.description).toContain("eight");
     expect(en.docs.pages.security.sections.reporting.address).toContain("lucas@lucaswebsystems.com");

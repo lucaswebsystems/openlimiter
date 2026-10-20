@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { DocArticle } from "@/components/docs/doc-article";
 import { Bullets, Callout, DocLink, ExternalLink, P } from "@/components/docs/prose";
 import { docMetadata } from "@/lib/metadata";
+import proFeatures from "@/lib/pro-features.json";
 import { ISSUES_URL } from "@/lib/site";
 import { type LocaleParams, pageLocale } from "@/i18n/params";
 
@@ -15,6 +16,7 @@ export default async function RoadmapPage({ params }: LocaleParams) {
   /* Every sentence comes from the catalog, keyed by the anchor it renders under.
      Nothing on this page is code, so nothing on it stays here. */
   const t = await getTranslations("docs.pages.roadmap.sections");
+  const feature = await getTranslations("proFeatures");
 
   return (
     <DocArticle
@@ -70,9 +72,8 @@ export default async function RoadmapPage({ params }: LocaleParams) {
               <Bullets
                 items={[
                   t("sync.bullets.status"),
-                  t("sync.bullets.alerts"),
-                  t("sync.bullets.history"),
-                  t("sync.bullets.phone"),
+                  /* What Pro adds is the one list every surface reads. */
+                  ...proFeatures.features.map(({ id }) => feature(id)),
                   t("sync.bullets.localFirst"),
                 ]}
               />

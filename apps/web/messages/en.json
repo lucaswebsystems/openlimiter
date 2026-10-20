@@ -872,7 +872,7 @@
       },
       "pro": {
         "question": "What is OpenLimiter Pro?",
-        "answer": "OpenLimiter Pro is $5 a month or $50 a year, with the first 30 days free and no card required. It adds four things: history with a forecast; email and phone push alerts at 60, 80 and 90 percent and on reset; more than one account per provider; and cloud API spend metering for keys you explicitly enable. Desktop alerts, local meters and account access remain free. A full refund is available on request within 14 days of any charge."
+        "answer": "OpenLimiter Pro is $5 a month or $50 a year, with the first 30 days free and no card required. It adds more than one account per provider; ninety days of hosted history with a forecast; phone push and email alerts at 60, 80 and 90 percent and on reset; cloud API spend metering for keys you explicitly enable; and the Ember theme preset. Desktop alerts, local meters and account access remain free. A full refund is available on request within 14 days of any charge."
       },
       "alerts": {
         "question": "Do I get alerts when a window fills up?",
@@ -920,14 +920,8 @@
       "perYear": "a year",
       "trialChip": "30 days free",
       "priceNote": "The first 30 days are free with no card required. When access ends, Pro history, phone push and email alerts, extra accounts and cloud API spend metering stop. Local meters, desktop alerts and account access keep working.",
-      "lead": "Four Pro features: history, phone push and email alerts, extra accounts and cloud API spend metering.",
+      "lead": "Everything that is free, plus:",
       "footnote": "After the trial, local meters, local alerts and free account access keep working. Free keeps one active account per provider.",
-      "lines": {
-        "alerts": "Email and phone push alerts. Local desktop alerts are free",
-        "multiSubscription": "Extra accounts per provider",
-        "heavyApi": "Cloud API spend metering from opted in provider keys",
-        "history": "Ninety days of hosted history, with a forecast"
-      },
       "cta": "Start your free 30 day Pro trial",
       "conditions": "Spend meters need an organisation admin key. Full refund within 14 days, cancel any time in the Stripe portal. Sold by Lucas Costa, payments by Stripe.",
       "conditionsLink": "Full conditions"
@@ -2100,10 +2094,7 @@
             "intro": "OpenLimiter Pro is available at $5 a month or $50 a year, with the first 30 days free and no card required. See <pricing>pricing</pricing> for what each line actually is.",
             "bullets": {
               "status": "Status: available. Sync is on from the moment you sign in.",
-              "alerts": "Threshold and reset email alerts.",
-              "history": "Ninety day hosted usage history with burn rate forecasts.",
-              "localFirst": "Everything you can see is free. The command line tool and the desktop local features work with no Pro account.",
-              "phone": "Phone pairing by QR code, kept alive across the device closing for a day or more."
+              "localFirst": "Everything you can see is free. The command line tool and the desktop local features work with no Pro account."
             }
           },
           "following": {
@@ -2219,7 +2210,7 @@
     "checkout": {
       "success": {
         "title": "Payment received",
-        "body": "Stripe confirmed the payment. Your plan updates here as soon as the service records it, which is usually a few seconds."
+        "body": "Stripe confirmed the payment. Pro turns on within a few minutes, once the service records it."
       },
       "cancel": {
         "title": "Checkout was cancelled",
@@ -2233,24 +2224,12 @@
       "start": "Start Pro free for 30 days",
       "free": "No credit card needed"
     },
-    "offer": {
-      "title": "Your annual offer",
-      "lead": "Your trial has ended, so the first year is discounted while this window is open.",
-      "label": "Your offer ends in",
-      "countdown": "{days}d {hours}h {minutes}m",
-      "countdownLabel": "Time left: {days} days, {hours} hours, {minutes} minutes.",
-      "price": "USD 40 for the first year, then USD 50.",
-      "take": "Take the offer"
-    },
     "lost": {
       "alerts": "{count} alerts stopped.",
       "noAlerts": "No alerts were stopped.",
       "history": "Your history is kept for thirty days, then purged.",
-      "phone": "Phone paired: {status}.",
       "multiAccount": "{count} additional accounts stopped.",
       "hostedContext": "Cloud API spend metering: {status}.",
-      "paired": "yes",
-      "notPaired": "no",
       "on": "on",
       "off": "off",
       "loading": "Reading what stopped.",
@@ -2258,11 +2237,21 @@
     },
     "restore": "Subscribe and everything comes back as it was. Your preferences were kept."
   },
+  "proFeatures": {
+    "multiAccount": "More than one account per provider",
+    "history": "Ninety days of hosted history, with a forecast",
+    "alerts": "Phone push and email alerts. Desktop alerts stay free",
+    "apiSpend": "Cloud API spend metering for the keys you enable",
+    "ember": "The Ember theme preset"
+  },
   "hub": {
     "accountFallback": "Account {count}",
     "syncFailed": {
       "line": "The last read of your bars failed. OpenLimiter tries again every minute.",
       "retry": "Try again"
+    },
+    "alertsGate": {
+      "pro": "Phone push and email alerts are part of Pro. Desktop alerts are free."
     },
     "updatedMinutes": "Updated {count} min ago",
     "updatedHours": "Updated {count} h ago",
@@ -2467,45 +2456,29 @@
     "pro": {
       "label": "Pro",
       "locked": {
-        "title": "History, alerts, extra accounts and cloud metering",
-        "lead": "Your bars and desktop alerts are free. These Pro features are available with a trial."
+        "title": "What Pro adds",
+        "lead": "Your bars and desktop alerts are free. These Pro features are available with a trial.",
+        "price": "After the trial, {monthly} a month or {yearly} a year. Cancel any time, with a full refund on request within 14 days."
       },
+      "phonePush": "Pairing shows your bars on this phone. It does not turn on push alerts: those go to the browser where you started Pro, signed in, with notifications allowed.",
       "expired": {
         "title": "Pro has ended",
         "lead": "Your saved Pro preferences stayed in place, and these are the services that stopped."
-      },
-      "feature": {
-        "alerts": "Email and phone push alerts. Local desktop alerts are free.",
-        "history": "Ninety days of history, with a forecast.",
-        "phone": "Cloud API spend meters for keys you explicitly enable.",
-        "multiAccount": "More than one account for every provider."
       },
     "lost": {
       "alerts": "{count} alerts stopped.",
       "noAlerts": "No alerts were stopped.",
       "history": "Your history is kept for thirty days, then purged.",
-      "phone": "Phone paired: {status}.",
       "multiAccount": "{count} additional accounts stopped.",
       "hostedContext": "Cloud API spend metering: {status}.",
-      "paired": "yes",
-      "notPaired": "no",
       "on": "on",
       "off": "off",
       "loading": "Reading what stopped.",
       "unavailable": "What stopped could not be read."
     },
     "restore": "Subscribe and everything comes back as it was. Your preferences were kept.",
-      "offer": {
-        "label": "Your offer ends in",
-        "countdown": "{days}d {hours}h {minutes}m",
-        "countdownLabel": "Time left: {days} days, {hours} hours, {minutes} minutes.",
-        "price": "USD 40 for the first year, then USD 50.",
-        "take": "Take the offer",
-        "working": "Opening checkout"
-      },
       "prices": {
-        "line": "{yearly} a year.",
-        "take": "Take Pro"
+        "working": "Opening checkout"
       },
       "error": "That did not go through. Nothing was charged and nothing changed."
     },

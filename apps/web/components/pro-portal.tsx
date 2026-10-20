@@ -28,13 +28,7 @@ import {
   type ProCheckoutOutcome,
   type ProDevice,
 } from "@/lib/pro";
-import {
-  locksPro,
-  offersTrial,
-  startOfferCheckout,
-  type OfferCountdown,
-} from "@/lib/pro-trial";
-import { useOfferCountdown } from "@/lib/use-offer-countdown";
+import { locksPro, offersTrial } from "@/lib/pro-trial";
 import { PRO_MONTHLY_PRICE, PRO_YEARLY_PRICE } from "@/lib/site";
 import { SignInCard } from "./sign-in-card";
 import { Button, Chip, SectionPanel } from "./ui";
@@ -63,7 +57,7 @@ import { ExpiredProSummary } from "./pro-expired-summary";
  */
 
 type AccountState = "loading" | "ready" | "error";
-type Action = "none" | "month" | "year" | "billing" | "offer";
+type Action = "none" | "month" | "year" | "billing";
 
 /**
  * Where the trial actually happens.
@@ -108,25 +102,17 @@ export function ProPortal({ locale }: { locale: string }) {
   const accountRequest = useRef(0);
   /** The live auth listener, so a client being replaced takes its own with it. */
   const authListener = useRef<{ unsubscribe: () => void } | null>(null);
-  /**
-   * The offer's remaining time, read above every early return.
-   *
-   * It has to be here rather than inside the panel that draws it, because two
-   * decisions depend on it and they must not disagree: whether the discounted
-   * panel is on screen, and whether the ordinary prices are. A page left open
-   * across the closing instant redraws on the same minute tick and moves both.
-   */
-  const offerCountdown = useOfferCountdown(account?.entitlement?.offerEndsAt ?? null);
 
   /* The checkout return, read once and then cleaned out of the address bar so a
      refresh does not replay a state that has already been acknowledged. */
   useEffect(() => {
     const outcome = proCheckoutOutcome(window.location.search);
     if (outcome === null) return;
-    /* A return parameter is not proof of payment. The account read below is
-       the only source allowed to turn a checkout into an entitlement. A
-       cancellation is safe to report because it makes no positive claim. */
-    setCheckout(outcome === "cancel" ? outcome : null);
+    /* A return parameter is not proof of payment, so the plan on this page is
+       still only what the account read below says. The notice says what the
+       return means: a cancel charged nothing, and a success is a payment Stripe
+       took, which turns Pro on within a few minutes once the service records it. */
+    setCheckout(outcome);
     const url = new URL(window.location.href);
     url.searchParams.delete("checkout");
     window.history.replaceState(null, "", url.pathname + url.search + url.hash);
@@ -220,19 +206,6 @@ export function ProPortal({ locale }: { locale: string }) {
     setActionFailed(true);
   }
 
-  async function takeOffer() {
-    if (supabase === null || action !== "none") return;
-    setAction("offer");
-    setActionFailed(false);
-    const result = await startOfferCheckout(supabase);
-    if (result.ok) {
-      window.location.assign(result.value);
-      return;
-    }
-    setAction("none");
-    setActionFailed(true);
-  }
-
   async function manageBilling() {
     if (supabase === null) return;
     setAction("billing");
@@ -298,10 +271,6 @@ export function ProPortal({ locale }: { locale: string }) {
      the wizard is the only caller of start_trial in this application. */
   const canStartTrial = accountState === "ready" && offersTrial(state);
   const locked = accountState === "ready" && locksPro(state);
-  /* One price on the screen at a time. While the discounted year is live it is
-     the only offer; the ordinary panel is what the closed window falls back
-     to, which is the same rule the hub's lock card holds. */
-  const offerLive = locked && offerCountdown !== null;
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -377,17 +346,15 @@ export function ProPortal({ locale }: { locale: string }) {
         </SectionPanel>
       )}
 
+      {/* What stopped, read from the server. The two locked prices follow in
+          the upgrade panel; there is no discounted first year. */}
       {locked && (
-        <OfferPanel
-          client={supabase}
-          countdown={offerCountdown}
-          working={action === "offer"}
-          disabled={action !== "none"}
-          onTake={() => void takeOffer()}
-        />
+        <SectionPanel className="border-accent-subtle">
+          <ExpiredProSummary client={supabase} namespace="proPortal" />
+        </SectionPanel>
       )}
 
-      {accountState === "ready" && proCanUpgrade(state) && !canStartTrial && !offerLive && (
+      {accountState === "ready" && proCanUpgrade(state) && !canStartTrial && (
         <SectionPanel>
           <h2 className="text-lg font-medium text-heading">{t("upgrade.title")}</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted">{t("upgrade.body")}</p>
@@ -484,64 +451,6 @@ export function ProPortal({ locale }: { locale: string }) {
         </Button>
       </div>
     </div>
-  );
-}
-
-/**
- * What a trial that has ended is offered, while the window is open.
- *
- * Four lines saying what stopped, a countdown, and one price. The countdown is
- * the server's own `offer_ends_at` and nothing else: when it answers null the
- * whole panel is gone and the ordinary upgrade panel below it is the offer, so
- * the closed state is the absence of this rather than a second set of prices
- * somebody has to remember to write.
- */
-function OfferPanel({
-  client,
-  countdown,
-  working,
-  disabled,
-  onTake,
-}: {
-  client: SupabaseClient;
-  /** Null once the window has closed, which is what removes the price. */
-  countdown: OfferCountdown | null;
-  working: boolean;
-  disabled: boolean;
-  onTake: () => void;
-}) {
-  const t = useTranslations("proPortal");
-
-  return (
-    <SectionPanel className="border-accent-subtle">
-      <ExpiredProSummary client={client} namespace="proPortal" />
-
-      {countdown !== null && (
-        <>
-          <h2 className="mt-6 text-lg font-medium text-heading">{t("offer.title")}</h2>
-          <p className="mt-2 text-sm leading-relaxed text-muted">{t("offer.lead")}</p>
-          <p className="mt-5 text-xs uppercase tracking-wider text-soft">{t("offer.label")}</p>
-          <p
-            className="mt-1 font-mono text-3xl tabular-nums text-heading"
-            aria-label={t("offer.countdownLabel", {
-              days: countdown.days,
-              hours: countdown.hours,
-              minutes: countdown.minutes,
-            })}
-          >
-            {t("offer.countdown", {
-              days: countdown.days,
-              hours: countdown.hours,
-              minutes: countdown.minutes,
-            })}
-          </p>
-          <p className="mt-3 text-sm leading-relaxed text-body">{t("offer.price")}</p>
-          <Button tone="accent" className="mt-5" disabled={disabled} onClick={onTake}>
-            {working ? t("working") : t("offer.take")}
-          </Button>
-        </>
-      )}
-    </SectionPanel>
   );
 }
 

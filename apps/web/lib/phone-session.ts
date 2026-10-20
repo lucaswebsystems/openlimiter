@@ -30,6 +30,7 @@
 
 import { readDeviceSnapshots, renewPhoneCredential, type HostedResponse } from "./pro-device";
 import { meterRowsOf } from "./device-snapshots";
+import { PRO_PLAN_STATES, type ProPlanState } from "./pro";
 
 /** Renew once the token is this close to its end, rather than at it. */
 export const PHONE_RENEW_WITHIN_SECONDS = 12 * 3_600;
@@ -280,6 +281,55 @@ export async function renewPhonePair(
   if (now() - startedAt >= PHONE_RENEW_GRACE_SECONDS * 1_000) return { kind: "unavailable" };
   const second = await renewAttempt(pair, call);
   return second.outcome;
+}
+
+/* -------------------------------------------------------------- the plan */
+
+/** What the read token says about the account's plan. */
+export interface PhonePlan {
+  state: ProPlanState;
+  /** The Pro feature codes the token was signed with. Empty means no Pro now. */
+  features: string[];
+}
+
+/** The plan in an answer, or undefined when there is none worth trusting. */
+export function phonePlanFrom(value: unknown): PhonePlan | undefined {
+  const row = record(value);
+  if (row === null || !(PRO_PLAN_STATES as readonly unknown[]).includes(row.state)) return undefined;
+  if (!Array.isArray(row.features) || !row.features.every((code) => typeof code === "string")) return undefined;
+  return { state: row.state as ProPlanState, features: [...row.features] as string[] };
+}
+
+/**
+ * The plan a read token carries, read on the server from the cookie.
+ *
+ * The Pro server signs `plan_state` and `features` into every phone token, and
+ * the read route already holds that token, so the phone learns its own plan
+ * with no account session and no extra request. This decodes the claims
+ * without checking the signature: it decides only what the phone's Pro tab
+ * says, and every hosted read is still verified by the server. Null for
+ * anything that is not a three part token with those two claims.
+ */
+export function phonePlanOf(token: string): PhonePlan | null {
+  const segments = token.split(".");
+  if (segments.length !== 3) return null;
+  try {
+    const base64 = segments[1].replace(/-/gu, "+").replace(/_/gu, "/");
+    const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
+    const claims = record(JSON.parse(new TextDecoder().decode(bytes)));
+    return phonePlanFrom({ state: claims?.plan_state, features: claims?.features }) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Which plan sentence the phone shows, or null when the account has no Pro now. */
+export function phoneProState(plan: PhonePlan | null): "trial" | "active" | "pastDue" | null {
+  if (plan === null || plan.features.length === 0) return null;
+  if (plan.state === "trialing") return "trial";
+  if (plan.state === "active" || plan.state === "comped") return "active";
+  if (plan.state === "past_due") return "pastDue";
+  return null;
 }
 
 /* -------------------------------------------------------------- the read */
@@ -623,7 +673,7 @@ export function requestPhoneRenewal(force = false): Promise<RenewSessionOutcome>
 }
 
 export type PhoneReadOutcome =
-  | { kind: "fresh"; body: unknown }
+  | { kind: "fresh"; body: unknown; plan?: PhonePlan }
   | { kind: "revoked" }
   | { kind: "unpaired" }
   | { kind: "superseded" }
@@ -713,7 +763,8 @@ export async function requestPhoneRead(recoveredLabel = "This phone"): Promise<P
     });
   }
   writePhoneLastBars(fresh);
-  return { kind: "fresh", body: fresh };
+  const plan = phonePlanFrom(body?.plan);
+  return plan === undefined ? { kind: "fresh", body: fresh } : { kind: "fresh", body: fresh, plan };
 }
 
 /** Renew before reading, and recover a missing access cookie without deleting the refresh cookie. */

@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
 import { PhoneTabs, type PhoneTab } from "@/app/app/pair/phone-tabs";
 import { ProTab } from "@/app/app/pair/pro-tab";
+import proList from "@/lib/pro-features.json";
 import { PhoneSettings } from "@/app/app/pair/phone-settings";
 import {
   PHONE_LAST_BARS_KEY,
@@ -147,7 +148,7 @@ describe("the paired phone shell", () => {
     })));
   }
 
-  it("switches from Usage to the four Pro features and trial action", () => {
+  it("switches from Usage to the one Pro list and trial action", () => {
     function Harness() {
       const [tab, setTab] = useState<PhoneTab>("usage");
       return createElement("div", null,
@@ -158,7 +159,7 @@ describe("the paired phone shell", () => {
     render(createElement(Harness));
     const pro = [...container.querySelectorAll("button")].find((button) => button.textContent === messages.hub.phoneTabs.pro)!;
     act(() => pro.click());
-    expect(container.querySelectorAll(".ol-lock-list li")).toHaveLength(4);
+    expect(container.querySelectorAll(".ol-lock-list li")).toHaveLength(proList.features.length);
     expect(container.textContent).toContain(messages.hub.trial.start);
     expect(pro.getAttribute("aria-controls")).toBe("ol-phone-panel-pro");
     expect(container.querySelectorAll('[role="tabpanel"]')).toHaveLength(2);

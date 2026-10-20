@@ -872,7 +872,7 @@
       },
       "pro": {
         "question": "O que é o OpenLimiter Pro?",
-        "answer": "O OpenLimiter Pro custa US$ 5 por mês ou US$ 50 por ano, com os primeiros 30 dias gratuitos e sem cartão. Ele acrescenta quatro coisas: histórico com previsão; alertas por email e push no celular em 60, 80 e 90 por cento e no reinício; mais de uma conta por provedor; e medição de gasto de API na nuvem para chaves que você autorizar. Alertas do desktop, medidores locais e acesso à conta continuam gratuitos. Um reembolso integral pode ser solicitado em até 14 dias de qualquer cobrança."
+        "answer": "O OpenLimiter Pro custa US$ 5 por mês ou US$ 50 por ano, com os primeiros 30 dias gratuitos e sem cartão. Ele acrescenta mais de uma conta por provedor; noventa dias de histórico hospedado com previsão; alertas por push no celular e por email em 60, 80 e 90 por cento e no reinício; medição de gasto de API na nuvem para chaves que você autorizar; e o tema predefinido Ember. Alertas do desktop, medidores locais e acesso à conta continuam gratuitos. Um reembolso integral pode ser solicitado em até 14 dias de qualquer cobrança."
       },
       "alerts": {
         "question": "Recebo alertas quando uma janela enche?",
@@ -920,14 +920,8 @@
       "perYear": "por ano",
       "trialChip": "30 dias gratuitos",
       "priceNote": "Os primeiros 30 dias são gratuitos e sem cartão. Quando o acesso termina, param o histórico do Pro, os alertas por push no celular e por email, as contas extras e a medição de gasto de API na nuvem. Medidores locais, alertas do desktop e acesso à conta continuam funcionando.",
-      "lead": "Quatro recursos Pro: histórico, alertas por push no celular e por email, contas extras e medição de gasto de API na nuvem.",
+      "lead": "Tudo o que é gratuito, e mais:",
       "footnote": "Depois do teste, meters locais, alertas locais e acesso gratuito à conta continuam funcionando. A versão gratuita mantém uma conta ativa por provedor.",
-      "lines": {
-        "alerts": "Alertas por email e push no celular. Os alertas locais do desktop são gratuitos",
-        "multiSubscription": "Contas extras por provedor",
-        "heavyApi": "Medição de gasto de API na nuvem com chaves de provedor autorizadas",
-        "history": "Noventa dias de histórico hospedado, com uma previsão"
-      },
       "cta": "Comece seu teste gratuito de 30 dias",
       "conditions": "Os medidores de gasto exigem uma chave de administrador da organização. Reembolso integral em até 14 dias, cancele quando quiser no portal da Stripe. Vendido por Lucas Costa, pagamentos pela Stripe.",
       "conditionsLink": "Condições completas"
@@ -2100,10 +2094,7 @@
             "intro": "O OpenLimiter Pro está disponível por $5 por mês ou $50 por ano, com os primeiros 30 dias gratuitos e sem cartão. Veja <pricing>preços</pricing> para saber o que cada linha realmente é.",
             "bullets": {
               "status": "Estado: disponível. A sincronização fica ligada a partir do momento em que você entra.",
-              "alerts": "Alertas por email ao cruzar um limite ou resetar.",
-              "history": "Noventa dias de histórico hospedado com previsões de consumo.",
-              "localFirst": "Tudo o que você vê é gratuito. A ferramenta de linha de comando e os recursos locais do desktop funcionam sem conta Pro.",
-              "phone": "Pareamento do celular por código QR, mantido mesmo após o dispositivo ficar fechado por um dia ou mais."
+              "localFirst": "Tudo o que você vê é gratuito. A ferramenta de linha de comando e os recursos locais do desktop funcionam sem conta Pro."
             }
           },
           "following": {
@@ -2219,7 +2210,7 @@
     "checkout": {
       "success": {
         "title": "Pagamento recebido",
-        "body": "A Stripe confirmou o pagamento. Seu plano é atualizado aqui assim que o serviço registrar, o que costuma levar alguns segundos."
+        "body": "A Stripe confirmou o pagamento. O Pro é ativado em poucos minutos, assim que o serviço registrar."
       },
       "cancel": {
         "title": "O checkout foi cancelado",
@@ -2233,24 +2224,12 @@
       "start": "Começar o Pro grátis por 30 dias",
       "free": "Nenhum cartão de crédito é necessário"
     },
-    "offer": {
-      "title": "Sua oferta anual",
-      "lead": "Seu teste terminou, então o primeiro ano tem desconto enquanto esta janela estiver aberta.",
-      "label": "Sua oferta termina em",
-      "countdown": "{days}d {hours}h {minutes}m",
-      "countdownLabel": "Tempo restante: {days} dias, {hours} horas, {minutes} minutos.",
-      "price": "US$ 40 no primeiro ano, depois US$ 50.",
-      "take": "Aproveitar a oferta"
-    },
     "lost": {
       "alerts": "{count} alertas foram interrompidos.",
       "noAlerts": "Nenhum alerta foi interrompido.",
       "history": "Seu histórico fica guardado por trinta dias e depois é apagado.",
-      "phone": "Celular pareado: {status}.",
       "multiAccount": "{count} contas extras foram interrompidas.",
       "hostedContext": "Medição de gasto de API na nuvem: {status}.",
-      "paired": "sim",
-      "notPaired": "não",
       "on": "ativado",
       "off": "desativado",
       "loading": "Lendo o que foi interrompido.",
@@ -2258,11 +2237,21 @@
     },
     "restore": "Ao assinar, tudo volta ao que era. Suas preferências foram mantidas."
   },
+  "proFeatures": {
+    "multiAccount": "Mais de uma conta por provedor",
+    "history": "Noventa dias de histórico hospedado, com uma previsão",
+    "alerts": "Alertas por push no celular e por email. Os alertas do desktop continuam gratuitos",
+    "apiSpend": "Medição de gasto de API na nuvem para as chaves que você ativar",
+    "ember": "O tema predefinido Ember"
+  },
   "hub": {
     "accountFallback": "Conta {count}",
     "syncFailed": {
       "line": "A última leitura das suas barras falhou. O OpenLimiter tenta de novo a cada minuto.",
       "retry": "Tentar de novo"
+    },
+    "alertsGate": {
+      "pro": "Alertas por push no celular e por email fazem parte do Pro. Os alertas do desktop são gratuitos."
     },
     "updatedMinutes": "Atualizado há {count} min",
     "updatedHours": "Atualizado há {count} h",
@@ -2467,45 +2456,29 @@
     "pro": {
       "label": "Pro",
       "locked": {
-        "title": "Histórico, alertas, contas extras e medição na nuvem",
-        "lead": "Suas barras e os alertas do desktop são gratuitos. Estes recursos Pro estão disponíveis com um teste."
+        "title": "O que o Pro acrescenta",
+        "lead": "Suas barras e os alertas do desktop são gratuitos. Estes recursos Pro estão disponíveis com um teste.",
+        "price": "Depois do teste, {monthly} por mês ou {yearly} por ano. Cancele quando quiser, com reembolso integral mediante pedido em até 14 dias."
       },
+      "phonePush": "O pareamento mostra suas barras neste celular. Ele não ativa os alertas por push: eles vão para o navegador em que você iniciou o Pro conectado e com notificações permitidas.",
       "expired": {
         "title": "O Pro terminou",
         "lead": "Suas preferências salvas do Pro foram mantidas, e estes serviços foram interrompidos."
-      },
-      "feature": {
-        "alerts": "Alertas por email e push no celular. Alertas locais do desktop são gratuitos.",
-        "history": "Noventa dias de histórico, com uma previsão.",
-        "phone": "Medidores de gasto de API na nuvem para chaves que você autorizar.",
-        "multiAccount": "Mais de uma conta para cada provedor."
       },
     "lost": {
       "alerts": "{count} alertas foram interrompidos.",
       "noAlerts": "Nenhum alerta foi interrompido.",
         "history": "Seu histórico fica guardado por trinta dias e depois é apagado.",
-        "phone": "Celular pareado: {status}.",
         "multiAccount": "{count} contas extras foram interrompidas.",
         "hostedContext": "Medição de gasto de API na nuvem: {status}.",
-        "paired": "sim",
-        "notPaired": "não",
         "on": "ativado",
         "off": "desativado",
         "loading": "Lendo o que foi interrompido.",
         "unavailable": "Não foi possível ler o que foi interrompido."
       },
       "restore": "Ao assinar, tudo volta ao que era. Suas preferências foram mantidas.",
-      "offer": {
-        "label": "Sua oferta termina em",
-        "countdown": "{days}d {hours}h {minutes}m",
-        "countdownLabel": "Tempo restante: {days} dias, {hours} horas, {minutes} minutos.",
-        "price": "US$ 40 no primeiro ano, depois US$ 50.",
-        "take": "Aproveitar a oferta",
-        "working": "Abrindo o checkout"
-      },
       "prices": {
-        "line": "{yearly} por ano.",
-        "take": "Assinar o Pro"
+        "working": "Abrindo o checkout"
       },
       "error": "Isso não foi concluído. Nada foi cobrado e nada mudou."
     },

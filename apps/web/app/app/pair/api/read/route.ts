@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { readDeviceSnapshots } from "@/lib/pro-device";
-import { PHONE_TOKEN_COOKIE, readPhoneBars } from "@/lib/phone-session";
+import { PHONE_TOKEN_COOKIE, phonePlanOf, readPhoneBars } from "@/lib/phone-session";
 
 /**
  * Read the account's meters with the token cookie this path already holds.
@@ -35,5 +35,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
      token the upstream no longer accepts at all, not a retry. */
   if (answer.kind === "unpaired") return privateJson({ error: "no_pair" }, { status: 401 });
   if (answer.kind !== "fresh") return privateJson({ error: "unavailable" }, { status: 503 });
-  return privateJson({ body: answer.body });
+  /* The plan this token was signed with, so the phone's Pro tab can say what
+     the account has. The token itself still never leaves the cookie. */
+  return privateJson({ body: answer.body, plan: phonePlanOf(token) ?? undefined });
 }

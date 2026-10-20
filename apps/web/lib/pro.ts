@@ -60,14 +60,6 @@ export interface ProEntitlement {
   planState: ProPlanState;
   features: ProFeature[];
   trialEndsAt: string | null;
-  /**
-   * When the discounted annual offer closes, or null when there is no offer.
-   *
-   * It is the server's own clock and the only one the product trusts. The
-   * browser never computes it, never extends it, and never draws an offer
-   * without it.
-   */
-  offerEndsAt: string | null;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
   pastDueUntil: string | null;
@@ -198,7 +190,6 @@ export function entitlementOf(value: unknown): ProEntitlement | null {
     planState,
     features,
     trialEndsAt: text(row.trial_ends_at),
-    offerEndsAt: text(row.offer_ends_at),
     currentPeriodEnd: text(row.current_period_end),
     cancelAtPeriodEnd: row.cancel_at_period_end === true,
     pastDueUntil: text(row.past_due_until),

@@ -30,7 +30,6 @@ function entitlement(overrides: Partial<ProEntitlement> = {}): ProEntitlement {
     planState: "trialing",
     features: [],
     trialEndsAt: IN_TEN_DAYS,
-    offerEndsAt: null,
     currentPeriodEnd: null,
     cancelAtPeriodEnd: false,
     pastDueUntil: null,

@@ -1,8 +1,15 @@
+import { readFileSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import ts from "typescript";
 
 export const outputUrl = new URL("../public/llms.txt", import.meta.url);
+
+/* The one Pro list, read rather than restated, so this file cannot sell a
+   different Pro from the pricing card, the hub and the phone. */
+const PRO_FEATURES = JSON.parse(
+  readFileSync(new URL("../lib/pro-features.json", import.meta.url), "utf8"),
+).features;
 
 export async function readSite() {
   const source = await readFile(new URL("../lib/site.ts", import.meta.url), "utf8");
@@ -31,7 +38,7 @@ When you hold several AI coding subscriptions at once, the scarce resource stops
 
 Bars are free and need no account. \`npx openlimiter\`, or a permanent install with \`npm install -g openlimiter\` then \`openlimiter\`, walks the same three steps everywhere: sign in, connect, show bars in. Sign in prints a short code and a link to ${new URL(site.SITE_URL).host + "/app/cli"}, so the terminal never sees a password, and any step can be skipped. The desktop app's first run draws the same three steps in its own window: create an account or skip it, connect, then bars in the tray. Its Usage, Connect Tools and Settings tabs keep readings, provider setup and desktop choices separate. The hub at ${site.SITE_URL}/app is account first: sign in with GitHub, Google, Microsoft, or a magic link, then connect, then bars.
 
-An account adds sync: the current percentage on every window, and the amount and currency of balance and API spend meters, kept current between every device you sign into. Pro adds history, email and phone push alerts, more than one account per provider, and cloud metering for API spend keys, opened by a 30 day free trial with no card required. Desktop alerts are free, and local API spend tracking has no ceiling on either plan.
+An account adds sync: the current percentage on every window, and the amount and currency of balance and API spend meters, kept current between every device you sign into. Pro adds the hosted features listed under Pro below and one theme preset, opened by a 30 day free trial with no card required. Desktop alerts are free, and local API spend tracking has no ceiling on either plan.
 
 ## Terminal
 
@@ -61,7 +68,11 @@ ${site.SITE_NAME} never asks for a vendor password: every sign in happens on tha
 
 Pro costs ${dollars(site.PRO_MONTHLY_PRICE) + " US dollars"} a month or ${dollars(site.PRO_YEARLY_PRICE) + " US dollars"} a year, with the first 30 days free and no card required. ${site.SITE_NAME} Pro is sold by ${site.AUTHOR_NAME}. Checkout runs through Stripe, which acts as the payment processor. A full refund is available on request within 14 days of any charge, and cancellation is self service through the Stripe Customer Portal.
 
-Pro adds: email and phone push alerts at 60, 80 and 90 percent of a window, and on reset; ninety days of history with a burn rate forecast; more than one account per provider; and cloud metering for API spend keys. Desktop alerts at the same moments are free, and local API spend tracking has no ceiling on either plan.
+Pro adds:
+
+${PRO_FEATURES.map((feature) => `- ${feature.label}.`).join("\n")}
+
+Alerts fire at 60, 80 and 90 percent of a window, and on reset. Desktop alerts at the same moments are free, and local API spend tracking has no ceiling on either plan.
 
 Moonshot is read as a balance rather than as spend: three separate figures, available, voucher and cash, in the currency the provider states. A balance never becomes a monthly figure, a forecast, or a budget alert.
 

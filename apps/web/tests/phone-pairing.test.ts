@@ -754,6 +754,32 @@ describe("the read route: reads the token cookie, never a body", () => {
     );
     expect(response.status).toBe(503);
   });
+
+  /* The read token is signed by the Pro server and carries the plan it was
+     issued for. The route already holds it, so it hands the phone that plan
+     beside the rows; the token itself still never leaves the cookie. */
+  it("answers the plan its own token carries beside the rows, and nothing for a token it cannot read", async () => {
+    const segment = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
+    const token = [
+      segment({ alg: "EdDSA", kid: "test", typ: "OLP2" }),
+      segment({ aud: "phone", scope: "read", plan_state: "active", interval: "monthly", features: ["alerts", "history"] }),
+      "signature",
+    ].join(".");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ rows: [] }), { status: 200 })));
+    const response = await readPost(
+      jsonRequest("https://openlimiter.com/app/pair/api/read", undefined, `${PHONE_TOKEN_COOKIE}=${token}`),
+    );
+    const answer = await response.json();
+    expect(answer).toEqual({ body: { rows: [] }, plan: { state: "active", features: ["alerts", "history"] } });
+    expect(JSON.stringify(answer)).not.toContain(token);
+
+    for (const unreadable of ["read.token", `${segment({})}.${segment({ plan_state: "made_up", features: [] })}.x`]) {
+      const plain = await readPost(
+        jsonRequest("https://openlimiter.com/app/pair/api/read", undefined, `${PHONE_TOKEN_COOKIE}=${unreadable}`),
+      );
+      expect(await plain.json()).toEqual({ body: { rows: [] } });
+    }
+  });
 });
 
 /* -------------------------------------------------------------- the screens */
@@ -1537,5 +1563,58 @@ describe("the pair page", () => {
     await flush(6);
     expect(mounted.container.textContent).toContain("This link has no pairing code");
     expect(readPhonePairMeta()).toBeNull();
+  });
+});
+
+/*
+ * The paired phone's Pro tab, with the plan its read token carries.
+ *
+ * It used to draw the hub's card with no plan at all, so a paying account was
+ * sold a trial on its own phone. It now says what the account has, offers the
+ * trial and the prices only to an account without Pro, and says plainly that
+ * pairing shows bars and never turns push alerts on.
+ */
+describe("the paired phone's Pro tab", () => {
+  function pairedWith(plan: unknown) {
+    window.localStorage.setItem(PHONE_PAIR_META_KEY, JSON.stringify({ label: "Test phone", expiresAt: Date.now() / 1000 + 80_000 }));
+    vi.stubGlobal("fetch", fetchRoutedTo({
+      "/app/pair/api/read": () => new Response(JSON.stringify({ body: { rows: [] }, ...(plan === null ? {} : { plan }) }), { status: 200 }),
+    }));
+  }
+
+  async function proPanel(): Promise<Element | null> {
+    mounted = render(createElement(PairFlow));
+    await flush(6);
+    press(byText(mounted.container, "button", hub.phoneTabs.pro));
+    await flush();
+    return mounted.container.querySelector("#ol-phone-panel-pro");
+  }
+
+  it("shows a paying account its plan, not a trial", async () => {
+    pairedWith({ state: "active", features: ["alerts", "history", "multi_account"] });
+    const panel = await proPanel();
+    expect(panel?.textContent).toContain(messages.proPortal.plan.active.title);
+    expect(panel?.textContent).not.toContain(hub.trial.start);
+    expect(panel?.textContent).toContain(hub.pro.phonePush);
+  });
+
+  it("shows a running trial as a trial", async () => {
+    pairedWith({ state: "trialing", features: ["alerts"] });
+    const panel = await proPanel();
+    expect(panel?.textContent).toContain(messages.proPortal.plan.trial.title);
+    expect(panel?.textContent).not.toContain(hub.trial.start);
+  });
+
+  it("offers the trial and the prices after it to an account without Pro, and when the plan is unknown", async () => {
+    for (const plan of [{ state: "canceled", features: [] }, null]) {
+      pairedWith(plan);
+      const panel = await proPanel();
+      expect(panel?.textContent).toContain(hub.trial.start);
+      expect(panel?.textContent).toContain(hub.pro.locked.price.replace("{monthly}", "$5").replace("{yearly}", "$50"));
+      expect(panel?.textContent).toContain(hub.pro.phonePush);
+      mounted?.unmount();
+      mounted = null;
+      window.localStorage.clear();
+    }
   });
 });

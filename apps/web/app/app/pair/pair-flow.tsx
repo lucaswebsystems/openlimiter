@@ -30,6 +30,7 @@ import {
   readPhoneLastBars,
   readPhonePairMeta,
   phonePairOf,
+  type PhonePlan,
 } from "@/lib/phone-session";
 import { createPhoneSessionRuntime } from "@/lib/session-runtime";
 import { serialPoll } from "@/lib/serial-poll";
@@ -337,6 +338,9 @@ function PairedPhone({
   const readingsT = useTranslations("hub");
   const [now, setNow] = useState(() => new Date().toISOString());
   const [tab, setTab] = useState<PhoneTab>("usage");
+  /* The plan the read token carries, from the newest fresh read. Null until
+     one arrives, which the Pro tab draws the same as an account without Pro. */
+  const [plan, setPlan] = useState<PhonePlan | null>(null);
   const unpairedRef = useRef(onUnpaired);
   unpairedRef.current = onUnpaired;
 
@@ -354,6 +358,7 @@ function PairedPhone({
         unpairedRef.current();
       } else if (answer.kind === "fresh") {
         setState((previous) => ({ ...previous, bars: answer.body, phase: "ready", generation: previous.generation + 1 }));
+        setPlan(answer.plan ?? null);
       } else if (answer.kind === "empty") {
         setState((previous) => ({ ...previous, phase: "offline" }));
       }
@@ -433,7 +438,7 @@ function PairedPhone({
           tabIndex={0}
           hidden={tab !== "pro"}
         >
-          <ProTab />
+          <ProTab plan={plan} />
         </section>
       </main>
       <PhoneTabs active={tab} onSelect={setTab} />

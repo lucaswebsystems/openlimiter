@@ -249,8 +249,9 @@ export function NotificationBell({
           </div>
           <p>
             Every alert fires at {PRO_ALERT_THRESHOLDS.join(", ")} percent of a window, and again
-            when that window resets. Alerts are part of Pro.
+            when that window resets.
           </p>
+          <p>{t("alertsGate.pro")}</p>
           {watched > 0 && <p>{watched} windows are on this screen right now.</p>}
 
           {/* Alerts are the surface people meet this gate on first, so the way

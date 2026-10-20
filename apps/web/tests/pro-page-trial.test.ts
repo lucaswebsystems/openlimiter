@@ -4,13 +4,13 @@ import { ProPortal } from "@/components/pro-portal";
 import { all, byText, flush, messages, render, type Mounted } from "./render";
 
 /**
- * The Pro page's half of the trial and the offer.
+ * The Pro page's half of the trial, the plans and the way back from checkout.
  *
- * Two things are held here. The page offers the trial and never starts one:
+ * Three things are held here. The page offers the trial and never starts one:
  * its button is a way to the wizard, which is the single caller of
- * `start_trial` in this application. And a plan that has ended is shown what
- * stopped and, while the window is open, the discounted year with the same
- * countdown the hub draws, from the same server instant.
+ * `start_trial` in this application. A plan that has ended is shown what
+ * stopped and the two locked prices, never a discounted first year. And a
+ * return from Stripe is said in words, the success as well as the cancel.
  */
 
 vi.mock("@/i18n/navigation", async () => {
@@ -169,8 +169,8 @@ describe("the trial on the Pro page", () => {
   });
 });
 
-describe("the offer on the Pro page", () => {
-  it("names what stopped and counts the window down", async () => {
+describe("an ended plan on the Pro page", () => {
+  it("names what stopped and offers both plans, never a first year offer, even inside the old window", async () => {
     entitlementRow = {
       plan_state: "expired",
       trial_ends_at: YESTERDAY,
@@ -179,15 +179,15 @@ describe("the offer on the Pro page", () => {
     const view = await open();
     const lines = all(view.container, "li").map((node) => node.textContent?.trim());
     expect(lines).toContain(portal.lost.alerts.replace("{count}", "4"));
-    expect(lines).toContain(portal.lost.phone.replace("{status}", portal.lost.paired));
     expect(lines).toContain(portal.lost.multiAccount.replace("{count}", "2"));
     expect(lines).toContain(portal.lost.hostedContext.replace("{status}", portal.lost.on));
+    /* The phone is free, so a paired phone is never listed as something that stopped. */
+    expect(view.container.textContent).not.toContain("Phone paired");
     expect(view.container.textContent).toContain(portal.restore);
-    expect(view.container.textContent).toContain(portal.offer.price);
-    expect(byText(view.container, "button", portal.offer.take)).not.toBeNull();
-    /* One price on the screen, not two: the ordinary upgrade panel steps aside
-       while the discounted one is live. */
-    expect(view.container.textContent).not.toContain(portal.upgrade.title);
+    expect(view.container.textContent).not.toContain("USD 40");
+    expect(view.container.textContent).toContain(portal.upgrade.title);
+    expect(byText(view.container, "button", portal.upgrade.monthly.replace("{price}", "$5"))).not.toBeNull();
+    expect(byText(view.container, "button", portal.upgrade.yearly.replace("{price}", "$50"))).not.toBeNull();
   });
 
   it("names the empty expired profile from the server response", async () => {
@@ -208,9 +208,6 @@ describe("the offer on the Pro page", () => {
     const view = await open();
     expect(view.container.textContent).toContain(portal.lost.noAlerts);
     expect(view.container.textContent).not.toContain(portal.lost.alerts.replace("{count}", "0"));
-    expect(view.container.textContent).toContain(
-      portal.lost.phone.replace("{status}", portal.lost.notPaired),
-    );
     expect(view.container.textContent).toContain(portal.lost.multiAccount.replace("{count}", "0"));
     expect(view.container.textContent).toContain(
       portal.lost.hostedContext.replace("{status}", portal.lost.off),
@@ -225,7 +222,7 @@ describe("the offer on the Pro page", () => {
     expect(view.container.textContent).not.toContain(portal.restore);
   });
 
-  it("asks create-checkout for the named offer and follows the session", async () => {
+  it("asks create-checkout for the plan pressed and never for an offer", async () => {
     entitlementRow = {
       plan_state: "expired",
       trial_ends_at: YESTERDAY,
@@ -237,25 +234,57 @@ describe("the offer on the Pro page", () => {
       value: { assign, href: "https://openlimiter.com/pro", pathname: "/pro", search: "" },
     });
     const view = await open();
-    press(byText(view.container, "button", portal.offer.take));
+    press(byText(view.container, "button", portal.upgrade.monthly.replace("{price}", "$5")));
     await flush(3);
     expect(invoked.find((call) => call.fn === "create-checkout")?.options).toEqual({
-      body: {
-        interval: "year",
-        offer: "trial_end_annual",
-      },
+      body: { interval: "month" },
     });
     expect(assign).toHaveBeenCalledWith("https://checkout.stripe.com/offer");
   });
+});
 
-  it("falls back to the ordinary prices once the window has closed", async () => {
-    entitlementRow = {
-      plan_state: "expired",
-      trial_ends_at: YESTERDAY,
-      offer_ends_at: YESTERDAY,
-    };
+/*
+ * The way back from Stripe.
+ *
+ * Checkout returns to /pro with `checkout=success` or `checkout=cancel`. Both
+ * used to be read and only the cancel was ever drawn, so a person who had just
+ * paid came back to a page that said nothing about it. The success notice now
+ * says the payment went through and that Pro turns on within a few minutes,
+ * which is how long the service can take to record it; the plan itself is
+ * still only ever what the account read says.
+ */
+describe("the return from checkout", () => {
+  function returnFrom(outcome: string) {
+    const replaceState = vi.spyOn(window.history, "replaceState");
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: {
+        assign: vi.fn(),
+        href: `https://openlimiter.com/pro?checkout=${outcome}`,
+        pathname: "/pro",
+        search: `?checkout=${outcome}`,
+        hash: "",
+      },
+    });
+    return replaceState;
+  }
+
+  it("says a successful payment came through, and that Pro turns on within a few minutes", async () => {
+    const replaceState = returnFrom("success");
     const view = await open();
-    expect(byText(view.container, "button", portal.offer.take)).toBeNull();
-    expect(view.container.textContent).toContain(portal.upgrade.title);
+    expect(view.container.textContent).toContain(portal.checkout.success.title);
+    expect(view.container.textContent).toContain(portal.checkout.success.body);
+    expect(portal.checkout.success.body).toMatch(/within a few minutes/u);
+    /* The parameter leaves the address, so a reload does not say it twice. */
+    expect(replaceState).toHaveBeenCalledWith(null, "", "/pro");
+    press(byText(view.container, "button", portal.checkout.dismiss));
+    expect(view.container.textContent).not.toContain(portal.checkout.success.title);
+  });
+
+  it("still says a cancelled checkout charged nothing", async () => {
+    returnFrom("cancel");
+    const view = await open();
+    expect(view.container.textContent).toContain(portal.checkout.cancel.title);
+    expect(view.container.textContent).not.toContain(portal.checkout.success.title);
   });
 });
