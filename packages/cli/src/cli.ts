@@ -14,6 +14,7 @@ import {
   readRefreshSpawnFailure,
   buildAdvice,
   canonicalJson,
+  claudeRowCounts,
   claudeSpec,
   codexSpec,
   cursorSpec,
@@ -1523,9 +1524,14 @@ async function statuslineCommand(
     : "claude";
   const ingested = await ingestStandardInput(dependencies, now, host);
   const cached = await cachedSnapshots(dependencies.stateDirectory);
+  /* The render set holds only the Claude rows the switch selects, for every
+     host and write failure fallback. The cache reader already applies the
+     rule; what ingestion hands back is the unguarded main cache, so it passes
+     the same predicate before the merge, where it could otherwise win. */
+  const pollOn = await readClaudePoll(dependencies.stateDirectory ?? resolveStateDirectory());
   const snapshots = ingested?.snapshots === null || ingested === null
     ? cached
-    : mergeSnapshots(cached, ingested.snapshots);
+    : mergeSnapshots(cached, ingested.snapshots.filter((row) => claudeRowCounts(row, pollOn)));
   /*
    * The refresh that keeps the other providers current starts here and is never
    * waited for. This render draws whatever the cache already holds, the child
