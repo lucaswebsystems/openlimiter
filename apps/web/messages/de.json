@@ -1188,7 +1188,7 @@
           },
           "phone": {
             "title": "Phone",
-            "body": "Öffnen Sie die Zentrale, wählen Sie Ihr Telefon und scannen Sie den angezeigten QR Code. Die Kopplung benötigt keine Eingabe. Fügen Sie die Seite zum Startbildschirm hinzu: Android bietet eine Installation an. Unter iOS wählen Sie Teilen und dann Zum Home Bildschirm."
+            "body": "Öffnen Sie OpenLimiter auf Ihrem Computer, wählen Sie Pair your phone und scannen Sie den angezeigten QR Code. Die Kopplung benötigt keine Eingabe. Fügen Sie die Web App von dort zum Startbildschirm hinzu: Android bietet eine Installation an. Unter iOS wählen Sie Teilen und dann Zum Home Bildschirm."
           },
           "claude-code": {
             "title": "Claude Code manuell verbinden",
@@ -2083,7 +2083,7 @@
           },
           "mobile": {
             "title": "Shipped: the phone, planned: a native app",
-            "intro": "Das Telefon wird im Hub per QR Code gekoppelt, ohne Eingabe, und von dort zum Startbildschirm hinzugefügt: Android bietet die Installation an, iOS verwendet Teilen und danach Zum Home Bildschirm. Telefonzugriff ist heute mit einem kostenlosen Konto verfügbar.",
+            "intro": "Das Telefon wird in der Desktop App per QR Code gekoppelt, ohne Eingabe, und von dort zum Startbildschirm hinzugefügt: Android bietet die Installation an, iOS verwendet Teilen und danach Zum Home Bildschirm. Telefonzugriff ist heute mit einem kostenlosen Konto verfügbar.",
             "bullets": {
               "status": "Status: Telefon Kopplung und installierbare Web App sind mit einem kostenlosen Konto verfügbar.",
               "dependsOnSync": "A native application in an app store remains planned and does not exist today. The paired, installable web app is what replaces the need for one."
@@ -2484,9 +2484,9 @@
     },
     "phone": {
       "button": "Auf Ihrem Telefon öffnen",
-      "line": "Starten Sie die Kopplung in der Desktop App und scannen Sie dann",
+      "line": "Scannen, um OpenLimiter auf dem Telefon zu öffnen und dich anzumelden. Zum Koppeln ohne Anmeldung wähle Pair your phone in der Desktop App.",
       "download": "Desktop App holen",
-      "qrAlt": "QR Code, der zur Kopplungsseite für das Telefon führt"
+      "qrAlt": "QR Code, der zur OpenLimiter Web App führt"
     },
     "phonePairHint": "Mit der Desktop App koppeln und die Balken ohne Anmeldung sehen",
     "phoneInstall": {
@@ -2538,7 +2538,7 @@
       },
       "revoked": {
         "title": "Dieses Telefon wurde entkoppelt",
-        "body": "Scannen Sie erneut über den Hub. Die Desktop Anwendung zeigt einen neuen Code und bestätigt das Telefon erneut."
+        "body": "Koppeln Sie es erneut über die Desktop App: Öffnen Sie OpenLimiter auf Ihrem Computer, wählen Sie Pair your phone und scannen Sie den neuen Code."
       },
       "offline": {
         "title": "Der Dienst hat nicht geantwortet",
@@ -2551,7 +2551,7 @@
           "body": "Einen Moment. Bisher wurde nichts gesendet."
         },
         "noCode": {
-          "title": "Dieser Link enthält keinen Kopplungscode",
+          "title": "Koppeln Sie dieses Telefon über die Desktop App",
           "body": "Die Desktop Anwendung erzeugt einen Kopplungscode, der zwei Minuten gültig ist. Öffne OpenLimiter auf deinem Computer, wähle Pair your phone und scanne den angezeigten Code."
         },
         "waiting": {

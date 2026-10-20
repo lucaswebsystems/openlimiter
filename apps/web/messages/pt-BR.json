@@ -1188,7 +1188,7 @@
           },
           "phone": {
             "title": "Phone",
-            "body": "Abra a central, escolha seu celular e escaneie o código QR exibido. O pareamento não exige digitação. Adicione à tela inicial: o Android oferece instalar; no iOS, use Compartilhar e depois Adicionar à Tela de Início."
+            "body": "Abra o OpenLimiter no computador, escolha Pair your phone e escaneie o código QR exibido. O pareamento não exige digitação. Adicione o aplicativo web à tela inicial a partir dali: o Android oferece instalar; no iOS, use Compartilhar e depois Adicionar à Tela de Início."
           },
           "claude-code": {
             "title": "Conecte o Claude Code manualmente",
@@ -2083,7 +2083,7 @@
           },
           "mobile": {
             "title": "Shipped: the phone, planned: a native app",
-            "intro": "O celular é pareado pelo hub com um código QR, sem digitação, e instalado na tela inicial: o Android oferece a instalação e o iOS usa Compartilhar, depois Adicionar à Tela de Início. O acesso pelo celular está disponível hoje com uma conta gratuita.",
+            "intro": "O celular é pareado pelo aplicativo de desktop com um código QR, sem digitação, e instalado na tela inicial: o Android oferece a instalação e o iOS usa Compartilhar, depois Adicionar à Tela de Início. O acesso pelo celular está disponível hoje com uma conta gratuita.",
             "bullets": {
               "status": "Status: o pareamento do celular e o web app instalável estão disponíveis com uma conta gratuita.",
               "dependsOnSync": "A native application in an app store remains planned and does not exist today. The paired, installable web app is what replaces the need for one."
@@ -2484,9 +2484,9 @@
     },
     "phone": {
       "button": "Abrir no seu celular",
-      "line": "Comece o pareamento pelo aplicativo de desktop e depois escaneie",
+      "line": "Escaneie para abrir o OpenLimiter no celular e entrar na sua conta. Para parear sem entrar, escolha Pair your phone no aplicativo de desktop.",
       "download": "Baixar o aplicativo de desktop",
-      "qrAlt": "Código QR que leva à página de pareamento do celular"
+      "qrAlt": "Código QR que leva ao aplicativo web do OpenLimiter"
     },
     "phonePairHint": "Pareie com o aplicativo para desktop e veja suas barras sem entrar na conta",
     "phoneInstall": {
@@ -2538,7 +2538,7 @@
       },
       "revoked": {
         "title": "Este celular foi desemparelhado",
-        "body": "Escaneie de novo pelo hub. O aplicativo de desktop mostra um código novo e aprova o celular de novo."
+        "body": "Pareie de novo pelo aplicativo de desktop: abra o OpenLimiter no computador, escolha Pair your phone e escaneie o código novo."
       },
       "offline": {
         "title": "O serviço não respondeu",
@@ -2551,7 +2551,7 @@
           "body": "Um momento. Nada foi enviado ainda."
         },
         "noCode": {
-          "title": "Este link não tem código de pareamento",
+          "title": "Pareie este celular pelo aplicativo de desktop",
           "body": "O aplicativo de desktop gera um código de pareamento que dura dois minutos. Abra o OpenLimiter no computador, escolha Pair your phone e escaneie o código exibido."
         },
         "waiting": {

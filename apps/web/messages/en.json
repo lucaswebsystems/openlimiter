@@ -1188,7 +1188,7 @@
           },
           "phone": {
             "title": "Phone",
-            "body": "Open the hub, choose your phone, and scan the QR code it shows. Pairing needs nothing typed. Add it to your home screen from there: Android offers to install it, and on iOS use Share, then Add to Home Screen."
+            "body": "Open OpenLimiter on your computer, choose Pair your phone, and scan the QR code it shows. Pairing needs nothing typed. Add the web app to your home screen from there: Android offers to install it, and on iOS use Share, then Add to Home Screen."
           },
           "claude-code": {
             "title": "Wire Claude Code by hand",
@@ -2083,7 +2083,7 @@
           },
           "mobile": {
             "title": "Shipped: the phone, planned: a native app",
-            "intro": "The phone pairs from the hub by QR code, with nothing typed, and installs to its home screen from there: Android offers to install it, and iOS uses Share, then Add to Home Screen. Phone access is available today with a free account.",
+            "intro": "The phone pairs from the desktop app by QR code, with nothing typed, and installs to its home screen from there: Android offers to install it, and iOS uses Share, then Add to Home Screen. Phone access is available today with a free account.",
             "bullets": {
               "status": "Status: phone pairing and the installable web app are shipped with a free account.",
               "dependsOnSync": "A native application in an app store remains planned and does not exist today. The paired, installable web app is what replaces the need for one."
@@ -2484,9 +2484,9 @@
     },
     "phone": {
       "button": "Open on your phone",
-      "line": "Start pairing from the desktop app, then scan",
+      "line": "Scan to open OpenLimiter on your phone and sign in. To pair without signing in, choose Pair your phone in the desktop app.",
       "download": "Get the desktop app",
-      "qrAlt": "QR code linking to the phone pairing page"
+      "qrAlt": "QR code linking to the OpenLimiter web app"
     },
     "phonePairHint": "Pair with the desktop app to see your bars without signing in",
     "phoneInstall": {
@@ -2538,7 +2538,7 @@
       },
       "revoked": {
         "title": "This phone was unpaired",
-        "body": "Scan again from the hub. The desktop application shows a fresh code and approves the phone again."
+        "body": "Pair it again from the desktop app: open OpenLimiter on your computer, choose Pair your phone, and scan the new code."
       },
       "offline": {
         "title": "The service did not answer",
@@ -2551,7 +2551,7 @@
           "body": "One moment. Nothing has been sent anywhere yet."
         },
         "noCode": {
-          "title": "This link has no pairing code",
+          "title": "Pair this phone from the desktop app",
           "body": "The desktop application generates a pairing code that lives for two minutes. Open OpenLimiter on your computer, choose Pair your phone, and scan the code it shows."
         },
         "waiting": {

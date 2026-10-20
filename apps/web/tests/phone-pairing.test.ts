@@ -833,6 +833,22 @@ describe("the phone button panel", () => {
     expect(panel).toBe(document.activeElement);
   });
 
+  /* U56: only the desktop can mint a pairing code, so the hub's QR opens the
+     web app to sign in and says so, and every recovery sentence points at the
+     desktop's Pair your phone rather than at a hub that cannot pair. */
+  it("opens the web app, never a pairing page it holds no code for, and says which is which", () => {
+    const source = readFileSync("app/app/phone-button.tsx", "utf8");
+    expect(source).toContain("const PHONE_APP_URL = `${SITE_URL}/app`;");
+    expect(source).not.toContain("/app/pair");
+    expect(hub.phone.qrAlt).not.toMatch(/pairing/iu);
+    expect(hub.phone.line).toMatch(/sign in/iu);
+    expect(hub.phone.line).toContain("Pair your phone");
+    expect(hub.pairPage.revoked.body).toContain("Pair your phone");
+    expect(hub.pairPage.revoked.body).not.toMatch(/hub/iu);
+    expect(hub.pairPage.setup.noCode.title).not.toMatch(/no pairing code/iu);
+    expect(messages.docs.pages.index.sections.phone.body).not.toMatch(/hub/iu);
+  });
+
   it("returns focus to the trigger on Escape", async () => {
     mounted = render(createElement(PhoneButton));
     const trigger = byText(mounted.container, "button", hub.phone.button);
@@ -1120,7 +1136,7 @@ describe("the pair page", () => {
     mounted = render(createElement(PairFlow));
     await flush(8);
     expect(readPhonePairMeta()).toBeNull();
-    expect(mounted.container.textContent).toContain("This link has no pairing code");
+    expect(mounted.container.textContent).toContain(hub.pairPage.setup.noCode.title);
   });
   /* A browser tab, where a scan lands. The installed app's own states call
      stubMatchMedia(true) themselves. */
@@ -1141,7 +1157,7 @@ describe("the pair page", () => {
     /* Gone by the very first synchronous render, before any effect ran. */
     expect(window.location.hash).toBe("");
     await flush();
-    expect(mounted.container.textContent).toContain("This link has no pairing code");
+    expect(mounted.container.textContent).toContain(hub.pairPage.setup.noCode.title);
   });
 
   it("waits for the desktop when a fresh code arrives", async () => {
@@ -1182,7 +1198,7 @@ describe("the pair page", () => {
     );
     mounted = render(createElement(PairFlow));
     await flush();
-    expect(mounted.container.textContent).toContain("This link has no pairing code");
+    expect(mounted.container.textContent).toContain(hub.pairPage.setup.noCode.title);
     /* The code field belongs to the installed app, not a browser tab. */
     expect(mounted.container.querySelector("input")).toBeNull();
   });
@@ -1561,7 +1577,7 @@ describe("the pair page", () => {
     );
     mounted = render(createElement(PairFlow));
     await flush(6);
-    expect(mounted.container.textContent).toContain("This link has no pairing code");
+    expect(mounted.container.textContent).toContain(hub.pairPage.setup.noCode.title);
     expect(readPhonePairMeta()).toBeNull();
   });
 });

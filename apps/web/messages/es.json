@@ -1188,7 +1188,7 @@
           },
           "phone": {
             "title": "Phone",
-            "body": "Abre el centro, elige tu teléfono y escanea el código QR que aparece. No hay que escribir nada para vincularlo. Añádelo a la pantalla de inicio: Android ofrece instalarlo; en iOS, usa Compartir y después Añadir a pantalla de inicio."
+            "body": "Abre OpenLimiter en tu computadora, elige Pair your phone y escanea el código QR que aparece. No hay que escribir nada para vincularlo. Añade la aplicación web a la pantalla de inicio desde ahí: Android ofrece instalarla; en iOS, usa Compartir y después Añadir a pantalla de inicio."
           },
           "claude-code": {
             "title": "Conecta Claude Code manualmente",
@@ -2083,7 +2083,7 @@
           },
           "mobile": {
             "title": "Shipped: the phone, planned: a native app",
-            "intro": "El teléfono se vincula desde el hub mediante un código QR, sin escribir nada, y se instala en la pantalla de inicio: Android ofrece instalarlo y en iOS se usa Compartir y después Añadir a pantalla de inicio. El acceso desde el teléfono está disponible hoy con una cuenta gratis.",
+            "intro": "El teléfono se vincula desde la aplicación de escritorio mediante un código QR, sin escribir nada, y se instala en la pantalla de inicio: Android ofrece instalarlo y en iOS se usa Compartir y después Añadir a pantalla de inicio. El acceso desde el teléfono está disponible hoy con una cuenta gratis.",
             "bullets": {
               "status": "Estado: la vinculación del teléfono y la aplicación web instalable están disponibles con una cuenta gratis.",
               "dependsOnSync": "A native application in an app store remains planned and does not exist today. The paired, installable web app is what replaces the need for one."
@@ -2484,9 +2484,9 @@
     },
     "phone": {
       "button": "Abrir en tu teléfono",
-      "line": "Comienza el emparejamiento desde la aplicación de escritorio y luego escanea",
+      "line": "Escanea para abrir OpenLimiter en tu teléfono e iniciar sesión. Para vincularlo sin iniciar sesión, elige Pair your phone en la aplicación de escritorio.",
       "download": "Descargar la aplicación de escritorio",
-      "qrAlt": "Código QR que lleva a la página de emparejamiento del teléfono"
+      "qrAlt": "Código QR que lleva a la aplicación web de OpenLimiter"
     },
     "phonePairHint": "Vincula la aplicación de escritorio para ver tus barras sin iniciar sesión",
     "phoneInstall": {
@@ -2538,7 +2538,7 @@
       },
       "revoked": {
         "title": "Este teléfono fue desemparejado",
-        "body": "Escanea de nuevo desde el hub. La aplicación de escritorio muestra un código nuevo y aprueba el teléfono otra vez."
+        "body": "Vincúlalo de nuevo desde la aplicación de escritorio: abre OpenLimiter en tu computadora, elige Pair your phone y escanea el código nuevo."
       },
       "offline": {
         "title": "El servicio no respondió",
@@ -2551,7 +2551,7 @@
           "body": "Un momento. Todavía no se ha enviado nada."
         },
         "noCode": {
-          "title": "Este enlace no tiene código de emparejamiento",
+          "title": "Vincula este teléfono desde la aplicación de escritorio",
           "body": "La aplicación de escritorio genera un código de emparejamiento que dura dos minutos. Abre OpenLimiter en tu computadora, elige Pair your phone y escanea el código que aparece."
         },
         "waiting": {
