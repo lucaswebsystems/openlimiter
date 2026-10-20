@@ -254,6 +254,29 @@ describe("statusline ingestion by host", () => {
     expect(result.stdout).not.toContain("ag5h");
   });
 
+  /*
+   * A quota map whose buckets this build cannot read looks, on every surface,
+   * exactly like an Antigravity CLI that is closed: the bars just age. Doctor
+   * is the one place that can tell the two apart, so the drift is kept there.
+   */
+  it("Antigravity: a quota mapping to no meter is kept for doctor as drift and leaves the cache alone", async () => {
+    const directory = await temporaryDirectory();
+    const options = { stateDirectory: directory, homeDirectory: await temporaryDirectory(), environment: {}, platform: "linux" as const, now: () => FIXTURE_NOW };
+    const statusline = (quota: unknown) => runCli(["statusline", "--host", "antigravity"], {
+      ...options,
+      readStandardInput: async () => JSON.stringify({ ...antigravityStatuslinePayload(FIXTURE_NOW), quota })
+    });
+    const doctor = async () => (await runCli(["doctor"], options)).stdout;
+    const documented = antigravityStatuslinePayload(FIXTURE_NOW)["quota"];
+    await statusline(documented);
+    const cache = await readFile(path.join(directory, CACHE_FILE_NAME), "utf8");
+    expect((await statusline({ "gemini-daily": { remaining_fraction: 0.5 } })).exitCode).toBe(0);
+    expect(await readFile(path.join(directory, CACHE_FILE_NAME), "utf8")).toBe(cache);
+    expect(await doctor()).toMatch(/^STATUSLINE WRITE FAILED \S+ ingest SchemaDriftError the last status line payload could not be read$/mu);
+    await statusline(documented);
+    expect(await doctor()).not.toMatch(/STATUSLINE WRITE FAILED/u);
+  });
+
   it("Grok: the session JSON shape becomes weekly and on demand rows", async () => {
     const directory = await temporaryDirectory();
     const result = await runCli(["statusline", "--host", "grok"], {

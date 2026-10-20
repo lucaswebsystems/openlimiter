@@ -43,4 +43,38 @@ describe("Antigravity documented status line payload", () => {
   it("treats a missing quota object as no update", () => {
     expect(parseAntigravityPayload({ email: "person@example.com" }, NOW)).toBeNull();
   });
+
+  /* A pool the documented four do not name is its own row, under the code the
+     desktop's twin gives it (native_readers.rs antigravity_meter). */
+  it("names a new pool after itself beside the documented buckets", () => {
+    const meters = parseAntigravityPayload(payload({
+      "gemini-5h": { remaining_fraction: 0.75 },
+      "gemini-weekly": { remaining_fraction: 0.5 },
+      "argon-weekly": { remaining_fraction: 0.4 }
+    }), NOW);
+    expect(meters?.map((meter) => [meter.meter, meter.value])).toEqual([
+      ["FIVE_HOUR", 25], ["SEVEN_DAY", 50], ["ARGON_WEEKLY", 60]
+    ]);
+  });
+
+  it("reads a payload that carries only a new pool instead of returning nothing", () => {
+    const meters = parseAntigravityPayload(payload({
+      "argon-5h": { remaining_fraction: 0.9 },
+      "argon-weekly": { remaining_fraction: 0.4 }
+    }), NOW);
+    expect(meters?.map((meter) => [meter.meter, meter.window])).toEqual([
+      ["ARGON_SESSION", { kind: "rolling", durationSeconds: 18_000 }],
+      ["ARGON_WEEKLY", { kind: "rolling", durationSeconds: 604_800 }]
+    ]);
+  });
+
+  it("never turns a longer gemini bucket into a second Gemini weekly", () => {
+    const meters = parseAntigravityPayload(payload({
+      "gemini-weekly": { remaining_fraction: 0.5 },
+      "gemini-4-argon-weekly": { remaining_fraction: 0.4 }
+    }), NOW);
+    expect(meters?.map((meter) => [meter.meter, meter.value])).toEqual([
+      ["SEVEN_DAY", 50], ["GEMINI_4_ARGON_WEEKLY", 60]
+    ]);
+  });
 });
