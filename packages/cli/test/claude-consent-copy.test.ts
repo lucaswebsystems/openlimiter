@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { runCli } from "../src/cli.js";
 
 const read = (relative: string) => readFile(path.resolve(process.cwd(), relative), "utf8");
 
@@ -53,6 +54,29 @@ describe("Claude consent documentation", () => {
     for (const retired of ["useClaudeSignIn", "useClaudeSignInTitle"]) {
       expect(desktop[retired], retired).toBeUndefined();
       expect(twins[retired], retired).toBeUndefined();
+    }
+  });
+
+  /* Astra fix round, finding 7, the same claim in its other homes: the
+     command line help, the documentation page that prints it, and the
+     documentation's refresh entry in every locale never state a fifteen
+     minute ceiling that the Claude usage request, about every five minutes,
+     exceeds. */
+  it("names the Claude usage request wherever refresh states its fifteen minute cadence", async () => {
+    const flat = (text: string) => text.replace(/\s+/gu, " ");
+    const help = flat((await runCli(["help"])).stdout);
+    const page = flat(await read("apps/web/app/[locale]/docs/cli/page.tsx"));
+    for (const [name, text] of [["help", help], ["docs page", page]] as const) {
+      expect(text, name).toContain("at most once every 15 minutes, or about every 5 minutes for the Claude usage request once it is on.");
+    }
+    const english = JSON.parse(await read("apps/web/messages/en.json")) as {
+      docs: { pages: { cli: { sections: { commands: { refresh: { body: string } } } } } };
+    };
+    expect(english.docs.pages.cli.sections.commands.refresh.body)
+      .toContain("The direct Claude usage request, once you turn it on, reads about every five minutes instead.");
+    for (const locale of ["de", "es", "ja", "pt-BR"]) {
+      const catalog = JSON.parse(await read("apps/web/messages/" + locale + ".json")) as typeof english;
+      expect(catalog.docs.pages.cli.sections.commands.refresh.body, locale).toMatch(/Claude.*(5|fünf|cinco)/u);
     }
   });
 
