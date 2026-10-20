@@ -1724,11 +1724,11 @@
                 },
                 "width": {
                   "accepts": "eine ganze Zahl von 40 bis 400",
-                  "meaning": "Die Spalten, die eine Zeile ausgeben darf, bevor die Zeile stapelt. Nichts misst dein Terminal: Ein Statusline Host führt den Befehl ohne angehängtes Terminal aus, die Zahl hier ist also die Zahl, die gilt. Standard <code>140</code>."
+                  "meaning": "Die Spalten, die eine Zeile ausgeben darf. Im Stil <code>bar</code> bleibt die Zeile einzeilig: Werte, die nicht passen, weichen denen, die ihrer Grenze am nächsten sind, und die Zeile endet mit <code>+N more</code>. Im Stil <code>cells</code> stapelt die Zeile ab dieser Breite. Nichts misst dein Terminal: Ein Statusline Host führt den Befehl ohne angehängtes Terminal aus, die Zahl hier ist also die Zahl, die gilt. Standard <code>140</code>."
                 },
                 "rows": {
                   "accepts": "<code>1</code> oder <code>2</code>",
-                  "meaning": "Wie viele Zeilen das Layout nutzen darf. Standard <code>2</code>."
+                  "meaning": "Auf wie viele Zeilen der Stil <code>cells</code> stapeln darf. Der Stil <code>bar</code> bleibt immer einzeilig. Standard <code>2</code>."
                 },
                 "bars": {
                   "accepts": "<code>true</code> oder <code>false</code>",
@@ -1761,7 +1761,7 @@
             },
             "statusline-stacking": {
               "title": "Wenn der Zeile der Platz ausgeht",
-              "body": "Die Zeile stapelt, statt zu kappen. Ein Umbruch landet zwischen zwei Zellen und nie innerhalb einer, und zwei Zeilen sind die Obergrenze. Danach werden die Provider behalten, die ihrer Grenze am nächsten sind, und die letzte Zeile endet damit, zu sagen, wie viele sie nicht zeigen konnte."
+              "body": "Im Stil bar bleibt die Zeile einzeilig, mit Balken aus zehn Blöcken. Passen die Werte nicht in die Breite, behält sie die, die ihrer Grenze am nächsten sind, und endet mit +N more. Der Stil cells stapelt, statt zu kappen: Ein Umbruch landet zwischen zwei Zellen und nie innerhalb einer, zwei Zeilen sind die Obergrenze, und danach werden die Anbieter behalten, die ihrer Grenze am nächsten sind, und die letzte Zeile sagt, wie viele sie nicht zeigen konnte."
             },
             "statusline-plain": {
               "title": "Die 0.1.0 Zeile, auf Wunsch",
@@ -1818,7 +1818,7 @@
               "intro": "Renders the status row for a statusline host. It reads standard input first, so a Claude Code session payload is ingested and rendered in the same call, then falls back to the cache. This is the only command that writes as a side effect of being displayed.",
               "cells": "Das Standardlayout zeichnet für den mit <code>--host</code> genannten Host eine Zeile mit einer Zelle pro Zeitfenster: ein Kürzel mit Leerzeichen wie <code>cx 5h</code>, einen Balken mit zehn Blöcken, den Prozentsatz mit ! ab 80 Prozent und !! ab 90, und die Rücksetzzeit nach einem Pfeil wie <code>↻6d23h</code> oder nach dem Wort resets in einem reinen ASCII Terminal. Ist die Zeile breiter als das Terminal, behält sie die Werte, die ihrem Limit am nächsten sind, und endet mit <code>+N more</code>. Die vollständige Grammatik und die Aktualitätszeichen stehen unter <docs>Agent context</docs>.",
               "order": "<code>statusline.style cells</code> brings back the previous row instead: the overall reason code and the routing recommendation lead, then one compact cell per provider with a five block bar rather than the ten the new default draws.",
-              "stacking": "A row wider than its budget stacks rather than truncating. The break lands between two cells and never inside one, because half a bar reads as a reading and is not one. Two rows is the ceiling. Past that the providers closest to their caps are kept, and the last row ends by saying how many it could not show.",
+              "stacking": "Im Stil cells stapelt eine Zeile, die breiter als ihr Budget ist, statt abgeschnitten zu werden. Der Umbruch landet zwischen zwei Zellen und nie innerhalb einer, denn ein halber Balken sieht aus wie ein Wert und ist keiner. Zwei Zeilen sind die Obergrenze. Danach werden die Anbieter behalten, die ihrer Grenze am nächsten sind, und die letzte Zeile sagt, wie viele sie nicht zeigen konnte.",
               "calloutTitle": "The old line is still one setting away",
               "calloutBody": "<code>openlimiter config set statusline.bars false</code> returns the single plain line that 0.1.0 printed, byte for byte, for anything already parsing it. A test pins that exact string, so the escape hatch cannot rot quietly."
             },

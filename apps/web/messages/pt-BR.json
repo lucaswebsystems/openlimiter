@@ -1724,11 +1724,11 @@
                 },
                 "width": {
                   "accepts": "um número inteiro de 40 a 400",
-                  "meaning": "As colunas que uma linha pode gastar antes de a linha empilhar. Nada mede seu terminal: um host de statusline roda o comando sem nenhum terminal anexado, então o número aqui é o número respeitado. Padrão <code>140</code>."
+                  "meaning": "As colunas que uma linha pode gastar. No estilo <code>bar</code> a linha fica em uma só linha: leituras que não cabem dão lugar às mais perto do limite delas, e a linha termina com <code>+N more</code>. No estilo <code>cells</code> a linha empilha a partir dessa largura. Nada mede seu terminal: um host de statusline roda o comando sem nenhum terminal anexado, então o número aqui é o número respeitado. Padrão <code>140</code>."
                 },
                 "rows": {
                   "accepts": "<code>1</code> ou <code>2</code>",
-                  "meaning": "Quantas linhas o layout pode usar. Padrão <code>2</code>."
+                  "meaning": "Quantas linhas o estilo <code>cells</code> pode empilhar. O estilo <code>bar</code> sempre fica em uma só linha. Padrão <code>2</code>."
                 },
                 "bars": {
                   "accepts": "<code>true</code> ou <code>false</code>",
@@ -1761,7 +1761,7 @@
             },
             "statusline-stacking": {
               "title": "Quando a linha fica sem espaço",
-              "body": "A linha empilha em vez de truncar. Uma quebra acontece entre duas células e nunca dentro de uma, e duas linhas é o teto. Além disso, os provedores mais perto do limite deles são os mantidos, e a última linha termina dizendo quantos ela não conseguiu mostrar."
+              "body": "No estilo bar a linha fica em uma só linha de barras de dez blocos. Quando as leituras não cabem na largura, ela mantém as mais perto do limite delas e termina com +N more. O estilo cells empilha em vez de truncar: uma quebra acontece entre duas células e nunca dentro de uma, duas linhas é o teto, e além disso os provedores mais perto do limite são mantidos e a última linha diz quantos não conseguiu mostrar."
             },
             "statusline-plain": {
               "title": "A linha da 0.1.0, sob pedido",
@@ -1818,7 +1818,7 @@
               "intro": "Renders the status row for a statusline host. It reads standard input first, so a Claude Code session payload is ingested and rendered in the same call, then falls back to the cache. This is the only command that writes as a side effect of being displayed.",
               "cells": "O layout padrão desenha uma linha para o host indicado em <code>--host</code>, com uma célula por janela: uma etiqueta com espaço como <code>cx 5h</code>, uma barra de dez blocos, o percentual com ! a partir de 80 por cento e !! a partir de 90, e o reinício depois de uma seta como <code>↻6d23h</code>, ou depois da palavra resets em um terminal só ASCII. Uma linha mais larga que o terminal mantém as leituras mais próximas do limite e termina com <code>+N more</code>. Veja <docs>Agent context</docs> para a gramática completa e as marcas de atualização.",
               "order": "<code>statusline.style cells</code> brings back the previous row instead: the overall reason code and the routing recommendation lead, then one compact cell per provider with a five block bar rather than the ten the new default draws.",
-              "stacking": "A row wider than its budget stacks rather than truncating. The break lands between two cells and never inside one, because half a bar reads as a reading and is not one. Two rows is the ceiling. Past that the providers closest to their caps are kept, and the last row ends by saying how many it could not show.",
+              "stacking": "No estilo cells, uma linha mais larga que o orçamento dela empilha em vez de truncar. A quebra acontece entre duas células e nunca dentro de uma, porque meia barra parece uma leitura e não é. Duas linhas é o teto. Além disso, os provedores mais perto do limite deles são mantidos, e a última linha termina dizendo quantos não conseguiu mostrar.",
               "calloutTitle": "The old line is still one setting away",
               "calloutBody": "<code>openlimiter config set statusline.bars false</code> returns the single plain line that 0.1.0 printed, byte for byte, for anything already parsing it. A test pins that exact string, so the escape hatch cannot rot quietly."
             },

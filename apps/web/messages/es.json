@@ -1724,11 +1724,11 @@
                 },
                 "width": {
                   "accepts": "un número entero de 40 a 400",
-                  "meaning": "Las columnas que una fila puede gastar antes de que la línea se apile. Nada mide tu terminal: un host de statusline corre la orden sin ninguna terminal conectada, así que el número aquí es el número que se respeta. Por defecto <code>140</code>."
+                  "meaning": "Las columnas que una fila puede gastar. En el estilo <code>bar</code> la línea se queda en una fila: las lecturas que no caben ceden su lugar a las más cercanas a su límite, y la línea termina con <code>+N more</code>. En el estilo <code>cells</code> la línea se apila a partir de este ancho. Nada mide tu terminal: un host de statusline corre la orden sin ninguna terminal conectada, así que el número aquí es el número que se respeta. Por defecto <code>140</code>."
                 },
                 "rows": {
                   "accepts": "<code>1</code> o <code>2</code>",
-                  "meaning": "Cuántas filas puede usar el layout. Por defecto <code>2</code>."
+                  "meaning": "Cuántas filas puede apilar el estilo <code>cells</code>. El estilo <code>bar</code> siempre se queda en una fila. Por defecto <code>2</code>."
                 },
                 "bars": {
                   "accepts": "<code>true</code> o <code>false</code>",
@@ -1761,7 +1761,7 @@
             },
             "statusline-stacking": {
               "title": "Cuando la fila se queda sin espacio",
-              "body": "La línea se apila en vez de truncarse. Un salto cae entre dos celdas y nunca dentro de una, y dos filas es el límite. Pasado eso, se conservan los proveedores más cercanos a su límite, y la última fila termina diciendo cuántos no pudo mostrar."
+              "body": "En el estilo bar la línea se queda en una fila de barras de diez bloques. Cuando las lecturas no caben en el ancho, conserva las más cercanas a su límite y termina con +N more. El estilo cells se apila en vez de truncarse: un salto cae entre dos celdas y nunca dentro de una, dos filas es el límite, y pasado eso se conservan los proveedores más cercanos a su límite y la última fila dice cuántos no pudo mostrar."
             },
             "statusline-plain": {
               "title": "La línea de 0.1.0, si la pides",
@@ -1818,7 +1818,7 @@
               "intro": "Renders the status row for a statusline host. It reads standard input first, so a Claude Code session payload is ingested and rendered in the same call, then falls back to the cache. This is the only command that writes as a side effect of being displayed.",
               "cells": "El diseño predeterminado dibuja una línea para el host indicado con <code>--host</code>, con una celda por ventana: una etiqueta con espacio como <code>cx 5h</code>, una barra de diez bloques, el porcentaje con ! desde el 80 por ciento y !! desde el 90, y el reinicio tras una flecha como <code>↻6d23h</code>, o tras la palabra resets en un terminal solo ASCII. Una línea más ancha que el terminal conserva las lecturas más cercanas a su límite y termina con <code>+N more</code>. Consulta <docs>Agent context</docs> para la gramática completa y las marcas de actualidad.",
               "order": "<code>statusline.style cells</code> brings back the previous row instead: the overall reason code and the routing recommendation lead, then one compact cell per provider with a five block bar rather than the ten the new default draws.",
-              "stacking": "A row wider than its budget stacks rather than truncating. The break lands between two cells and never inside one, because half a bar reads as a reading and is not one. Two rows is the ceiling. Past that the providers closest to their caps are kept, and the last row ends by saying how many it could not show.",
+              "stacking": "En el estilo cells, una fila más ancha que su presupuesto se apila en vez de truncarse. El salto cae entre dos celdas y nunca dentro de una, porque media barra parece una lectura y no lo es. Dos filas es el límite. Pasado eso se conservan los proveedores más cercanos a su límite, y la última fila termina diciendo cuántos no pudo mostrar.",
               "calloutTitle": "The old line is still one setting away",
               "calloutBody": "<code>openlimiter config set statusline.bars false</code> returns the single plain line that 0.1.0 printed, byte for byte, for anything already parsing it. A test pins that exact string, so the escape hatch cannot rot quietly."
             },

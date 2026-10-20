@@ -1724,11 +1724,11 @@
                 },
                 "width": {
                   "accepts": "40から400までの整数",
-                  "meaning": "行が折り返す前に、1行が使ってよい桁数です。あなたのターミナルを測ることは何もありません。statuslineのホストはターミナルを渡さずにこのコマンドを実行するため、ここで指定した数値がそのまま尊重されます。デフォルトは<code>140</code>。"
+                  "meaning": "1行が使ってよい桁数です。<code>bar</code> スタイルでは行は1行のままで、収まらない値は上限に最も近い値に場所を譲り、行の末尾に <code>+N more</code> が付きます。<code>cells</code> スタイルでは、この幅を超えると行が折り返されます。あなたのターミナルを測ることは何もありません。statuslineのホストはターミナルを渡さずにこのコマンドを実行するため、ここで指定した数値がそのまま尊重されます。デフォルトは<code>140</code>。"
                 },
                 "rows": {
                   "accepts": "<code>1</code>または<code>2</code>",
-                  "meaning": "レイアウトが使ってよい行数です。デフォルトは<code>2</code>。"
+                  "meaning": "<code>cells</code> スタイルが折り返してよい行数です。<code>bar</code> スタイルは常に1行です。デフォルトは<code>2</code>。"
                 },
                 "bars": {
                   "accepts": "<code>true</code>または<code>false</code>",
@@ -1761,7 +1761,7 @@
             },
             "statusline-stacking": {
               "title": "行に収まりきらないとき",
-              "body": "行は切り捨てられるのではなく、折り返されます。区切りは2つのセルの間に入り、セルの内側に入ることは決してなく、2行が上限です。それを超えると、上限に最も近いプロバイダーが残され、最後の行の末尾に、表示しきれなかった数が示されます。"
+              "body": "bar スタイルでは、行は10ブロックのバーで1行に収まります。幅に収まらないときは、上限に最も近い値を残し、末尾に +N more を付けます。cells スタイルは切り捨てずに折り返します。区切りは2つのセルの間に入り、セルの内側に入ることは決してなく、2行が上限です。それを超えると上限に最も近いプロバイダーが残され、最後の行の末尾に表示しきれなかった数が示されます。"
             },
             "statusline-plain": {
               "title": "0.1.0の行を、リクエストに応じて",
@@ -1818,7 +1818,7 @@
               "intro": "Renders the status row for a statusline host. It reads standard input first, so a Claude Code session payload is ingested and rendered in the same call, then falls back to the cache. This is the only command that writes as a side effect of being displayed.",
               "cells": "既定のレイアウトは、<code>--host</code> で指定したホスト向けに1行を描き、期間ごとに1つのセルを並べます。<code>cx 5h</code> のように空白を挟んだタグ、10ブロックのバー、80パーセント以上で !、90パーセント以上で !! が付く使用率、<code>↻6d23h</code> のような矢印の後のリセット時刻（ASCIIのみのターミナルでは resets という語の後）です。行がターミナルより長い場合は、上限に最も近い使用率を残し、末尾に <code>+N more</code> を表示します。完全な文法と鮮度マークは<docs>Agent context</docs>を参照してください。",
               "order": "<code>statusline.style cells</code> brings back the previous row instead: the overall reason code and the routing recommendation lead, then one compact cell per provider with a five block bar rather than the ten the new default draws.",
-              "stacking": "A row wider than its budget stacks rather than truncating. The break lands between two cells and never inside one, because half a bar reads as a reading and is not one. Two rows is the ceiling. Past that the providers closest to their caps are kept, and the last row ends by saying how many it could not show.",
+              "stacking": "cells スタイルでは、予算より長い行は切り捨てずに折り返されます。区切りは2つのセルの間に入り、セルの内側に入ることは決してありません。半分のバーは値のように見えても値ではないからです。2行が上限です。それを超えると上限に最も近いプロバイダーが残され、最後の行の末尾に表示しきれなかった数が示されます。",
               "calloutTitle": "The old line is still one setting away",
               "calloutBody": "<code>openlimiter config set statusline.bars false</code> returns the single plain line that 0.1.0 printed, byte for byte, for anything already parsing it. A test pins that exact string, so the escape hatch cannot rot quietly."
             },
