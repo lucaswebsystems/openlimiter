@@ -14,8 +14,14 @@
     <header class="p-head">
       <img src="brand/openlimiter-mark.svg" width="16" height="16" alt="">
       <h1 id="panel-title">OpenLimiter</h1>
+      <button type="button" id="panel-refresh" class="p-refresh" aria-label="Refresh" title="Refresh now">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+          <path d="M19.8 12A7.8 7.8 0 1 1 17.5 6.5" /><path d="M19.5 3.3v4.6h-4.6" />
+        </svg>
+      </button>
       <span id="panel-updated" class="p-updated"></span>
     </header>
+    <p id="panel-refresh-status" class="p-refresh-note" role="status" aria-live="polite"></p>
     <div id="panel-scroll" class="p-scroll">
       <div id="panel-content" class="p-content">
         <section id="panel-agents" class="p-agents" aria-labelledby="panel-agents-title" hidden>

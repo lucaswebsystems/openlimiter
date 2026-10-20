@@ -95,6 +95,65 @@ html.opaque .p-card {
   white-space: nowrap;
 }
 
+/* Refresh, the window's own: right after the name, so neither it nor the
+   time beside the edge moves when the time changes; its icon turns while a
+   pass runs. */
+.p-refresh {
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ol-radius-xs);
+  background: transparent;
+  color: var(--ol-muted);
+  cursor: pointer;
+}
+
+.p-refresh:hover:not(:disabled) {
+  background: var(--ol-raised);
+  color: var(--ol-heading);
+}
+
+.p-refresh:disabled {
+  cursor: default;
+}
+
+.p-refresh svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.p-refresh[aria-busy="true"] svg {
+  animation: q-turn 900ms linear infinite;
+}
+
+.p-refresh:focus-visible {
+  outline: none;
+  box-shadow: var(--ol-focus-ring);
+}
+
+/* What a refresh that did not land says, under the header; nothing at all
+   otherwise. */
+.p-refresh-note {
+  flex: none;
+}
+
+.p-refresh-note:not(:empty) {
+  padding: 0.5rem 0.875rem;
+  border-bottom: 1px solid var(--ol-hairline);
+  color: var(--ol-soft);
+  font-size: var(--ol-text-caption);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .p-refresh[aria-busy="true"] svg {
+    animation: none;
+  }
+}
+
 .p-scroll {
   min-height: 0;
   flex: 1 1 auto;

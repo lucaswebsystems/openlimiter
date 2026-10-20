@@ -486,7 +486,7 @@ test("a refresh that does not land says so in a plain sentence, and the button i
 });
 
 test("the panel's refresh button carries the window's icon, a name and a tooltip", () => {
-  const icon = (html, id) => html.match(new RegExp(`<button[^>]*id="${id}"[^>]*>([\s\S]*?)</button>`, "u"))?.[1].match(/<path[^>]*>/gu)?.join("");
+  const icon = (html, id) => html.match(new RegExp(`<button[^>]*id="${id}"[^>]*>([^]*?)</button>`, "u"))?.[1].match(/<path[^>]*>/gu)?.join("");
   const windowHtml = readFileSync(new URL("./index.html", import.meta.url), "utf8");
   const panelHtml = readFileSync(new URL("./edge-panel.html", import.meta.url), "utf8");
   assert.ok(icon(windowHtml, "home-refresh"));
