@@ -23,7 +23,7 @@ function panel({ cache, sessions = [], windows, event, content = 300, cardOpen =
   const calls = [];
   const scheduled = [];
   // What the next reads answer, the clock, and a read held back, all changeable mid test.
-  const source = { cache, at: NOW, stall };
+  const source = { cache, at: NOW, stall, poll: true };
   const invoke = async (command, args) => {
     calls.push([command, args]);
     if (command === "read_cache") {
@@ -32,6 +32,7 @@ function panel({ cache, sessions = [], windows, event, content = 300, cardOpen =
       return JSON.stringify(source.cache ?? fixtures.projected);
     }
     if (command === "read_manual") return "";
+    if (command === "claude_poll_enabled") return { state: source.poll ? "enabled" : "disabled", enabled: source.poll, mirrorFailed: false };
     if (command === "plugin:rail|rail_snapshot") return { accounts: [], flags: [], sessions, window: { cardOpen } };
     if (command === "plugin:activity|activity_locate") return "focused";
     return null;
@@ -119,6 +120,23 @@ test("a failed read keeps the rows it drew, stale once they expire, and only an 
   source.at = NOW;
   await scheduled.at(-1)();
   assert.deepEqual(providers(), ["CODEX", "CLAUDE", "OPENROUTER"]);
+  stop();
+});
+
+/* Astra fix round, finding 4: a failed read right after the Claude request
+   switch changed keeps no number from the source it left. */
+test("a failed read after the Claude switch changed draws nothing from the source it left", async () => {
+  const { view, scheduled, source, stop } = panel();
+  await flush();
+  const providers = () => view("panel-limits").all((node) => "providerCard" in node.dataset).map((card) => card.dataset.provider);
+  assert.deepEqual(providers(), ["CODEX", "CLAUDE", "OPENROUTER"]);
+  source.poll = false;
+  source.cache = "fail";
+  await scheduled.at(-1)();
+  assert.deepEqual(providers(), ["CODEX", "OPENROUTER"]);
+  source.poll = true;
+  await scheduled.at(-1)();
+  assert.deepEqual(providers(), ["CODEX", "OPENROUTER"], "nothing held comes back without a read");
   stop();
 });
 

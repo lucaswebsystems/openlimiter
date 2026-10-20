@@ -26,7 +26,10 @@ test("Home keeps no second freshness policy and draws only through the shared pr
   assert.match(app, /renderLimits\(document, elements\.toolRows, tools, \{ handlers: toolHandlers, more: fillMore, opened: openMenus \}\)/u);
   assert.doesNotMatch(app, /showConnections|connectedProviders|attentionFlags\(/u);
   // A failed read ages out what is on screen by the same policy and says why.
-  assert.match(app, /heldSnapshots = holdReadings\(heldSnapshots, now\);/u);
+  assert.match(app, /heldSnapshots = holdReadings\(heldSnapshots, now, claudePoll === true\);/u);
+  // The Claude request switch is read before the cache, so every row drawn is validated against it as it stands now.
+  const switchRead = app.indexOf("await claudePollEnabled()");
+  assert.ok(switchRead !== -1 && switchRead < app.indexOf("collect(now)"), "the switch is read first");
   assert.match(app, /elements\.refreshStatus\.textContent = say\("cacheUnreadable"\)/u);
   assert.doesNotMatch(app, /paintFailures\(\[\{ provider: "MANUAL"/u);
   assert.doesNotMatch(app, /createProviderRowElement|homeCard|homeSnapshots|stale-strip|staleStrip/u);

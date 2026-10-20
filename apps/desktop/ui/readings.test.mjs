@@ -177,24 +177,24 @@ test("the list holds what is measured, detected, keyed or flagged, never a switc
 
 test("rows already on screen stay when a read fails, fresh or held stale by the one projection", () => {
   const rows = fixtures.projected.snapshots;
-  assert.equal(holdReadings(rows, now).length, rows.length);
+  assert.equal(holdReadings(rows, now, true).length, rows.length);
   // Seven minutes after the reads (the fixtures read two minutes ago), the
   // desktop Codex row expired at its 420 seconds: it stays, stale, beside the
   // rest; Claude rows keep their own 465 seconds (hotfix 2.1.5).
   const later = new Date(NOW + 5 * 60_000 + 1_000).toISOString();
-  const held = holdReadings(rows, later);
+  const held = holdReadings(rows, later, true);
   assert.equal(held.length, rows.length);
   assert.deepEqual(held.filter((row) => freshness(row.observedAt, row.expiresAt, later) === "stale").map((row) => row.provider), ["CODEX"]);
   // A week on, the cache has let go of every one of them.
-  assert.deepEqual(holdReadings(rows, new Date(NOW + 7 * 86_400_000).toISOString()), []);
+  assert.deepEqual(holdReadings(rows, new Date(NOW + 7 * 86_400_000).toISOString(), true), []);
 });
 
 test("alerts read fresh percentages only: a stale reading never raises one", () => {
   // The window samples what the projection drew, with the policy expiry it stamped.
   const rows = fixtures.projected.snapshots;
-  assert.deepEqual(alertSamples(holdReadings(rows, now), now).map((sample) => sample.provider), rows.map((row) => row.provider));
+  assert.deepEqual(alertSamples(holdReadings(rows, now, true), now).map((sample) => sample.provider), rows.map((row) => row.provider));
   const later = new Date(NOW + 5 * 60_000 + 1_000).toISOString();
-  const drawn = holdReadings(rows, later);
+  const drawn = holdReadings(rows, later, true);
   assert.ok(drawn.some((row) => row.provider === "CODEX"), "the expired Codex row is still drawn, stale");
   assert.deepEqual([...new Set(alertSamples(drawn, later).map((sample) => sample.provider))], ["CLAUDE", "OPENROUTER"]);
 });
@@ -206,7 +206,23 @@ test("a reading whose window reset never raises an alert or stays drawn, even wh
   assert.equal(freshness(reset.observedAt, reset.expiresAt, now), "fresh");
   assert.deepEqual(alertSamples([reset], now), []);
   assert.equal(alertSamples([{ ...row, resetAt: new Date(NOW + 1_000).toISOString() }], now).length, 1);
-  assert.deepEqual(holdReadings([reset], now), []);
+  assert.deepEqual(holdReadings([reset], now, true), []);
+});
+
+/* Astra fix round, finding 4: rows held through a failed read are drawn only
+   from the Claude source the switch selects now, so a number from the source
+   it left never stays on screen. */
+test("held rows keep only the Claude source the switch selects now", () => {
+  const poll = fixtures.projected.snapshots;
+  const others = poll.filter((row) => row.provider !== "CLAUDE");
+  const { writer: _writer, ...fiveHour } = poll.find((row) => row.provider === "CLAUDE" && row.meter === "FIVE_HOUR");
+  const payload = { ...fiveHour, value: 37, source: "native_payload", provenance: { sourceKind: "statusline_payload", observedVia: "claude_code_statusline" } };
+  const claude = (held) => held.filter((row) => row.provider === "CLAUDE").map((row) => row.value).sort((left, right) => left - right);
+  assert.deepEqual(claude(holdReadings(poll, now, true)), [6, 31, 46]);
+  assert.deepEqual(claude(holdReadings(poll, now, false)), [], "the request's rows leave with the switch");
+  assert.deepEqual(claude(holdReadings([...others, payload], now, false)), [37]);
+  assert.deepEqual(claude(holdReadings([...others, payload], now, true)), [], "a payload never stands in for the request");
+  assert.deepEqual(holdReadings(poll, now, false).map((row) => row.provider), others.map((row) => row.provider), "other providers stay");
 });
 
 test("a quiet Antigravity card with a day old reading stays, flat grey with its age, instead of vanishing", () => {
