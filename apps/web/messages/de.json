@@ -149,7 +149,7 @@
     "closeMenu": "Menü schließen"
   },
   "announce": {
-    "message": "OpenLimiter Pro ergänzt {features}. Desktop Benachrichtigungen bleiben kostenlos.",
+    "message": "Pro bringt {features}. Desktop Benachrichtigungen sind gratis.",
     "short": "Desktop Benachrichtigungen bleiben kostenlos",
     "dismiss": "Diese Ankündigung schließen"
   },

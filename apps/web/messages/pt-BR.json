@@ -149,7 +149,7 @@
     "closeMenu": "Fechar menu"
   },
   "announce": {
-    "message": "OpenLimiter Pro acrescenta {features}. Alertas do desktop continuam gratuitos.",
+    "message": "OpenLimiter Pro traz {features}. Alertas do desktop continuam gratuitos.",
     "short": "Os alertas do desktop continuam gratuitos",
     "dismiss": "Fechar este aviso"
   },
