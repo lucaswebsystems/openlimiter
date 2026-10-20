@@ -381,6 +381,10 @@ async function inspectReorder(page, width, height, shots) {
   const pressed = () => page.evaluate(() => [...document.querySelectorAll("[data-order-mode]")]
     .map((button) => `${button.textContent}:${button.getAttribute("aria-pressed")}`).join());
   if (await pressed() !== "Most used first:false,My order:true") findings.push(`Order shows ${await pressed()}`);
+  // The tab fades in: shoot it settled, with the Order choice in view.
+  await page.locator("#tab-panel-settings").evaluate((panel) =>
+    Promise.all(panel.getAnimations({ subtree: true }).map((animation) => animation.finished)));
+  await page.locator('[data-order-mode="usage"]').scrollIntoViewIfNeeded();
   await shot("settings-order");
   await page.locator('[data-order-mode="usage"]').click();
   await page.waitForTimeout(500);
@@ -391,6 +395,29 @@ async function inspectReorder(page, width, height, shots) {
   await page.waitForTimeout(500);
   await page.locator("#tab-usage").click();
   if ((await order()).join() !== bottom.join()) findings.push(`My order came back as ${(await order()).join()}`);
+  return findings;
+}
+
+/* A drag held at the bottom of a window too short for its list scrolls the
+   page under it, below the sticky header. */
+async function inspectWindowEdgeScroll(browser, origin, shots) {
+  const context = await browser.newContext({ viewport: { width: 520, height: 480 }, serviceWorkers: "block" });
+  await context.addInitScript(installCaptureStub);
+  const page = await context.newPage();
+  await page.goto(`${origin}/index.html`);
+  await page.waitForLoadState("networkidle");
+  const findings = await dismissModal(page);
+  const first = page.locator("#usage-rows > .q-group").first();
+  await first.hover();
+  const grip = await first.locator(".q-grip").boundingBox();
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(grip.x + grip.width / 2, 480 - 8, { steps: 12 });
+  await page.waitForTimeout(600);
+  if (await page.evaluate(() => document.scrollingElement.scrollTop) <= 0) findings.push("a drag at the bottom edge does not scroll the window");
+  if (shots) await page.screenshot({ path: path.join(shots, "usage-edge-drag-520x480.png") });
+  await page.mouse.up();
+  await context.close();
   return findings;
 }
 
@@ -558,6 +585,11 @@ try {
     const findings = await inspectPanelReorder(browser, origin, shots);
     if (findings.length) throw new Error(`FAIL edge panel reorder: ${findings.join(", ")}`);
     process.stdout.write("PASS edge panel drag and menu hold the panel and let go\n");
+  }
+  {
+    const findings = await inspectWindowEdgeScroll(browser, origin, shots);
+    if (findings.length) throw new Error(`FAIL window edge scroll: ${findings.join(", ")}`);
+    process.stdout.write("PASS a drag at the window's bottom edge scrolls the page\n");
   }
 
   const widths = [380, 420, 520, 586, 900, 1400];
