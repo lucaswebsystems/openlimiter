@@ -49,5 +49,21 @@ describe("Claude consent documentation", () => {
     const twins = (JSON.parse(web) as { desktopReadings: Record<string, string> }).desktopReadings;
     expect(twins["showClaudeFable"]).toBe(desktop["showClaudeFable"]);
     expect(twins["showClaudeFableNote"]).toBe(note);
+    /* Strings the window no longer draws anywhere leave with their twins. */
+    for (const retired of ["useClaudeSignIn", "useClaudeSignInTitle"]) {
+      expect(desktop[retired], retired).toBeUndefined();
+      expect(twins[retired], retired).toBeUndefined();
+    }
+  });
+
+  it("tells the same opt in story in the security policy and the zero setup notes", async () => {
+    const [security, zeroSetup] = await Promise.all([read("SECURITY.md"), read("docs/ZERO_SETUP_DETECTION.md")]);
+    for (const [name, text] of [["SECURITY.md", security], ["ZERO_SETUP_DETECTION.md", zeroSetup]] as const) {
+      const flat = text.replace(/\s+/gu, " ");
+      expect(flat, name).toContain("off until you turn it on");
+      expect(flat, name).toContain("Read my Claude usage from Anthropic");
+      expect(flat, name).toContain("about every five minutes");
+      expect(flat, name).not.toMatch(/Show Fable limit|asks once|records off|after a disclosure|new desktop installs/iu);
+    }
   });
 });
