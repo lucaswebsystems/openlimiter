@@ -808,7 +808,7 @@
   },
   "pricing": {
     "title": "Preise",
-    "lead": "Lokale Meter, Desktop Benachrichtigungen und Kontozugriff sind kostenlos, mit einem aktiven Konto je Anbieter. Pro ergänzt Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung von API Ausgaben.",
+    "lead": "Lokale Meter, Desktop Benachrichtigungen und Kontozugriff sind kostenlos, mit einem aktiven Konto je Anbieter. Pro ergänzt die gehosteten Funktionen und die Designvorlage, die unten stehen.",
     "plannedChip": "geplant",
     "free": {
       "status": "verfügbar",

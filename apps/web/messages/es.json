@@ -808,7 +808,7 @@
   },
   "pricing": {
     "title": "Precios",
-    "lead": "Los medidores locales, las alertas del escritorio y el acceso a la cuenta son gratis, con una cuenta activa por proveedor. Pro añade historial, alertas por correo y push en el teléfono, cuentas adicionales y medición de gasto de API en la nube.",
+    "lead": "Los medidores locales, las alertas del escritorio y el acceso a la cuenta son gratis, con una cuenta activa por proveedor. Pro añade las funciones alojadas y el tema predefinido que aparecen abajo.",
     "plannedChip": "planeado",
     "free": {
       "status": "disponible",

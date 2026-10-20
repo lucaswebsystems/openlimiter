@@ -808,7 +808,7 @@
   },
   "pricing": {
     "title": "Pricing",
-    "lead": "Local meters, desktop alerts and account access are free, with one active account per provider. Pro adds history, phone push and email alerts, extra accounts and cloud API spend metering.",
+    "lead": "Local meters, desktop alerts and account access are free, with one active account per provider. Pro adds the hosted features and the theme preset listed below.",
     "plannedChip": "planned",
     "free": {
       "status": "available",
