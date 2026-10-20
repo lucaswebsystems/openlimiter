@@ -6,7 +6,7 @@ import {
   AUTHORITATIVE_CACHE_FILE_NAME, CACHE_FILE_NAME, mergeAuthoritativeSnapshotCache, normalizeMeters, opaqueAccountId,
   recordAcquisitionAvailability
 } from "@openlimiter/core";
-import { parseClaudePayload } from "@openlimiter/connectors";
+import { grokFixture, parseClaudePayload } from "@openlimiter/connectors";
 import { AGENT_CONTEXT_FILE_NAME } from "@openlimiter/adapters";
 import { runCli } from "../src/cli.js";
 import { persistSnapshots } from "../src/ingest.js";
@@ -189,6 +189,57 @@ describe("statusline command reference layout", () => {
     expect(result.stdout).not.toContain("37%");
     await expect(readFile(path.join(stateDirectory, CACHE_FILE_NAME), "utf8")).rejects.toThrow();
     expect(await readFile(path.join(stateDirectory, AUTHORITATIVE_CACHE_FILE_NAME), "utf8")).toBe(authoritative);
+  });
+
+  /* Astra fix round, finding 1: every host's render draws only the Claude rows
+     the switch selects. A Grok or Antigravity payload used to hand back the
+     whole main cache, unguarded, and merging it in drew a newer payload over
+     the poll while on, or a historical poll weekly while off. */
+  it("renders only the Claude rows the switch selects, for every host", async () => {
+    const at = (secondsAgo: number) => new Date(Date.parse(NOW) - secondsAgo * 1000).toISOString();
+    const claude = (meter: string, value: number, sourceKind: "remote_api" | "statusline_payload", observedAt: string) => ({
+      provider: "CLAUDE", meter, value, unit: "PERCENT",
+      window: { kind: "rolling", durationSeconds: meter === "FIVE_HOUR" ? 18_000 : 604_800 },
+      resetAt: meter === "FIVE_HOUR" ? "2026-01-01T03:20:00.000Z" : "2026-01-05T02:00:00.000Z",
+      source: sourceKind === "remote_api" ? "internal_payload" : "native_payload", precision: "exact", observedAt,
+      expiresAt: new Date(Date.parse(observedAt) + 465_000).toISOString(),
+      labels: { credentialOrigin: "official-local-tool", dataInterfaceStatus: "internal-endpoint", automationRisk: "high", verification: "UNVERIFIED" },
+      provenance: { sourceKind, observedVia: sourceKind === "remote_api" ? "remote_http" : "claude_code_statusline" }
+    });
+    const antigravity = {
+      email: "person@example.com", model: "gemini-3-pro", context_window: 1_000_000, plan_tier: "individual",
+      quota: { "gemini-5h": { remaining_fraction: 0.73, reset_in_seconds: 18_000 } }
+    };
+    const stdin: Record<string, unknown> = {
+      claude: payload(), grok: grokFixture(NOW), antigravity, codex: payload(), shell: payload()
+    };
+    const shown = (stdout: string, value: number) => new RegExp("(^|[^0-9])" + String(value) + "%", "u").test(stdout);
+    const problems: string[] = [];
+    for (const host of ["claude", "grok", "antigravity", "codex", "shell"]) {
+      for (const enabled of [true, false]) {
+        const stateDirectory = await mkdtemp(path.join(await realpath(tmpdir()), "openlimiter-statusline-host-"));
+        const homeDirectory = await mkdtemp(path.join(await realpath(tmpdir()), "openlimiter-statusline-home-"));
+        roots.push(stateDirectory, homeDirectory);
+        await writeFile(path.join(stateDirectory, CACHE_FILE_NAME), JSON.stringify({ version: 3, snapshots: [
+          claude("FIVE_HOUR", 93, "statusline_payload", at(30)),
+          claude("SEVEN_DAY", 59, "remote_api", at(3_600))
+        ] }));
+        await writeFile(path.join(stateDirectory, AUTHORITATIVE_CACHE_FILE_NAME), JSON.stringify({ version: 3, snapshots: [
+          claude("FIVE_HOUR", 71, "remote_api", at(120))
+        ] }));
+        await writeFile(path.join(stateDirectory, "claude-poll.json"), JSON.stringify({ version: 1, enabled }));
+        const { stdout } = await runCli(["statusline", "--host", host], {
+          stateDirectory, homeDirectory, now: () => NOW, environment: { NO_COLOR: "" },
+          readStandardInput: async () => JSON.stringify(stdin[host])
+        });
+        const label = host + (enabled ? " on: " : " off: ") + stdout;
+        const right = enabled
+          ? shown(stdout, 71) && !shown(stdout, 93) && !shown(stdout, 17)
+          : !shown(stdout, 71) && !shown(stdout, 59);
+        if (!right) problems.push(label);
+      }
+    }
+    expect(problems).toEqual([]);
   });
 
   it("keeps saved segments, windows and providers hidden", async () => {
