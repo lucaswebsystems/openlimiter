@@ -315,6 +315,20 @@ describe("the return from checkout", () => {
     expect(view.container.textContent).toContain((messages.proFeatures as unknown as { inline: Record<string, string> }).inline.ember);
   });
 
+  /* Astra round 2: a complimentary account reads as active, and it never paid.
+     The confirmed notice says Pro is on and claims no payment at all; nothing
+     here has verified one. */
+  it("never claims a payment for a complimentary account opening a success return", async () => {
+    entitlementRow = { plan_state: "comped", features: ["alerts", "history"] };
+    returnFrom("success");
+    const view = await open();
+    const dismiss = byText(view.container, "button", portal.checkout.dismiss);
+    const notice = dismiss?.closest(".rounded-2xl");
+    expect(notice).not.toBeNull();
+    expect(notice?.textContent).not.toMatch(/(pay|paid|payment)/iu);
+    expect(view.container.textContent).not.toMatch(/Payment received|Stripe confirmed/u);
+  });
+
   it("still says a cancelled checkout charged nothing", async () => {
     returnFrom("cancel");
     const view = await open();
