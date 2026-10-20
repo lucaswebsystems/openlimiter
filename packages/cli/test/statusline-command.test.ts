@@ -209,7 +209,8 @@ describe("statusline command reference layout", () => {
       stateDirectory, homeDirectory: home, now: () => NOW, environment: { NO_COLOR: "" },
       readStandardInput: async () => JSON.stringify(input)
     });
-    expect(result.stdout).toContain(" 4% ·3h20m");
+    // The poll's 4, drawn with the status line's reset arrow (U44 to U48).
+    expect(result.stdout).toContain(" 4% ↻3h20m");
     expect(result.stdout).not.toContain("37%");
     await expect(readFile(path.join(stateDirectory, CACHE_FILE_NAME), "utf8")).rejects.toThrow();
     expect(await readFile(path.join(stateDirectory, AUTHORITATIVE_CACHE_FILE_NAME), "utf8")).toBe(authoritative);
