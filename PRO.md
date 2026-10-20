@@ -17,11 +17,11 @@ Start the trial from [openlimiter.com/pricing](https://openlimiter.com/pricing) 
 
 Pro also unlocks two cosmetic desktop extras: theme presets beyond the default, and the tagged caption preset. Dark and light stay free.
 
-## Nothing local is paywalled
+## What stays free
 
-Everything that runs on your machine is free and stays free: every connector, meter and desktop alert, the edge tab, the tray, agent activity, the terminal status line, the command line tool, local advice, manual entry and local ingestion. A free account adds sync of current readings between your devices, the phone included.
+Every connector, meter and desktop alert is free and stays free, and so are the edge tab, the tray, agent activity, the terminal status line, the command line tool, local advice, manual entry and local ingestion, with one account per provider. A free account adds sync of current readings between your devices, the phone included.
 
-An entitlement check protects hosted Pro work and nothing else. When a trial or subscription ends, those hosted services stop. Free sync and the local application continue without losing a feature, changing a meter or needing a reinstall.
+An entitlement check protects hosted Pro work, more than one account per provider, and two cosmetic touches, theme presets and tagged status line captions. When a trial or subscription ends, the hosted services stop, extra accounts are no longer read (nothing is deleted), and the cosmetics return to the default look. Free sync and the local application keep every connector, meter and alert for one account per provider, with no reinstall.
 
 ## The public and private line
 
@@ -47,9 +47,9 @@ Multiple embedded public keys may coexist, so a new signing key can overlap the 
 
 ## What sync and Pro receive
 
-After sign in, the desktop may send provider code, opaque account label, window name, bounded usage percentage, reset time, observation time, and opaque device identifier. Sync is on by default after sign in and can be turned off. Free accounts keep current snapshots. Pro accounts also keep ninety days of samples for alerts, history, forecasts, and routing context.
+After sign in, the desktop may send provider code, opaque account label, window name, bounded usage percentage, reset time, observation time, the amount and currency of balance meters, and opaque device identifier. Each API spend key adds a row with a random key identifier, the name you gave the key, its provider, the month, the amount spent in US dollars, your budget if you set one, the period that amount covers and whether that period is complete. A free account sends these API spend rows with every sync; a device with a Pro or trial entitlement sends them only when that entitlement includes the API spend feature. Sync is on by default after sign in and can be turned off. Free accounts keep current snapshots. Pro accounts also keep ninety days of samples for alerts, history, forecasts, and routing context.
 
-Subscription logins, provider response bodies, prompts, source code, local configuration, and diagnostics never enter sync or Pro. The database has no column for them. Extra JSON fields are discarded before storage. A breach of the sync tables exposes quota display metadata and cannot reach a provider account. The returned routing context is treated as untrusted data and rebuilt from a closed shape before the coding agent hook reads it.
+Subscription logins, provider response bodies, prompts, source code, local configuration, and diagnostics never enter sync or Pro. The database has no column for them. Extra JSON fields are discarded before storage. A breach of the sync tables exposes quota readings and, where they sync, API spend key names, amounts and budgets, and cannot reach a provider account. The returned routing context is treated as untrusted data and rebuilt from a closed shape before the coding agent hook reads it.
 
 Cloud metering is the one exception, and you choose it: an API spend key you opt in travels once to the server, is stored encrypted, and is never sent back. Without it, API spend keys stay in this device's keyring.
 

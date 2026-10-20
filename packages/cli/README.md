@@ -38,7 +38,7 @@ openlimiter sync        # uploads one round of cached bars to the hub
 openlimiter logout
 ```
 
-Bars never require this. An account only syncs the current percentage on every window between your devices.
+Bars never require this. An account syncs the current percentage on every window, and the amount and currency of balance and API spend meters, between your devices.
 
 ## Agent context hooks
 

@@ -234,7 +234,7 @@
       "bullets": {
         "local": "O modo local não coleta nada. Não há conta nem servidor nosso, nada sai da sua máquina para o OpenLimiter e cada conexão com um provedor fala apenas com esse provedor.",
         "account": "A conta é opcional. Entrar existe para que as suas próprias porcentagens de quota cheguem aos seus outros dispositivos, e para que o Pro tenha a que se ligar. A sincronização fica ligada a partir desse momento.",
-        "sync": "O que sincroniza é estado de quota delimitado: um provedor, um medidor, uma janela, uma porcentagem e carimbos de tempo. Nunca prompts, nunca código, nunca o conteúdo de um arquivo.",
+        "sync": "O que sincroniza é estado de quota delimitado: um provedor, um medidor, uma janela, uma porcentagem e carimbos de tempo, e para medidores de saldo e de gasto de API o valor e a sua moeda. Nunca prompts, nunca código, nunca o conteúdo de um arquivo.",
         "keys": "Credenciais de provedor e uma chave guardada no cofre do sistema operacional são enviadas apenas ao provedor que as emitiu, nunca ao OpenLimiter. Uma chave para a qual você ativa a medição em nuvem é a única exceção: ela viaja uma vez por HTTPS até o serviço hospedado e fica guardada lá de forma criptografada, apagada no momento em que você desliga a medição em nuvem ou pede.",
         "website": "Este site conta visualizações de página sem cookies. O aplicativo não envia análise.",
         "sell": "Nada é vendido, alugado ou entregue a um anunciante. Não há publicidade aqui."
@@ -264,7 +264,7 @@
       "title": "O que a sincronização realmente envia",
       "body": "A sincronização existe para que um número que você já tem em uma máquina fique visível em outra. Ela leva a leitura e nada ao redor dela.",
       "bullets": {
-        "fields": "Uma linha por medidor: qual provedor, qual medidor, qual janela, uma porcentagem de uso delimitada, quando a janela reseta, quando a leitura foi observada, um identificador opaco de conta e o aparelho que enviou.",
+        "fields": "Uma linha por medidor: qual provedor, qual medidor, qual janela, uma porcentagem de uso delimitada, quando a janela reseta, quando a leitura foi observada, para medidores de saldo o valor e a sua moeda, um identificador opaco de conta e o aparelho que enviou. Cada chave de gasto de API acrescenta uma linha com um identificador aleatório da chave, o nome que você deu à chave, o provedor dela, o mês, o valor gasto em dólares americanos, o seu orçamento se você definiu um, o período que esse valor cobre e se esse período está completo.",
         "never": "Ela nunca leva um prompt, uma resposta, um nome de arquivo, um caminho, código fonte, um nome de projeto, um repositório, uma credencial de provedor ou uma mensagem do provedor.",
         "retention": "O seu retrato atual é guardado por sete dias. Ele é substituído sempre que chega uma leitura mais nova.",
         "off": "A sincronização fica ligada a partir do momento em que você entra, porque é para isso que entrar existe. Você pode desligar nas configurações, e com ela desligada as leituras ficam no dispositivo que as tirou."
@@ -537,7 +537,7 @@
       "phone": {
         "title": "Pareie pelo desktop. Suas barras na tela inicial.",
         "lead": "Pareie seu celular pelo desktop e depois abra o web app pela tela inicial. Ele mostra as leituras mais recentes do computador, incluindo quando foram observadas.",
-        "note": "O celular acompanha o tema claro ou escuro e mantém as últimas leituras offline. O computador continua coletando leituras novas, e as credenciais ficam nele.",
+        "note": "O celular acompanha o tema claro ou escuro e mantém as últimas leituras offline. O computador continua coletando leituras novas, e as credenciais dele vão somente para o próprio provedor.",
         "cta": "Abrir o app do celular",
         "alt": "O app de celular do OpenLimiter com leituras sintéticas pareadas pelo desktop, nas telas Usage e Pro."
       },
@@ -868,7 +868,7 @@
       },
       "free": {
         "question": "É grátis?",
-        "answer": "Tudo o que você vê é gratuito e sempre será, sob a Apache 2.0. A conta OpenLimiter é gratuita. Os alertas do desktop são gratuitos. O Pro acrescenta histórico, alertas por push no celular e por email, contas extras e medição de gasto de API na nuvem. Somente porcentagens de uso são sincronizadas, nunca credenciais locais de provedores."
+        "answer": "Tudo o que você vê é gratuito e sempre será, sob a Apache 2.0. A conta OpenLimiter é gratuita. Os alertas do desktop são gratuitos. O Pro acrescenta histórico, alertas por push no celular e por email, contas extras e medição de gasto de API na nuvem. A sincronização leva porcentagens de uso e o valor e a moeda dos medidores de saldo e de gasto de API, nunca credenciais locais de provedores."
       },
       "pro": {
         "question": "O que é o OpenLimiter Pro?",
@@ -919,7 +919,7 @@
       "or": "ou",
       "perYear": "por ano",
       "trialChip": "30 dias gratuitos",
-      "priceNote": "Os primeiros 30 dias são gratuitos e sem cartão. Quando o acesso termina, os recursos do Pro param: os hospedados na hora, e os locais voltam a uma conta por provedor e ao tema padrão. Tudo o que você via antes do Pro continua igual.",
+      "priceNote": "Os primeiros 30 dias são gratuitos e sem cartão. Quando o acesso termina, param o histórico do Pro, os alertas por push no celular e por email, as contas extras e a medição de gasto de API na nuvem. Medidores locais, alertas do desktop e acesso à conta continuam funcionando.",
       "lead": "Quatro recursos Pro: histórico, alertas por push no celular e por email, contas extras e medição de gasto de API na nuvem.",
       "footnote": "Depois do teste, meters locais, alertas locais e acesso gratuito à conta continuam funcionando. A versão gratuita mantém uma conta ativa por provedor.",
       "lines": {
@@ -941,7 +941,7 @@
     "commitments": {
       "runsLocal": {
         "title": "Ele roda na sua máquina",
-        "detail": "O modo local não tem telemetria. A conta é grátis. As conexões falam somente com cada provedor e as credenciais ficam no sistema operacional. Só percentuais de uso são sincronizados, e a sincronização pode ser desligada."
+        "detail": "O modo local não tem telemetria. A conta é grátis. As conexões falam somente com cada provedor e as credenciais ficam no sistema operacional. A sincronização leva percentuais de uso e o valor e a moeda dos medidores de saldo e de gasto de API, e pode ser desligada."
       },
       "reportsNobody": {
         "title": "Ele não reporta para ninguém",
@@ -1187,7 +1187,7 @@
             "title": "Grátis e Pro",
             "intro": "As barras são gratuitas para sempre e não precisam de conta.",
             "bullets": {
-              "sync": "Uma conta acrescenta sincronização: o percentual atual de cada janela fica atualizado entre todos os dispositivos em que você entra.",
+              "sync": "Uma conta acrescenta sincronização: o percentual atual de cada janela, e o valor e a moeda dos medidores de saldo e de gasto de API, ficam atualizados entre todos os dispositivos em que você entra.",
               "pro": "O Pro acrescenta histórico, alertas por push no celular e por email, contas extras e medição na nuvem para chaves de gasto de API.",
               "trial": "Cada recurso Pro oferece um teste grátis de 30 dias, sem cartão."
             }
@@ -1326,7 +1326,7 @@
             "calloutTitle": "Nenhum conector foi verificado contra uma conta real ainda",
             "calloutBody": "<code>UNVERIFIED</code> é o padrão honesto. Significa que nenhum verificador explícito confirmou o formato contra uma conta real, então o <code>openlimiter doctor</code> relata desvios como não verificados em vez de afirmar que um conector está bom. Codex e Cursor levam <code>VERIFIED_FIXTURES</code>: os fixtures gravados deles passam, e a verificação com uma conta real ainda está por vir.",
             "neverTitle": "O que o OpenLimiter nunca faz",
-            "neverBody": "Nunca pede a senha de um provedor: cada entrada acontece na página do próprio provedor, no seu navegador. Nunca se passa por outra ferramenta: toda solicitação se identifica como OpenLimiter, nunca como Claude Code, Codex ou outro cliente. Nunca envia um token: a conta sincroniza percentuais limitados e horários de reinício das leituras, nunca a credencial que as produziu."
+            "neverBody": "Nunca pede a senha de um provedor: cada entrada acontece na página do próprio provedor, no seu navegador. Nunca se passa por outra ferramenta: toda solicitação se identifica como OpenLimiter, nunca como Claude Code, Codex ou outro cliente. Nunca envia um token: a conta sincroniza percentuais limitados e horários de reinício das leituras, além do valor e da moeda dos medidores de saldo e de gasto de API, nunca a credencial que as produziu."
           },
           "how-data-arrives": {
             "title": "How data actually arrives",
@@ -2015,7 +2015,7 @@
               "noServer": "<strong>O modo local não alcança nenhum servidor do OpenLimiter.</strong> Nada é enviado aos autores do projeto, porque no modo local não há para onde enviar. O serviço hospedado existe apenas para a conta gratuita, para a sincronização e para o Pro, e só depois que você entra.",
               "noTelemetry": "<strong>Não há telemetria.</strong> Nenhum comando envia uso, diagnósticos, identificadores ou prompts para lugar nenhum, em modo nenhum. O estado de quota só sai da sua máquina pela sincronização, só depois do login, e só como as leituras delimitadas que você pode desligar.",
               "hookNoNetwork": "<strong>O hook não faz nenhuma requisição de rede.</strong> Ele lê o cache local e mais nada.",
-              "noEgress": "<strong>O modo local não envia nada ao OpenLimiter.</strong> As conexões falam somente com cada provedor por uma lista fixa de permissões. O Pro opcional envia snapshots selecionados e limitados de quota ao serviço hospedado depois do login. Uma chave de API ativada explicitamente para medição na nuvem é enviada uma vez por HTTPS e armazenada de forma criptografada para esse trabalho. As credenciais locais de provedores nunca saem do dispositivo.",
+              "noEgress": "<strong>O modo local não envia nada ao OpenLimiter.</strong> As conexões falam somente com cada provedor por uma lista fixa de permissões. O Pro opcional envia snapshots selecionados e limitados de quota ao serviço hospedado depois do login. Uma chave de API ativada explicitamente para medição na nuvem é enviada uma vez por HTTPS e armazenada de forma criptografada para esse trabalho. Fora isso, as credenciais locais de provedores vão somente para o próprio provedor.",
               "unknownNeverZero": "<strong>Unknown nunca vira zero.</strong> Entrada ausente, expirada, malformada, e não reconhecida, todas se resolvem para unknown.",
               "readOnlyArtifacts": "<strong>Artefatos de autenticação de provedor são só leitura.</strong> Nunca são reescritos, salvos, consertados, ou migrados."
             }

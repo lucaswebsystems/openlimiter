@@ -234,7 +234,7 @@
       "bullets": {
         "local": "Der lokale Modus erhebt nichts. Es gibt kein Konto und keinen Server von uns, nichts verlässt deinen Rechner in Richtung OpenLimiter, und jede Anbieterverbindung spricht nur mit diesem Anbieter.",
         "account": "Ein Konto ist freiwillig. Die Anmeldung gibt es, damit deine eigenen Quota Prozentwerte deine anderen Geräte erreichen und damit Pro an etwas hängen kann. Ab diesem Moment ist die Synchronisierung aktiv.",
-        "sync": "Synchronisiert wird begrenzter Quota Zustand: ein Anbieter, ein Messwert, ein Fenster, ein Prozentwert und Zeitstempel. Niemals Prompts, niemals Code, niemals der Inhalt einer Datei.",
+        "sync": "Synchronisiert wird begrenzter Quota Zustand: ein Anbieter, ein Messwert, ein Fenster, ein Prozentwert und Zeitstempel, und bei Messwerten für Guthaben und API Ausgaben der Betrag und seine Währung. Niemals Prompts, niemals Code, niemals der Inhalt einer Datei.",
         "keys": "Anbieterzugangsdaten und ein Schlüssel im Schlüsselbund des Betriebssystems gehen nur an den Anbieter, der sie ausgestellt hat, nie an OpenLimiter. Ein Schlüssel, für den du dich für das Cloud Metering entscheidest, ist die eine Ausnahme: er reist einmal über HTTPS zum gehosteten Dienst und wird dort verschlüsselt gespeichert, gelöscht in dem Moment, in dem du Cloud Metering ausschaltest oder danach fragst.",
         "website": "Diese Website zählt Seitenaufrufe ohne Cookies. Die Anwendung sendet keine Analysedaten.",
         "sell": "Nichts wird verkauft, vermietet oder an einen Werbetreibenden gegeben. Hier gibt es keine Werbung."
@@ -264,7 +264,7 @@
       "title": "Was die Synchronisierung wirklich sendet",
       "body": "Die Synchronisierung existiert, damit eine Zahl, die du auf einem Rechner schon hast, auf einem anderen sichtbar wird. Sie trägt den Messwert und nichts drumherum.",
       "bullets": {
-        "fields": "Eine Zeile pro Messwert: welcher Anbieter, welcher Messwert, welches Fenster, ein begrenzter Nutzungsprozentwert, wann das Fenster zurückgesetzt wird, wann der Wert beobachtet wurde, eine undurchsichtige Kontokennung und das Gerät, das gesendet hat.",
+        "fields": "Eine Zeile pro Messwert: welcher Anbieter, welcher Messwert, welches Fenster, ein begrenzter Nutzungsprozentwert, wann das Fenster zurückgesetzt wird, wann der Wert beobachtet wurde, bei Messwerten für Guthaben der Betrag und seine Währung, eine undurchsichtige Kontokennung und das Gerät, das gesendet hat. Jeder API Ausgabenschlüssel ergänzt eine Zeile mit einer zufälligen Schlüsselkennung, dem Namen, den du dem Schlüssel gegeben hast, seinem Anbieter, dem Monat, dem ausgegebenen Betrag in US Dollar, deinem Budget, falls du eines festgelegt hast, dem Zeitraum, den dieser Betrag abdeckt, und der Angabe, ob dieser Zeitraum abgeschlossen ist.",
         "never": "Sie trägt nie einen Prompt, eine Antwort, einen Dateinamen, einen Pfad, Quelltext, einen Projektnamen, ein Repository, Anbieterzugangsdaten oder eine Anbieternachricht.",
         "retention": "Deine aktuelle Momentaufnahme wird sieben Tage aufbewahrt. Sie wird ersetzt, sobald ein neuerer Wert eintrifft.",
         "off": "Die Synchronisierung ist ab deiner Anmeldung aktiv, denn genau dafür ist die Anmeldung da. Du kannst sie in den Einstellungen abschalten, und dann bleiben die Messwerte auf dem Gerät, das sie genommen hat."
@@ -537,7 +537,7 @@
       "phone": {
         "title": "Vom Desktop koppeln. Deine Balken auf dem Startbildschirm.",
         "lead": "Kopple dein Handy vom Desktop aus und öffne dann die Web App über den Startbildschirm. Sie zeigt die neuesten Messungen von deinem Computer, einschließlich des Zeitpunkts ihrer Erfassung.",
-        "note": "Das Handy folgt seinem hellen oder dunklen Design und behält die letzten Messungen offline. Dein Computer sammelt weiterhin neue Messungen, und Anbieterzugangsdaten bleiben dort.",
+        "note": "Das Handy folgt seinem hellen oder dunklen Design und behält die letzten Messungen offline. Dein Computer sammelt weiterhin neue Messungen, und seine Anbieterzugangsdaten gehen nur an ihren eigenen Anbieter.",
         "cta": "Telefon App öffnen",
         "alt": "Die OpenLimiter Telefon App mit synthetischen, vom Desktop gekoppelten Messungen in den Ansichten Usage und Pro."
       },
@@ -868,7 +868,7 @@
       },
       "free": {
         "question": "Ist es kostenlos?",
-        "answer": "Alles, was du sehen kannst, ist kostenlos und bleibt es unter Apache 2.0. Das OpenLimiter Konto ist kostenlos. Desktop Benachrichtigungen sind kostenlos. Pro ergänzt Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung von API Ausgaben. Nur Nutzungsprozente werden synchronisiert, niemals lokale Anbieter Zugangsdaten."
+        "answer": "Alles, was du sehen kannst, ist kostenlos und bleibt es unter Apache 2.0. Das OpenLimiter Konto ist kostenlos. Desktop Benachrichtigungen sind kostenlos. Pro ergänzt Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung von API Ausgaben. Die Synchronisierung trägt Nutzungsprozente sowie Betrag und Währung der Messwerte für Guthaben und API Ausgaben, niemals lokale Anbieter Zugangsdaten."
       },
       "pro": {
         "question": "Was ist OpenLimiter Pro?",
@@ -919,7 +919,7 @@
       "or": "oder",
       "perYear": "pro Jahr",
       "trialChip": "30 Tage kostenlos",
-      "priceNote": "Die ersten 30 Tage sind kostenlos, ohne Karte. Endet der Zugang, hören die Pro Funktionen auf: die gehosteten sofort, die lokalen fallen auf ein Konto je Anbieter und das Standardthema zurück. Alles, was du vor Pro sehen konntest, bleibt unverändert.",
+      "priceNote": "Die ersten 30 Tage sind kostenlos, ohne Karte. Endet der Zugang, hören der Pro Verlauf, die Push und E Mail Benachrichtigungen, die zusätzlichen Konten und die Cloud Messung von API Ausgaben auf. Lokale Meter, Desktop Benachrichtigungen und Kontozugriff funktionieren weiter.",
       "lead": "Vier Pro Funktionen: Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung von API Ausgaben.",
       "footnote": "Nach dem Test funktionieren lokale Meter, lokale Alerts und der kostenlose Kontozugriff weiter. Die kostenlose Version behält ein aktives Konto je Anbieter.",
       "lines": {
@@ -941,7 +941,7 @@
     "commitments": {
       "runsLocal": {
         "title": "Es läuft auf deinem Rechner",
-        "detail": "Der lokale Modus hat keine Telemetrie. Das Konto ist kostenlos. Anbieter Verbindungen sprechen nur mit dem jeweiligen Anbieter, und Zugangsdaten bleiben beim Betriebssystem. Nur Nutzungsprozente werden synchronisiert, und die Synchronisierung kann ausgeschaltet werden."
+        "detail": "Der lokale Modus hat keine Telemetrie. Das Konto ist kostenlos. Anbieter Verbindungen sprechen nur mit dem jeweiligen Anbieter, und Zugangsdaten bleiben beim Betriebssystem. Die Synchronisierung trägt Nutzungsprozente sowie Betrag und Währung der Messwerte für Guthaben und API Ausgaben, und sie kann ausgeschaltet werden."
       },
       "reportsNobody": {
         "title": "Es berichtet niemandem",
@@ -1187,7 +1187,7 @@
             "title": "Kostenlos und Pro",
             "intro": "Balken bleiben dauerhaft kostenlos und benötigen kein Konto.",
             "bullets": {
-              "sync": "Ein Konto ergänzt die Synchronisierung: Der aktuelle Prozentsatz jedes Zeitfensters bleibt auf allen angemeldeten Geräten aktuell.",
+              "sync": "Ein Konto ergänzt die Synchronisierung: Der aktuelle Prozentsatz jedes Zeitfensters sowie Betrag und Währung der Messwerte für Guthaben und API Ausgaben bleiben auf allen angemeldeten Geräten aktuell.",
               "pro": "Pro ergänzt Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung für API Ausgabenschlüssel.",
               "trial": "Jede Pro Funktion bietet eine kostenlose Testphase von 30 Tagen ohne Kreditkarte."
             }
@@ -1326,7 +1326,7 @@
             "calloutTitle": "Noch ist kein Connector gegen ein echtes Konto verifiziert",
             "calloutBody": "<code>UNVERIFIED</code> ist der ehrliche Standard. Es bedeutet, dass kein expliziter Verifier die Form gegen ein echtes Konto bestätigt hat, deshalb meldet <code>openlimiter doctor</code> Abweichungen als unverifiziert, statt einen Connector für bekannt gut zu erklären. Codex und Cursor tragen <code>VERIFIED_FIXTURES</code>: ihre aufgezeichneten Fixtures bestehen, und eine Prüfung mit einem echten Konto steht noch aus.",
             "neverTitle": "Was OpenLimiter niemals tut",
-            "neverBody": "Es fragt nie nach einem Anbieterpasswort: Jede Anmeldung erfolgt auf der Seite des Anbieters in Ihrem Browser. Es gibt sich nie als anderes Tool aus: Jede Anfrage nennt OpenLimiter, niemals Claude Code, Codex oder einen anderen Client. Es lädt nie ein Token hoch: Ein Konto synchronisiert die begrenzten Prozentwerte und Rücksetzzeiten der Messungen, niemals die dafür verwendeten Zugangsdaten."
+            "neverBody": "Es fragt nie nach einem Anbieterpasswort: Jede Anmeldung erfolgt auf der Seite des Anbieters in Ihrem Browser. Es gibt sich nie als anderes Tool aus: Jede Anfrage nennt OpenLimiter, niemals Claude Code, Codex oder einen anderen Client. Es lädt nie ein Token hoch: Ein Konto synchronisiert die begrenzten Prozentwerte und Rücksetzzeiten der Messungen sowie Betrag und Währung der Messwerte für Guthaben und API Ausgaben, niemals die dafür verwendeten Zugangsdaten."
           },
           "how-data-arrives": {
             "title": "How data actually arrives",
@@ -2015,7 +2015,7 @@
               "noServer": "<strong>Der lokale Modus erreicht keinen OpenLimiter Server.</strong> Den Autoren des Projekts wird nichts gesendet, weil es im lokalen Modus keinen Ort dafür gibt. Der gehostete Dienst existiert nur für das kostenlose Konto, für die Synchronisierung und für Pro, und erst nach der Anmeldung.",
               "noTelemetry": "<strong>Es gibt keine Telemetrie.</strong> Kein Befehl sendet Nutzung, Diagnose, Kennungen oder Prompts irgendwohin, in keinem Modus. Quota Zustand verlässt deinen Rechner nur über die Synchronisierung, nur nach der Anmeldung und nur als die begrenzten Werte, die du abschalten kannst.",
               "hookNoNetwork": "<strong>Der Hook stellt keine Netzwerkanfrage.</strong> Er liest den lokalen Cache und sonst nichts.",
-              "noEgress": "<strong>Der lokale Modus sendet nichts an OpenLimiter.</strong> Anbieterverbindungen sprechen über eine feste Erlaubnisliste nur mit dem jeweiligen Anbieter. Optionales Pro sendet nach der Anmeldung ausgewählte begrenzte Quota Aufnahmen an den gehosteten Dienst. Ein ausdrücklich für Cloud Messung aktivierter API Schlüssel wird einmal über HTTPS gesendet und für diese Aufgabe verschlüsselt gespeichert. Lokale Anbieter Zugangsdaten verlassen das Gerät nie.",
+              "noEgress": "<strong>Der lokale Modus sendet nichts an OpenLimiter.</strong> Anbieterverbindungen sprechen über eine feste Erlaubnisliste nur mit dem jeweiligen Anbieter. Optionales Pro sendet nach der Anmeldung ausgewählte begrenzte Quota Aufnahmen an den gehosteten Dienst. Ein ausdrücklich für Cloud Messung aktivierter API Schlüssel wird einmal über HTTPS gesendet und für diese Aufgabe verschlüsselt gespeichert. Ansonsten gehen lokale Anbieter Zugangsdaten nur an ihren eigenen Anbieter.",
               "unknownNeverZero": "<strong>Unknown wird nie zu null.</strong> Fehlende, abgelaufene, fehlerhafte und nicht erkannte Eingaben lösen sich alle in unknown auf.",
               "readOnlyArtifacts": "<strong>Provider Authentifizierungsartefakte sind nur lesend.</strong> Sie werden nie umgeschrieben, gesichert, repariert oder migriert."
             }

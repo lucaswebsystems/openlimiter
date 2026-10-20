@@ -5,13 +5,14 @@ same snapshot cache the command line tool writes, applies the same rules, and
 puts the provider under the most pressure next to your clock.
 
 Local first, like everything else here. It reads provider sessions already on
-this machine, stores OpenLimiter connection state locally, and contacts only a
-provider that the user connected. The free account syncs only bounded usage
-percentages by default, never provider credentials or provider response bodies,
-and the person can turn sync off. There is no analytics or tracking.
+this machine, stores OpenLimiter connection state locally, and contacts each
+provider the user connected, GitHub to check for updates, and OpenLimiter only
+after sign in. After sign in, sync carries bounded readings
+by default, never provider credentials or provider response bodies, and the
+person can turn sync off. There is no analytics or tracking.
 
-The packaged 1.0 release targets Windows and Linux. macOS remains coming soon,
-with no unsigned public binary because Gatekeeper blocks it.
+Packaged releases ship for Windows and Linux, plus a macOS preview that is ad
+hoc signed but not notarised, so Gatekeeper asks once before it opens.
 
 ## What it does
 
@@ -77,8 +78,8 @@ lockup, then sends it through the Tauri icon pipeline. Tauri writes the window,
 taskbar, Windows installer, and Linux package sizes. The final step writes the
 tray sizes from that same parsed geometry and blue.
 
-The pipeline also writes an `icon.icns`, but the launch workflow deliberately
-produces no macOS artifact while signing and notarisation remain unavailable.
+The pipeline also writes an `icon.icns` for the macOS preview, which the release
+workflow builds ad hoc signed and without notarisation.
 
 ## What it deliberately does not do
 
