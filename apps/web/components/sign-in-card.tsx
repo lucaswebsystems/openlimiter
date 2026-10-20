@@ -5,9 +5,10 @@ import { useTranslations } from "next-intl";
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { authRedirectUrl } from "@/lib/pro";
 import {
+  EMAIL_FALLBACK_PROVIDERS,
   OAUTH_PROVIDERS,
   PROVIDER_SCOPES,
-  emailSwitchedOff,
+  emailFailureReason,
   probeAuthorize,
   providerName,
   providerOffKey,
@@ -154,15 +155,32 @@ export function SignInCard({
     const address = email.trim();
     if (address === "") return;
     setState({ kind: "working", via: "email" });
-    const { error } = await client.auth.signInWithOtp({
-      email: address,
-      options: { emailRedirectTo: authRedirectUrl() },
-    });
+    /* A request that throws is a link that did not go out, not a card left on
+       Sending for good. */
+    const error = await client.auth
+      .signInWithOtp({ email: address, options: { emailRedirectTo: authRedirectUrl() } })
+      .then(({ error: refused }) => refused, (thrown: unknown) => ({ message: String(thrown) }));
     if (error === null) {
       setState({ kind: "sent", email: address });
       return;
     }
-    setState({ kind: "error", reason: emailSwitchedOff(error.message) ? "emailOff" : "failed" });
+    setState({ kind: "error", reason: emailFailureReason(error.message) });
+  }
+
+  function providerButton(provider: OAuthProvider, tone: "primary" | "ghost") {
+    const Mark = PROVIDER_MARKS[provider];
+    return (
+      <Button
+        key={provider}
+        tone={tone}
+        className="min-h-control-touch w-full"
+        disabled={busy}
+        onClick={() => void continueWith(provider)}
+      >
+        <Mark className="h-5 w-5" />
+        {t(PROVIDER_LABEL_KEYS[provider])}
+      </Button>
+    );
   }
 
   return (
@@ -174,21 +192,7 @@ export function SignInCard({
       </div>
 
       <div className="mt-6 grid gap-2">
-        {OAUTH_PROVIDERS.map((provider) => {
-          const Mark = PROVIDER_MARKS[provider];
-          return (
-            <Button
-              key={provider}
-              tone={provider === "github" ? "primary" : "ghost"}
-              className="min-h-control-touch w-full"
-              disabled={busy}
-              onClick={() => void continueWith(provider)}
-            >
-              <Mark className="h-5 w-5" />
-              {t(PROVIDER_LABEL_KEYS[provider])}
-            </Button>
-          );
-        })}
+        {OAUTH_PROVIDERS.map((provider) => providerButton(provider, provider === "github" ? "primary" : "ghost"))}
       </div>
 
       <Switch
@@ -266,6 +270,13 @@ export function SignInCard({
       )}
 
       <StatusLine state={state} />
+      {/* A link that could not be sent offers the two ways in that need no
+          mail, right where the failure is read rather than back at the top. */}
+      {state.kind === "error" && state.reason === "emailFailed" && (
+        <div className="mt-2 grid gap-2">
+          {EMAIL_FALLBACK_PROVIDERS.map((provider) => providerButton(provider, "ghost"))}
+        </div>
+      )}
 
       <p className="mt-5 text-center text-xs leading-relaxed text-muted">
         {t("noAccount")}{" "}
@@ -306,7 +317,9 @@ function StatusLine({ state }: { state: SignInState }) {
           ? t(providerOffKey(state.provider))
           : state.reason === "emailOff"
             ? t("emailOff")
-            : t("failed");
+            : state.reason === "emailFailed"
+              ? t("emailFailed")
+              : t("failed");
   const tint =
     tone === "working"
       ? "border-hairline bg-raised text-soft"

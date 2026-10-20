@@ -2128,6 +2128,7 @@
     "sending": "Der Link wird gesendet.",
     "sent": "Sieh in {email} nach und öffne den Link auf diesem Gerät.",
     "failed": "Diese Anmeldung konnte nicht gestartet werden. Prüfe deine Verbindung und versuche es erneut.",
+    "emailFailed": "Die Anmelde E Mail konnte gerade nicht gesendet werden. Melde dich stattdessen mit GitHub oder Google an.",
     "githubOff": "Die Anmeldung mit GitHub ist noch nicht freigeschaltet. Nutze Google oder E Mail.",
     "googleOff": "Die Anmeldung mit Google ist noch nicht freigeschaltet. Nutze GitHub oder E Mail.",
     "emailOff": "Die Anmeldung per E Mail ist noch nicht freigeschaltet. Nutze GitHub oder Google.",

@@ -2128,6 +2128,7 @@
     "sending": "Sending the link.",
     "sent": "Check {email} and open the link on this device.",
     "failed": "That sign in could not be started. Check your connection and try again.",
+    "emailFailed": "The sign in email could not be sent right now. Continue with GitHub or Google instead.",
     "githubOff": "GitHub sign in is not switched on yet. Use Google, Microsoft or email.",
     "googleOff": "Google sign in is not switched on yet. Use GitHub, Microsoft or email.",
     "emailOff": "Email sign in is not switched on yet. Use GitHub, Google or Microsoft.",

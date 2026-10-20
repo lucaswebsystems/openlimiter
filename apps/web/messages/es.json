@@ -2128,6 +2128,7 @@
     "sending": "Enviando el enlace.",
     "sent": "Revisa {email} y abre el enlace en este dispositivo.",
     "failed": "No se pudo iniciar ese acceso. Revisa tu conexión e inténtalo de nuevo.",
+    "emailFailed": "Ahora mismo no se pudo enviar el correo de acceso. Continúa con GitHub o Google.",
     "githubOff": "El acceso con GitHub todavía no está activado. Usa Google o correo electrónico.",
     "googleOff": "El acceso con Google todavía no está activado. Usa GitHub o correo electrónico.",
     "emailOff": "El acceso por correo electrónico todavía no está activado. Usa GitHub o Google.",

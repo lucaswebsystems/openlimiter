@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createElement } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BarsEmpty } from "@/app/app/connect";
 import { Onboarding } from "@/app/app/onboarding";
 import { SignInCard } from "@/components/sign-in-card";
@@ -223,6 +223,91 @@ describe("the sign in card", () => {
     expect(
       mounted.container.querySelector('[role="switch"]')?.getAttribute("aria-checked"),
     ).toBe("true");
+  });
+
+  /*
+   * The sign in mail goes out through a provider with a daily cap. When a link
+   * cannot be sent, for that cap or for any other send error, the card says so
+   * in one plain sentence and puts the two ways in that need no mail at all
+   * right under it, instead of a generic failure that sends somebody back to a
+   * form that will refuse them again.
+   */
+  describe("when the email link cannot be sent", () => {
+    const CAP = {
+      data: {},
+      error: { message: "Email rate limit exceeded", status: 429, code: "over_email_send_rate_limit" },
+    };
+    const SEND_ERROR = {
+      data: {},
+      error: { message: "Error sending magic link email", status: 500, code: "unexpected_failure" },
+    };
+
+    /* jsdom lays nothing out, so it has no scrollIntoView for the opened form. */
+    beforeEach(() => {
+      Element.prototype.scrollIntoView = vi.fn();
+    });
+    afterEach(() => {
+      delete (Element.prototype as Partial<Element>).scrollIntoView;
+    });
+
+    async function sendWith(signInWithOtp: () => Promise<unknown>) {
+      const signInWithOAuth = vi.fn(() => new Promise(() => undefined));
+      mounted = render(
+        createElement(SignInCard, {
+          client: { auth: { signInWithOAuth, signInWithOtp } } as unknown as SupabaseClient,
+          keepSignedIn: true,
+          onKeepSignedInChange: async () => true,
+        }),
+      );
+      press(byText(mounted.container, "button", signIn.useEmail));
+      const field = mounted.container.querySelector<HTMLInputElement>('input[type="email"]');
+      expect(field).not.toBeNull();
+      mounted.run(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(field, "person@example.com");
+        field?.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      mounted.run(() => {
+        mounted?.container.querySelector("form")?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      });
+      await flush(3);
+      return { signInWithOAuth };
+    }
+
+    function offered(text: string): Element[] {
+      return all(mounted?.container ?? document.body, "button").filter((node) => node.textContent?.trim() === text);
+    }
+
+    for (const [cause, answer] of [["the daily cap", CAP], ["a send error", SEND_ERROR]] as const) {
+      it(`says so plainly for ${cause} and offers GitHub and Google`, async () => {
+        const { signInWithOAuth } = await sendWith(async () => answer);
+
+        const status = mounted?.container.querySelector('[role="status"]:not(.sr-only) > span:last-child');
+        expect(status?.textContent?.trim()).toBe(signIn.emailFailed);
+        expect(mounted?.container.textContent).not.toContain(signIn.failed);
+        /* Both providers are offered again where the failure is read. */
+        expect(offered(signIn.github)).toHaveLength(2);
+        expect(offered(signIn.google)).toHaveLength(2);
+
+        press(offered(signIn.google)[1] ?? null);
+        expect(signInWithOAuth).toHaveBeenCalledWith(expect.objectContaining({ provider: "google" }));
+      });
+    }
+
+    it("says the same when the request itself throws, and never hangs on Sending", async () => {
+      await sendWith(async () => {
+        throw new TypeError("Failed to fetch");
+      });
+      const status = mounted?.container.querySelector('[role="status"]:not(.sr-only) > span:last-child');
+      expect(status?.textContent?.trim()).toBe(signIn.emailFailed);
+      expect(mounted?.container.textContent).not.toContain(signIn.sending);
+      expect(offered(signIn.github)).toHaveLength(2);
+    });
+
+    it("keeps the switched off sentence for a service that has email turned off", async () => {
+      await sendWith(async () => ({ data: {}, error: { message: "Email logins are disabled", status: 422 } }));
+      const status = mounted?.container.querySelector('[role="status"]:not(.sr-only) > span:last-child');
+      expect(status?.textContent?.trim()).toBe(signIn.emailOff);
+    });
   });
 });
 
