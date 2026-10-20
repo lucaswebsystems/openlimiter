@@ -150,7 +150,7 @@
   },
   "announce": {
     "message": "Pro bringt {features}. Desktop Benachrichtigungen sind gratis.",
-    "short": "Desktop Benachrichtigungen bleiben kostenlos",
+    "short": "Desktop Hinweise gratis",
     "dismiss": "Diese Ankündigung schließen"
   },
   "footer": {

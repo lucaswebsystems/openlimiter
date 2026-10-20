@@ -150,7 +150,7 @@
   },
   "announce": {
     "message": "OpenLimiter Pro añade {features}. Las alertas del escritorio siguen gratis.",
-    "short": "Las alertas del escritorio siguen siendo gratis",
+    "short": "Alertas del escritorio gratis",
     "dismiss": "Cerrar este aviso"
   },
   "footer": {

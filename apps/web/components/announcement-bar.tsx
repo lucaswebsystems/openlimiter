@@ -81,10 +81,12 @@ export async function AnnouncementBar() {
               first syllable and still open on a capital, and a word cut in half
               is a word no translator can be handed. Both are complete in every
               language, the visible pair is hidden from assistive technology, and
-              the sentence a screen reader gets sits above them. */}
+              the sentence a screen reader gets sits above them. The long one
+              shows from 1280 pixels, where it fits in every language; the short
+              one below that, so neither is ever cut off. */}
           <span aria-hidden="true" className="truncate">
-            <span className="hidden sm:inline">{t("message", { features })}</span>
-            <span className="sm:hidden">{t("short")}</span>
+            <span className="hidden xl:inline">{t("message", { features })}</span>
+            <span className="xl:hidden">{t("short")}</span>
           </span>
           <ChevronGlyph />
         </SiteLink>
