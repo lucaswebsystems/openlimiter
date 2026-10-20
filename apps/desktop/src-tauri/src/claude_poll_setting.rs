@@ -137,7 +137,11 @@ impl ClaudePollSetting {
         let directory = self.directory.as_deref().ok_or_else(storage_error)?;
         let (newly_enabled, mirrored) = crate::cli_config::with_lock(directory, || {
             let was_enabled = crate::state::read_claude_poll(Some(directory)) == Ok(Some(true));
+            #[cfg(test)]
+            pause("store");
             write_document(directory, enabled)?;
+            #[cfg(test)]
+            pause("mirror");
             let mirrored = crate::cli_config::mirror_claude_poll(directory, enabled).is_ok();
             Ok::<_, String>((enabled && !was_enabled, mirrored))
         })
@@ -152,6 +156,21 @@ impl ClaudePollSetting {
         }
         Ok(())
     }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// A test's stand in for this setter pausing before a write.
+    static PAUSE: std::cell::RefCell<Option<Box<dyn FnMut(&str)>>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+fn pause(step: &str) {
+    PAUSE.with(|hook| {
+        if let Some(hook) = hook.borrow_mut().as_mut() {
+            hook(step);
+        }
+    });
 }
 
 fn storage_error() -> String {
@@ -423,6 +442,47 @@ mod tests {
         .expect("lock");
         assert_eq!(mover.join().expect("mover"), PollStatus::Missing);
         assert!(!dir.path().join(SETTING_FILE_NAME).exists(), "the move wrote a stale on");
+    }
+
+    /// Astra fix round, finding 5: a setter whose lock was reclaimed while it
+    /// paused (a lock held past sixty seconds is reclaimed even from a live
+    /// owner) writes nothing more over the writer that took it, and says so.
+    /// TypeScript twin: refresh.test.ts, "a setter that lost the lock before
+    /// a write writes nothing more and says so".
+    #[test]
+    fn a_setter_that_lost_the_lock_writes_nothing_more_and_says_so() {
+        let dir = TempDir::new();
+        let config = dir.path().join("openlimiter-config.json");
+        let legacy_off = r#"{"version":1,"providers":{"claude":{"poll":false,"recorded":true}}}"#;
+        std::fs::write(&config, legacy_off).expect("fixture");
+        let lock = dir.path().join("openlimiter.lock");
+        let setting = ClaudePollSetting::at(Some(dir.path().to_path_buf()));
+        for paused in ["mirror", "store"] {
+            let (root, lock_dir) = (dir.path().to_path_buf(), lock.clone());
+            PAUSE.with(|hook| {
+                *hook.borrow_mut() = Some(Box::new(move |step: &str| {
+                    if step != paused {
+                        return;
+                    }
+                    // The lock was reclaimed, and another setter saved off in both places.
+                    let owner = serde_json::json!({"pid": std::process::id(), "startedAt": 4_102_444_800_000_u64, "token": "another-setter"});
+                    std::fs::write(lock_dir.join("owner.json"), owner.to_string()).expect("owner");
+                    std::fs::write(root.join(SETTING_FILE_NAME), r#"{"enabled":false,"version":1}"#).expect("store");
+                    std::fs::write(root.join("openlimiter-config.json"), legacy_off).expect("mirror");
+                }));
+            });
+            let result = setting.set(true);
+            PAUSE.with(|hook| *hook.borrow_mut() = None);
+            if paused == "mirror" {
+                assert!(result.is_ok(), "the store of truth was written before the lock was lost");
+                assert!(setting.view().mirror_failed, "the lost mirror is reported");
+            } else {
+                assert!(result.is_err(), "a set that lost the lock before its first write fails");
+            }
+            assert_eq!(json(&dir.path().join(SETTING_FILE_NAME))["enabled"], false, "{paused}");
+            assert_eq!(json(&config)["providers"]["claude"], serde_json::json!({"poll": false, "recorded": true}), "{paused}");
+            let _ = std::fs::remove_dir_all(&lock);
+        }
     }
 
     #[test]

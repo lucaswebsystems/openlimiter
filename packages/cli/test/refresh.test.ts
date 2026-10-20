@@ -19,7 +19,7 @@ import {
   type Snapshot
 } from "@openlimiter/core";
 import { runCli, runtimeDependencies } from "../src/index.js";
-import { migrateLegacyClaudePoll } from "../src/config.js";
+import { migrateLegacyClaudePoll, setClaudePoll } from "../src/config.js";
 import { writeSession } from "../src/session.js";
 import {
   SYNTHETIC_CODEX_ACCOUNT,
@@ -595,6 +595,38 @@ describe("the Claude poll switch", () => {
     await rm(lock, { recursive: true, force: true });
     await move;
     await expect(readFile(path.join(state, "claude-poll.json"), "utf8")).rejects.toThrow();
+  });
+
+  /* Astra fix round, finding 5: a setter whose lock was reclaimed while it
+     paused (a lock held past sixty seconds is reclaimed even from a live
+     owner) writes nothing more over the writer that took it, and says so.
+     Rust twin: claude_poll_setting.rs,
+     a_setter_that_lost_the_lock_writes_nothing_more_and_says_so. */
+  it("a setter that lost the lock before a write writes nothing more and says so", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const config = path.join(state, "openlimiter-config.json");
+    const lock = path.join(state, "openlimiter.lock");
+    const legacyOff = JSON.stringify({ version: 1, providers: { claude: { poll: false, recorded: true } } });
+    await writeFile(config, legacyOff, "utf8");
+    // The lock was reclaimed, and another setter saved off in both places.
+    const takeOver = async () => {
+      await writeFile(path.join(lock, "owner.json"), JSON.stringify({ pid: process.pid, startedAt: Date.now(), token: "another-setter" }), "utf8");
+      await writeFile(path.join(state, "claude-poll.json"), JSON.stringify({ enabled: false, version: 1 }), "utf8");
+      await writeFile(config, legacyOff, "utf8");
+    };
+    const store = async () => JSON.parse(await readFile(path.join(state, "claude-poll.json"), "utf8")) as unknown;
+    const mirror = async () => (JSON.parse(await readFile(config, "utf8")) as { providers: { claude: unknown } }).providers.claude;
+    // Paused before the mirror: the other setter's mirror stays, and the result says this one was not written.
+    expect(await setClaudePoll(true, {}, state, async (step) => { if (step === "mirror") await takeOver(); }))
+      .toEqual({ mirrored: false });
+    expect(await store()).toEqual({ enabled: false, version: 1 });
+    expect(await mirror()).toEqual({ poll: false, recorded: true });
+    await rm(lock, { recursive: true, force: true });
+    // Paused before the store of truth: nothing is written, and the set fails.
+    await expect(setClaudePoll(true, {}, state, async (step) => { if (step === "store") await takeOver(); })).rejects.toThrow();
+    expect(await store()).toEqual({ enabled: false, version: 1 });
+    expect(await mirror()).toEqual({ poll: false, recorded: true });
+    await rm(lock, { recursive: true, force: true });
   });
 
   it("reads every window the account exposes once it is turned on", async () => {

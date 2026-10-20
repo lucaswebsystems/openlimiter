@@ -384,14 +384,18 @@ async function writeClaudePollDocument(directory: string, enabled: boolean): Pro
 export async function setClaudePoll(
   enabled: boolean,
   environment: Readonly<Record<string, string | undefined>> = process.env,
-  directory = resolveStateDirectory()
+  directory = resolveStateDirectory(),
+  /* A test's stand in for this setter pausing before a write. */
+  pause: (step: "store" | "mirror") => Promise<void> = async () => undefined
 ): Promise<{ mirrored: boolean }> {
   return withStateLock(directory, async () => {
+    await pause("store");
     await writeClaudePollDocument(directory, enabled);
     try {
       const stored = await readConfig(directory);
       if (!stored.ok && stored.reason !== "missing") return { mirrored: false };
       const current = stored.ok ? stored.config : defaultConfig(environment);
+      await pause("mirror");
       await writeConfig({ ...current, providers: { claude: { poll: enabled, recorded: true } } }, directory);
       return { mirrored: true };
     } catch {
