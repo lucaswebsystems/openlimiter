@@ -6,4 +6,5 @@ pub const COMMANDS: &[&str] = &[
     "rail_card_open",
     "rail_card_close",
     "rail_card_height",
+    "rail_card_hold",
 ];

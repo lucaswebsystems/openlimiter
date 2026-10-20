@@ -97,6 +97,26 @@ export async function DocArticle({
           </p>
         </div>
 
+        {/* The aside below holds this list from 1280 pixels up; under that it
+            is a disclosure here, so a phone reader still sees every section. */}
+        <details className="mt-10 rounded-xl border border-hairline bg-surface px-4 py-3 xl:hidden" {...revealSm}>
+          <summary className="focus-ring cursor-pointer rounded font-mono text-2xs uppercase tracking-widest text-muted">
+            {t("article.onThisPage")}
+          </summary>
+          <ul className="mt-3 space-y-2">
+            {sections.map((section) => (
+              <li key={section.id}>
+                <a
+                  href={`#${section.id}`}
+                  className="focus-ring block rounded font-sans text-sm leading-6 text-body transition-colors hover:text-heading"
+                >
+                  {section.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </details>
+
         {sections.map((section) => (
           <section key={section.id} className="mt-14" {...reveal}>
             <h2

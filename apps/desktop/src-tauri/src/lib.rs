@@ -23,6 +23,8 @@ mod deps_smoke;
 mod fsx;
 mod gemini_cli_oauth;
 mod grok_oauth;
+#[cfg(any(target_os = "macos", target_os = "linux", test))]
+mod host;
 mod kimi_oauth;
 mod native_opencode;
 mod native_readers;
@@ -34,6 +36,7 @@ mod pairing;
 mod poll_identity;
 mod pro;
 mod provider_detection;
+mod provider_order;
 mod provider_switches;
 mod providers_plugin;
 mod rail;
@@ -152,12 +155,14 @@ async fn set_tray_status(
             now,
         );
         let mut values = std::collections::BTreeMap::<String, f64>::new();
-        // A stale reading draws flat grey everywhere, so it never colours the tray.
-        for row in projection
-            .snapshots
-            .into_iter()
-            .filter(|row| row.unit == "PERCENT" && data_rules::reason(row, now) != Some("stale"))
-        {
+        // A stale reading draws flat grey everywhere, so it never colours the
+        // tray; it only keeps the tooltip from saying there is no reading.
+        let mut stale_readings = false;
+        for row in projection.snapshots.into_iter().filter(|row| row.unit == "PERCENT") {
+            if data_rules::reason(&row, now) == Some("stale") {
+                stale_readings = true;
+                continue;
+            }
             values
                 .entry(row.provider)
                 .and_modify(|value| *value = value.max(row.value))
@@ -173,6 +178,9 @@ async fn set_tray_status(
                 })
                 .collect(),
             trial_offered.unwrap_or(true),
+            stale_readings,
+            // The menu lists providers in the order the window shows them.
+            &app.state::<provider_order::OrderStore>().read(),
         )
     }).await.map_err(|e| e.to_string())?
 }
@@ -200,6 +208,10 @@ pub(crate) fn app_context<R: tauri::Runtime>() -> tauri::Context<R> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    /* Before anything reads PATH or starts a thread: detection scans while
+    the builder below is assembled (2.1.7). */
+    #[cfg(target_os = "macos")]
+    host::import_login_path();
     tauri::Builder::default()
         /* One running copy (2.1.6), registered first, so a second launch
         hands its arguments over and exits before anything else starts. */
@@ -217,6 +229,7 @@ pub fn run() {
         .manage(autostart::SecondLaunch::default())
         .manage(connections::ConnectionsStore::at_state_directory())
         .manage(claude_poll_setting::ClaudePollSetting::default())
+        .manage(provider_order::OrderStore::at_state_directory())
         .manage(codex_device_login::OpenDeviceLogin::default())
         .manage(credentials::KeyringStore)
         .manage(credentials::ApiSpendKeyringStore)
@@ -252,6 +265,8 @@ pub fn run() {
             cli_config::set_terminal_captions,
             cli_config::terminal_runtime_status,
             set_tray_status,
+            provider_order::provider_order,
+            provider_order::set_provider_order,
             api_spend::api_spend_status,
             api_spend::api_spend_save_source,
             api_spend::api_spend_refresh,
@@ -312,7 +327,8 @@ pub fn run() {
             notifications::notification_settings,
             notifications::set_notification_settings,
             updates::check_for_update,
-            updates::install_update
+            updates::install_update,
+            updates::open_download_page
         ])
         .setup(|app| {
             /* The main window starts hidden (tauri.conf.json) and is shown
@@ -404,8 +420,27 @@ pub fn run() {
                 provider_detection::request_focus_scan(window.app_handle().clone());
             }
             if let WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                let _ = window.hide();
+                /* Linux with no tray: a hidden window would leave the app
+                running where nothing can bring it back, so closing quits
+                there (2.1.7). The tray is asked off this thread. */
+                #[cfg(target_os = "linux")]
+                {
+                    let hidden = window.clone();
+                    let app = window.app_handle().clone();
+                    host::close_without_waiting(
+                        || api.prevent_close(),
+                        host::tray_present,
+                        move || {
+                            let _ = hidden.hide();
+                        },
+                        move || app.exit(0),
+                    );
+                }
+                #[cfg(not(target_os = "linux"))]
+                {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
             }
         })
         .build(app_context())

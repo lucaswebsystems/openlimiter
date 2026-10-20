@@ -1,9 +1,21 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { homeProviders } from "./home-state.js";
+import * as homeState from "./home-state.js";
 
+const { homeProviders } = homeState;
 const read = (name) => readFileSync(new URL(name, import.meta.url), "utf8");
+
+test("the account is offered under the first bar of a fresh install, once, and never to a signed in person", () => {
+  const { accountOfferShown } = homeState;
+  assert.equal(typeof accountOfferShown, "function", "no rule for the account offer");
+  const shown = (change) => accountOfferShown({ offer: "pending", accountKnown: true, signedIn: false, hasBars: true, ...change });
+  assert.equal(shown({}), true);
+  assert.equal(shown({ hasBars: false }), false, "offered before the first bar");
+  assert.equal(shown({ accountKnown: false }), false, "offered before the account answered");
+  assert.equal(shown({ signedIn: true }), false, "offered to a signed in person");
+  for (const offer of [null, "dismissed", "done"]) assert.equal(shown({ offer }), false, String(offer));
+});
 
 test("Home refreshes every provider in play, Cursor included, never a removed one", () => {
   const detections = { providers: [
@@ -22,11 +34,17 @@ test("Home keeps no second freshness policy and draws only through the shared pr
   assert.match(app, /projectReadings\(cacheRead\.ok \? cacheRead\.value : null, manualRead\.ok \? manualRead\.value : null, now\)/u);
   // One list, from the inventory, drawn by the same renderer the panel uses.
   assert.match(app, /const model = inventoryModel\(\{\s*snapshots,\s*flags: inventory\.flags,/u);
-  assert.match(app, /renderLimits\(document, elements\.usageRows, usage\)/u);
+  assert.match(app, /usageList\.draw\(usage\)/u);
+  /* Usage rows carry the same handlers as Connect Tools: a signed out tool
+     keeps its row there with its one action. */
+  assert.match(app, /renderLimits\(document, elements\.usageRows, model, \{ grips: true, handlers: toolHandlers \}\)/u);
   assert.match(app, /renderLimits\(document, elements\.toolRows, tools, \{ handlers: toolHandlers, more: fillMore, opened: openMenus \}\)/u);
   assert.doesNotMatch(app, /showConnections|connectedProviders|attentionFlags\(/u);
   // A failed read ages out what is on screen by the same policy and says why.
-  assert.match(app, /heldSnapshots = holdReadings\(heldSnapshots, now\);/u);
+  assert.match(app, /heldSnapshots = holdReadings\(heldSnapshots, now, claudePoll === true\);/u);
+  // The Claude request switch is read before the cache, so every row drawn is validated against it as it stands now.
+  const switchRead = app.indexOf("await claudePollEnabled()");
+  assert.ok(switchRead !== -1 && switchRead < app.indexOf("collect(now), listDetectedProviders()"), "the switch is read first");
   assert.match(app, /elements\.refreshStatus\.textContent = say\("cacheUnreadable"\)/u);
   assert.doesNotMatch(app, /paintFailures\(\[\{ provider: "MANUAL"/u);
   assert.doesNotMatch(app, /createProviderRowElement|homeCard|homeSnapshots|stale-strip|staleStrip/u);

@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { callProFunction, entitlementOf, type ProEntitlement } from "./pro";
 
 /**
- * The trial, and the offer that follows it.
+ * The trial, and the checkout address it may lead to.
  *
  * THERE IS EXACTLY ONE DOOR INTO A TRIAL
  * --------------------------------------
@@ -20,17 +20,12 @@ import { callProFunction, entitlementOf, type ProEntitlement } from "./pro";
  * The server applies the complete recommended profile. The only optional value
  * this client can add is a push subscription when the browser grants it.
  *
- * THE COUNTDOWN IS READ, NEVER COMPUTED
- * -------------------------------------
- * `offer_ends_at` comes from the server and is the only clock the offer trusts.
- * The functions at the bottom turn that instant into days, hours and minutes
- * for a reader, and they answer null the moment it has passed, so a browser
- * with a wrong clock can show a stale countdown and still never mint a
- * discounted session: the server checks the window again before it does.
+ * THERE IS NO DISCOUNTED FIRST YEAR
+ * ---------------------------------
+ * A plan that ends is offered the two locked prices, a month and a year, the
+ * same as anywhere else; the trial end offer the server can still describe is
+ * never drawn and never asked for.
  */
-
-/** The offer `create-checkout` knows by name. There is one, and this is it. */
-export const TRIAL_END_OFFER = "trial_end_annual";
 
 export interface TrialPreferences {
   /** Only present when this browser granted the permission and subscribed. */
@@ -38,7 +33,7 @@ export interface TrialPreferences {
 }
 
 /**
- * Why a trial or an offer did not happen.
+ * Why a trial or a checkout did not happen.
  *
  * Five reasons rather than one, because each is a different sentence to a
  * reader: sign in again, you have already had this, slow down, the feature is
@@ -58,7 +53,7 @@ export type TrialResult<T> = { ok: true; value: T } | { ok: false; reason: Trial
  *
  * 409 is the refusal that matters: this account has had its trial, or is
  * paying, and either way the answer is not "try again". 503 is the kill
- * switch the server puts in front of the trial and the offer, which is a
+ * switch the server puts in front of the trial and checkout, which is a
  * temporary state and says so rather than reading as a fault.
  */
 export function trialFailureForStatus(status: number | null): TrialFailure {
@@ -148,66 +143,7 @@ export function isAllowedCheckoutUrl(url: unknown): boolean {
   }
 }
 
-/**
- * A Stripe Checkout session for the discounted first year. The caller redirects.
- *
- * The interval is not a parameter. This offer is annual by definition, the
- * server forces the year interval anyway, and a client that could ask for a
- * discounted month would only ever be asking for a refusal.
- */
-export async function startOfferCheckout(client: SupabaseClient): Promise<TrialResult<string>> {
-  const result = await callProFunction<Record<string, unknown>>(client, "create-checkout", {
-    interval: "year",
-    offer: TRIAL_END_OFFER,
-  });
-  if (!result.ok) return { ok: false, reason: trialFailureForStatus(result.status) };
-  const url = result.value.url;
-  return typeof url === "string" && isAllowedCheckoutUrl(url)
-    ? { ok: true, value: url }
-    : { ok: false, reason: "unavailable" };
-}
-
 /* ------------------------------------------------------------ pure decisions */
-
-/** How long an offer has left, broken into the three units a person reads. */
-export interface OfferCountdown {
-  days: number;
-  hours: number;
-  minutes: number;
-  /** The whole remainder in milliseconds, for a caller that wants to compare. */
-  remaining: number;
-}
-
-/**
- * The offer's remaining time, or null once there is none.
- *
- * Null is the answer to every question that is not "there is time left": no
- * date, an unreadable date, and a date that has passed. The card reads that
- * one null and falls back to the ordinary prices, so the closed state is
- * never a second condition somebody can forget to write.
- */
-export function offerCountdown(
-  offerEndsAt: string | null,
-  now: number = Date.now(),
-): OfferCountdown | null {
-  if (offerEndsAt === null) return null;
-  const ends = Date.parse(offerEndsAt);
-  if (!Number.isFinite(ends)) return null;
-  const remaining = ends - now;
-  if (remaining <= 0) return null;
-  const minutes = Math.floor(remaining / 60_000);
-  return {
-    days: Math.floor(minutes / 1440),
-    hours: Math.floor((minutes % 1440) / 60),
-    minutes: minutes % 60,
-    remaining,
-  };
-}
-
-/** Whether the discounted annual session may still be asked for. */
-export function offerOpen(offerEndsAt: string | null, now: number = Date.now()): boolean {
-  return offerCountdown(offerEndsAt, now) !== null;
-}
 
 /**
  * Whether a surface offers to start a trial.

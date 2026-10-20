@@ -16,6 +16,7 @@ import {
   PHONE_RENEW_WITHIN_SECONDS,
   PHONE_TOKEN_COOKIE,
   isRevokedEpochResponse,
+  phoneEntitlementOf,
   phonePairNeedsRenewal,
   phonePairOf,
   readPhoneBars,
@@ -56,6 +57,7 @@ vi.mock("@/i18n/navigation", async () => {
 vi.mock("next-intl", async () => {
   const catalog = (await import("../messages/en.json")).default as Record<string, unknown>;
   return {
+    useLocale: () => "en",
     useTranslations: (namespace: string) => (key: string, values?: Record<string, unknown>) => {
       const path = `${namespace}.${key}`.split(".");
       let node: unknown = catalog;
@@ -754,6 +756,52 @@ describe("the read route: reads the token cookie, never a body", () => {
     );
     expect(response.status).toBe(503);
   });
+
+  /* Astra finding 1, with the PRO lane's server change (Pro PR #6): the read
+     answers { schema_version, rows, entitlement }, entitlement null when the
+     account never had a plan row. The phone shows what that read reports.
+     An older server, or a rollback, sends no entitlement key at all; only then
+     does the route add the plan signed into its own read token, as before. */
+  it("answers the server read's plan as it is, and the token's plan only when the read has no entitlement key", async () => {
+    const segment = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
+    const token = [
+      segment({ alg: "EdDSA", kid: "test", typ: "OLP2" }),
+      segment({ aud: "phone", scope: "read", plan_state: "active", interval: "monthly", features: ["alerts", "history"], exp: 4_102_444_800 }),
+      "signature",
+    ].join(".");
+    const read = async (upstream: unknown) => {
+      vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(upstream), { status: 200 })));
+      const response = await readPost(
+        jsonRequest("https://openlimiter.com/app/pair/api/read", undefined, `${PHONE_TOKEN_COOKIE}=${token}`),
+      );
+      const answer = await response.json();
+      expect(JSON.stringify(answer)).not.toContain(token);
+      return answer;
+    };
+    const cancelled = {
+      schema_version: 3,
+      rows: [],
+      entitlement: { plan_state: "canceled", features: [], trial_ends_at: null, current_period_end: "2026-10-01T00:00:00.000Z", cancel_at_period_end: true, past_due_until: null },
+    };
+    expect(await read(cancelled)).toEqual({ body: cancelled });
+    const never = { schema_version: 3, rows: [], entitlement: null };
+    expect(await read(never)).toEqual({ body: never });
+    const older = { schema_version: 3, rows: [] };
+    expect(await read(older)).toEqual({
+      body: older,
+      plan: { plan_state: "active", features: ["alerts", "history"], trial_ends_at: null, current_period_end: null, cancel_at_period_end: false, past_due_until: null },
+    });
+  });
+
+  it("reads the plan: the read's own, none ever, the token's when the read has no key, and nothing it cannot read", () => {
+    const token = { plan_state: "canceled", features: [] };
+    const active = { plan_state: "active", features: ["alerts"] };
+    expect(phoneEntitlementOf({ rows: [], entitlement: active }, token)?.planState).toBe("active");
+    expect(phoneEntitlementOf({ rows: [], entitlement: null }, active)).toBeNull();
+    expect(phoneEntitlementOf({ rows: [] }, active)?.planState).toBe("active");
+    expect(phoneEntitlementOf({ rows: [] })).toBeUndefined();
+    expect(phoneEntitlementOf({ rows: [], entitlement: { plan_state: "made_up" } }, active)).toBeUndefined();
+  });
 });
 
 /* -------------------------------------------------------------- the screens */
@@ -805,6 +853,22 @@ describe("the phone button panel", () => {
     expect(all(panel as HTMLElement, "button")).toHaveLength(0);
     /* Focus landed inside the dialog, not left behind on the trigger. */
     expect(panel).toBe(document.activeElement);
+  });
+
+  /* U56: only the desktop can mint a pairing code, so the hub's QR opens the
+     web app to sign in and says so, and every recovery sentence points at the
+     desktop's Pair your phone rather than at a hub that cannot pair. */
+  it("opens the web app, never a pairing page it holds no code for, and says which is which", () => {
+    const source = readFileSync("app/app/phone-button.tsx", "utf8");
+    expect(source).toContain("const PHONE_APP_URL = `${SITE_URL}/app`;");
+    expect(source).not.toContain("/app/pair");
+    expect(hub.phone.qrAlt).not.toMatch(/pairing/iu);
+    expect(hub.phone.line).toMatch(/sign in/iu);
+    expect(hub.phone.line).toContain("Pair your phone");
+    expect(hub.pairPage.revoked.body).toContain("Pair your phone");
+    expect(hub.pairPage.revoked.body).not.toMatch(/hub/iu);
+    expect(hub.pairPage.setup.noCode.title).not.toMatch(/no pairing code/iu);
+    expect(messages.docs.pages.index.sections.phone.body).not.toMatch(/hub/iu);
   });
 
   it("returns focus to the trigger on Escape", async () => {
@@ -1094,7 +1158,7 @@ describe("the pair page", () => {
     mounted = render(createElement(PairFlow));
     await flush(8);
     expect(readPhonePairMeta()).toBeNull();
-    expect(mounted.container.textContent).toContain("This link has no pairing code");
+    expect(mounted.container.textContent).toContain(hub.pairPage.setup.noCode.title);
   });
   /* A browser tab, where a scan lands. The installed app's own states call
      stubMatchMedia(true) themselves. */
@@ -1115,7 +1179,7 @@ describe("the pair page", () => {
     /* Gone by the very first synchronous render, before any effect ran. */
     expect(window.location.hash).toBe("");
     await flush();
-    expect(mounted.container.textContent).toContain("This link has no pairing code");
+    expect(mounted.container.textContent).toContain(hub.pairPage.setup.noCode.title);
   });
 
   it("waits for the desktop when a fresh code arrives", async () => {
@@ -1156,7 +1220,7 @@ describe("the pair page", () => {
     );
     mounted = render(createElement(PairFlow));
     await flush();
-    expect(mounted.container.textContent).toContain("This link has no pairing code");
+    expect(mounted.container.textContent).toContain(hub.pairPage.setup.noCode.title);
     /* The code field belongs to the installed app, not a browser tab. */
     expect(mounted.container.querySelector("input")).toBeNull();
   });
@@ -1238,7 +1302,10 @@ describe("the pair page", () => {
     mounted = render(createElement(PairFlow));
     await findByText(mounted.container, hub.install.action);
     const row = mounted.container.querySelector(".ol-install-row");
-    const bars = mounted.container.querySelector(".ol-telemetry-table");
+    /* A read with no rows says so where the bars go, never loading forever. */
+    await findByText(mounted.container, hub.pairPage.bars.empty);
+    const bars = [...mounted.container.querySelectorAll("p")].find((node) => node.textContent === hub.pairPage.bars.empty) ?? null;
+    expect(mounted.container.querySelector(".ol-telemetry-table")).toBeNull();
     expect(row).not.toBeNull();
     expect(bars).not.toBeNull();
     expect((row as Node).compareDocumentPosition(bars as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -1535,7 +1602,132 @@ describe("the pair page", () => {
     );
     mounted = render(createElement(PairFlow));
     await flush(6);
-    expect(mounted.container.textContent).toContain("This link has no pairing code");
+    expect(mounted.container.textContent).toContain(hub.pairPage.setup.noCode.title);
     expect(readPhonePairMeta()).toBeNull();
+  });
+});
+
+/*
+ * The paired phone's Pro tab, with the plan the latest server read reports.
+ *
+ * It first drew the hub's card with no plan at all, so a paying account was
+ * sold a trial on its own phone; then it read the plan signed into its token,
+ * which can be twelve hours old (Astra finding 1). It now draws what the server
+ * read says and tells the cases apart (finding 3): a plan that is on, a plan
+ * that ended (the two subscriptions, never a second trial), an account that
+ * never had one (the trial), and a plan the read did not report (reading, then
+ * unavailable, with nothing offered).
+ */
+describe("the paired phone's Pro tab", () => {
+  const LATER = new Date(Date.now() + 10 * 86_400_000).toISOString();
+  const EARLIER = new Date(Date.now() - 86_400_000).toISOString();
+
+  /* `entitlement` is what the server read reports (left out: an older server);
+     `tokenPlan` is what the route adds from the read token in that case. */
+  function pairedWith(entitlement?: unknown, tokenPlan?: unknown) {
+    window.localStorage.setItem(PHONE_PAIR_META_KEY, JSON.stringify({ label: "Test phone", expiresAt: Date.now() / 1000 + 80_000 }));
+    const body = entitlement === undefined ? { rows: [] } : { rows: [], entitlement };
+    const answer = tokenPlan === undefined ? { body } : { body, plan: tokenPlan };
+    vi.stubGlobal("fetch", fetchRoutedTo({
+      "/app/pair/api/read": () => new Response(JSON.stringify(answer), { status: 200 }),
+    }));
+  }
+
+  async function proPanel(): Promise<HTMLElement> {
+    mounted = render(createElement(PairFlow));
+    await flush(6);
+    press(byText(mounted.container, "button", hub.phoneTabs.pro));
+    await flush();
+    return mounted.container.querySelector("#ol-phone-panel-pro") as HTMLElement;
+  }
+
+  function reset(): void {
+    mounted?.unmount();
+    mounted = null;
+    window.localStorage.clear();
+  }
+
+  it("shows a paying account its plan, not a trial", async () => {
+    pairedWith({ plan_state: "active", features: ["alerts", "history", "multi_account"], current_period_end: LATER });
+    const panel = await proPanel();
+    expect(panel.textContent).not.toContain(hub.trial.start);
+    expect(panel.textContent).toContain(messages.proPortal.plan.active.title);
+    /* The plan sentence reads the one Pro list, so the Ember preset is named. */
+    expect(panel.textContent).toContain((messages.proFeatures as unknown as { inline: Record<string, string> }).inline.ember);
+    expect(panel.textContent).toContain(hub.pro.phonePush);
+  });
+
+  it("shows a running trial as a trial", async () => {
+    pairedWith({ plan_state: "trialing", features: ["alerts"], trial_ends_at: LATER });
+    const panel = await proPanel();
+    expect(panel.textContent).not.toContain(hub.trial.start);
+    expect(panel.textContent).toContain(messages.proPortal.plan.trial.title);
+  });
+
+  it("offers the trial and the prices after it only to an account that never had a plan", async () => {
+    pairedWith(null);
+    const panel = await proPanel();
+    expect(panel.textContent).toContain(hub.trial.start);
+    expect(panel.textContent).toContain(hub.pro.locked.price.replace("{monthly}", "$5").replace("{yearly}", "$50"));
+    expect(panel.textContent).toContain(hub.pro.phonePush);
+  });
+
+  it("offers an ended plan the two subscriptions, never a second trial", async () => {
+    const assign = vi.fn();
+    const real = window.location;
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { assign, href: "https://openlimiter.com/app/pair", origin: "https://openlimiter.com", pathname: "/app/pair", search: "", hash: "" },
+    });
+    try {
+      for (const ended of [
+        { plan_state: "canceled", features: [], current_period_end: EARLIER },
+        { plan_state: "expired", features: [], trial_ends_at: EARLIER },
+        { plan_state: "trialing", features: ["alerts"], trial_ends_at: EARLIER },
+      ]) {
+        pairedWith(ended);
+        const panel = await proPanel();
+        expect(panel.textContent, ended.plan_state).not.toContain(hub.trial.start);
+        expect(panel.textContent).toContain(hub.pro.expired.title);
+        expect(byText(panel, "button", messages.proPortal.upgrade.yearly.replace("{price}", "$50"))).not.toBeNull();
+        press(byText(panel, "button", messages.proPortal.upgrade.monthly.replace("{price}", "$5")));
+        expect(assign).toHaveBeenLastCalledWith("/pro");
+        reset();
+      }
+    } finally {
+      Object.defineProperty(window, "location", { configurable: true, value: real });
+    }
+  });
+
+  it("falls back to the token's plan when an older server read has no entitlement key", async () => {
+    pairedWith(undefined, { plan_state: "active", features: ["alerts", "history"] });
+    const panel = await proPanel();
+    expect(panel.textContent).not.toContain(hub.trial.start);
+    expect(panel.textContent).not.toContain(hub.pro.phonePlan.unavailable);
+    expect(panel.textContent).toContain(messages.proPortal.plan.active.title);
+  });
+
+  it("offers nothing and says so when neither the read nor its token reports the plan", async () => {
+    pairedWith();
+    const panel = await proPanel();
+    expect(panel.textContent).not.toContain(hub.trial.start);
+    expect(panel.textContent).not.toContain(hub.pro.expired.title);
+    expect(panel.textContent).toContain(hub.pro.phonePlan.unavailable);
+  });
+
+  it("says the plan cannot be read when the read reports one it cannot read, whatever the token says", async () => {
+    pairedWith({ plan_state: "made_up" }, { plan_state: "active", features: ["alerts"] });
+    const panel = await proPanel();
+    expect(panel.textContent).not.toContain(messages.proPortal.plan.active.title);
+    expect(panel.textContent).not.toContain(hub.trial.start);
+    expect(panel.textContent).toContain(hub.pro.phonePlan.unavailable);
+  });
+
+  it("says it is reading the plan until the first read arrives", async () => {
+    window.localStorage.setItem(PHONE_PAIR_META_KEY, JSON.stringify({ label: "Test phone", expiresAt: Date.now() / 1000 + 80_000 }));
+    vi.stubGlobal("fetch", fetchRoutedTo({ "/app/pair/api/read": () => new Promise<Response>(() => undefined) }));
+    const panel = await proPanel();
+    expect(panel.textContent).not.toContain(hub.trial.start);
+    expect(panel.textContent).toContain(hub.pro.phonePlan.loading);
   });
 });

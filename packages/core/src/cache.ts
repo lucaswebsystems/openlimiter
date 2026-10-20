@@ -17,6 +17,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import {
   applyCollectionReport,
+  claudeRowCounts,
   readSuppressions,
   snapshotBelongsTo,
   visibleSnapshots,
@@ -30,7 +31,21 @@ import type { ProviderCode, RawMeter, Snapshot } from "./types.js";
 
 export const CACHE_FILE_NAME = "openlimiter-cache.json";
 export const AUTHORITATIVE_CACHE_FILE_NAME = "openlimiter-authoritative.json";
+/** The one store of truth for the direct Claude usage request. Rust twin: state.rs CLAUDE_POLL_FILE_NAME. */
+export const CLAUDE_POLL_FILE_NAME = "claude-poll.json";
 export const MAX_POLICY_TIMESTAMP = 253_402_300_799_999;
+
+/**
+ * Whether the direct Claude usage request is on, read fresh from its one
+ * store of truth. On only when the document says version 1 and enabled true:
+ * missing, disabled, unreadable and invalid are all off. Rust twin:
+ * state.rs read_claude_poll.
+ */
+export async function readClaudePoll(directory = resolveStateDirectory()): Promise<boolean> {
+  const document = await readJsonFileSafely(path.join(directory, CLAUDE_POLL_FILE_NAME));
+  return document.ok && isRecord(document.value) &&
+    document.value["version"] === 1 && document.value["enabled"] === true;
+}
 
 /** Pure policy shared with the desktop contract. All instants are UTC. */
 export function retryPolicy(input: { attemptCount: number; retryAfter: string | null; now: string; jitterSeconds: number; layer: string }) {
@@ -64,12 +79,16 @@ export function withPolicyFreshness(snapshot: Snapshot): Snapshot {
   return { ...snapshot, expiresAt: freshnessPolicy({ ...snapshot, sourceClass: snapshot.source, now: snapshot.observedAt }).expiresAt };
 }
 
-export async function recordAcquisitionAvailability(provider: ProviderCode, availability: "expired_credentials" | "access_denied" | "quota_unavailable" | "rate_limited", now: string, retryAt: string | undefined, directory = resolveStateDirectory(), accountId?: string): Promise<void> {
+export async function recordAcquisitionAvailability(provider: ProviderCode, availability: "expired_credentials" | "access_denied" | "quota_unavailable" | "rate_limited" | "schema_drift", now: string, retryAt: string | undefined, directory = resolveStateDirectory(), accountId?: string): Promise<void> {
   await withCacheLock(directory, async () => {
     const state = await readCacheState(directory);
     if (!state.ok && state.reason !== "missing") throw new Error("Unreadable snapshot cache");
     const rows = retainSnapshots(state.ok ? state.state.snapshots : [], Date.parse(now));
-    const matches = (row: Snapshot) => row.provider === provider && row.accountId === accountId;
+    /* A failed Claude read is a flag on its ACQUISITION row alone: the
+       request's readings stay and age, never withdrawn. Rust twin:
+       cache_write.rs record_availability. */
+    const matches = (row: Snapshot) => row.provider === provider && row.accountId === accountId &&
+      (provider !== "CLAUDE" || row.meter === "ACQUISITION");
     const matching = rows.filter(matches);
     if (matching.some(row => row.observedAt > now)) return;
     const seed: Snapshot = {
@@ -304,15 +323,25 @@ export type CacheReadResult =
  * A suppression list that cannot be believed empties the whole document. See
  * `readSuppressions`: the failure direction has to be unknown, because the
  * alternative is showing a number the cache itself was trying to withdraw.
+ *
+ * Claude rows pass `claudeRowCounts` for the switch read at this call, the
+ * newest observation of an identity winning across the two files, and a
+ * Claude drift suppression is ignored: a failed Claude read is a flag on its
+ * ACQUISITION row, never a withdrawal.
  */
 export async function readSnapshotCache(
-  directory = resolveStateDirectory()
+  directory = resolveStateDirectory(),
+  /* The switch as a caller already read it, so one render filters every
+     input with one value; read here when not given. */
+  selected?: boolean
 ): Promise<CacheReadResult> {
   try {
     await rejectSymlink(directory);
   } catch {
     return { ok: false, reason: "unsafe" };
   }
+  const pollOn = selected ?? await readClaudePoll(directory);
+  const counts = (row: Snapshot) => claudeRowCounts(row, pollOn);
   const document = await readJsonFileSafely(path.join(directory, CACHE_FILE_NAME));
   if (!document.ok) {
     if (document.reason !== "missing") return document;
@@ -322,7 +351,7 @@ export async function readSnapshotCache(
       return { ok: false, reason: "corrupt" };
     }
     const snapshots = normalizeMeters(authoritative.value["snapshots"] as RawMeter[]);
-    return { ok: true, snapshots: snapshots.filter(isSnapshotDisplayEligible), dropped: authoritative.value["snapshots"].length - snapshots.length, suppressed: 0, suppressions: [] };
+    return { ok: true, snapshots: snapshots.filter(isSnapshotDisplayEligible).filter(counts), dropped: authoritative.value["snapshots"].length - snapshots.length, suppressed: 0, suppressions: [] };
   }
   const authoritative = await readJsonFileSafely(path.join(directory, AUTHORITATIVE_CACHE_FILE_NAME));
   if (!authoritative.ok && authoritative.reason !== "missing") return authoritative;
@@ -340,15 +369,13 @@ export async function readSnapshotCache(
   const mainValidated = normalizeMeters(migrated as RawMeter[]);
   const authoritativeRows = authoritative.ok && isRecord(authoritative.value) &&
     Array.isArray(authoritative.value["snapshots"]) && authoritative.value["snapshots"].length <= MAX_CACHE_ENTRIES
-    ? normalizeMeters(authoritative.value["snapshots"] as RawMeter[])
+    ? normalizeMeters(authoritative.value["snapshots"] as RawMeter[]).filter(counts)
     : [];
-  const authoritativeIdentities = new Set(authoritativeRows.map(snapshotIdentity));
+  const mainCounted = mainValidated.filter(counts);
+  /* Newest observation wins, a tie going to the authoritative row. */
   const validated = authoritativeRows.length > 0
-    ? mergeSnapshots(
-        mainValidated.filter((snapshot) => !authoritativeIdentities.has(snapshotIdentity(snapshot))),
-        authoritativeRows
-      )
-    : mainValidated;
+    ? mergeSnapshots(mainCounted, authoritativeRows)
+    : mainCounted;
   const dropped = rawSnapshots.length - mainValidated.length;
   const read = readSuppressions(document.value["suppressions"]);
   if (!read.ok) {
@@ -359,7 +386,7 @@ export async function readSnapshotCache(
   }
   const snapshots = visibleSnapshots({
     snapshots: validated,
-    suppressions: read.suppressions
+    suppressions: read.suppressions.filter((entry) => entry.provider !== "CLAUDE")
   });
   return {
     ok: true,
@@ -602,13 +629,19 @@ async function acquireLock(
   }
 }
 
-async function releaseLock(lockPath: string, token: string): Promise<void> {
+/* Whether the lock still names this holder. One held past
+   LOCK_STALE_MILLISECONDS is reclaimed even from a live owner. */
+async function lockOwned(lockPath: string, token: string): Promise<boolean> {
   try {
     const parsed: unknown = JSON.parse(await readFile(path.join(lockPath, "owner.json"), "utf8"));
-    if (!isRecord(parsed) || parsed["token"] !== token) return;
+    return isRecord(parsed) && parsed["token"] === token;
   } catch {
-    return;
+    return false;
   }
+}
+
+async function releaseLock(lockPath: string, token: string): Promise<void> {
+  if (!(await lockOwned(lockPath, token))) return;
   await rm(lockPath, { recursive: true, force: true }).catch(() => undefined);
 }
 
@@ -630,11 +663,13 @@ const processLockQueues = new Map<string, Promise<void>>();
  * Run one cache mutation while holding the single cache lock.
  *
  * Readers never take this lock. They rely on the atomic replacement below, so
- * the lock exists only to keep two writers from interleaving.
+ * the lock exists only to keep two writers from interleaving. `owned` says
+ * whether the lock still names this holder, for an action that must not write
+ * once another writer reclaimed it.
  */
 export async function withStateLock<Result>(
   directory: string,
-  action: () => Promise<Result>
+  action: (owned: () => Promise<boolean>) => Promise<Result>
 ): Promise<Result> {
   const absoluteDirectory = path.resolve(directory);
   const queueKey = process.platform === "win32"
@@ -653,7 +688,7 @@ export async function withStateLock<Result>(
     await rejectSymlink(lockPath);
     const { token } = await acquireLock(lockPath);
     try {
-      return await action();
+      return await action(() => lockOwned(lockPath, token));
     } finally {
       await releaseLock(lockPath, token);
     }
@@ -790,6 +825,33 @@ export interface CacheMergeResult {
 }
 
 /**
+ * Write one acquired report the way the command line's refresh does. A
+ * Claude poll's session and weeklies go to the authoritative file, where a
+ * legacy status line payload cannot overwrite them, and a read that stated
+ * the whole weekly set removes a weekly it no longer reports (a partial read
+ * deletes nothing). Every other row folds into the main file beside the rows
+ * other sources wrote. Rust twin: native_snapshot.rs write_report_with.
+ */
+export async function persistAcquiredReport(
+  report: Extract<CollectionReport, { ok: true }>,
+  directory = resolveStateDirectory(),
+  now: string = report.observedAt
+): Promise<void> {
+  const pollRows = report.snapshots.filter((row) =>
+    row.provider === "CLAUDE" && (row.meter === "FIVE_HOUR" || row.meter.startsWith("SEVEN_DAY")));
+  if (report.provider === "CLAUDE") {
+    await mergeAuthoritativeSnapshotCache(pollRows, directory, now,
+      report.complete === true
+        ? { provider: "CLAUDE", accountId: report.accountId, observedAt: report.observedAt }
+        : undefined);
+  }
+  await mergeAcquiredSnapshots({
+    ...report,
+    snapshots: report.snapshots.filter((row) => !pollRows.includes(row))
+  }, directory);
+}
+
+/**
  * Fold fresh snapshots into the cache under the lock.
  *
  * Reading, merging, and writing all happen inside one lock, so two writers that
@@ -846,9 +908,10 @@ export async function mergeAcquiredSnapshots(
   rejectOutOfBounds(report.snapshots);
   return await withCacheLock(directory, async () => {
     const cached = await readCacheState(directory);
-    const before: CacheState = cached.ok
-      ? { ...cached.state, snapshots: cached.state.snapshots.filter((row) => !(row.provider === report.provider && row.accountId === report.accountId && row.meter === "ACQUISITION" && row.availability !== undefined && row.observedAt <= report.observedAt)) }
-      : { snapshots: [], suppressions: [] };
+    const stored: CacheState = cached.ok ? cached.state : { snapshots: [], suppressions: [] };
+    /* This read clears its own older failure flag, and clearing it is a
+       change worth writing even when it is the only one. */
+    const before: CacheState = { ...stored, snapshots: stored.snapshots.filter((row) => !(row.provider === report.provider && row.accountId === report.accountId && row.meter === "ACQUISITION" && row.availability !== undefined && row.observedAt <= report.observedAt)) };
     const held = new Map(
       before.snapshots.map((snapshot) => [snapshotIdentity(snapshot), snapshot])
     );
@@ -883,6 +946,26 @@ export async function mergeAcquiredSnapshots(
     const incomingIdentities = new Set(
       report.snapshots.map((snapshot) => snapshotIdentity(snapshot))
     );
+    /* A Claude poll read replaces only the account's own remote_api rows and
+       its ACQUISITION flag recorded no later than the read; a later flag or
+       read and every other source's row stay, whatever writer stamped them.
+       Its session and weeklies went to the authoritative file. Rust twin:
+       native_snapshot.rs fold_read; both prove claude-poll-vectors.json `commit`. */
+    if (report.provider === "CLAUDE") {
+      const readAt = Date.parse(report.observedAt);
+      const replaced = (row: Snapshot) => snapshotBelongsTo(row, "CLAUDE", report.accountId) &&
+        (row.meter === "ACQUISITION" || row.provenance?.sourceKind === "remote_api") &&
+        Date.parse(row.observedAt) <= readAt && !incomingIdentities.has(snapshotIdentity(row));
+      const merged = retainSnapshots(mergeSnapshots(stored.snapshots.filter((row) => !replaced(row)), taken), readAt);
+      const suppressions = stored.suppressions.filter((entry) =>
+        !(entry.provider === "CLAUDE" && entry.accountId === report.accountId && Date.parse(entry.suppressedAt) < readAt));
+      if (canonicalJson({ merged, suppressions }) === canonicalJson({ merged: stored.snapshots, suppressions: stored.suppressions })) {
+        return { written: false, taken: taken.length, deferred };
+      }
+      rejectOutOfBounds(merged);
+      await replaceCache(directory, merged, suppressions);
+      return { written: true, taken: taken.length, deferred };
+    }
     const foreign = before.snapshots.filter(
       (snapshot) =>
         snapshotBelongsTo(snapshot, report.provider, report.accountId) &&
@@ -891,7 +974,7 @@ export async function mergeAcquiredSnapshots(
     ).length;
     if (deferred === 0 && foreign === 0) {
       const after = applyCollectionReport(before, report);
-      if (canonicalJson(after) === canonicalJson(before)) {
+      if (canonicalJson(after) === canonicalJson(stored)) {
         return { written: false, taken: taken.length, deferred };
       }
       rejectOutOfBounds(after.snapshots);
@@ -899,7 +982,7 @@ export async function mergeAcquiredSnapshots(
       return { written: true, taken: taken.length, deferred };
     }
     const merged = retainSnapshots(mergeSnapshots(before.snapshots, taken), Date.parse(report.observedAt));
-    if (canonicalJson(merged) === canonicalJson(before.snapshots)) {
+    if (canonicalJson(merged) === canonicalJson(stored.snapshots)) {
       return { written: false, taken: taken.length, deferred };
     }
     rejectOutOfBounds(merged);

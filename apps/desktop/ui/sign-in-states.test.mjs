@@ -33,10 +33,17 @@ function signInBody() {
   return markup.slice(start, end);
 }
 
-test("names both providers the way they spell themselves, and never Gmail", () => {
-  assert.deepEqual([...SIGN_IN_PROVIDERS], ["github", "google"]);
+test("names every provider the way it spells itself, and never Gmail", () => {
+  /* The body draws all three now, Microsoft included, in this order. */
+  assert.deepEqual([...SIGN_IN_PROVIDERS], ["github", "google", "azure"]);
   assert.equal(providerName("github"), "GitHub");
   assert.equal(providerName("google"), "Google");
+  assert.equal(providerName("azure"), "Microsoft");
+  const body = signInBody();
+  assert.deepEqual(
+    [...body.matchAll(/<button type="button" id="account-(github|google|microsoft)"/gu)].map((match) => match[1]),
+    ["github", "google", "microsoft"],
+  );
   assert.equal(providerName("other"), "");
   assert.equal(otherProvider("github"), "google");
   assert.equal(otherProvider("google"), "github");
@@ -298,45 +305,54 @@ test("the arrival is one check and the address, with nothing live underneath", (
   /* The sentence is announced from the toneless row, which keeps its place. */
   assert.match(source, /function showSignedIn\(sentence\) \{[\s\S]*?setSignInStatus\(null, ""\);[\s\S]*?signInStatusText\.textContent = sentence/u);
   /* The check has its moment before the body is put away. */
-  assert.match(source, /window\.setTimeout\([\s\S]*?openlimiter:signed-in[\s\S]*?SIGNED_IN_DWELL_MILLISECONDS\)/u);
-  assert.match(source, /applyAccountState\(result\.value\);[\s\S]*?if \(signInIsInSheet\(\)\) closeSignIn\(\)/u);
+  assert.match(source, /applyAccountState\(result\.value\);[\s\S]*?window\.setTimeout\(closeSignIn, SIGNED_IN_DWELL_MILLISECONDS\)/u);
+  /* Nothing listens for an arrival any more, so nothing announces one. */
+  assert.doesNotMatch(source, /openlimiter:signed-in/u);
 });
 
 test("the foot is a bordered Not now beside the honest sentence, at caption size", () => {
   const markup = html();
   assert.match(markup, /id="sign-in-status"[^>]*role="status"[^>]*aria-live="polite"/u);
   assert.match(markup, /id="sign-in-close" class="sign-in-ghost">Not now</u);
-  /* The first run's way past the account is a quiet Later link now, not a
-     second bordered button. The sheet keeps its bordered Not now, because the
-     sheet is a dialogue somebody opened and a dialogue needs a way out that
-     looks like one. The first run step is a step, and a step gets a link. */
-  assert.match(markup, /id="first-run-later" class="sign-in-ghost">Create account later</u);
-  assert.doesNotMatch(markup, /id="first-run-not-now"/u);
+  /* The first run asks for no account, so it has no way past one either. */
+  assert.doesNotMatch(markup, /id="first-run-later"|id="first-run-not-now"/u);
   assert.match(markup, /Every meter in this window keeps running without an account\./u);
   const sheet = css();
   assert.match(sheet, /button\.sign-in-ghost \{[^}]*border-color: var\(--ol-control-border\)/u);
   assert.match(sheet, /\.sign-in-foot-note \{[^}]*font-size: var\(--ol-text-caption\)/u);
-  /* Escape and the backdrop put the sheet away like Not now does. */
+  /* The backdrop puts the sheet away like Not now does; Escape is the native
+     dialog's own cancel, so no key handler of ours stands in for it. */
   const source = app();
-  assert.match(source, /event\.key !== "Escape"[\s\S]*?closeSignIn\(\)/u);
+  assert.doesNotMatch(source, /event\.key !== "Escape"[\s\S]*?closeSignIn\(\)/u);
   assert.match(source, /event\.target === elements\.signIn\) closeSignIn\(\)/u);
 });
 
-test("the first run account step wears the same centred head and hosts the same body", () => {
+test("the sheet is a native modal: focus stays in it, the window behind is inert, and closing returns focus", () => {
+  const markup = html();
+  /* showModal puts the sheet in the top layer and makes the rest of the
+     document inert, which is what aria-modal only promised. */
+  assert.match(markup, /<dialog id="sign-in" class="sheet" aria-labelledby="sign-in-title">/u);
+  assert.doesNotMatch(markup, /id="sign-in"[^>]*\b(?:hidden|role="dialog"|aria-modal)/u);
+  const source = app();
+  assert.match(source, /function openSignIn\(\) \{[\s\S]*?signInOpener = document\.activeElement[\s\S]*?elements\.signIn\.showModal\(\);/u);
+  assert.match(source, /function closeSignIn\(\) \{[\s\S]*?if \(elements\.signIn\.open\) elements\.signIn\.close\(\);/u);
+  /* Escape, the backdrop, Not now and a finished sign in all end in close,
+     and close puts focus back where the sheet was opened from. */
+  assert.match(source, /elements\.signIn\?\.addEventListener\("close", \(\) => \{[\s\S]*?resetSignInBody\(\);[\s\S]*?restoreFocus\(signInOpener\)/u);
+  assert.doesNotMatch(source, /elements\.signIn\.hidden/u);
+  /* Tab wraps at both ends, so the keyboard never walks out of the sheet. */
+  assert.match(source, /elements\.signIn\?\.addEventListener\("keydown", \(event\) => \{\s*if \(event\.key !== "Tab"\) return;[\s\S]*?last\.focus\(\);[\s\S]*?first\.focus\(\);/u);
+  const sheet = css();
+  assert.match(sheet, /dialog\.sheet\[open\] \{[^}]*display: grid;/u);
+  assert.match(sheet, /dialog\.sheet::backdrop \{/u);
+});
+
+test("the one sign in body lives in the sheet alone, and the first run never borrows it", () => {
   const markup = html();
   const source = readFileSync(new URL("./first-run.js", import.meta.url), "utf8");
   assert.equal((markup.match(/id="sign-in-body"/gu) ?? []).length, 1);
-  const start = markup.indexOf('id="first-run-account"');
-  const step = markup.slice(start, markup.indexOf("</section>", start));
-  assert.match(step, /class="sign-in-head"[\s\S]*?class="sign-in-lockup"[\s\S]*?id="first-run-account-title"[\s\S]*?class="sign-in-lead"/u);
-  /* One lead sentence: a single full stop, at the end. */
-  const lead = step.match(/class="sign-in-lead"[^>]*>([^<]+)</u)?.[1] ?? "";
-  assert.equal((lead.match(/\./gu) ?? []).length, 1);
-  assert.match(lead, /\.$/u);
-  assert.match(step, /id="first-run-sign-in-mount"/u);
-  assert.match(source, /options\.mountSignIn\(mount\)/u);
-  assert.match(source, /options\.unmountSignIn\(\)/u);
-  assert.match(source, /screen\.dataset\.step = "account"/u);
-  assert.match(css(), /\.first-run\[data-step="account"\] \.first-run-lockup \{\s*display: none/u);
-  assert.match(app(), /mountSignIn,\s*unmountSignIn,/u);
+  assert.ok(markup.indexOf('id="sign-in-slot"') < markup.indexOf('id="sign-in-body"'));
+  assert.doesNotMatch(markup, /id="first-run-sign-in-mount"|id="first-run-account"/u);
+  assert.doesNotMatch(source, /mountSignIn|unmountSignIn|signInWithProvider/u);
+  assert.doesNotMatch(css(), /data-step="account"/u);
 });

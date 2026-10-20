@@ -482,23 +482,50 @@ fn identity(row: &Snapshot) -> String {
     )
 }
 
+fn source_kind(row: &Snapshot) -> Option<&str> {
+    row.provenance
+        .as_ref()
+        .and_then(|value| value.get("sourceKind"))
+        .and_then(serde_json::Value::as_str)
+}
+
 fn fold(
     text: Option<&str>,
     provider: &str,
     account_id: Option<&str>,
     report: &CacheReport,
 ) -> Result<String, CacheWriteError> {
+    fold_read(text, provider, account_id, report, None)
+}
+
+/// `fold` for a Claude poll read observed at `read_at`, whose session and
+/// weeklies went to the authoritative file (2.1.7). The read replaces only
+/// the account's rows of its own source, and its ACQUISITION flag, recorded
+/// no later than it. Every row another source wrote stays, a status line
+/// payload that arrived while the read was in flight included (Astra fix
+/// round, finding 2). TypeScript twin: cache.ts mergeAcquiredSnapshots.
+fn fold_read(
+    text: Option<&str>,
+    provider: &str,
+    account_id: Option<&str>,
+    report: &CacheReport,
+    read_at: Option<u64>,
+) -> Result<String, CacheWriteError> {
     let (mut rows, mut suppressions) = read_document(text)?;
     match report {
         CacheReport::Success(incoming) => {
-            let partial = !incoming.is_empty() && incoming.iter().all(|row| {
-                row.provenance
-                    .as_ref()
-                    .and_then(|value| value.get("sourceKind"))
-                    .and_then(serde_json::Value::as_str)
-                    == Some("statusline_payload")
-            });
-            if !partial {
+            let partial = !incoming.is_empty()
+                && incoming.iter().all(|row| source_kind(row) == Some("statusline_payload"));
+            if let Some(read_at) = read_at {
+                rows.retain(|current| {
+                    let own = current.meter == "ACQUISITION" || source_kind(current) == Some("remote_api");
+                    let older = epoch_ms_from_rfc3339(&current.observed_at).is_some_and(|at| at <= read_at);
+                    current.provider != provider
+                        || !account_matches(current.account_id.as_deref(), account_id)
+                        || !(own && older)
+                        || incoming.iter().any(|row| identity(row) == identity(current))
+                });
+            } else if !partial {
                 rows.retain(|current| {
                     current.provider != provider
                         || !account_matches(current.account_id.as_deref(), account_id)
@@ -532,10 +559,10 @@ fn fold(
                     }
                 }
             }
-            let newest = incoming.iter()
+            let newest = read_at.unwrap_or_else(|| incoming.iter()
                 .filter_map(|row| epoch_ms_from_rfc3339(&row.observed_at))
                 .max()
-                .unwrap_or(0);
+                .unwrap_or(0));
             suppressions.retain(|entry| {
                 entry.provider != provider
                     || entry.account_id.as_deref() != account_id
@@ -574,7 +601,7 @@ fn fold(
             });
         }
     }
-    let now = match report {
+    let now = read_at.unwrap_or_else(|| match report {
         CacheReport::Success(incoming) => incoming
             .iter()
             .filter_map(|row| epoch_ms_from_rfc3339(&row.observed_at))
@@ -584,7 +611,7 @@ fn fold(
             epoch_ms_from_rfc3339(observed_at).unwrap_or_else(crate::connections::now_epoch_ms)
         }
         CacheReport::Unavailable => crate::connections::now_epoch_ms(),
-    };
+    });
     rows.retain(|row| crate::data_rules::retained(row, now));
     let mut by_identity = BTreeMap::new();
     for row in rows {
@@ -734,11 +761,17 @@ pub fn write_report_with(
     report: CacheReport,
     weekly_complete: bool,
 ) -> Result<(), CacheWriteError> {
+    /* The session row joins the weeklies in the authoritative file, where a
+    legacy status line payload cannot overwrite it (2.1.7). TypeScript twin:
+    cli.ts refreshCommand persist. */
+    let poll_owned = |row: &Snapshot| {
+        provider == "CLAUDE" && (row.meter == "FIVE_HOUR" || row.meter.starts_with("SEVEN_DAY"))
+    };
     let authoritative = match &report {
         CacheReport::Success(rows) if provider == "CLAUDE" => rows
             .iter()
             .filter(|row| {
-                row.meter.starts_with("SEVEN_DAY")
+                poll_owned(row)
                     && row
                         .provenance
                         .as_ref()
@@ -753,32 +786,30 @@ pub fn write_report_with(
     let main_report = match &report {
         CacheReport::Success(rows) => CacheReport::Success(
             rows.iter()
-                .filter(|row| !(provider == "CLAUDE" && row.meter.starts_with("SEVEN_DAY")))
+                .filter(|row| !poll_owned(row))
                 .cloned()
                 .collect(),
         ),
         _ => report.clone(),
     };
-    /* A successful Claude poll that read the account's whole weekly set
-    removes a weekly it no longer reports (hotfix 2.1.5). */
-    let weekly_set = match &report {
-        CacheReport::Success(rows) if provider == "CLAUDE" && weekly_complete => rows
+    /* The instant of a Claude poll read. In the main file the read replaces
+    only its own source's rows (fold_read), and a read that stated the
+    account's whole weekly set removes a weekly it no longer reports from the
+    authoritative file (hotfix 2.1.5). */
+    let read_at = match &report {
+        CacheReport::Success(rows) if provider == "CLAUDE" => rows
             .iter()
-            .filter(|row| {
-                row.provenance
-                    .as_ref()
-                    .and_then(|value| value.get("sourceKind"))
-                    .and_then(serde_json::Value::as_str)
-                    != Some("statusline_payload")
-            })
+            .filter(|row| source_kind(row) != Some("statusline_payload"))
             .filter_map(|row| epoch_ms_from_rfc3339(&row.observed_at))
-            .max()
-            .map(|observed| (provider, account_id, observed)),
+            .max(),
         _ => None,
     };
+    let weekly_set = read_at
+        .filter(|_| weekly_complete)
+        .map(|observed| (provider, account_id, observed));
     for round in 0..2 {
         let begun = writer.begin()?;
-        let text = match fold(begun.text.as_deref(), provider, account_id, &main_report) {
+        let text = match fold_read(begun.text.as_deref(), provider, account_id, &main_report, read_at) {
             Ok(text) => text,
             Err(error) => {
                 writer.abort(begun.generation);

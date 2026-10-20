@@ -270,53 +270,34 @@ describe("openlimiter setup, the three step first run", () => {
     expect(bare.stdout).toContain("3. Show bars in");
   });
 
-  it("asks once before enabling Claude in an interactive terminal", async () => {
-    const stateDirectory = await temporaryDirectory("openlimiter-hub-");
-    const homeDirectory = await temporaryDirectory("openlimiter-hub-home-");
-    let questions = 0;
-    await runCli(["setup"], {
-      stateDirectory,
-      homeDirectory,
-      environment: noAgentsInstalled(),
-      platform: "linux",
-      now: () => NOW,
-      interactive: true,
-      promptChoice: async (question) => {
-        if (question.includes("Show Fable limit")) questions += 1;
-        return question.includes("Show Fable limit") ? "" : "s";
+  /* 2.1.7, plan item 7: the direct Claude request is off unless it was turned
+     on, and nothing asks. Neither setup nor init puts the question or speaks of
+     the request, attended or not, and neither records a choice. */
+  it("never asks about the Claude request, in setup or in init, and records nothing", async () => {
+    for (const interactive of [true, false]) {
+      const stateDirectory = await temporaryDirectory("openlimiter-hub-");
+      const homeDirectory = await temporaryDirectory("openlimiter-hub-home-");
+      const asked: string[] = [];
+      for (const command of ["setup", "init"]) {
+        const result = await runCli([command], {
+          stateDirectory,
+          homeDirectory,
+          environment: noAgentsInstalled(),
+          platform: "linux",
+          now: () => NOW,
+          interactive,
+          promptChoice: async (question) => {
+            if (/fable|anthropic|usage/iu.test(question)) asked.push(question);
+            return "s";
+          }
+        });
+        expect(result.stdout + result.stderr).not.toMatch(/usage request|Anthropic's policy|Fable limit|Claude usage/iu);
       }
-    });
-    expect(questions).toBe(1);
-    expect((await runCli(["config", "get", "providers.claude.poll"], { stateDirectory })).stdout)
-      .toBe("providers.claude.poll=true");
-    await runCli(["setup"], {
-      stateDirectory,
-      homeDirectory,
-      environment: noAgentsInstalled(),
-      platform: "linux",
-      now: () => NOW,
-      interactive: true,
-      promptChoice: async (question) => {
-        if (question.includes("Show Fable limit")) questions += 1;
-        return "s";
-      }
-    });
-    expect(questions).toBe(1);
-  });
-
-  it("records Claude polling off when setup is unattended", async () => {
-    const stateDirectory = await temporaryDirectory("openlimiter-hub-");
-    await runCli(["setup"], {
-      stateDirectory,
-      homeDirectory: await temporaryDirectory("openlimiter-hub-home-"),
-      environment: noAgentsInstalled(),
-      platform: "linux",
-      now: () => NOW,
-      interactive: false,
-      promptChoice: async () => { throw new Error("unattended setup must not prompt"); }
-    });
-    expect((await runCli(["config", "get", "providers.claude.poll"], { stateDirectory })).stdout)
-      .toBe("providers.claude.poll=false");
+      expect(asked).toEqual([]);
+      expect((await runCli(["config", "get", "providers.claude.poll"], { stateDirectory })).stdout)
+        .toBe("providers.claude.poll=unset");
+      await expect(readFile(path.join(stateDirectory, "claude-poll.json"), "utf8")).rejects.toThrow();
+    }
   });
 
   it("skips signing in when the hub is switched off, and still shows the checklist", async () => {

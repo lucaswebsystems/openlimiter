@@ -128,10 +128,6 @@ pub(crate) type WeeklySet<'a> = (&'a str, Option<&'a str>, u64);
 enum AuthoritativeMutation<'a> {
     Rows(&'a [crate::native_snapshot::Snapshot], bool),
     WeeklySet(&'a [crate::native_snapshot::Snapshot], WeeklySet<'a>),
-    RemoveWeekly {
-        provider: &'a str,
-        account: Option<&'a str>,
-    },
 }
 
 struct WriterInner {
@@ -355,33 +351,6 @@ impl CacheWriter {
         Ok(())
     }
 
-    fn authoritative_rows_without(
-        directory: &Path,
-        provider: &str,
-        account_id: Option<&str>,
-    ) -> Result<Vec<crate::native_snapshot::Snapshot>, CacheWriteError> {
-        let file = directory.join(AUTHORITATIVE_CACHE_FILE_NAME);
-        fsx::reject_symlink(&file)?;
-        let mut document = fsx::bounded_read(&file)
-            .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
-            .unwrap_or_else(|| serde_json::json!({"version": 3, "snapshots": []}));
-        let rows = document
-            .get_mut("snapshots")
-            .and_then(serde_json::Value::as_array_mut)
-            .ok_or(CacheWriteError::NotJson)?;
-        rows.retain(|row| {
-            let matches_provider = row.get("provider").and_then(serde_json::Value::as_str) == Some(provider);
-            let matches_account = account_id.is_none_or(|account| {
-                row.get("accountId").and_then(serde_json::Value::as_str) == Some(account)
-            });
-            !(matches_provider && matches_account && row.get("meter").and_then(serde_json::Value::as_str).is_some_and(|meter| meter.starts_with("SEVEN_DAY")))
-        });
-        rows.iter()
-            .cloned()
-            .map(|row| serde_json::from_value(row).map_err(|_| CacheWriteError::NotJson))
-            .collect()
-    }
-
     pub(crate) fn record_availability(
         &self,
         provider: &str,
@@ -406,11 +375,16 @@ impl CacheWriter {
                 .get_mut("snapshots")
                 .and_then(|v| v.as_array_mut())
                 .ok_or(CacheWriteError::NotJson)?;
+            /* A failed Claude read is a flag on its ACQUISITION row alone: the
+            request's readings stay and age, never withdrawn (2.1.7).
+            TypeScript twin: cache.ts recordAcquisitionAvailability. */
             let matches = |row: &serde_json::Value| {
                 row.get("provider").and_then(|v| v.as_str()) == Some(provider)
                     && account.is_none_or(|account| {
                         row.get("accountId").and_then(|v| v.as_str()) == Some(account)
                     })
+                    && (provider != "CLAUDE"
+                        || row.get("meter").and_then(|v| v.as_str()) == Some("ACQUISITION"))
             };
             if !rows.iter().any(matches) {
                 rows.push(serde_json::json!({
@@ -431,9 +405,7 @@ impl CacheWriter {
                     object.remove("retryAt");
                 }
             }
-            self.commit_with_authoritative_account_replacement(
-                &document.to_string(), provider, account, begun.generation
-            )
+            self.commit(&document.to_string(), begun.generation)
         })();
         if result.is_err() {
             self.abort(begun.generation);
@@ -552,21 +524,6 @@ impl CacheWriter {
         )
     }
 
-    pub(crate) fn commit_with_authoritative_account_replacement(
-        &self,
-        text: &str,
-        provider: &str,
-        account: Option<&str>,
-        generation: u64,
-    ) -> Result<(), CacheWriteError> {
-        self.commit_parts(
-            text,
-            generation,
-            Some(AuthoritativeMutation::RemoveWeekly { provider, account }),
-            || {},
-        )
-    }
-
     /// End one native mutation without writing, but only when it still owns
     /// the named generation. This keeps a refused cache fold from holding the
     /// shared lock until another writer happens to arrive.
@@ -645,13 +602,6 @@ impl CacheWriter {
                     }
                     AuthoritativeMutation::WeeklySet(rows, set) => {
                         Self::replace_authoritative_rows(directory, rows, Some(set))?;
-                    }
-                    AuthoritativeMutation::RemoveWeekly { provider, account } => {
-                        let rows = Self::authoritative_rows_without(directory, provider, account)?;
-                        let file = directory.join(AUTHORITATIVE_CACHE_FILE_NAME);
-                        fsx::reject_symlink(&file)?;
-                        let document = serde_json::json!({ "version": 3, "snapshots": rows });
-                        fsx::atomic_write(&file, &document.to_string())?;
                     }
                 }
             }

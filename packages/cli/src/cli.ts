@@ -8,12 +8,12 @@ import {
   PROVIDER_CODES,
   acquireRefreshLock,
   clearRefreshSpawnFailure,
-  mergeAcquiredSnapshots,
-  mergeAuthoritativeSnapshotCache,
+  persistAcquiredReport,
   createFetchTransport,
   readRefreshSpawnFailure,
   buildAdvice,
   canonicalJson,
+  claudeRowCounts,
   claudeSpec,
   codexSpec,
   cursorSpec,
@@ -32,6 +32,7 @@ import {
   openrouterSpec,
   readAcquisitionCredential,
   readAcquisitionSchedule,
+  readClaudePoll,
   readSnapshotCache,
   readWindowsCredentialWith,
   resolveStateDirectory,
@@ -104,21 +105,20 @@ import path from "node:path";
 import {
   PROVIDER_KEYS,
   STATUSLINE_KEYS,
+  claudePollText,
   defaultConfig,
   initialize,
   isProviderKey,
   isStatuslineKey,
-  providerValueText,
+  migrateLegacyClaudePoll,
   readConfig,
-  readProvidersConfig,
   readStatuslineConfig,
+  setClaudePoll,
   setProviderValue,
   updateConfig,
   setStatuslineValue,
   statuslineValueText,
   writeConfig,
-  type ProviderKey,
-  type ProvidersConfig,
   type StatuslineConfig,
   type StatuslineKey
 } from "./config.js";
@@ -162,6 +162,7 @@ import {
   resolveProviderOrder,
   statuslineColor,
   statuslineUnicode,
+  statuslineWide,
   type StatuslineHost
 } from "./statusline.js";
 import { parseStatuslineSession } from "./statusline-ingest.js";
@@ -592,8 +593,8 @@ function withFailures(
   return [body, ...failureLines(dedupeFailures(failures), color)].join("\n");
 }
 
-async function cachedSnapshots(directory?: string): Promise<Snapshot[]> {
-  const cached = await readSnapshotCache(directory);
+async function cachedSnapshots(directory?: string, pollOn?: boolean): Promise<Snapshot[]> {
+  const cached = await readSnapshotCache(directory, pollOn);
   return cached.ok ? cached.snapshots : [];
 }
 
@@ -696,12 +697,12 @@ async function refresh(
  * other provider is unconditional: a provider with no local login simply
  * reports that it has none.
  */
-export function acquisitionSpecs(providers: ProvidersConfig): AcquisitionSpec[] {
+export function acquisitionSpecs(claudePoll: boolean): AcquisitionSpec[] {
   return [
     claudeSpec({
       parse: parseClaudePayload,
       complete: claudeWeeklySetComplete,
-      enabled: providers.claude.recorded && providers.claude.poll
+      enabled: claudePoll
     }),
     codexSpec(parseCodexPayload),
     cursorSpec(parseCursorPayload),
@@ -897,11 +898,11 @@ async function acquisitionDoctorRows(
   snapshots: readonly Snapshot[],
   now: string
 ): Promise<string> {
-  const providers = await readProvidersConfig(dependencies.stateDirectory);
+  const claudePoll = await readClaudePoll(dependencies.stateDirectory);
   const schedule = await readAcquisitionSchedule(dependencies.stateDirectory);
   const readCredential = credentialReader(dependencies);
   const rows: string[] = [];
-  for (const spec of acquisitionSpecs(providers)) {
+  for (const spec of acquisitionSpecs(claudePoll)) {
     rows.push(acquisitionLine(
       await acquisitionStatusRow(spec, schedule, readCredential, snapshots, now),
       snapshots
@@ -960,12 +961,12 @@ async function refreshCommand(
     ].join(NEWLINE));
   }
   try {
-    const providers = await readProvidersConfig(dependencies.stateDirectory);
+    const claudePoll = await readClaudePoll(dependencies.stateDirectory);
     const settled = await readSnapshotCache(dependencies.stateDirectory);
     /* No desktop row stands this tool down for Claude: the shared lease and its
        persisted deadline, which both processes honour, decide who asks and
        when, so a desktop that exited is taken over at its deadline. */
-    const specs = acquisitionSpecs(providers).filter((spec) => spec.provider === "CLAUDE" || !desktopHoldsCache(
+    const specs = acquisitionSpecs(claudePoll).filter((spec) => spec.provider === "CLAUDE" || !desktopHoldsCache(
       settled.ok ? settled.snapshots.filter((row) => row.provider === spec.provider) : [], now
     ));
     if (specs.length === 0) {
@@ -1003,20 +1004,7 @@ async function refreshCommand(
       }
       if (!report.ok) return;
       try {
-        const pollRows = report.snapshots.filter((row) =>
-          row.provider === "CLAUDE" && row.meter.startsWith("SEVEN_DAY"));
-        /* A Claude poll that read the account's whole weekly set removes a
-           weekly it no longer reports; a partial read deletes nothing. */
-        if (report.provider === "CLAUDE") {
-          await mergeAuthoritativeSnapshotCache(pollRows, dependencies.stateDirectory, now,
-            report.complete === true
-              ? { provider: "CLAUDE", accountId: report.accountId, observedAt: report.observedAt }
-              : undefined);
-        }
-        await mergeAcquiredSnapshots({
-          ...report,
-          snapshots: report.snapshots.filter((row) => !pollRows.includes(row))
-        }, dependencies.stateDirectory);
+        await persistAcquiredReport(report, dependencies.stateDirectory, now);
       } catch {
         /* One provider's write failing is that provider's problem. The rest of
            the round still has readings worth keeping. */
@@ -1078,11 +1066,10 @@ async function startRefreshBehind(
   try {
     const directory = dependencies.stateDirectory ?? resolveStateDirectory();
     const syncDue = await readSession(directory) !== null && await syncIsDue(directory, now);
-    const providers = await readProvidersConfig(dependencies.stateDirectory);
     await spawnDetachedRefresh({
       snapshots: syncDue ? [] : snapshots,
       now,
-      claudePoll: providers.claude.recorded && providers.claude.poll,
+      claudePoll: await readClaudePoll(dependencies.stateDirectory),
       ...(dependencies.stateDirectory === undefined
         ? {}
         : { stateDirectory: dependencies.stateDirectory }),
@@ -1183,9 +1170,10 @@ const help = [
   "login opens the device code sign in; sync uploads one round to the hub when",
   "a session exists, and refresh triggers it automatically after itself.",
   "refresh reads the logins your provider tools already stored on this machine",
-  "and asks each provider for its own usage, at most once every 15 minutes. It",
-  "stands down while the desktop app is running. statusline and snapshot start",
-  "it in the background when the cache is older than a minute.",
+  "and asks each provider for its own usage, at most once every 15 minutes, or",
+  "about every 5 minutes for the Claude usage request once it is on. It stands",
+  "down while the desktop app is running. statusline and snapshot start it in",
+  "the background when the cache is older than a minute.",
   "Exit codes: 0 success, 1 failure, 2 usage, 3 no bounded quota data."
 ].join("\n");
 
@@ -1205,7 +1193,8 @@ const help = [
 async function ingestStandardInput(
   dependencies: CliDependencies,
   now: string,
-  host: StatuslineHost = "claude"
+  host: StatuslineHost,
+  pollOn: boolean
 ): Promise<{ snapshots: Snapshot[] | null; payload: unknown } | null> {
   if (host === "codex" || host === "shell") return null;
   try {
@@ -1223,6 +1212,11 @@ async function ingestStandardInput(
         ? parseGrokStatuslinePayload(document.value, now)
         : parseClaudePayload(document.value, now);
     if (meters === null) return { snapshots: null, payload: document.value };
+    /* While the direct request is on it is the only source of every Claude
+       row, so Claude's payload writes nothing and draws nothing. */
+    if (host === "claude" && pollOn) {
+      return { snapshots: null, payload: document.value };
+    }
     const provenance = host === "antigravity"
       ? ANTIGRAVITY_STATUSLINE_PROVENANCE
       : host === "grok"
@@ -1239,7 +1233,7 @@ async function ingestStandardInput(
       merged = (await mergeSnapshotCache(incoming, dependencies.stateDirectory ?? resolveStateDirectory(), Date.parse(now))).merged;
     } catch (error) {
       await recordStatuslineFailure(dependencies.stateDirectory, now, "cache_write", error);
-      const existing = await cachedSnapshots(dependencies.stateDirectory);
+      const existing = await cachedSnapshots(dependencies.stateDirectory, pollOn);
       return { snapshots: mergeSnapshots(existing, incoming), payload: document.value };
     }
     try {
@@ -1261,9 +1255,6 @@ async function initCommand(dependencies: CliDependencies): Promise<CliResult> {
     dependencies.stateDirectory
   );
   try {
-    if (!(await ensureClaudePollChoice(dependencies))) {
-      return fail(EXIT_FAILURE, "openlimiter init: configuration could not be written, so Claude usage stays off.");
-    }
     const result = await initialize(
       environment,
       dependencies.credentialStore,
@@ -1518,11 +1509,18 @@ async function statuslineCommand(
   const host: StatuslineHost = hostFlag !== undefined && isStatuslineHost(hostFlag)
     ? (hostFlag.toLowerCase() as StatuslineHost)
     : "claude";
-  const ingested = await ingestStandardInput(dependencies, now, host);
-  const cached = await cachedSnapshots(dependencies.stateDirectory);
+  /* One read of the Claude request switch per render. What is ingested, the
+     cache read, the rows ingestion hands back (the unguarded main cache, write
+     failure fallback included) and the weekly hint all follow this one value,
+     so a switch flip while the render runs never draws the source it did not
+     select. */
+  const directory = dependencies.stateDirectory ?? resolveStateDirectory();
+  const pollOn = await readClaudePoll(directory);
+  const ingested = await ingestStandardInput(dependencies, now, host, pollOn);
+  const cached = await cachedSnapshots(dependencies.stateDirectory, pollOn);
   const snapshots = ingested?.snapshots === null || ingested === null
     ? cached
-    : mergeSnapshots(cached, ingested.snapshots);
+    : mergeSnapshots(cached, ingested.snapshots.filter((row) => claudeRowCounts(row, pollOn)));
   /*
    * The refresh that keeps the other providers current starts here and is never
    * waited for. This render draws whatever the cache already holds, the child
@@ -1540,9 +1538,8 @@ async function statuslineCommand(
   }
   const advice = buildAdvice(snapshots, now, PROVIDER_CODES);
   const config = await readStatuslineConfig(dependencies.stateDirectory);
-  const providers = await readProvidersConfig(dependencies.stateDirectory);
   const pollHint = host === "claude"
-    ? await claudeWeeklyHint(snapshots, now, providers.claude.poll, dependencies.stateDirectory ?? resolveStateDirectory())
+    ? await claudeWeeklyHint(snapshots, now, directory, pollOn)
     : undefined;
   if (!config.bars) {
     return succeed(renderPlainStatusline(
@@ -1568,6 +1565,7 @@ async function statuslineCommand(
       dependencies.colorOutput,
       host
     ),
+    wide: statuslineWide(dependencies.environment),
     unicode: statuslineUnicode(dependencies.environment),
     host,
     ...(pollHint === undefined ? {} : { pollHint })
@@ -1819,14 +1817,9 @@ function configGet(
     .join(NEWLINE);
 }
 
-function providersGet(
-  keys: readonly ProviderKey[],
-  providers: ProvidersConfig
-): string {
-  return keys
-    .map((key) => PROVIDERS_SECTION + "." + key + "=" + providerValueText(providers, key))
-    .join(NEWLINE);
-}
+/** What a set says when the store of truth stands and its legacy copy could not be written. */
+const CLAUDE_POLL_MIRROR_FAILED =
+  "openlimiter config: saved, but the copy an older OpenLimiter on this computer reads could not be written, so an older version may keep your previous choice.";
 
 /**
  * Read or change one provider switch.
@@ -1849,16 +1842,11 @@ async function providersConfigCommand(
         PROVIDER_KEYS.join(", ") + "."
     );
   }
-  const stored = await readConfig(dependencies.stateDirectory);
-  if (!stored.ok && stored.reason !== "missing") {
-    return fail(EXIT_FAILURE, "openlimiter config: configuration could not be read.");
-  }
-  const config = stored.ok ? stored.config : defaultConfig(dependencies.environment);
+  /* The one key here is the Claude request switch, whose store of truth is
+     claude-poll.json, the document the desktop's switch writes too. */
+  const directory = dependencies.stateDirectory ?? resolveStateDirectory();
   if (action === "get") {
-    return succeed(providersGet(
-      key === null ? PROVIDER_KEYS : [key],
-      config.providers
-    ));
+    return succeed(PROVIDERS_SECTION + "." + PROVIDER_KEYS[0] + "=" + await claudePollText(directory));
   }
   if (key === null) {
     return fail(
@@ -1869,21 +1857,16 @@ async function providersConfigCommand(
   if (value === undefined) {
     return fail(EXIT_USAGE, "openlimiter config: set needs a value.");
   }
-  const update = setProviderValue(config.providers, key, value);
+  const update = setProviderValue(key, value);
   if (!update.ok) return fail(EXIT_USAGE, "openlimiter config: " + update.message);
+  let mirrored: boolean;
   try {
-    await updateConfig(
-      (latest) => {
-        const next = setProviderValue(latest.providers, key, value);
-        return { ...latest, providers: next.ok ? next.providers : update.providers };
-      },
-      dependencies.environment,
-      dependencies.stateDirectory
-    );
+    ({ mirrored } = await setClaudePoll(update.enabled, dependencies.environment, directory));
   } catch {
     return fail(EXIT_FAILURE, "openlimiter config: configuration could not be written.");
   }
-  return succeed(providersGet([key], update.providers));
+  const stdout = PROVIDERS_SECTION + "." + key + "=" + String(update.enabled);
+  return mirrored ? succeed(stdout) : { exitCode: EXIT_OK, stdout, stderr: CLAUDE_POLL_MIRROR_FAILED };
 }
 
 /**
@@ -2282,38 +2265,11 @@ async function triggerSyncAfterRefresh(
 /* -------------------------------------------------------------- setup */
 
 const SETUP_SIGN_IN_PROMPT = "Sign in to sync your bars to the hub and your phone (free)";
-const CLAUDE_POLL_DISCLOSURE =
-  "OpenLimiter can read the same usage Claude shows by sending a direct usage request with your Claude sign in on this computer. Anthropic's policy for tools like this is unresolved.";
-const CLAUDE_POLL_QUESTION =
-  "Show Fable limit? Enter to turn it on, N to keep it off: ";
 
 async function promptOrSkip(dependencies: CliDependencies, question: string): Promise<boolean> {
   if (!dependencies.interactive) return false;
   const answer = await dependencies.promptChoice?.(question) ?? "";
   return !answer.trim().toLowerCase().startsWith("s");
-}
-
-/** Record one real Claude polling choice before any terminal acquisition. */
-async function ensureClaudePollChoice(dependencies: CliDependencies): Promise<boolean> {
-  const stored = await readConfig(dependencies.stateDirectory);
-  if (!stored.ok && stored.reason !== "missing") return false;
-  const config = stored.ok ? stored.config : defaultConfig(dependencies.environment);
-  if (config.providers.claude.recorded) return true;
-  let enabled = false;
-  if (dependencies.interactive) {
-    dependencies.emit(CLAUDE_POLL_DISCLOSURE);
-    const answer = await dependencies.promptChoice?.(CLAUDE_POLL_QUESTION) ?? "n";
-    enabled = !answer.trim().toLowerCase().startsWith("n");
-  }
-  try {
-    await updateConfig((latest) => ({
-      ...latest,
-      providers: { claude: { poll: enabled, recorded: true } }
-    }), dependencies.environment, dependencies.stateDirectory);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 /** Step one: sign in, or say plainly why this machine did not. */
@@ -2552,9 +2508,6 @@ async function setupShowBarsStep(dependencies: CliDependencies): Promise<string[
 async function setupCommand(dependencies: CliDependencies, now: string): Promise<CliResult> {
   await setupSignInStep(dependencies);
   await setupConnectStep(dependencies);
-  if (!(await ensureClaudePollChoice(dependencies))) {
-    dependencies.emit("Claude usage stays off because the choice could not be saved.");
-  }
   const collected = await refreshCommand(dependencies, now);
   if (collected.exitCode !== 0 && collected.stderr !== "") dependencies.emit(collected.stderr);
   await setupShowBarsStep(dependencies);
@@ -2579,6 +2532,11 @@ export async function runCli(
   const command = argumentsList[0] ?? "setup";
   const now = dependencies.now();
   try {
+    /* The first 2.1.7 run moves a recorded legacy on into the one store of
+       truth, before anything reads the switch or the cache. */
+    if (["setup", "sync", "snapshot", "statusline", "config", "hook", "status", "refresh", "doctor", "export"].includes(command)) {
+      await migrateLegacyClaudePoll(dependencies.stateDirectory).catch(() => undefined);
+    }
     if (["snapshot", "statusline", "refresh", "status"].includes(command)) {
       await pruneSnapshotCache(dependencies.stateDirectory, Date.parse(now)).catch(() => 0);
     }

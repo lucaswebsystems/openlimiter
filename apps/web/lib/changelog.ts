@@ -21,15 +21,14 @@ import { INTL_LOCALE_TAG, type Locale } from "@/i18n/locales";
  * written in. The page's own chrome, its heading, its lead, its empty state and
  * its closing note, comes from the `changelog` catalog instead.
  *
- * The one word this file contributes itself is the fallback heading below, for
- * bullets that appear under a release before any `### Group` does. It stays a
- * literal because it is rendered in the same list as the headings quoted from
- * the file, and a translated heading standing among untranslated ones would read
- * as a bug rather than as a courtesy.
+ * Lines that appear under a release before any `### Group` does form a group
+ * with no heading at all. The page draws them as they are rather than under a
+ * word of its own, which was an English "Notes" on every locale.
  */
 
 export interface ChangelogEntry {
-  heading: string;
+  /** Null for the lines a release carries before any group heading. */
+  heading: string | null;
   items: readonly string[];
 }
 
@@ -67,7 +66,7 @@ export async function readChangelog(): Promise<readonly ChangelogRelease[]> {
 
   const releases: ChangelogRelease[] = [];
   let release: { version: string; date: string | null; entries: ChangelogEntry[] } | null = null;
-  let entry: { heading: string; items: string[] } | null = null;
+  let entry: { heading: string | null; items: string[] } | null = null;
 
   const closeEntry = () => {
     if (release !== null && entry !== null) release.entries.push(entry);
@@ -99,7 +98,7 @@ export async function readChangelog(): Promise<readonly ChangelogRelease[]> {
     if (release === null) continue;
 
     const text = line.startsWith("- ") ? line.slice(2).trim() : line;
-    if (entry === null) entry = { heading: "Notes", items: [] };
+    if (entry === null) entry = { heading: null, items: [] };
     entry.items.push(text);
   }
 

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { ButtonLink, Chip, SectionHeading } from "./ui";
 import { SiteLink } from "./site-link";
 import { reveal, revealGroup } from "@/lib/motion";
+import proFeatures from "@/lib/pro-features.json";
 import { LICENSE_URL, PRO_MONTHLY_PRICE, PRO_YEARLY_PRICE } from "@/lib/site";
 
 function CheckGlyph() {
@@ -23,15 +24,14 @@ function CheckGlyph() {
 }
 
 /**
- * The two lists, as identifiers.
+ * The free list, as identifiers under `pricing.free.lines`.
  *
  * The order is the argument the section makes and is the same argument in every
- * language, so it lives here. Each identifier is a catalog key under
- * `pricing.free.lines` or `pricing.pro.lines`.
- *
- * The free list names what a reader actually gets on the desktop, because the
- * edge tab, agent activity and desktop alerts are free and used to be missing
- * from it. The Pro list is the four features its lead names, in that order.
+ * language, so it lives here. It names what a reader actually gets on the
+ * desktop, because the edge tab, agent activity and desktop alerts are free and
+ * used to be missing from it. The Pro card reads lib/pro-features.json, the one
+ * list the hub, the phone and the docs read too, with its words under
+ * `proFeatures`.
  */
 const FREE_LINES: readonly { id: string }[] = [
   { id: "connectors" },
@@ -42,13 +42,6 @@ const FREE_LINES: readonly { id: string }[] = [
   { id: "sync" },
   { id: "oneAccount" },
   { id: "noLimits" },
-];
-
-const PRO_LINES: readonly { id: string }[] = [
-  { id: "history" },
-  { id: "alerts" },
-  { id: "multiSubscription" },
-  { id: "heavyApi" },
 ];
 
 function PlanList({
@@ -111,6 +104,7 @@ function PlanCard({
 
 export async function Pricing() {
   const t = await getTranslations("pricing");
+  const feature = await getTranslations("proFeatures");
 
   return (
     <section id="pricing" className="scroll-mt-8">
@@ -188,8 +182,8 @@ export async function Pricing() {
           }
         >
           <PlanList
-            lines={PRO_LINES}
-            label={(id) => t(`pro.lines.${id}`)}
+            lines={proFeatures.features}
+            label={(id) => feature(id)}
           />
           {/* One short footnote covering the conditions a reader needs before
              they judge the list, with a link to the full terms for the rest.

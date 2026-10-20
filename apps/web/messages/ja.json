@@ -11,7 +11,6 @@
     "settingsTab": "設定",
     "apiSpend": "API 支出",
     "pasteOpenRouterKey": "下の API キー一覧に OpenRouter のキーを貼り付けてください。",
-    "checkingSignIn": "サインインを確認しています...",
     "cliNotFound": "{name} CLI が見つかりません。PATH に追加してから、もう一度確認してください。",
     "limits": "上限",
     "agents": "エージェント",
@@ -45,8 +44,8 @@
     "accountPro": "アカウントとPro",
     "pairPhone": "スマートフォンをペアリング",
     "updatesAbout": "更新と概要",
+    "updateOut": "バージョン {version} が公開されました。openlimiter.com からダウンロードしてください。",
     "theme": "テーマ",
-    "themeToggle": "ライトテーマとダークテーマを切り替え",
     "themeDark": "ダーク",
     "themeLight": "ライト",
     "locked": "ロック中",
@@ -85,10 +84,9 @@
     "addTool": "ツールを追加",
     "fixToolDetail": "このコンピューターで {name} にサインインしてから、もう一度確認してください。",
     "fixSignInAgainIssue": "もう一度サインイン",
-    "useClaudeSignIn": "自分の Claude サインインを使う",
-    "useClaudeSignInTitle": "Claude Code を閉じている間も、この PC の Claude サインインを使って Anthropic に利用上限を問い合わせます。",
     "fixWaitingIssue": "{name} を待っています",
     "fixWaitingDetail": "前回の枠がリセットされました。{name} を一度使うと、上限が再び表示されます。",
+    "waitingFirstReading": "最初の読み取りを待っています",
     "meterFallback": "上限",
     "cacheUnreadable": "保存された読み取り値を今は読み込めなかったため、まだ新しい読み取り値だけを表示しています。",
     "connect": "接続",
@@ -104,19 +102,30 @@
     "antigravityThirdPartyWeekly": "サードパーティの週間割り当て",
     "toolOff": "オフ",
     "moreFor": "{name} のその他の操作",
+    "reorderFor": "{name} を並べ替え",
+    "moveUp": "上へ移動",
+    "moveDown": "下へ移動",
+    "moveTop": "先頭へ移動",
+    "moveBottom": "末尾へ移動",
+    "movedTo": "{name} を {position} 番目に移動しました（全 {count} 件）",
+    "orderNotSaved": "並び順を保存できなかったため、何も変更されていません。",
+    "orderChangedElsewhere": "並び順が別の場所で変更されたため、この移動は保存されませんでした。",
+    "reorderGone": "{name} が表示されなくなったため、移動をキャンセルしました。",
+    "order": "並び順",
+    "orderUsage": "使用量の多い順",
+    "orderCustom": "自分の並び順",
     "showTool": "表示",
     "removeTool": "削除",
     "removeConfirm": "もう一度押すと削除します",
     "claudeWeeklyOAuthApps": "週間、OAuth アプリ",
-    "showClaudeFable": "Fable の上限を表示",
-    "showClaudeFableNote": "このコンピューターの Claude サインインを使って使用量を直接リクエストし、Claude に表示されるものと同じ使用量を読み取ります。このようなツールに関する Anthropic の方針は未解決です。ツールを接続でオフにできます。",
+    "showClaudeFable": "Anthropic から Claude の使用量を読み取る",
+    "showClaudeFableNote": "オンにするまでオフです。オンにすると、OpenLimiter は約 5 分ごとに Claude Code のサインイン情報を Anthropic にのみ送信して使用量を読み取り、その結果がすべての Claude バーの情報源になります。このようなツールに関する Anthropic の方針は未解決です。",
+    "claudePollMirrorFailed": "保存しました。このコンピューター上の古い OpenLimiter には通知できなかったため、更新されるまで以前の選択が使われる場合があります。",
+    "claudeRequestRefused": "Anthropic が Claude Code のサインイン情報を受け付けなかったため、Claude の使用量を読み取れませんでした。",
+    "claudeRequestRateLimited": "Anthropic から待機を求められたため、Claude の使用量を読み取れませんでした。後でもう一度試します。",
+    "claudeRequestDrift": "Anthropic の応答が OpenLimiter で読み取れない形式だったため、Claude の使用量を読み取れませんでした。",
     "startAtSignIn": "ログイン時に OpenLimiter を起動",
-    "startAtSignInNote": "再起動後もバーを最新の状態に保ちます。",
-    "claudePollConsentTitle": "Fable の上限を表示しますか？",
-    "claudePollNotNow": "今はしない",
-    "claudePollSaveFailed": "選択を保存できなかったため、Claude の使用量はオフのままです。",
-    "claudePollContinueOff": "Claude の使用量をオフにして続行",
-    "claudeWeeklyPollHint": "接続ツールで使用量のポーリングをオンにすると、週間上限を確認できます。"
+    "startAtSignInNote": "再起動後もバーを最新の状態に保ちます。"
   },
   "meta": {
     "title": "OpenLimiter、AIコーディングの制限とエージェントの活動",
@@ -149,7 +158,7 @@
     "closeMenu": "メニューを閉じる"
   },
   "announce": {
-    "message": "OpenLimiter Proが登場しました。デスクトップ通知、アカウントアクセス、ローカルメーターは無料です。Proでは履歴、メールとスマートフォンへのプッシュ通知、追加アカウント、クラウドAPI支出メーターが加わります。",
+    "message": "OpenLimiter Proでは{features}が加わります。デスクトップ通知は無料のままです。",
     "short": "デスクトップ通知は無料のまま",
     "dismiss": "このお知らせを閉じる"
   },
@@ -510,7 +519,7 @@
     "release": {
       "rail": {
         "title": "小さなタブがひとつ。ポインターを合わせると、制限とエージェントが見えます。",
-        "lead": "OpenLimiterは、ロゴ入りの小さなタブを画面の左端、上から約70%の位置に置きます。ポインターを合わせると、その横にパネルが開き、制限とエージェントを表示します。Windows、macOS、Linux X11で同じように動作し、Linux Waylandではトレイがその役割を担います。ローカルメーターとデスクトップ通知は無料で、プロバイダーごとに有効なアカウントを1つ使えます。",
+        "lead": "OpenLimiterは、ロゴ入りの小さなタブを画面の左端、上から約70%の位置に置きます。ポインターを合わせると、その横にパネルが開き、制限とエージェントを表示します。WindowsとLinux X11で同じように動作し、Linux Waylandではトレイがその役割を担います。macOSはプレビュー版です。ローカルメーターとデスクトップ通知は無料で、プロバイダーごとに有効なアカウントを1つ使えます。",
         "folded": "タブは左端で待機しています。あなたを待つエージェントなど、確認が必要なことがあると小さな点が表示されます。",
         "unfolded": "ポインターを合わせるとパネルが開きます。まずエージェント、あなたを待つものには「アプリを表示」。続いて、余裕の少ない順に制限とリセットまでの時間。",
         "foldedAlt": "左端にある実際のOpenLimiterのタブ。OpenLimiterのロゴと黄色い点が付いた小さなタブで、背景は山の湖の壁紙です。",
@@ -523,9 +532,7 @@
         "alt": "Usage、Connect Tools、Settingsの3つのタブと、Codex、Claude Code、OpenRouterの合成制限、エージェント活動のホバーパネルを表示するOpenLimiterデスクトップ。",
         "desktopHomeAlt": "Codex、Claude Code、OpenRouterの合成バーを表示するOpenLimiterデスクトップのUsageタブ。",
         "desktopHomeNote": "UsageにはCodex、Claude Code、OpenRouterのバーが表示されます。",
-        "desktopConnectAlt": "合成されたプロバイダー接続を表示するOpenLimiterデスクトップのConnect Toolsタブ。",
         "desktopConnectNote": "Connect Toolsにはプロバイダー設定と接続状態が表示されます。",
-        "desktopSettingsAlt": "アプリの選択肢を表示するOpenLimiterデスクトップのSettingsタブ。",
         "desktopSettingsNote": "Settingsにはデスクトップを決める選択肢が表示されます。"
       },
       "terminal": {
@@ -555,7 +562,7 @@
     "screenshot": {
       "alt": "Codex、Claude Code、OpenRouterの合成バーを表示するOpenLimiterデスクトップのUsageタブウィンドウ。"
     },
-    "caption": "実際のUsageタブウィンドウを合成フィクスチャでヘッドレス表示しています。個人アカウント、認証情報、実際の使用量は含まれません。"
+    "caption": "実際のUsageタブウィンドウを、サンプルデータで表示しています。個人アカウント、認証情報、実際の使用量は含まれません。"
   },
   "phonePanels": {
     "shots": {
@@ -585,7 +592,7 @@
     "connectors": {
       "claude": {
         "tag": "ネイティブのstatuslineペイロードを読み取ります",
-        "detail": "Claude Codeがstatuslineに渡す内容を読み取ります。デスクトップアプリは案内を表示したうえで、あなたのログインでAnthropicにも問い合わせます。この問い合わせはオフにできます。"
+        "detail": "Claude Codeがstatuslineに渡す内容を読み取ります。あなた自身のログインでAnthropicに直接問い合わせる機能は、オンにするまでオフです。"
       },
       "openRouter": {
         "tag": "ドキュメント化されたクレジットレスポンスを読み取ります",
@@ -593,7 +600,7 @@
       },
       "codex": {
         "tag": "ドキュメント化されたCodex app serverを読み取ります",
-        "detail": "Codexがすでに保存しているログインを使い、ドキュメント化されたCodex app server経由で使用量を読み取ります。それが変わった場合は安全側に倒れます。"
+        "detail": "Codexがすでに保存しているログインを使い、ドキュメント化されたCodex app server経由で使用量を読み取ります。それが変わった場合は、誤った数値ではなく数値なしで表示します。"
       },
       "antigravity": {
         "tag": "ドキュメント化されたstatuslineを読み取ります",
@@ -609,11 +616,11 @@
       },
       "grok": {
         "tag": "ローカルセッションからサブスクリプション枠を読み取ります",
-        "detail": "インストール済みのGrokセッションに公開された請求枠を読み取り、形式が変わった場合は安全側に倒れます。"
+        "detail": "インストール済みのGrokセッションが示す請求枠を読み取り、Grokが変更した場合は、誤った数値ではなく数値なしで表示します。"
       },
       "kimi": {
         "tag": "ローカルセッションからサブスクリプション枠を読み取ります",
-        "detail": "インストール済みのKimiセッションに公開された使用枠を読み取り、形式が変わった場合は安全側に倒れます。"
+        "detail": "インストール済みのKimiセッションが示す使用枠を読み取り、Kimiが変更した場合は、誤った数値ではなく数値なしで表示します。"
       },
       "manualEntry": {
         "name": "Manual entry",
@@ -663,12 +670,13 @@
       }
     },
     "tile": {
-      "connector": "Connector",
+      "works": "現在利用可能",
+      "mayBreak": "利用可能、ツールの更新で動かなくなることがあります",
       "noConnector": "connectorはまだありません",
       "plannedChip": "計画中"
     },
     "feedIn": "データの渡し方",
-    "footnote": "実際のアカウントに対して検証されたconnectorは、まだありません。CodexとCursorは記録済みのフィクスチャーに合格しており、その他のconnectorはすべて誠実なデフォルトである<code>UNVERIFIED</code>のマークつきで提供されます。Gemini CLI、Grok、Kimi、OpenCode、Cursorは他社のツールの内部インターフェースを読み取り、Claudeへの直接の問い合わせも同様です。変更された場合、そのプロバイダーは推測するのではなく、unknownへと安全側に倒れます。<link>すべてのconnectorとその実際の状態</link>。",
+    "footnote": "Claude Code、Codex、Antigravity、OpenRouterは、作り手が公開しているインターフェースで読み取ります。Gemini CLI、Grok、Kimi、OpenCodeは、作り手が公開していないインターフェースで読み取り、オンにするまでオフであるClaudeへの直接の問い合わせも同様です。そのため相手側の更新でバーが止まることがあり、OpenLimiterが対応するまでは、誤った数値ではなく数値なしで表示します。<link>すべてのconnectorとその実際の状態</link>。",
     "compatibilityNote": "OpenLimiter 内に掲載または参照されている製品名、ロゴ、ブランド、その他の商標は、それぞれの商標権者に帰属します。これらの商標権者は OpenLimiter、当社の製品、または当社のウェブサイトとは一切関係ありません。また OpenLimiter を後援または推奨するものでもありません。これらの使用は、提携や推奨を意味するものではありません。",
     "manualNote": "このページのすべてのツールは、今日からmeterできます。デスクトップアプリケーションから接続するか、「詳細設定」の下でmanual entryを使って数値を書き込むか、あなたが管理するスクリプトからingestでペイロードを流し込んでください。どちらの方法でも、connectorと同じスナップショットに収まります。"
   },
@@ -697,87 +705,6 @@
     },
     "openApp": "Webアプリを開く",
     "howToProduce": "ドキュメントの作り方"
-  },
-  "connections": {
-    "heading": {
-      "title": "それぞれが実際にしていること",
-      "note": "パーサーが存在することと、接続があることは別です"
-    },
-    "columns": {
-      "parser": "パーサー",
-      "reader": "リーダー",
-      "auth": "認証",
-      "verification": "検証"
-    },
-    "table": {
-      "caption": "すべてのプロバイダーと、対応の4段階のうち今日どこまで到達しているか。レビュー済みのプロバイダーレジストリから読み取っています",
-      "provider": "プロバイダー",
-      "state": "状態"
-    },
-    "cells": {
-      "unstated": "未記載"
-    },
-    "support": {
-      "ready": "対応済み",
-      "notRequired": "不要",
-      "none": "なし"
-    },
-    "verification": {
-      "unverified": "未検証",
-      "beta": "ベータ",
-      "verified": "検証済み",
-      "importOnly": "インポートのみ",
-      "manual": "手動",
-      "experimental": "実験的",
-      "planned": "計画中"
-    },
-    "state": {
-      "noSpec": "仕様なし",
-      "manual": "手動",
-      "importOnly": "インポートのみ",
-      "localCli": "ローカルCLI",
-      "connected": "接続済み"
-    },
-    "readerLine": {
-      "noSpec": "レジストリにレビュー済みの仕様がまだないため、ここでは状態を主張していません。",
-      "implemented": "OpenLimiter自身がこれを読み取ります。",
-      "notImplemented": "ここでは何も取得しません。ドキュメントはあなたが用意します。"
-    },
-    "providers": {
-      "claude": {
-        "fact": "Claude Codeはstatuslineコマンドにレート制限ブロックを書き込みます。"
-      },
-      "openrouter": {
-        "fact": "クレジットのエンドポイントはドキュメント化されており、そのレスポンスはパースできます。"
-      },
-      "codex": {
-        "fact": "あなたのマシンで動く、ドキュメント化されたCodex app server。"
-      },
-      "antigravity": {
-        "fact": "ドキュメント化されたAntigravity CLIのstatusline。"
-      },
-      "opencode": {
-        "fact": "すでに保持しているセッションの裏にある使用量ビューです。"
-      },
-      "gemini": {
-        "fact": "インストール済みGemini CLIセッションから返されるモデルquotaです。"
-      },
-      "grok": {
-        "fact": "インストール済みGrokセッションから返されるサブスクリプション枠です。"
-      },
-      "kimi": {
-        "fact": "インストール済みKimiセッションから返されるサブスクリプション枠です。"
-      },
-      "manual": {
-        "fact": "インターフェースを持たないもののために、自分で保持する数値です。"
-      }
-    },
-    "footnote": {
-      "lead": "リーダーとは、OpenLimiterの中の何かが実際にその数値を取得しに行くことを意味します。認証とは、資格情報が保持され使われることを意味します。上の各セルは、このページに直接書き込まれたものではなく、ビルド時にレビュー済みのプロバイダーレジストリから読み取られています。そのため、人間が先に仕様を変更しない限り、段階をここで主張することはできません。",
-      "unspecified": "{total}のconnectorのうち{count}件はまだレビュー済みの仕様がなく、それらのセルはすべて推測するのではなく未記載と表示されます。",
-      "elsewhere": "レジストリにはさらに{count}件の製品が、実験的、手動、または計画中のものとして記載されています。だからこそ、それらはここに行として現れません。",
-      "tail": "このページの行が接続済みと呼ばれるのは、そのための実際のリーダーが確認されたときだけであり、パーサーの存在だけを根拠にすることは決してありません。"
-    }
   },
   "cliTranscript": {
     "captions": {
@@ -840,7 +767,7 @@
       },
       "safeToPoint": {
         "question": "自分のツールに向けても安全ですか。",
-        "answer": "OpenLimiterは、インストール済みのツールがすでに保存しているものを読み取り専用で開くだけで、書き換えたり、修復したり、移行したりすることは決してありません。すべてのパーサーは範囲の定まった数値とタイムスタンプだけを保持し、エージェントに届く前にプロバイダーのテキストを破棄します。"
+        "answer": "OpenLimiterは、インストール済みのツールがすでに保存しているものを読み取り専用で開くだけで、書き換えたり、修復したり、移行したりすることは決してありません。範囲の定まった数値とタイムスタンプだけを保持し、エージェントに届く前にプロバイダーのテキストを破棄します。"
       },
       "promptHook": {
         "question": "prompt hookが自分のセッションを壊すことはありますか。",
@@ -848,7 +775,7 @@
       },
       "providersToday": {
         "question": "今日時点でどのプロバイダーが動きますか。",
-        "answer": "プロバイダーガイドには、各連携で利用できるmeter、設定手順、検証状況が記載されています。quotaの読み取りとエージェントの活動は別の機能です。活動を報告するプロバイダーがquotaを公開しているとは限らず、フィクスチャでテストしたパーサーも実際の取得を証明するものではありません。"
+        "answer": "プロバイダーガイドには、各連携で利用できるmeter、設定手順、実際の状態が記載されています。quotaの読み取りとエージェントの活動は別の機能で、活動を報告するプロバイダーがquotaを公開しているとは限りません。"
       },
       "apiKey": {
         "question": "APIキーは必要ですか。",
@@ -860,11 +787,11 @@
       },
       "connectorBreaks": {
         "question": "connectorが壊れたらどうなりますか。",
-        "answer": "非公式な構造は予告なく変更されます。変更された場合、パースは安全側に倒れます。そのプロバイダーはunknownに戻り、他のプロバイダーには影響がなく、その空白を埋めるために数値が作られることもありません。unknownが0になることは決してありません。"
+        "answer": "作り手が公開していないインターフェースは、予告なく変更されることがあります。変更された場合、OpenLimiterが対応するまでそのプロバイダーは数値なしで表示され、他のプロバイダーには影響がなく、その空白を埋めるために数値が作られることもありません。存在しない数値が0になることは決してありません。"
       },
       "desktopOrPhone": {
         "question": "デスクトップアプリやスマートフォンアプリはありますか。",
-        "answer": "デスクトップのトレイアプリケーションは Windows、macOS、Linux 向けに配布されます。Windows と macOS は署名されていないため、それぞれ一度だけ確認します。Windows では SmartScreen で詳細情報を選び、実行を選びます。macOS ではシステム設定を開き、プライバシーとセキュリティで、このまま開くを選びます。macOS はひとつのユニバーサルディスクイメージとして配布され、署名と公証を受けたビルドができるまで自動更新の対象外です。スマートフォンでは Web アプリがブラウザーで開き、ホーム画面に追加でき、デスクトップアプリケーションが QR コードでスマートフォンをペアリングして quota を読めるようにします。iOS と Android のネイティブアプリケーションは作っておらず、ストアにも何もなく、待機リストもありません。ダウンロードページは各プラットフォームを実際の状態とともに並べています。"
+        "answer": "デスクトップのトレイアプリケーションは Windows と Linux 向けに配布され、macOS はプレビュー版です。Windows は署名されていないため、一度だけ確認します。SmartScreen で詳細情報を選び、実行を選びます。macOS のプレビュー版はひとつのユニバーサルディスクイメージで、アドホック署名はありますが公証はされていません。システム設定のプライバシーとセキュリティで一度「このまま開く」を選び、新しいバージョンは新しいダウンロードで入手します。スマートフォンでは Web アプリがブラウザーで開き、ホーム画面に追加でき、デスクトップアプリケーションが QR コードでスマートフォンをペアリングして quota を読めるようにします。iOS と Android のネイティブアプリケーションは作っておらず、ストアにも何もなく、待機リストもありません。ダウンロードページは各プラットフォームを実際の状態とともに並べています。"
       },
       "free": {
         "question": "無料ですか。",
@@ -872,7 +799,7 @@
       },
       "pro": {
         "question": "OpenLimiter Proとは何ですか。",
-        "answer": "OpenLimiter Proは月額5ドルまたは年額50ドルで、最初の30日間はカード不要で無料です。4つの機能が加わります。予測付きの履歴、60、80、90パーセントとリセット時のメールとスマートフォンへのプッシュ通知、プロバイダーごとの複数アカウント、明示的に有効にしたキーのクラウドAPI支出メーターです。デスクトップ通知、ローカルメーター、アカウントアクセスは無料のままです。各請求から14日以内なら全額返金を依頼できます。"
+        "answer": "OpenLimiter Proは月額5ドルまたは年額50ドルで、最初の30日間はカード不要で無料です。プロバイダーごとの複数アカウント、予測付きの90日分のホスト型履歴、60、80、90パーセントとリセット時のスマートフォンへのプッシュ通知とメール通知、明示的に有効にしたキーのクラウドAPI支出メーター、そしてEmberテーマプリセットが加わります。デスクトップ通知、ローカルメーター、アカウントアクセスは無料のままです。各請求から14日以内なら全額返金を依頼できます。"
       },
       "alerts": {
         "question": "ウィンドウが埋まったときにアラートは届きますか。",
@@ -890,7 +817,7 @@
   },
   "pricing": {
     "title": "料金",
-    "lead": "ローカルメーター、デスクトップ通知、アカウントアクセスは無料で、プロバイダーごとに有効なアカウントを1つ使えます。Proでは履歴、メールとスマートフォンへのプッシュ通知、追加アカウント、クラウドAPI支出メーターが加わります。",
+    "lead": "ローカルメーター、デスクトップ通知、アカウントアクセスは無料で、プロバイダーごとに有効なアカウントを1つ使えます。Proでは、下に挙げるホスト型の機能とテーマプリセットが加わります。",
     "plannedChip": "計画中",
     "free": {
       "status": "利用可能",
@@ -920,14 +847,8 @@
       "perYear": "年額",
       "trialChip": "30日間無料",
       "priceNote": "最初の 30 日は無料で、カードは不要です。アクセスが終わると、Pro の履歴、メールとスマートフォンへのプッシュ通知、追加アカウント、クラウドAPI支出メーターが止まります。ローカルメーター、デスクトップ通知、アカウントアクセスは引き続き使えます。",
-      "lead": "Proの4つの機能。履歴、メールとスマートフォンへのプッシュ通知、追加アカウント、クラウドAPI支出メーターです。",
+      "lead": "無料の機能すべてに加えて：",
       "footnote": "試用期間の後も、ローカルのmeter、ローカルアラート、無料アカウントアクセスは使えます。無料版ではプロバイダーごとに有効なアカウントを1つ使えます。",
-      "lines": {
-        "alerts": "メールとスマートフォンへのプッシュ通知。ローカルのデスクトップ通知は無料です",
-        "multiSubscription": "プロバイダーごとの追加アカウント",
-        "heavyApi": "明示的に有効にしたプロバイダーキーのクラウドAPI支出メーター",
-        "history": "ホストされた90日分の履歴と予測"
-      },
       "cta": "30日間のPro無料試用を開始",
       "conditions": "支出メーターには組織管理者キーが必要です。14日以内なら全額返金、解約は Stripe ポータルでいつでもできます。販売元は Lucas Costa、決済は Stripe が扱います。",
       "conditionsLink": "利用条件はこちら"
@@ -949,7 +870,7 @@
       },
       "unknownStaysUnknown": {
         "title": "unknownはunknownのままです",
-        "detail": "存在しない数値が、確信を持った数値に変わることは決してありません。connectorの内部で構造が変わったとき、そのプロバイダーは安全側に倒れます。"
+        "detail": "存在しない数値が、確信を持った数値に変わることは決してありません。ツールの報告内容が変わったとき、そのプロバイダーは推測ではなく数値なしで表示します。"
       }
     },
     "signature": {
@@ -960,20 +881,18 @@
   "download": {
     "updated": "{date}更新",
     "metaTitle": "デスクトップとターミナル向け{version}をダウンロード",
-    "metaDescription": "Windows、macOS、Linux向けのOpenLimiter {version}をダウンロードするか、npmからCLIをインストールできます。無料のローカルmeterとアラート。デスクトップビルドには署名がありません。",
+    "metaDescription": "Windows、Linux向けのOpenLimiter {version}をダウンロードするか、macOSのプレビュー版を試すか、npmからCLIをインストールできます。無料のローカルmeterとアラート。Windowsビルドには署名がありません。macOSのプレビュー版は公証されていません。",
     "title": "ダウンロード",
-    "lead": "Windows、macOS、Linux のデスクトップビルドが利用できます。Windows と macOS は署名されていないため、それぞれ一度だけ許可を求めます。Windows では詳細情報を選び、実行を選びます。macOS ではシステム設定を開き、プライバシーとセキュリティで、このまま開くを選びます。macOS は Apple silicon と Intel の両方で動くひとつのユニバーサルディスクイメージとして配布されます。npm と Web アプリも利用できます。",
     "choice": {
       "windowsSummary": "未署名のビルドです。SmartScreenが警告したら、詳細情報を選び、実行を選択してください。",
-      "macosSummary": "Apple siliconとIntelに対応したユニバーサル未署名ビルドです。プライバシーとセキュリティで一度だけ許可します。",
-      "linuxSummary": "ディストリビューションに合わせてAppImage、deb、rpmを選べます。AppImageは実行権限を設定して起動します。",
+      "macosSummary": "Apple siliconとIntel向けのプレビュー版で、アドホック署名はありますが公証はされていません。プライバシーとセキュリティで一度だけ許可してから、アプリを開きます。更新は新しいダウンロードで入手します。",
+      "linuxSummary": "Debian と Ubuntu 向けの deb パッケージです。rpm と AppImage はこの下にあります。AppImage には libfuse2 が必要です（Ubuntu 24.04 では libfuse2t64）。",
       "detected": "検出済み",
       "windows": "Windows版をダウンロード",
       "linux": "Linux版をダウンロード",
       "macos": "macOS版をダウンロード",
       "other": "その他のプラットフォーム",
       "smartScreen": "このWindows版は未署名のためSmartScreenが警告する場合があります。詳細情報を選び、実行を選択してください。",
-      "openAnyway": "この macOS ビルドは署名されていません。一度開いたあと、システム設定を開き、プライバシーとセキュリティで、このまま開くを選びます。ディスクイメージはユニバーサルなので、Apple silicon と Intel の両方で動きます。自動更新は署名済みビルドとともに提供されます。",
       "linuxNote": "AppImage、deb、rpmパッケージを提供しています。署名警告なしで直接実行できます。"
     },
     "preview": {
@@ -988,18 +907,18 @@
       "lead": "{platform}版OpenLimiter {version}。この後の手順です。",
       "manual": "ダウンロードが始まらない場合は、<file>こちらからファイルをダウンロード</file>してください。",
       "back": "すべてのダウンロード方法に戻る",
-      "firstRun": "初回起動ではウィンドウが開きます。サインインするかスキップし、ツールを接続すると、バーが表示されます。その後は、画面左端の小さなタブにポインターを合わせると確認できます。",
+      "firstRun": "初回起動ではウィンドウが開き、ツールを接続してバーを表示します。サインインは任意です。その後は、画面左端の小さなタブにポインターを合わせると確認できます。",
       "windows": {
         "open": "ダウンロードしたインストーラーを開きます。ブラウザに確認された場合は、ファイルを保持してください。",
         "smartScreen": "SmartScreenが警告したら、詳細情報を選び、実行を選択してください。未署名のビルドなので、Windowsの確認は一度だけです。"
       },
       "macos": {
         "open": "ダウンロードしたディスクイメージを開き、OpenLimiterをアプリケーションへドラッグします。",
-        "gatekeeper": "OpenLimiterを一度開きます。アプリが未署名のため、macOSはこの初回を拒否します。システム設定を開き、プライバシーとセキュリティに進み、OpenLimiterの案内の横にある「このまま開く」を選んでください。"
+        "gatekeeper": "OpenLimiterを一度開きます。プレビュー版は公証されていないため、macOSはこの初回を拒否します。システム設定を開き、プライバシーとセキュリティに進み、OpenLimiterの案内の横にある「このまま開く」を選んでください。"
       },
       "linux": {
-        "open": "AppImageに実行権限を付けてから起動します。",
-        "packages": "パッケージを使いたい場合は、debとrpmのファイルが<download>ダウンロードページ</download>にあります。",
+        "open": "deb パッケージをソフトウェアのインストーラーで開くか、ターミナルでインストールします。",
+        "packages": "Fedora や openSUSE、または AppImage を使う場合は、ほかのファイルが<download>ダウンロードページ</download>にあります。AppImage には libfuse2 が必要です（Ubuntu 24.04 では libfuse2t64）。",
         "wayland": "Waylandでは、端のタブの代わりにトレイにバーが表示されます。"
       }
     },
@@ -1015,9 +934,9 @@
     "disclosure": {
       "title": "デスクトップアプリがコンピューターで行うこと",
       "webview": "Windowsでは、MicrosoftのWebView2ランタイムがない場合、インストーラーがそれを追加します。アプリはこれを使ってウィンドウを描画します。",
-      "updates": "アプリはGitHubで新しいバージョンを確認し、インストールする前に確認を求めます。macOSでは当面、新しいバージョンはこのページからの新しいダウンロードになります。",
+      "updates": "アプリはGitHubで新しいバージョンを確認し、インストールする前に確認を求めます。macOSのプレビュー版は自動で更新されないため、新しいバージョンはこのページからの新しいダウンロードになります。",
       "logins": "コーディングツールがすでに保存したログインを読み取り専用で読み、それぞれをそのプロバイダーにだけ送ります。あなたの測定値がOpenLimiterに届くのはサインインした場合だけで、その場合も範囲を限定したquotaの測定値だけです。",
-      "claude": "Claudeのセッションのバーは、Claude Codeのドキュメント化されたstatuslineから取得します。新しくインストールした場合、アプリは案内を表示したうえで、あなた自身のClaude CodeログインでAnthropicにも直接Claudeの使用量を問い合わせます。送信先はAnthropicだけです。この問い合わせはオフにできます。"
+      "claude": "ClaudeのバーはClaude Codeのドキュメント化されたstatuslineから取得します。AnthropicにClaudeの使用量を直接問い合わせる機能は、Connect Toolsでオンにするまでオフです。オンにすると、あなた自身のClaude Codeログインを約5分ごとにAnthropicだけに送信し、すべてのClaudeのバーがその1つの情報源から表示されます。このようなツールに関するAnthropicの方針は未解決です。"
     },
     "mobile": {
       "title": "OpenLimiterはコンピューターで動きます。",
@@ -1031,10 +950,6 @@
       "available": "利用可能",
       "inDevelopment": "近日公開",
       "planned": "計画中"
-    },
-    "available": {
-      "title": "今すぐ利用可能",
-      "lead": "Windows、macOS、Linuxにはパッケージ済みのデスクトップビルドがあり、下のリンクはどれもファイルに直接つながります。コマンドラインツールはどのプラットフォームでもnpm installひとつ、あるいは自分でビルドしたい場合はcloneひとつです。Web appは何もインストールせずに動きます。"
     },
     "packages": {
       "title": "その他のデスクトップパッケージ",
@@ -1050,10 +965,6 @@
       "lead": "デスクトップからスマートフォンをペアリングし、その後Webアプリをホーム画面にインストールします。ネイティブのiOSやAndroidアプリケーションは作られていません。",
       "qrAlt": "{url}へのリンクを含むQRコード",
       "scan": "デスクトップに表示されたコードをスマートフォンのカメラでスキャンしてください。Webアプリが開くので、そこからホーム画面にインストールできます。"
-    },
-    "building": {
-      "title": "近日公開",
-      "lead": "署名と公証を経たmacOSビルドと、それに依存する自動更新です。macOSアプリは今日からダウンロードでき、署名できるようになるまで更新マニフェストからは外してあります。署名を検証できない更新は、更新がないことより悪いからです。"
     },
     "notBuilt": {
       "title": "まだ作られていません",
@@ -1082,14 +993,6 @@
         "note": "未署名のWindowsビルドです。SmartScreenでは「詳細情報」、続けて「実行」を選んでください。",
         "requirement": "Node 24以降と、リポジトリが固定しているpnpm 9.15.0。PowerShellでも、お好みのターミナルでもかまいません。"
       },
-      "macos": {
-        "name": "macOS",
-        "summary": "デスクトップアプリケーションは、Apple silicon と Intel の両方で動くひとつのユニバーサルディスクイメージとして macOS 向けにパッケージされ、リリースに添付されます。ビルドは署名されていないため Gatekeeper が最初の起動を拒み、システム設定で一度だけ許可します。コマンドラインツールは他と同じように macOS でも npm から入ります。",
-        "note": "未署名のmacOSビルドです。ディスクイメージを開き、OpenLimiterをアプリケーションへドラッグして、一度開いてください。macOSはこの初回を拒否します。システム設定を開き、プライバシーとセキュリティに進み、セキュリティまでスクロールして、OpenLimiterの案内の横にある「このまま開く」を選び、確認してください。これは一度だけです。署名と公証を経たビルドができるまでmacOSは自動更新の対象外なので、それまでは新しいバージョンはこのページからの新しいダウンロードになります。",
-        "assets": {
-          "universal": "ユニバーサルディスクイメージ"
-        }
-      },
       "linux": {
         "name": "Linux",
         "summary": "デスクトップアプリケーションはLinux向けに3通りの形でパッケージ化されており、すべてリリースに添付されています。どの環境でも動くAppImage、DebianとUbuntu向けのdeb、FedoraとopenSUSE向けのrpmです。コマンドラインツールはnpmからインストールでき、pushのたびにWindowsと並んでLinuxでもテストされています。",
@@ -1100,7 +1003,7 @@
         },
         "note": "一つの形式を選んでください。AppImageは実行権限を設定すればインストールせずに動きます。DebianとUbuntuではdebファイルを使います。FedoraとopenSUSEではrpmファイルを使います。下のコマンドはリリースにある正確なファイル名を使っています。",
         "instructions": {
-          "appImage": "AppImageを実行",
+          "appImage": "AppImageを実行。libfuse2 が必要です（Ubuntu 24.04 では libfuse2t64）。",
           "deb": "DebianまたはUbuntuへインストール",
           "rpm": "FedoraまたはopenSUSEへインストール"
         },
@@ -1110,11 +1013,6 @@
         "name": "Webアプリ",
         "summary": "インストールするものはありません。Web アプリはコマンドラインツールと同じエンジンをブラウザーのタブ内で動かし、スマートフォンやデスクトップのホーム画面に追加でき、オフラインでも動き続けます。サインインすれば自分の端末が同期したパーセンテージが見え、デスクトップアプリケーションが表示するコードを読み取ればスマートフォンをペアリングできます。",
         "hrefLabel": "Webアプリを開く"
-      },
-      "desktop": {
-        "name": "デスクトップアプリケーション",
-        "summary": "システム時計の横のトレイアイコンが、コマンドラインツールと同じローカルキャッシュを読むので、ターミナルを開かなくてもquotaが見えます。パッケージ済みのリリースはWindows、macOS、Linux向けに出しています。自動更新はWindowsとLinuxが対象で、macOSは署名済みビルドができ次第加わります。",
-        "note": "WindowsとmacOSのビルドは未署名です。Windowsでは、SmartScreenの詳細情報から実行を選んでください。macOSでは、システム設定のプライバシーとセキュリティで「このまま開く」を選んでください。"
       },
       "iphone": {
         "name": "iOS",
@@ -1159,16 +1057,12 @@
         "description": "ログインして、すでに料金を払っているAIアカウントを接続し、バーを確認できます。バーはアカウントなしでも無料です。",
         "lead": "OpenLimiterは、すでに料金を払っているAIサブスクリプションを計測します。バーはアカウントなしで自分のコンピューターから表示できます。ログインすると同じバーがデバイス間で同期され、カード不要の30日間無料体験で残りの機能が使えます。",
         "sections": {
-          "what-you-need": {
-            "title": "必要なもの",
-            "bullets": {
+          "terminal": {
+            "title": "Terminal",
+            "needs": {
               "node": "ターミナル用のNode 24以降。",
               "npm": "Nodeに付属するnpm。"
             },
-            "local": "ローカルメーター、デスクトップ通知、ターミナルは無料のままです。アカウントで同期が加わり、Proではホストされた履歴、メールとスマートフォンへのプッシュ通知、追加アカウント、クラウドAPI支出メーターが加わります。"
-          },
-          "terminal": {
-            "title": "Terminal",
             "intro": "引数を付けずにツールを実行すると、どこでも同じ3つの手順に進みます。ログイン、接続、バーの表示先の選択です。",
             "terminalLabel": "terminal",
             "steps": "ログインすると短いコードと <code>openlimiter.com/app/cli</code> へのリンクが表示されるため、ターミナルがパスワードを見ることはありません。Enterでスキップすると未ログインのままになります。接続ではインストール済みの各エージェントCLIを確認し、各行に <code>use current login</code>、<code>sign in</code>、<code>install</code> のいずれかを表示します。その場でCodex自身のログインを開始することもできます。最後に対応ターミナルを一覧表示し、選択した表示先を設定します。",
@@ -1177,7 +1071,8 @@
           },
           "desktop": {
             "title": "デスクトップアプリ",
-            "body": "デスクトップアプリの初回起動でも同じ3つの手順が表示されます。アカウント作成またはスキップ、直接アクセスできるプロバイダーへの接続、トレイでのバー表示です。トレイとそのバーにアカウントは不要です。"
+            "download": "<download>デスクトップアプリをダウンロード</download>してください。Windows と Linux 向けで、macOS はプレビュー版です。ほかに何もインストールする必要はなく、アカウントも不要です。",
+            "body": "初回起動では、アプリ自身のウィンドウで最初のバーまで案内します。直接アクセスできるプロバイダーに接続し、サインインは任意です。トレイとそのバーにアカウントは不要です。"
           },
           "hub": {
             "title": "ウェブハブ",
@@ -1194,7 +1089,7 @@
           },
           "phone": {
             "title": "Phone",
-            "body": "ハブを開いてスマートフォンを選び、表示されたQRコードを読み取ります。ペアリングに文字入力は不要です。そのままホーム画面に追加できます。Androidではインストールの案内を使い、iOSでは共有から「ホーム画面に追加」を選びます。"
+            "body": "コンピューターでOpenLimiterを開き、「Pair your phone」を選んで、表示されたQRコードを読み取ります。ペアリングに文字入力は不要です。そこからウェブアプリをホーム画面に追加できます。Androidではインストールの案内を使い、iOSでは共有から「ホーム画面に追加」を選びます。"
           },
           "claude-code": {
             "title": "Claude Codeを手動で接続する",
@@ -1288,7 +1183,7 @@
             "rows": {
               "claude": {
                 "connect": "設定は不要です。OpenLimiterはClaude Codeがすでに表示している情報を読み取ります。",
-                "reads": "Claude Code のステータス行を自動的に読み取ります。デスクトップへの新規インストールでは、ローカルの Claude 認証情報を使う説明済みの直接使用量リクエストがオンで開始します。選択がない既存のデスクトップインストールでは先に確認します。ターミナル設定は独自の選択を記録します。"
+                "reads": "Claude Code のステータス行を自動的に読み取ります。直接使用量リクエストはオンにするまでオフです。オンにすると、あなた自身の Claude Code ログインを約 5 分ごとに Anthropic だけに送信し、すべての Claude のバーがそこから表示されます。このようなツールに関する Anthropic の方針は未解決です。"
               },
               "openrouter": {
                 "connect": "ハブから開始する正式なOAuthです。すでに持っているキーも引き続き使えます。",
@@ -1333,7 +1228,7 @@
             "intro": "Most connectors read for themselves now. Two still do not, and this is the part worth stating plainly.",
             "bullets": {
               "antigravity": "<code>antigravity</code> は文書化された Antigravity CLI のステータス行から届きます。Antigravity CLI で <code>/usage</code> を使って割り当てを更新してください。",
-              "claude": "<code>claude</code> は Claude Code のステータス行が表示されるとすぐにデータを受け取ります。デスクトップへの新規インストールでは、説明済みの直接使用量リクエストがオンで開始します。選択がない既存のインストールでは先に確認し、ターミナル設定は独自の選択を記録します。",
+              "claude": "<code>claude</code> は Claude Code のステータス行が表示されるとすぐにデータを受け取ります。直接使用量リクエストはオンにするまでオフです。オンにすると、代わりにそれがすべての Claude のバーの情報源になります。",
               "live": "<code>codex</code>、<code>gemini_cli</code>、<code>grok</code>、<code>kimi</code>、<code>openrouter</code> は、それぞれのツールが保存したログインを最大15分に1回読み取ります。デスクトップアプリの更新処理、またはターミナルの <code>openlimiter refresh</code> が実行します。",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
               "ingestOnly": "<code>opencode</code> is the one connector left with no reader of its own: it only accepts data through <code>openlimiter ingest --provider opencode</code>, because it reads an authenticated page rather than a login file."
@@ -1506,7 +1401,7 @@
               "claude": {
                 "name": "Claude Code",
                 "reports": "五時間セッションと七日間の使用量、およびリセット時刻。",
-                "source": "Claude Code が表示するステータス行を自動的に読み取ります。デスクトップへの新規インストールでは、ローカルの Claude 認証情報を使う説明済みの直接使用量リクエストがオンで開始します。選択がない既存のインストールでは先に確認します。"
+                "source": "Claude Code が表示するステータス行を自動的に読み取ります。あなた自身の Claude Code ログインを使う直接使用量リクエストはオンにするまでオフです。オンにすると、それがすべての Claude のバーの情報源になり、約 5 分ごとに読み取られます。"
               },
               "codex": {
                 "name": "Codex",
@@ -1530,7 +1425,7 @@
               }
             },
             "riskTitle": "一部のインターフェースは非公式です",
-            "riskBody": "Claudeへの直接の問い合わせとOpenCodeは、変更または廃止される可能性がある非公開のプロバイダーインターフェースに依存します。契約の形が変わると、そのプロバイダーだけが不明になり、他のプロバイダーは動作を続けます。OpenRouterとCodex app serverは文書化されています。"
+            "riskBody": "Claudeへの直接の問い合わせとOpenCodeは、変更または廃止される可能性がある非公開のプロバイダーインターフェースに依存します。契約の形が変わると、推測せずにそのプロバイダーに表示し、他のプロバイダーは動作を続けます。OpenRouterとCodex app serverは文書化されています。"
           },
           "privacy": {
             "title": "プライバシー境界",
@@ -1754,7 +1649,7 @@
             },
             "grammar": {
               "title": "表示形式",
-              "intro": "Claude Codeでは、行の先頭にモデル、推論の強さ、コンテキストウィンドウの使用率が並びます。続いて期間ごとに1つのセルを表示します。タグ、10ブロックのバー、鮮度マーク付きの使用率、リセット時刻の順です。ステータス行を所有するプロバイダーは、表示先から出所が分かるため自分のタグを省きます。他のプロバイダーは期間コードの前に短いタグを付け、クレジット残高はバーの代わりにドル額を表示します。",
+              "intro": "Claude Codeでは、行の先頭にモデル、推論の強さ、コンテキストウィンドウの使用率が並びます。続いて期間ごとのセルがすべて1行に並びます。期間コード、10ブロックのバー、鮮度マーク付きの使用率、矢印の後のリセット時刻（例：↻6d23h、ASCIIのみのターミナルでは resets という語の後）の順です。使用率が80パーセント以上で !、90パーセント以上で !! が付きます。ステータス行を所有するプロバイダーは、表示先から出所が分かるため自分のタグを省きます。他のプロバイダーは期間コードの前に短いタグを空白を挟んで付け（例：cx 5h）、クレジット残高はバーの代わりにドル額を表示します。行がターミナルより長い場合は、上限に最も近い使用率を残し、末尾に +N more を表示します。",
               "exampleLabel": "出力例、ある表示先の1行",
               "freshness": {
                 "title": "鮮度マーク",
@@ -1838,11 +1733,11 @@
                 },
                 "width": {
                   "accepts": "40から400までの整数",
-                  "meaning": "行が折り返す前に、1行が使ってよい桁数です。あなたのターミナルを測ることは何もありません。statuslineのホストはターミナルを渡さずにこのコマンドを実行するため、ここで指定した数値がそのまま尊重されます。デフォルトは<code>140</code>。"
+                  "meaning": "1行が使ってよい桁数です。<code>bar</code> スタイルでは行は1行のままで、収まらない値は上限に最も近い値に場所を譲り、行の末尾に <code>+N more</code> が付きます。<code>cells</code> スタイルでは、この幅を超えると行が折り返されます。あなたのターミナルを測ることは何もありません。statuslineのホストはターミナルを渡さずにこのコマンドを実行するため、ここで指定した数値がそのまま尊重されます。デフォルトは<code>140</code>。"
                 },
                 "rows": {
                   "accepts": "<code>1</code>または<code>2</code>",
-                  "meaning": "レイアウトが使ってよい行数です。デフォルトは<code>2</code>。"
+                  "meaning": "<code>cells</code> スタイルが折り返してよい行数です。<code>bar</code> スタイルは常に1行です。デフォルトは<code>2</code>。"
                 },
                 "bars": {
                   "accepts": "<code>true</code>または<code>false</code>",
@@ -1875,7 +1770,7 @@
             },
             "statusline-stacking": {
               "title": "行に収まりきらないとき",
-              "body": "行は切り捨てられるのではなく、折り返されます。区切りは2つのセルの間に入り、セルの内側に入ることは決してなく、2行が上限です。それを超えると、上限に最も近いプロバイダーが残され、最後の行の末尾に、表示しきれなかった数が示されます。"
+              "body": "bar スタイルでは、行は10ブロックのバーで1行に収まります。幅に収まらないときは、上限に最も近い値を残し、末尾に +N more を付けます。cells スタイルは切り捨てずに折り返します。区切りは2つのセルの間に入り、セルの内側に入ることは決してなく、2行が上限です。それを超えると上限に最も近いプロバイダーが残され、最後の行の末尾に表示しきれなかった数が示されます。"
             },
             "statusline-plain": {
               "title": "0.1.0の行を、リクエストに応じて",
@@ -1918,7 +1813,7 @@
             "title": "The commands",
             "capturedFixturesLabel": "captured {date}, synthetic fixtures",
             "capturedLabel": "captured {date}",
-            "claudePoll": "デスクトップアプリの Fable の上限を表示スイッチはデスクトッププロセスを制御します。停止するには、Connect Tools を開き、Claude の行の末尾にあるメニューから Fable の上限を表示をオフにします。<code>providers.claude.poll</code> はコマンドラインプロセスを制御します。停止するには <code>openlimiter config set providers.claude.poll false</code> を実行します。それぞれのスイッチは独立しています。これはローカルの Claude 認証情報を使って使用量を直接要求します。このようなツールに関する Anthropic の方針は未解決です。",
+            "claudePoll": "Claude への直接リクエストはオンにするまでオフで、1 つのスイッチがデスクトップアプリとこのツールの両方に適用されます。デスクトップアプリでは、Connect Tools を開き、Claude の行の末尾にあるメニューから Read my Claude usage from Anthropic をオンまたはオフにします。ターミナルでは <code>openlimiter config set providers.claude.poll true</code> でオンにし、<code>openlimiter config set providers.claude.poll false</code> で停止します。オンにすると、あなた自身の Claude Code ログインを約 5 分ごとに Anthropic だけに送信し、すべての Claude のバーがその 1 つの情報源から表示されます。このようなツールに関する Anthropic の方針は未解決です。",
             "init": {
               "body": "Writes local configuration to the state directory, recording every connector and whether it was detected. It reports the detected list, or none."
             },
@@ -1930,9 +1825,9 @@
             },
             "statusline": {
               "intro": "Renders the status row for a statusline host. It reads standard input first, so a Claude Code session payload is ingested and rendered in the same call, then falls back to the cache. This is the only command that writes as a side effect of being displayed.",
-              "cells": "The default layout draws one cell per window for the host named by <code>--host</code>: a tag, a ten block bar, the percentage, and the reset time, with no header line at all. See <docs>agent context</docs> for the full grammar and the freshness marks.",
+              "cells": "既定のレイアウトは、<code>--host</code> で指定したホスト向けに1行を描き、期間ごとに1つのセルを並べます。<code>cx 5h</code> のように空白を挟んだタグ、10ブロックのバー、80パーセント以上で !、90パーセント以上で !! が付く使用率、<code>↻6d23h</code> のような矢印の後のリセット時刻（ASCIIのみのターミナルでは resets という語の後）です。行がターミナルより長い場合は、上限に最も近い使用率を残し、末尾に <code>+N more</code> を表示します。完全な文法と鮮度マークは<docs>Agent context</docs>を参照してください。",
               "order": "<code>statusline.style cells</code> brings back the previous row instead: the overall reason code and the routing recommendation lead, then one compact cell per provider with a five block bar rather than the ten the new default draws.",
-              "stacking": "A row wider than its budget stacks rather than truncating. The break lands between two cells and never inside one, because half a bar reads as a reading and is not one. Two rows is the ceiling. Past that the providers closest to their caps are kept, and the last row ends by saying how many it could not show.",
+              "stacking": "cells スタイルでは、予算より長い行は切り捨てずに折り返されます。区切りは2つのセルの間に入り、セルの内側に入ることは決してありません。半分のバーは値のように見えても値ではないからです。2行が上限です。それを超えると上限に最も近いプロバイダーが残され、最後の行の末尾に表示しきれなかった数が示されます。",
               "calloutTitle": "The old line is still one setting away",
               "calloutBody": "<code>openlimiter config set statusline.bars false</code> returns the single plain line that 0.1.0 printed, byte for byte, for anything already parsing it. A test pins that exact string, so the escape hatch cannot rot quietly."
             },
@@ -1967,7 +1862,7 @@
               "body": "キャッシュしたバーをハブへ1回アップロードします。セッションの期限が近い場合は先に更新します。セッションがあれば、<code>refresh</code> は取得成功後にすでにこれを自動実行します。手動実行は送信の到着を確認したいときに使います。"
             },
             "refresh": {
-              "body": "各ツールが保存したログインを読み、各プロバイダーへ最大15分に1回使用量を問い合わせます。検証に通った読み取りをキャッシュに取り込みます。デスクトップアプリが動作中なら停止します。キャッシュが1分を超えると、<code>statusline</code> と <code>snapshot</code> が自動でバックグラウンド起動します。"
+              "body": "各ツールが保存したログインを読み、各プロバイダーへ最大15分に1回使用量を問い合わせます。検証に通った読み取りをキャッシュに取り込みます。Claude への直接の使用量リクエストは、オンにすると約5分ごとに読み取ります。デスクトップアプリが動作中なら停止します。キャッシュが1分を超えると、<code>statusline</code> と <code>snapshot</code> が自動でバックグラウンド起動します。"
             },
             "terminal": {
               "body": "対応する表示先と設定状態を一覧表示し、1つまたはすべての設定を提案します。<code>terminal install '<host>'</code> と <code>terminal uninstall '<host>'</code> は指定先を設定または復元します。<code>terminal status</code> は一覧だけを表示し、<code>terminal show</code> と <code>terminal hide</code> は表示するプロバイダーを選びます。対応先と形式は <docs>エージェントコンテキスト</docs> を参照してください。"
@@ -2076,20 +1971,20 @@
           "not-available": {
             "title": "まずこれを読んでください",
             "calloutTitle": "計画中とは、作られていないという意味です",
-            "calloutBody": "以下で計画中と記された項目は、今日は存在しません。どのストアにもネイティブのモバイルアプリケーションはなく、コード署名もなく、macOS 向けの自動更新の経路もありません。OpenLimiter Pro は別枠で利用可能として掲載しています。"
+            "calloutBody": "以下で計画中と記された項目は、今日は存在しません。どのストアにもネイティブのモバイルアプリケーションはなく、Windows ビルドにはコード署名がなく、macOS は公証されておらず自動更新もないプレビュー版です。OpenLimiter Pro は別枠で利用可能として掲載しています。"
           },
           "desktop": {
             "title": "提供済み：デスクトップアプリケーション",
-            "intro": "システム時計の横にトレイアイコンを置く小さなデスクトップアプリが、コマンドラインツールが書くのと同じローカルキャッシュを読むので、ターミナルを開かなくてもquotaが目に入ります。Windows、macOS、Linuxのパッケージ済みビルドをリリースに添付しています。",
+            "intro": "システム時計の横にトレイアイコンを置く小さなデスクトップアプリが、コマンドラインツールが書くのと同じローカルキャッシュを読むので、ターミナルを開かなくてもquotaが目に入ります。WindowsとLinuxのパッケージ済みビルドと、macOSのプレビュー版をリリースに添付しています。",
             "bullets": {
-              "status": "状態: Windows、macOS、Linuxで提供中。いずれも公開ダウンロードがあります。",
-              "signing": "WindowsとmacOSは未署名です。Windowsでは、SmartScreenの詳細情報から実行を選んでください。macOSでは、システム設定のプライバシーとセキュリティで「このまま開く」を選んでください。署名と公証ができるまで、macOSは自動更新の対象外です。",
-              "updates": "計画中：自動更新の仕組みです。今日の時点ではまだありません。"
+              "status": "状態: WindowsとLinuxで提供中、macOSはプレビュー版です。いずれも公開ダウンロードがあります。",
+              "signing": "Windowsビルドは未署名です。SmartScreenの詳細情報から実行を選んでください。macOSのプレビュー版はアドホック署名のみで公証されていません。一度開いてから、システム設定のプライバシーとセキュリティで「このまま開く」を選んでください。",
+              "updates": "更新: WindowsとLinuxのアプリはGitHubを確認し、新しいバージョンをインストールする前に確認を求めます。macOSのプレビュー版は新しいダウンロードで更新します。"
             }
           },
           "mobile": {
             "title": "Shipped: the phone, planned: a native app",
-            "intro": "スマートフォンはハブからQRコードでペアリングでき、入力は不要です。そこからホーム画面に追加できます。Androidはインストールを提案し、iOSでは共有してからホーム画面に追加します。スマートフォンのアクセスは無料アカウントで今すぐ利用できます。",
+            "intro": "スマートフォンはデスクトップアプリからQRコードでペアリングでき、入力は不要です。そこからホーム画面に追加できます。Androidはインストールを提案し、iOSでは共有してからホーム画面に追加します。スマートフォンのアクセスは無料アカウントで今すぐ利用できます。",
             "bullets": {
               "status": "状態: スマートフォンのペアリングとインストール可能なWebアプリは無料アカウントで提供されています。",
               "dependsOnSync": "A native application in an app store remains planned and does not exist today. The paired, installable web app is what replaces the need for one."
@@ -2100,10 +1995,7 @@
             "intro": "OpenLimiter Pro は月額 $5 または年額 $50 で利用でき、最初の 30 日は無料、カードは不要です。各項目が実際に何であるかは <pricing>価格</pricing> をご覧ください。",
             "bullets": {
               "status": "状態は利用可能です。サインインした時点から同期は有効です。",
-              "alerts": "上限またはリセットのメールアラート。",
-              "history": "90日間のホスト型使用履歴と消費予測。",
-              "localFirst": "画面に見えるものはすべて無料です。コマンドラインツールとデスクトップのローカル機能は Pro アカウントなしで動きます。",
-              "phone": "QRコードでスマートフォンをペアリングし、デバイスを1日以上閉じても接続を維持します。"
+              "localFirst": "画面に見えるものはすべて無料です。コマンドラインツールとデスクトップのローカル機能は Pro アカウントなしで動きます。"
             }
           },
           "following": {
@@ -2128,6 +2020,7 @@
     "sending": "リンクを送信しています。",
     "sent": "{email} を確認し、この端末でリンクを開いてください。",
     "failed": "そのサインインを開始できませんでした。接続を確認してもう一度お試しください。",
+    "emailFailed": "サインイン用のメールを今は送信できませんでした。代わりに GitHub か Google で続けてください。",
     "githubOff": "GitHub でのサインインはまだ有効になっていません。Google かメールアドレスをお使いください。",
     "googleOff": "Google でのサインインはまだ有効になっていません。GitHub かメールアドレスをお使いください。",
     "emailOff": "メールアドレスでのサインインはまだ有効になっていません。GitHub か Google をお使いください。",
@@ -2140,7 +2033,7 @@
   },
   "proPortal": {
     "title": "OpenLimiter Pro",
-    "lead": "画面に見えるものはすべて無料です。Proでは履歴、メールとスマートフォンへのプッシュ通知、追加アカウント、クラウドAPI支出メーターが加わります。",
+    "lead": "画面に見えるものはすべて無料です。Proでは{features}が加わります。",
     "metaDescription": "サインインして OpenLimiter Pro のプラン、請求、quota を読む端末を管理します。",
     "loading": "アカウントを読み込んでいます。",
     "working": "処理中",
@@ -2171,14 +2064,14 @@
       "trial": {
         "chip": "試用",
         "title": "無料試用中です",
-        "body": "Proのサービスはすべて有効です。予測付きの履歴、メールとスマートフォンへのプッシュ通知、追加アカウント、明示的に有効にしたキーのクラウドAPI支出メーターが含まれます。カードは求めていません。",
+        "body": "Proのサービスはすべて有効です。{features}が含まれます。カードは求めていません。",
         "daysLeft": "試用は残り{count, plural, other {# 日}}です。",
         "ends": "{date} に終了します。"
       },
       "active": {
         "chip": "有効",
         "title": "Pro は有効です",
-        "body": "履歴、メールとスマートフォンへのプッシュ通知、追加アカウント、クラウドAPI支出メーターがすべて有効です。",
+        "body": "{features}がすべて有効です。",
         "renewsOn": "{date} に更新されます。",
         "endsOn": "{date} に終了し、更新されません。"
       },
@@ -2216,9 +2109,13 @@
       "neverSeen": "まだ確認されていません"
     },
     "checkout": {
-      "success": {
-        "title": "支払いを受け取りました",
-        "body": "Stripe が支払いを確認しました。サービスが記録し次第ここに反映され、通常は数秒で終わります。"
+      "pending": {
+        "title": "支払いを確認しています",
+        "body": "Stripe が支払いを確認し次第、数分以内に Pro が有効になります。"
+      },
+      "confirmed": {
+        "title": "Pro が有効です",
+        "body": "このアカウントでは Pro のサービスがすべて有効です。"
       },
       "cancel": {
         "title": "チェックアウトを中止しました",
@@ -2232,24 +2129,12 @@
       "start": "Proを30日間無料で始める",
       "free": "クレジットカードは不要です"
     },
-    "offer": {
-      "title": "年間プランの特典",
-      "lead": "トライアルが終了したため、この期間中は初年度が割引になります。",
-      "label": "特典の終了まで",
-      "countdown": "{days}日{hours}時間{minutes}分",
-      "countdownLabel": "残り時間: {days}日 {hours}時間 {minutes}分。",
-      "price": "初年度は40米ドル、その後は50米ドルです。",
-      "take": "この特典を受け取る"
-    },
     "lost": {
       "alerts": "{count}件のアラートが停止しました。",
       "noAlerts": "停止したアラートはありません。",
       "history": "履歴は30日間保存された後、削除されます。",
-      "phone": "スマートフォンのペアリング: {status}。",
       "multiAccount": "追加アカウント{count}件が停止しました。",
       "hostedContext": "クラウドAPI支出メーター: {status}。",
-      "paired": "あり",
-      "notPaired": "なし",
       "on": "オン",
       "off": "オフ",
       "loading": "停止した内容を読み込んでいます。",
@@ -2257,8 +2142,29 @@
     },
     "restore": "登録するとすべてが元の状態に戻ります。設定は保持されています。"
   },
+  "proFeatures": {
+    "multiAccount": "プロバイダーごとに複数のアカウント",
+    "history": "予測付きの90日分のホスト型履歴",
+    "alerts": "スマートフォンへのプッシュ通知とメール通知。デスクトップ通知は引き続き無料です",
+    "apiSpend": "有効にしたキーのクラウドAPI支出メーター",
+    "ember": "Ember テーマプリセット",
+    "inline": {
+      "multiAccount": "追加アカウント",
+      "history": "ホスト型履歴",
+      "alerts": "メールとプッシュ通知",
+      "apiSpend": "クラウドAPI支出メーター",
+      "ember": "Ember テーマプリセット"
+    }
+  },
   "hub": {
     "accountFallback": "アカウント {count}",
+    "syncFailed": {
+      "line": "バーの最新の読み取りに失敗しました。OpenLimiter は1分ごとに再試行します。",
+      "retry": "もう一度試す"
+    },
+    "alertsGate": {
+      "pro": "スマートフォンへのプッシュ通知とメール通知は Pro の機能です。デスクトップ通知は無料です。"
+    },
     "updatedMinutes": "{count} 分前に更新",
     "updatedHours": "{count} 時間前に更新",
     "updatedDays": "{count} 日前に更新",
@@ -2295,8 +2201,6 @@
     "accountBalanceDetail": "購入済み {purchased}、使用済み {used}",
     "balance": "残高",
     "percentUsed": "{value}% 使用済み",
-    "claudeFableDesktopHint": "お使いのコンピューターの OpenLimiter で Claude の使用量がオンになっていると、ここに Fable が表示されます。",
-    "claudeWeeklyPollHint": "接続ツールで使用量のポーリングをオンにすると、週間上限を確認できます。",
     "providers": {
       "title": "プロバイダー",
       "automaticPrompt": "デスクトップアプリを開いてください。ローカル検出はそこから始まります。",
@@ -2344,7 +2248,7 @@
       "description": "アプリがサインインし、このマシンにすでにあるツールを見つけると、ここにバーが表示されます。",
       "download": {
         "windows": "Windows 版 OpenLimiter をダウンロード",
-        "macos": "macOS 版 OpenLimiter をダウンロード",
+        "macos": "OpenLimiter の macOS プレビュー版をダウンロード",
         "linux": "Linux 版 OpenLimiter をダウンロード"
       },
       "platforms": {
@@ -2462,53 +2366,41 @@
     "pro": {
       "label": "Pro",
       "locked": {
-        "title": "履歴、通知、追加アカウント、クラウド測定",
-        "lead": "バーとデスクトップ通知は無料です。これらのPro機能はトライアルで利用できます。"
+        "title": "Pro で追加されるもの",
+        "lead": "バーとデスクトップ通知は無料です。これらのPro機能はトライアルで利用できます。",
+        "price": "トライアル後は月額 {monthly} または年額 {yearly} です。いつでも解約でき、14 日以内なら申し出により全額返金します。"
+      },
+      "phonePush": "ペア設定では、このスマートフォンにバーが表示されます。プッシュ通知は有効になりません。プッシュ通知は、サインインして通知を許可した状態で Pro を開始したブラウザーに届きます。",
+      "phonePlan": {
+        "loading": "プランを読み込んでいます。",
+        "unavailable": "このスマートフォンでは今はプランを読み込めませんでした。バーは引き続き更新されます。"
       },
       "expired": {
         "title": "Pro が終了しました",
         "lead": "保存されたPro設定はそのままです。これらのサービスが停止しました。"
       },
-      "feature": {
-        "alerts": "メールとスマートフォンへのプッシュ通知。ローカルのデスクトップ通知は無料です。",
-        "history": "90日分の履歴と、予測。",
-        "phone": "明示的に有効にしたキーのクラウドAPI支出メーター。",
-        "multiAccount": "各プロバイダーで複数アカウント。"
-      },
     "lost": {
       "alerts": "{count}件のアラートが停止しました。",
       "noAlerts": "停止したアラートはありません。",
         "history": "履歴は30日間保存された後、削除されます。",
-        "phone": "スマートフォンのペアリング: {status}。",
         "multiAccount": "追加アカウント{count}件が停止しました。",
         "hostedContext": "クラウドAPI支出メーター: {status}。",
-        "paired": "あり",
-        "notPaired": "なし",
         "on": "オン",
         "off": "オフ",
         "loading": "停止した内容を読み込んでいます。",
         "unavailable": "停止した内容を読み込めませんでした。"
       },
       "restore": "登録するとすべてが元の状態に戻ります。設定は保持されています。",
-      "offer": {
-        "label": "特典の終了まで",
-        "countdown": "{days}日{hours}時間{minutes}分",
-        "countdownLabel": "残り時間: {days}日 {hours}時間 {minutes}分。",
-        "price": "初年度は40米ドル、その後は50米ドルです。",
-        "take": "この特典を受け取る",
-        "working": "決済画面を開いています"
-      },
       "prices": {
-        "line": "年間{yearly}。",
-        "take": "Pro を利用する"
+        "working": "決済画面を開いています"
       },
       "error": "処理が完了しませんでした。請求は発生しておらず、変更もありません。"
     },
     "phone": {
       "button": "スマートフォンで開く",
-      "line": "デスクトップアプリでペア設定を始めてから、スキャンしてください",
+      "line": "スキャンするとスマートフォンで OpenLimiter が開き、サインインできます。サインインせずにペア設定するには、デスクトップアプリで「Pair your phone」を選んでください。",
       "download": "デスクトップアプリを入手",
-      "qrAlt": "スマートフォンのペア設定ページにつながる QR コード"
+      "qrAlt": "OpenLimiter のウェブアプリにつながる QR コード"
     },
     "phonePairHint": "デスクトップアプリとペアリングして、ログインせずに使用量バーを表示",
     "phoneInstall": {
@@ -2548,7 +2440,8 @@
       "retry": "読み取りを更新",
       "defaultLabel": "このスマートフォン",
       "bars": {
-        "title": "利用状況"
+        "title": "利用状況",
+        "empty": "まだ読み取りがありません。お使いのコンピューターで OpenLimiter を開き、ツールを接続してください。"
       },
       "reading": {
         "title": "利用状況を読み込んでいます",
@@ -2560,7 +2453,7 @@
       },
       "revoked": {
         "title": "このスマートフォンのペア設定は解除されました",
-        "body": "ハブから再度スキャンしてください。デスクトップアプリが新しいコードを表示し、スマートフォンを再度承認します。"
+        "body": "デスクトップアプリからもう一度ペア設定してください。コンピューターで OpenLimiter を開き、「Pair your phone」を選んで新しいコードをスキャンします。"
       },
       "offline": {
         "title": "サービスが応答しませんでした",
@@ -2573,7 +2466,7 @@
           "body": "少々お待ちください。まだ何も送信されていません。"
         },
         "noCode": {
-          "title": "このリンクにはペア設定コードがありません",
+          "title": "このスマートフォンはデスクトップアプリからペア設定します",
           "body": "デスクトップアプリが2分間有効なペア設定コードを生成します。コンピューターでOpenLimiterを開き、「Pair your phone」を選んで表示されたコードをスキャンしてください。"
         },
         "waiting": {

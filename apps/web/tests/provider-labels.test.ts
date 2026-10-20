@@ -1,6 +1,7 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { meterName, providerMeterOverride, providerName } from "../app/app/language";
-import { claudeFableHint } from "../app/app/pieces";
 import { buildProviderAccountRows, type Snapshot } from "../app/app/engine";
 
 describe("provider labels", () => {
@@ -55,10 +56,15 @@ describe("provider labels", () => {
     });
   });
 
-  it("shows the desktop path only when a Claude card has no model scoped window", () => {
-    const hint = "Fable shows here when Claude usage is on in OpenLimiter on your computer.";
-    expect(claudeFableHint("CLAUDE", ["FIVE_HOUR", "SEVEN_DAY"], hint)).toBe(hint);
-    expect(claudeFableHint("CLAUDE", ["FIVE_HOUR", "SEVEN_DAY_FABLE_5_1"], hint)).toBeNull();
-    expect(claudeFableHint("CODEX", ["FIVE_HOUR", "SEVEN_DAY"], hint)).toBeNull();
+  /* 2.1.7, plan item 7: the direct Claude request is opt in, and nothing on
+     the hub or the phone pushes toward it, in any locale. */
+  it("offers no Claude enablement hint on the hub or the phone", () => {
+    const read = (file: string) => readFileSync(resolve(process.cwd(), file), "utf8");
+    for (const file of ["app/app/pieces.tsx", "app/app/dashboard.tsx", "app/app/device-view.tsx", "app/app/pair/pair-flow.tsx"]) {
+      expect(read(file), file).not.toMatch(/claudeFableHint|claudeFableDesktopHint|claudeWeeklyPollHint/u);
+    }
+    for (const locale of ["en", "de", "es", "ja", "pt-BR"]) {
+      expect(read("messages/" + locale + ".json"), locale).not.toMatch(/"claudeFableDesktopHint"|"claudeWeeklyPollHint"/u);
+    }
   });
 });

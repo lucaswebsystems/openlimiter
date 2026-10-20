@@ -196,6 +196,23 @@ export function readSuppressions(value: unknown): SuppressionReadResult {
 }
 
 /**
+ * Whether a row may reach a surface, by provenance and never by the file it
+ * sits in. With the request on, a Claude row counts only when the request read
+ * it, plus the ACQUISITION row that carries the request's availability. With it
+ * off, every Claude row except the request's counts, as in 2.1.5, with no
+ * weekly. Other providers always count. It lives beside the projection the
+ * desktop window copies, so rows held through a failed read are validated by
+ * the same rule. Rust twin: state.rs claude_row_counts; both prove
+ * claude-poll-vectors.json `source`.
+ */
+export function claudeRowCounts(row: Snapshot, pollOn: boolean): boolean {
+  if (row.provider !== "CLAUDE") return true;
+  if (row.meter === "ACQUISITION") return pollOn;
+  const remote = row.provenance?.sourceKind === "remote_api";
+  return pollOn ? remote : !remote && !row.meter.startsWith("SEVEN_DAY");
+}
+
+/**
  * Fold one collection report into the cache.
  *
  * Four rules, one per kind of outcome, and no fifth:

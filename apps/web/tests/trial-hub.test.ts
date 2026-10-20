@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Dashboard } from "@/app/app/dashboard";
 import { ONBOARDED_METADATA_KEY } from "@/lib/onboarding";
+import proList from "@/lib/pro-features.json";
 import { all, byText, flush, messages, render, type Mounted } from "./render";
 
 /**
@@ -64,6 +65,9 @@ vi.mock("@/lib/account-client", async (importOriginal) => {
 const hub = messages.hub;
 const trial = hub.trial;
 const pro = hub.pro;
+const portal = messages.proPortal;
+const CHECKOUT_URL = "https://checkout.stripe.com/c/pay/cs_test_plan";
+let checkouts: unknown[] = [];
 
 const NOW = Date.now();
 const IN_TEN_DAYS = new Date(NOW + 10 * 86_400_000).toISOString();
@@ -120,6 +124,10 @@ function fakeClient(): unknown {
           entitlementRow = { plan_state: "trialing", trial_ends_at: IN_TEN_DAYS };
           return { data: { entitlement: entitlementRow }, error: null };
         }
+        if (fn === "create-checkout") {
+          checkouts.push(options?.body);
+          return { data: { url: CHECKOUT_URL }, error: null };
+        }
         if (fn === "entitlement") {
           if (entitlementFails) {
             return { data: null, error: { context: { status: 500 } } };
@@ -139,6 +147,7 @@ beforeEach(() => {
   trialCalls = 0;
   signedOut = false;
   trialRefused = false;
+  checkouts = [];
   expiredSummary = {
     data: {
       alert_count: 4,
@@ -295,15 +304,15 @@ describe("the locked Pro surfaces under the bars", () => {
   it("names all four and offers the trial when there is no plan", async () => {
     const view = await open();
     const lines = all(view.container, ".ol-lock-list li").map((node) => node.textContent?.trim());
-    expect(lines).toEqual([
-      pro.feature.alerts,
-      pro.feature.history,
-      pro.feature.phone,
-      pro.feature.multiAccount,
-    ]);
+    expect(lines).toEqual(
+      proList.features.map((feature) => messages.proFeatures[feature.id as keyof typeof messages.proFeatures]),
+    );
+    expect(view.container.textContent).toContain(
+      pro.locked.price.replace("{monthly}", "$5").replace("{yearly}", "$50"),
+    );
   });
 
-  it("says what stopped, with the countdown, inside the offer window", async () => {
+  it("says what stopped and offers both plans, never a first year offer, even inside the old offer window", async () => {
     entitlementRow = {
       plan_state: "expired",
       trial_ends_at: YESTERDAY,
@@ -311,20 +320,32 @@ describe("the locked Pro surfaces under the bars", () => {
     };
     const view = await open();
     expect(view.container.textContent).toContain(pro.lost.alerts.replace("{count}", "4"));
-    expect(view.container.querySelector(".ol-lock-countdown")).not.toBeNull();
-    expect(view.container.textContent).toContain(pro.offer.price);
+    /* The phone is free, so it is never listed as something that stopped. */
+    expect(view.container.textContent).not.toContain("Phone paired");
+    expect(view.container.querySelector(".ol-lock-countdown")).toBeNull();
+    expect(view.container.textContent).not.toContain("USD 40");
+    expect(byText(view.container, "button", portal.upgrade.monthly.replace("{price}", "$5"))).not.toBeNull();
+    expect(byText(view.container, "button", portal.upgrade.yearly.replace("{price}", "$50"))).not.toBeNull();
+    expect(view.container.textContent).toContain(portal.upgrade.note);
   });
 
-  it("shows the ordinary prices once the offer window has passed", async () => {
-    entitlementRow = {
-      plan_state: "expired",
-      trial_ends_at: YESTERDAY,
-      offer_ends_at: YESTERDAY,
-    };
-    const view = await open();
-    expect(view.container.querySelector(".ol-lock-countdown")).toBeNull();
-    expect(view.container.textContent).toContain("$50 a year.");
-    expect(byText(view.container, "button", pro.prices.take)).not.toBeNull();
+  it("checks out the plan that was pressed, monthly or yearly", async () => {
+    entitlementRow = { plan_state: "expired", trial_ends_at: YESTERDAY };
+    const assign = vi.fn();
+    const real = window.location;
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { assign, href: "https://openlimiter.com/app", pathname: "/app", search: "", hash: "" },
+    });
+    try {
+      const view = await open();
+      press(byText(view.container, "button", portal.upgrade.monthly.replace("{price}", "$5")));
+      await flush(3);
+      expect(checkouts).toEqual([{ interval: "month" }]);
+      expect(assign).toHaveBeenCalledWith(CHECKOUT_URL);
+    } finally {
+      Object.defineProperty(window, "location", { configurable: true, value: real });
+    }
   });
 
   it("is not on the screen at all for a running trial", async () => {
@@ -342,6 +363,11 @@ describe("the alerts gate", () => {
     await flush();
     expect(view.container.querySelector(".ol-notification-popover")?.textContent).toContain(
       trial.start,
+    );
+    /* Desktop alerts are free; only phone push and email alerts are Pro. */
+    expect(view.container.querySelector(".ol-notification-popover")?.textContent).toContain(hub.alertsGate.pro);
+    expect(view.container.querySelector(".ol-notification-popover")?.textContent).not.toContain(
+      "Alerts are part of Pro.",
     );
     expect(document.activeElement).toBe(view.container.querySelector('[role="dialog"]'));
     press(byText(view.container, "button", hub.providers.close));

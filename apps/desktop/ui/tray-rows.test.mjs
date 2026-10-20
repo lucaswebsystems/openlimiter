@@ -391,3 +391,9 @@ test("tray destinations pin trial and pairing URLs without locale prefixes", () 
   assert.equal(TRIAL_URL, "https://openlimiter.com/app?trial=1");
   assert.equal(PAIR_URL, "https://openlimiter.com/app/pair");
 });
+
+test("the tray source carries no raw control character, only its escape", () => {
+  const source = readFileSync(new URL("./tray.js", import.meta.url), "utf8");
+  assert.equal(source.includes(String.fromCharCode(0)), false, "a raw NUL byte is in tray.js");
+  assert.match(source, /row\.provider \+ "\\u0000" \+ \(row\.accountId \?\? ""\)/u);
+});

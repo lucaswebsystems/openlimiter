@@ -10,6 +10,12 @@ const whatsNewForVersion = (version) => selectRelease(version, WHATS_NEW_EN);
 
 /* What each recent release says, word for word; the current version is one of them. */
 const NOTES = {
+  "2.1.7": [
+    { key: "claude", text: "Every Claude bar comes from one source. The direct request to Anthropic is off unless you turn it on in Connect Tools; if an earlier version turned it on, it stays on until you turn it off there." },
+    { key: "order", text: "Drag a provider by its grip, or use its move menu, to put Usage and the edge panel in your own order. Settings, Order switches back to Most used first." },
+    { key: "presets", text: "Graphite, Meadow and terminal captions are free, and Ember is the one Pro preset." },
+    { key: "status", text: "The status line keeps to its width on one row." },
+  ],
   "2.1.6": [
     { key: "autostart", text: "OpenLimiter now starts when you sign in, so your bars stay current after a restart. Turn it off in Settings." },
   ],
@@ -94,8 +100,10 @@ test("the 2.0.0 release notes remain available", () => {
   assert.match(WHATS_NEW_EN.releases["2.0.0"].cursor, /Experimental/u);
 });
 
-function fixture({ seen, ready = true, storageFails = false, showFails = false } = {}) {
+function fixture({ seen, ready = true, storageFails = false, showFails = false, upgrade = true } = {}) {
   const stored = new Map(seen ? [[WHATS_NEW_STORAGE_KEY, seen]] : []);
+  /* An upgrade is an install that finished a first run on an earlier launch. */
+  if (upgrade) stored.set("openlimiter-first-run-complete-v1", "complete");
   let callback;
   let disconnected = false;
   class Element {
@@ -160,6 +168,21 @@ test("a previous release marker is advanced only after onboarding completes", as
   f.notify();
   assert.equal(f.doc.body.children.length, 1);
   assert.equal(f.stored.get(WHATS_NEW_STORAGE_KEY), manifest.version);
+});
+
+test("a fresh install never opens What's New over its first bars, and marks this release seen", async () => {
+  const f = fixture({ ready: false, upgrade: false });
+  await initWhatsNew(f.options);
+  assert.equal(f.doc.body.children.length, 0);
+  /* The first run finishes and the bars come up: nothing opens over them. */
+  f.doc.documentElement.dataset.firstRun = "complete";
+  f.notify();
+  assert.equal(f.doc.body.children.length, 0, "What's New opened over a fresh install");
+  assert.equal(f.stored.get(WHATS_NEW_STORAGE_KEY), manifest.version);
+  assert.equal(f.disconnected(), true);
+  /* The next launch is not an upgrade either, so it stays shut. */
+  await initWhatsNew(f.options);
+  assert.equal(f.doc.body.children.length, 0);
 });
 
 test("a seen release and a release without notes do not create a dialog", async () => {

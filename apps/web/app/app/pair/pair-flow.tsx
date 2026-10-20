@@ -29,8 +29,10 @@ import {
   readCurrentPhoneBars,
   readPhoneLastBars,
   readPhonePairMeta,
+  phoneEntitlementOf,
   phonePairOf,
 } from "@/lib/phone-session";
+import type { ProEntitlement } from "@/lib/pro";
 import { createPhoneSessionRuntime } from "@/lib/session-runtime";
 import { serialPoll } from "@/lib/serial-poll";
 import { claimPairingCode, pollPairingClaim } from "@/lib/pro-device";
@@ -197,7 +199,8 @@ interface PhoneBarsProps {
   stateAnnouncement: (state: string) => string;
   accountLabel: (count: number) => string;
   claudeMeterCopy?: ClaudeMeterCopy;
-  claudeFableHintText?: string;
+  /** What a finished read with no rows says, instead of loading forever. */
+  emptyLabel: string;
 }
 
 /**
@@ -205,7 +208,7 @@ interface PhoneBarsProps {
  * browser dashboard draw, so one reading cannot look like two different
  * readings on two screens.
  */
-function PhoneBars({ body, stale, locale, staleLabel, now, freshLabel, staleStateLabel, unknownAgeLabel, ageLabel, stateAnnouncement, accountLabel, claudeMeterCopy = {}, claudeFableHintText = "" }: PhoneBarsProps) {
+export function PhoneBars({ body, stale, locale, staleLabel, now, freshLabel, staleStateLabel, unknownAgeLabel, ageLabel, stateAnnouncement, accountLabel, claudeMeterCopy = {}, emptyLabel }: PhoneBarsProps) {
   const rows = useMemo(
     () => meterRowsOf(body).map((row) => stale ? { ...row, stale: true } : row),
     [body, stale],
@@ -249,7 +252,6 @@ function PhoneBars({ body, stale, locale, staleLabel, now, freshLabel, staleStat
             orderScope={{ kind: "paired", id: "current-device" }}
             reorderable
             layout="stacked"
-            claudeFableHintText={claudeFableHintText}
           />
         )}
         {money.length > 0 && (
@@ -259,8 +261,10 @@ function PhoneBars({ body, stale, locale, staleLabel, now, freshLabel, staleStat
             ))}
           </div>
         )}
+        {/* Only a finished read reaches here, so no rows means none were
+            synced yet: say so and say where they come from. */}
         {snapshots.length === 0 && money.length === 0 && (
-          <SkeletonRows />
+          <p className={`${CARD} text-sm text-muted`}>{emptyLabel}</p>
         )}
       </div>
     </section>
@@ -334,9 +338,13 @@ function PairedPhone({
   });
   const locale = useRef("en");
   const claudeMeterCopy = useClaudeMeterCopy();
-  const readingsT = useTranslations("hub");
   const [now, setNow] = useState(() => new Date().toISOString());
   const [tab, setTab] = useState<PhoneTab>("usage");
+  /* The plan the newest fresh read reports, and whether any read has answered
+     yet: until one has, the Pro tab says it is reading. A failed read keeps
+     the plan from the last good one, the way the rows are kept. */
+  const [entitlement, setEntitlement] = useState<ProEntitlement | null | undefined>(undefined);
+  const [answered, setAnswered] = useState(false);
   const unpairedRef = useRef(onUnpaired);
   unpairedRef.current = onUnpaired;
 
@@ -354,8 +362,11 @@ function PairedPhone({
         unpairedRef.current();
       } else if (answer.kind === "fresh") {
         setState((previous) => ({ ...previous, bars: answer.body, phase: "ready", generation: previous.generation + 1 }));
+        setEntitlement(phoneEntitlementOf(answer.body, answer.plan));
+        setAnswered(true);
       } else if (answer.kind === "empty") {
         setState((previous) => ({ ...previous, phase: "offline" }));
+        setAnswered(true);
       }
     });
     runtime.start();
@@ -413,6 +424,7 @@ function PairedPhone({
               stale={state.phase === "offline"}
               locale={locale.current}
               staleLabel={t("pairPage.offline.staleMark")}
+              emptyLabel={t("pairPage.bars.empty")}
               now={now}
               freshLabel={t("cloud.fresh")}
               staleStateLabel={t("cloud.stale")}
@@ -421,7 +433,6 @@ function PairedPhone({
               stateAnnouncement={(value) => t("cloud.stateAnnouncement", { state: value })}
               accountLabel={(count) => t("grid.account", { count })}
               claudeMeterCopy={claudeMeterCopy}
-              claudeFableHintText={readingsT("claudeFableDesktopHint")}
             />
           </div>
         )}
@@ -433,7 +444,7 @@ function PairedPhone({
           tabIndex={0}
           hidden={tab !== "pro"}
         >
-          <ProTab />
+          <ProTab entitlement={entitlement} reading={!answered} />
         </section>
       </main>
       <PhoneTabs active={tab} onSelect={setTab} />

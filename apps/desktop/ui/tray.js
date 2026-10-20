@@ -264,7 +264,7 @@ function buildRow(snapshot, state, bandForPercent) {
 }
 
 function groupKey(row) {
-  return row.provider + " " + (row.accountId ?? "");
+  return row.provider + "\u0000" + (row.accountId ?? "");
 }
 
 /**

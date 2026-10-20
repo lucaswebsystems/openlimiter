@@ -186,7 +186,6 @@ export function DeviceView({ lockup }: { lockup: ReactNode }) {
               rows={rows}
               orderScope={{ kind: "paired", id: "current-device" }}
               reorderable
-              claudeFableHintText={readingsT("claudeFableDesktopHint")}
             />
             {money.length > 0 && (
               <Panel

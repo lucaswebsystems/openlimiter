@@ -19,7 +19,6 @@ import {
   PROVIDER_ROW_TAG,
   buildProviderDirectory,
   defineProviderRowElement,
-  isClaudeModelScopedMeter,
   setProviderRowData,
   type ProviderAccountRowView,
   type ProviderDirectoryRow,
@@ -95,14 +94,6 @@ export function ProviderAccountRow({
   );
 }
 
-export function claudeFableHint(
-  provider: string,
-  meters: readonly string[],
-  hint: string,
-): string | null {
-  return provider === "CLAUDE" && !meters.some(isClaudeModelScopedMeter) ? hint : null;
-}
-
 function GripGlyph() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -136,14 +127,12 @@ export function ProviderRows({
   orderScope,
   reorderable = false,
   onAddAccount,
-  claudeFableHintText = null,
   layout,
 }: {
   rows: readonly ProviderAccountRowView[];
   orderScope?: CardOrderScope;
   reorderable?: boolean;
   onAddAccount?: () => void;
-  claudeFableHintText?: string | null;
   layout?: "stacked";
 }) {
   const t = useTranslations("hub.grid");
@@ -344,11 +333,6 @@ export function ProviderRows({
     <div aria-label={t("label")} className="ol-telemetry-table">
       <div role="list" className="ol-provider-row-list">
         {orderedRows.map((row, index) => {
-          const hint = claudeFableHint(
-            row.provider,
-            row.windows.map((window) => window.key),
-            claudeFableHintText ?? "",
-          );
           return (
             <div
               role="listitem"
@@ -387,9 +371,6 @@ export function ProviderRows({
                   >
                     <GripGlyph />
                   </button>
-                ) : undefined}
-                footer={hint !== null && hint !== "" ? (
-                  <p slot="footer" className="ol-card-footer-note">{hint}</p>
                 ) : undefined}
               />
               {reorderable && openActionsKey === row.key && (

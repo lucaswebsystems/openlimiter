@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
 import { PhoneTabs, type PhoneTab } from "@/app/app/pair/phone-tabs";
 import { ProTab } from "@/app/app/pair/pro-tab";
+import proList from "@/lib/pro-features.json";
 import { PhoneSettings } from "@/app/app/pair/phone-settings";
 import {
   PHONE_LAST_BARS_KEY,
@@ -43,6 +44,19 @@ describe("phone card geometry", () => {
     expect(PHONE_THEME).toMatch(/\.ol-lock\s*\{[\s\S]*?border-radius:\s*var\(--ol-radius-md\)/u);
     expect(PHONE_THEME).toMatch(/\.ol-lock-offer\s*\{[\s\S]*?border-radius:\s*var\(--ol-radius-md\)/u);
     expect(PHONE_THEME).toMatch(/\.ol-lock-list li\s*\{[\s\S]*?display:\s*grid;[\s\S]*?grid-template-columns:\s*0\.375rem\s+minmax\(0,\s*1fr\)/u);
+  });
+
+  /* The Pro tab's grid rule once landed inside the install button's selector
+     group, which gave that button a grid and took its primary fill away. */
+  it("keeps the install confirmation's primary fill and gives the grid only to the Pro tab", () => {
+    const rules = [...PHONE_THEME.replace(/\/\*[\s\S]*?\*\//gu, "").matchAll(/([^{}]+)\{([^{}]*)\}/gu)]
+      .map(([, head, body]) => ({ selectors: head.split(",").map((selector) => selector.trim()), body }));
+    const install = "body:has(.ol-phone-shell) .ol-sheet .ol-install-done.ol-control-primary";
+    expect(rules.find((rule) => rule.selectors.includes(install))?.body).toMatch(/background:\s*var\(--ol-primary-fill\)/u);
+    for (const rule of rules.filter((candidate) => candidate.selectors.some((selector) => selector.includes(".ol-install-done")))) {
+      expect(rule.body).not.toMatch(/display:\s*grid/u);
+    }
+    expect(rules.find((rule) => rule.selectors.join() === ".ol-phone-pro")?.body).toMatch(/display:\s*grid/u);
   });
 });
 
@@ -147,18 +161,19 @@ describe("the paired phone shell", () => {
     })));
   }
 
-  it("switches from Usage to the four Pro features and trial action", () => {
+  it("switches from Usage to the one Pro list and trial action", () => {
     function Harness() {
       const [tab, setTab] = useState<PhoneTab>("usage");
       return createElement("div", null,
         createElement("div", { id: "ol-phone-panel-usage", role: "tabpanel", "aria-labelledby": "ol-phone-tab-usage", hidden: tab !== "usage" }, "bars"),
-        createElement("div", { id: "ol-phone-panel-pro", role: "tabpanel", "aria-labelledby": "ol-phone-tab-pro", hidden: tab !== "pro" }, createElement(ProTab)),
+        /* An account that never had a plan: the one case the trial is for. */
+        createElement("div", { id: "ol-phone-panel-pro", role: "tabpanel", "aria-labelledby": "ol-phone-tab-pro", hidden: tab !== "pro" }, createElement(ProTab, { entitlement: null, reading: false })),
         createElement(PhoneTabs, { active: tab, onSelect: setTab }));
     }
     render(createElement(Harness));
     const pro = [...container.querySelectorAll("button")].find((button) => button.textContent === messages.hub.phoneTabs.pro)!;
     act(() => pro.click());
-    expect(container.querySelectorAll(".ol-lock-list li")).toHaveLength(4);
+    expect(container.querySelectorAll(".ol-lock-list li")).toHaveLength(proList.features.length);
     expect(container.textContent).toContain(messages.hub.trial.start);
     expect(pro.getAttribute("aria-controls")).toBe("ol-phone-panel-pro");
     expect(container.querySelectorAll('[role="tabpanel"]')).toHaveLength(2);
@@ -201,5 +216,20 @@ describe("the paired phone shell", () => {
     await act(async () => { unpair.click(); await Promise.resolve(); });
     expect(unpaired).toHaveBeenCalledOnce();
     expect(readPhonePairMeta()).toBeNull();
+  });
+
+  it("a read that brings back no rows says so instead of loading forever", async () => {
+    const pairFlow = await import("@/app/app/pair/pair-flow");
+    const PhoneBars = (pairFlow as Record<string, unknown>).PhoneBars as ((props: Record<string, unknown>) => ReactNode) | undefined;
+    expect(PhoneBars, "the phone bars are not exported").toBeTypeOf("function");
+    const empty = (messages.hub.pairPage.bars as Record<string, string>).empty;
+    expect(empty).toBe("No readings yet. Open OpenLimiter on your computer and connect a tool.");
+    render(createElement(PhoneBars!, {
+      body: { rows: [] }, stale: false, locale: "en", staleLabel: "Stale", now: "2026-10-20T12:00:00.000Z",
+      freshLabel: "Fresh", staleStateLabel: "Stale", unknownAgeLabel: "Unknown", ageLabel: () => "",
+      stateAnnouncement: () => "", accountLabel: (count: number) => `Account ${count}`, emptyLabel: empty,
+    }));
+    expect(container.textContent).toContain(empty);
+    expect(container.querySelector(".ol-row-skeleton")).toBeNull();
   });
 });

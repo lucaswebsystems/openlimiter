@@ -4,7 +4,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  acquireRefreshLock, buildAdvice, CACHE_FILE_NAME, createFetchTransport, kimiUsageRequest,
+  acquireRefreshLock, AUTHORITATIVE_CACHE_FILE_NAME, buildAdvice, CACHE_FILE_NAME, createFetchTransport, kimiUsageRequest,
   normalizeMeters, readAcquisitionCredential,
   readSnapshotCache, registerManagedCodexAccount, shouldStartRefresh,
   writeSnapshotCache, type Snapshot
@@ -190,13 +190,13 @@ describe("P1 audit regressions", () => {
     const snapshots = normalizeMeters(parseOpenrouterPayload({ data: { total_credits: 20, total_usage: 6.4 } }, NOW) ?? []);
     for (const host of STATUSLINE_HOSTS) {
       const render = (now: string) => barStyleCells(snapshots, now, ["OPENROUTER"], host, [], "all", false).map((cell) => cell.plain).join(" ");
-      expect(render(NOW)).toBe("or $13.60");
+      expect(render(NOW)).toBe("or bal $13.60");
       // Hotfix 2.1.5: past its expiry a balance is grey with
       // colour and keeps the 2.1.4 tilde without (fix 6).
-      expect(render("2026-09-07T12:03:01.000Z")).toBe("or ~$13.60");
-      expect(render("2026-09-07T12:16:00.000Z")).toBe("or ~$13.60");
+      expect(render("2026-09-07T12:03:01.000Z")).toBe("or bal ~$13.60");
+      expect(render("2026-09-07T12:16:00.000Z")).toBe("or bal ~$13.60");
       expect(barStyleCells(snapshots, "2026-09-07T12:16:00.000Z", ["OPENROUTER"], host, [], "all", true).map((cell) => cell.painted).join(" "))
-        .toBe("or \x1b[90m$13.60\x1b[0m");
+        .toBe("or bal \x1b[90m$13.60\x1b[0m");
     }
   });
 
@@ -319,6 +319,31 @@ describe("P1 audit regressions", () => {
     };
     expect((await runCli(["sync"], current)).exitCode).toBe(0);
     expect(uploadedProviders).toEqual([["ANTIGRAVITY", "ANTIGRAVITY"]]);
+  });
+
+  /* 2.1.7, plan item 6: sync reads through the guarded cache, so a device
+     uploads only the Claude rows the switch selects, whichever file holds them. */
+  it("CLI sync uploads only the Claude rows the switch selects", async () => {
+    for (const enabled of [true, false]) {
+      const d = await deps();
+      await mkdir(d.stateDirectory!, { recursive: true });
+      await writeSession({ ...session(), expiresAt: "2026-09-07T20:00:00.000Z" }, { directory: d.stateDirectory!, platform: "linux" });
+      const claude = (value: number, sourceKind: "remote_api" | "statusline_payload") => row({
+        provider: "CLAUDE", accountId: "claude-personal", value,
+        provenance: { sourceKind, observedVia: sourceKind === "remote_api" ? "remote_http" : "claude_code_statusline" }
+      });
+      await writeFile(path.join(d.stateDirectory!, CACHE_FILE_NAME), JSON.stringify({ version: 3, snapshots: [claude(37, "statusline_payload")] }));
+      await writeFile(path.join(d.stateDirectory!, AUTHORITATIVE_CACHE_FILE_NAME), JSON.stringify({ version: 3, snapshots: [claude(4, "remote_api")] }));
+      await writeFile(path.join(d.stateDirectory!, "claude-poll.json"), JSON.stringify({ version: 1, enabled }));
+      const uploaded: number[] = [];
+      d.hubTransport = async (request) => {
+        const envelope = JSON.parse(request.body) as { usage_samples: { provider: string; usage_percent: number }[] };
+        uploaded.push(...envelope.usage_samples.filter((sample) => sample.provider === "CLAUDE").map((sample) => sample.usage_percent));
+        return { status: 200, body: JSON.stringify({ accepted: true, sequence: 1, tier: "free" }) };
+      };
+      expect((await runCli(["sync"], d)).exitCode).toBe(0);
+      expect(uploaded, String(enabled)).toEqual([enabled ? 4 : 37]);
+    }
   });
 
   it("serializes login and logout mutations behind the session lock", async () => {

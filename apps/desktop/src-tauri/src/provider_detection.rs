@@ -56,10 +56,22 @@ const KIMI_INSTALL_ROOTS_WINDOWS: &[&str] = &[
     "home/kimi-cli",
 ];
 
-/* macOS: npm and standalone installs are bounded by the same home and system
-roots the Antigravity probe trusts. */
-const CODEX_INSTALL_ROOTS_MACOS: &[&str] =
-    &["home/Applications", "home/bin", "home/.local", "home/.nvm"];
+/* macOS: npm and standalone installs under the home, and the package managers
+a Mac installs these clients with (2.1.7): Homebrew's prefix on Apple silicon
+and on Intel, whose bin links point into its kegs, casks and global npm
+packages, and Volta, Bun and pnpm, each of which keeps its shims and its
+packages in one folder of the home. */
+const CODEX_INSTALL_ROOTS_MACOS: &[&str] = &[
+    "home/Applications",
+    "home/bin",
+    "home/.local",
+    "home/.nvm",
+    "home/.volta",
+    "home/.bun",
+    "home/Library/pnpm",
+    "system/opt/homebrew",
+    "system/usr/local",
+];
 const CLAUDE_INSTALL_ROOTS_MACOS: &[&str] = CODEX_INSTALL_ROOTS_MACOS;
 const GEMINI_INSTALL_ROOTS_MACOS: &[&str] = CODEX_INSTALL_ROOTS_MACOS;
 const GROK_INSTALL_ROOTS_MACOS: &[&str] = CODEX_INSTALL_ROOTS_MACOS;
@@ -68,11 +80,32 @@ const KIMI_INSTALL_ROOTS_MACOS: &[&str] = &[
     "home/bin",
     "home/.local",
     "home/.nvm",
+    "home/.volta",
+    "home/.bun",
+    "home/Library/pnpm",
+    "system/opt/homebrew",
+    "system/usr/local",
     "home/kimi-code",
     "home/kimi_code",
     "home/kimicode",
     "home/kimi-cli",
 ];
+
+/* macOS: where those package managers put the commands they install. An app
+opened from Finder starts with launchd's PATH, which names none of them, so
+they are searched after PATH even when the login shell's PATH could not be
+imported (`host.rs`). */
+const MACOS_COMMAND_FOLDERS: &[&str] = &[
+    "system/opt/homebrew/bin",
+    "system/usr/local/bin",
+    "home/.volta/bin",
+    "home/.bun/bin",
+    "home/Library/pnpm",
+];
+
+/* Homebrew's prefixes, whose `bin` links point into the kegs (`Cellar`) and
+casks (`Caskroom`) of the packages they belong to. */
+const HOMEBREW_PREFIXES: &[&str] = &["system/opt/homebrew", "system/usr/local"];
 
 /* Linux: the probe's local bin, home bin, application and package manager
 roots are shared, with named Kimi install folders added explicitly. */
@@ -363,6 +396,9 @@ struct DiscoveryContext {
     kimi_share_dir: Option<PathBuf>,
     program_files: Vec<PathBuf>,
     path_entries: Vec<PathBuf>,
+    /// The file system root on macOS and Linux, where Homebrew's prefixes
+    /// live; a test stands a folder in for it.
+    system_root: Option<PathBuf>,
 }
 
 fn non_empty_path(name: &str) -> Option<PathBuf> {
@@ -392,6 +428,7 @@ impl DiscoveryContext {
             kimi_share_dir: None,
             program_files: Vec::new(),
             path_entries: Vec::new(),
+            system_root: None,
         }
     }
 
@@ -410,16 +447,13 @@ impl DiscoveryContext {
             home.as_ref()
                 .map(|value| value.join(".local").join("share"))
         });
-        let path_entries = env::var_os("PATH")
-            .map(|value| env::split_paths(&value).collect())
-            .unwrap_or_default();
         let program_files = ["ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"]
             .into_iter()
             .filter_map(non_empty_path)
             .collect();
         let managed_codex_root =
             crate::state::state_directory().map(|value| value.join("accounts").join("codex"));
-        Self {
+        let mut context = Self {
             platform,
             read_native_credentials: !cfg!(test),
             home,
@@ -435,9 +469,56 @@ impl DiscoveryContext {
             kimi_code_home: non_empty_path("KIMI_CODE_HOME"),
             kimi_share_dir: non_empty_path("KIMI_SHARE_DIR"),
             program_files,
-            path_entries,
+            path_entries: Vec::new(),
+            system_root: cfg!(unix).then(|| PathBuf::from("/")),
+        };
+        context.path_entries = search_directories(&context, env::var_os("PATH"));
+        context
+    }
+}
+
+/// The folders searched for a provider's command line client: PATH, in its
+/// own order, then on macOS each package manager's command folder that PATH
+/// did not already name. Every caller of detection reads this one list.
+fn search_directories(context: &DiscoveryContext, path: Option<std::ffi::OsString>) -> Vec<PathBuf> {
+    let mut folders: Vec<PathBuf> = path
+        .map(|value| env::split_paths(&value).collect())
+        .unwrap_or_default();
+    if context.platform == DiscoveryPlatform::Macos {
+        for folder in MACOS_COMMAND_FOLDERS
+            .iter()
+            .filter_map(|spec| spec_path(context, spec))
+        {
+            if !folders.contains(&folder) {
+                folders.push(folder);
+            }
         }
     }
+    folders
+}
+
+/// The folder a spec's first word names: the home, the roaming or local
+/// application data, or the file system root.
+fn spec_base<'a>(context: &'a DiscoveryContext, base: &str) -> Option<&'a Path> {
+    match base {
+        "home" => context.home.as_deref(),
+        "roaming" => context.roaming.as_deref(),
+        "local" => context.local.as_deref(),
+        "system" => context.system_root.as_deref(),
+        _ => None,
+    }
+}
+
+/// A spec such as `home/.volta/bin` as a path, taken as written.
+fn spec_path(context: &DiscoveryContext, spec: &str) -> Option<PathBuf> {
+    let (base, relative) = spec.split_once('/').unwrap_or((spec, ""));
+    let mut path = spec_base(context, base)?.to_path_buf();
+    for component in Path::new(relative).components() {
+        if let Component::Normal(value) = component {
+            path.push(value);
+        }
+    }
+    Some(path)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -957,12 +1038,7 @@ fn provider_install_roots(
     let mut roots = antigravity_roots(context);
     for spec in install_root_specs(provider, context.platform) {
         let (base, relative) = spec.split_once('/').unwrap_or((spec, ""));
-        let Some(base_path) = (match base {
-            "home" => context.home.as_deref(),
-            "roaming" => context.roaming.as_deref(),
-            "local" => context.local.as_deref(),
-            _ => None,
-        }) else {
+        let Some(base_path) = spec_base(context, base) else {
             continue;
         };
         /* The base is the system's own folder, taken where it really is; the
@@ -1029,8 +1105,49 @@ fn configured_pnpm_global_dir(context: &DiscoveryContext) -> Option<PathBuf> {
 
 /// pnpm's global folder: the configured one, else `global` under pnpm's home.
 fn pnpm_global_dir(context: &DiscoveryContext) -> Option<PathBuf> {
-    configured_pnpm_global_dir(context)
-        .or_else(|| Some(context.local.as_deref()?.join("pnpm").join("global")))
+    configured_pnpm_global_dir(context).or_else(|| Some(pnpm_home(context)?.join("global")))
+}
+
+/// Volta's home, whose `bin` holds its shims and `tools/image` the packages
+/// they name: under the local application data on Windows, `~/.volta` on
+/// macOS.
+fn volta_home(context: &DiscoveryContext) -> Option<PathBuf> {
+    match context.platform {
+        DiscoveryPlatform::Windows => windows_folder(context, &["Volta"]),
+        DiscoveryPlatform::Macos => context.home.as_deref().map(|home| home.join(".volta")),
+        DiscoveryPlatform::Linux => None,
+    }
+}
+
+/// pnpm's home, which holds its shims and its default global folder: under
+/// the local application data on Windows, `~/Library/pnpm` on macOS.
+fn pnpm_home(context: &DiscoveryContext) -> Option<PathBuf> {
+    match context.platform {
+        DiscoveryPlatform::Windows => windows_folder(context, &["pnpm"]),
+        DiscoveryPlatform::Macos => context
+            .home
+            .as_deref()
+            .map(|home| home.join("Library").join("pnpm")),
+        DiscoveryPlatform::Linux => None,
+    }
+}
+
+/// Homebrew's own link for Codex on macOS: `<prefix>/bin/codex` pointing into
+/// that prefix's keg or cask of the package named codex, which stands for the
+/// package as npm's official launcher does.
+fn homebrew_codex_link(context: &DiscoveryContext, directory: &Path, resolved: &Path) -> bool {
+    context.platform == DiscoveryPlatform::Macos
+        && HOMEBREW_PREFIXES
+            .iter()
+            .filter_map(|prefix| spec_path(context, prefix))
+            .any(|prefix| {
+                same_directory(directory, &prefix.join("bin"))
+                    && canonical_existing_path(&prefix).is_some_and(|prefix| {
+                        ["Cellar", "Caskroom"]
+                            .iter()
+                            .any(|kegs| resolved.starts_with(prefix.join(kegs).join("codex")))
+                    })
+            })
 }
 
 /// Whether `directory` is `expected`, compared by their real paths.
@@ -1321,30 +1438,30 @@ fn installed_executable(
                     let extension = resolved
                         .extension()
                         .map(|extension| extension.to_string_lossy().to_ascii_lowercase());
-                    let is_npm_launcher = executable_is_link
-                        && resolved.ends_with(
-                            Path::new("node_modules")
-                                .join("@openai")
-                                .join("codex")
-                                .join("bin")
-                                .join("codex.js"),
-                        );
-                    /* A Volta shim is an executable that only names a package,
-                    so it is mapped like a script shim and never run itself. */
-                    let is_windows_shim = matches!(extension.as_deref(), Some("cmd" | "bat"))
-                        || windows_folder(context, &["Volta", "bin"])
-                            .is_some_and(|shims| same_directory(directory, &shims));
-                    if executable_is_link && !is_npm_launcher {
+                    let is_npm_launcher = executable_is_link && is_official_codex_launcher(&resolved);
+                    /* A shim only names a package, so it is mapped to that
+                    package's native binary and never run itself: npm's `.cmd`
+                    and `.bat` on Windows, Volta's shims, and pnpm's script on
+                    macOS. */
+                    let is_shim = matches!(extension.as_deref(), Some("cmd" | "bat"))
+                        || volta_home(context)
+                            .is_some_and(|volta| same_directory(directory, &volta.join("bin")))
+                        || (context.platform == DiscoveryPlatform::Macos
+                            && pnpm_home(context)
+                                .is_some_and(|pnpm| same_directory(directory, &pnpm)));
+                    let is_homebrew_link =
+                        executable_is_link && homebrew_codex_link(context, directory, &resolved);
+                    if executable_is_link && !is_npm_launcher && !is_shim && !is_homebrew_link {
                         continue;
                     }
-                    if is_npm_launcher || is_windows_shim {
+                    if is_npm_launcher || is_shim {
                         if let Some(native) = codex_native_executable(directory, &resolved, context)
                         {
                             return Some(native);
                         }
                     }
-                    if executable_is_link
-                        || is_windows_shim
+                    if (executable_is_link && !is_homebrew_link)
+                        || is_shim
                         || matches!(extension.as_deref(), Some("js"))
                     {
                         continue;
@@ -1395,17 +1512,32 @@ fn codex_native_executable(
     None
 }
 
+/// npm's official Codex launcher, `node_modules/@openai/codex/bin/codex.js`,
+/// matched by whole path components so no lookalike folder passes.
+fn is_official_codex_launcher(path: &Path) -> bool {
+    path.ends_with(
+        Path::new("node_modules")
+            .join("@openai")
+            .join("codex")
+            .join("bin")
+            .join("codex.js"),
+    )
+}
+
 /// Where the `@openai/codex` package a launcher starts really lives, by
-/// layout: the package of a POSIX npm link; Volta's package image for a Volta
-/// shim; pnpm's global folders for a pnpm shim; and the shim's own prefix for
-/// npm, nvm windows, fnm and scoop, whose prefix holds shims and packages.
+/// layout: the package of npm's official launcher; Volta's package image for a
+/// Volta shim; pnpm's global folders for a pnpm shim; and the shim's own
+/// prefix for npm, nvm windows, fnm and scoop, whose prefix holds shims and
+/// packages. A script that is not the official launcher names nothing: a shim
+/// pointing at one resolves only through its manager's tree (Astra 2.1.7,
+/// finding 1).
 fn codex_package_roots(
     path_directory: &Path,
     launcher: &Path,
     context: &DiscoveryContext,
 ) -> Vec<PathBuf> {
     let package = |prefix: &Path| prefix.join("node_modules").join("@openai").join("codex");
-    if launcher.extension().is_some_and(|extension| extension == "js") {
+    if is_official_codex_launcher(launcher) {
         return launcher
             .parent()
             .and_then(Path::parent)
@@ -1413,14 +1545,18 @@ fn codex_package_roots(
             .into_iter()
             .collect();
     }
-    if let Some(volta) = windows_folder(context, &["Volta"]) {
+    if let Some(volta) = volta_home(context) {
         if same_directory(path_directory, &volta.join("bin")) {
             let mut image = volta;
             image.extend(["tools", "image", "packages", "@openai", "codex"]);
+            // An npm prefix on macOS keeps its packages under `lib`.
+            if context.platform == DiscoveryPlatform::Macos {
+                image.push("lib");
+            }
             return vec![package(&image)];
         }
     }
-    if let Some(pnpm) = windows_folder(context, &["pnpm"]) {
+    if let Some(pnpm) = pnpm_home(context) {
         if same_directory(path_directory, &pnpm) {
             return pnpm_global_dir(context)
                 .and_then(|global| fs::read_dir(global).ok())
@@ -2714,6 +2850,7 @@ impl DetectionStore {
             kimi_share_dir: None,
             program_files: Vec::new(),
             path_entries: vec![home.join("bin")],
+            system_root: None,
         };
         let inventory = scan_inventory(&context, now_ms);
         Self {
@@ -3169,6 +3306,7 @@ mod tests {
             kimi_share_dir: Some(home.join("kimi-share")),
             program_files: Vec::new(),
             path_entries: vec![home.join("bin")],
+            system_root: Some(home.join("system")),
         }
     }
 
@@ -3362,6 +3500,245 @@ mod tests {
         fs::remove_dir_all(npm.join("node_modules")).expect("npm package removed");
         windows_codex_package(&home.join("local").join("pnpm").join("global").join("5"));
         assert_eq!(resolve_windows_codex(&home, &[&npm, &nvm]), Some(nvm_native));
+    }
+
+    /// A Codex npm package under `prefix`, its macOS platform package hoisted
+    /// beside it, as npm, Bun, Volta and pnpm lay it out on a Mac.
+    fn mac_codex_package(prefix: &Path) -> PathBuf {
+        let (platform, arch, triple, executable) = codex_native_layout(DiscoveryPlatform::Macos);
+        let scope = prefix.join("node_modules").join("@openai");
+        write(&scope.join("codex").join("bin").join("codex.js"), "launcher");
+        let native = scope
+            .join(format!("codex-{platform}-{arch}"))
+            .join("vendor")
+            .join(triple)
+            .join("codex")
+            .join(executable);
+        write(&native, "native codex");
+        canonical_existing_path(&native).expect("native codex")
+    }
+
+    /// A Mac's discovery as an app opened from Finder sees it: launchd's short
+    /// PATH, and whatever detection adds to it.
+    fn finder_context(home: &Path) -> DiscoveryContext {
+        let mut mac = context(DiscoveryPlatform::Macos, home);
+        let system = mac.system_root.clone().expect("system root");
+        let launchd =
+            env::join_paths([system.join("usr").join("bin"), system.join("bin")]).expect("PATH");
+        mac.path_entries = search_directories(&mac, Some(launchd));
+        mac
+    }
+
+    fn resolve_mac_codex(mac: &DiscoveryContext, entry: &Path) -> Option<PathBuf> {
+        let mut only = mac.clone();
+        only.path_entries = vec![entry.to_path_buf()];
+        installed_executable(DetectedProviderId::Codex, &only)
+    }
+
+    #[test]
+    fn a_finder_search_path_reaches_the_mac_package_managers() {
+        let dir = TempDir::new();
+        let home = canonical_existing_path(dir.path()).expect("canonical home");
+        let mac = finder_context(&home);
+        let system = mac.system_root.clone().expect("system root");
+        let folders = vec![
+            system.join("opt").join("homebrew").join("bin"),
+            system.join("usr").join("local").join("bin"),
+            home.join(".volta").join("bin"),
+            home.join(".bun").join("bin"),
+            home.join("Library").join("pnpm"),
+        ];
+        // PATH first, in its own order, then each package manager's folder.
+        assert_eq!(
+            mac.path_entries[..2],
+            [system.join("usr").join("bin"), system.join("bin")]
+        );
+        assert_eq!(mac.path_entries[2..], folders[..]);
+        // A folder the login shell already put on PATH keeps its place, once.
+        let imported =
+            env::join_paths([folders[0].clone(), system.join("usr").join("bin")]).expect("PATH");
+        let again = search_directories(&mac, Some(imported));
+        assert_eq!(again[0], folders[0]);
+        assert_eq!(again.iter().filter(|entry| **entry == folders[0]).count(), 1);
+        // Windows and Linux search PATH alone.
+        for platform in [DiscoveryPlatform::Windows, DiscoveryPlatform::Linux] {
+            let path = env::join_paths([home.join("bin")]).expect("PATH");
+            assert_eq!(
+                search_directories(&context(platform, &home), Some(path)),
+                vec![home.join("bin")]
+            );
+        }
+    }
+
+    #[test]
+    fn every_mac_package_manager_install_is_detected_from_finder() {
+        for (folder, name, id) in [
+            (&["system", "opt", "homebrew", "bin"][..], "gemini", DetectedProviderId::GeminiCli),
+            (&["system", "usr", "local", "bin"][..], "grok", DetectedProviderId::Grok),
+            (&[".volta", "bin"][..], "claude", DetectedProviderId::Claude),
+            (&[".bun", "bin"][..], "codex", DetectedProviderId::Codex),
+            (&["Library", "pnpm"][..], "claude", DetectedProviderId::Claude),
+        ] {
+            let dir = TempDir::new();
+            let home = canonical_existing_path(dir.path()).expect("canonical home");
+            let mut bin = home.clone();
+            bin.extend(folder);
+            write(&bin.join(name), "installed client");
+            let report = scan_inventory(&finder_context(&home), 1_800_000_000_000).report;
+            assert_eq!(
+                provider(&report, id).state,
+                ProviderPresence::InstalledLoggedOut,
+                "{}",
+                bin.display()
+            );
+        }
+    }
+
+    #[test]
+    fn each_mac_layout_resolves_codex_to_a_binary_it_may_run() {
+        let dir = TempDir::new();
+        let home = canonical_existing_path(dir.path()).expect("canonical home");
+        let mac = finder_context(&home);
+        let system = mac.system_root.clone().expect("system root");
+
+        // A plain native binary in either Homebrew prefix's folder or in Bun's.
+        for bin in [
+            system.join("opt").join("homebrew").join("bin"),
+            system.join("usr").join("local").join("bin"),
+            home.join(".bun").join("bin"),
+        ] {
+            write(&bin.join("codex"), "native codex");
+            assert_eq!(
+                resolve_mac_codex(&mac, &bin),
+                canonical_existing_path(&bin.join("codex")),
+                "{}",
+                bin.display()
+            );
+        }
+
+        // Volta: its shim only names a package, so it is mapped, never run.
+        let volta = home.join(".volta");
+        write(&volta.join("bin").join("codex"), "volta shim");
+        assert_eq!(resolve_mac_codex(&mac, &volta.join("bin")), None, "a shim without its image");
+        let mut image = volta.clone();
+        image.extend(["tools", "image", "packages", "@openai", "codex", "lib"]);
+        let native = mac_codex_package(&image);
+        assert_eq!(resolve_mac_codex(&mac, &volta.join("bin")), Some(native));
+
+        // pnpm: the shim in its home, the package in its global folder.
+        let pnpm = home.join("Library").join("pnpm");
+        write(&pnpm.join("codex"), "#!/bin/sh");
+        assert_eq!(resolve_mac_codex(&mac, &pnpm), None, "a shim without its package");
+        let native = mac_codex_package(&pnpm.join("global").join("5"));
+        assert_eq!(resolve_mac_codex(&mac, &pnpm), Some(native));
+    }
+
+    /// Astra 2.1.7, finding 1: a manager's shim never names its package by
+    /// pointing at a script. Only npm's official launcher layout derives a
+    /// package from a script; a shim resolves through its manager's own tree.
+    #[test]
+    fn a_shim_pointing_at_any_other_script_never_names_its_package() {
+        let dir = TempDir::new();
+        let home = canonical_existing_path(dir.path()).expect("canonical home");
+        let mac = finder_context(&home);
+        let (_, _, triple, executable) = codex_native_layout(DiscoveryPlatform::Macos);
+        // A script inside an accepted root, a binary planted where a package keeps one.
+        let planted = home.join(".volta").join("planted");
+        let script = planted.join("bin").join("anything.js");
+        write(&script, "not the official launcher");
+        write(&planted.join("vendor").join(triple).join("codex").join(executable), "planted binary");
+        let volta_bin = home.join(".volta").join("bin");
+        fs::create_dir_all(&volta_bin).expect("volta bin");
+        assert_eq!(codex_native_executable(&volta_bin, &script, &mac), None);
+        let mut image = home.join(".volta");
+        image.extend(["tools", "image", "packages", "@openai", "codex", "lib"]);
+        let native = mac_codex_package(&image);
+        assert_eq!(codex_native_executable(&volta_bin, &script, &mac), Some(native));
+
+        // The same for pnpm's home.
+        let pnpm = home.join("Library").join("pnpm");
+        let script = pnpm.join("planted").join("bin").join("anything.js");
+        write(&script, "not the official launcher");
+        write(
+            &pnpm.join("planted").join("vendor").join(triple).join("codex").join(executable),
+            "planted binary",
+        );
+        assert_eq!(codex_native_executable(&pnpm, &script, &mac), None);
+        let native = mac_codex_package(&pnpm.join("global").join("5"));
+        assert_eq!(codex_native_executable(&pnpm, &script, &mac), Some(native));
+    }
+
+    /// The same bypass end to end, through a real shim link; it needs the
+    /// symbolic link privilege, so it runs on CI's Linux and macOS runners.
+    #[test]
+    fn a_volta_shim_link_to_any_other_script_is_never_run_or_followed() {
+        let dir = TempDir::new();
+        let home = canonical_existing_path(dir.path()).expect("canonical home");
+        let mac = finder_context(&home);
+        let (_, _, triple, executable) = codex_native_layout(DiscoveryPlatform::Macos);
+        let planted = home.join(".volta").join("planted");
+        let script = planted.join("bin").join("anything.js");
+        write(&script, "not the official launcher");
+        write(&planted.join("vendor").join(triple).join("codex").join(executable), "planted binary");
+        let volta_bin = home.join(".volta").join("bin");
+        fs::create_dir_all(&volta_bin).expect("volta bin");
+        if !file_link(&script, &volta_bin.join("codex")) {
+            eprintln!("skipped: this Windows account may not create symbolic links");
+            return;
+        }
+        assert_eq!(resolve_mac_codex(&mac, &volta_bin), None);
+    }
+
+    #[test]
+    #[cfg_attr(
+        windows,
+        ignore = "the Homebrew rule runs only on macOS; on Windows the simulated root resolves through verbatim paths, and Linux and macOS CI run this test"
+    )]
+    fn a_homebrew_link_runs_codex_only_from_its_own_keg_or_launcher() {
+        let dir = TempDir::new();
+        let home = canonical_existing_path(dir.path()).expect("canonical home");
+        let mac = finder_context(&home);
+        let system = mac.system_root.clone().expect("system root");
+        let brew = system.join("opt").join("homebrew");
+        let bin = brew.join("bin");
+        fs::create_dir_all(&bin).expect("bin");
+        let formula = brew.join("Cellar").join("codex").join("0.47.0").join("bin").join("codex");
+        let cask = brew
+            .join("Caskroom")
+            .join("codex")
+            .join("0.47.0")
+            .join("codex-aarch64-apple-darwin");
+        let stranger = brew.join("Cellar").join("other").join("1.0").join("bin").join("codex");
+        for file in [&formula, &cask, &stranger] {
+            write(file, "native binary");
+        }
+        let link = bin.join("codex");
+        if !file_link(&formula, &link) {
+            eprintln!("skipped: this Windows account may not create symbolic links");
+            return;
+        }
+        // Homebrew's formula and its cask: a link into the codex keg.
+        assert_eq!(resolve_mac_codex(&mac, &bin), canonical_existing_path(&formula));
+        let relink = |target: &Path| {
+            fs::remove_file(&link).expect("unlink");
+            assert!(file_link(target, &link));
+        };
+        relink(&cask);
+        assert_eq!(resolve_mac_codex(&mac, &bin), canonical_existing_path(&cask));
+        // A link into another package's keg is not Codex.
+        relink(&stranger);
+        assert_eq!(resolve_mac_codex(&mac, &bin), None);
+        // npm on Homebrew's node, and Bun: the official launcher, mapped.
+        let native = mac_codex_package(&brew.join("lib"));
+        relink(&brew.join("lib").join("node_modules").join("@openai").join("codex").join("bin").join("codex.js"));
+        assert_eq!(resolve_mac_codex(&mac, &bin), Some(native));
+        let global = home.join(".bun").join("install").join("global");
+        let native = mac_codex_package(&global);
+        let bun = home.join(".bun").join("bin");
+        fs::create_dir_all(&bun).expect("bun bin");
+        let launcher = global.join("node_modules").join("@openai").join("codex").join("bin").join("codex.js");
+        assert!(file_link(&launcher, &bun.join("codex")));
+        assert_eq!(resolve_mac_codex(&mac, &bun), Some(native));
     }
 
     /// A file symbolic link, which the test needs: any failure fails the test,

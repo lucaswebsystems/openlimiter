@@ -2,18 +2,19 @@
  * The settings half of the menu: short labels, switches, no paragraphs.
  *
  * Alerts on or off with their 60, 80 and 90 thresholds and the reset notice,
- * quiet hours, snooze, the theme preset, the edge tab, the Claude direct poll
- * and the provider switches. Everything the Settings tab did stays reachable
- * here; what it said in sentences is gone (Lucas, 2026-10-01). The one
- * sentence kept is the Claude direct poll's, because that switch reads a
- * local sign in.
+ * quiet hours, snooze, the theme preset, the edge tab and the provider
+ * switches. Everything the Settings tab did stays reachable here; what it
+ * said in sentences is gone (Lucas, 2026-10-01). The Claude direct usage
+ * request is not here: its one switch lives on the Claude row in Connect
+ * Tools, off until a person turns it on there.
  *
  * Quiet hours keep contract 5.2's shape (start inclusive, end exclusive, a
  * range may cross midnight, start equal to end is off), so the switch turns
  * them off by writing equal times and on by writing a real range: the trap of
  * two equal times meaning "off" can no longer be set by accident.
  *
- * The theme presets are gated on the `theme_preset` entitlement and downgrade
+ * One theme preset is Pro, Ember, on the `theme_preset` entitlement; Graphite
+ * and Meadow are free, and so are terminal captions. Ember downgrades
  * gracefully: losing Pro returns the window to the default theme and leaves
  * the chosen preset remembered rather than deleting it.
  */
@@ -21,11 +22,13 @@ import {
   BACKEND_ABSENT,
   accountStatus,
   autostartStatus,
+  checkForUpdate,
+  installUpdate,
   notificationSettings,
+  openDownloadPage,
   proStatus,
   proService,
   setAutostart,
-  setClaudePollEnabled,
   setNotificationSettings,
   setTerminalCaptions,
   terminalCaptions,
@@ -33,6 +36,7 @@ import {
 import { activityClient } from "./agents.js";
 import { say } from "./names.js";
 import { LOCK } from "./pro.js";
+import { orderSettingMarkup, wireOrderSetting } from "./reorder.js";
 
 // English catalog for the menu's settings. L7 owns translations.
 export const ALERTS_EN = Object.freeze({
@@ -46,12 +50,6 @@ export const ALERTS_EN = Object.freeze({
   snoozeOff: "Off",
   snoozeUntil: "Until {time}",
   unavailable: "Alerts unavailable in this build",
-});
-
-/* The one sentence the menu keeps (plan 2.0.3, Step 2). */
-export const CLAUDE_POLL_EN = Object.freeze({
-  label: say("showClaudeFable"),
-  note: say("showClaudeFableNote"),
 });
 
 export const MENU_EN = Object.freeze({ tools: "Tools", preset: "Theme preset", agentAlerts: "Agent alerts" });
@@ -79,6 +77,73 @@ export const TRIAL_URL = "https://openlimiter.com/app?trial=1";
 /** Open the fixed web trial flow with the desktop's existing safe link shape. */
 export function openTrialInBrowser(url = TRIAL_URL) {
   return window.open(url, "_blank", "noopener,noreferrer");
+}
+
+/** Where a platform with no installer in the release manifest gets the release. */
+export const DOWNLOAD_URL = "https://openlimiter.com/download";
+
+/**
+ * What the window says after an update check that answered: nothing new, a
+ * newer version this app installs itself, or a newer version the release
+ * manifest has no installer for here (macOS while it is unsigned), whose
+ * banner links to the download page instead (2.1.7).
+ */
+export function updateView(update) {
+  if (update === null || update === undefined) return { menu: "OpenLimiter is current", banner: null, href: null };
+  const version = String(update.version ?? "new version");
+  if (update.manual === true) {
+    const out = say("updateOut", { version });
+    return { menu: out, banner: out, href: DOWNLOAD_URL };
+  }
+  return { menu: "Install OpenLimiter " + version, banner: "OpenLimiter " + version + " is ready. Install now.", href: null };
+}
+
+/**
+ * The two update controls, Settings' "Check for updates" and the banner over
+ * the tabs. A release this app installs is offered as an install, and the
+ * menu checks again. A release the manifest has no installer for here
+ * (macOS) sends both controls to the download page through the app's one
+ * native opener action (Astra 2.1.7, finding 2). Returns the check, which the
+ * window also runs once, silently, at start.
+ */
+export function wireUpdates({ menu, banner }, api = { checkForUpdate, installUpdate, openDownloadPage }) {
+  let href = null;
+  const run = async (silent) => {
+    if (!silent) menu.textContent = "Checking for updates";
+    const result = await api.checkForUpdate();
+    if (!result.ok) {
+      if (!silent) menu.textContent = "Update check unavailable";
+      return;
+    }
+    const view = updateView(result.value);
+    if (view.banner === null) {
+      if (!silent) menu.textContent = view.menu;
+      return;
+    }
+    href = view.href;
+    banner.textContent = view.banner;
+    banner.hidden = false;
+    menu.textContent = view.menu;
+  };
+  menu.addEventListener("click", () => {
+    if (href !== null) void api.openDownloadPage();
+    else void run(false);
+  });
+  banner.addEventListener("click", () => {
+    if (href !== null) {
+      void api.openDownloadPage();
+      return;
+    }
+    banner.disabled = true;
+    banner.textContent = "Installing update";
+    void api.installUpdate().then((result) => {
+      if (!result.ok) {
+        banner.disabled = false;
+        banner.textContent = "Update install unavailable";
+      }
+    });
+  });
+  return run;
 }
 
 /** Bring the plan card into view: open the menu when it is closed, then scroll. */
@@ -228,11 +293,20 @@ const SNOOZE_WINDOWS = [
 const TOOL_SWITCHES = ["CLAUDE", "CODEX", "ANTIGRAVITY", "GEMINI_CLI", "GROK", "KIMI", "OPENCODE", "OPENROUTER", "CURSOR"];
 
 const PRESETS = [
-  { id: "default", name: "Product", swatches: ["var(--ol-canvas)", "var(--ol-surface)", "var(--ol-accent)"] },
-  { id: "graphite", name: "Graphite", swatches: ["var(--ol-code)", "var(--ol-elevated)", "var(--ol-soft)"] },
-  { id: "meadow", name: "Meadow", swatches: ["var(--ol-canvas)", "var(--ol-raised)", "var(--ol-band-green-fill)"] },
-  { id: "ember", name: "Ember", swatches: ["var(--ol-canvas)", "var(--ol-raised)", "var(--ol-band-orange-fill)"] },
+  /* Each tile shows its own canvas, surface and accent, from theme.css,
+     whatever preset the window wears. */
+  { id: "default", name: "Product", swatches: ["var(--ol-preset-product-canvas)", "var(--ol-preset-product-surface)", "var(--ol-preset-product-accent)"] },
+  { id: "graphite", name: "Graphite", swatches: ["var(--ol-preset-graphite-canvas)", "var(--ol-preset-graphite-surface)", "var(--ol-preset-graphite-accent)"] },
+  { id: "meadow", name: "Meadow", swatches: ["var(--ol-preset-meadow-canvas)", "var(--ol-preset-meadow-surface)", "var(--ol-preset-meadow-accent)"] },
+  { id: "ember", name: "Ember", swatches: ["var(--ol-preset-ember-canvas)", "var(--ol-preset-ember-surface)", "var(--ol-preset-ember-accent)"], pro: true },
 ];
+
+/* Which preset the window wears: any free one, and Ember only with Pro. */
+export function appliedPreset(chosen, entitled) {
+  const preset = PRESETS.find((entry) => entry.id === chosen);
+  if (preset === undefined) return "default";
+  return preset.pro === true && entitled !== true ? "default" : preset.id;
+}
 
 const PRESET_KEY = "openlimiter-theme-preset";
 
@@ -283,7 +357,20 @@ export function snoozeUntil(minutes, now = Date.now()) {
   return new Date(now + minutes * 60_000).toISOString().replace(/\.\d+Z$/u, ".000Z");
 }
 
-const state = { settings: null, mount: null, agentAlerts: null };
+const state = { settings: null, mount: null, agentAlerts: null, order: null, paintOrder: null };
+
+/** The window's copy of the provider order, for the Order choice. */
+export function useOrderStore(store) {
+  state.order = store;
+  store.subscribe(() => state.paintOrder?.());
+}
+
+/* Order, at the end of Appearance: most used first, or the person's own. */
+function mountOrderSetting(mount) {
+  if (state.order === null || typeof mount?.insertAdjacentHTML !== "function") return;
+  mount.insertAdjacentHTML("beforeend", orderSettingMarkup());
+  state.paintOrder = wireOrderSetting(mount, state.order);
+}
 
 export const RAIL_SETTINGS_COPY = {
   show: "Show the edge tab",
@@ -361,12 +448,15 @@ export async function wireAutostart(control, api = { autostartStatus, setAutosta
   });
 }
 
+/* A locked tile stays focusable and pressable: it says it is Pro, and a press
+   shows the plan rather than doing nothing. */
 export function presetMarkup(entitled, chosen) {
+  const applied = appliedPreset(chosen, entitled);
   return PRESETS.map(
     (preset) => {
-      const locked = !entitled && preset.id !== "default";
-      return '<button type="button" class="preset" data-preset="' + preset.id + '" aria-pressed="' + String(preset.id === chosen) + '"' +
-        (locked ? " disabled" : "") +
+      const locked = entitled !== true && preset.pro === true;
+      return '<button type="button" class="preset" data-preset="' + preset.id + '" aria-pressed="' + String(preset.id === applied) + '"' +
+        (locked ? ' aria-disabled="true" aria-label="' + escapeText(preset.name) + ', Pro"' : "") +
         '><span class="preset-swatches" aria-hidden="true">' +
         preset.swatches.map((swatch) => '<span class="preset-swatch" style="background:' + swatch + '"></span>').join("") +
         '</span>' + (locked ? '<span class="menu-lock" aria-hidden="true">' + LOCK + "</span>" : "") +
@@ -417,23 +507,28 @@ function alertsMarkup(settings) {
   );
 }
 
+/* Light and Dark as a pair of pressed tiles, each named by its own label. */
 function themeMarkup() {
   const current = globalThis.document?.documentElement?.getAttribute("data-theme") === "light" ? "light" : "dark";
-  return '<div class="menu-line"><span>' + say("theme") + '</span><button type="button" id="theme" class="icon" aria-label="' + say("themeToggle") + '" title="' + say("themeToggle") + '">' + themeLabel(current) + '</button></div>';
+  return '<div class="menu-presets theme-choice"><span>' + say("theme") + '</span>' +
+    '<span class="preset-grid" role="group" aria-label="' + say("theme") + '">' +
+    ["light", "dark"].map((theme) => '<button type="button" class="preset" data-theme-choice="' + theme +
+      '" aria-pressed="' + String(theme === current) + '">' + themeLabel(theme) + "</button>").join("") +
+    "</span></div>";
 }
 
-export function captionsMarkup(captions, entitled) {
+/* Terminal captions are free: both tiles work on every plan. */
+export function captionsMarkup(captions) {
   return '<div class="menu-presets terminal-captions"><span>' + CAPTIONS_EN.title + '</span><span class="preset-grid">' +
     '<button type="button" class="preset" data-caption="short" aria-pressed="' + String(captions === "short") + '">' + CAPTIONS_EN.short + '</button>' +
-    '<button type="button" class="preset" data-caption="tagged" aria-pressed="' + String(captions === "tagged") + '"' + (entitled ? "" : " disabled") + '>' +
-    (entitled ? "" : '<span class="menu-lock" aria-hidden="true">' + LOCK + "</span>") + CAPTIONS_EN.tagged + '</button></span></div>' +
+    '<button type="button" class="preset" data-caption="tagged" aria-pressed="' + String(captions === "tagged") + '">' + CAPTIONS_EN.tagged + '</button></span></div>' +
     '<p class="menu-note">' + CAPTIONS_EN.note + '</p>';
 }
 
 function appearanceMarkup(chosen, entitled, captions) {
   return themeMarkup() +
     '<div class="menu-presets"><span>' + MENU_EN.preset + '</span><span class="preset-grid">' + presetMarkup(entitled, chosen) + "</span></div>" +
-    captionsMarkup(captions, entitled) + railSettingsMarkup() + autostartMarkup();
+    captionsMarkup(captions) + railSettingsMarkup() + autostartMarkup();
 }
 
 /** Settings are divided into appearance and alerts mounts, while account and Pro stay in the page. */
@@ -456,6 +551,7 @@ export async function renderSettings(mount) {
 
   if (!settingsResult.ok && settingsResult.reason === BACKEND_ABSENT) {
     target.appearance.innerHTML = appearanceMarkup("default", false, "short");
+    mountOrderSetting(target.appearance);
     const unavailable = '<p class="menu-note">' + ALERTS_EN.unavailable + "</p>";
     if (target.alerts === target.appearance) target.appearance.innerHTML += unavailable;
     else target.alerts.innerHTML = unavailable;
@@ -475,12 +571,13 @@ export async function renderSettings(mount) {
   } catch (error) {
     /* Storage refused. The product preset is already the default. */
   }
-  /* Graceful downgrade: the preset stays chosen, the window simply stops
-     applying it until the entitlement returns. */
-  ownerDocument?.documentElement?.setAttribute("data-preset", entitled ? chosen : "default");
+  /* Graceful downgrade: Ember stays chosen, the window simply stops applying
+     it until the entitlement returns. */
+  ownerDocument?.documentElement?.setAttribute("data-preset", appliedPreset(chosen, entitled));
 
   state.agentAlerts = agentResult.ok ? agentResult.value : null;
   target.appearance.innerHTML = appearanceMarkup(chosen, entitled, captions);
+  mountOrderSetting(target.appearance);
   target.alerts.innerHTML =
     alertsMarkup(settings) +
     '<div class="menu-line"><label for="agent-alerts">' + MENU_EN.agentAlerts + "</label>" +
@@ -542,19 +639,15 @@ function wire(agents) {
     const minutes = Number(value);
     void save({ snoozedUntil: minutes === 0 ? null : snoozeUntil(minutes) });
   });
-  byId("claude-poll")?.addEventListener("change", async (event) => {
-    const requested = event.target.checked;
-    event.target.disabled = true;
-    const result = await setClaudePollEnabled(requested);
-    event.target.checked = result.ok ? requested : !requested;
-    event.target.disabled = false;
-  });
   /* The preset buttons only: the page root carries data-preset too, and a
      listener there repainted Settings on every click, taking a switch out
      from under the click that was turning it. */
   for (const control of document.querySelectorAll("button[data-preset]")) {
     control.addEventListener("click", async () => {
-      if (control.disabled) return;
+      if (control.getAttribute("aria-disabled") === "true") {
+        showPlan();
+        return;
+      }
       try {
         globalThis.localStorage.setItem(PRESET_KEY, control.getAttribute("data-preset"));
       } catch (error) {
@@ -565,7 +658,6 @@ function wire(agents) {
   }
   for (const control of document.querySelectorAll("[data-caption]")) {
     control.addEventListener("click", async () => {
-      if (control.disabled) return;
       const result = await setTerminalCaptions(control.getAttribute("data-caption"));
       if (result.ok) await renderSettings(state.mount);
     });

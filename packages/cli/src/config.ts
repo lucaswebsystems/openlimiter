@@ -1,7 +1,9 @@
 import { lstat, mkdir } from "node:fs/promises";
 import path from "node:path";
 import {
+  CLAUDE_POLL_FILE_NAME,
   canonicalJson,
+  readClaudePoll,
   readJsonFileSafely,
   resolveStateDirectory,
   writeFileAtomically,
@@ -312,15 +314,12 @@ export function setStatuslineValue(
 /* -------------------------------------------------------------- providers */
 
 /**
- * Per provider switches, and the one that matters in this release.
+ * The legacy record of the Claude request switch.
  *
- * Claude's primary source is the status line payload Claude Code hands this
- * command, which is a documented feature and costs nothing. The network poll
- * below exists only for the hours Claude Code is closed, it reads the token
- * Claude Code stored, and Anthropic has written that third parties may not
- * intermediate its credentials. That is a decision a person makes for
- * themselves. A terminal asks once before recording on. An unattended setup
- * records off, and a missing or invalid choice never permits the request.
+ * Since 2.1.7 the switch lives in one store of truth, the desktop's
+ * `claude-poll.json` (`readClaudePoll`), which both runtimes read at every
+ * pass. These keys are only a mirror for a 2.1.5 runtime still installed, and
+ * the source of the one move a recorded on makes into the store of truth.
  */
 export interface ProvidersConfig {
   readonly claude: {
@@ -357,22 +356,87 @@ export function normalizeProviders(value: unknown): ProvidersConfig {
   };
 }
 
-export function providerValueText(
-  providers: ProvidersConfig,
-  key: ProviderKey
-): string {
-  void key;
-  return providers.claude.recorded
-    ? providers.claude.poll ? "true" : "false"
-    : "unset";
+/**
+ * What `config get providers.claude.poll` prints: the one store of truth, as
+ * both runtimes read it. No document is no recorded choice; anything else
+ * that is not on is off.
+ */
+export async function claudePollText(directory = resolveStateDirectory()): Promise<string> {
+  const document = await readJsonFileSafely(path.join(directory, CLAUDE_POLL_FILE_NAME));
+  if (!document.ok && document.reason === "missing") return "unset";
+  return (await readClaudePoll(directory)) ? "true" : "false";
+}
+
+async function writeClaudePollDocument(directory: string, enabled: boolean): Promise<void> {
+  const target = path.join(directory, CLAUDE_POLL_FILE_NAME);
+  await rejectSymlink(target);
+  await writeFileAtomically(target, canonicalJson({ enabled, version: 1 }));
+}
+
+/**
+ * Set the Claude request switch in its one store of truth, then mirror the
+ * legacy keys so a 2.1.5 runtime still installed follows the same choice.
+ * Both writes happen under the state lock the desktop's switch takes too, so
+ * concurrent changes end in one state, and each is fenced on that lock still
+ * being this setter's: one reclaimed before the store of truth fails the set,
+ * and one reclaimed before the mirror leaves the other writer's mirror alone.
+ * A mirror not written leaves the store of truth as set and comes back as
+ * `mirrored: false`. Rust twin: claude_poll_setting.rs set.
+ */
+export async function setClaudePoll(
+  enabled: boolean,
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+  directory = resolveStateDirectory(),
+  /* A test's stand in for this setter pausing before a write. */
+  pause: (step: "store" | "mirror") => Promise<void> = async () => undefined
+): Promise<{ mirrored: boolean }> {
+  return withStateLock(directory, async (owned) => {
+    await pause("store");
+    /* ponytail: an ownership check, then an awaited write; a setter suspended
+       more than sixty seconds between the two can still lose the lock to
+       reclamation unnoticed. Upgrade path: liveness based reclamation (a
+       heartbeat the holder renews) or an OS level file lock. */
+    if (!(await owned())) throw new Error("The state lock passed to another writer");
+    await writeClaudePollDocument(directory, enabled);
+    try {
+      const stored = await readConfig(directory);
+      if (!stored.ok && stored.reason !== "missing") return { mirrored: false };
+      const current = stored.ok ? stored.config : defaultConfig(environment);
+      await pause("mirror");
+      if (!(await owned())) return { mirrored: false };
+      await writeConfig({ ...current, providers: { claude: { poll: enabled, recorded: true } } }, directory);
+      return { mirrored: true };
+    } catch {
+      return { mirrored: false };
+    }
+  });
+}
+
+/**
+ * The first 2.1.7 run: a choice this tool recorded on in its legacy keys
+ * moves into the store of truth when that holds no choice yet. Off needs no
+ * move, because no document already reads as off. Both facts are read again
+ * inside the shared lock, so a 2.1.5 setter that saved off while this waited
+ * wins. Rust twin: claude_poll_setting.rs status.
+ */
+export async function migrateLegacyClaudePoll(directory = resolveStateDirectory()): Promise<void> {
+  const due = async () => {
+    const document = await readJsonFileSafely(path.join(directory, CLAUDE_POLL_FILE_NAME));
+    if (document.ok || document.reason !== "missing") return false;
+    const legacy = (await readProvidersConfig(directory)).claude;
+    return legacy.recorded && legacy.poll;
+  };
+  if (!(await due())) return;
+  await withStateLock(directory, async (owned) => {
+    if (await due() && await owned()) await writeClaudePollDocument(directory, true);
+  });
 }
 
 export type ProvidersUpdate =
-  | { ok: true; providers: ProvidersConfig }
+  | { ok: true; enabled: boolean }
   | { ok: false; message: string };
 
 export function setProviderValue(
-  providers: ProvidersConfig,
   key: string,
   value: string
 ): ProvidersUpdate {
@@ -385,10 +449,7 @@ export function setProviderValue(
   if (value !== "true" && value !== "false") {
     return { ok: false, message: "providers.claude.poll must be true or false." };
   }
-  return {
-    ok: true,
-    providers: { claude: { poll: value === "true", recorded: true } }
-  };
+  return { ok: true, enabled: value === "true" };
 }
 
 /* ------------------------------------------------------------------ file */

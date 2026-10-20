@@ -11,7 +11,6 @@
     "settingsTab": "Configurações",
     "apiSpend": "Gastos de API",
     "pasteOpenRouterKey": "Cole sua chave do OpenRouter na lista de chaves de API abaixo.",
-    "checkingSignIn": "Verificando seu login...",
     "cliNotFound": "CLI do {name} não encontrada. Adicione ao PATH e verifique novamente.",
     "limits": "Limites",
     "agents": "Agentes",
@@ -45,8 +44,8 @@
     "accountPro": "Conta e Pro",
     "pairPhone": "Parear seu celular",
     "updatesAbout": "Atualizações e sobre",
+    "updateOut": "A versão {version} já está disponível. Baixe em openlimiter.com.",
     "theme": "Tema",
-    "themeToggle": "Alternar entre o tema claro e o escuro",
     "themeDark": "Escuro",
     "themeLight": "Claro",
     "locked": "Bloqueado",
@@ -85,10 +84,9 @@
     "addTool": "Adicionar uma ferramenta",
     "fixToolDetail": "Entre em {name} neste computador e depois verifique de novo.",
     "fixSignInAgainIssue": "Entre de novo",
-    "useClaudeSignIn": "Usar meu login do Claude",
-    "useClaudeSignInTitle": "Usa o login local do Claude para pedir seus limites à Anthropic enquanto o Claude Code está fechado.",
     "fixWaitingIssue": "Aguardando {name}",
     "fixWaitingDetail": "A última janela foi redefinida. Use {name} uma vez e os limites voltam a aparecer.",
+    "waitingFirstReading": "Aguardando a primeira leitura",
     "meterFallback": "Limite",
     "cacheUnreadable": "Não foi possível ler as leituras salvas agora, então só aparecem as leituras que ainda estão atualizadas.",
     "connect": "Conectar",
@@ -104,19 +102,30 @@
     "antigravityThirdPartyWeekly": "Cota semanal de terceiros",
     "toolOff": "Desativado",
     "moreFor": "Mais opções de {name}",
+    "reorderFor": "Reordenar {name}",
+    "moveUp": "Mover para cima",
+    "moveDown": "Mover para baixo",
+    "moveTop": "Mover para o topo",
+    "moveBottom": "Mover para o final",
+    "movedTo": "{name} foi para a posição {position} de {count}",
+    "orderNotSaved": "Não foi possível salvar a ordem, então nada mudou.",
+    "orderChangedElsewhere": "A ordem foi alterada em outro lugar, então sua mudança não foi salva.",
+    "reorderGone": "{name} não aparece mais, então a mudança foi cancelada.",
+    "order": "Ordem",
+    "orderUsage": "Mais usados primeiro",
+    "orderCustom": "Minha ordem",
     "showTool": "Mostrar",
     "removeTool": "Remover",
     "removeConfirm": "Clique de novo para remover",
     "claudeWeeklyOAuthApps": "Semanal, aplicativos OAuth",
-    "showClaudeFable": "Mostrar limite do Fable",
-    "showClaudeFableNote": "Lê o mesmo uso que o Claude mostra ao enviar uma solicitação direta com seu login do Claude neste computador. A política da Anthropic para ferramentas como esta ainda não está resolvida. Desative em Conectar ferramentas.",
+    "showClaudeFable": "Ler meu uso do Claude na Anthropic",
+    "showClaudeFableNote": "Desativado até você ativar. Quando ativado, o OpenLimiter envia seu login do Claude Code somente para a Anthropic, mais ou menos a cada cinco minutos, para ler seu uso, e essa leitura passa a ser a fonte de todas as barras do Claude. A política da Anthropic para ferramentas como esta ainda não está resolvida.",
+    "claudePollMirrorFailed": "Salvo. Uma versão mais antiga do OpenLimiter neste computador não pôde ser avisada, então ela pode manter sua escolha anterior até ser atualizada.",
+    "claudeRequestRefused": "A Anthropic não aceitou seu login do Claude Code, então não foi possível ler seu uso do Claude.",
+    "claudeRequestRateLimited": "A Anthropic pediu ao OpenLimiter para esperar, então não foi possível ler seu uso do Claude. Ele tenta de novo mais tarde.",
+    "claudeRequestDrift": "A Anthropic respondeu em um formato que o OpenLimiter não consegue ler, então não foi possível ler seu uso do Claude.",
     "startAtSignIn": "Abrir o OpenLimiter ao entrar no computador",
-    "startAtSignInNote": "Mantém suas barras atualizadas depois de reiniciar.",
-    "claudePollConsentTitle": "Mostrar seu limite do Fable?",
-    "claudePollNotNow": "Agora não",
-    "claudePollSaveFailed": "A escolha não pôde ser salva, então o uso do Claude continua desativado.",
-    "claudePollContinueOff": "Continuar com o uso do Claude desativado",
-    "claudeWeeklyPollHint": "Ative a consulta de uso em Ferramentas de conexão para ver seus limites semanais."
+    "startAtSignInNote": "Mantém suas barras atualizadas depois de reiniciar."
   },
   "meta": {
     "title": "OpenLimiter, limites de codificação com IA e atividade de agentes",
@@ -149,8 +158,8 @@
     "closeMenu": "Fechar menu"
   },
   "announce": {
-    "message": "O OpenLimiter Pro chegou. Alertas do desktop, acesso à conta e medidores locais são gratuitos. O Pro acrescenta histórico, alertas por push no celular e por email, contas extras e medição de gasto de API na nuvem.",
-    "short": "Os alertas do desktop continuam gratuitos",
+    "message": "OpenLimiter Pro traz {features}. Alertas do desktop continuam gratuitos.",
+    "short": "Alertas do desktop grátis",
     "dismiss": "Fechar este aviso"
   },
   "footer": {
@@ -510,7 +519,7 @@
     "release": {
       "rail": {
         "title": "Uma aba pequena. Seus limites e agentes ao passar o mouse.",
-        "lead": "O OpenLimiter mantém uma aba pequena com o logotipo na borda esquerda da tela, a cerca de 70% da altura, contando de cima. Passe o mouse sobre ela para abrir ao lado um painel com seus limites e seus agentes. Funciona igual no Windows, no macOS e no Linux X11; no Linux Wayland, a bandeja assume o lugar dela. Medidores locais e alertas do desktop são gratuitos, com uma conta ativa por provedor.",
+        "lead": "O OpenLimiter mantém uma aba pequena com o logotipo na borda esquerda da tela, a cerca de 70% da altura, contando de cima. Passe o mouse sobre ela para abrir ao lado um painel com seus limites e seus agentes. Funciona igual no Windows e no Linux X11; no Linux Wayland, a bandeja assume o lugar dela, e o macOS é uma prévia. Medidores locais e alertas do desktop são gratuitos, com uma conta ativa por provedor.",
         "folded": "A aba fica na borda esquerda. Um pequeno ponto aparece quando algo merece uma olhada, como um agente esperando por você.",
         "unfolded": "Passe o mouse e o painel se abre: primeiro os agentes, com Mostrar app no que espera por você, depois os limites, o mais apertado primeiro, com o reinício.",
         "foldedAlt": "A aba real do OpenLimiter, pequena, com o logotipo do OpenLimiter e um ponto amarelo, na borda esquerda de uma área de trabalho com um papel de parede de lago na montanha.",
@@ -523,9 +532,7 @@
         "alt": "Desktop do OpenLimiter com três abas chamadas Usage, Connect Tools e Settings, limites sintéticos de Codex, Claude Code e OpenRouter e um painel com atividade dos agentes.",
         "desktopHomeAlt": "A aba Usage do desktop do OpenLimiter com barras sintéticas para Codex, Claude Code e OpenRouter.",
         "desktopHomeNote": "Usage mostra as barras de Codex, Claude Code e OpenRouter.",
-        "desktopConnectAlt": "A aba Connect Tools do desktop do OpenLimiter com conexões sintéticas de provedores.",
         "desktopConnectNote": "Connect Tools mostra a configuração dos provedores e o estado da conexão.",
-        "desktopSettingsAlt": "A aba Settings do desktop do OpenLimiter com as opções do aplicativo.",
         "desktopSettingsNote": "Settings mostra as opções que definem o desktop."
       },
       "terminal": {
@@ -555,7 +562,7 @@
     "screenshot": {
       "alt": "A janela da aba Usage do desktop do OpenLimiter com barras sintéticas de Codex, Claude Code e OpenRouter."
     },
-    "caption": "A janela real da aba Usage é renderizada sem interface gráfica com fixtures sintéticos. Nenhuma conta pessoal, credencial ou cifra real de uso aparece nela."
+    "caption": "A janela real da aba Usage, desenhada com dados de exemplo. Nenhuma conta pessoal, credencial ou cifra real de uso aparece nela."
   },
   "phonePanels": {
     "shots": {
@@ -585,7 +592,7 @@
     "connectors": {
       "claude": {
         "tag": "lê o payload nativo do statusline",
-        "detail": "Lê o que o Claude Code entrega ao seu statusline. O aplicativo de desktop também consulta a Anthropic com o seu login, depois de um aviso; você pode desligar isso."
+        "detail": "Lê o que o Claude Code entrega ao seu statusline. Uma consulta direta à Anthropic com o seu próprio login fica desativada até que você a ative."
       },
       "openRouter": {
         "tag": "lê uma resposta de créditos documentada",
@@ -593,7 +600,7 @@
       },
       "codex": {
         "tag": "lê o app server documentado do Codex",
-        "detail": "Lê o uso pelo app server documentado do Codex, com o login que o Codex já guardou, e falha de forma segura se isso mudar."
+        "detail": "Lê o uso pelo app server documentado do Codex, com o login que o Codex já guardou, e não mostra número nenhum em vez de um errado se isso mudar."
       },
       "antigravity": {
         "tag": "lê a statusline documentada",
@@ -609,11 +616,11 @@
       },
       "grok": {
         "tag": "lê janelas de assinatura da sessão local",
-        "detail": "Lê as janelas de cobrança expostas à sessão instalada do Grok e falha com segurança quando o formato muda."
+        "detail": "Lê as janelas de cobrança que a sessão instalada do Grok mostra, e não mostra número nenhum em vez de um errado quando o Grok as muda."
       },
       "kimi": {
         "tag": "lê janelas de assinatura da sessão local",
-        "detail": "Lê as janelas de uso expostas à sessão instalada do Kimi e falha com segurança quando o formato muda."
+        "detail": "Lê as janelas de uso que a sessão instalada do Kimi mostra, e não mostra número nenhum em vez de um errado quando o Kimi as muda."
       },
       "manualEntry": {
         "name": "Manual entry",
@@ -663,12 +670,13 @@
       }
     },
     "tile": {
-      "connector": "Connector",
+      "works": "Funciona hoje",
+      "mayBreak": "Funciona, pode quebrar quando a ferramenta atualizar",
       "noConnector": "Ainda sem connector",
       "plannedChip": "planejado"
     },
     "feedIn": "Como alimentar um",
-    "footnote": "Nenhum connector foi verificado contra uma conta real ainda. Codex e Cursor passam nos seus fixtures gravados, e todos os outros connectors vêm marcados <code>UNVERIFIED</code>, o padrão honesto. Gemini CLI, Grok, Kimi, OpenCode e Cursor leem interfaces internas às ferramentas de outra empresa, assim como a consulta direta ao Claude, e quando uma muda, esse provedor falha de forma segura para unknown em vez de chutar. <link>Cada connector e seu estado real</link>.",
+    "footnote": "Claude Code, Codex, Antigravity e OpenRouter são lidos por interfaces que seus criadores documentam. Gemini CLI, Grok, Kimi e OpenCode são lidos por interfaces que seus criadores não documentam, assim como a consulta direta ao Claude, que fica desativada até que você a ative, então uma atualização do lado deles pode parar uma barra até o OpenLimiter acompanhar, e ela não mostra número nenhum em vez de um errado. <link>Cada connector e seu estado real</link>.",
     "compatibilityNote": "Nomes de produtos, logotipos, marcas e outras marcas comerciais apresentados ou mencionados no OpenLimiter são de propriedade de seus respectivos titulares. Esses titulares de marcas não são afiliados ao OpenLimiter, aos nossos produtos ou ao nosso site. Eles não patrocinam nem endossam o OpenLimiter. O uso dessas marcas não implica qualquer afiliação ou endosso.",
     "manualNote": "Toda ferramenta desta página já pode ser medida hoje. Conecte a ferramenta a partir do aplicativo de desktop, ou, em Avançado, anote os números com manual entry, ou envie um payload com ingest a partir de qualquer script que você controle. De um jeito ou de outro, ele cai no mesmo snapshot que um connector."
   },
@@ -697,87 +705,6 @@
     },
     "openApp": "Abrir o web app",
     "howToProduce": "Como produzir um documento"
-  },
-  "connections": {
-    "heading": {
-      "title": "O que cada um realmente faz",
-      "note": "Um parser não é uma conexão"
-    },
-    "columns": {
-      "parser": "Parser",
-      "reader": "Leitor",
-      "auth": "Auth",
-      "verification": "Verificação"
-    },
-    "table": {
-      "caption": "Cada provedor, e qual dos quatro estágios de suporte ele já alcançou hoje, lido do registro de provedores revisado",
-      "provider": "Provedor",
-      "state": "Estado"
-    },
-    "cells": {
-      "unstated": "Não informado"
-    },
-    "support": {
-      "ready": "Pronto",
-      "notRequired": "Não necessário",
-      "none": "Nenhum"
-    },
-    "verification": {
-      "unverified": "Unverified",
-      "beta": "Beta",
-      "verified": "Verificado",
-      "importOnly": "Só importação",
-      "manual": "Manual",
-      "experimental": "Experimental",
-      "planned": "Planejado"
-    },
-    "state": {
-      "noSpec": "Sem spec",
-      "manual": "Manual",
-      "importOnly": "Só importação",
-      "localCli": "CLI local",
-      "connected": "Conectado"
-    },
-    "readerLine": {
-      "noSpec": "Ainda não há uma spec revisada no registro, então nada aqui reivindica um estado para ele.",
-      "implemented": "O OpenLimiter lê este por conta própria.",
-      "notImplemented": "Nada aqui busca este, então o documento vem de você."
-    },
-    "providers": {
-      "claude": {
-        "fact": "O Claude Code grava um bloco de limite de taxa no seu comando de statusline."
-      },
-      "openrouter": {
-        "fact": "O endpoint de créditos é documentado e a resposta dele é interpretável."
-      },
-      "codex": {
-        "fact": "O app server documentado do Codex, executado na sua máquina."
-      },
-      "antigravity": {
-        "fact": "A statusline documentada do Antigravity CLI."
-      },
-      "opencode": {
-        "fact": "Uma visão de uso por trás de uma sessão em que você já entrou."
-      },
-      "gemini": {
-        "fact": "Quota de modelos retornada pela sessão instalada do Gemini CLI."
-      },
-      "grok": {
-        "fact": "Janelas de assinatura retornadas pela sessão instalada do Grok."
-      },
-      "kimi": {
-        "fact": "Janelas de assinatura retornadas pela sessão instalada do Kimi."
-      },
-      "manual": {
-        "fact": "Números que você mesmo mantém, para qualquer coisa sem interface."
-      }
-    },
-    "footnote": {
-      "lead": "Leitor significa que algo dentro do OpenLimiter vai buscar o número. Auth significa que uma credencial é guardada e usada. Cada célula acima é lida em tempo de build a partir do registro de provedores revisado, em vez de escrita nesta página, então um estágio não pode ser reivindicado aqui sem um humano mudar uma spec antes.",
-      "unspecified": "{count} dos {total} connectors ainda não têm uma spec revisada, e cada célula deles mostra Não informado em vez de chutar.",
-      "elsewhere": "O registro descreve mais {count} produtos que são experimentais, manuais ou planejados, por isso eles não são linhas aqui.",
-      "tail": "Uma linha nesta página só é chamada de Conectado quando um leitor ao vivo para ela é confirmado, nunca só pela força de um parser."
-    }
   },
   "cliTranscript": {
     "captions": {
@@ -840,7 +767,7 @@
       },
       "safeToPoint": {
         "question": "É seguro apontar para minhas ferramentas?",
-        "answer": "O OpenLimiter abre o que suas ferramentas instaladas já guardam, só para leitura, e nunca as reescreve, conserta ou migra. Cada parser mantém números e timestamps limitados e descarta texto de provedor antes de qualquer coisa chegar ao seu agente."
+        "answer": "O OpenLimiter abre o que suas ferramentas instaladas já guardam, só para leitura, e nunca as reescreve, conserta ou migra. Ele mantém só números e timestamps limitados e descarta qualquer texto de provedor antes de qualquer coisa chegar ao seu agente."
       },
       "promptHook": {
         "question": "O prompt hook pode quebrar minha sessão?",
@@ -848,7 +775,7 @@
       },
       "providersToday": {
         "question": "Quais provedores funcionam hoje?",
-        "answer": "O guia de provedores lista os meters disponíveis, as etapas de configuração e o estado de verificação de cada integração. Leituras de quota e atividade de agentes são capacidades separadas. Um provedor que informa atividade não necessariamente expõe uma quota, e um parser testado em fixtures não prova aquisição ao vivo."
+        "answer": "O guia de provedores lista os meters disponíveis, as etapas de configuração e o estado real de cada integração. Leituras de quota e atividade de agentes são capacidades separadas: um provedor que informa atividade não necessariamente expõe uma quota."
       },
       "apiKey": {
         "question": "Eu preciso de uma chave de API?",
@@ -860,11 +787,11 @@
       },
       "connectorBreaks": {
         "question": "O que acontece quando um connector quebra?",
-        "answer": "Formatos não oficiais mudam sem aviso. Quando isso acontece, a interpretação falha de forma segura: esse provedor volta a unknown, os outros provedores não são afetados, e nada inventa um número para preencher a lacuna. Unknown nunca vira zero."
+        "answer": "Interfaces que seus criadores não documentam podem mudar sem aviso. Quando isso acontece, esse provedor não mostra número nenhum até o OpenLimiter acompanhar, os outros provedores não são afetados, e nada inventa um número para preencher a lacuna. Um número ausente nunca vira zero."
       },
       "desktopOrPhone": {
         "question": "Existe um aplicativo de desktop ou de celular?",
-        "answer": "O aplicativo de bandeja para desktop sai para Windows, macOS e Linux. Windows e macOS não são assinados, então cada um pergunta uma vez: no Windows, no SmartScreen, escolha Mais informações e depois Executar assim mesmo; no macOS, abra os Ajustes do Sistema, vá em Privacidade e Segurança e escolha Abrir Mesmo Assim. O macOS sai como uma única imagem de disco universal e fica fora das atualizações automáticas até existirem builds assinadas e notarizadas. No celular, o web app abre no navegador e instala na tela inicial, e o aplicativo de desktop pareia um celular por código QR para ler sua quota. Aplicativos nativos de iOS e Android não são feitos, nada está em loja e não há lista de espera. A página de download lista cada plataforma com o estado real dela."
+        "answer": "O aplicativo de bandeja para desktop sai para Windows e Linux, e o macOS é uma prévia. O Windows não é assinado, então pergunta uma vez: no SmartScreen, escolha Mais informações e depois Executar assim mesmo. A prévia para macOS é uma única imagem de disco universal, com assinatura ad hoc mas sem notarização, então você a abre uma vez em Ajustes do Sistema, Privacidade e Segurança, Abrir Mesmo Assim, e uma versão nova é um novo download. No celular, o web app abre no navegador e instala na tela inicial, e o aplicativo de desktop pareia um celular por código QR para ler sua quota. Aplicativos nativos de iOS e Android não são feitos, nada está em loja e não há lista de espera. A página de download lista cada plataforma com o estado real dela."
       },
       "free": {
         "question": "É grátis?",
@@ -872,7 +799,7 @@
       },
       "pro": {
         "question": "O que é o OpenLimiter Pro?",
-        "answer": "O OpenLimiter Pro custa US$ 5 por mês ou US$ 50 por ano, com os primeiros 30 dias gratuitos e sem cartão. Ele acrescenta quatro coisas: histórico com previsão; alertas por email e push no celular em 60, 80 e 90 por cento e no reinício; mais de uma conta por provedor; e medição de gasto de API na nuvem para chaves que você autorizar. Alertas do desktop, medidores locais e acesso à conta continuam gratuitos. Um reembolso integral pode ser solicitado em até 14 dias de qualquer cobrança."
+        "answer": "O OpenLimiter Pro custa US$ 5 por mês ou US$ 50 por ano, com os primeiros 30 dias gratuitos e sem cartão. Ele acrescenta mais de uma conta por provedor; noventa dias de histórico hospedado com previsão; alertas por push no celular e por email em 60, 80 e 90 por cento e no reinício; medição de gasto de API na nuvem para chaves que você autorizar; e o tema predefinido Ember. Alertas do desktop, medidores locais e acesso à conta continuam gratuitos. Um reembolso integral pode ser solicitado em até 14 dias de qualquer cobrança."
       },
       "alerts": {
         "question": "Recebo alertas quando uma janela enche?",
@@ -890,7 +817,7 @@
   },
   "pricing": {
     "title": "Preços",
-    "lead": "Medidores locais, alertas do desktop e acesso à conta são gratuitos, com uma conta ativa por provedor. O Pro acrescenta histórico, alertas por push no celular e por email, contas extras e medição de gasto de API na nuvem.",
+    "lead": "Medidores locais, alertas do desktop e acesso à conta são gratuitos, com uma conta ativa por provedor. O Pro acrescenta os recursos hospedados e o tema predefinido listados abaixo.",
     "plannedChip": "planejado",
     "free": {
       "status": "disponível",
@@ -920,14 +847,8 @@
       "perYear": "por ano",
       "trialChip": "30 dias gratuitos",
       "priceNote": "Os primeiros 30 dias são gratuitos e sem cartão. Quando o acesso termina, param o histórico do Pro, os alertas por push no celular e por email, as contas extras e a medição de gasto de API na nuvem. Medidores locais, alertas do desktop e acesso à conta continuam funcionando.",
-      "lead": "Quatro recursos Pro: histórico, alertas por push no celular e por email, contas extras e medição de gasto de API na nuvem.",
+      "lead": "Tudo o que é gratuito, e mais:",
       "footnote": "Depois do teste, meters locais, alertas locais e acesso gratuito à conta continuam funcionando. A versão gratuita mantém uma conta ativa por provedor.",
-      "lines": {
-        "alerts": "Alertas por email e push no celular. Os alertas locais do desktop são gratuitos",
-        "multiSubscription": "Contas extras por provedor",
-        "heavyApi": "Medição de gasto de API na nuvem com chaves de provedor autorizadas",
-        "history": "Noventa dias de histórico hospedado, com uma previsão"
-      },
       "cta": "Comece seu teste gratuito de 30 dias",
       "conditions": "Os medidores de gasto exigem uma chave de administrador da organização. Reembolso integral em até 14 dias, cancele quando quiser no portal da Stripe. Vendido por Lucas Costa, pagamentos pela Stripe.",
       "conditionsLink": "Condições completas"
@@ -949,7 +870,7 @@
       },
       "unknownStaysUnknown": {
         "title": "Unknown continua unknown",
-        "detail": "Um número ausente nunca vira um número confiante. Quando um formato muda por baixo de um connector, esse provedor falha de forma segura."
+        "detail": "Um número ausente nunca vira um número confiante. Quando uma ferramenta muda o que informa, esse provedor não mostra número nenhum em vez de chutar."
       }
     },
     "signature": {
@@ -960,20 +881,18 @@
   "download": {
     "updated": "Atualizado em {date}",
     "metaTitle": "Baixe o {version} para desktop e terminal",
-    "metaDescription": "Baixe o OpenLimiter {version} para Windows, macOS ou Linux, ou instale a CLI pelo npm. Meters e alertas locais gratuitos. As versões para desktop não são assinadas.",
+    "metaDescription": "Baixe o OpenLimiter {version} para Windows ou Linux, experimente a prévia para macOS ou instale a CLI pelo npm. Meters e alertas locais gratuitos. As versões para Windows não são assinadas. A prévia para macOS não é notarizada.",
     "title": "Download",
-    "lead": "As builds de desktop para Windows, macOS e Linux já estão disponíveis. Windows e macOS saem sem assinatura, então cada um pede autorização uma vez: no Windows escolha Mais informações e depois Executar assim mesmo, e no macOS abra Ajustes do Sistema, vá em Privacidade e Segurança e escolha Abrir Mesmo Assim. O macOS sai como uma única imagem de disco universal que roda em Apple silicon e em Intel. npm e o web app também estão disponíveis.",
     "choice": {
       "windowsSummary": "Build sem assinatura. Se o SmartScreen avisar, escolha Mais informações e depois Executar assim mesmo.",
-      "macosSummary": "Build universal sem assinatura para Apple silicon e Intel. Autorize uma vez em Privacidade e Segurança.",
-      "linuxSummary": "Escolha AppImage, deb ou rpm para sua distribuição. O AppImage roda depois que você define o bit executável.",
+      "macosSummary": "Prévia para Apple silicon e Intel, com assinatura ad hoc mas sem notarização. Autorize uma vez em Privacidade e Segurança e depois abra o app. As atualizações chegam como um novo download.",
+      "linuxSummary": "O pacote deb, para Debian e Ubuntu. O rpm e o AppImage estão mais abaixo; o AppImage precisa de libfuse2 (libfuse2t64 no Ubuntu 24.04).",
       "detected": "Detectado",
       "windows": "Baixar para Windows",
       "linux": "Baixar para Linux",
       "macos": "Baixar para macOS",
       "other": "Outras plataformas",
       "smartScreen": "Esta versão para Windows não é assinada, então o SmartScreen pode avisar: escolha Mais informações e depois Executar assim mesmo.",
-      "openAnyway": "Esta build de macOS não é assinada. Abra uma vez, depois abra os Ajustes do Sistema, vá em Privacidade e Segurança e escolha Abrir Mesmo Assim. A imagem de disco é universal, então roda em Apple silicon e em Intel. As atualizações automáticas chegam com as builds assinadas.",
       "linuxNote": "Pacotes AppImage, deb e rpm disponíveis. Executa diretamente sem aviso de assinatura."
     },
     "preview": {
@@ -988,18 +907,18 @@
       "lead": "OpenLimiter {version} para {platform}. Veja o que vem a seguir.",
       "manual": "Se o download não começou, <file>baixe o arquivo aqui</file>.",
       "back": "Voltar para todas as opções de download",
-      "firstRun": "Na primeira execução abre uma janela: entre ou pule essa etapa, conecte suas ferramentas e suas barras aparecem. Depois disso, passe o mouse sobre a aba pequena na borda esquerda da tela para ver as barras.",
+      "firstRun": "Na primeira execução abre uma janela que conecta suas ferramentas e mostra suas barras, e entrar na conta é opcional. Depois disso, passe o mouse sobre a aba pequena na borda esquerda da tela para ver as barras.",
       "windows": {
         "open": "Abra o instalador nos seus downloads. Se o navegador perguntar, mantenha o arquivo.",
         "smartScreen": "Se o SmartScreen avisar, escolha Mais informações e depois Executar assim mesmo. A build não é assinada, então o Windows pergunta uma vez."
       },
       "macos": {
         "open": "Abra a imagem de disco nos seus downloads e arraste o OpenLimiter para Aplicativos.",
-        "gatekeeper": "Abra o OpenLimiter uma vez. O macOS recusa essa primeira tentativa porque o app não é assinado: abra Ajustes do Sistema, vá em Privacidade e Segurança e escolha Abrir Assim Mesmo ao lado da mensagem do OpenLimiter."
+        "gatekeeper": "Abra o OpenLimiter uma vez. O macOS recusa essa primeira tentativa porque a prévia não é notarizada: abra Ajustes do Sistema, vá em Privacidade e Segurança e escolha Abrir Assim Mesmo ao lado da mensagem do OpenLimiter."
       },
       "linux": {
-        "open": "Torne o AppImage executável e depois execute o arquivo.",
-        "packages": "Prefere um pacote? Os arquivos deb e rpm estão na <download>página de download</download>.",
+        "open": "Instale o pacote deb com o instalador de programas, ou pelo terminal:",
+        "packages": "No Fedora ou openSUSE, ou para o AppImage, os outros arquivos estão na <download>página de download</download>. O AppImage precisa de libfuse2 (libfuse2t64 no Ubuntu 24.04).",
         "wayland": "No Wayland, a bandeja mostra suas barras no lugar da aba da borda."
       }
     },
@@ -1015,9 +934,9 @@
     "disclosure": {
       "title": "O que o aplicativo de desktop faz no seu computador",
       "webview": "No Windows, o instalador adiciona o runtime WebView2 da Microsoft quando ele falta, porque o aplicativo desenha a janela com ele.",
-      "updates": "O aplicativo verifica no GitHub se há uma versão mais nova e pergunta antes de fazer a instalação. No macOS, por enquanto, uma versão nova é um novo download nesta página.",
+      "updates": "O aplicativo verifica no GitHub se há uma versão mais nova e pergunta antes de fazer a instalação. A prévia para macOS não se atualiza sozinha: uma versão nova é um novo download nesta página.",
       "logins": "Ele lê os logins que as suas ferramentas de programação já guardaram, só para leitura, e envia cada um apenas ao próprio provedor. Suas leituras só chegam ao OpenLimiter se você entrar, e então apenas como leituras limitadas de quota.",
-      "claude": "As barras da sessão do Claude vêm da statusline documentada do Claude Code. Numa instalação nova, o aplicativo também consulta a Anthropic diretamente sobre o seu uso do Claude, com o seu próprio login do Claude Code e enviado apenas à Anthropic, depois de mostrar um aviso. Você pode desligar essa consulta."
+      "claude": "As barras do Claude vêm da statusline documentada do Claude Code. Uma consulta direta à Anthropic sobre o seu uso do Claude fica desativada até que você a ative em Connect Tools; ativada, ela envia o seu próprio login do Claude Code somente para a Anthropic, mais ou menos a cada cinco minutos, e todas as barras do Claude vêm dessa única fonte. A política da Anthropic para ferramentas como esta ainda não está resolvida."
     },
     "mobile": {
       "title": "O OpenLimiter roda no seu computador.",
@@ -1031,10 +950,6 @@
       "available": "disponível",
       "inDevelopment": "em breve",
       "planned": "planejado"
-    },
-    "available": {
-      "title": "Disponível agora",
-      "lead": "Windows, macOS e Linux têm builds de desktop empacotadas, e cada link abaixo leva direto ao arquivo. A ferramenta de linha de comando é um npm install em qualquer plataforma, ou um clone se você preferir compilar do código. O web app não precisa de instalação."
     },
     "packages": {
       "title": "Outros pacotes de desktop",
@@ -1050,10 +965,6 @@
       "lead": "Pareie seu celular pelo desktop e depois instale o web app na tela de início. Nenhum aplicativo nativo para iOS ou Android foi construído.",
       "qrAlt": "Código QR apontando para {url}",
       "scan": "Escaneie com seu celular o código mostrado pelo desktop. O web app abre, e você o instala na tela de início a partir dali."
-    },
-    "building": {
-      "title": "Em breve",
-      "lead": "Builds de macOS assinadas e notarizadas, e as atualizações automáticas que dependem delas. O app de macOS já pode ser baixado hoje e fica fora do manifesto de atualização até poder ser assinado, porque uma atualização cuja assinatura não pode ser verificada é pior do que nenhuma atualização."
     },
     "notBuilt": {
       "title": "Ainda não construído",
@@ -1082,14 +993,6 @@
         "note": "Build do Windows sem assinatura. SmartScreen: escolha Mais informações e depois Executar assim mesmo.",
         "requirement": "Node 24 ou mais recente, e pnpm 9.15.0, que o repositório fixa. PowerShell ou qualquer terminal de sua preferência."
       },
-      "macos": {
-        "name": "macOS",
-        "summary": "O aplicativo de desktop é empacotado para macOS como uma única imagem de disco universal que roda em Apple silicon e em Intel, e vem anexada ao release. A build não é assinada, então o Gatekeeper recusa a primeira abertura e você autoriza uma vez nos Ajustes do Sistema. A ferramenta de linha de comando instala pelo npm no macOS como em qualquer outro lugar.",
-        "note": "Build de macOS sem assinatura. Abra a imagem de disco, arraste o OpenLimiter para Aplicativos e abra uma vez. O macOS recusa essa primeira tentativa: abra Ajustes do Sistema, vá em Privacidade e Segurança, role até Segurança e escolha Abrir Assim Mesmo ao lado da mensagem do OpenLimiter, depois confirme. Isso é feito só uma vez. O macOS fica fora das atualizações automáticas até existirem builds assinadas e notarizadas, então até lá uma versão nova é um novo download nesta página.",
-        "assets": {
-          "universal": "Imagem de disco universal"
-        }
-      },
       "linux": {
         "name": "Linux",
         "summary": "O aplicativo de desktop é empacotado para Linux de três formas, todas anexadas ao release: um AppImage que roda em qualquer distribuição, um deb para Debian e Ubuntu, e um rpm para Fedora e openSUSE. A ferramenta de linha de comando se instala pelo npm e é testada no Linux junto com o Windows a cada push.",
@@ -1100,7 +1003,7 @@
         },
         "note": "Escolha um artefato. O AppImage funciona sem instalação depois que o bit de execução é definido. Debian e Ubuntu usam o arquivo deb. Fedora e openSUSE usam o arquivo rpm. Os comandos abaixo usam os nomes exatos dos arquivos do release.",
         "instructions": {
-          "appImage": "Executar o AppImage",
+          "appImage": "Executar o AppImage. Ele precisa de libfuse2 (libfuse2t64 no Ubuntu 24.04).",
           "deb": "Instalar no Debian ou Ubuntu",
           "rpm": "Instalar no Fedora ou openSUSE"
         },
@@ -1110,11 +1013,6 @@
         "name": "Web app",
         "summary": "Nada para instalar. O web app roda o mesmo motor da ferramenta de linha de comando dentro da aba do navegador, instala na tela inicial de um celular ou de um desktop e continua funcionando offline. Entre para ver as porcentagens que os seus próprios dispositivos sincronizaram, ou pareie um celular a partir do aplicativo de desktop escaneando o código que ele mostra.",
         "hrefLabel": "Abrir o web app"
-      },
-      "desktop": {
-        "name": "Aplicativo de desktop",
-        "summary": "Um ícone na bandeja, ao lado do relógio do sistema, lê o mesmo cache local da ferramenta de linha de comando, então a quota fica visível sem nenhum terminal aberto. Os releases empacotados saem para Windows, macOS e Linux. As atualizações automáticas cobrem Windows e Linux; o macOS entra quando existirem builds assinadas.",
-        "note": "As builds de Windows e macOS não são assinadas. No Windows, SmartScreen: escolha Mais informações e depois Executar assim mesmo. No macOS: Ajustes do Sistema, Privacidade e Segurança, Abrir Assim Mesmo."
       },
       "iphone": {
         "name": "iOS",
@@ -1159,16 +1057,12 @@
         "description": "Entre, conecte as contas de IA que você já paga e veja suas barras. As barras são gratuitas sem nenhuma conta.",
         "lead": "O OpenLimiter mede as assinaturas de IA que você já paga. As barras aparecem no seu próprio computador sem conta. Entre para sincronizar as mesmas barras entre seus dispositivos. Um teste gratuito de 30 dias sem cartão libera o restante.",
         "sections": {
-          "what-you-need": {
-            "title": "O que você precisa",
-            "bullets": {
+          "terminal": {
+            "title": "Terminal",
+            "needs": {
               "node": "Node 24 ou mais recente para o terminal.",
               "npm": "npm, que vem com o Node."
             },
-            "local": "Os medidores locais, os alertas do desktop e o terminal continuam gratuitos. Uma conta acrescenta sincronização, e o Pro acrescenta histórico hospedado, alertas por push no celular e por email, contas extras e medição de gasto de API na nuvem."
-          },
-          "terminal": {
-            "title": "Terminal",
             "intro": "Execute a ferramenta sem argumentos para seguir os mesmos três passos em qualquer lugar: entrar, conectar e escolher onde mostrar as barras.",
             "terminalLabel": "terminal",
             "steps": "A entrada mostra um código curto e um link para <code>openlimiter.com/app/cli</code>, então o terminal nunca vê uma senha. Pressione Enter para pular e deixar o dispositivo sem sessão. Conectar verifica cada CLI de agente instalada e mostra <code>use current login</code>, <code>sign in</code> ou <code>install</code> em cada linha. Também oferece iniciar a autenticação do próprio Codex na hora. Depois, lista os terminais compatíveis e configura os que você escolher.",
@@ -1177,7 +1071,8 @@
           },
           "desktop": {
             "title": "Aplicativo para computador",
-            "body": "Na primeira execução, o aplicativo mostra os mesmos três passos em sua janela: criar uma conta ou pular, conectar os provedores acessíveis diretamente e mostrar barras na bandeja. A bandeja e suas barras nunca exigem uma conta."
+            "download": "<download>Baixe o aplicativo para computador</download> para Windows ou Linux, ou a prévia para macOS. Ele não precisa de mais nada instalado nem de uma conta.",
+            "body": "Na primeira execução, ele leva você às primeiras barras em sua própria janela: conecta os provedores acessíveis diretamente, e entrar na conta é opcional. A bandeja e suas barras nunca exigem uma conta."
           },
           "hub": {
             "title": "Central web",
@@ -1194,7 +1089,7 @@
           },
           "phone": {
             "title": "Phone",
-            "body": "Abra a central, escolha seu celular e escaneie o código QR exibido. O pareamento não exige digitação. Adicione à tela inicial: o Android oferece instalar; no iOS, use Compartilhar e depois Adicionar à Tela de Início."
+            "body": "Abra o OpenLimiter no computador, escolha Pair your phone e escaneie o código QR exibido. O pareamento não exige digitação. Adicione o aplicativo web à tela inicial a partir dali: o Android oferece instalar; no iOS, use Compartilhar e depois Adicionar à Tela de Início."
           },
           "claude-code": {
             "title": "Conecte o Claude Code manualmente",
@@ -1288,7 +1183,7 @@
             "rows": {
               "claude": {
                 "connect": "Nada a configurar: o OpenLimiter lê o que o Claude Code já mostra.",
-                "reads": "A linha de status do Claude Code, automaticamente. Em uma nova instalação no desktop, uma solicitação direta de uso divulgada com suas credenciais locais do Claude começa ativada. Instalações existentes no desktop sem uma escolha perguntam primeiro. A configuração no terminal registra sua própria escolha."
+                "reads": "A linha de status do Claude Code, automaticamente. Uma solicitação direta de uso fica desativada até que você a ative; ativada, ela envia o seu próprio login do Claude Code somente para a Anthropic, mais ou menos a cada cinco minutos, e todas as barras do Claude vêm dela. A política da Anthropic para ferramentas como esta ainda não está resolvida."
               },
               "openrouter": {
                 "connect": "OAuth real, iniciado pela central. Uma chave que você já tenha continua funcionando.",
@@ -1333,7 +1228,7 @@
             "intro": "Most connectors read for themselves now. Two still do not, and this is the part worth stating plainly.",
             "bullets": {
               "antigravity": "<code>antigravity</code> chega pela linha de status documentada do Antigravity CLI. Use <code>/usage</code> no Antigravity CLI para atualizar a cota.",
-              "claude": "<code>claude</code> recebe dados da linha de status do Claude Code assim que ela aparece. Em uma nova instalação no desktop, uma solicitação direta de uso divulgada começa ativada. Instalações existentes sem uma escolha perguntam primeiro, e a configuração no terminal registra sua própria escolha.",
+              "claude": "<code>claude</code> recebe dados da linha de status do Claude Code assim que ela aparece. Uma solicitação direta de uso fica desativada até que você a ative; ativada, ela passa a ser a fonte de todas as barras do Claude.",
               "live": "<code>codex</code>, <code>gemini_cli</code>, <code>grok</code>, <code>kimi</code> e <code>openrouter</code> leem a sessão salva pela própria ferramenta, no máximo uma vez a cada quinze minutos, pela atualização do aplicativo ou por <code>openlimiter refresh</code> no terminal.",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
               "ingestOnly": "<code>opencode</code> is the one connector left with no reader of its own: it only accepts data through <code>openlimiter ingest --provider opencode</code>, because it reads an authenticated page rather than a login file."
@@ -1506,7 +1401,7 @@
               "claude": {
                 "name": "Claude Code",
                 "reports": "Uso da sessão de cinco horas e uso de sete dias, com horários de reset.",
-                "source": "A linha de status do Claude Code, automaticamente, sempre que o Claude Code aparece. Em uma nova instalação no desktop, uma solicitação direta de uso divulgada com suas credenciais locais do Claude começa ativada. Instalações existentes sem uma escolha perguntam primeiro."
+                "source": "A linha de status do Claude Code, automaticamente, sempre que o Claude Code aparece. Uma solicitação direta de uso com o seu próprio login do Claude Code fica desativada até que você a ative; ativada, ela é a fonte de todas as barras do Claude e é lida mais ou menos a cada cinco minutos."
               },
               "codex": {
                 "name": "Codex",
@@ -1530,7 +1425,7 @@
               }
             },
             "riskTitle": "Algumas interfaces não são oficiais",
-            "riskBody": "A consulta direta ao Claude e o OpenCode dependem de interfaces privadas dos provedores, que podem mudar ou desaparecer. Uma mudança de contrato produz desconhecido visível para aquele provedor e mantém todos os outros funcionando. O OpenRouter e o app server do Codex são documentados."
+            "riskBody": "A consulta direta ao Claude e o OpenCode dependem de interfaces privadas dos provedores, que podem mudar ou desaparecer. Uma mudança de contrato aparece naquele provedor em vez de ser adivinhada, e todos os outros continuam funcionando. O OpenRouter e o app server do Codex são documentados."
           },
           "privacy": {
             "title": "Limite de privacidade",
@@ -1754,7 +1649,7 @@
             },
             "grammar": {
               "title": "O formato",
-              "intro": "No Claude Code, a linha começa com o modelo, o esforço e quanto da janela de contexto está em uso. Depois vem uma célula por janela: etiqueta, barra de dez blocos, percentual com sua marca de atualização e horário de reinício. O provedor dono da linha de status omite sua etiqueta, pois o terminal já identifica de quem são os números. Os demais mantêm uma etiqueta curta antes do código da janela, e um saldo de crédito mostra seu valor em dólares em vez de uma barra.",
+              "intro": "No Claude Code, a linha começa com o modelo, o esforço e quanto da janela de contexto está em uso. Depois vem uma célula por janela, tudo em uma linha: código da janela, barra de dez blocos, percentual com sua marca de atualização e o reinício depois de uma seta, como ↻6d23h, ou depois da palavra resets quando o terminal só usa ASCII. Uma leitura ganha ! a partir de 80 por cento e !! a partir de 90. O provedor dono da linha de status omite sua etiqueta, pois o terminal já identifica de quem são os números. Os demais põem uma etiqueta curta antes do código da janela, separada por um espaço, como cx 5h, e um saldo de crédito mostra seu valor em dólares em vez de uma barra. Quando a linha é mais larga que o terminal, ela mantém as leituras mais próximas do limite e termina com +N more.",
               "exampleLabel": "Exemplo de saída, linha de um terminal",
               "freshness": {
                 "title": "As marcas de atualização",
@@ -1838,11 +1733,11 @@
                 },
                 "width": {
                   "accepts": "um número inteiro de 40 a 400",
-                  "meaning": "As colunas que uma linha pode gastar antes de a linha empilhar. Nada mede seu terminal: um host de statusline roda o comando sem nenhum terminal anexado, então o número aqui é o número respeitado. Padrão <code>140</code>."
+                  "meaning": "As colunas que uma linha pode gastar. No estilo <code>bar</code> a linha fica em uma só linha: leituras que não cabem dão lugar às mais perto do limite delas, e a linha termina com <code>+N more</code>. No estilo <code>cells</code> a linha empilha a partir dessa largura. Nada mede seu terminal: um host de statusline roda o comando sem nenhum terminal anexado, então o número aqui é o número respeitado. Padrão <code>140</code>."
                 },
                 "rows": {
                   "accepts": "<code>1</code> ou <code>2</code>",
-                  "meaning": "Quantas linhas o layout pode usar. Padrão <code>2</code>."
+                  "meaning": "Quantas linhas o estilo <code>cells</code> pode empilhar. O estilo <code>bar</code> sempre fica em uma só linha. Padrão <code>2</code>."
                 },
                 "bars": {
                   "accepts": "<code>true</code> ou <code>false</code>",
@@ -1875,7 +1770,7 @@
             },
             "statusline-stacking": {
               "title": "Quando a linha fica sem espaço",
-              "body": "A linha empilha em vez de truncar. Uma quebra acontece entre duas células e nunca dentro de uma, e duas linhas é o teto. Além disso, os provedores mais perto do limite deles são os mantidos, e a última linha termina dizendo quantos ela não conseguiu mostrar."
+              "body": "No estilo bar a linha fica em uma só linha de barras de dez blocos. Quando as leituras não cabem na largura, ela mantém as mais perto do limite delas e termina com +N more. O estilo cells empilha em vez de truncar: uma quebra acontece entre duas células e nunca dentro de uma, duas linhas é o teto, e além disso os provedores mais perto do limite são mantidos e a última linha diz quantos não conseguiu mostrar."
             },
             "statusline-plain": {
               "title": "A linha da 0.1.0, sob pedido",
@@ -1918,7 +1813,7 @@
             "title": "The commands",
             "capturedFixturesLabel": "captured {date}, synthetic fixtures",
             "capturedLabel": "captured {date}",
-            "claudePoll": "O controle Mostrar limite do Fable no aplicativo para desktop controla o processo do desktop. Para parar essa solicitação, abra Connect Tools, depois o menu no fim da linha do Claude, e desative Mostrar limite do Fable. <code>providers.claude.poll</code> controla o processo da linha de comando. Para parar essa solicitação, execute <code>openlimiter config set providers.claude.poll false</code>. Cada controle é independente. Isso envia uma solicitação direta de uso com suas credenciais locais do Claude, e a política da Anthropic para ferramentas como esta ainda não está resolvida.",
+            "claudePoll": "A consulta direta ao Claude fica desativada até que você a ative, e um único controle vale para o aplicativo para desktop e para esta ferramenta. No aplicativo para desktop, abra Connect Tools, depois o menu no fim da linha do Claude, e ative ou desative Read my Claude usage from Anthropic. No terminal, <code>openlimiter config set providers.claude.poll true</code> ativa e <code>openlimiter config set providers.claude.poll false</code> interrompe. Ativada, ela envia o seu próprio login do Claude Code somente para a Anthropic, mais ou menos a cada cinco minutos, e todas as barras do Claude vêm dessa única fonte. A política da Anthropic para ferramentas como esta ainda não está resolvida.",
             "init": {
               "body": "Writes local configuration to the state directory, recording every connector and whether it was detected. It reports the detected list, or none."
             },
@@ -1930,9 +1825,9 @@
             },
             "statusline": {
               "intro": "Renders the status row for a statusline host. It reads standard input first, so a Claude Code session payload is ingested and rendered in the same call, then falls back to the cache. This is the only command that writes as a side effect of being displayed.",
-              "cells": "The default layout draws one cell per window for the host named by <code>--host</code>: a tag, a ten block bar, the percentage, and the reset time, with no header line at all. See <docs>agent context</docs> for the full grammar and the freshness marks.",
+              "cells": "O layout padrão desenha uma linha para o host indicado em <code>--host</code>, com uma célula por janela: uma etiqueta com espaço como <code>cx 5h</code>, uma barra de dez blocos, o percentual com ! a partir de 80 por cento e !! a partir de 90, e o reinício depois de uma seta como <code>↻6d23h</code>, ou depois da palavra resets em um terminal só ASCII. Uma linha mais larga que o terminal mantém as leituras mais próximas do limite e termina com <code>+N more</code>. Veja <docs>Agent context</docs> para a gramática completa e as marcas de atualização.",
               "order": "<code>statusline.style cells</code> brings back the previous row instead: the overall reason code and the routing recommendation lead, then one compact cell per provider with a five block bar rather than the ten the new default draws.",
-              "stacking": "A row wider than its budget stacks rather than truncating. The break lands between two cells and never inside one, because half a bar reads as a reading and is not one. Two rows is the ceiling. Past that the providers closest to their caps are kept, and the last row ends by saying how many it could not show.",
+              "stacking": "No estilo cells, uma linha mais larga que o orçamento dela empilha em vez de truncar. A quebra acontece entre duas células e nunca dentro de uma, porque meia barra parece uma leitura e não é. Duas linhas é o teto. Além disso, os provedores mais perto do limite deles são mantidos, e a última linha termina dizendo quantos não conseguiu mostrar.",
               "calloutTitle": "The old line is still one setting away",
               "calloutBody": "<code>openlimiter config set statusline.bars false</code> returns the single plain line that 0.1.0 printed, byte for byte, for anything already parsing it. A test pins that exact string, so the escape hatch cannot rot quietly."
             },
@@ -1967,7 +1862,7 @@
               "body": "Envia uma rodada das barras em cache à central, renovando antes a sessão se ela estiver perto de expirar. <code>refresh</code> já faz isso automaticamente após uma rodada bem sucedida quando há sessão. A execução manual serve para confirmar que o envio chegou."
             },
             "refresh": {
-              "body": "Lê as sessões salvas pelas suas ferramentas e pede a cada provedor seu uso, no máximo uma vez a cada quinze minutos. Guarda as leituras válidas no cache. Pausa enquanto o aplicativo está aberto. <code>statusline</code> e <code>snapshot</code> iniciam o comando automaticamente em segundo plano quando o cache passa de um minuto."
+              "body": "Lê as sessões salvas pelas suas ferramentas e pede a cada provedor seu uso, no máximo uma vez a cada quinze minutos. Guarda as leituras válidas no cache. A solicitação direta de uso do Claude, depois que você a ativa, lê mais ou menos a cada cinco minutos. Pausa enquanto o aplicativo está aberto. <code>statusline</code> e <code>snapshot</code> iniciam o comando automaticamente em segundo plano quando o cache passa de um minuto."
             },
             "terminal": {
               "body": "Lista os terminais compatíveis e sua configuração, oferecendo configurar um ou todos. <code>terminal install '<host>'</code> e <code>terminal uninstall '<host>'</code> configuram ou restauram um terminal. <code>terminal status</code> mostra a tabela, e <code>terminal show</code> e <code>terminal hide</code> escolhem os provedores visíveis. Consulte <docs>contexto do agente</docs> para conhecer os terminais e o formato."
@@ -2076,20 +1971,20 @@
           "not-available": {
             "title": "Leia isto primeiro",
             "calloutTitle": "Planejado significa ainda não construído",
-            "calloutBody": "Todo item marcado como planejado abaixo não existe hoje. Não há aplicativo móvel nativo em nenhuma loja, não há assinatura de código, e não há canal de atualização automática para macOS. O OpenLimiter Pro é listado à parte como disponível."
+            "calloutBody": "Todo item marcado como planejado abaixo não existe hoje. Não há aplicativo móvel nativo em nenhuma loja, a versão para Windows não tem assinatura de código, e o macOS é uma prévia sem notarização que não se atualiza sozinha. O OpenLimiter Pro é listado à parte como disponível."
           },
           "desktop": {
             "title": "Lançado: o aplicativo de desktop",
-            "intro": "Um pequeno aplicativo de desktop com um ícone na bandeja, ao lado do relógio do sistema, lê o mesmo cache local que a ferramenta de linha de comando escreve, então a quota fica à vista sem terminal aberto. Builds empacotadas de Windows, macOS e Linux ficam anexadas ao release.",
+            "intro": "Um pequeno aplicativo de desktop com um ícone na bandeja, ao lado do relógio do sistema, lê o mesmo cache local que a ferramenta de linha de comando escreve, então a quota fica à vista sem terminal aberto. Builds empacotadas de Windows e Linux, e uma prévia para macOS, ficam anexadas ao release.",
             "bullets": {
-              "status": "Status: disponível em Windows, macOS e Linux, com download público para cada um.",
-              "signing": "Windows e macOS saem sem assinatura. No Windows, SmartScreen: escolha Mais informações e depois Executar assim mesmo. No macOS: Ajustes do Sistema, Privacidade e Segurança, Abrir Assim Mesmo. O macOS fica fora das atualizações automáticas até existirem assinatura e notarização.",
-              "updates": "Planejado: um canal de atualização automática. Ainda não há nenhum hoje."
+              "status": "Status: disponível em Windows e Linux, e como prévia no macOS, com download público para cada um.",
+              "signing": "A versão para Windows sai sem assinatura: no SmartScreen, escolha Mais informações e depois Executar assim mesmo. A prévia para macOS tem assinatura ad hoc mas não é notarizada: abra uma vez e depois Ajustes do Sistema, Privacidade e Segurança, Abrir Assim Mesmo.",
+              "updates": "Atualizações: os aplicativos para Windows e Linux verificam o GitHub e perguntam antes de instalar uma versão nova. A prévia para macOS é atualizada por um novo download."
             }
           },
           "mobile": {
             "title": "Shipped: the phone, planned: a native app",
-            "intro": "O celular é pareado pelo hub com um código QR, sem digitação, e instalado na tela inicial: o Android oferece a instalação e o iOS usa Compartilhar, depois Adicionar à Tela de Início. O acesso pelo celular está disponível hoje com uma conta gratuita.",
+            "intro": "O celular é pareado pelo aplicativo de desktop com um código QR, sem digitação, e instalado na tela inicial: o Android oferece a instalação e o iOS usa Compartilhar, depois Adicionar à Tela de Início. O acesso pelo celular está disponível hoje com uma conta gratuita.",
             "bullets": {
               "status": "Status: o pareamento do celular e o web app instalável estão disponíveis com uma conta gratuita.",
               "dependsOnSync": "A native application in an app store remains planned and does not exist today. The paired, installable web app is what replaces the need for one."
@@ -2100,10 +1995,7 @@
             "intro": "O OpenLimiter Pro está disponível por $5 por mês ou $50 por ano, com os primeiros 30 dias gratuitos e sem cartão. Veja <pricing>preços</pricing> para saber o que cada linha realmente é.",
             "bullets": {
               "status": "Estado: disponível. A sincronização fica ligada a partir do momento em que você entra.",
-              "alerts": "Alertas por email ao cruzar um limite ou resetar.",
-              "history": "Noventa dias de histórico hospedado com previsões de consumo.",
-              "localFirst": "Tudo o que você vê é gratuito. A ferramenta de linha de comando e os recursos locais do desktop funcionam sem conta Pro.",
-              "phone": "Pareamento do celular por código QR, mantido mesmo após o dispositivo ficar fechado por um dia ou mais."
+              "localFirst": "Tudo o que você vê é gratuito. A ferramenta de linha de comando e os recursos locais do desktop funcionam sem conta Pro."
             }
           },
           "following": {
@@ -2128,6 +2020,7 @@
     "sending": "Enviando o link.",
     "sent": "Confira {email} e abra o link neste dispositivo.",
     "failed": "Não foi possível iniciar esse acesso. Confira sua conexão e tente de novo.",
+    "emailFailed": "Não foi possível enviar o email de acesso agora. Continue com GitHub ou Google.",
     "githubOff": "O acesso com GitHub ainda não está ativado. Use Google ou email.",
     "googleOff": "O acesso com Google ainda não está ativado. Use GitHub ou email.",
     "emailOff": "O acesso por email ainda não está ativado. Use GitHub ou Google.",
@@ -2140,7 +2033,7 @@
   },
   "proPortal": {
     "title": "OpenLimiter Pro",
-    "lead": "Tudo o que você vê é gratuito. O Pro acrescenta histórico, alertas por push no celular e por email, contas extras e medição de gasto de API na nuvem.",
+    "lead": "Tudo o que você vê é gratuito. O Pro acrescenta {features}.",
     "metaDescription": "Entre para gerenciar seu plano OpenLimiter Pro, sua cobrança e os dispositivos que leem sua quota.",
     "loading": "Lendo sua conta.",
     "working": "Processando",
@@ -2171,14 +2064,14 @@
       "trial": {
         "chip": "teste",
         "title": "Você está no teste gratuito",
-        "body": "Todos os serviços Pro estão ativos: histórico com previsão, alertas por email e push no celular, contas extras e medição de gasto de API na nuvem para chaves que você autorizar. Nenhum cartão foi pedido.",
+        "body": "Todos os serviços Pro estão ativos: {features}. Nenhum cartão foi pedido.",
         "daysLeft": "{count, plural, one {# dia restante} other {# dias restantes}} de teste.",
         "ends": "Ele termina em {date}."
       },
       "active": {
         "chip": "ativo",
         "title": "O Pro está ativo",
-        "body": "Histórico, alertas por push no celular e por email, contas extras e medição de gasto de API na nuvem estão todos ativos.",
+        "body": "Todos os serviços Pro estão ativos: {features}.",
         "renewsOn": "Ele renova em {date}.",
         "endsOn": "Ele termina em {date} e não renova."
       },
@@ -2216,9 +2109,13 @@
       "neverSeen": "Ainda não visto"
     },
     "checkout": {
-      "success": {
-        "title": "Pagamento recebido",
-        "body": "A Stripe confirmou o pagamento. Seu plano é atualizado aqui assim que o serviço registrar, o que costuma levar alguns segundos."
+      "pending": {
+        "title": "Confirmando seu pagamento",
+        "body": "O Pro é ativado em poucos minutos, assim que a Stripe confirmar o pagamento."
+      },
+      "confirmed": {
+        "title": "O Pro está ativo",
+        "body": "Todos os serviços Pro estão ativos na sua conta."
       },
       "cancel": {
         "title": "O checkout foi cancelado",
@@ -2232,24 +2129,12 @@
       "start": "Começar o Pro grátis por 30 dias",
       "free": "Nenhum cartão de crédito é necessário"
     },
-    "offer": {
-      "title": "Sua oferta anual",
-      "lead": "Seu teste terminou, então o primeiro ano tem desconto enquanto esta janela estiver aberta.",
-      "label": "Sua oferta termina em",
-      "countdown": "{days}d {hours}h {minutes}m",
-      "countdownLabel": "Tempo restante: {days} dias, {hours} horas, {minutes} minutos.",
-      "price": "US$ 40 no primeiro ano, depois US$ 50.",
-      "take": "Aproveitar a oferta"
-    },
     "lost": {
       "alerts": "{count} alertas foram interrompidos.",
       "noAlerts": "Nenhum alerta foi interrompido.",
       "history": "Seu histórico fica guardado por trinta dias e depois é apagado.",
-      "phone": "Celular pareado: {status}.",
       "multiAccount": "{count} contas extras foram interrompidas.",
       "hostedContext": "Medição de gasto de API na nuvem: {status}.",
-      "paired": "sim",
-      "notPaired": "não",
       "on": "ativado",
       "off": "desativado",
       "loading": "Lendo o que foi interrompido.",
@@ -2257,8 +2142,29 @@
     },
     "restore": "Ao assinar, tudo volta ao que era. Suas preferências foram mantidas."
   },
+  "proFeatures": {
+    "multiAccount": "Mais de uma conta por provedor",
+    "history": "Noventa dias de histórico hospedado, com uma previsão",
+    "alerts": "Alertas por push no celular e por email. Os alertas do desktop continuam gratuitos",
+    "apiSpend": "Medição de gasto de API na nuvem para as chaves que você ativar",
+    "ember": "O tema predefinido Ember",
+    "inline": {
+      "multiAccount": "contas extras",
+      "history": "histórico hospedado",
+      "alerts": "alertas por push e por email",
+      "apiSpend": "medição de gasto de API na nuvem",
+      "ember": "o tema Ember"
+    }
+  },
   "hub": {
     "accountFallback": "Conta {count}",
+    "syncFailed": {
+      "line": "A última leitura das suas barras falhou. O OpenLimiter tenta de novo a cada minuto.",
+      "retry": "Tentar de novo"
+    },
+    "alertsGate": {
+      "pro": "Alertas por push no celular e por email fazem parte do Pro. Os alertas do desktop são gratuitos."
+    },
     "updatedMinutes": "Atualizado há {count} min",
     "updatedHours": "Atualizado há {count} h",
     "updatedDays": "Atualizado há {count} d",
@@ -2295,8 +2201,6 @@
     "accountBalanceDetail": "{purchased} comprados, {used} usados",
     "balance": "Saldo",
     "percentUsed": "{value}% usado",
-    "claudeFableDesktopHint": "O Fable aparece aqui quando o uso do Claude está ativado no OpenLimiter no seu computador.",
-    "claudeWeeklyPollHint": "Ative a consulta de uso em Ferramentas de conexão para ver seus limites semanais.",
     "providers": {
       "title": "Provedores",
       "automaticPrompt": "Abra o aplicativo de desktop. A detecção local começa por lá.",
@@ -2344,7 +2248,7 @@
       "description": "O aplicativo entra na sua conta, encontra as ferramentas que já estão nesta máquina e suas barras aparecem aqui.",
       "download": {
         "windows": "Baixar o OpenLimiter para Windows",
-        "macos": "Baixar o OpenLimiter para macOS",
+        "macos": "Baixar a prévia do OpenLimiter para macOS",
         "linux": "Baixar o OpenLimiter para Linux"
       },
       "platforms": {
@@ -2462,53 +2366,41 @@
     "pro": {
       "label": "Pro",
       "locked": {
-        "title": "Histórico, alertas, contas extras e medição na nuvem",
-        "lead": "Suas barras e os alertas do desktop são gratuitos. Estes recursos Pro estão disponíveis com um teste."
+        "title": "O que o Pro acrescenta",
+        "lead": "Suas barras e os alertas do desktop são gratuitos. Estes recursos Pro estão disponíveis com um teste.",
+        "price": "Depois do teste, {monthly} por mês ou {yearly} por ano. Cancele quando quiser, com reembolso integral mediante pedido em até 14 dias."
+      },
+      "phonePush": "O pareamento mostra suas barras neste celular. Ele não ativa os alertas por push: eles vão para o navegador em que você iniciou o Pro conectado e com notificações permitidas.",
+      "phonePlan": {
+        "loading": "Lendo seu plano.",
+        "unavailable": "Não foi possível ler seu plano neste celular agora. Suas barras continuam atualizando."
       },
       "expired": {
         "title": "O Pro terminou",
         "lead": "Suas preferências salvas do Pro foram mantidas, e estes serviços foram interrompidos."
       },
-      "feature": {
-        "alerts": "Alertas por email e push no celular. Alertas locais do desktop são gratuitos.",
-        "history": "Noventa dias de histórico, com uma previsão.",
-        "phone": "Medidores de gasto de API na nuvem para chaves que você autorizar.",
-        "multiAccount": "Mais de uma conta para cada provedor."
-      },
     "lost": {
       "alerts": "{count} alertas foram interrompidos.",
       "noAlerts": "Nenhum alerta foi interrompido.",
         "history": "Seu histórico fica guardado por trinta dias e depois é apagado.",
-        "phone": "Celular pareado: {status}.",
         "multiAccount": "{count} contas extras foram interrompidas.",
         "hostedContext": "Medição de gasto de API na nuvem: {status}.",
-        "paired": "sim",
-        "notPaired": "não",
         "on": "ativado",
         "off": "desativado",
         "loading": "Lendo o que foi interrompido.",
         "unavailable": "Não foi possível ler o que foi interrompido."
       },
       "restore": "Ao assinar, tudo volta ao que era. Suas preferências foram mantidas.",
-      "offer": {
-        "label": "Sua oferta termina em",
-        "countdown": "{days}d {hours}h {minutes}m",
-        "countdownLabel": "Tempo restante: {days} dias, {hours} horas, {minutes} minutos.",
-        "price": "US$ 40 no primeiro ano, depois US$ 50.",
-        "take": "Aproveitar a oferta",
-        "working": "Abrindo o checkout"
-      },
       "prices": {
-        "line": "{yearly} por ano.",
-        "take": "Assinar o Pro"
+        "working": "Abrindo o checkout"
       },
       "error": "Isso não foi concluído. Nada foi cobrado e nada mudou."
     },
     "phone": {
       "button": "Abrir no seu celular",
-      "line": "Comece o pareamento pelo aplicativo de desktop e depois escaneie",
+      "line": "Escaneie para abrir o OpenLimiter no celular e entrar na sua conta. Para parear sem entrar, escolha Pair your phone no aplicativo de desktop.",
       "download": "Baixar o aplicativo de desktop",
-      "qrAlt": "Código QR que leva à página de pareamento do celular"
+      "qrAlt": "Código QR que leva ao aplicativo web do OpenLimiter"
     },
     "phonePairHint": "Pareie com o aplicativo para desktop e veja suas barras sem entrar na conta",
     "phoneInstall": {
@@ -2548,7 +2440,8 @@
       "retry": "Atualizar leituras",
       "defaultLabel": "Este celular",
       "bars": {
-        "title": "Sua cota"
+        "title": "Sua cota",
+        "empty": "Ainda não há leituras. Abra o OpenLimiter no seu computador e conecte uma ferramenta."
       },
       "reading": {
         "title": "Lendo sua cota",
@@ -2560,7 +2453,7 @@
       },
       "revoked": {
         "title": "Este celular foi desemparelhado",
-        "body": "Escaneie de novo pelo hub. O aplicativo de desktop mostra um código novo e aprova o celular de novo."
+        "body": "Pareie de novo pelo aplicativo de desktop: abra o OpenLimiter no computador, escolha Pair your phone e escaneie o código novo."
       },
       "offline": {
         "title": "O serviço não respondeu",
@@ -2573,7 +2466,7 @@
           "body": "Um momento. Nada foi enviado ainda."
         },
         "noCode": {
-          "title": "Este link não tem código de pareamento",
+          "title": "Pareie este celular pelo aplicativo de desktop",
           "body": "O aplicativo de desktop gera um código de pareamento que dura dois minutos. Abra o OpenLimiter no computador, escolha Pair your phone e escaneie o código exibido."
         },
         "waiting": {

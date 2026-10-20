@@ -107,31 +107,32 @@ request uses the Claude Code bearer token, an honest OpenLimiter user agent,
 JSON acceptance and the fixed OAuth beta contract header. Redirects remain
 disabled and the transport can reach only compile time addresses.
 
-The desktop and command line processes have independent switches. Show Fable
-limit controls the desktop process. `providers.claude.poll` controls the command
-line process. Each can be turned off without changing the other. A new desktop
-install records on only after its disclosure is shown. An existing desktop
-install with no choice asks once. Terminal setup asks once, while unattended
-setup records off. Missing state never triggers a request, and invalid,
-unreadable, unsafe, oversized or unknown version state stays off.
+There is one switch, and it is off until you turn it on. `claude-poll.json` in
+the state directory is its one store of truth: the desktop app reads it at
+every pass and the command line tool at every run, and both setters write it
+and mirror the legacy `providers.claude` keys for an older version still
+installed. Nothing asks: setup, init and the first run never put the question.
+Missing state is off, and invalid, unreadable, unsafe, oversized or unknown
+version state stays off.
 
-To stop desktop polling, open Connect Tools, then the menu at the end of the
-Claude row, and turn Show Fable limit off. To stop command line polling, run
-`openlimiter config set providers.claude.poll false`.
+To turn it on in the desktop app, open Connect Tools, then the menu at the end
+of the Claude row, and turn Read my Claude usage from Anthropic on. In a
+terminal, run `openlimiter config set providers.claude.poll true`. Turn the
+same switch off, or run `openlimiter config set providers.claude.poll false`,
+to stop it.
 
-This is a direct usage request with the local Claude credentials on the
-computer. Anthropic's policy for tools like this is unresolved.
+When it is on, OpenLimiter sends your own Claude Code login only to Anthropic,
+about every five minutes, and every Claude bar comes from that one source: a
+status line payload neither writes nor draws anything. When it is off, the
+Claude bars come from the status line and manual entry, with no weekly bars.
+Anthropic's policy for tools like this is unresolved.
 
-Successful responses must contain both `five_hour` and `seven_day`. Each must
-carry `utilization` from zero through one hundred and a plausible RFC 3339
-`resets_at`. Anything else becomes visible unknown and enables fallback.
-
-One account can make at most one request every fifteen minutes. A response with
-status 429 waits at least one hour and at most one day. Status 403, 404 or 410
-waits one day. Status 401 produces the fixed message telling the person to
-reopen Claude Code. A new credential revision bypasses the old wait, so reopening
-the CLI recovers immediately.
-
-Current OAuth data suppresses only the anonymous Claude statusline row for the
-same meter. A statusline event observed after OAuth expiry is accepted again.
-Manual entry remains available if both sources fail.
+Each bucket in a response is read on its own, and a bucket that does not hold
+together is dropped alone. After a successful read the next one is due at the
+earlier of five minutes and the next reset still ahead. A rate limit doubles
+from sixty seconds to a fifteen minute cap and honours Retry-After up to seven
+days. Status 401, 403, 404 or 410 waits one day whatever Retry-After says, and
+401 produces the fixed message telling the person to reopen Claude Code; a new
+credential revision ends that wait at once. A failed read, including one this
+build cannot parse, never hands the bars to the status line: the last readings
+stay and age, and the failure shows as a flag on the account.

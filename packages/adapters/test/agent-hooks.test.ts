@@ -2,8 +2,17 @@ import { mkdir, mkdtemp, readFile, realpath, rm, stat, symlink, writeFile } from
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { readSnapshotCache, recordAcquisitionAvailability } from "@openlimiter/core";
 import {
+  buildAdvice,
+  mergeAuthoritativeSnapshotCache,
+  readSnapshotCache,
+  recordAcquisitionAvailability,
+  writeSnapshotCache,
+  type Snapshot
+} from "@openlimiter/core";
+import {
+  AGENT_CONTEXT_FILE_NAME,
+  buildAgentContext,
   agentContextFromCache,
   agentContextAdapterV1,
   agentVersionCompatibility,
@@ -93,6 +102,44 @@ describe("agent context snapshot policy", () => {
     expect(context).not.toContain("recommendation_code=PREFER");
     expect(context).not.toContain("recommendation_provider=CODEX");
     expect(context).not.toContain("usage_percent=0.00");
+  });
+
+  /* 2.1.7, plan item 4: every hook read checks the derived context against the
+     guarded cache and rebuilds it when they disagree, because a 2.1.5 terminal
+     still writes this file from rows the switch does not select. */
+  it("never returns context from the unselected source, including after a legacy write once the switch is off", async () => {
+    const directory = await mkdtemp(path.join(await scratchRoot(), "openlimiter-agent-source-"));
+    created.push(directory);
+    const now = "2026-10-20T10:00:00.000Z";
+    const row = (value: number, sourceKind: "remote_api" | "statusline_payload", observedAt: string): Snapshot => ({
+      provider: "CLAUDE", accountId: "claude-acct", meter: "FIVE_HOUR", value, unit: "PERCENT",
+      window: { kind: "rolling", durationSeconds: 18_000 }, resetAt: "2026-10-20T14:00:00.000Z",
+      source: sourceKind === "remote_api" ? "internal_payload" : "native_payload", precision: "exact",
+      observedAt, expiresAt: "2026-10-20T10:06:45.000Z",
+      labels: { credentialOrigin: "official-local-tool", dataInterfaceStatus: "internal-endpoint", automationRisk: "high", verification: "UNVERIFIED" },
+      provenance: { sourceKind, observedVia: sourceKind === "remote_api" ? "remote_http" : "claude_code_statusline" }
+    });
+    const poll = row(4, "remote_api", "2026-10-20T09:59:00.000Z");
+    const payload = row(37, "statusline_payload", "2026-10-20T09:59:30.000Z");
+    await mergeAuthoritativeSnapshotCache([poll], directory, now);
+    await writeSnapshotCache([payload], directory);
+    /* What a 2.1.5 terminal writes: its own unguarded view, straight to the file. */
+    const legacyWrite = async (rows: Snapshot[]) => writeFile(path.join(directory, AGENT_CONTEXT_FILE_NAME), JSON.stringify({
+      schema: "openlimiter.agent_context", version: 1, generated_at: now, expires_at: "2026-10-20T10:05:00.000Z",
+      source: "cli_snapshot", untrusted_data: true, context: buildAgentContext(buildAdvice(rows, now, ["CLAUDE"])),
+      cache_stamp: { digest: "0".repeat(32), observed_at: "2026-10-20T09:59:30.000Z" }
+    }));
+    const switchTo = (enabled: boolean) => writeFile(path.join(directory, "claude-poll.json"), JSON.stringify({ version: 1, enabled }));
+    await switchTo(true);
+    await legacyWrite([payload]);
+    const on = await agentContextFromCache(directory, now, ["CLAUDE"]);
+    expect(on).toContain("provider=CLAUDE meter=FIVE_HOUR state=fresh usage_percent=4 ");
+    expect(on).not.toContain("usage_percent=37");
+    await switchTo(false);
+    await legacyWrite([poll]);
+    const off = await agentContextFromCache(directory, now, ["CLAUDE"]);
+    expect(off).toContain("provider=CLAUDE meter=FIVE_HOUR state=fresh usage_percent=37 ");
+    expect(off).not.toContain("usage_percent=4 ");
   });
 });
 
@@ -433,6 +480,11 @@ describe("hook configuration mutation", () => {
     const native = path.join(directory, "node_modules", "@openai", packageName, "vendor", triple, "bin", "codex.exe");
     await mkdir(path.dirname(native), { recursive: true });
     await writeFile(native, "synthetic native Codex", "utf8");
+    /* The package the shim names, as npm installs it: the desktop's rule and
+       its CLI twin find the platform package from here. */
+    const launcher = path.join(directory, "node_modules", "@openai", "codex", "bin", "codex.js");
+    await mkdir(path.dirname(launcher), { recursive: true });
+    await writeFile(launcher, "synthetic launcher", "utf8");
     const seen: { executable: string; argumentsList: readonly string[] } = { executable: "", argumentsList: [] };
     await expect(detectAgentInstallation("codex", {
       platform: "win32",

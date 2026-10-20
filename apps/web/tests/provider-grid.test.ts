@@ -182,16 +182,15 @@ describe("rearrangeable provider grid", () => {
     expect(style).toMatch(/\.window-line\s*\{[^}]*grid-template-columns:\s*var\(--row-columns\)/u);
   });
 
-  it("keeps the Claude setup hint inside the shared card footer", async () => {
-    mounted = render(createElement(ProviderRows, {
-      rows: [row("CLAUDE", "Claude")],
-      claudeFableHintText: "Turn on Show Fable limit in the desktop app.",
-    }));
+  /* 2.1.7, plan item 7: nothing on the hub or the phone pushes toward the
+     direct Claude request, so a Claude card without model windows says
+     nothing about turning it on. */
+  it("draws no enablement hint on a Claude card", async () => {
+    mounted = render(createElement(ProviderRows, { rows: [row("CLAUDE", "Claude")] }));
     await flush();
 
     const host = mounted.container.querySelector<HTMLElement>("openlimiter-provider-row");
-    const footer = host?.querySelector<HTMLElement>('[slot="footer"]');
-    expect(footer?.textContent).toBe("Turn on Show Fable limit in the desktop app.");
-    expect(host?.shadowRoot?.querySelector('slot[name="footer"]')).not.toBeNull();
+    expect(host).not.toBeNull();
+    expect(host?.querySelector('[slot="footer"]')).toBeNull();
   });
 });

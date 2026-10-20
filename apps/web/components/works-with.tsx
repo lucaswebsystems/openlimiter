@@ -1,5 +1,5 @@
 import { useTranslations } from "next-intl";
-import { ConnectionMatrix } from "./connection-matrix";
+import registry from "../lib/provider-specs.generated.json";
 import { SiteLink } from "./site-link";
 import { todayTools, toolTitle, type Tool } from "./tool-marks";
 import { SectionHeading } from "./ui";
@@ -26,13 +26,37 @@ import { reveal, revealGroup, revealSm } from "@/lib/motion";
  */
 
 /**
+ * Which reviewed registry entry each tile is.
+ *
+ * The line under a tool's name says, in the reader's words, whether it works
+ * today or may break when the tool updates, and that comes from the registry
+ * rather than from this file: a tool whose reader is one its maker does not
+ * document can stop when that tool changes. The verification internals, the
+ * parser, reader and auth stages, live in the provider docs, not here.
+ */
+const SPEC_IDS: Readonly<Record<string, string>> = {
+  "Claude Code": "anthropic/claude-code",
+  "OpenAI Codex": "openai/codex",
+  "Google Antigravity": "google/antigravity",
+  "Gemini CLI": "google/gemini-cli",
+  "Grok Build": "xai/grok-cli",
+  Kimi: "moonshot/kimi-code",
+  OpenCode: "opencode/opencode",
+  OpenRouter: "openrouter/api",
+};
+
+function mayBreak(tool: Tool): boolean {
+  const entry = registry.providers.find((row) => row.id === SPEC_IDS[tool.name]);
+  return entry === undefined || entry.readers.includes("experimental");
+}
+
+/**
  * One tile, with the mark drawn bare and no badge on the ordinary case.
  *
  * The tinted square around the logo is gone: a brand mark is already an object
  * and putting it in a second one turned this grid into eighteen buttons. The
- * `today` chip is gone for the same kind of reason: every tile in the first
- * group had one, so it said nothing, and the line under the name already says
- * `Connector`. `planned` stays, because that is the exception.
+ * line under the name says whether the tool works today or may break when it
+ * updates.
  */
 function ToolTile({ tool }: { tool: Tool }) {
   const t = useTranslations("worksWith");
@@ -53,7 +77,7 @@ function ToolTile({ tool }: { tool: Tool }) {
           {tool.name}
         </span>
         <span className="mt-0.5 block text-xs text-muted">
-          {t("tile.connector")}
+          {t(mayBreak(tool) ? "tile.mayBreak" : "tile.works")}
         </span>
       </span>
     </div>
@@ -100,18 +124,11 @@ export function WorksWith() {
         ))}
       </div>
 
-      {/* Immediately under the six tiles, because the tiles are what invite the
-          reading that six accounts get connected. */}
-      <ConnectionMatrix />
-
       <p
         className="mt-6 w-full text-center text-sm leading-relaxed text-muted"
         {...reveal}
       >
         {t.rich("footnote", {
-          code: (chunks) => (
-            <span className="font-mono text-2xs text-heading">{chunks}</span>
-          ),
           link: (chunks) => (
             <SiteLink
               href="/docs/providers"

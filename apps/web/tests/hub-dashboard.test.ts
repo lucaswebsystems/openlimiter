@@ -366,9 +366,54 @@ describe("a read that never answers", () => {
     const view = await open();
 
     /* A read that threw is still an answer. Without one the skeleton would be
-       the last thing this account ever sees. */
+       the last thing this account ever sees. It is a failed read, though, not
+       an empty account: nobody is told to install what they already run. */
     expect(view.container.querySelector(".ol-row-skeleton")).toBeNull();
-    expect(view.container.textContent).toContain(hub.empty.desktop.title);
+    expect(view.container.textContent).not.toContain(hub.empty.desktop.title);
+    expect(view.container.textContent).toContain(hub.syncFailed.line);
+  });
+});
+
+describe("a read that fails after a good one", () => {
+  const rows = () => ({
+    ok: true,
+    providers: [{
+      provider: "CODEX",
+      accountId: "codex",
+      accountLabel: null,
+      windows: [{
+        windowName: "FIVE_HOUR",
+        percentage: 20,
+        resetAt: new Date(Date.now() + 2 * 3_600_000).toISOString(),
+        /* A minute old: the hub's clock is read at mount, before this answer. */
+        observedAt: new Date(Date.now() - 60_000).toISOString(),
+        stale: false,
+      }],
+    }],
+  });
+  const codexRow = (view: Mounted) => view.container.querySelector(".ol-provider-row-list .ol-provider-card");
+
+  it("keeps the last good rows, says the read failed, and the retry clears it", async () => {
+    currentRead = async () => rows();
+    currentSession = signedIn({ [ONBOARDED_METADATA_KEY]: true });
+    const view = await open();
+    expect(codexRow(view)).not.toBeNull();
+    expect(view.container.textContent).not.toContain(hub.syncFailed.line);
+
+    currentRead = async () => ({ ok: false, reason: "unavailable" });
+    await view.run(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await flush(3);
+    });
+    expect(codexRow(view)).not.toBeNull();
+    expect(view.container.textContent).not.toContain(hub.empty.desktop.title);
+    expect(view.container.textContent).toContain(hub.syncFailed.line);
+
+    currentRead = async () => rows();
+    press(byText(view.container, "button", hub.syncFailed.retry));
+    await flush(3);
+    expect(codexRow(view)).not.toBeNull();
+    expect(view.container.textContent).not.toContain(hub.syncFailed.line);
   });
 });
 

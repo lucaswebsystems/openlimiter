@@ -2,15 +2,15 @@
 
 > OpenLimiter is a local first quota meter for AI coding subscriptions. It reads the quota your own machine already knows about, keeps every number bounded, and gives coding agents a budget context block they can act on.
 
-Version 2.1.6. Licence: Apache 2.0. Site: https://openlimiter.com
+Version 2.1.7. Licence: Apache 2.0. Site: https://openlimiter.com
 
 When you hold several AI coding subscriptions at once, the scarce resource stops being money and becomes quota. You have already paid. The question is which of the windows you paid for still has room in it, and OpenLimiter puts that answer in front of you and the agent that is spending it, as bounded state rather than prose.
 
 ## Get started
 
-Bars are free and need no account. `npx openlimiter`, or a permanent install with `npm install -g openlimiter` then `openlimiter`, walks the same three steps everywhere: sign in, connect, show bars in. Sign in prints a short code and a link to openlimiter.com/app/cli, so the terminal never sees a password, and any step can be skipped. The desktop app's first run draws the same three steps in its own window: create an account or skip it, connect, then bars in the tray. Its Usage, Connect Tools and Settings tabs keep readings, provider setup and desktop choices separate. The hub at https://openlimiter.com/app is account first: sign in with GitHub, Google, Microsoft, or a magic link, then connect, then bars.
+Bars are free and need no account. `npx openlimiter`, or a permanent install with `npm install -g openlimiter` then `openlimiter`, walks the same three steps everywhere: sign in, connect, show bars in. Sign in prints a short code and a link to openlimiter.com/app/cli, so the terminal never sees a password, and any step can be skipped. The desktop app's first run connects the tools it can reach and shows bars in its own window, and signing in is optional. Its Usage, Connect Tools and Settings tabs keep readings, provider setup and desktop choices separate. The hub at https://openlimiter.com/app is account first: sign in with GitHub, Google, Microsoft, or a magic link, then connect, then bars.
 
-An account adds sync: the current percentage on every window, and the amount and currency of balance and API spend meters, kept current between every device you sign into. Pro adds history, email and phone push alerts, more than one account per provider, and cloud metering for API spend keys, opened by a 30 day free trial with no card required. Desktop alerts are free, and local API spend tracking has no ceiling on either plan.
+An account adds sync: the current percentage on every window, and the amount and currency of balance and API spend meters, kept current between every device you sign into. Pro adds the hosted features listed under Pro below and one theme preset, opened by a 30 day free trial with no card required. Desktop alerts are free, and local API spend tracking has no ceiling on either plan.
 
 ## Terminal
 
@@ -18,7 +18,7 @@ Claude Code, Grok Build and the Antigravity CLI each draw bars through their own
 
 ## Connect
 
-Each provider is read from the login its own tool already stored on disk, at most once every fifteen minutes. Codex can also sign in from inside OpenLimiter, into an account it manages, never touching your own Codex configuration. Claude reads what Claude Code reports through its own status line automatically. On a new desktop install, a disclosed direct usage request with the local Claude credentials starts on. Existing desktop installs without a choice are asked first, and terminal setup records its own choice. Gemini CLI is read only, with a plain disclosure sentence in its row, because its vendor's terms bar a third party from proxying that login. Antigravity is read from its documented status line, with no credential and no network request. OpenRouter signs in with real OAuth, started from the hub; a key you already hold still works. API spend keys, separate from a subscription login, live in this device's operating system keyring by default, or, with opt in cloud metering, encrypted on the server, so the hub and the phone can show spend with no device running.
+Each provider is read from the login its own tool already stored on disk, at most once every fifteen minutes, except the direct Claude usage request below. Codex can also sign in from inside OpenLimiter, into an account it manages, never touching your own Codex configuration. Claude reads what Claude Code reports through its own status line automatically. A direct usage request to Anthropic is off until you turn it on; when on, it sends your own Claude Code login only to Anthropic, about every five minutes, and every Claude bar comes from that one source. Gemini CLI is read only, with a plain disclosure sentence in its row, because its vendor's terms bar a third party from proxying that login. Antigravity is read from its documented status line, with no credential and no network request. OpenRouter signs in with real OAuth, started from the hub; a key you already hold still works. API spend keys, separate from a subscription login, live in this device's operating system keyring by default, or, with opt in cloud metering, encrypted on the server, so the hub and the phone can show spend with no device running.
 
 OpenLimiter never asks for a vendor password: every sign in happens on that vendor's own page, in your own browser. It never impersonates a vendor tool: every request identifies itself as OpenLimiter, never as Claude Code, Codex, or any other client. It never uploads a token: an account syncs the bounded percentages and reset times these readings produce, plus the amount and currency of balance and API spend meters, never the credential that produced them.
 
@@ -29,7 +29,7 @@ OpenLimiter never asks for a vendor password: every sign in happens on that vend
 ## What ships today
 
 - Command line tool, published on npm as `openlimiter`. Install it with `npm install -g openlimiter`, or run it once with `npx openlimiter`. Commands include setup (the default), login, logout, whoami, sync, init, snapshot, statusline, terminal, refresh, hook, hooks, status, ingest, config, doctor, demo, and export.
-- Desktop tray application for Windows, macOS and Linux, built on continuous integration and attached to the GitHub release. All three ship unsigned for now. In SmartScreen, choose More info, then Run anyway. On macOS, open the app once, then System Settings, Privacy and Security, Open Anyway.
+- Desktop tray application for Windows and Linux, with a macOS preview, built on continuous integration and attached to the GitHub release. The Windows build is unsigned: in SmartScreen, choose More info, then Run anyway. The macOS preview is ad hoc signed but not notarised: open it once, then System Settings, Privacy and Security, Open Anyway. It updates by new download.
 - Web hub at https://openlimiter.com/app, account first: sign in, connect, bars. Signed in, it shows the bounded percentages your own devices synced.
 - Progressive web app. The hub installs to a phone or desktop home screen from the browser and keeps working offline.
 - An account, with sign in through GitHub, Google, Microsoft, or a magic link sent to your email address. Sync is on from the moment you sign in. It syncs bounded quota readings and nothing else.
@@ -40,7 +40,15 @@ OpenLimiter never asks for a vendor password: every sign in happens on that vend
 
 Pro costs 5 US dollars a month or 50 US dollars a year, with the first 30 days free and no card required. OpenLimiter Pro is sold by Lucas Costa. Checkout runs through Stripe, which acts as the payment processor. A full refund is available on request within 14 days of any charge, and cancellation is self service through the Stripe Customer Portal.
 
-Pro adds: email and phone push alerts at 60, 80 and 90 percent of a window, and on reset; ninety days of history with a burn rate forecast; more than one account per provider; and cloud metering for API spend keys. Desktop alerts at the same moments are free, and local API spend tracking has no ceiling on either plan.
+Pro adds:
+
+- More than one account per provider.
+- Ninety days of hosted history, with a forecast.
+- Phone push and email alerts. Desktop alerts stay free.
+- Cloud API spend metering for the keys you enable.
+- The Ember theme preset.
+
+Alerts fire at 60, 80 and 90 percent of a window, and on reset. Desktop alerts at the same moments are free, and local API spend tracking has no ceiling on either plan.
 
 Moonshot is read as a balance rather than as spend: three separate figures, available, voucher and cash, in the currency the provider states. A balance never becomes a monthly figure, a forecast, or a budget alert.
 
@@ -55,9 +63,9 @@ Moonshot is read as a balance rather than as spend: three separate figures, avai
 
 ## Connectors
 
-Eight connectors ship in 2.1.6, plus manual entry, and the desktop app also reads Cursor as an experimental connector. None is verified against a live account yet: Codex and Cursor pass their recorded fixtures, and every other connector is marked UNVERIFIED. `openlimiter refresh` reaches the network for the six connectors that read their own login; the rest are parsers over something already local.
+Eight connectors ship in 2.1.7, plus manual entry, and the desktop app also reads Cursor as an experimental connector. None is verified against a live account yet: Codex and Cursor pass their recorded fixtures, and every other connector is marked UNVERIFIED. `openlimiter refresh` reaches the network for the six connectors that read their own login; the rest are parsers over something already local.
 
-- `claude`: reads the Claude Code status line automatically, plus a direct usage request after a recorded choice. New desktop installs show the disclosure before recording on, and the request can be turned off. Documented status line payload; the direct request is an internal Anthropic endpoint, sent only to Anthropic with your own Claude Code login. Low automation risk.
+- `claude`: reads the Claude Code status line automatically. A direct usage request is off until you turn it on, and once on it is the source of every Claude bar. Documented status line payload; the direct request is an internal Anthropic endpoint, sent only to Anthropic with your own Claude Code login, about every five minutes, and Anthropic's policy for tools like this is unresolved. Low automation risk.
 - `openrouter`: real OAuth from the hub, then a documented key and usage report. Low automation risk.
 - `codex`: reads the login the Codex CLI stored, or signs in from inside OpenLimiter, through the documented local Codex app server.
 - `antigravity`: reads the documented Antigravity CLI status line, with no credential and no network request. Low automation risk.

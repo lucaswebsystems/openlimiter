@@ -26,8 +26,8 @@ afterEach(() => {
 describe("live terminal status line", () => {
   it("keeps the three money cells and all four bands in the generated sample", () => {
     const text = sample.cells.flat().map((span) => span.text).join("");
-    for (const cell of ["5h", "7d", "fable7d", "cx7d", "ag5h", "or $12.54", "oa $8.20", "an $3.10"]) expect(text).toContain(cell);
-    for (const reading of ["37%", "58%", "63%", "82%", "~91%", "·1h12m", "·2d5h", "·4d19h", "·5d8h", "·2h26m"]) expect(text).toContain(reading);
+    for (const cell of ["5h", "7d", "fable7d", "cx 7d", "ag 5h", "or bal $12.54", "oa $8.20", "an $3.10"]) expect(text).toContain(cell);
+    for (const reading of ["37%", "58%", "63%", "82%!", "~91%!!", "↻1h12m", "↻2d5h", "↻4d19h", "↻5d8h", "↻2h26m"]) expect(text).toContain(reading);
     expect(new Set(sample.cells.flat().flatMap((span) => "band" in span ? [span.band] : []))).toEqual(
       new Set(["green", "yellow", "orange", "red"]),
     );
@@ -68,6 +68,10 @@ describe("live terminal status line", () => {
     expect(row?.className).toContain("overflow-x-auto");
     expect(row?.className).toContain("whitespace-nowrap");
     expect(row?.className).not.toContain("flex-wrap");
+    /* U73: the row's sr-only labels are absolutely positioned, and without a
+       positioned scroller they escaped it and made the home page 1,108 pixels
+       wide at 320. */
+    expect(row?.className).toContain("relative");
   });
 
   it("draws each meter as blocks one character cell per glyph, so no font fallback can misdraw it", () => {

@@ -91,6 +91,21 @@ describe("download choice", () => {
     expect(mounted.container.querySelector("#windows")?.textContent).toContain("Detected");
   });
 
+  /* U76: the detected platform leads, and its button is the shared button's
+     shape rather than a hand rolled one with a larger radius. */
+  it("moves the detected platform first and draws every button on the shared radius", () => {
+    stubNavigator({ platform: "Linux x86_64", userAgent: "Mozilla/5.0 (X11; Linux x86_64)", maxTouchPoints: 0 });
+    mounted = render(createElement(DownloadChoice, props));
+    expect([...mounted.container.querySelectorAll("article")].map((node) => node.id)).toEqual(["linux", "windows", "macos"]);
+    expect(primaries(mounted.container)[0]?.getAttribute("href")).toBe(props.linuxHref);
+    const buttons = [...mounted.container.querySelectorAll("article a")];
+    expect(buttons).toHaveLength(3);
+    for (const button of buttons) {
+      expect(button.className).toContain("rounded-lg");
+      expect(button.className).not.toContain("rounded-xl");
+    }
+  });
+
   it("shows a phone a single card that shares the page instead of three installers", async () => {
     const share = vi.fn(async () => undefined);
     stubNavigator({ platform: "iPhone", userAgent: IPHONE, maxTouchPoints: 5, share });

@@ -4,7 +4,8 @@ import {
   writeFileAtomically,
   type CommandRunResult
 } from "@openlimiter/core";
-import { lstat, mkdir, open, realpath, unlink, type FileHandle } from "node:fs/promises";
+import { lstat, mkdir, open, readdir, realpath, unlink, type FileHandle } from "node:fs/promises";
+import { homedir } from "node:os";
 import path from "node:path";
 import {
   AGENT_COMPATIBILITY,
@@ -786,7 +787,8 @@ export interface AgentInstallation {
 async function resolvedAgentExecutable(
   agent: AgentId,
   environment: Readonly<Record<string, string | undefined>>,
-  platform: NodeJS.Platform
+  platform: NodeJS.Platform,
+  systemRoot: string
 ): Promise<string | null> {
   const name = executableNames[agent];
   if (name === undefined) return null;
@@ -796,6 +798,7 @@ async function resolvedAgentExecutable(
     ? (environment["PATHEXT"] ?? ".COM;.EXE;.BAT;.CMD").split(";")
     : [""];
   const delimiter = platform === "win32" ? ";" : ":";
+  const host: CodexHost = { environment, platform, systemRoot };
   for (const rawDirectory of pathText.split(delimiter)) {
     const directory = rawDirectory.replace(/^"|"$/gu, "");
     if (directory === "" || !path.isAbsolute(directory)) continue;
@@ -806,12 +809,12 @@ async function resolvedAgentExecutable(
         : [candidate, path.resolve(directory, name + extension)];
       for (const file of alternatives) {
         try {
-          const stat = await lstat(file);
-          if (stat.isSymbolicLink() && agent === "codex" && platform !== "win32") {
-            const resolved = await realpath(file);
-            const suffix = path.join("node_modules", "@openai", "codex", "bin", "codex.js");
-            if (resolved.endsWith(path.sep + suffix) && (await lstat(resolved)).isFile()) return resolved;
+          if (agent === "codex") {
+            const launch = await codexLaunchPath(directory, file, host);
+            if (launch !== null) return launch;
+            continue;
           }
+          const stat = await lstat(file);
           if (stat.isFile() && !stat.isSymbolicLink() && !(await pathContainsLink(file, directory))) {
             return file;
           }
@@ -824,31 +827,129 @@ async function resolvedAgentExecutable(
   return null;
 }
 
-async function codexNativeExecutable(executable: string, platform: NodeJS.Platform): Promise<string | null> {
-  const isNpmLauncher = /codex\.js$/u.test(executable);
-  const isWindowsShim = platform === "win32" && /\.(?:cmd|bat)$/iu.test(executable);
-  if (!isNpmLauncher && !isWindowsShim) return executable;
+/*
+ * Codex's launch rule, the twin of `installed_executable` in the desktop's
+ * provider_detection.rs, so the CLI and the desktop accept and refuse the
+ * same Codex paths (2.1.7): a plain native binary runs as it is; npm's
+ * official launcher link, a Volta or pnpm shim and an npm `.cmd` shim are
+ * mapped to the package's native binary and never run themselves, and only
+ * the official launcher names its own package; on macOS Homebrew's own link
+ * into its codex keg or cask runs its target; on Windows a winget link runs
+ * its target inside winget's packages; any other link is refused. The
+ * desktop also bounds each path to its install roots; the CLI walks PATH as
+ * a terminal does.
+ */
+const OFFICIAL_CODEX_LAUNCHER = path.join("node_modules", "@openai", "codex", "bin", "codex.js");
+
+interface CodexHost {
+  environment: Readonly<Record<string, string | undefined>>;
+  platform: NodeJS.Platform;
+  /** The file system root Homebrew's prefixes hang from; a test stands a folder in for it. */
+  systemRoot: string;
+}
+
+function homeOf(host: CodexHost): string {
+  const [first, second] = host.platform === "win32" ? ["USERPROFILE", "HOME"] : ["HOME", "USERPROFILE"];
+  return host.environment[first] || host.environment[second] || homedir();
+}
+
+/** Volta's and pnpm's homes: under the local application data on Windows, under the home on macOS. */
+function managerHomes(host: CodexHost): { volta?: string; pnpm?: string } {
+  if (host.platform === "win32") {
+    const local = host.environment["LOCALAPPDATA"];
+    return local ? { volta: path.join(local, "Volta"), pnpm: path.join(local, "pnpm") } : {};
+  }
+  if (host.platform !== "darwin") return {};
+  const home = homeOf(host);
+  return { volta: path.join(home, ".volta"), pnpm: path.join(home, "Library", "pnpm") };
+}
+
+async function sameDirectory(left: string, right: string): Promise<boolean> {
+  try {
+    return await realpath(left) === await realpath(right);
+  } catch {
+    return false;
+  }
+}
+
+/** One folder an npm style config file names (`key=value`, the last one winning), absolute only. */
+async function configuredDirectory(file: string, key: string): Promise<string | null> {
+  let text: string | null;
+  try {
+    text = await readBounded(file);
+  } catch {
+    return null;
+  }
+  let found: string | null = null;
+  for (const line of (text ?? "").split(/\r?\n/u)) {
+    const at = line.indexOf("=");
+    if (at >= 0 && line.slice(0, at).trim() === key) found = line.slice(at + 1).trim().replace(/^"+|"+$/gu, "");
+  }
+  return found !== null && path.isAbsolute(found) ? found : null;
+}
+
+/** pnpm's global folder: on Windows the one `.npmrc` or pnpm's own rc names, else `global` in pnpm's home. */
+async function pnpmGlobalDir(pnpm: string, host: CodexHost): Promise<string> {
+  if (host.platform === "win32") {
+    const configured = await configuredDirectory(path.join(homeOf(host), ".npmrc"), "global-dir") ??
+      await configuredDirectory(path.join(pnpm, "config", "rc"), "global-dir");
+    if (configured !== null) return configured;
+  }
+  return path.join(pnpm, "global");
+}
+
+/**
+ * Where the `@openai/codex` package really lives: the package of npm's
+ * official launcher; Volta's package image for a Volta shim; pnpm's global
+ * folders for a pnpm shim; the shim's own prefix for npm's. A script that is
+ * not the official launcher names nothing (Astra 2.1.7, finding 1).
+ */
+async function codexPackageRoots(directory: string, launcher: string, host: CodexHost): Promise<string[]> {
+  const codexPackage = (prefix: string): string => path.join(prefix, "node_modules", "@openai", "codex");
+  if (launcher.endsWith(path.sep + OFFICIAL_CODEX_LAUNCHER)) return [path.dirname(path.dirname(launcher))];
+  const { volta, pnpm } = managerHomes(host);
+  if (volta !== undefined && await sameDirectory(directory, path.join(volta, "bin"))) {
+    const image = path.join(volta, "tools", "image", "packages", "@openai", "codex");
+    // An npm prefix on macOS keeps its packages under `lib`.
+    return [codexPackage(host.platform === "darwin" ? path.join(image, "lib") : image)];
+  }
+  if (pnpm !== undefined && await sameDirectory(directory, pnpm)) {
+    const global = await pnpmGlobalDir(pnpm, host);
+    try {
+      return (await readdir(global)).map((entry) => codexPackage(path.join(global, entry)));
+    } catch {
+      return [];
+    }
+  }
+  return [codexPackage(directory)];
+}
+
+/** The package's native binary, from the official npm package layouts. */
+async function codexNativeExecutable(directory: string, launcher: string, host: CodexHost): Promise<string | null> {
   const arch = process.arch === "arm64" ? "arm64" : "x64";
-  const platformName = platform === "win32" ? "win32" : platform === "darwin" ? "darwin" : "linux";
-  const triple = platform === "win32"
+  const platformName = host.platform === "win32" ? "win32" : host.platform === "darwin" ? "darwin" : "linux";
+  const triple = host.platform === "win32"
     ? arch === "arm64" ? "aarch64-pc-windows-msvc" : "x86_64-pc-windows-msvc"
-    : platform === "darwin"
+    : host.platform === "darwin"
       ? arch === "arm64" ? "aarch64-apple-darwin" : "x86_64-apple-darwin"
       : arch === "arm64" ? "aarch64-unknown-linux-musl" : "x86_64-unknown-linux-musl";
   const packageName = `codex-${platformName}-${arch}`;
-  const windowsPrefix = path.dirname(executable);
-  const packageRoot = isNpmLauncher
-    ? path.dirname(path.dirname(executable))
-    : path.join(windowsPrefix, "node_modules", "@openai", "codex");
-  const packageParent = path.dirname(packageRoot);
-  const candidates = [
-    path.join(packageRoot, "vendor", triple),
-    path.join(packageRoot, "node_modules", "@openai", packageName, "vendor", triple),
-    path.join(packageParent, packageName, "vendor", triple)
-  ];
-  for (const vendor of candidates) {
-    for (const binaryDirectory of ["codex", "bin"]) {
-      const candidate = path.join(vendor, binaryDirectory, platform === "win32" ? "codex.exe" : "codex");
+  const executableName = host.platform === "win32" ? "codex.exe" : "codex";
+  for (const root of await codexPackageRoots(directory, launcher, host)) {
+    let packageRoot: string;
+    try {
+      // pnpm links the package out of its store; its platform package sits beside the real folder.
+      packageRoot = await realpath(root);
+    } catch {
+      continue;
+    }
+    for (const vendor of [
+      path.join(packageRoot, "vendor", triple),
+      path.join(packageRoot, "node_modules", "@openai", packageName, "vendor", triple),
+      path.join(path.dirname(packageRoot), packageName, "vendor", triple)
+    ]) {
+      for (const binaryDirectory of ["codex", "bin"]) {
+        const candidate = path.join(vendor, binaryDirectory, executableName);
         try {
           const stat = await lstat(candidate);
           if (stat.isFile() && !stat.isSymbolicLink()) return await realpath(candidate);
@@ -856,8 +957,69 @@ async function codexNativeExecutable(executable: string, platform: NodeJS.Platfo
           // Try the next official npm package layout.
         }
       }
+    }
   }
   return null;
+}
+
+/** Homebrew's own Codex link on macOS: `<prefix>/bin/codex` into that prefix's codex keg or cask. */
+async function homebrewCodexLink(directory: string, resolved: string, host: CodexHost): Promise<boolean> {
+  if (host.platform !== "darwin") return false;
+  for (const prefix of [path.join(host.systemRoot, "opt", "homebrew"), path.join(host.systemRoot, "usr", "local")]) {
+    if (!await sameDirectory(directory, path.join(prefix, "bin"))) continue;
+    let real: string;
+    try {
+      real = await realpath(prefix);
+    } catch {
+      continue;
+    }
+    if (["Cellar", "Caskroom"].some((kegs) => within(path.join(real, kegs, "codex"), resolved))) return true;
+  }
+  return false;
+}
+
+/** A winget link on Windows stands for its target, inside winget's own packages. */
+async function wingetTarget(directory: string, file: string, host: CodexHost): Promise<string | null> {
+  const local = host.environment["LOCALAPPDATA"];
+  if (host.platform !== "win32" || !local) return null;
+  const winget = path.join(local, "Microsoft", "WinGet");
+  if (!await sameDirectory(directory, path.join(winget, "Links"))) return null;
+  try {
+    const target = await realpath(file);
+    return within(await realpath(path.join(winget, "Packages")), target) ? target : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The binary this product runs for Codex from one PATH candidate, or null. */
+async function codexLaunchPath(directory: string, file: string, host: CodexHost): Promise<string | null> {
+  const stat = await lstat(file);
+  let candidate = file;
+  let isLink = stat.isSymbolicLink();
+  if (isLink && host.platform === "win32") {
+    const target = await wingetTarget(directory, file, host);
+    if (target === null || !(await lstat(target)).isFile()) return null;
+    candidate = target;
+    isLink = false;
+  } else if (!isLink && (!stat.isFile() || await pathContainsLink(file, directory))) {
+    return null;
+  }
+  const resolved = isLink ? await realpath(candidate) : candidate;
+  if (isLink && !(await lstat(resolved)).isFile()) return null;
+  const npmLauncher = isLink && resolved.endsWith(path.sep + OFFICIAL_CODEX_LAUNCHER);
+  const { volta, pnpm } = managerHomes(host);
+  const shim = (host.platform === "win32" && /\.(?:cmd|bat)$/iu.test(candidate)) ||
+    (volta !== undefined && await sameDirectory(directory, path.join(volta, "bin"))) ||
+    (host.platform === "darwin" && pnpm !== undefined && await sameDirectory(directory, pnpm));
+  const homebrew = isLink && await homebrewCodexLink(directory, resolved, host);
+  if (isLink && !npmLauncher && !shim && !homebrew) return null;
+  if (npmLauncher || shim) {
+    const native = await codexNativeExecutable(directory, resolved, host);
+    if (native !== null) return native;
+  }
+  if ((isLink && !homebrew) || shim || /\.js$/iu.test(resolved)) return null;
+  return resolved;
 }
 
 async function executableVersion(
@@ -876,18 +1038,18 @@ export async function detectAgentInstallation(
     environment?: Readonly<Record<string, string | undefined>>;
     platform?: NodeJS.Platform;
     runCommand?: (executable: string, argumentsList: readonly string[], timeoutMilliseconds: number) => Promise<CommandRunResult>;
+    /** The file system root Homebrew's prefixes hang from: `/` unless a test stands a folder in. */
+    systemRoot?: string;
   } = {}
 ): Promise<AgentInstallation | null> {
   const platform = options.platform ?? process.platform;
-  const executable = await resolvedAgentExecutable(
+  /* For Codex this is already the binary its launch rule runs. */
+  const launchExecutable = await resolvedAgentExecutable(
     agent,
     options.environment ?? process.env,
-    platform
+    platform,
+    options.systemRoot ?? "/"
   );
-  if (executable === null) return null;
-  const launchExecutable = agent === "codex"
-    ? await codexNativeExecutable(executable, platform)
-    : executable;
   if (launchExecutable === null) return null;
   const version = await executableVersion(
     launchExecutable,

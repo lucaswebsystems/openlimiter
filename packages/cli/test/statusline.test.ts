@@ -104,10 +104,10 @@ const everyProvider: readonly Snapshot[] = [
 /*
  * This whole suite predates the bar grammar (decision D6) and exercises the
  * `cells` style deliberately: provider ordering, meter selection, stacking and
- * band colour are shared machinery, and pinning them against the older, more
- * verbose grammar is what keeps `style cells` byte for byte for anyone who set
- * it, exactly as the config comment promises. The new default is covered by
- * the bar style suite and its golden files, not here.
+ * band colour are shared machinery. Since 2.1.7 the cells take the shared
+ * spaced captions and band marks (UX audit U46 to U48); the line that stays
+ * byte for byte is the plain one, `statusline.bars false`. The new default is
+ * covered by the bar style suite and its golden files, not here.
  */
 function layout(
   snapshots: readonly Snapshot[],
@@ -160,14 +160,14 @@ describe("provider ordering", () => {
   it("renders the cells in that order and nothing else", () => {
     const cells = cellsOf(everyProvider);
     expect(cells.map((cell) => cell.split(" ")[0])).toEqual([
-      "cl7d",
-      "cx5h",
+      "cl",
+      "cx",
       "ag",
       "gm",
       "oc",
-      "gk7d",
-      "km5h",
-      "mnmo",
+      "gk",
+      "km",
+      "mn",
       "or"
     ]);
   });
@@ -232,11 +232,11 @@ describe("meter ordering", () => {
       reading({ provider: "CODEX", meter: "DAILY", window: { kind: "rolling", durationSeconds: 86_400 } }),
       reading({ provider: "CODEX", meter: "FIVE_HOUR", window: { kind: "rolling", durationSeconds: 18_000 } })
     ];
-    expect(cellsOf(many, ["CODEX"], "all").map((cell) => cell.split(" ")[0])).toEqual([
-      "cx5h",
-      "cx1d",
-      "cx7d",
-      "cxmo",
+    expect(cellsOf(many, ["CODEX"], "all").map((cell) => cell.split(/ [#.]{5} /u)[0])).toEqual([
+      "cx 5h",
+      "cx 1d",
+      "cx 7d",
+      "cx mo",
       "cx"
     ]);
   });
@@ -253,7 +253,7 @@ describe("worst against all", () => {
         value,
         window: { kind: "lifetime" },
       });
-      expect(cellsOf([quota, balance], ["CODEX"])[0]).toBe("cx5h ###.. 60%");
+      expect(cellsOf([quota, balance], ["CODEX"])[0]).toBe("cx 5h ###.. 60%");
       expect(cellsOf([quota, balance], ["CODEX"], "all")[1]).toContain(`${value.toFixed(2)} credits`);
       expect(cellsOf([quota, balance], ["CODEX"], "all")[1]).not.toContain("%");
     }
@@ -269,7 +269,7 @@ describe("worst against all", () => {
         value: 0,
         window: { kind: "unknown" },
       });
-      expect(cellsOf([quota, balance], ["CODEX"])[0]).toBe("cx5h ###.. 60%");
+      expect(cellsOf([quota, balance], ["CODEX"])[0]).toBe("cx 5h ###.. 60%");
       expect(cellsOf([quota, balance], ["CODEX"], "all")[1]).not.toContain("0.0%");
     }
   });
@@ -279,27 +279,27 @@ describe("worst against all", () => {
       reading({ provider: "KIMI", meter: "WEEKLY", value: 10 }),
       reading({ provider: "KIMI", meter: "FIVE_HOUR", value: 80 }),
     ], ["KIMI"], "all");
-    expect(cells[0]).toContain("km5h");
-    expect(cells[1]).toContain("km5h");
+    expect(cells[0]).toContain("km 5h");
+    expect(cells[1]).toContain("km 5h");
     expect(cellsOf([
       reading({ provider: "KIMI", meter: "FIVE_HOUR", value: 80 }),
-    ], ["KIMI"], "worst")[0]).toContain("km5h");
+    ], ["KIMI"], "worst")[0]).toContain("km 5h");
     expect(cellsOf([
       reading({ provider: "OPENCODE", meter: "FIVE_HOUR", value: 80 }),
-    ], ["OPENCODE"], "worst")[0]).toContain("oc5h");
+    ], ["OPENCODE"], "worst")[0]).toContain("oc 5h");
   });
 
   it("shows only the meter closest to its cap by default", () => {
     const cells = cellsOf(everyProvider);
     expect(cells).toHaveLength(9);
-    expect(cells[0]).toBe("cl7d ###.. 64%");
+    expect(cells[0]).toBe("cl 7d ###.. 64%");
   });
 
   it("shows every meter as its own cell when asked", () => {
     const cells = cellsOf(everyProvider, DEFAULT_PROVIDER_ORDER, "all");
     expect(cells).toHaveLength(10);
-    expect(cells[0]).toBe("cl5h ##... 42%");
-    expect(cells[1]).toBe("cl7d ###.. 64%");
+    expect(cells[0]).toBe("cl 5h ##... 42%");
+    expect(cells[1]).toBe("cl 7d ###.. 64%");
   });
 
   it("keeps the worst cell agreeing with the reason code above it", () => {
@@ -313,17 +313,17 @@ describe("the cell", () => {
   it("is a name, a five block bar and a truncated percent", () => {
     const cells = cellsOf([reading({ value: 99.99 })], ["CLAUDE"]);
     const parts = cells[0]!.split(" ");
-    expect(parts).toHaveLength(3);
-    expect(parts[0]).toBe("cl5h");
-    expect(parts[1]).toHaveLength(STATUSLINE_BAR_SEGMENTS);
-    expect(parts[2]).toBe("100%");
+    expect(parts).toHaveLength(4);
+    expect(parts.slice(0, 2).join(" ")).toBe("cl 5h");
+    expect(parts[2]).toHaveLength(STATUSLINE_BAR_SEGMENTS);
+    expect(parts[3]).toBe("100%!!");
   });
 
   it("draws the bar in ASCII and never rounds a block upward", () => {
-      expect(cellsOf([reading({ value: 19.9 })], ["CLAUDE"])[0]).toBe("cl5h ..... 20%");
-      expect(cellsOf([reading({ value: 20 })], ["CLAUDE"])[0]).toBe("cl5h #.... 20%");
-      expect(cellsOf([reading({ value: 99.99 })], ["CLAUDE"])[0]).toBe("cl5h ####. 100%");
-      expect(cellsOf([reading({ value: 100 })], ["CLAUDE"])[0]).toBe("cl5h ##### 100%");
+      expect(cellsOf([reading({ value: 19.9 })], ["CLAUDE"])[0]).toBe("cl 5h ..... 20%");
+      expect(cellsOf([reading({ value: 20 })], ["CLAUDE"])[0]).toBe("cl 5h #.... 20%");
+      expect(cellsOf([reading({ value: 99.99 })], ["CLAUDE"])[0]).toBe("cl 5h ####. 100%!!");
+      expect(cellsOf([reading({ value: 100 })], ["CLAUDE"])[0]).toBe("cl 5h ##### 100%!!");
   });
 
   it("leaves a reading with no percentage out of the line entirely", () => {
@@ -371,7 +371,7 @@ describe("stacking", () => {
         for (const cell of row) {
           /* Every cell is either the head or a whole three field cell. */
           if (cell.startsWith("OpenLimiter ")) continue;
-                    expect(cell).toMatch(/^[A-Za-z:_0-9]+(?: [A-Za-z0-9]+)* [#.]{5} \d+%$|^[A-Za-z:_0-9]+ \$\d+\.\d{2}$|^\+\d+ more$/u);
+                    expect(cell).toMatch(/^[A-Za-z:_0-9]+(?: [A-Za-z0-9]+)* [#.]{5} \d+%!{0,2}$|^[A-Za-z:_0-9]+(?: [A-Za-z0-9]+)* \$\d+\.\d{2}$|^\+\d+ more$/u);
         }
       }
     }
@@ -459,12 +459,12 @@ describe("colour", () => {
     expect(rendered).toContain(ESCAPE + "[31m");
   });
 
-  it("keeps the locked orange band without a palette hint", () => {
+  it("falls back to the 16 colour yellow without a palette hint, and marks the band", () => {
     const rendered = layout(everyBand, { width: 400 }, true, false);
-    expect(rendered).toContain("38;5;208");
+    expect(rendered).not.toContain("38;5;208");
     expect(rendered).toContain(ESCAPE + "[33m");
-    /* The cell is not dropped and the reading is not changed. The locked band remains orange. */
-        expect(rendered).toContain("84%");
+    /* The cell is not dropped and the reading is not changed: the mark says urgent (2.1.7, U47). */
+    expect(rendered).toContain("84%!");
     expect(rendered).toContain(ESCAPE + "[31m");
   });
 
@@ -557,10 +557,10 @@ describe("statusline bar rendering window codes and unknown cells", () => {
     });
     const antigravity = reading({ provider: "ANTIGRAVITY", meter: "FIVE_HOUR" });
     expect(captionFor(weekly, "CLAUDE", "short")).toBe("7d");
-    expect(captionFor(weekly, "CODEX", "short")).toBe("cl7d");
-    expect(captionFor(weekly, "CLAUDE", "tagged")).toBe("cl7d");
-    expect(captionFor(fable, "CODEX", "short")).toBe("fable7d");
-    expect(captionFor(antigravity, "CLAUDE", "short")).toBe("ag5h");
+    expect(captionFor(weekly, "CODEX", "short")).toBe("cl 7d");
+    expect(captionFor(weekly, "CLAUDE", "tagged")).toBe("cl 7d");
+    expect(captionFor(fable, "CODEX", "short")).toBe("cl fable7d");
+    expect(captionFor(antigravity, "CLAUDE", "short")).toBe("ag 5h");
     expect(captionFor(antigravity, "ANTIGRAVITY", "short")).toBe("5h");
   });
 

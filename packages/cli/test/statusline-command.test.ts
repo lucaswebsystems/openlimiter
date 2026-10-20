@@ -6,7 +6,7 @@ import {
   AUTHORITATIVE_CACHE_FILE_NAME, CACHE_FILE_NAME, mergeAuthoritativeSnapshotCache, normalizeMeters, opaqueAccountId,
   recordAcquisitionAvailability
 } from "@openlimiter/core";
-import { parseClaudePayload } from "@openlimiter/connectors";
+import { grokFixture, parseClaudePayload } from "@openlimiter/connectors";
 import { AGENT_CONTEXT_FILE_NAME } from "@openlimiter/adapters";
 import { runCli } from "../src/cli.js";
 import { persistSnapshots } from "../src/ingest.js";
@@ -23,24 +23,31 @@ const payload = (directory = "/work/Olá projeto") => ({
     seven_day: { used_percentage: 65, resets_at: "2026-01-05T02:00:00Z" }
   }
 });
-const plain = "opus-5-5 high | ctx 42% | 5h [█░░░░░░░░░] 17% ·3h20m | 7d [██████░░░░] 65% ·4d2h | cx7d [████████░░] 85% ·4d2h | concise";
-const painted = "opus-5-5 high | ctx 42% | 5h \x1b[32m[█░░░░░░░░░]\x1b[0m \x1b[32m17%\x1b[0m ·3h20m | 7d \x1b[33m[██████░░░░]\x1b[0m \x1b[33m65%\x1b[0m ·4d2h | cx7d \x1b[38;5;208m[████████░░]\x1b[0m \x1b[38;5;208m85%\x1b[0m ·4d2h | concise";
+const plain = "opus-5-5 high | ctx 42% | 5h [█░░░░░░░░░] 17% ↻3h20m | 7d [██████░░░░] 65% ↻4d2h | cx 7d [████████░░] 85%! ↻4d2h | concise";
+const painted = "opus-5-5 high | ctx 42% | 5h \x1b[32m[█░░░░░░░░░]\x1b[0m \x1b[32m17%\x1b[0m ↻3h20m | 7d \x1b[33m[██████░░░░]\x1b[0m \x1b[33m65%\x1b[0m ↻4d2h | cx 7d \x1b[38;5;208m[████████░░]\x1b[0m \x1b[38;5;208m85%!\x1b[0m ↻4d2h | concise";
+/* A terminal that claims 256 colours, as Claude Code's own terminal does: orange is drawn there (2.1.7, U47). */
+const TERMINAL = { TERM: "xterm-256color" };
 
 const roots: string[] = [];
-async function seeded(): Promise<string> {
+/* The request on, with its own session and weekly readings, and older host
+   readings beside them that it stands over; another provider survives. */
+async function seeded({ fiveHour = 17, weekly = true } = {}): Promise<string> {
   const directory = await mkdtemp(path.join(await realpath(tmpdir()), "openlimiter-statusline-command-"));
   roots.push(directory);
   const rows = normalizeMeters(parseClaudePayload(payload(), NOW)!);
   const pollRows = normalizeMeters(parseClaudePayload({
-    five_hour: { used_percentage: 17, resets_at: Date.parse("2026-01-01T03:20:00Z") / 1000 },
+    five_hour: { used_percentage: fiveHour, resets_at: Date.parse("2026-01-01T03:20:00Z") / 1000 },
     seven_day: { utilization: 65, resets_at: "2026-01-05T02:00:00Z" }
-  }, NOW)!).filter((row) => row.meter.startsWith("SEVEN_DAY"));
+  }, NOW)!).map((row) => ({
+    ...row, source: "internal_payload" as const, provenance: { sourceKind: "remote_api" as const, observedVia: "remote_http" as const }
+  }));
+  const pollWeekly = pollRows.find((row) => row.meter === "SEVEN_DAY")!;
   await persistSnapshots([
-    // Old host readings must be replaced, while another provider survives.
     ...rows.map((row) => ({ ...row, value: 1 })),
-    { ...pollRows[0]!, provider: "CODEX", value: 85 }
+    { ...pollWeekly, provider: "CODEX", value: 85 }
   ], directory, NOW);
-  await mergeAuthoritativeSnapshotCache(pollRows, directory, NOW);
+  await mergeAuthoritativeSnapshotCache(pollRows.filter((row) => weekly || row !== pollWeekly), directory, NOW);
+  await writeFile(path.join(directory, "claude-poll.json"), JSON.stringify({ version: 1, enabled: true }));
   return directory;
 }
 afterEach(async () => {
@@ -54,14 +61,14 @@ describe("statusline command reference layout", () => {
     ["Linux", "/workspace/Olá projeto"]
   ])("prints exact ANSI and NO_COLOR lines from one stdin read for %s", async (_os, directory) => {
     const stateDirectory = await seeded();
-    for (const environment of [{}, { NO_COLOR: "" }]) {
+    for (const environment of [TERMINAL, { NO_COLOR: "" }]) {
       const readStandardInput = vi.fn(async () => JSON.stringify(payload(directory)));
       const result = await runCli(["statusline", "--host", "claude"], {
         stateDirectory, now: () => NOW, environment, colorOutput: false, readStandardInput
       });
       expect(result).toEqual({ exitCode: 0, stdout: "NO_COLOR" in environment ? plain : painted, stderr: "" });
       expect(readStandardInput).toHaveBeenCalledTimes(1);
-      expect(result.stdout.match(/cx7d/g)).toHaveLength(1);
+      expect(result.stdout.match(/cx 7d/g)).toHaveLength(1);
     }
     const cache = await readFile(path.join(stateDirectory, CACHE_FILE_NAME), "utf8");
     expect(cache).not.toContain("Olá projeto");
@@ -69,28 +76,46 @@ describe("statusline command reference layout", () => {
   });
 
   it("paints the red band through the real command", async () => {
-    const stateDirectory = await seeded();
+    const stateDirectory = await seeded({ fiveHour: 95 });
     const input = payload();
     input.rate_limits.five_hour.used_percentage = 95;
     const result = await runCli(["statusline", "--host", "claude"], {
-      stateDirectory, now: () => NOW, environment: {}, colorOutput: false,
+      stateDirectory, now: () => NOW, environment: TERMINAL, colorOutput: false,
       readStandardInput: async () => JSON.stringify(input)
     });
     expect(result.stdout).toBe(painted.replace(
       "\x1b[32m[█░░░░░░░░░]\x1b[0m \x1b[32m17%\x1b[0m",
-      "\x1b[31m[█████████░]\x1b[0m \x1b[31m95%\x1b[0m"
+      "\x1b[31m[█████████░]\x1b[0m \x1b[31m95%!!\x1b[0m"
     ));
   });
 
-  it("says why the Claude weekly is missing: off on both consents, refused, or waiting", async () => {
+  it("draws colour where FORCE_COLOR asks for it, under a host that captures the output (2.1.7, U47)", async () => {
+    const stateDirectory = await seeded();
+    const run = async (environment: Record<string, string>) => (await runCli(["statusline", "--host", "codex"], {
+      stateDirectory, now: () => NOW, environment, colorOutput: false, readStandardInput: async () => ""
+    })).stdout;
+    expect(await run({})).not.toContain("\x1b[");
+    // FORCE_COLOR 1 is the 16 colour palette: the 85 percent weekly is yellow and marked.
+    expect(await run({ FORCE_COLOR: "1" })).toContain("\x1b[33m85%!\x1b[0m");
+    expect(await run({ FORCE_COLOR: "3" })).toContain("\x1b[38;5;208m85%!\x1b[0m");
+    expect(await run({ FORCE_COLOR: "0" })).not.toContain("\x1b[");
+    expect(await run({ FORCE_COLOR: "1", NO_COLOR: "" })).not.toContain("\x1b[");
+  });
+
+  it("falls back to the 16 colour yellow where no 256 colour palette is claimed, and keeps the mark", async () => {
+    const stateDirectory = await seeded();
+    const result = await runCli(["statusline", "--host", "claude"], {
+      stateDirectory, now: () => NOW, environment: {}, colorOutput: false,
+      readStandardInput: async () => JSON.stringify(payload())
+    });
+    expect(result.stdout).toBe(painted.replaceAll("38;5;208", "33"));
+  });
+
+  it("says why the Claude weekly is missing: off, refused, or waiting", async () => {
     const account = opaqueAccountId("CLAUDE", "refused-fixture");
-    const render = async (cliPoll: string, desktopPoll: boolean, refused: boolean) => {
-      const stateDirectory = await seeded();
-      await rm(path.join(stateDirectory, AUTHORITATIVE_CACHE_FILE_NAME));
-      await runCli(["config", "set", "providers.claude.poll", cliPoll], { stateDirectory, now: () => NOW });
-      if (desktopPoll) {
-        await writeFile(path.join(stateDirectory, "claude-poll.json"), JSON.stringify({ version: 1, enabled: true }));
-      }
+    const render = async (enabled: boolean, refused: boolean) => {
+      const stateDirectory = await seeded({ weekly: false });
+      await writeFile(path.join(stateDirectory, "claude-poll.json"), JSON.stringify({ version: 1, enabled }));
       if (refused) {
         // What the desktop leaves behind when its poll is refused for an account.
         await recordAcquisitionAvailability("CLAUDE", "expired_credentials", NOW, undefined, stateDirectory, account);
@@ -103,11 +128,10 @@ describe("statusline command reference layout", () => {
         readStandardInput: async () => JSON.stringify(payload())
       })).stdout;
     };
-    expect(await render("false", false, false)).toMatch(/ \| 7d off$/u);
-    expect(await render("false", false, true)).toMatch(/ \| 7d off$/u);
-    expect(await render("true", false, false)).toMatch(/ \| 7d waiting$/u);
-    expect(await render("false", true, false)).toMatch(/ \| 7d waiting$/u);
-    expect(await render("false", true, true)).toMatch(/ \| 7d refused$/u);
+    expect(await render(false, false)).toMatch(/ \| 7d off$/u);
+    expect(await render(false, true)).toMatch(/ \| 7d off$/u);
+    expect(await render(true, false)).toMatch(/ \| 7d waiting$/u);
+    expect(await render(true, true)).toMatch(/ \| 7d refused$/u);
   });
 
   it("reads a malformed or unreadable desktop policy as no refusal, never as a broken line", async () => {
@@ -161,8 +185,132 @@ describe("statusline command reference layout", () => {
       stateDirectory, homeDirectory: home, now: () => NOW, environment: { NO_COLOR: "" },
       readStandardInput: async () => JSON.stringify(input)
     });
-    expect(result.stdout).toContain("5h [███░░░░░░░] 37% ·3h20m");
+    expect(result.stdout).toContain("5h [███░░░░░░░] 37% ↻3h20m");
     expect(result.stdout).not.toContain("4%");
+  });
+
+  it("with the request on, a payload of 37 never replaces the poll's 4 and nothing is written", async () => {
+    const home = await mkdtemp(path.join(await realpath(tmpdir()), "openlimiter-statusline-home-"));
+    roots.push(home);
+    await writeFile(path.join(home, ".claude.json"), JSON.stringify({ oauthAccount: { accountUuid: "synthetic-account-uuid" } }));
+    const stateDirectory = await mkdtemp(path.join(await realpath(tmpdir()), "openlimiter-statusline-command-"));
+    roots.push(stateDirectory);
+    const [session] = normalizeMeters(parseClaudePayload(payload(), NOW)!);
+    await mergeAuthoritativeSnapshotCache([{
+      ...session!, value: 4, accountId: opaqueAccountId("CLAUDE", "synthetic-account-uuid"), writer: "desktop",
+      source: "internal_payload", provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
+      observedAt: "2025-12-31T23:55:00.000Z", expiresAt: "2026-01-01T00:02:45.000Z"
+    }], stateDirectory, NOW);
+    await writeFile(path.join(stateDirectory, "claude-poll.json"), JSON.stringify({ version: 1, enabled: true }));
+    const authoritative = await readFile(path.join(stateDirectory, AUTHORITATIVE_CACHE_FILE_NAME), "utf8");
+    const input = payload();
+    input.rate_limits.five_hour.used_percentage = 37;
+    const result = await runCli(["statusline", "--host", "claude"], {
+      stateDirectory, homeDirectory: home, now: () => NOW, environment: { NO_COLOR: "" },
+      readStandardInput: async () => JSON.stringify(input)
+    });
+    // The poll's 4, drawn with the status line's reset arrow (U44 to U48).
+    expect(result.stdout).toContain(" 4% ↻3h20m");
+    expect(result.stdout).not.toContain("37%");
+    await expect(readFile(path.join(stateDirectory, CACHE_FILE_NAME), "utf8")).rejects.toThrow();
+    expect(await readFile(path.join(stateDirectory, AUTHORITATIVE_CACHE_FILE_NAME), "utf8")).toBe(authoritative);
+  });
+
+  /* Astra fix round, finding 1: every host's render draws only the Claude rows
+     the switch selects. A Grok or Antigravity payload used to hand back the
+     whole main cache, unguarded, and merging it in drew a newer payload over
+     the poll while on, or a historical poll weekly while off. */
+  it("renders only the Claude rows the switch selects, for every host", async () => {
+    const at = (secondsAgo: number) => new Date(Date.parse(NOW) - secondsAgo * 1000).toISOString();
+    const claude = (meter: string, value: number, sourceKind: "remote_api" | "statusline_payload", observedAt: string) => ({
+      provider: "CLAUDE", meter, value, unit: "PERCENT",
+      window: { kind: "rolling", durationSeconds: meter === "FIVE_HOUR" ? 18_000 : 604_800 },
+      resetAt: meter === "FIVE_HOUR" ? "2026-01-01T03:20:00.000Z" : "2026-01-05T02:00:00.000Z",
+      source: sourceKind === "remote_api" ? "internal_payload" : "native_payload", precision: "exact", observedAt,
+      expiresAt: new Date(Date.parse(observedAt) + 465_000).toISOString(),
+      labels: { credentialOrigin: "official-local-tool", dataInterfaceStatus: "internal-endpoint", automationRisk: "high", verification: "UNVERIFIED" },
+      provenance: { sourceKind, observedVia: sourceKind === "remote_api" ? "remote_http" : "claude_code_statusline" }
+    });
+    const antigravity = {
+      email: "person@example.com", model: "gemini-3-pro", context_window: 1_000_000, plan_tier: "individual",
+      quota: { "gemini-5h": { remaining_fraction: 0.73, reset_in_seconds: 18_000 } }
+    };
+    const stdin: Record<string, unknown> = {
+      claude: payload(), grok: grokFixture(NOW), antigravity, codex: payload(), shell: payload()
+    };
+    const shown = (stdout: string, value: number) => new RegExp("(^|[^0-9])" + String(value) + "%", "u").test(stdout);
+    const problems: string[] = [];
+    for (const host of ["claude", "grok", "antigravity", "codex", "shell"]) {
+      for (const enabled of [true, false]) {
+        const stateDirectory = await mkdtemp(path.join(await realpath(tmpdir()), "openlimiter-statusline-host-"));
+        const homeDirectory = await mkdtemp(path.join(await realpath(tmpdir()), "openlimiter-statusline-home-"));
+        roots.push(stateDirectory, homeDirectory);
+        await writeFile(path.join(stateDirectory, CACHE_FILE_NAME), JSON.stringify({ version: 3, snapshots: [
+          claude("FIVE_HOUR", 93, "statusline_payload", at(30)),
+          claude("SEVEN_DAY", 59, "remote_api", at(3_600))
+        ] }));
+        await writeFile(path.join(stateDirectory, AUTHORITATIVE_CACHE_FILE_NAME), JSON.stringify({ version: 3, snapshots: [
+          claude("FIVE_HOUR", 71, "remote_api", at(120))
+        ] }));
+        await writeFile(path.join(stateDirectory, "claude-poll.json"), JSON.stringify({ version: 1, enabled }));
+        const { stdout } = await runCli(["statusline", "--host", host], {
+          stateDirectory, homeDirectory, now: () => NOW, environment: { NO_COLOR: "" },
+          readStandardInput: async () => JSON.stringify(stdin[host])
+        });
+        const label = host + (enabled ? " on: " : " off: ") + stdout;
+        const right = enabled
+          ? shown(stdout, 71) && !shown(stdout, 93) && !shown(stdout, 17)
+          : !shown(stdout, 71) && !shown(stdout, 59);
+        if (!right) problems.push(label);
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+
+  /* Astra round 2, finding 3: one render reads the Claude request switch once
+     and filters every input with that value, the path with no ingested rows
+     included, so a switch flip between the cache read and the ingest never
+     draws the source the render did not select. */
+  it("draws one Claude source per render when the switch flips while it runs", async () => {
+    const at = (secondsAgo: number) => new Date(Date.parse(NOW) - secondsAgo * 1000).toISOString();
+    const claude = (meter: string, value: number, sourceKind: "remote_api" | "statusline_payload", observedAt: string) => ({
+      provider: "CLAUDE", meter, value, unit: "PERCENT",
+      window: { kind: "rolling", durationSeconds: meter === "FIVE_HOUR" ? 18_000 : 604_800 },
+      resetAt: meter === "FIVE_HOUR" ? "2026-01-01T03:20:00.000Z" : "2026-01-05T02:00:00.000Z",
+      source: sourceKind === "remote_api" ? "internal_payload" : "native_payload", precision: "exact", observedAt,
+      expiresAt: new Date(Date.parse(observedAt) + 465_000).toISOString(),
+      labels: { credentialOrigin: "official-local-tool", dataInterfaceStatus: "internal-endpoint", automationRisk: "high", verification: "UNVERIFIED" },
+      provenance: { sourceKind, observedVia: sourceKind === "remote_api" ? "remote_http" : "claude_code_statusline" }
+    });
+    const shown = (stdout: string, value: number) => new RegExp("(^|[^0-9])" + String(value) + "%", "u").test(stdout);
+    const problems: string[] = [];
+    for (const start of [true, false]) {
+      const stateDirectory = await mkdtemp(path.join(await realpath(tmpdir()), "openlimiter-statusline-flip-"));
+      const homeDirectory = await mkdtemp(path.join(await realpath(tmpdir()), "openlimiter-statusline-home-"));
+      roots.push(stateDirectory, homeDirectory);
+      await writeFile(path.join(stateDirectory, CACHE_FILE_NAME), JSON.stringify({ version: 3, snapshots: [
+        claude("FIVE_HOUR", 93, "statusline_payload", at(30))
+      ] }));
+      await writeFile(path.join(stateDirectory, AUTHORITATIVE_CACHE_FILE_NAME), JSON.stringify({ version: 3, snapshots: [
+        claude("FIVE_HOUR", 71, "remote_api", at(120)),
+        claude("SEVEN_DAY", 59, "remote_api", at(3_600))
+      ] }));
+      const switchTo = (enabled: boolean) => writeFile(path.join(stateDirectory, "claude-poll.json"), JSON.stringify({ version: 1, enabled }));
+      await switchTo(start);
+      const { stdout } = await runCli(["statusline", "--host", "claude"], {
+        stateDirectory, homeDirectory, now: () => NOW, environment: { NO_COLOR: "" },
+        // The switch flips while the render runs, as the payload is read.
+        readStandardInput: async () => {
+          await switchTo(!start);
+          return JSON.stringify(payload());
+        }
+      });
+      const right = start
+        ? shown(stdout, 71) && shown(stdout, 59) && !shown(stdout, 93) && !shown(stdout, 17)
+        : !shown(stdout, 71) && !shown(stdout, 59) && (shown(stdout, 93) || shown(stdout, 17));
+      if (!right) problems.push((start ? "on, flipped off: " : "off, flipped on: ") + stdout);
+    }
+    expect(problems).toEqual([]);
   });
 
   it("keeps saved segments, windows and providers hidden", async () => {
@@ -174,7 +322,7 @@ describe("statusline command reference layout", () => {
     });
     expect(result).toEqual({
       exitCode: 0, stderr: "",
-      stdout: "opus-5-5 | ctx 42% | 7d [██████░░░░] 65% ·4d2h | concise"
+      stdout: "opus-5-5 | ctx 42% | 7d [██████░░░░] 65% ↻4d2h | concise"
     });
   });
 
@@ -184,7 +332,7 @@ describe("statusline command reference layout", () => {
       stateDirectory, now: () => NOW, environment: { NO_COLOR: "", LC_ALL: "C" },
       readStandardInput: async () => JSON.stringify(payload())
     });
-    expect(result.stdout).toBe(plain.replaceAll("█", "#").replaceAll("░", ".").replaceAll("·", "."));
+    expect(result.stdout).toBe(plain.replaceAll("█", "#").replaceAll("░", ".").replaceAll("↻", "resets "));
   });
 
   it("NO_COLOR wins over the saved always setting", async () => {
@@ -205,10 +353,8 @@ describe("statusline command reference layout", () => {
       stateDirectory, now: () => NOW, environment: { NO_COLOR: "" },
       readStandardInput: async () => JSON.stringify(session)
     });
-    expect(result).toEqual({
-      exitCode: 0, stderr: "",
-      stdout: plain.replace("17%", "1%")
-    });
+    /* The older host reading (1) is not the request's, so the session is the poll's. */
+    expect(result).toEqual({ exitCode: 0, stderr: "", stdout: plain });
     const context = await readFile(contextPath, "utf8");
     expect(context).toContain("CODEX");
     expect(context).not.toContain("Olá projeto");

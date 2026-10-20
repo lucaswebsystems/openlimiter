@@ -489,8 +489,8 @@ describe("one acquisition round", () => {
     }
     /* Every credential here was issued to another client, and every row says
        so before a person leans on the number. */
-    expect(ACQUISITION_DISCLOSURE.claude).toContain("recorded choice");
-    expect(ACQUISITION_DISCLOSURE.claude).not.toContain("off unless you turn it on");
+    /* 2.1.7: the request is opt in, and its row says so. */
+    expect(ACQUISITION_DISCLOSURE.claude).toContain("only once you turn it on");
   });
 
   it("records five separately thrown credential reads at their own instants, phase and class", async () => {

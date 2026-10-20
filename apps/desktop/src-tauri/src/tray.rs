@@ -5,6 +5,8 @@ use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::{AppHandle, Runtime};
 
+use crate::provider_order::ProviderOrder;
+
 pub const ID: &str = "openlimiter-tray";
 
 const PROVIDER_LIMIT: usize = 9;
@@ -107,19 +109,25 @@ fn reading(value: Option<f64>) -> String {
 }
 
 pub fn view(statuses: Vec<ProviderStatus>) -> Result<View, &'static str> {
-    view_with_trial(statuses, true)
+    view_with_trial(statuses, true, false, &ProviderOrder::default())
 }
 
-/// The view, told whether the trial entry belongs in it.
+/// The view, told whether the trial entry belongs in it and the order the
+/// window lists providers in.
 ///
 /// The entitlement is not something this module can read, so it is passed in
 /// rather than guessed at. Offering a trial to somebody already paying for one
 /// is the kind of small dishonesty that costs more trust than the click is
 /// worth, so the default is only used where the entitlement is genuinely not
 /// known yet, which is the first paint before any reading has arrived.
+///
+/// `stale_readings` says readings exist but none is fresh, so the tooltip
+/// says they are out of date rather than that there is no reading at all.
 pub fn view_with_trial(
     statuses: Vec<ProviderStatus>,
     trial_offered: bool,
+    stale_readings: bool,
+    order: &ProviderOrder,
 ) -> Result<View, &'static str> {
     if statuses.len() > PROVIDER_LIMIT {
         return Err("the tray provider list is over its bound");
@@ -146,17 +154,17 @@ pub fn view_with_trial(
         });
     }
 
-    providers.sort_by_key(|entry| match entry.code {
-        "CLAUDE" => 0,
-        "OPENROUTER" => 1,
-        "CODEX" => 2,
-        "ANTIGRAVITY" => 3,
-        "GEMINI_CLI" => 4,
-        "OPENCODE" => 5,
-        "GROK" => 6,
-        "KIMI" => 7,
-        _ => usize::MAX,
+    /* The order the window lists them in: most used first, ties by name, and
+    in a person's own order their list first (stable, so providers it does
+    not name yet stay most used first after it). The icon and tooltip below
+    keep their own pressure rule whatever the order. */
+    providers.sort_by(|left, right| {
+        let used = |entry: &ProviderLine| entry.usage_percent.unwrap_or(-1.0);
+        used(right)
+            .total_cmp(&used(left))
+            .then_with(|| left.name.to_lowercase().cmp(&right.name.to_lowercase()))
     });
+    providers.sort_by_key(|entry| order.position(entry.code).unwrap_or(usize::MAX));
 
     let worst = providers
         .iter()
@@ -164,11 +172,16 @@ pub fn view_with_trial(
         .max_by(f64::total_cmp);
 
     let Some(worst_usage) = worst else {
+        let summary = if stale_readings {
+            "Readings are out of date"
+        } else {
+            "No reading yet"
+        };
         return Ok(View {
             pressure: Pressure::Unknown,
             title: "OpenLimiter".to_string(),
-            tooltip: "OpenLimiter: no reading yet".to_string(),
-            summary: "No reading yet".to_string(),
+            tooltip: format!("OpenLimiter: {}", summary.to_lowercase()),
+            summary: summary.to_string(),
             providers,
             trial_offered,
         });
@@ -249,8 +262,11 @@ pub fn update<R: Runtime>(
     app: &AppHandle<R>,
     statuses: Vec<ProviderStatus>,
     trial_offered: bool,
+    stale_readings: bool,
+    order: &ProviderOrder,
 ) -> Result<(), String> {
-    let view = view_with_trial(statuses, trial_offered).map_err(str::to_string)?;
+    let view =
+        view_with_trial(statuses, trial_offered, stale_readings, order).map_err(str::to_string)?;
     let tray = app
         .tray_by_id(ID)
         .ok_or_else(|| "the tray is not available".to_string())?;
@@ -318,8 +334,9 @@ mod tests {
         ])
         .expect("every provider is valid");
         assert_eq!(rendered.providers.len(), PROVIDER_LIMIT);
-        assert_eq!(rendered.providers[6].name, "Grok (xAI)");
-        assert_eq!(rendered.providers[7].name, "Kimi");
+        let named = |code| rendered.providers.iter().find(|entry| entry.code == code).map(|entry| entry.name);
+        assert_eq!(named("GROK"), Some("Grok (xAI)"));
+        assert_eq!(named("KIMI"), Some("Kimi"));
     }
 
     /// The tray names providers exactly as the window does: the registry
@@ -352,6 +369,23 @@ mod tests {
         assert_eq!(rendered.summary, "No reading yet");
     }
 
+    /// Readings that exist but are all past their freshness are never called
+    /// missing: the tooltip says they are out of date, in words only.
+    #[test]
+    fn old_readings_are_never_called_no_reading() {
+        let usage = ProviderOrder::default();
+        let rendered =
+            view_with_trial(vec![status("CLAUDE", None)], true, true, &usage).expect("valid view");
+        assert_eq!(rendered.pressure, Pressure::Unknown);
+        assert_eq!(rendered.title, "OpenLimiter");
+        assert_eq!(rendered.tooltip, "OpenLimiter: readings are out of date");
+        assert_eq!(rendered.summary, "Readings are out of date");
+        /* A fresh reading still leads with headroom, old ones beside it or not. */
+        let fresh = view_with_trial(vec![status("CODEX", Some(42.0))], true, true, &usage)
+            .expect("valid view");
+        assert_eq!(fresh.tooltip, "OpenLimiter: 58% headroom");
+    }
+
     /// The trial entry is offered only while there is nothing to lose by it.
     ///
     /// A menu that keeps offering a trial to somebody already paying reads as
@@ -359,9 +393,12 @@ mod tests {
     /// and this module never guesses.
     #[test]
     fn the_trial_entry_disappears_once_an_entitlement_is_active() {
-        let offered = view_with_trial(vec![status("CODEX", Some(10.0))], true).expect("a view");
+        let usage = ProviderOrder::default();
+        let offered = view_with_trial(vec![status("CODEX", Some(10.0))], true, false, &usage)
+            .expect("a view");
         assert!(offered.trial_offered);
-        let entitled = view_with_trial(vec![status("CODEX", Some(10.0))], false).expect("a view");
+        let entitled = view_with_trial(vec![status("CODEX", Some(10.0))], false, false, &usage)
+            .expect("a view");
         assert!(!entitled.trial_offered);
         /* The phone entry is not conditional: pairing is what somebody reaches
         for when they are away from this machine, entitled or not. */
@@ -382,6 +419,53 @@ mod tests {
             assert!(!label.contains('\u{2013}'));
             assert!(!label.contains('\u{2014}'));
         }
+    }
+
+    fn codes(rendered: &View) -> Vec<&'static str> {
+        rendered.providers.iter().map(|entry| entry.code).collect()
+    }
+
+    /// Most used first, as the window lists them, ties by name.
+    #[test]
+    fn the_menu_lists_most_used_first_like_the_window() {
+        let rendered = view(vec![
+            status("CLAUDE", Some(12.0)),
+            status("OPENROUTER", Some(40.0)),
+            status("CODEX", Some(70.0)),
+            status("KIMI", Some(40.0)),
+        ])
+        .expect("valid view");
+        assert_eq!(codes(&rendered), ["CODEX", "KIMI", "OPENROUTER", "CLAUDE"]);
+        assert_eq!(rendered.pressure, Pressure::Watch);
+    }
+
+    /// A person's own order drives the menu; providers it does not name yet
+    /// follow, most used first. The icon and tooltip still speak for the
+    /// provider under the most pressure, wherever it sits in the list.
+    #[test]
+    fn a_custom_order_drives_the_menu_and_the_icon_keeps_its_pressure() {
+        let order = ProviderOrder {
+            mode: crate::provider_order::Mode::Custom,
+            providers: vec!["OPENROUTER".into(), "GROK".into(), "CLAUDE".into()],
+            revision: 4,
+        };
+        let statuses = vec![
+            status("CLAUDE", Some(95.0)),
+            status("CODEX", Some(10.0)),
+            status("OPENROUTER", Some(20.0)),
+            status("KIMI", Some(30.0)),
+        ];
+        let rendered = view_with_trial(statuses.clone(), true, false, &order).expect("valid view");
+        assert_eq!(codes(&rendered), ["OPENROUTER", "CLAUDE", "KIMI", "CODEX"]);
+        assert_eq!(rendered.pressure, Pressure::Critical);
+        assert_eq!(rendered.tooltip, "OpenLimiter: 5% headroom");
+        // Most used first again keeps the list on disk but not on the menu.
+        let usage = ProviderOrder {
+            mode: crate::provider_order::Mode::Usage,
+            ..order
+        };
+        let rendered = view_with_trial(statuses, true, false, &usage).expect("valid view");
+        assert_eq!(codes(&rendered), ["CLAUDE", "KIMI", "OPENROUTER", "CODEX"]);
     }
 
     #[test]

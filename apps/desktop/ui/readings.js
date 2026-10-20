@@ -11,6 +11,7 @@
  * the constant artwork of a provider mark, a band shape or a state icon.
  */
 import {
+  claudeRowCounts,
   dedupeFailures,
   freshness,
   mergeSnapshots,
@@ -23,6 +24,7 @@ import {
 import { parseManualPayload } from "./engine/connectors/manual.js";
 import { bandForPercent, bandIconSvg, closestToLimit, providerMarkMarkup, windowRank } from "./engine/ui/provider-row.js";
 import { duration, meterLabel, meterPresentation, meterRank, providerCode, providerName, say, updatedLabel } from "./names.js";
+import { arrange, byOrder } from "./reorder.js";
 
 export { updatedLabel };
 
@@ -108,10 +110,12 @@ export function switchedOff(flags, removed = []) {
 /**
  * What is still displayable of rows already on screen, at `now`. When a read
  * fails the window keeps only these: fresh rows, and stale rows the data rules
- * still hold, drawn grey with their age rather than frozen as if current.
+ * still hold, drawn grey with their age rather than frozen as if current. A
+ * Claude row counts only from the source the request switch selects as it
+ * stands now (`pollOn`), so a number from the source it left never stays.
  */
-export function holdReadings(snapshots, now) {
-  return projectSnapshots(snapshots, now).snapshots;
+export function holdReadings(snapshots, now, pollOn) {
+  return projectSnapshots(snapshots.filter((row) => claudeRowCounts(row, pollOn === true)), now).snapshots;
 }
 
 /**
@@ -216,13 +220,14 @@ function orderedWindows(provider, windows) {
 }
 
 /**
- * One entry per provider, tightest window first and tightest provider first.
+ * One entry per provider, tightest window first and tightest provider first,
+ * or in a person's own `order` (provider_order in Rust) when they chose one.
  *
  * The rows are already the active accounts only. If a provider still has two
  * (two accounts connected on purpose), they share its one card and the second
  * account's windows say so, by position, never by an id.
  */
-export function limitsModel(snapshots, now) {
+export function limitsModel(snapshots, now, order = null) {
   const providers = new Map();
   /* The one projection decides what is still drawable at `now`: fresh rows,
      and stale rows it holds (a quiet source for seven days, a Claude status
@@ -249,7 +254,7 @@ export function limitsModel(snapshots, now) {
     return { code, name: providerName(code), windows: orderedWindows(code, windows), age: stale.length ? updatedLabel(stale[0], now) : null };
   });
   const headline = (provider) => Math.max(-1, ...provider.windows.map((window) => window.usedPercent ?? -1));
-  return model.sort((left, right) => headline(right) - headline(left) || left.name.localeCompare(right.name));
+  return byOrder(model.sort((left, right) => headline(right) - headline(left) || left.name.localeCompare(right.name)), order);
 }
 
 function node(doc, tag, className, text) {
@@ -346,11 +351,12 @@ export function limitsKey(model) {
   });
 }
 
+/* Rewrite only the ages and countdowns in place, block by provider code: a
+   reorderable list may show its blocks in another order for a moment. */
 export function patchLimits(mount, model, { compact = false } = {}) {
-  const groups = mount.querySelectorAll(".q-group");
-  for (let i = 0; i < model.length; i++) {
-    const provider = model[i];
-    const group = groups[i];
+  const groups = new Map([...mount.querySelectorAll(".q-group")].map((group) => [group.dataset.provider, group]));
+  for (const provider of model) {
+    const group = groups.get(provider.code);
     if (!group) continue;
     const age = group.querySelector(".q-age");
     if (age) age.textContent = provider.age ?? "";
@@ -427,45 +433,102 @@ function moreMenu(doc, provider, more, opened) {
   return { toggle, panel };
 }
 
+/* Constant artwork: the six dots a block is moved by. */
+const GRIP_ICON = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="5.75" cy="3.5" r="1.25"/><circle cx="10.25" cy="3.5" r="1.25"/><circle cx="5.75" cy="8" r="1.25"/><circle cx="10.25" cy="8" r="1.25"/><circle cx="5.75" cy="12.5" r="1.25"/><circle cx="10.25" cy="12.5" r="1.25"/></svg>';
+
+/* The mark, with the grip a block is reordered by laid over it: a real
+   button, so a click, Enter or Space opens its menu (reorder.js). */
+function handle(doc, provider) {
+  const wrap = node(doc, "span", "q-handle");
+  const grip = node(doc, "button", "q-grip");
+  grip.type = "button";
+  grip.innerHTML = GRIP_ICON;
+  grip.setAttribute("aria-label", say("reorderFor", { name: provider.name }));
+  grip.setAttribute("aria-haspopup", "menu");
+  grip.setAttribute("aria-expanded", "false");
+  wrap.append(grip, markNode(doc, provider.code));
+  return wrap;
+}
+
+function drawGroup(doc, provider, { compact, handlers, more, opened, grips }) {
+  const group = node(doc, "div", "q-group");
+  group.dataset.providerCard = "";
+  group.dataset.provider = provider.code;
+  group.setAttribute("role", "group");
+  group.setAttribute("aria-label", provider.name);
+  const head = node(doc, "div", "q-prov");
+  head.append(grips ? handle(doc, provider) : markNode(doc, provider.code), node(doc, "span", "q-pname", provider.name));
+  if (provider.age) head.append(node(doc, "span", "q-age", provider.age));
+  if (provider.note) head.append(node(doc, "span", "q-tnote", provider.note));
+  if (provider.action) head.append(stepButton(doc, provider, handlers));
+  group.append(head);
+  if (more) {
+    const menu = moreMenu(doc, provider, more, opened);
+    head.append(menu.toggle);
+    group.append(menu.panel);
+  }
+  group.append(...provider.windows.map((window) => limitRow(doc, window, compact)));
+  return group;
+}
+
+/* A block that is still listed takes its new content in place, keeping its
+   grip and an open reorder menu: the grip may hold focus or the pointer. */
+function refill(old, fresh) {
+  const head = old.querySelector(".q-prov");
+  const freshHead = fresh.querySelector(".q-prov");
+  const kept = (child) => child.classList.contains("q-handle") || child.classList.contains("q-ordermenu");
+  for (const child of [...head.children]) if (!kept(child)) child.remove();
+  for (const child of [...freshHead.children]) if (!child.classList.contains("q-handle")) head.append(child);
+  for (const child of [...old.children]) if (child !== head) child.remove();
+  for (const child of [...fresh.children]) if (child !== freshHead) old.append(child);
+}
+
 /**
  * Draw a model: limitsModel rows, or inventoryModel rows on Home. `compact`
  * is the panel's column form. A row with no reading carries a muted note or
  * one step, a button that calls `handlers[kind](code)`; `more` adds the
- * small menu at the end of every row.
+ * small menu at the end of every row. `grips` makes the list reorderable
+ * (reorder.js drives it): each block gets a grip, and blocks are kept by
+ * provider code, so a redraw changes values in place.
  */
-export function renderLimits(doc, mount, model, { compact = false, handlers = null, more = null, opened = null } = {}) {
-  mount.replaceChildren(...(compact && model.length ? [columnHeads(doc)] : []), ...model.map((provider) => {
-    const group = node(doc, "div", "q-group");
-    group.dataset.providerCard = "";
-    group.dataset.provider = provider.code;
-    group.setAttribute("role", "group");
-    group.setAttribute("aria-label", provider.name);
-    const head = node(doc, "div", "q-prov");
-    head.append(markNode(doc, provider.code), node(doc, "span", "q-pname", provider.name));
-    if (provider.age) head.append(node(doc, "span", "q-age", provider.age));
-    if (provider.note) head.append(node(doc, "span", "q-tnote", provider.note));
-    if (provider.action) head.append(stepButton(doc, provider, handlers));
-    group.append(head);
-    if (more) {
-      const menu = moreMenu(doc, provider, more, opened);
-      head.append(menu.toggle);
-      group.append(menu.panel);
-    }
-    group.append(...provider.windows.map((window) => limitRow(doc, window, compact)));
-    return group;
+export function renderLimits(doc, mount, model, { compact = false, handlers = null, more = null, opened = null, grips = false } = {}) {
+  const fresh = model.map((provider) => drawGroup(doc, provider, { compact, handlers, more, opened, grips }));
+  if (!grips) {
+    mount.replaceChildren(...(compact && model.length ? [columnHeads(doc)] : []), ...fresh);
+    return;
+  }
+  const kept = new Map([...mount.querySelectorAll(".q-group")].map((group) => [group.dataset.provider, group]));
+  const heads = mount.querySelector(".q-colhead");
+  if (!compact || model.length === 0) heads?.remove();
+  else if (heads === null) mount.insertBefore(columnHeads(doc), mount.children[0] ?? null);
+  arrange(doc, mount, fresh.map((group) => {
+    const old = kept.get(group.dataset.provider);
+    if (!old) return group;
+    refill(old, group);
+    return old;
   }));
 }
 
-/** Split the measured bars from the full connection inventory used by Tools. */
+/**
+ * Split the measured bars from the full connection inventory used by Tools.
+ *
+ * Usage keeps a row for a tool that is set up and waiting for its first
+ * reading, and for one that needs its sign in, with the same step Connect
+ * Tools offers: a connected tool never vanishes from Usage, and Usage never
+ * says "No bars yet" over tools that are already connected.
+ */
 export function splitInventory(model = []) {
   const usage = [];
   const tools = [];
   for (const tool of model) {
     if (tool.windows.length > 0) {
-      usage.push({ ...tool, action: null, note: null, extra: [] });
-      tools.push({ ...tool, windows: [], note: tool.note ?? say("connected") });
+      /* A failed read is said beside the readings it left, and on the tool. */
+      usage.push({ ...tool, action: null, note: tool.failure ?? null, extra: [] });
+      tools.push({ ...tool, windows: [], note: tool.failure ?? tool.note ?? say("connected") });
     } else {
       tools.push(tool);
+      if (tool.usage === "waiting") usage.push({ ...tool, extra: [] });
+      if (tool.usage === "signin") usage.push({ ...tool, note: say("fixSignInIssue"), extra: [] });
     }
   }
   return { usage, tools };
@@ -482,8 +545,31 @@ const CONNECTABLE = new Set(["CLAUDE", "CODEX", "ANTIGRAVITY", "OPENCODE", "OPEN
 /* Connection states a stored credential cannot read through. */
 const REFUSED = new Set(["NEEDS_AUTH", "AUTH_EXPIRED", "ERROR"]);
 
+/* The ones among them that a new sign in fixes. */
+const SIGNED_OUT = new Set(["NEEDS_AUTH", "AUTH_EXPIRED"]);
+
+/* Connection states that read on their own once they have something to read. */
+const LIVE = new Set(["CONNECTING", "CONNECTED", "DEGRADED", "STALE"]);
+
 /* Fixes worth offering for another account of a tool that already reads. */
 const ACCOUNT_FIXES = new Set(["sign_in", "reconnect", "open_app"]);
+
+/* What a failed Claude usage request leaves on the account's ACQUISITION row
+   (claude_oauth.rs), each said as a plain note: the readings it left keep
+   their own aging look, and no step is offered for what only time or Claude
+   Code can change. */
+const CLAUDE_REQUEST_FAILURES = Object.freeze({
+  expired_credentials: "claudeRequestRefused",
+  access_denied: "claudeRequestRefused",
+  rate_limited: "claudeRequestRateLimited",
+  schema_drift: "claudeRequestDrift",
+});
+const requestFailure = (flag) => flag.provider === "CLAUDE" && Object.hasOwn(CLAUDE_REQUEST_FAILURES, flag.reason);
+
+function claudeRequestNote(flags) {
+  const flag = flags.find(requestFailure);
+  return flag === undefined ? null : say(CLAUDE_REQUEST_FAILURES[flag.reason]);
+}
 
 const step = (kind, key, title = null) => ({ action: { kind, label: say(key), title } });
 
@@ -493,30 +579,34 @@ const step = (kind, key, title = null) => ({ action: { kind, label: say(key), ti
  * setup. "connect" opens this window's own setup or key field for the tool;
  * "check" looks again after the person did the step in the tool itself.
  */
-function nextStep(code, name, { flag, flags, records, detection, claude, claudePoll }) {
+function nextStep(code, name, { flag, flags, records, detection, claude }) {
   const title = (key) => say(key, { name });
   const reasons = new Set(flags.map((entry) => entry.reason));
-  /* Waiting with the direct check still off: one click turns it on and reads. */
-  const waiting = code === "CLAUDE" && claudePoll === false
-    ? {}
-    : { note: say("fixWaitingIssue", { name }) };
-  if (reasons.has("awaiting_statusline")) return waiting;
+  /* A failed Claude usage request says what happened, before any setup step;
+     like any connected tool it keeps its row on Usage, with that note. */
+  const failure = code === "CLAUDE" ? claudeRequestNote(flags) : null;
+  if (failure !== null) return { note: failure, usage: "waiting" };
+  /* Set up, quiet and with nothing wrong: its first reading is on the way, so
+     the row waits with no button, in Connect Tools and on Usage alike. */
+  const waiting = { note: say("waitingFirstReading"), usage: "waiting" };
+  if (reasons.has("awaiting_statusline")) return { note: say("fixWaitingIssue", { name }), usage: "waiting" };
   /* A CLI that is not installed blocks every other step, a connect or a sign
      in included, so it is named first; native code marks it per account. */
   if (detection?.accounts?.some((account) => account.recovery === "install_cli")) {
     return { ...step("check", "fixOpenAppAction"), note: say("cliNotFound", { name }) };
   }
-  const signInAgain = step("check", "fixSignInAgainIssue", title("fixToolDetail"));
+  /* A tool that needs its sign in keeps a row on Usage with this same step. */
+  const signInAgain = { ...step("check", "fixSignInAgainIssue", title("fixToolDetail")), usage: "signin" };
   /* Its action only looks again, so it says so. */
   if (reasons.has("account_unresolved")) return step("check", "fixOpenAppAction", title("fixToolDetail"));
   const refused = records.some((record) => REFUSED.has(record.state));
+  const signedOut = records.some((record) => SIGNED_OUT.has(record.state)) || flag?.fixKind === "sign_in";
   const loggedOut = detection?.state === "installed_logged_out";
   if (code === "CLAUDE") {
     if (loggedOut) return signInAgain;
     if (claude === "READY_TO_ENABLE" || claude === "CONNECTED") return waiting;
     return step("connect", "connect");
   }
-  if (code === "OPENROUTER") return records.length === 0 || refused ? step("connect", "connect") : step("check", "fixOpenAppAction");
   if (code === "ANTIGRAVITY") {
     if (detection?.statusline_state === "legacy") {
       return { ...step("connect", "setupAntigravityStatusLine"), note: say("antigravityStatusLineLegacy") };
@@ -525,13 +615,21 @@ function nextStep(code, name, { flag, flags, records, detection, claude, claudeP
       return { ...step("check", "fixOpenAppAction"), note: say("antigravityStatusLineDisabled") };
     }
     return detection?.statusline_configured === true
-      ? { note: say("antigravityStatusLineIdle") }
+      ? { note: say("antigravityStatusLineIdle"), usage: "waiting" }
       : step("connect", "setupAntigravityStatusLine");
   }
   if (code === "GEMINI_CLI" && flag?.reason === "quota_unavailable") return { note: say("geminiCliConsumerRetired") };
   if (flag?.fixKind === "unsupported") return { note: say("fixUnsupportedIssue") };
-  if (CONNECTABLE.has(code) && (refused || flag?.fixKind === "reconnect" || flag?.fixKind === "sign_in")) return step("connect", "connect");
+  /* A stored connection says where its tool stands before any provider's own
+     steps, OpenRouter's included: signed out offers Connect and keeps a row
+     on Usage, an error offers Connect, and a live one that has not read yet
+     waits, on Usage too. */
+  if (CONNECTABLE.has(code) && signedOut) return { ...step("connect", "connect"), usage: "signin" };
+  if (CONNECTABLE.has(code) && (refused || flag?.fixKind === "reconnect")) return step("connect", "connect");
+  if (records.some((record) => LIVE.has(record.state)) && flag === undefined) return waiting;
+  if (code === "OPENROUTER") return records.length === 0 ? step("connect", "connect") : step("check", "fixOpenAppAction");
   if (loggedOut || flag?.fixKind === "sign_in") return signInAgain;
+  if (detection?.state === "present" && flag === undefined) return waiting;
   return step("check", "fixOpenAppAction", title(flag?.fixKind === "open_app" ? "fixOpenAppDetail" : "fixToolDetail"));
 }
 
@@ -540,12 +638,13 @@ function nextStep(code, name, { flag, flags, records, detection, claude, claudeP
  * from what happens to be measured. A tool is in play when it always has a
  * row, is detected or connected, is flagged, or a person chose it; one that
  * was switched off leaves unless it always has a row. Measured tools come
- * first, tightest first, with their bars; every other tool follows with a
- * note or one step. `claude` is the Claude Code setup state Connections reads, `claudePoll` the
- * direct Claude check setting (false offers its one click, null is unknown).
+ * first, tightest first or in the person's own `order`, with their bars; every
+ * other tool follows with a note or one step. `claude` is the Claude Code setup state Connections reads.
+ * A tool waiting for its first reading, or for its sign in, is marked with
+ * `usage` so Usage keeps its row too.
  */
-export function inventoryModel({ snapshots = [], flags = [], detections = null, connections = [], configured = [], removed = [], claude = null, claudePoll = null } = {}, now) {
-  const measured = limitsModel(snapshots, now);
+export function inventoryModel({ snapshots = [], flags = [], detections = null, connections = [], configured = [], removed = [], claude = null, order = null } = {}, now) {
+  const measured = limitsModel(snapshots, now, order);
   const shown = new Set(measured.map((tool) => tool.code));
   const off = switchedOff(flags, removed);
   const detected = (detections?.providers ?? []).filter((entry) => entry.state === "present" || entry.state === "installed_logged_out");
@@ -565,13 +664,15 @@ export function inventoryModel({ snapshots = [], flags = [], detections = null, 
     ...measured.map((tool) => {
       const detection = detected.find((entry) => providerCode(entry.provider_id) === tool.code);
       const antigravity = tool.code === "ANTIGRAVITY"
-        ? nextStep(tool.code, tool.name, { flag: best.get(tool.code), flags: [], records: [], detection, claude, claudePoll })
+        ? nextStep(tool.code, tool.name, { flag: best.get(tool.code), flags: [], records: [], detection, claude })
         : null;
+      const failure = tool.code === "CLAUDE" ? claudeRequestNote(flags) : null;
       return {
         ...tool,
         action: antigravity?.action ?? null,
         note: antigravity?.note ?? null,
-        extra: flags.filter((flag) => flag.provider === tool.code && ACCOUNT_FIXES.has(flag.fixKind)),
+        ...(failure === null ? {} : { failure }),
+        extra: flags.filter((flag) => flag.provider === tool.code && ACCOUNT_FIXES.has(flag.fixKind) && !requestFailure(flag)),
       };
     }),
     ...waiting.map((code) => {
@@ -582,9 +683,11 @@ export function inventoryModel({ snapshots = [], flags = [], detections = null, 
         records: connections.filter((entry) => providerCode(entry.provider) === code),
         detection: detected.find((entry) => providerCode(entry.provider_id) === code),
         claude,
-        claudePoll,
       });
-      return { code, name, windows: [], age: null, action: next.action ?? null, note: next.note ?? null, extra: [] };
+      return {
+        code, name, windows: [], age: null, action: next.action ?? null, note: next.note ?? null, extra: [],
+        ...(next.usage ? { usage: next.usage } : {}),
+      };
     }),
   ];
 }

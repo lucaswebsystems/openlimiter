@@ -51,13 +51,20 @@ test("entitlement follows the validated status and features, never the plan name
   assert.match(ended, /data-state="free"/u);
 });
 
-test("the plan card lists the features a token really carries", () => {
-  const keys = FEATURES.map((feature) => feature.key).sort();
-  assert.deepEqual(keys, CONTRACT);
+test("the plan card lists exactly the one shared Pro list, each a feature a token really carries", () => {
+  /* The site, the hub and the phone read the same file. */
+  const shared = JSON.parse(read("../../web/lib/pro-features.json")).features;
+  assert.deepEqual(FEATURES.map((feature) => [feature.key, feature.label]), shared.map((feature) => [feature.entitlement, feature.label]));
+  assert.match(read("./pro.js"), /import proList from "\.\.\/\.\.\/web\/lib\/pro-features\.json" with \{ type: "json" \};/u);
   const rust = read("../src-tauri/src/pro.rs");
-  for (const key of keys) assert.match(rust, new RegExp(`=> "${key}",`, "u"));
+  for (const { key } of FEATURES) {
+    assert.ok(CONTRACT.includes(key), key);
+    assert.match(rust, new RegExp(`=> "${key}",`, "u"));
+  }
   for (const feature of FEATURES) assert.doesNotMatch(feature.label, /[-\u2010-\u2015]/u);
   const card = planMarkup(status("active", "trialing", ["alerts", "history"]), 12);
+  const listed = [...card.matchAll(/<li data-on="(?:true|false)">.*?<span>(.*?)<\/span>/gu)].map((match) => match[1]);
+  assert.deepEqual(listed, shared.map((feature) => feature.label));
   const on = [...card.matchAll(/<li data-on="true">.*?<span>(.*?)<\/span>/gu)].map((match) => match[1]);
   assert.deepEqual(on.sort(), FEATURES.filter((f) => ["alerts", "history"].includes(f.key)).map((f) => f.label).sort());
 });

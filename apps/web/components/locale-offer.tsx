@@ -111,7 +111,7 @@ export function LocaleOffer({ locale, copy }: { locale: Locale; copy: LocaleOffe
             event.currentTarget.href = `${target}${window.location.search}${window.location.hash}`;
             rememberLocale(offered);
           }}
-          className="focus-ring inline-flex flex-none items-center rounded-lg bg-accent-solid px-3 py-1.5 text-sm font-medium text-on-accent transition-colors duration-200 hover:bg-accent-solid-hover"
+          className="focus-ring inline-flex flex-none items-center rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-on-primary transition-colors duration-200 hover:bg-primary-hover"
         >
           {words.action}
         </a>
