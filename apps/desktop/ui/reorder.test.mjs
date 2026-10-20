@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { fakeDocument, leaks, spoken } from "./test-dom.mjs";
 import { providerName } from "./names.js";
-// readings.js and reorder.js reach the compiled engine, which only exists in the build.
-import { byOrder, patchLimits, renderLimits } from "./dist/readings.js";
-import { createOrderStore, movedOrder, reorderList } from "./dist/reorder.js";
+// readings.js reaches the compiled engine, which only exists in the build.
+import { patchLimits, renderLimits } from "./dist/readings.js";
+import { byOrder, createOrderStore, movedOrder, reorderList } from "./dist/reorder.js";
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 const USAGE = { mode: "usage", providers: [], revision: 0 };
@@ -165,6 +165,7 @@ test("the grip is a named button; click opens its menu with impossible moves dis
   // The last block can only go up; Move to top takes it there.
   await tap(s.grip("KIMI"));
   assert.deepEqual(s.menu().children.map((item) => item.disabled), [false, true, false, true]);
+  assert.equal(s.doc.activeElement, claude, "a pointer click opens the menu without moving focus");
   await s.menu().children[2].bubble("click", { detail: 1 });
   await flush();
   assert.deepEqual(s.order(), ["KIMI", "CODEX", "CLAUDE"]);

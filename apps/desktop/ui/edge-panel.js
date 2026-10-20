@@ -3,12 +3,18 @@
  * delayed close; this file reads the same projection Home reads and draws it
  * with the same functions, so the two can never tell a different story.
  *
- * Native code also sizes the window. After each draw the panel reports the
- * height its content needs, and native clamps that between a minimum and 90%
- * of the screen, so the panel scrolls only past the clamp. It is told when it
- * is shown or hidden, and polls only while it is seen.
+ * Native code also sizes the window. Whenever its content changes size the
+ * panel reports the height it needs, and native gives it that height up to
+ * the whole work area, so the panel scrolls only on a screen too short for
+ * it. It is told when it is shown or hidden, and polls only while it is seen.
+ *
+ * Its blocks follow the provider order every surface shares, and move by
+ * their grips (reorder.js). The panel never takes focus, so it gets the
+ * pointer drag and the grip's menu; while either is under way it holds itself
+ * open, and a native Escape ends the drag or the menu before the panel.
  */
 import { holdReadings, limitsKey, limitsModel, officialMark, patchLimits, projectReadings, renderLimits, updatedLabel } from "./readings.js";
+import { createOrderStore, ORDER_CHANGED_EVENT, reorderList } from "./reorder.js";
 import { agentsModel, locateSentence, renderAgents, runningLabel } from "./agents.js";
 import { freshestObservation } from "./home-refresh.js";
 import { say } from "./names.js";
@@ -26,6 +32,8 @@ export async function openMainWindow(tauri) {
 
 /** Sent by native code whenever the panel is shown (true) or hidden (false). */
 export const PANEL_SHOWN_EVENT = "edge-panel-shown";
+/** Sent by native code for an Escape while the panel holds itself open. */
+export const PANEL_ESCAPE_EVENT = "edge-panel-escape";
 export const COLLECTOR_UPDATED_EVENT = "collector-updated";
 
 /**
@@ -35,9 +43,12 @@ export const COLLECTOR_UPDATED_EVENT = "collector-updated";
  * fills the window). The content is measured on its own wrapper, never on the
  * scroller: where the card is stretched to the window (macOS) the scroller is
  * as tall as the window whatever it holds, and the panel could never shrink.
+ * Boxes are measured unrounded and the sum rounded up once: rounded heights
+ * can come out a fraction short, and a fraction short is a scrollbar.
  */
 export function naturalHeight(card, scroll, content) {
-  return Math.ceil(2 * card.offsetTop + card.offsetHeight - scroll.clientHeight + content.offsetHeight);
+  const height = (element) => element.getBoundingClientRect().height;
+  return Math.ceil(2 * card.offsetTop + height(card) - height(scroll) + height(content));
 }
 
 /**
@@ -78,6 +89,23 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
     reported = height;
     void Promise.resolve(invoke("plugin:rail|rail_card_height", { height })).catch(() => {});
   };
+  // Rows that change size after a draw (a font arriving, a line wrapping) report too.
+  const resized = typeof ResizeObserver === "function" ? new ResizeObserver(() => reportHeight()) : null;
+  resized?.observe(view.content);
+
+  /* The order, through the same two commands and event as the window. */
+  const settled = (promise) => Promise.resolve(promise).then((value) => ({ ok: true, value }), () => ({ ok: false }));
+  const order = createOrderStore({
+    read: () => settled(invoke("provider_order")),
+    write: (input) => settled(invoke("set_provider_order", { input })),
+    listen: typeof listen === "function" ? (handler) => listen(ORDER_CHANGED_EVENT, handler) : null,
+  });
+  const list = reorderList(doc, view.limits, {
+    store: order,
+    render: (model) => renderLimits(doc, view.limits, model, { compact: true, grips: true }),
+    hold: (held) => void Promise.resolve(invoke("plugin:rail|rail_card_hold", { held })).catch(() => {}),
+    scroller: view.scroll,
+  });
 
   const state = (title, detail = "") => {
     view.state.hidden = title === null;
@@ -112,11 +140,11 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
       held = cache.status === "rejected"
         ? holdReadings(held, at)
         : projectReadings(cache.value, manual.status === "fulfilled" ? manual.value : null, at).snapshots;
-      const model = limitsModel(held, at);
+      const model = limitsModel(held, at, order.state);
       const key = limitsKey(model);
       if (key !== drawnLimits) {
         drawnLimits = key;
-        renderLimits(doc, view.limits, model, { compact: true });
+        list.draw(model);
       } else {
         patchLimits(view.limits, model, { compact: true });
       }
@@ -148,7 +176,8 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
     try { await openMainWindow(tauri); } catch { /* The tray still opens the window. */ }
     close();
   };
-  const escape = (event) => { if (event.key === "Escape") close(); };
+  // A drag or the reorder menu takes Escape first; only then is it the panel's.
+  const escape = (event) => { if (event.key === "Escape" && !list.escape()) close(); };
   // Shown: read now and keep reading. Hidden: stop until the next open.
   let heard = false;
   const onShown = (event) => {
@@ -156,19 +185,25 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
     shown = event?.payload === true;
     cancel(timer);
     if (shown) void refresh();
+    else list.cancel();
   };
   view.open.addEventListener("click", openApp);
   doc.addEventListener("keydown", escape);
+  const unlisteners = [];
+  const hear = (name, handler) => {
+    if (typeof listen !== "function") return;
+    Promise.resolve(listen(name, handler)).then((stop) => {
+      if (stopped) return stop?.();
+      unlisteners.push(stop);
+    }).catch(() => {});
+  };
   /* Every collector pass, and the startup rescan, reads again, shown or not,
      so a hidden panel never opens on a projection made before detection. */
-  const onUpdated = () => void refresh();
-  let unlistenUpdated = null;
-  if (typeof listen === "function") {
-    Promise.resolve(listen(COLLECTOR_UPDATED_EVENT, onUpdated)).then((stop) => {
-      if (stopped) return stop?.();
-      unlistenUpdated = stop;
-    }).catch(() => {});
-  }
+  hear(COLLECTOR_UPDATED_EVENT, () => void refresh());
+  hear(PANEL_ESCAPE_EVENT, () => list.escape());
+  // An order written here, in the window or in Settings: draw it.
+  const unsubscribe = order.subscribe(() => void refresh());
+  void order.load();
 
   if (!shown) {
     Promise.resolve(listen(PANEL_SHOWN_EVENT, onShown)).then(async (stop) => {
@@ -186,7 +221,11 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
     stopped = true;
     cancel(timer);
     unlisten?.();
-    unlistenUpdated?.();
+    unlisteners.forEach((stop) => stop?.());
+    unsubscribe();
+    list.dispose();
+    order.dispose();
+    resized?.disconnect();
     view.open.removeEventListener("click", openApp);
     doc.removeEventListener("keydown", escape);
   };

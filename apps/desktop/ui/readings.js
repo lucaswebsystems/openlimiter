@@ -23,6 +23,7 @@ import {
 import { parseManualPayload } from "./engine/connectors/manual.js";
 import { bandForPercent, bandIconSvg, closestToLimit, providerMarkMarkup, windowRank } from "./engine/ui/provider-row.js";
 import { duration, meterLabel, meterPresentation, meterRank, providerCode, providerName, say, updatedLabel } from "./names.js";
+import { arrange, byOrder } from "./reorder.js";
 
 export { updatedLabel };
 
@@ -213,18 +214,6 @@ function orderedWindows(provider, windows) {
   return [...windows].sort((left, right) =>
     (meterRank(left.key, provider) ?? 90) - (meterRank(right.key, provider) ?? 90) ||
     left.key.localeCompare(right.key));
-}
-
-/**
- * A person's own order (Settings, My order): the providers their list names
- * first, in its order, then the ones it does not name yet, most used first.
- * Most used first is limitsModel's own sort, unchanged.
- */
-export function byOrder(model, order) {
-  if (order?.mode !== "custom" || !Array.isArray(order.providers)) return model;
-  const rank = new Map(order.providers.map((code, index) => [code, index]));
-  const at = (provider) => rank.get(provider.code) ?? rank.size;
-  return [...model].sort((left, right) => at(left) - at(right));
 }
 
 /**
@@ -489,28 +478,6 @@ function refill(old, fresh) {
   for (const child of [...freshHead.children]) if (!child.classList.contains("q-handle")) head.append(child);
   for (const child of [...old.children]) if (child !== head) child.remove();
   for (const child of [...fresh.children]) if (child !== freshHead) old.append(child);
-}
-
-/**
- * Show `groups` in this order as the mount's blocks. The block holding focus
- * or being dragged is never taken out of the document (that would drop the
- * focus or the pointer): the others move around it. Anything else the list
- * holds (the column headings, a drag's slot) stays where it is.
- */
-export function arrange(doc, mount, groups) {
-  for (const child of [...mount.children]) {
-    if (child.classList.contains("q-group") && !groups.includes(child)) child.remove();
-  }
-  const placed = [...mount.children].filter((child) => groups.includes(child));
-  if (placed.length === groups.length && placed.every((child, index) => child === groups[index])) return;
-  const pinned = placed.find((group) => group.contains(doc.activeElement) || "dragging" in group.dataset);
-  if (!pinned) {
-    for (const group of groups) mount.append(group);
-    return;
-  }
-  const at = groups.indexOf(pinned);
-  for (const group of groups.slice(0, at)) mount.insertBefore(group, pinned);
-  for (const group of groups.slice(at + 1)) mount.append(group);
 }
 
 /**

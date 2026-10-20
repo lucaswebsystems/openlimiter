@@ -15,7 +15,6 @@
  * menu is open, a redraw changes values in place and holds every structural
  * change (a block added, removed or moved elsewhere) until it ends.
  */
-import { arrange, byOrder } from "./readings.js";
 import { providerName, say } from "./names.js";
 
 /** Sent by Rust to every surface after the order was written. */
@@ -40,6 +39,40 @@ function validOrder(value) {
 
 const same = (left, right) => left.mode === right.mode && left.revision === right.revision &&
   left.providers.length === right.providers.length && left.providers.every((code, index) => code === right.providers[index]);
+
+/**
+ * A person's own order (Settings, My order): the providers their list names
+ * first, in its order, then the ones it does not name yet, most used first.
+ * Most used first is limitsModel's own sort, unchanged.
+ */
+export function byOrder(model, order) {
+  if (order?.mode !== "custom" || !Array.isArray(order.providers)) return model;
+  const rank = new Map(order.providers.map((code, index) => [code, index]));
+  const at = (provider) => rank.get(provider.code) ?? rank.size;
+  return [...model].sort((left, right) => at(left) - at(right));
+}
+
+/**
+ * Show `groups` in this order as the mount's blocks. The block holding focus
+ * or being dragged is never taken out of the document (that would drop the
+ * focus or the pointer): the others move around it. Anything else the list
+ * holds (the column headings, a drag's slot) stays where it is.
+ */
+export function arrange(doc, mount, groups) {
+  for (const child of [...mount.children]) {
+    if (child.classList.contains("q-group") && !groups.includes(child)) child.remove();
+  }
+  const placed = [...mount.children].filter((child) => groups.includes(child));
+  if (placed.length === groups.length && placed.every((child, index) => child === groups[index])) return;
+  const pinned = placed.find((group) => group.contains(doc.activeElement) || "dragging" in group.dataset);
+  if (!pinned) {
+    for (const group of groups) mount.append(group);
+    return;
+  }
+  const at = groups.indexOf(pinned);
+  for (const group of groups.slice(0, at)) mount.insertBefore(group, pinned);
+  for (const group of groups.slice(at + 1)) mount.append(group);
+}
 
 /**
  * The stored list after `code` moves to position `to` among the codes a
@@ -209,7 +242,9 @@ export function reorderList(doc, mount, { store, render, hold = () => {}, scroll
 
   /* ------------------------------------------------------------ the menu */
 
-  function openMenu(grip) {
+  /* Opened by Enter or Space, focus goes to the first move it can make; a
+     pointer click leaves focus where it was, as a menu button does. */
+  function openMenu(grip, byKeyboard) {
     closeMenu();
     const group = grip.closest(".q-group");
     const code = group.dataset.provider;
@@ -242,7 +277,7 @@ export function reorderList(doc, mount, { store, render, hold = () => {}, scroll
     /* It opens downward unless that runs past what is visible. */
     const box = element.getBoundingClientRect();
     if (box.bottom > edges().bottom && box.top - box.height > edges().top) element.dataset.up = "";
-    [...element.children].find((item) => !item.disabled)?.focus();
+    if (byKeyboard) [...element.children].find((item) => !item.disabled)?.focus();
   }
 
   function closeMenu(focus = false) {
@@ -292,11 +327,15 @@ export function reorderList(doc, mount, { store, render, hold = () => {}, scroll
     const from = items.findIndex((item) => item.group === group);
     if (from < 0) return;
     const gap = items.length > 1 ? Math.max(0, items[1].top - items[0].top - items[0].height) : 0;
-    const origin = mount.getBoundingClientRect().top + offset;
+    const area = mount.getBoundingClientRect();
+    const box = group.getBoundingClientRect();
+    const origin = area.top + offset;
     const slot = doc.createElement("div");
     slot.className = "q-slot";
     slot.setAttribute("aria-hidden", "true");
     slot.style.setProperty("top", `${items[from].top - origin}px`);
+    slot.style.setProperty("left", `${box.left - area.left}px`);
+    slot.style.setProperty("width", `${box.width}px`);
     slot.style.setProperty("height", `${items[from].height}px`);
     mount.append(slot);
     mount.dataset.reordering = "";
@@ -426,7 +465,7 @@ export function reorderList(doc, mount, { store, render, hold = () => {}, scroll
         return;
       }
       if (menu?.grip === grip) closeMenu(true);
-      else openMenu(grip);
+      else openMenu(grip, event.detail === 0);
       return;
     }
     const item = event.target?.closest?.(".q-orderitem");

@@ -4,7 +4,8 @@ import test from "node:test";
 import { messyFixtures } from "./messy-fixtures.mjs";
 import { fakeDocument, leaks, spoken } from "./test-dom.mjs";
 // The panel reaches the compiled engine, which only exists in the build.
-import { naturalHeight, openMainWindow, PANEL_SHOWN_EVENT, startPanel } from "./dist/edge-panel.js";
+import { naturalHeight, openMainWindow, PANEL_ESCAPE_EVENT, PANEL_SHOWN_EVENT, startPanel } from "./dist/edge-panel.js";
+import { ORDER_CHANGED_EVENT } from "./dist/reorder.js";
 
 const NOW = Date.parse("2026-09-29T12:00:00.000Z");
 const IDS = ["panel-card", "panel-scroll", "panel-content", "panel-updated", "panel-agents", "panel-agent-rows", "panel-note",
@@ -13,17 +14,17 @@ const IDS = ["panel-card", "panel-scroll", "panel-content", "panel-updated", "pa
 const UNREADABLE = "The saved readings could not be read.";
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
-function panel({ cache, sessions = [], windows, event, content = 300, cardOpen = false, stall = null } = {}) {
+function panel({ cache, sessions = [], windows, event, content = 300, cardOpen = false, stall = null, order = null } = {}) {
   const fixtures = messyFixtures(NOW);
   const doc = fakeDocument(IDS);
   // The card sits 12 pixels in, is 400 tall, and shows 300 of the scroller.
-  Object.assign(doc.getElementById("panel-card"), { offsetTop: 12, offsetHeight: 400 });
-  Object.assign(doc.getElementById("panel-scroll"), { clientHeight: 300 });
-  Object.assign(doc.getElementById("panel-content"), { offsetHeight: content });
+  Object.assign(doc.getElementById("panel-card"), { offsetTop: 12, rect: { height: 400 } });
+  Object.assign(doc.getElementById("panel-scroll"), { rect: { height: 300 } });
+  Object.assign(doc.getElementById("panel-content"), { rect: { height: content } });
   const calls = [];
   const scheduled = [];
-  // What the next reads answer, the clock, and a read held back, all changeable mid test.
-  const source = { cache, at: NOW, stall };
+  // What the next reads answer, the clock, a read held back and the stored order, all changeable mid test.
+  const source = { cache, at: NOW, stall, order };
   const invoke = async (command, args) => {
     calls.push([command, args]);
     if (command === "read_cache") {
@@ -34,6 +35,13 @@ function panel({ cache, sessions = [], windows, event, content = 300, cardOpen =
     if (command === "read_manual") return "";
     if (command === "plugin:rail|rail_snapshot") return { accounts: [], flags: [], sessions, window: { cardOpen } };
     if (command === "plugin:activity|activity_locate") return "focused";
+    if (command === "provider_order") return source.order;
+    if (command === "set_provider_order") {
+      if (args.input.revision !== (source.order?.revision ?? 0)) throw { kind: "stale_revision" };
+      const { mode, providers } = args.input;
+      source.order = { mode, providers, revision: (source.order?.revision ?? 0) + 1 };
+      return source.order;
+    }
     return null;
   };
   const stop = startPanel(doc, { core: { invoke }, window: windows, event }, {
@@ -186,16 +194,19 @@ test("a collector event during a read still under way gets one more read when it
 
 test("the panel reports the height its content needs, and only when it changes", async () => {
   // Floating card: 12 pixels of inset, a 100 pixel head and foot, 520 of content.
-  assert.equal(naturalHeight({ offsetTop: 12, offsetHeight: 400 }, { clientHeight: 300 }, { offsetHeight: 520 }), 644);
+  const box = (height, offsetTop = 0) => ({ offsetTop, getBoundingClientRect: () => ({ height }) });
+  assert.equal(naturalHeight(box(400, 12), box(300), box(520)), 644);
+  // Unrounded: content 0.391 px over a whole pixel asks for the next pixel, never a fraction short.
+  assert.equal(naturalHeight(box(400.25, 12), box(300.25), box(520.391)), 645);
   // macOS: the card is the window, 480 tall, and its content needs only 200 of the 380 the scroller shows.
-  assert.equal(naturalHeight({ offsetTop: 0, offsetHeight: 480 }, { clientHeight: 380 }, { offsetHeight: 200 }), 300);
+  assert.equal(naturalHeight(box(480), box(380), box(200)), 300);
   const { calls, scheduled, doc, stop } = panel({ content: 520 });
   await flush();
   const reports = () => calls.filter(([command]) => command === "plugin:rail|rail_card_height").map(([, args]) => args.height);
   assert.deepEqual(reports(), [644]);
   await scheduled.at(-1)();
   assert.deepEqual(reports(), [644], "an unchanged height is not sent again");
-  doc.getElementById("panel-content").offsetHeight = 250;
+  doc.getElementById("panel-content").rect = { height: 250 };
   await scheduled.at(-1)();
   assert.deepEqual(reports(), [644, 374]);
   stop();
@@ -225,7 +236,72 @@ test("the panel reads once at start, polls only while shown, and stops when hidd
   await scheduled.at(-1)();
   assert.equal(scheduled.length, before, "hidden: the poll that was due does not schedule another");
   stop();
-  assert.equal(unlistened, 2);
+  assert.equal(unlistened, 4, "shown, collector, order and Escape");
+});
+
+const hearing = () => {
+  const listeners = {};
+  return { listeners, event: { listen: async (name, handler) => { listeners[name] = handler; return () => {}; } } };
+};
+const blocks = (view) => view("panel-limits").all((node) => "providerCard" in node.dataset).map((card) => card.dataset.provider);
+
+test("the panel lists blocks in the stored order, appends a newcomer once and follows an order written elsewhere", async () => {
+  const { listeners, event } = hearing();
+  const { view, source, calls, stop } = panel({ event, order: { mode: "custom", providers: ["OPENROUTER", "CLAUDE"], revision: 2 } });
+  await flush(); await flush(); await flush();
+  assert.deepEqual(blocks(view), ["OPENROUTER", "CLAUDE", "CODEX"], "the list first, the newcomer after it");
+  assert.deepEqual(source.order, { mode: "custom", providers: ["OPENROUTER", "CLAUDE", "CODEX"], revision: 3 });
+  assert.equal(calls.filter(([command]) => command === "set_provider_order").length, 1);
+  // Most used first, chosen in the window's Settings.
+  listeners[ORDER_CHANGED_EVENT]({ payload: { mode: "usage", providers: ["OPENROUTER", "CLAUDE", "CODEX"], revision: 4 } });
+  await flush(); await flush();
+  assert.deepEqual(blocks(view), ["CODEX", "CLAUDE", "OPENROUTER"]);
+  const grips = view("panel-limits").all((node) => node.className === "q-grip");
+  assert.deepEqual(grips.map((grip) => grip.getAttribute("aria-label")), ["Reorder Codex", "Reorder Claude Code", "Reorder OpenRouter"]);
+  stop();
+});
+
+test("the panel holds itself open through a drag or its menu; a native Escape or hiding ends either first", async () => {
+  const { listeners, event } = hearing();
+  const { view, doc, calls, stop } = panel({ event });
+  await flush();
+  const holds = () => calls.filter(([command]) => command === "plugin:rail|rail_card_hold").map(([, args]) => args.held);
+  const closes = () => calls.filter(([command]) => command === "plugin:rail|rail_card_close").length;
+  const grip = view("panel-limits").all((node) => node.className === "q-grip")[0];
+  const pointer = (type, y) => grip.bubble(type, { button: 0, isPrimary: true, pointerId: 3, clientX: 0, clientY: y, preventDefault() {} });
+  await pointer("pointerdown", 10);
+  await pointer("pointermove", 30);
+  assert.deepEqual(holds(), [true], "a drag holds the panel open");
+  await listeners[PANEL_ESCAPE_EVENT]();
+  assert.deepEqual(holds(), [true, false], "native Escape cancels the drag first");
+  assert.equal(closes(), 0, "and leaves the panel open");
+  await pointer("pointerdown", 10);
+  await pointer("pointerup", 10);
+  await grip.bubble("click", { detail: 1 });
+  assert.deepEqual(holds(), [true, false, true], "the menu holds it too");
+  await listeners[PANEL_SHOWN_EVENT]({ payload: false });
+  assert.deepEqual(holds(), [true, false, true, false], "hiding ends it");
+  assert.equal(view("panel-limits").all((node) => node.className === "q-ordermenu").length, 0);
+  await grip.bubble("click", { detail: 1 });
+  await listeners[PANEL_ESCAPE_EVENT]();
+  assert.equal(view("panel-limits").all((node) => node.className === "q-ordermenu").length, 0, "native Escape closes the menu");
+  assert.equal(closes(), 0);
+  await doc.fire("keydown", { key: "Escape" });
+  assert.equal(closes(), 1, "with nothing under way Escape is the panel's");
+  stop();
+});
+
+test("the panel measures again when the order changes", async () => {
+  const { listeners, event } = hearing();
+  const { doc, calls, stop } = panel({ event, content: 300 });
+  await flush();
+  const reports = () => calls.filter(([command]) => command === "plugin:rail|rail_card_height").map(([, args]) => args.height);
+  assert.deepEqual(reports(), [424]);
+  doc.getElementById("panel-content").rect = { height: 420 };
+  listeners[ORDER_CHANGED_EVENT]({ payload: { mode: "custom", providers: ["CLAUDE", "OPENROUTER", "CODEX"], revision: 9 } });
+  await flush(); await flush();
+  assert.deepEqual(reports(), [424, 544]);
+  stop();
 });
 
 test("a panel already open when its listener arrives starts polling from the snapshot", async () => {
