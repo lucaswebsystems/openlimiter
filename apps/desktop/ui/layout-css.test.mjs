@@ -30,3 +30,24 @@ test("built desktop CSS carries the responsive tab shell and narrow rows", () =>
   assert.match(surfaces, /\.chrome \.actions\s*\{[^}]*margin-right:\s*calc\(-1 \* var\(--ol-space-2\)\)/su);
   assert.doesNotMatch(surfaces, /@media\s*\(min-width:\s*1100px\)/su);
 });
+
+/* Provider marks are official artwork and always show (2.1.8): no rule may
+   hide a mark or its artwork, whatever state its block is in. The grip that
+   reorders a block sits beside the mark, never over it. */
+test("no style hides a provider mark or its artwork", () => {
+  const sheets = {
+    quiet,
+    surfaces,
+    app: readFileSync(new URL("./dist/app.css", import.meta.url), "utf8"),
+    panel: readFileSync(new URL("./dist/edge-panel.css", import.meta.url), "utf8"),
+  };
+  const hiding = /(?:^|;)\s*(?:opacity:\s*(?:0(?:\.\d+)?|\.\d+)\s*(?:;|$)|visibility:\s*hidden|display:\s*none)/u;
+  const found = [];
+  for (const [name, css] of Object.entries(sheets)) {
+    for (const [, selectors, body] of css.replace(/\/\*[\s\S]*?\*\//gu, "").matchAll(/([^{}]+)\{([^{}]*)\}/gu)) {
+      const marks = selectors.split(",").map((selector) => selector.trim()).filter((selector) => /\.q-mark(?![\w-])/u.test(selector));
+      if (marks.length && hiding.test(body)) found.push(`${name}: ${marks.join(", ")}`);
+    }
+  }
+  assert.deepEqual(found, []);
+});

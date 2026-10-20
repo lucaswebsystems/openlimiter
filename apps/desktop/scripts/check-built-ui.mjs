@@ -367,12 +367,55 @@ async function inspectAutostart(page) {
   return findings;
 }
 
+/* A provider's mark shows in every state of its block (2.1.8): never hidden,
+   never under its grip or anything else, the grip beside it inside the list,
+   and neither the mark nor the name moved from `at`, where they stood at rest. */
+function inspectMark(page, list, index, state, at = null) {
+  return page.evaluate(({ list, index, state, at }) => {
+    const group = document.querySelectorAll(`${list} > .q-group`)[index];
+    const code = group.dataset.provider;
+    const mark = group.querySelector(".q-prov .q-mark");
+    const name = group.querySelector(".q-prov .q-pname").getBoundingClientRect();
+    const box = mark.getBoundingClientRect();
+    const grip = group.querySelector(".q-grip").getBoundingClientRect();
+    const area = group.parentElement.getBoundingClientRect();
+    const findings = [];
+    const style = getComputedStyle(mark);
+    let opacity = 1;
+    for (let node = mark; node; node = node.parentElement) opacity *= Number(getComputedStyle(node).opacity);
+    if (style.display === "none" || style.visibility !== "visible" || opacity !== 1 || !box.width || !box.height) {
+      findings.push(`${state}: ${code}'s mark is hidden (display ${style.display}, visibility ${style.visibility}, opacity ${opacity})`);
+    }
+    if (Math.min(box.right, grip.right) > Math.max(box.left, grip.left) && Math.min(box.bottom, grip.bottom) > Math.max(box.top, grip.top)) {
+      findings.push(`${state}: ${code}'s grip lies over its mark`);
+    }
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    if (!hit || !mark.contains(hit)) findings.push(`${state}: ${code}'s mark is covered by ${hit?.getAttribute("class") ?? "nothing"}`);
+    if (grip.left < area.left - 0.5 || grip.right > area.right + 0.5) findings.push(`${state}: ${code}'s grip runs past its list`);
+    const place = { mark: [box.left, box.top], name: [name.left, name.top] };
+    const moved = at && [...place.mark, ...place.name].some((value, i) => Math.abs(value - [...at.mark, ...at.name][i]) > 0.01);
+    if (moved) findings.push(`${state}: ${code}'s mark or name moved from ${JSON.stringify(at)} to ${JSON.stringify(place)}`);
+    return { findings, place };
+  }, { list, index, state, at });
+}
+
+/* The grip's keyboard focus with the pointer away: a key press first, so the
+   ring is the keyboard's. */
+async function focusGrip(page, grip, away) {
+  await page.mouse.move(away.x, away.y);
+  await page.keyboard.press("Shift");
+  await grip.focus();
+  await page.waitForTimeout(250);
+  return grip.evaluate((node) => node.matches(":focus-visible") && getComputedStyle(node).opacity === "1");
+}
+
 /* Reordering the Usage list: the grip shows on hover at 24 by 24 at least, a
    3 px move is no drag, a drag lifts the block, slides the next one aside and
    marks the slot, the drop writes My order and the tray is repainted after
    it, the click a drop ends with opens nothing, the grip's menu moves a block
    by keyboard and keeps focus on its grip, and Settings switches the order to
-   most used first and back. */
+   most used first and back. At rest, on hover, on keyboard focus, mid drag and
+   with the menu open the block's mark shows beside its grip. */
 async function inspectReorder(page, width, height, shots) {
   const findings = [];
   const shot = async (name) => { if (shots) await page.screenshot({ path: path.join(shots, `${name}-${width}x${height}.png`) }); };
@@ -380,13 +423,26 @@ async function inspectReorder(page, width, height, shots) {
   await page.locator("#tab-usage").click();
   const groups = page.locator("#usage-rows > .q-group");
   const before = await order();
+  // At rest: the pointer away and nothing focused, then hover, then keyboard focus.
+  const away = { x: 2, y: 2 };
+  await page.mouse.move(away.x, away.y);
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.waitForTimeout(250);
+  const rest = await inspectMark(page, "#usage-rows", 0, "at rest");
+  findings.push(...rest.findings);
   await groups.nth(0).hover();
   await page.waitForTimeout(250);
   const grip = groups.nth(0).locator(".q-grip");
   if (await grip.evaluate((node) => getComputedStyle(node).opacity) !== "1") findings.push("the grip does not show on hover");
   const box = await grip.boundingBox();
   if (!box || box.width < 24 || box.height < 24) findings.push("the grip is under 24 by 24");
+  findings.push(...(await inspectMark(page, "#usage-rows", 0, "on hover", rest.place)).findings);
   await shot("usage-hover");
+  if (!await focusGrip(page, grip, away)) findings.push("the grip does not show with its ring on keyboard focus");
+  findings.push(...(await inspectMark(page, "#usage-rows", 0, "on keyboard focus", rest.place)).findings);
+  await shot("usage-focus");
+  await grip.evaluate((node) => node.blur());
+  await groups.nth(0).hover();
   const start = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   const second = await groups.nth(1).boundingBox();
   await page.mouse.move(start.x, start.y);
@@ -403,6 +459,7 @@ async function inspectReorder(page, width, height, shots) {
   if (mid.lifted !== before[0]) findings.push("the dragged block is not lifted");
   if (!mid.slot) findings.push("no slot marks where the block lands");
   if (mid.slid === "none") findings.push("the next block did not slide aside");
+  findings.push(...(await inspectMark(page, "#usage-rows", 0, "mid drag")).findings);
   await shot("usage-drag");
   await page.mouse.up();
   await page.waitForTimeout(500);
@@ -416,11 +473,13 @@ async function inspectReorder(page, width, height, shots) {
   // The keyboard path: Enter on the first grip, End, Enter moves it to the bottom.
   const moving = dropped[0];
   await groups.nth(0).locator(".q-grip").focus();
+  const shut = await inspectMark(page, "#usage-rows", 0, "focused before its menu");
   await page.keyboard.press("Enter");
   await page.waitForTimeout(150);
   const items = await page.evaluate(() => [...document.querySelectorAll("#usage-rows .q-ordermenu [role=menuitem]")]
     .map((item) => `${item.textContent}${item.disabled ? " (disabled)" : ""}`));
   if (items.join() !== "Move up (disabled),Move down,Move to top (disabled),Move to bottom") findings.push(`menu ${items.join()}`);
+  findings.push(...shut.findings, ...(await inspectMark(page, "#usage-rows", 0, "with its menu open", shut.place)).findings);
   await shot("usage-menu");
   await page.keyboard.press("End");
   await page.keyboard.press("Enter");
@@ -633,7 +692,7 @@ async function inspectPanelFit(browser, origin, providers, work, shots) {
 }
 
 /* The edge panel mid drag and with the grip's menu open: it holds itself open
-   for both and lets go when each ends. */
+   for both and lets go when each ends, and every state keeps the marks. */
 async function inspectPanelReorder(browser, origin, shots) {
   const context = await browser.newContext({ viewport: { width: 360, height: 700 }, serviceWorkers: "block" });
   await context.addInitScript(installCaptureStub, { providers: 6 });
@@ -644,6 +703,19 @@ async function inspectPanelReorder(browser, origin, shots) {
   const findings = [];
   const groups = page.locator("#panel-limits > .q-group");
   const before = await page.evaluate(() => [...document.querySelectorAll("#panel-limits > .q-group")].map((group) => group.dataset.provider));
+  // The marks at rest, on hover and on keyboard focus (the panel itself takes no focus; its style is the window's).
+  const away = { x: 180, y: 8 };
+  await page.mouse.move(away.x, away.y);
+  await page.waitForTimeout(250);
+  const rest = await inspectMark(page, "#panel-limits", 0, "panel at rest");
+  findings.push(...rest.findings);
+  await groups.nth(0).hover();
+  await page.waitForTimeout(250);
+  findings.push(...(await inspectMark(page, "#panel-limits", 0, "panel on hover", rest.place)).findings);
+  if (shots) await page.screenshot({ path: path.join(shots, "panel-hover.png") });
+  if (!await focusGrip(page, groups.nth(0).locator(".q-grip"), away)) findings.push("the panel grip does not show with its ring on keyboard focus");
+  findings.push(...(await inspectMark(page, "#panel-limits", 0, "panel on keyboard focus", rest.place)).findings);
+  await page.evaluate(() => document.activeElement?.blur());
   await groups.nth(0).hover();
   const box = await groups.nth(0).locator(".q-grip").boundingBox();
   const third = await groups.nth(2).boundingBox();
@@ -652,15 +724,18 @@ async function inspectPanelReorder(browser, origin, shots) {
   await page.mouse.move(box.x + box.width / 2, third.y + third.height * 0.8, { steps: 12 });
   await page.waitForTimeout(250);
   if (await holds() !== "true") findings.push(`holds during the drag: ${await holds()}`);
+  findings.push(...(await inspectMark(page, "#panel-limits", 0, "panel mid drag")).findings);
   if (shots) await page.screenshot({ path: path.join(shots, "panel-drag.png") });
   await page.mouse.up();
   await page.waitForTimeout(400);
   const after = await page.evaluate(() => [...document.querySelectorAll("#panel-limits > .q-group")].map((group) => group.dataset.provider));
   const expected = [before[1], before[2], before[0], ...before.slice(3)];
   if (after.join() !== expected.join()) findings.push(`the panel drop shows ${after.join()}`);
+  const shut = await inspectMark(page, "#panel-limits", 1, "panel before its menu");
   await groups.nth(1).locator(".q-grip").click();
   await page.waitForTimeout(150);
   if (await holds() !== "true,false,true") findings.push(`holds with the menu: ${await holds()}`);
+  findings.push(...shut.findings, ...(await inspectMark(page, "#panel-limits", 1, "panel with its menu open", shut.place)).findings);
   if (shots) await page.screenshot({ path: path.join(shots, "panel-menu.png") });
   await page.locator("#panel-limits .q-ordermenu [role=menuitem]").first().click();
   await page.waitForTimeout(300);
