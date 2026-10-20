@@ -405,7 +405,9 @@ export function ProPortal({
         </SectionPanel>
       )}
 
-      {accountState === "ready" && proCanManageBilling(state) && (
+      {/* A complimentary plan reads as active but has no card, no invoices
+          and no paid period, so it gets no billing panel. */}
+      {accountState === "ready" && proCanManageBilling(state) && entitlement?.planState !== "comped" && (
         <SectionPanel>
           <h2 className="text-lg font-medium text-heading">{t("billing.title")}</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted">{t("billing.body")}</p>
