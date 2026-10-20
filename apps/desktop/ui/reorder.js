@@ -271,11 +271,15 @@ export function reorderList(doc, mount, { store, render, hold = () => {}, scroll
     render(drawn.map((provider) => fresh.get(provider.code) ?? provider));
   }
 
-  /* Draw a model and note what it was drawn from (null: not known). Only a
-     rendered model advances the revision the list claims, never a save. */
+  /* Draw a model in the order as the copy holds it now, and note what it was
+     drawn from (null: not known). A surface's own sort may leave rows out of
+     it (Usage lists its bars, then the rows with no bars yet); in a person's
+     own order every block takes its place. Only a rendered model advances
+     the revision the list claims, never a save. */
   function show(model, stamp) {
-    render(model);
-    drawn = model;
+    const ordered = byOrder(model, store.state);
+    render(ordered);
+    drawn = ordered;
     drawnStamp = stamp;
     if (stamp !== null && !(shownRevision instanceof Promise)) shownRevision = stamp.revision;
   }
