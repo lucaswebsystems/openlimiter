@@ -100,7 +100,7 @@ impl ClaudeOauthOutcome {
             fallback: ClaudeFallback::Statusline,
             retry_at,
             retry_after_seconds: None,
-            message: "Claude usage is unavailable. Statusline and manual entry remain available."
+            message: "Claude usage could not be read. The last reading stays until the next read."
                 .to_string(),
         }
     }
@@ -116,7 +116,7 @@ impl ClaudeOauthOutcome {
             fallback: ClaudeFallback::Statusline,
             retry_at,
             retry_after_seconds,
-            message: "Claude usage is unavailable. Statusline and manual entry remain available."
+            message: "Claude usage could not be read. The last reading stays until the next read."
                 .to_string(),
         }
     }
@@ -803,18 +803,6 @@ async fn commit_report(
     .is_ok_and(|result| result.is_ok())
 }
 
-async fn fallback_report(writer: Arc<CacheWriter>, account_id: &str, drift: bool, now_ms: u64) {
-    let report = if drift {
-        CacheReport::Drift {
-            observed_at: iso_from_epoch_ms(now_ms)
-                .unwrap_or_else(|| "1970-01-01T00:00:00.000Z".to_string()),
-        }
-    } else {
-        CacheReport::Unavailable
-    };
-    let _ = commit_report(writer, account_id.to_string(), report, false).await;
-}
-
 #[cfg(test)]
 async fn collect_with_secret<T: Transport>(
     runtime: &ClaudeOauthRuntime,
@@ -924,13 +912,14 @@ async fn collect_with_reread<T: Transport>(
             if let Ok(mut attempts) = runtime.attempts.lock() {
                 attempts.remove(account_id);
             }
-            let Some(body) = response.body else {
-                fallback_report(writer, account_id, true, now_ms).await;
-                return ClaudeOauthOutcome::fallback(account_id, ClaudeOauthFailure::Drift, None);
-            };
-            let read = read_usage(&body, now_ms, account_id);
-            let Some(snapshots) = read.rows else {
-                fallback_report(writer, account_id, true, now_ms).await;
+            /* An answer this build cannot read is a flag like any other
+            failure: the readings stay and age, and no suppression withdraws
+            them (2.1.7). TypeScript twin: runner.ts readOne. */
+            let read = response.body.as_deref().map(|body| read_usage(body, now_ms, account_id));
+            let Some((snapshots, weekly_complete)) =
+                read.and_then(|read| read.rows.map(|rows| (rows, read.weekly_complete)))
+            else {
+                let _ = writer.record_availability("CLAUDE", Some(account_id), "schema_drift", None, now_ms);
                 return ClaudeOauthOutcome::fallback(account_id, ClaudeOauthFailure::Drift, None);
             };
             let next_read_at = success_deadline_ms(
@@ -945,7 +934,7 @@ async fn collect_with_reread<T: Transport>(
                 writer,
                 account_id.to_string(),
                 CacheReport::Success(snapshots),
-                read.weekly_complete,
+                weekly_complete,
             )
             .await
             {
@@ -962,7 +951,6 @@ async fn collect_with_reread<T: Transport>(
         }
         401 => {
             runtime.refuse(account_id, &secret.credential_revision, now_ms);
-            fallback_report(Arc::clone(&writer), account_id, false, now_ms).await;
             let _ = writer.record_availability(
                 "CLAUDE",
                 Some(account_id),
@@ -974,7 +962,6 @@ async fn collect_with_reread<T: Transport>(
         }
         403 | 404 | 410 => {
             let retry_ms = runtime.refuse(account_id, &secret.credential_revision, now_ms);
-            fallback_report(Arc::clone(&writer), account_id, false, now_ms).await;
             let _ = writer.record_availability(
                 "CLAUDE",
                 Some(account_id),
@@ -1554,7 +1541,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn an_authentication_refusal_clears_quota_and_waits_a_day_despite_retry_after() {
+    async fn an_authentication_refusal_flags_the_account_and_waits_a_day_despite_retry_after() {
         let dir = TempDir::new();
         let runtime = ClaudeOauthRuntime::default();
         let seeded = collect_with_secret(
@@ -1590,6 +1577,10 @@ mod tests {
         let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).unwrap();
         assert!(!cache.contains("FIVE_HOUR"));
         assert!(!cache.contains("SEVEN_DAY"));
+        // The readings stay in their own file to age; the flag says why.
+        let authoritative =
+            fs::read_to_string(dir.path().join(crate::cache_write::AUTHORITATIVE_CACHE_FILE_NAME)).unwrap();
+        assert!(authoritative.contains("FIVE_HOUR") && authoritative.contains("SEVEN_DAY"));
         let document: serde_json::Value = serde_json::from_str(&cache).unwrap();
         assert_eq!(
             document["snapshots"][0]["availability"],
@@ -1642,14 +1633,14 @@ mod tests {
             retry_at,
             iso_from_epoch_ms(blocked_at + 86_400_000).unwrap()
         );
-        assert!(message.contains("Statusline and manual entry remain available."));
+        assert!(message.contains("The last reading stays until the next read."));
 
         let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
         let authoritative = fs::read_to_string(dir.path().join("openlimiter-authoritative.json")).unwrap_or_default();
         assert!(!cache.contains("FIVE_HOUR"));
         assert!(!cache.contains("SEVEN_DAY"));
-        assert!(!authoritative.contains("SEVEN_DAY"));
-        // The plan requires an account availability record even after its quota rows are removed.
+        // 2.1.7: the readings stay to age, never withdrawn; the flag says why.
+        assert!(authoritative.contains("FIVE_HOUR") && authoritative.contains("SEVEN_DAY"));
         let document: serde_json::Value = serde_json::from_str(&cache).unwrap();
         let rows = document["snapshots"].as_array().unwrap();
         assert_eq!(rows.len(), 1);
@@ -1672,7 +1663,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn an_unexpected_success_shape_writes_a_visible_unknown_suppression() {
+    async fn an_unexpected_success_shape_flags_drift_without_a_suppression() {
         let dir = TempDir::new();
         let runtime = ClaudeOauthRuntime::default();
         let transport = RecordingTransport::replying(200, br#"{"usage":40}"#.to_vec(), None);
@@ -1694,8 +1685,8 @@ mod tests {
         ));
         let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache")
             + &fs::read_to_string(dir.path().join("openlimiter-authoritative.json")).unwrap_or_default();
-        assert!(cache.contains("suppressions"));
-        assert!(cache.contains("drift"));
+        assert!(!cache.contains("suppressions"));
+        assert!(cache.contains("\"availability\":\"schema_drift\""));
         assert!(!cache.contains("\"value\":40"));
     }
 

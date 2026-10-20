@@ -93,12 +93,16 @@ export function withPolicyFreshness(snapshot: Snapshot): Snapshot {
   return { ...snapshot, expiresAt: freshnessPolicy({ ...snapshot, sourceClass: snapshot.source, now: snapshot.observedAt }).expiresAt };
 }
 
-export async function recordAcquisitionAvailability(provider: ProviderCode, availability: "expired_credentials" | "access_denied" | "quota_unavailable" | "rate_limited", now: string, retryAt: string | undefined, directory = resolveStateDirectory(), accountId?: string): Promise<void> {
+export async function recordAcquisitionAvailability(provider: ProviderCode, availability: "expired_credentials" | "access_denied" | "quota_unavailable" | "rate_limited" | "schema_drift", now: string, retryAt: string | undefined, directory = resolveStateDirectory(), accountId?: string): Promise<void> {
   await withCacheLock(directory, async () => {
     const state = await readCacheState(directory);
     if (!state.ok && state.reason !== "missing") throw new Error("Unreadable snapshot cache");
     const rows = retainSnapshots(state.ok ? state.state.snapshots : [], Date.parse(now));
-    const matches = (row: Snapshot) => row.provider === provider && row.accountId === accountId;
+    /* A failed Claude read is a flag on its ACQUISITION row alone: the
+       request's readings stay and age, never withdrawn. Rust twin:
+       cache_write.rs record_availability. */
+    const matches = (row: Snapshot) => row.provider === provider && row.accountId === accountId &&
+      (provider !== "CLAUDE" || row.meter === "ACQUISITION");
     const matching = rows.filter(matches);
     if (matching.some(row => row.observedAt > now)) return;
     const seed: Snapshot = {
@@ -880,9 +884,10 @@ export async function mergeAcquiredSnapshots(
   rejectOutOfBounds(report.snapshots);
   return await withCacheLock(directory, async () => {
     const cached = await readCacheState(directory);
-    const before: CacheState = cached.ok
-      ? { ...cached.state, snapshots: cached.state.snapshots.filter((row) => !(row.provider === report.provider && row.accountId === report.accountId && row.meter === "ACQUISITION" && row.availability !== undefined && row.observedAt <= report.observedAt)) }
-      : { snapshots: [], suppressions: [] };
+    const stored: CacheState = cached.ok ? cached.state : { snapshots: [], suppressions: [] };
+    /* This read clears its own older failure flag, and clearing it is a
+       change worth writing even when it is the only one. */
+    const before: CacheState = { ...stored, snapshots: stored.snapshots.filter((row) => !(row.provider === report.provider && row.accountId === report.accountId && row.meter === "ACQUISITION" && row.availability !== undefined && row.observedAt <= report.observedAt)) };
     const held = new Map(
       before.snapshots.map((snapshot) => [snapshotIdentity(snapshot), snapshot])
     );
@@ -925,7 +930,7 @@ export async function mergeAcquiredSnapshots(
     ).length;
     if (deferred === 0 && foreign === 0) {
       const after = applyCollectionReport(before, report);
-      if (canonicalJson(after) === canonicalJson(before)) {
+      if (canonicalJson(after) === canonicalJson(stored)) {
         return { written: false, taken: taken.length, deferred };
       }
       rejectOutOfBounds(after.snapshots);
@@ -933,7 +938,7 @@ export async function mergeAcquiredSnapshots(
       return { written: true, taken: taken.length, deferred };
     }
     const merged = retainSnapshots(mergeSnapshots(before.snapshots, taken), Date.parse(report.observedAt));
-    if (canonicalJson(merged) === canonicalJson(before.snapshots)) {
+    if (canonicalJson(merged) === canonicalJson(stored.snapshots)) {
       return { written: false, taken: taken.length, deferred };
     }
     rejectOutOfBounds(merged);
