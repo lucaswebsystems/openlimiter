@@ -79,9 +79,13 @@ function installCaptureStub({ providers = 0 } = {}) {
       // An amount row: its value must not push the panel's countdown column out.
       { ...snapshot("OPENROUTER", "ACCOUNT_BALANCE", 12.54, "openrouter-fixture"), unit: "CREDITS" },
     ];
-  /* The provider order store and what the surfaces told native code, in order. */
+  /* The provider order store and what the surfaces told native code, in order;
+     events a check sends as native code would, and writes it makes fail. */
   window.__order = { mode: "usage", providers: [], revision: 0 };
   window.__calls = [];
+  window.__listeners = {};
+  window.__emit = (name, payload) => (window.__listeners[name] ?? []).forEach((handler) => handler({ payload }));
+  window.__failOrderWrites = 0;
   const session = { sessionId: "synthetic-session", agent: "claude_code", state: "busy", confidence: "explicit", firstObservedAt: now, observedAt: now, elapsedSeconds: 0, computer: "local" };
   /* Start at sign in (2.1.6): the OS state, every write, every first run report. */
   window.__autostart = { enabled: false, writes: [], reports: 0 };
@@ -93,6 +97,10 @@ function installCaptureStub({ providers = 0 } = {}) {
       }
       if (name === "provider_order") return window.__order;
       if (name === "set_provider_order") {
+        if (window.__failOrderWrites > 0) {
+          window.__failOrderWrites -= 1;
+          throw { kind: "storage" };
+        }
         if (args.input.revision !== window.__order.revision) throw { kind: "stale_revision" };
         window.__order = { mode: args.input.mode, providers: args.input.providers, revision: window.__order.revision + 1 };
         return window.__order;
@@ -126,7 +134,7 @@ function installCaptureStub({ providers = 0 } = {}) {
       if (["list_connections", "disabled_providers", "notification_events"].includes(name)) return [];
       return null;
     } },
-    event: { listen: async () => () => {} },
+    event: { listen: async (name, handler) => { (window.__listeners[name] ??= []).push(handler); return () => {}; } },
   };
 }
 
@@ -395,6 +403,107 @@ async function inspectReorder(page, width, height, shots) {
   await page.waitForTimeout(500);
   await page.locator("#tab-usage").click();
   if ((await order()).join() !== bottom.join()) findings.push(`My order came back as ${(await order()).join()}`);
+  const said = () => page.evaluate(() => document.querySelector(".q-live")?.textContent ?? "");
+  const dragFirstOverSecond = async (during = async () => {}) => {
+    await groups.nth(0).hover();
+    const from = await groups.nth(0).locator(".q-grip").boundingBox();
+    const over = await groups.nth(1).boundingBox();
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(from.x + from.width / 2, over.y + over.height * 0.8, { steps: 10 });
+    await during();
+    await page.mouse.up();
+    await page.waitForTimeout(700);
+  };
+  // A save that fails puts the list back from the order on disk, and says so.
+  const standing = await order();
+  await page.evaluate(() => { window.__failOrderWrites = 1; });
+  await dragFirstOverSecond();
+  if ((await order()).join() !== standing.join()) findings.push(`a failed save left ${(await order()).join()} on screen`);
+  if (await said() !== "The order could not be saved, so nothing changed.") findings.push(`a failed save said "${await said()}"`);
+  // The edge panel writes its own order during a drag: the drop is refused, theirs stands and shows.
+  const theirs = [...standing].reverse();
+  await dragFirstOverSecond(async () => {
+    await page.evaluate((providers) => {
+      window.__order = { mode: "custom", providers, revision: window.__order.revision + 1 };
+      window.__emit("provider-order-changed", window.__order);
+    }, theirs);
+    await page.waitForTimeout(300);
+  });
+  const stood = await page.evaluate(() => window.__order.providers.join());
+  if (stood !== theirs.join()) findings.push(`the panel's order was overwritten with ${stood}`);
+  if ((await order()).join() !== theirs.join()) findings.push(`after the refused drop the list shows ${(await order()).join()}`);
+  if (await said() !== "The order was changed elsewhere, so your move was not saved.") findings.push(`a refused drop said "${await said()}"`);
+  await shot("usage-refused-drop");
+  return findings;
+}
+
+/* The grip's menu stays whole on screen wherever its block sits: under the
+   grip, over it, or scrolled into view, in a short window and in a panel that
+   scrolls or fits. */
+async function inspectMenuFit(browser, origin, shots) {
+  const findings = [];
+  const open = async (page, list, index, area) => {
+    const grip = page.locator(`${list} > .q-group`).nth(index).locator(".q-grip");
+    await grip.click();
+    await page.waitForTimeout(60);
+    const fit = await page.evaluate(({ list, area }) => {
+      const menu = document.querySelector(`${list} .q-ordermenu`)?.getBoundingClientRect();
+      const box = area === "window"
+        ? { top: parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0, bottom: innerHeight }
+        : document.querySelector(area).getBoundingClientRect();
+      return menu ? { top: menu.top - box.top, bottom: box.bottom - menu.bottom } : null;
+    }, { list, area });
+    return fit;
+  };
+  // A window too short for its list, a block at a time near each edge.
+  {
+    const context = await browser.newContext({ viewport: { width: 520, height: 340 }, serviceWorkers: "block" });
+    await context.addInitScript(installCaptureStub);
+    const page = await context.newPage();
+    await page.goto(`${origin}/index.html`);
+    await page.waitForLoadState("networkidle");
+    findings.push(...await dismissModal(page));
+    const count = await page.locator("#usage-rows > .q-group").count();
+    for (let index = 0; index < count; index++) {
+      for (const edge of ["top", "bottom"]) {
+        await page.evaluate(({ index, edge }) => {
+          const head = document.querySelectorAll("#usage-rows > .q-group")[index].querySelector(".q-prov").getBoundingClientRect();
+          const top = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
+          window.scrollBy(0, edge === "top" ? head.top - top - 2 : head.bottom - innerHeight + 2);
+        }, { index, edge });
+        const fit = await open(page, "#usage-rows", index, "window");
+        if (!fit || fit.top < -0.5 || fit.bottom < -0.5) findings.push(`window block ${index} near the ${edge}: menu ${JSON.stringify(fit)}`);
+        if (index === count - 1 && edge === "bottom" && shots) await page.screenshot({ path: path.join(shots, "usage-menu-edge-520x340.png") });
+        await page.keyboard.press("Escape");
+      }
+    }
+    await context.close();
+  }
+  // A panel that scrolls (nine providers, 768 tall) and one that fits (two providers).
+  for (const [providers, height] of [[9, 768], [2, 300]]) {
+    const context = await browser.newContext({ viewport: { width: 360, height }, serviceWorkers: "block" });
+    await context.addInitScript(installCaptureStub, { providers });
+    const page = await context.newPage();
+    await page.goto(`${origin}/edge-panel.html`);
+    await page.waitForLoadState("networkidle");
+    const count = await page.locator("#panel-limits > .q-group").count();
+    for (let index = 0; index < count; index++) {
+      for (const edge of ["top", "bottom"]) {
+        await page.evaluate(({ index, edge }) => {
+          const scroll = document.querySelector("#panel-scroll");
+          const area = scroll.getBoundingClientRect();
+          const head = document.querySelectorAll("#panel-limits > .q-group")[index].querySelector(".q-prov").getBoundingClientRect();
+          scroll.scrollTop += edge === "top" ? head.top - area.top - 2 : head.bottom - area.bottom + 2;
+        }, { index, edge });
+        const fit = await open(page, "#panel-limits", index, "#panel-scroll");
+        if (!fit || fit.top < -0.5 || fit.bottom < -0.5) findings.push(`panel of ${providers}, block ${index} near the ${edge}: menu ${JSON.stringify(fit)}`);
+        if (providers === 2 && index === count - 1 && edge === "bottom" && shots) await page.screenshot({ path: path.join(shots, "panel-menu-edge.png") });
+        await page.locator(`#panel-limits > .q-group`).nth(index).locator(".q-grip").click();
+      }
+    }
+    await context.close();
+  }
   return findings;
 }
 
@@ -590,6 +699,11 @@ try {
     const findings = await inspectWindowEdgeScroll(browser, origin, shots);
     if (findings.length) throw new Error(`FAIL window edge scroll: ${findings.join(", ")}`);
     process.stdout.write("PASS a drag at the window's bottom edge scrolls the page\n");
+  }
+  {
+    const findings = await inspectMenuFit(browser, origin, shots);
+    if (findings.length) throw new Error(`FAIL reorder menu fit: ${findings.join("; ")}`);
+    process.stdout.write("PASS the reorder menu stays whole near every edge, window and panel\n");
   }
 
   const widths = [380, 420, 520, 586, 900, 1400];

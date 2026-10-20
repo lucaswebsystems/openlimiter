@@ -17,15 +17,24 @@ const block = (code, percent = 10, reset = "1h 5m") => ({
 });
 const codes = (model) => model.map((provider) => provider.code);
 
-/* The order on disk, behind the two commands, as backend.js answers them. */
-function memoryOrder(initial = USAGE, { refuse = false } = {}) {
+/* The order on disk, behind the two commands, as backend.js answers them.
+   `fail` writes fail first, as a full or read only disk would; `held` writes
+   wait until `land()` lets them through, as a slow disk would. */
+function memoryOrder(initial = USAGE, { refuse = false, fail = 0, held = false } = {}) {
   const disk = { ...initial, providers: [...initial.providers] };
   const writes = [];
   const listeners = [];
+  const waiting = [];
+  let failing = fail;
   const store = createOrderStore({
     read: async () => ({ ok: true, value: { ...disk, providers: [...disk.providers] } }),
     write: async (input) => {
       writes.push(input);
+      if (held) await new Promise((resolve) => waiting.push(resolve));
+      if (failing > 0) {
+        failing -= 1;
+        return { ok: false, reason: "command_failed", kind: "storage" };
+      }
       if (refuse || input.revision !== disk.revision) return { ok: false, reason: "command_failed", kind: "stale_revision" };
       Object.assign(disk, { mode: input.mode, providers: [...input.providers], revision: disk.revision + 1 });
       return { ok: true, value: { ...disk, providers: [...disk.providers] } };
@@ -33,7 +42,8 @@ function memoryOrder(initial = USAGE, { refuse = false } = {}) {
     listen: (handler) => { listeners.push(handler); return () => {}; },
   });
   const hear = (payload) => listeners.forEach((handler) => handler({ payload }));
-  return { store, disk, writes, hear };
+  const land = () => waiting.splice(0).forEach((resolve) => resolve());
+  return { store, disk, writes, hear, land };
 }
 
 /**
@@ -41,11 +51,11 @@ function memoryOrder(initial = USAGE, { refuse = false } = {}) {
  * changes, a box per block 100 tall and 10 apart, and timers that wait to be
  * run like the next task would.
  */
-async function surface(list, { order = USAGE, refuse = false, motion = false } = {}) {
+async function surface(list, { order = USAGE, refuse = false, fail = 0, held = false, motion = false, meanwhile = null } = {}) {
   const doc = fakeDocument(["mount"]);
   const mount = doc.getElementById("mount");
   mount.rect = { top: 0, height: 400 };
-  const memory = memoryOrder(order, { refuse });
+  const memory = memoryOrder(order, { refuse, fail, held });
   const holds = [];
   const timers = [];
   let model = list.map((code, index) => block(code, 60 - index * 10));
@@ -64,6 +74,8 @@ async function surface(list, { order = USAGE, refuse = false, motion = false } =
   const draw = (next = model) => { model = next; controller.draw(byOrder(model, memory.store.state)); };
   memory.store.subscribe(() => draw());
   await memory.store.load();
+  // Another surface writes after this one read the order, before it draws.
+  meanwhile?.(memory.disk);
   draw();
   return {
     doc, mount, controller, memory, holds, draw, heard,
@@ -378,6 +390,106 @@ test("a live update during a drag keeps the dragged node, changes values in plac
   // The drop is My order: the moved list, then the newcomer once the drag ended.
   assert.deepEqual(s.order(), ["CODEX", "KIMI", "CLAUDE", "GROK"]);
   assert.deepEqual(s.memory.writes[0].providers, ["CODEX", "KIMI", "CLAUDE"]);
+  // What it says counts the list as it settled, Grok included.
+  assert.equal(s.said(), "Claude Code moved to position 3 of 4");
+});
+
+test("the position a move announces is the one it settled in, after blocks came and went", async () => {
+  const s = await surface(["CLAUDE", "CODEX", "KIMI"]);
+  const grip = s.grip("KIMI");
+  // Kimi, last, is dropped between Claude Code and Codex: second of three as it was.
+  await pointer(grip, "pointerdown", 270);
+  await pointer(grip, "pointermove", 100);
+  // Meanwhile Claude Code goes, and Grok and OpenCode come.
+  s.draw([block("CODEX", 50), block("KIMI", 40), block("GROK", 30), block("OPENCODE", 20)]);
+  await pointer(grip, "pointerup", 100);
+  await flush();
+  await flush();
+  assert.deepEqual(s.order(), ["KIMI", "CODEX", "GROK", "OPENCODE"]);
+  assert.equal(s.said(), "Kimi moved to position 1 of 4");
+});
+
+/* --------------------------------------------- an order written elsewhere */
+
+test("a drop made while another surface reordered is refused, shows the order that stands and says so", async () => {
+  const s = await surface(["CLAUDE", "CODEX", "KIMI"]);
+  const grip = s.grip("CLAUDE");
+  await pointer(grip, "pointerdown", 50);
+  await pointer(grip, "pointermove", 165);
+  // The edge panel writes its own order while this drag is under way.
+  const theirs = { mode: "custom", providers: ["KIMI", "CODEX", "CLAUDE"], revision: 1 };
+  Object.assign(s.memory.disk, theirs);
+  s.memory.hear(theirs);
+  assert.deepEqual(s.order(), ["CLAUDE", "CODEX", "KIMI"], "nothing moves under the drag");
+  await pointer(grip, "pointerup", 165);
+  await flush();
+  await flush();
+  assert.deepEqual(s.memory.writes.map((write) => write.revision), [0], "the drop names the revision its order was drawn from");
+  assert.deepEqual(s.memory.disk, theirs, "their move stands");
+  assert.deepEqual(s.order(), ["KIMI", "CODEX", "CLAUDE"], "and the list shows it");
+  assert.equal(s.said(), "The order was changed elsewhere, so your move was not saved.");
+  // The next move is made on the order that stands, and saves.
+  await key(s.grip("CLAUDE"));
+  await key(s.menu().children[0]);
+  await flush();
+  await flush();
+  assert.deepEqual(s.memory.disk.providers, ["KIMI", "CLAUDE", "CODEX"]);
+  assert.equal(s.said(), "Claude Code moved to position 2 of 3");
+});
+
+test("a menu move chosen after another surface reordered is refused too, never applied to the new order", async () => {
+  const s = await surface(["CLAUDE", "CODEX", "KIMI"]);
+  await key(s.grip("CODEX"));
+  const theirs = { mode: "custom", providers: ["CODEX", "KIMI", "CLAUDE"], revision: 1 };
+  Object.assign(s.memory.disk, theirs);
+  s.memory.hear(theirs);
+  await key(s.menu().children[1]);
+  await flush();
+  await flush();
+  assert.deepEqual(s.memory.disk, theirs);
+  assert.deepEqual(s.order(), ["CODEX", "KIMI", "CLAUDE"]);
+  assert.equal(s.said(), "The order was changed elsewhere, so your move was not saved.");
+});
+
+test("two moves made one after the other save one after the other, the second from the first", async () => {
+  const s = await surface(["CLAUDE", "CODEX", "KIMI"], { held: true });
+  await key(s.grip("KIMI"));
+  await key(s.menu().children[0]);
+  // Before the first save has landed.
+  await key(s.grip("KIMI"));
+  await key(s.menu().children[0]);
+  assert.deepEqual(s.order(), ["KIMI", "CLAUDE", "CODEX"], "both show at once");
+  for (let round = 0; round < 4; round++) {
+    s.memory.land();
+    await flush();
+    await flush();
+  }
+  assert.deepEqual(s.memory.writes.map((write) => write.revision), [0, 1]);
+  assert.deepEqual(s.memory.disk.providers, ["KIMI", "CLAUDE", "CODEX"]);
+  assert.deepEqual(s.order(), ["KIMI", "CLAUDE", "CODEX"]);
+});
+
+test("a newcomer append that loses a race is tried again on the order that stands", async () => {
+  const s = await surface(["CLAUDE", "CODEX", "GROK"], {
+    order: { mode: "custom", providers: ["CLAUDE", "CODEX"], revision: 1 },
+    // The edge panel appends Kimi between this window's read and its draw.
+    meanwhile: (disk) => Object.assign(disk, { providers: ["CLAUDE", "CODEX", "KIMI"], revision: 2 }),
+  });
+  await flush();
+  await flush();
+  await flush();
+  assert.deepEqual(s.memory.writes.map((write) => write.revision), [1, 2]);
+  assert.deepEqual(s.memory.disk, { mode: "custom", providers: ["CLAUDE", "CODEX", "KIMI", "GROK"], revision: 3 });
+});
+
+test("a newcomer append that cannot be stored is tried a few times, then left", async () => {
+  const s = await surface(["CLAUDE", "GROK"], { order: { mode: "custom", providers: ["CLAUDE"], revision: 1 }, fail: 10 });
+  for (let round = 0; round < 6; round++) await flush();
+  assert.equal(s.memory.writes.length, 3, "three tries, no more");
+  s.draw();
+  await flush();
+  assert.equal(s.memory.writes.length, 3);
+  assert.deepEqual(s.order(), ["CLAUDE", "GROK"], "Grok still shows, after the list");
 });
 
 test("the provider being dragged or whose menu is open disappearing cancels it, and says so", async () => {

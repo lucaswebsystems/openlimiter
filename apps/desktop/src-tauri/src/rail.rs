@@ -267,16 +267,26 @@ fn rail_card_height(state: tauri::State<'_, RailState>, height: f64) -> Result<(
 }
 
 /// The panel holds itself open while a block is dragged or its reorder menu
-/// is open, and lets go when that ends. Escape and the panel hiding let go
-/// natively too, so a hold never outlives the panel.
+/// is open (`menu`), and lets go when that ends. Escape, the panel hiding and
+/// the pointer staying away from an open menu let go natively too, so a hold
+/// never outlives the panel.
 #[tauri::command]
-fn rail_card_hold(state: tauri::State<'_, RailState>, held: bool) -> Result<(), String> {
+fn rail_card_hold(
+    state: tauri::State<'_, RailState>,
+    held: bool,
+    menu: Option<bool>,
+) -> Result<(), String> {
+    let hold = held.then_some(if menu == Some(true) {
+        behavior::Hold::Menu
+    } else {
+        behavior::Hold::Drag
+    });
     state
         .inner
         .lock()
         .map_err(|_| "Rail state unavailable")?
         .behavior
-        .hold(held, std::time::Instant::now());
+        .hold(hold, std::time::Instant::now());
     Ok(())
 }
 

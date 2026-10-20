@@ -37,6 +37,7 @@ function panel({ cache, sessions = [], windows, event, content = 300, cardOpen =
     if (command === "plugin:activity|activity_locate") return "focused";
     if (command === "provider_order") return source.order;
     if (command === "set_provider_order") {
+      if (source.failWrite) throw { kind: "storage" };
       if (args.input.revision !== (source.order?.revision ?? 0)) throw { kind: "stale_revision" };
       const { mode, providers } = args.input;
       source.order = { mode, providers, revision: (source.order?.revision ?? 0) + 1 };
@@ -288,6 +289,49 @@ test("the panel holds itself open through a drag or its menu; a native Escape or
   assert.equal(closes(), 0);
   await doc.fire("keydown", { key: "Escape" });
   assert.equal(closes(), 1, "with nothing under way Escape is the panel's");
+  stop();
+});
+
+test("a save that fails puts the list back from the order on disk, even while a redraw waits on its read", async () => {
+  const { event } = hearing();
+  const { view, source, stop } = panel({ event, order: { mode: "custom", providers: ["OPENROUTER", "CLAUDE", "CODEX"], revision: 3 } });
+  await flush(); await flush(); await flush();
+  assert.deepEqual(blocks(view), ["OPENROUTER", "CLAUDE", "CODEX"]);
+  source.failWrite = true;
+  // The redraw the move starts waits on its read until after the save failed.
+  let release;
+  source.stall = new Promise((resolve) => { release = resolve; });
+  const grip = view("panel-limits").all((node) => node.className === "q-grip")[1];
+  await grip.bubble("click", { detail: 1 });
+  const moving = view("panel-limits").all((node) => node.className === "q-orderitem")[0].bubble("click", { detail: 1 });
+  assert.deepEqual(blocks(view), ["CLAUDE", "OPENROUTER", "CODEX"], "the move shows at once");
+  await moving;
+  await flush(); await flush(); await flush();
+  source.stall = null;
+  release();
+  await flush(); await flush(); await flush(); await flush();
+  assert.deepEqual(blocks(view), ["OPENROUTER", "CLAUDE", "CODEX"], "and goes back to the order on disk");
+  assert.equal(view("panel-limits").all((node) => node.className === "q-live")[0].textContent,
+    "The order could not be saved, so nothing changed.");
+  stop();
+});
+
+test("native code ending the hold of an open menu (the pointer away from it) closes the menu", async () => {
+  const { listeners, event } = hearing();
+  const { view, calls, stop } = panel({ event });
+  await flush();
+  const holds = () => calls.filter(([command]) => command === "plugin:rail|rail_card_hold").map(([, args]) => [args.held, args.menu === true]);
+  const grips = view("panel-limits").all((node) => node.className === "q-grip");
+  await grips[0].bubble("pointerdown", { button: 0, isPrimary: true, pointerId: 4, clientX: 0, clientY: 10, preventDefault() {} });
+  await grips[0].bubble("pointermove", { button: 0, isPrimary: true, pointerId: 4, clientX: 0, clientY: 30, preventDefault() {} });
+  await grips[0].bubble("pointerup", { button: 0, isPrimary: true, pointerId: 4, clientX: 0, clientY: 30, preventDefault() {} });
+  await grips[1].bubble("pointerdown", { button: 0, isPrimary: true, pointerId: 4, clientX: 0, clientY: 90, preventDefault() {} });
+  await grips[1].bubble("pointerup", { button: 0, isPrimary: true, pointerId: 4, clientX: 0, clientY: 90, preventDefault() {} });
+  await grips[1].bubble("click", { detail: 1 });
+  assert.deepEqual(holds(), [[true, false], [false, false], [true, true]], "a drag holds as a drag, the menu as a menu");
+  await listeners["edge-panel-release"]();
+  assert.equal(view("panel-limits").all((node) => node.className === "q-ordermenu").length, 0, "the menu closes");
+  assert.deepEqual(holds().at(-1), [false, false]);
   stop();
 });
 
