@@ -9,10 +9,12 @@ import {
   utimes,
   writeFile
 } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  AUTHORITATIVE_CACHE_FILE_NAME,
   CACHE_FILE_NAME,
   CACHE_LOCK_NAME,
   LOCK_STALE_MILLISECONDS,
@@ -20,7 +22,8 @@ import {
   mergeSnapshotCache,
   readSnapshotCache,
   resolveStateDirectory,
-  writeSnapshotCache
+  writeSnapshotCache,
+  type Snapshot
 } from "../src/index.js";
 import { snapshot } from "./helpers.js";
 
@@ -419,4 +422,86 @@ describe("a successful poll replaces the account weekly set", () => {
       { provider: "CLAUDE", accountId: "a", observedAt: T1 });
     expect(shape(rows)).toEqual(["SEVEN_DAY a 50", "SEVEN_DAY_FABLE a 77"]);
   });
+});
+
+/*
+ * 2.1.7: one source per Claude bar. The switch and each row's provenance
+ * decide what a surface reads, never the file a row sits in. Rust twin:
+ * state.rs, every_shared_claude_source_vector; both read the same cases.
+ */
+describe("shared Claude source vectors", () => {
+  type SourceKind = "statusline_payload" | "remote_api" | "manual_document" | "explicit_ingest";
+  interface VectorRow {
+    ref: string;
+    store: "main" | "authoritative";
+    provider?: string;
+    accountId?: string | null;
+    meter: string;
+    sourceKind: SourceKind | null;
+    value: number;
+    observedAt?: string;
+    availability?: string;
+    retryAt?: string;
+  }
+  interface VectorCase {
+    id: string;
+    switch: "on" | "off" | "missing" | "invalid";
+    rows: VectorRow[];
+    suppressions?: { provider: string; accountId?: string; suppressedAt: string }[];
+    visible: string[];
+  }
+  const contract = (JSON.parse(readFileSync(path.resolve("packages/core/src/contracts/claude-poll-vectors.json"), "utf8")) as {
+    source: { rowDefaults: { provider: string; accountId: string; observedAt: string; resetAt: string }; cases: VectorCase[] };
+  }).source;
+  const observedVia: Record<SourceKind, string> = {
+    statusline_payload: "claude_code_statusline",
+    remote_api: "remote_http",
+    manual_document: "manual_json",
+    explicit_ingest: "ingest_command"
+  };
+  const switches = { on: '{"version":1,"enabled":true}', off: '{"version":1,"enabled":false}', invalid: '{"version":2,"enabled":true}' };
+  const expand = (row: VectorRow): Snapshot => {
+    const spec = { ...contract.rowDefaults, ...row };
+    const acquisition = spec.meter === "ACQUISITION";
+    return {
+      provider: spec.provider,
+      meter: spec.meter,
+      value: spec.value,
+      unit: "PERCENT",
+      window: acquisition ? { kind: "unknown" } : { kind: "rolling", durationSeconds: spec.meter.startsWith("SEVEN_DAY") ? 604_800 : 18_000 },
+      resetAt: acquisition ? null : spec.resetAt,
+      source: spec.sourceKind === "remote_api" ? "internal_payload" : spec.sourceKind === "manual_document" ? "manual_entry" : "native_payload",
+      precision: "exact",
+      observedAt: spec.observedAt,
+      expiresAt: new Date(Date.parse(spec.observedAt) + 465_000).toISOString(),
+      labels: { credentialOrigin: "official-local-tool", dataInterfaceStatus: "internal-endpoint", automationRisk: "high", verification: "UNVERIFIED" },
+      ...(spec.accountId === null ? {} : { accountId: spec.accountId }),
+      ...(spec.sourceKind === null ? {} : { provenance: { sourceKind: spec.sourceKind, observedVia: observedVia[spec.sourceKind] } }),
+      ...(acquisition ? { kind: "runtime_info" } : {}),
+      ...(spec.availability === undefined ? {} : { availability: spec.availability }),
+      ...(spec.retryAt === undefined ? {} : { retryAt: spec.retryAt })
+    } as Snapshot;
+  };
+  const key = (row: Snapshot) => [row.provider, row.meter, row.value].join(" ");
+
+  for (const vector of contract.cases) {
+    it(vector.id, async () => {
+      const directory = await temporaryDirectory();
+      const stored = (store: VectorRow["store"]) => vector.rows.filter((row) => row.store === store).map(expand);
+      if (stored("main").length > 0 || vector.suppressions !== undefined) {
+        await writeFile(path.join(directory, CACHE_FILE_NAME), JSON.stringify({
+          version: 3,
+          snapshots: stored("main"),
+          ...(vector.suppressions === undefined ? {} : { suppressions: vector.suppressions.map((entry) => ({ ...entry, reason: "drift" })) })
+        }));
+      }
+      if (stored("authoritative").length > 0) {
+        await writeFile(path.join(directory, AUTHORITATIVE_CACHE_FILE_NAME), JSON.stringify({ version: 3, snapshots: stored("authoritative") }));
+      }
+      if (vector.switch !== "missing") await writeFile(path.join(directory, "claude-poll.json"), switches[vector.switch]);
+      const read = await readSnapshotCache(directory);
+      expect(read.ok ? read.snapshots.map(key).sort() : ["unreadable"])
+        .toEqual(vector.rows.filter((row) => vector.visible.includes(row.ref)).map((row) => key(expand(row))).sort());
+    });
+  }
 });

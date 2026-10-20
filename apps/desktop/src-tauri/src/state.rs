@@ -196,6 +196,116 @@ mod tests {
         std::fs::remove_file(&cache).unwrap();
     }
 
+    /// 2.1.7: one source per Claude bar, chosen by the switch and each row's
+    /// provenance, never by the file a row sits in. TypeScript twin:
+    /// cache.test.ts, "shared Claude source vectors"; both read the same cases.
+    #[test]
+    fn every_shared_claude_source_vector() {
+        use serde_json::{json, Value};
+        let contract: Value = serde_json::from_str(include_str!(
+            "../../../../packages/core/src/contracts/claude-poll-vectors.json"
+        ))
+        .expect("vectors");
+        let source = &contract["source"];
+        let defaults = source["rowDefaults"].as_object().expect("defaults").clone();
+        let expand = |row: &Value| -> Value {
+            let mut spec = defaults.clone();
+            spec.extend(row.as_object().expect("row").clone());
+            let meter = spec["meter"].as_str().expect("meter").to_string();
+            let observed = spec["observedAt"].as_str().expect("observed").to_string();
+            let observed_ms = crate::native_time::epoch_ms_from_rfc3339(&observed).expect("instant");
+            let acquisition = meter == "ACQUISITION";
+            let kind = spec["sourceKind"].as_str().map(str::to_string);
+            let mut value = json!({
+                "provider": spec["provider"], "meter": meter, "value": spec["value"], "unit": "PERCENT",
+                "window": if acquisition { json!({"kind": "unknown"}) } else {
+                    json!({"kind": "rolling", "durationSeconds": if meter.starts_with("SEVEN_DAY") { 604_800 } else { 18_000 }})
+                },
+                "resetAt": if acquisition { Value::Null } else { spec["resetAt"].clone() },
+                "source": match kind.as_deref() { Some("remote_api") => "internal_payload", Some("manual_document") => "manual_entry", _ => "native_payload" },
+                "precision": "exact", "observedAt": observed,
+                "expiresAt": crate::native_time::iso_from_epoch_ms(observed_ms + 465_000).expect("instant"),
+                "labels": {"credentialOrigin": "official-local-tool", "dataInterfaceStatus": "internal-endpoint", "automationRisk": "high", "verification": "UNVERIFIED"},
+            });
+            if let Some(account) = spec["accountId"].as_str() {
+                value["accountId"] = json!(account);
+            }
+            if let Some(kind) = kind {
+                let via = match kind.as_str() {
+                    "statusline_payload" => "claude_code_statusline",
+                    "remote_api" => "remote_http",
+                    "manual_document" => "manual_json",
+                    _ => "ingest_command",
+                };
+                value["provenance"] = json!({"sourceKind": kind, "observedVia": via});
+            }
+            if acquisition {
+                value["kind"] = json!("runtime_info");
+            }
+            for field in ["availability", "retryAt"] {
+                if let Some(text) = spec.get(field).and_then(Value::as_str) {
+                    value[field] = json!(text);
+                }
+            }
+            value
+        };
+        let key = |row: &Value| format!("{} {} {}", row["provider"].as_str().unwrap_or(""), row["meter"].as_str().unwrap_or(""), row["value"].as_f64().unwrap_or(-1.0));
+        let directory = super::state_directory().unwrap();
+        for case in source["cases"].as_array().expect("cases") {
+            let id = case["id"].as_str().expect("id");
+            let rows = case["rows"].as_array().expect("rows");
+            let stored = |store: &str| rows.iter().filter(|row| row["store"] == store).map(&expand).collect::<Vec<_>>();
+            for name in [super::CACHE_FILE_NAME, super::AUTHORITATIVE_CACHE_FILE_NAME, "claude-poll.json"] {
+                let _ = std::fs::remove_file(directory.join(name));
+            }
+            if !stored("main").is_empty() || case.get("suppressions").is_some() {
+                let mut document = json!({"version": 3, "snapshots": stored("main")});
+                if let Some(suppressions) = case["suppressions"].as_array() {
+                    document["suppressions"] = Value::Array(suppressions.iter().map(|entry| {
+                        let mut entry = entry.clone();
+                        entry["reason"] = json!("drift");
+                        entry
+                    }).collect());
+                }
+                std::fs::write(directory.join(super::CACHE_FILE_NAME), document.to_string()).unwrap();
+            }
+            if !stored("authoritative").is_empty() {
+                std::fs::write(
+                    directory.join(super::AUTHORITATIVE_CACHE_FILE_NAME),
+                    json!({"version": 3, "snapshots": stored("authoritative")}).to_string(),
+                )
+                .unwrap();
+            }
+            let switch = match case["switch"].as_str().expect("switch") {
+                "on" => Some(r#"{"version":1,"enabled":true}"#),
+                "off" => Some(r#"{"version":1,"enabled":false}"#),
+                "invalid" => Some(r#"{"version":2,"enabled":true}"#),
+                _ => None,
+            };
+            if let Some(text) = switch {
+                std::fs::write(directory.join("claude-poll.json"), text).unwrap();
+            }
+            let shown = crate::native_snapshot::display_snapshots(super::read_cache().as_deref());
+            let mut shown = shown
+                .iter()
+                .map(|row| serde_json::to_value(row).expect("row"))
+                .map(|row| key(&row))
+                .collect::<Vec<_>>();
+            shown.sort();
+            let visible = case["visible"].as_array().expect("visible");
+            let mut expected = rows
+                .iter()
+                .filter(|row| visible.contains(&row["ref"]))
+                .map(|row| key(&expand(row)))
+                .collect::<Vec<_>>();
+            expected.sort();
+            assert_eq!(shown, expected, "{id}");
+        }
+        for name in [super::CACHE_FILE_NAME, super::AUTHORITATIVE_CACHE_FILE_NAME, "claude-poll.json"] {
+            let _ = std::fs::remove_file(directory.join(name));
+        }
+    }
+
     #[test]
     fn real_state_directory_is_never_resolved_by_tests() {
         let state = super::state_directory().unwrap();
