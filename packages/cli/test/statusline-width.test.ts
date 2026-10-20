@@ -78,9 +78,11 @@ describe("Astra finding 6: ranked by actual pressure, API budget pressure includ
   });
 
   it("keeps an API budget at 95 percent over a window at 50 percent", () => {
+    // 30 columns hold one of the two and the count (29), never both (31).
     const snapshots = [row({ value: 50 })];
-    expect(render({ width: 25 }, { snapshots, apiSpend: spend("95") })).toBe("an $95.00 | +1 more");
-    expect(render({ width: 25 }, { snapshots, apiSpend: spend("10") })).toBe("5h [█████░░░░░] 50% | +1 more");
+    expect(render({ width: 30 }, { snapshots, apiSpend: spend("95") })).toBe("an $95.00 | +1 more");
+    expect(render({ width: 30 }, { snapshots, apiSpend: spend("10") })).toBe("5h [█████░░░░░] 50% | +1 more");
+    expect(render({ width: 25 }, { snapshots, apiSpend: spend("10") })).toBe("+2 more");
   });
 
   it("keeps the tightest reading even when it is the last and longest cell in provider order", () => {

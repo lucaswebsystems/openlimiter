@@ -11,11 +11,11 @@ import {
 import { GOLDEN_NOW, GOLDEN_SNAPSHOTS } from "./fixtures/statusline-snapshots.js";
 
 /**
- * Reference bars keep to the width budget (2.1.7, UX audit U44): a line that
- * does not fit stacks onto two rows, then draws five blocks, then keeps the
+ * Reference bars keep to the width budget on one row of ten block bars (2.1.7,
+ * UX audit U44, fix round decision A): a line that does not fit keeps the
  * readings closest to their caps and counts the rest. So the 80, 120 and 160
- * goldens differ, and every row stays inside its width. Legacy cells retain
- * their width budget and explicitly request worst meters.
+ * goldens differ, and each stays inside its width. Legacy cells retain their
+ * width budget and explicitly request worst meters.
  */
 
 const GOLDEN_DIR = path.join(process.cwd(), "packages/cli/test/golden");
@@ -180,7 +180,7 @@ function golden(name: string): string {
 
 describe("statusline golden files", () => {
   it("keeps reset markers compact for provider rows", () => {
-    expect(golden("claude-bar-80")).toMatch(/cx 5h [^|]+ 51% ↻4h59m/u);
+    expect(golden("claude-bar-160")).toMatch(/cx 5h [^|]+ 51% ↻4h59m/u);
   });
 
   it("differs at 80, 120 and 160 columns and keeps every row inside its width", () => {

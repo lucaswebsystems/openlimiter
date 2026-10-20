@@ -307,18 +307,17 @@ describe("CLI", () => {
          since this lane. Host defaults to `claude`, so the provider's own
          windows (`5h`, `7d`) carry no tag and every other provider's window
          is tagged with its short code, spaced. Since 2.1.7 the line keeps to
-         the default 140 columns and two rows (UX audit U44): it draws five
-         blocks, keeps the ten readings closest to their caps and counts the
-         rest, a reset reads `↻` and a band of 80 or 90 is marked `!` or `!!`.
+         the default 140 columns on one row of ten block bars (UX audit U44,
+         fix round decision A): it keeps the readings closest to their caps
+         and counts the rest, a reset reads `↻` and a band of 80 or 90 is
+         marked `!` or `!!`.
          The 0.1.0 line this pinned before is still reachable byte for byte
          through `statusline.bars false`, and the pre D6 `cells` grammar
          through `statusline.style cells`, tested in statusline.test.ts. */
-      expect(statusline.stdout).toBe([
-        "5h [██░░░] 42% ↻5h | 7d [███░░] 64% ↻7d | cx 5h [████░] 84%! ↻5h | " +
-          "ag 5h [█░░░░] ~28% ↻5h | oc 5h [████░] ~92%!! ↻4h\n" +
-          "oc 7d [██░░░] ~40% ↻5d20h | oc mo [█░░░░] ~15% ↻21d | gk 7d [██░░░] ~43% ↻7d | " +
-          "km 5h [███░░] ~70% ↻5h | mn mo [█░░░░] 35% ↻31d | +4 more"
-      ].join(""));
+      expect(statusline.stdout).toBe(
+        "7d [██████░░░░] 64% ↻7d | cx 5h [████████░░] 84%! ↻5h | oc 5h [█████████░] ~92%!! ↻4h | " +
+          "km 5h [██████░░░░] ~70% ↻5h | +10 more"
+      );
     });
   });
 
@@ -1017,11 +1016,12 @@ describe("CLI", () => {
     /* The claude host paints by default, so the budget is read on the text. */
     const text = (line: string): string => line.replace(/\x1b\[[0-9;]*m/gu, "");
     const rows = stacked.stdout.split("\n");
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(1);
     for (const row of rows) expect(text(row).length).toBeLessThanOrEqual(140);
-    expect(stacked.stdout).toContain("oc 7d");
+    /* The tightest reading, OpenCode's 92, always stays. */
+    expect(stacked.stdout).toContain("oc 5h");
     expect(stacked.stdout).toMatch(/\+\d+ more$/u);
-    await runCli(["config", "set", "statusline.width", "260"], {
+    await runCli(["config", "set", "statusline.width", "400"], {
       stateDirectory: directory,
       now: () => FIXTURE_NOW
     });
@@ -1030,8 +1030,9 @@ describe("CLI", () => {
       now: () => FIXTURE_NOW,
       colorOutput: false
     });
-    /* Room for every reading at ten blocks: nothing is counted out. */
-    for (const row of wide.stdout.split("\n")) expect(text(row).length).toBeLessThanOrEqual(260);
+    /* Room for every reading on the one row: nothing is counted out. */
+    expect(wide.stdout.split("\n")).toHaveLength(1);
+    expect(text(wide.stdout).length).toBeLessThanOrEqual(400);
     expect(wide.stdout).toContain("or bal $7.53");
     expect(wide.stdout).not.toContain("more");
     expect(wide.stdout).not.toBe(stacked.stdout);
@@ -1094,8 +1095,8 @@ describe("CLI", () => {
       now: () => FIXTURE_NOW,
       colorOutput: false
     });
-    /* Every unusable key falls back to its default: two rows of 140 columns. */
-    expect(statusline.stdout.split("\n")).toHaveLength(2);
+    /* Every unusable key falls back to its default: one row of 140 columns. */
+    expect(statusline.stdout.split("\n")).toHaveLength(1);
     expect(statusline.stdout).toContain("oc 5h");
     expect(statusline.stdout).toContain("92%");
   });

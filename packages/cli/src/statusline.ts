@@ -17,16 +17,17 @@ import {
   type Snapshot,
   type SnapshotAvailability
 } from "@openlimiter/core";
-import { BAR_SEGMENTS, STATUSLINE_BAR_SEGMENTS, bandCode, meterBar, pressureOf, supports256Color } from "./render.js";
+import { STATUSLINE_BAR_SEGMENTS, bandCode, meterBar, pressureOf, supports256Color } from "./render.js";
 import type { StatuslineColor, StatuslineConfig, StatuslineCaptions } from "./config.js";
 import type { StatuslineSession } from "./statusline-ingest.js";
 import { MONEY_TAGS, moneyCells } from "./api-spend.js";
 
 /**
  * Reference terminal layout with host session details and labelled quota bars.
- * Both styles keep to the width budget: a line that does not fit stacks onto
- * the rows allowed, then keeps the readings closest to their caps and says how
- * many it left out (2.1.7, UX audit U44).
+ * Both styles keep to the width budget (2.1.7, UX audit U44). The bar style is
+ * one row of ten block bars; the optional legacy cells style stacks onto the
+ * rows allowed. Past the budget each keeps the readings closest to their caps
+ * and says how many it left out.
  */
 
 /**
@@ -221,9 +222,45 @@ export interface StatuslineCell {
 /** Two spaces between cells, so a reader can tell one cell from the next. */
 export const CELL_GAP = "  ";
 
-/** Stub with today's measure: string length. */
+/* East Asian wide and fullwidth blocks, which terminals draw two columns
+   wide. ponytail: the common wcwidth blocks, not the whole East Asian Width
+   table; an ambiguous width character counts one. */
+const WIDE_RANGES: readonly (readonly [number, number])[] = [
+  [0x1100, 0x115f], [0x2e80, 0x303e], [0x3041, 0x33ff], [0x3400, 0x4dbf], [0x4e00, 0x9fff],
+  [0xa000, 0xa4cf], [0xa960, 0xa97f], [0xac00, 0xd7a3], [0xf900, 0xfaff], [0xfe10, 0xfe19],
+  [0xfe30, 0xfe6f], [0xff00, 0xff60], [0xffe0, 0xffe6], [0x1f300, 0x1f64f], [0x1f900, 0x1f9ff],
+  [0x20000, 0x2fffd], [0x30000, 0x3fffd]
+];
+const ZERO_WIDTH = /^[\p{Mn}\p{Me}​-‏⁠﻿]$/u;
+const EMOJI = /^\p{Emoji_Presentation}$/u;
+
+/**
+ * The terminal columns `text` takes (Astra 2.1.7, finding 5): escape codes,
+ * combining marks and zero width characters take none, wide characters and
+ * emoji two, everything else one.
+ */
 export function displayColumns(text: string): number {
-  return text.replace(/\x1b\[[0-9;]*m/gu, "").length;
+  let columns = 0;
+  for (const char of text.replace(/\x1b\[[0-9;]*m/gu, "")) {
+    if (ZERO_WIDTH.test(char)) continue;
+    const point = char.codePointAt(0) ?? 0;
+    columns += EMOJI.test(char) || WIDE_RANGES.some(([low, high]) => point >= low && point <= high) ? 2 : 1;
+  }
+  return columns;
+}
+
+/** Plain `text` cut to at most `columns` display columns, ending in an ellipsis when cut. */
+function truncateColumns(text: string, columns: number): string {
+  if (displayColumns(text) <= columns) return text;
+  let kept = "";
+  let used = 0;
+  for (const char of text) {
+    const width = displayColumns(char);
+    if (used + width > columns - 1) break;
+    kept += char;
+    used += width;
+  }
+  return kept + "…";
 }
 
 /**
@@ -595,12 +632,12 @@ function packed(
   let index = 0;
   for (let row = 0; row < rows; row += 1) {
     const current: StatuslineCell[] = [];
-    let used = row === 0 ? head.length : 0;
+    let used = row === 0 ? displayColumns(head) : 0;
     while (index < cells.length) {
       const cell = cells[index]!;
       const needed = used === 0
-        ? cell.plain.length
-        : used + gap.length + cell.plain.length;
+        ? displayColumns(cell.plain)
+        : used + gap.length + displayColumns(cell.plain);
       if (needed > width) break;
       used = needed;
       current.push(cell);
@@ -845,14 +882,9 @@ function windowVisible(snapshot: Snapshot, visibility: Readonly<Record<string, b
 }
 
 export function tenBlockBar(value: number, unicode = true): string {
-  return blockBar(value, BAR_SEGMENTS, unicode);
-}
-
-/** Ten blocks by default, five where the width needs them (2.1.7, U44). */
-function blockBar(value: number, segments: number, unicode: boolean): string {
   const clamped = Math.min(100, Math.max(0, value));
-  const filled = clamped > 0 ? Math.max(1, Math.floor(clamped / (100 / segments))) : 0;
-  const empty = segments - filled;
+  const filled = clamped > 0 ? Math.max(1, Math.floor(clamped / 10)) : 0;
+  const empty = 10 - filled;
   return "[" + (unicode ? TEN_BLOCK_FULL : "#").repeat(filled) + (unicode ? TEN_BLOCK_EMPTY : ".").repeat(empty) + "]";
 }
 
@@ -908,8 +940,7 @@ export function barStyleCells(
   explicitSelection = false,
   visibility: Readonly<Record<string, boolean>> = {},
   unicode = true,
-  inputCaptions: StatuslineCaptions = "short",
-  segments = BAR_SEGMENTS
+  inputCaptions: StatuslineCaptions = "short"
 ): readonly StatuslineCell[] {
   const cells: StatuslineCell[] = [];
   const hostProvider = HOST_PROVIDER[host];
@@ -991,7 +1022,7 @@ export function barStyleCells(
 
       const tag = captionFor(snapshot, hostProvider, inputCaptions, claudeFamilyCodesFor(snapshot, snapshots));
 
-      const bar = blockBar(snapshot.value, segments, unicode);
+      const bar = tenBlockBar(snapshot.value, unicode);
       const percentStr = mark + Math.round(snapshot.value) + "%" + bandMark(snapshot.value, state);
       const resetStr = formatResetTime(snapshot.resetAt, now).replace("↻", unicode ? "↻" : "resets ");
 
@@ -1025,10 +1056,48 @@ function noteCell(text: string): StatuslineCell {
   return { plain: text, painted: text, percent: Number.NEGATIVE_INFINITY };
 }
 
+/**
+ * The bar line on the one row the owner's layout locks (2.1.7 fix round,
+ * decision A): every reading when they fit, and the notes too when there is
+ * room. Otherwise the readings closest to their caps by actual pressure, API
+ * budget pressure included, back in display order, and a last cell counting
+ * exactly the readings left out (Astra finding 6). The session head is
+ * bounded first, so it never pushes out the tightest reading or the count
+ * (finding 5).
+ */
+function oneRow(
+  head: string,
+  readings: readonly StatuslineCell[],
+  notes: readonly StatuslineCell[],
+  width: number
+): string {
+  const line = (lead: string, cells: readonly StatuslineCell[], key: "plain" | "painted"): string =>
+    [lead, ...cells.map((cell) => cell[key])].filter((part) => part !== "").join(BAR_CELL_SEPARATOR);
+  const fits = (lead: string, cells: readonly StatuslineCell[]): boolean =>
+    displayColumns(line(lead, cells, "plain")) <= width;
+  for (const cells of [[...readings, ...notes], readings]) {
+    if (fits(head, cells)) return line(head, cells, "painted");
+  }
+  if (readings.length === 0) return truncateColumns(head, width);
+  const ranked = readings
+    .map((cell, index) => ({ cell, index }))
+    .sort((left, right) => right.cell.percent - left.cell.percent || left.index - right.index);
+  const shown = (keep: number): StatuslineCell[] => [
+    ...ranked.slice(0, keep).sort((left, right) => left.index - right.index).map((entry) => entry.cell),
+    ...(keep < readings.length ? [moreCell(readings.length - keep)] : [])
+  ];
+  const room = width - BAR_CELL_SEPARATOR.length - displayColumns(line("", shown(1), "plain"));
+  const lead = room > 1 ? truncateColumns(head, room) : "";
+  for (let keep = readings.length; keep >= 0; keep -= 1) {
+    if (fits(lead, shown(keep))) return line(lead, shown(keep), "painted");
+  }
+  return "";
+}
+
 function renderBarStatusline(input: StatuslineLayoutInput): string {
   const { config } = input;
   const host = input.host ?? "claude";
-  const readings = (segments: number): readonly StatuslineCell[] => barStyleCells(
+  const quotas = barStyleCells(
     input.snapshots,
     input.now,
     resolveProviderOrder(config.order),
@@ -1040,8 +1109,7 @@ function renderBarStatusline(input: StatuslineLayoutInput): string {
     config.showMode === "explicit",
     config.visibility,
     input.unicode,
-    config.captions,
-    segments
+    config.captions
   );
   const listed = new Set(config.show.map((entry) => entry.toLowerCase()));
   const apiMoney = moneyCells(input.apiSpend, {
@@ -1056,7 +1124,8 @@ function renderBarStatusline(input: StatuslineLayoutInput): string {
     painted: input.color && (cell.stale || cell.band !== null)
       ? cell.prefix + paintBand(cell.amount, cell.band ?? 0, cell.stale ? "stale" : "fresh", input.wide)
       : cell.plain,
-    percent: Number.NEGATIVE_INFINITY
+    // Budget pressure where the source has a budget or a low balance band (finding 6).
+    percent: cell.band ?? Number.NEGATIVE_INFINITY
   }));
   const session = input.session ?? {};
   const shown = (key: string): boolean => config.visibility?.[key] !== false;
@@ -1071,17 +1140,7 @@ function renderBarStatusline(input: StatuslineLayoutInput): string {
   const notes = [shown("style") ? session.style : undefined, shown("7d") ? input.pollHint : undefined]
     .filter((note): note is string => Boolean(note))
     .map(noteCell);
-  const fit = (cells: readonly StatuslineCell[]): string | null =>
-    stacked(head, cells, config.width, config.rows, BAR_CELL_SEPARATOR);
-  /* The width is honoured, never left to the host to cut (2.1.7, U44). A line
-     that does not fit drops its notes first, then halves its bars to five
-     blocks, then keeps the readings closest to their caps and ends by saying
-     how many it left out. The session head is never dropped. */
-  const tenBlocks = [...readings(BAR_SEGMENTS), ...apiMoney];
-  const fiveBlocks = [...readings(STATUSLINE_BAR_SEGMENTS), ...apiMoney];
-  const drawn = fit([...tenBlocks, ...notes]) ?? fit(tenBlocks) ?? fit(fiveBlocks) ??
-    shed(head, fiveBlocks, config.width, config.rows, BAR_CELL_SEPARATOR);
-  return drawn || STATUSLINE_UNKNOWN;
+  return oneRow(head, [...quotas, ...apiMoney], notes, config.width) || STATUSLINE_UNKNOWN;
 }
 
 export interface StatuslineLayoutInput {
