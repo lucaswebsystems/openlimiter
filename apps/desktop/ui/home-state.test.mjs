@@ -34,7 +34,9 @@ test("Home keeps no second freshness policy and draws only through the shared pr
   assert.match(app, /projectReadings\(cacheRead\.ok \? cacheRead\.value : null, manualRead\.ok \? manualRead\.value : null, now\)/u);
   // One list, from the inventory, drawn by the same renderer the panel uses.
   assert.match(app, /const model = inventoryModel\(\{\s*snapshots,\s*flags: inventory\.flags,/u);
-  assert.match(app, /renderLimits\(document, elements\.usageRows, usage\)/u);
+  /* Usage rows carry the same handlers as Connect Tools: a signed out tool
+     keeps its row there with its one action. */
+  assert.match(app, /renderLimits\(document, elements\.usageRows, usage, \{ handlers: toolHandlers \}\)/u);
   assert.match(app, /renderLimits\(document, elements\.toolRows, tools, \{ handlers: toolHandlers, more: fillMore, opened: openMenus \}\)/u);
   assert.doesNotMatch(app, /showConnections|connectedProviders|attentionFlags\(/u);
   // A failed read ages out what is on screen by the same policy and says why.

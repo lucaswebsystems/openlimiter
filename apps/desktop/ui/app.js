@@ -862,7 +862,6 @@ function paintTools(snapshots, now) {
     configured: readConfiguredProviders(),
     removed: inventory.removed,
     claude: claudeState(),
-    claudePoll,
   }, now);
   /* Redrawn only when something on it changed, so a step in flight keeps
      its button and its line. */
@@ -874,7 +873,7 @@ function paintTools(snapshots, now) {
   const usageKey = limitsKey(usage) + (runtimeNotice === null ? "" : "runtime notice");
   if (usageKey !== drawnUsage) {
     drawnUsage = usageKey;
-    renderLimits(document, elements.usageRows, usage);
+    renderLimits(document, elements.usageRows, usage, { handlers: toolHandlers });
     if (runtimeNotice !== null) {
       elements.usageRows.querySelector('[data-provider-card][data-provider="CLAUDE"]')?.append(runtimeNotice);
     }

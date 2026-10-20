@@ -88,6 +88,7 @@
     "useClaudeSignInTitle": "Usa tu inicio de sesión local de Claude para pedirle a Anthropic tus límites mientras Claude Code está cerrado.",
     "fixWaitingIssue": "Esperando a {name}",
     "fixWaitingDetail": "La última ventana se reinició. Usa {name} una vez y sus límites volverán a aparecer.",
+    "waitingFirstReading": "Esperando la primera lectura",
     "meterFallback": "Límite",
     "cacheUnreadable": "No se pudieron leer las lecturas guardadas en este momento, así que solo se muestran las que siguen vigentes.",
     "connect": "Conectar",

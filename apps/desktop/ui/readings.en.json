@@ -55,6 +55,7 @@
   "fixSignInAgainIssue": "Sign in again",
   "fixWaitingIssue": "Waiting for {name}",
   "fixWaitingDetail": "The last window reset. Use {name} once and its limits show again.",
+  "waitingFirstReading": "Waiting for first reading",
   "meterFallback": "Limit",
   "cacheUnreadable": "The saved readings could not be read just now, so only readings that are still fresh are shown.",
   "useClaudeSignIn": "Use my Claude sign in",

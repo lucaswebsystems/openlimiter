@@ -107,7 +107,7 @@ fn reading(value: Option<f64>) -> String {
 }
 
 pub fn view(statuses: Vec<ProviderStatus>) -> Result<View, &'static str> {
-    view_with_trial(statuses, true)
+    view_with_trial(statuses, true, false)
 }
 
 /// The view, told whether the trial entry belongs in it.
@@ -117,9 +117,13 @@ pub fn view(statuses: Vec<ProviderStatus>) -> Result<View, &'static str> {
 /// is the kind of small dishonesty that costs more trust than the click is
 /// worth, so the default is only used where the entitlement is genuinely not
 /// known yet, which is the first paint before any reading has arrived.
+///
+/// `stale_readings` says readings exist but none is fresh, so the tooltip
+/// says they are out of date rather than that there is no reading at all.
 pub fn view_with_trial(
     statuses: Vec<ProviderStatus>,
     trial_offered: bool,
+    stale_readings: bool,
 ) -> Result<View, &'static str> {
     if statuses.len() > PROVIDER_LIMIT {
         return Err("the tray provider list is over its bound");
@@ -164,11 +168,16 @@ pub fn view_with_trial(
         .max_by(f64::total_cmp);
 
     let Some(worst_usage) = worst else {
+        let summary = if stale_readings {
+            "Readings are out of date"
+        } else {
+            "No reading yet"
+        };
         return Ok(View {
             pressure: Pressure::Unknown,
             title: "OpenLimiter".to_string(),
-            tooltip: "OpenLimiter: no reading yet".to_string(),
-            summary: "No reading yet".to_string(),
+            tooltip: format!("OpenLimiter: {}", summary.to_lowercase()),
+            summary: summary.to_string(),
             providers,
             trial_offered,
         });
@@ -249,8 +258,9 @@ pub fn update<R: Runtime>(
     app: &AppHandle<R>,
     statuses: Vec<ProviderStatus>,
     trial_offered: bool,
+    stale_readings: bool,
 ) -> Result<(), String> {
-    let view = view_with_trial(statuses, trial_offered).map_err(str::to_string)?;
+    let view = view_with_trial(statuses, trial_offered, stale_readings).map_err(str::to_string)?;
     let tray = app
         .tray_by_id(ID)
         .ok_or_else(|| "the tray is not available".to_string())?;
@@ -352,6 +362,22 @@ mod tests {
         assert_eq!(rendered.summary, "No reading yet");
     }
 
+    /// Readings that exist but are all past their freshness are never called
+    /// missing: the tooltip says they are out of date, in words only.
+    #[test]
+    fn old_readings_are_never_called_no_reading() {
+        let rendered =
+            view_with_trial(vec![status("CLAUDE", None)], true, true).expect("valid view");
+        assert_eq!(rendered.pressure, Pressure::Unknown);
+        assert_eq!(rendered.title, "OpenLimiter");
+        assert_eq!(rendered.tooltip, "OpenLimiter: readings are out of date");
+        assert_eq!(rendered.summary, "Readings are out of date");
+        /* A fresh reading still leads with headroom, old ones beside it or not. */
+        let fresh = view_with_trial(vec![status("CODEX", Some(42.0))], true, true)
+            .expect("valid view");
+        assert_eq!(fresh.tooltip, "OpenLimiter: 58% headroom");
+    }
+
     /// The trial entry is offered only while there is nothing to lose by it.
     ///
     /// A menu that keeps offering a trial to somebody already paying reads as
@@ -359,9 +385,11 @@ mod tests {
     /// and this module never guesses.
     #[test]
     fn the_trial_entry_disappears_once_an_entitlement_is_active() {
-        let offered = view_with_trial(vec![status("CODEX", Some(10.0))], true).expect("a view");
+        let offered =
+            view_with_trial(vec![status("CODEX", Some(10.0))], true, false).expect("a view");
         assert!(offered.trial_offered);
-        let entitled = view_with_trial(vec![status("CODEX", Some(10.0))], false).expect("a view");
+        let entitled =
+            view_with_trial(vec![status("CODEX", Some(10.0))], false, false).expect("a view");
         assert!(!entitled.trial_offered);
         /* The phone entry is not conditional: pairing is what somebody reaches
         for when they are away from this machine, entitled or not. */
