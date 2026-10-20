@@ -1666,7 +1666,7 @@ button.first-run-continue:hover {
 }
 
 .first-run-launch-note span {
-  color: var(--ol-muted);
+  color: var(--ol-soft);
   font-size: var(--ol-text-micro);
   line-height: var(--ol-leading-body);
 }
@@ -1703,10 +1703,6 @@ button.first-run-continue:hover {
   padding: var(--ol-space-2) var(--ol-space-3);
   border-bottom-color: var(--ol-hairline);
   transition: background-color var(--ol-motion-fast) var(--ol-ease-out);
-}
-
-.first-run-row:hover {
-  background: var(--ol-raised);
 }
 
 .first-run-identity {
@@ -1773,7 +1769,8 @@ button.first-run-continue:hover {
   color: var(--ol-heading);
   font-size: var(--ol-text-body);
   font-weight: var(--ol-weight-semibold);
-  line-height: 1;
+  /* Tight, not 1: the clipped box would cut the tails of g and y. */
+  line-height: var(--ol-leading-tight);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1810,11 +1807,13 @@ button.first-run-continue:hover {
   color: var(--ol-meter-critical);
 }
 
+/* The link blue, which reads 7.4:1 dark and 7.6:1 light; the brand blue on
+   a white row measured 3.7:1. */
 button.first-run-install {
   min-height: 2rem;
   padding: var(--ol-space-1) var(--ol-space-3);
-  border-color: var(--ol-accent);
-  color: var(--ol-accent);
+  border-color: var(--ol-link);
+  color: var(--ol-link);
   font-size: var(--ol-text-caption);
 }
 
@@ -2632,6 +2631,37 @@ pre {
   gap: var(--ol-space-2);
   color: var(--ol-heading);
   font-size: var(--ol-text-caption);
+}
+
+/* The heading takes focus so a screen reader starts on it. It is not a
+   control, so it draws no ring. */
+#first-run-title:focus {
+  outline: none;
+}
+
+/* A note is words, not a control: it wraps inside a fixed width and never
+   squeezes the tool name to an ellipsis. Below 560 pixels the slot gives up
+   its floor and a note moves under the description. */
+.first-run-note {
+  max-width: 16rem;
+}
+
+@media (max-width: 559px) {
+  .first-run-action {
+    min-width: 0;
+  }
+
+  .first-run-action[data-kind="note"] {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    /* Lined up with the description, past the mark and its gap. */
+    padding-left: calc(2rem + var(--ol-space-3));
+  }
+
+  .first-run-action[data-kind="note"] .first-run-note {
+    max-width: none;
+    text-align: left;
+  }
 }
 
 /* What a row says when it has no honest control to offer. */

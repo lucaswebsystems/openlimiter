@@ -52,8 +52,13 @@ const server = createServer(async (request, response) => {
 });
 
 function installCaptureStub() {
-  localStorage.setItem("openlimiter-first-run-complete-v1", "complete");
-  localStorage.setItem("openlimiter-configured-providers-v1", JSON.stringify(["CLAUDE"]));
+  /* A capture can ask for a fresh install, no readings or a detected set. */
+  const desk = window.__desk ?? {};
+  if (desk.theme) localStorage.setItem("openlimiter-theme", desk.theme);
+  if (!desk.fresh) {
+    localStorage.setItem("openlimiter-first-run-complete-v1", "complete");
+    localStorage.setItem("openlimiter-configured-providers-v1", JSON.stringify(desk.configured ?? ["CLAUDE"]));
+  }
   const now = new Date().toISOString();
   const expires = new Date(Date.now() + 15 * 60_000).toISOString();
   const labels = { credentialOrigin: "official-local-tool", dataInterfaceStatus: "documented-api", automationRisk: "low", verification: "UNVERIFIED" };
@@ -86,7 +91,7 @@ function installCaptureStub() {
         window.__autostart.reports += 1;
         return window.__autostart.enabled;
       }
-      if (name === "read_cache") return JSON.stringify({ version: 2, snapshots, suppressions: [] });
+      if (name === "read_cache") return JSON.stringify({ version: 2, snapshots: desk.noReadings ? [] : snapshots, suppressions: [] });
       if (name === "read_manual") return "";
       if (name === "state_directory") return "the demo fixtures";
       if (name === "account_status") return { signedIn: false, syncEnabled: false, backendReachable: false };
@@ -101,7 +106,10 @@ function installCaptureStub() {
       if (name === "claude_connect_preflight") return { kind: "ready", cli_path: "openlimiter" };
       if (name === "claude_poll_enabled") return false;
       if (name === "terminal_runtime_status") return { version: "2.0.3", app_version: "2.1.0" };
-      if (name === "list_detected_providers") return { providers: [] };
+      if (name === "list_detected_providers") return { providers: desk.detected ?? [] };
+      if (name === "codex_device_login_start") return { sessionId: "capture-session", userCode: "ABCD-1234", verificationUrl: "https://auth.openai.com/codex/device" };
+      if (name === "codex_device_login_status") return { kind: "pending" };
+      if (name === "codex_device_login_cancel") return null;
       if (["list_connections", "disabled_providers", "notification_events"].includes(name)) return [];
       return null;
     } },
@@ -160,7 +168,7 @@ function inspectFit(page) {
 async function dismissModal(page) {
   const firstRun = page.locator("#first-run");
   if (await firstRun.isVisible()) {
-    await page.locator("#first-run-later").click();
+    await page.locator("#first-run-continue").click();
     await firstRun.waitFor({ state: "hidden" });
   }
   /* What's New is a native dialog, not a role=dialog surface, and it opens
@@ -378,6 +386,106 @@ try {
       if (findings.length) throw new Error(`FAIL start at sign in ${width}x${height}: ${findings.join(", ")}`);
       process.stdout.write(`PASS start at sign in switch ${width}x${height}\n`);
     }
+    await context.close();
+  }
+
+  /* A fresh install at the native window height: Connect lists only what the
+     machine has, asks nothing about Claude, keeps Show my bars on screen, and
+     ends on the bars with the account offered under them and no What's New. */
+  const absent = ["gemini_cli", "grok", "kimi", "opencode", "openrouter"].map((provider_id) => ({ provider_id, state: "absent", accounts: [] }));
+  for (const [width, theme] of [[380, "dark"], [520, "dark"], [900, "dark"], [520, "light"]]) {
+    const height = 720;
+    const context = await browser.newContext({ viewport: { width, height }, serviceWorkers: "block" });
+    await context.addInitScript(({ detected, theme }) => { window.__desk = { fresh: true, detected, theme }; }, { theme, detected: [
+      { provider_id: "claude", state: "present", accounts: [] },
+      { provider_id: "codex", state: "installed_logged_out", accounts: [] },
+      { provider_id: "gemini_cli", state: "installed_logged_out", accounts: [] },
+      { provider_id: "antigravity", state: "present", accounts: [] },
+      ...absent.filter((entry) => entry.provider_id !== "gemini_cli"),
+    ] });
+    await context.addInitScript(installCaptureStub);
+    const page = await context.newPage();
+    const errors = [];
+    page.on("pageerror", error => errors.push(error.message));
+    page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+    await page.goto(`${origin}/index.html`);
+    await page.waitForLoadState("networkidle");
+    const screen = page.locator("#first-run");
+    await screen.waitFor({ state: "visible" });
+    await page.locator("#first-run-status", { hasText: "Scan complete." }).waitFor();
+    const findings = [];
+    const exit = await page.locator("#first-run-continue").boundingBox();
+    if (!exit || exit.y < 0 || exit.y + exit.height > height + 1) findings.push(`Show my bars is off screen at ${width}x${height}`);
+    const rows = await page.locator("#first-run-providers .first-run-row").evaluateAll((nodes) => nodes.map((node) => node.dataset.provider));
+    if (rows.join() !== "CODEX,CLAUDE,GEMINI_CLI,ANTIGRAVITY") findings.push(`first run rows are ${rows.join()}`);
+    const words = await screen.innerText();
+    if (/Fable|usage request|Anthropic|npm install|Create your account|Skip/u.test(words)) findings.push("the first run asks about Claude, an account or an install");
+    if (await page.locator("#first-run input:not([data-provider-switch])").count()) findings.push("a control other than a tool switch is in the first run");
+    if (await page.locator("#first-run button:visible").evaluateAll((nodes) => nodes.filter((node) => node.id !== "first-run-continue" && !node.closest(".first-run-action")).length)) {
+      findings.push("the first run has a second way out");
+    }
+    const suffix = theme === "dark" ? "" : `-${theme}`;
+    if (shots) await page.screenshot({ path: path.join(shots, `firstrun-${width}x${height}${suffix}.png`) });
+    /* The Codex device code counts down under itself, and Cancel ends the
+       flow with Try again on the row. */
+    const codex = page.locator('#first-run-providers [data-provider="CODEX"]');
+    await codex.locator("button", { hasText: "Sign in" }).click();
+    await codex.locator(".first-run-countdown", { hasText: /^Code expires in [0-3]:[0-5][0-9]$/u }).waitFor();
+    if (shots) await page.screenshot({ path: path.join(shots, `firstrun-codex-${width}x${height}${suffix}.png`) });
+    await codex.locator("button", { hasText: "Cancel" }).click();
+    await codex.locator("button", { hasText: "Try again" }).waitFor();
+    if (await codex.locator(".first-run-countdown").count()) findings.push("the countdown outlived its flow");
+    const exitAfter = await page.locator("#first-run-continue").boundingBox();
+    if (!exitAfter || exitAfter.y + exitAfter.height > height + 1) findings.push("Show my bars left the screen during a sign in");
+    await page.locator("#first-run-continue").click();
+    await screen.waitFor({ state: "hidden" });
+    await page.locator("#account-offer").waitFor({ state: "visible" });
+    if (await page.locator("dialog.whats-new[open]").count()) findings.push("What's New opened over a fresh install");
+    findings.push(...await inspectFit(page));
+    assert.deepEqual(errors, [], `first run ${width}x${height} browser errors`);
+    if (shots) await page.screenshot({ path: path.join(shots, `after-firstrun-${width}x${height}${suffix}.png`), fullPage: true });
+    if (findings.length) throw new Error(`FAIL first run ${width}x${height}: ${findings.join(", ")}`);
+    process.stdout.write(`PASS first run ${width}x${height}\n`);
+    await context.close();
+  }
+
+  /* Tools that are set up but have not read yet wait on Usage with no button,
+     and a signed out one keeps its row there with its action. */
+  for (const width of [380, 520, 900]) {
+    const height = 800;
+    const context = await browser.newContext({ viewport: { width, height }, serviceWorkers: "block" });
+    await context.addInitScript(() => {
+      window.__desk = {
+        noReadings: true,
+        configured: ["CLAUDE", "CODEX"],
+        detected: [
+          { provider_id: "codex", state: "present", accounts: [] },
+          { provider_id: "gemini_cli", state: "installed_logged_out", accounts: [] },
+        ],
+      };
+    });
+    await context.addInitScript(installCaptureStub);
+    const page = await context.newPage();
+    const errors = [];
+    page.on("pageerror", error => errors.push(error.message));
+    page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+    await page.goto(`${origin}/index.html`);
+    await page.waitForLoadState("networkidle");
+    await dismissModal(page);
+    const usage = page.locator("#usage-rows");
+    await usage.locator('[data-provider-card][data-provider="CODEX"]', { hasText: "Waiting for first reading" }).waitFor();
+    const findings = [];
+    if (await page.locator("#usage-empty").isVisible()) findings.push("Usage says No bars yet over connected tools");
+    const gemini = usage.locator('[data-provider-card][data-provider="GEMINI_CLI"]');
+    if (!(await gemini.innerText()).includes("Signed out") || await gemini.locator("button", { hasText: "Sign in again" }).count() !== 1) {
+      findings.push("the signed out tool has no row with its action on Usage");
+    }
+    if (await usage.locator('[data-provider-card][data-provider="CODEX"] button').count()) findings.push("a waiting row offers a button");
+    findings.push(...await inspectFit(page));
+    assert.deepEqual(errors, [], `waiting ${width}x${height} browser errors`);
+    if (shots) await page.screenshot({ path: path.join(shots, `usage-waiting-${width}x${height}.png`), fullPage: true });
+    if (findings.length) throw new Error(`FAIL waiting ${width}x${height}: ${findings.join(", ")}`);
+    process.stdout.write(`PASS waiting rows ${width}x${height}\n`);
     await context.close();
   }
 } finally {

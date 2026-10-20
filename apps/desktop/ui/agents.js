@@ -66,6 +66,7 @@ function art(doc, className, markup) {
 export function renderAgents(doc, mount, agents, { locate, markFor = () => "" } = {}) {
   mount.replaceChildren(...agents.map((agent) => {
     const row = node(doc, "div", "q-agent");
+    row.setAttribute("role", "listitem");
     row.dataset.state = agent.state;
     const mark = art(doc, "q-mark", markFor(agent.provider));
     mark.dataset.provider = agent.provider;
