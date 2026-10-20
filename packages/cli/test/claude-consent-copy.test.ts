@@ -21,4 +21,30 @@ describe("Claude consent documentation", () => {
     expect(readme).toContain("openlimiter config set providers.claude.poll false");
     expect(page).toContain("openlimiter config set providers.claude.poll false");
   });
+
+  /* 2.1.7, plan items 7 and 8: the request is opt in. Its switch names the
+     request itself, and the note says what it sends, to whom, how often, that
+     it becomes the source of every Claude bar, and that Anthropic's policy for
+     tools like this is unresolved. */
+  it("names the request on its switch and says what it sends, to whom and how often", async () => {
+    const [labels, web] = await Promise.all([
+      read("apps/desktop/ui/readings.en.json"),
+      read("apps/web/messages/en.json"),
+    ]);
+    const desktop = JSON.parse(labels) as Record<string, string>;
+    expect(desktop["showClaudeFable"]).toBe("Read my Claude usage from Anthropic");
+    const note = desktop["showClaudeFableNote"] ?? "";
+    for (const fact of [
+      "Off unless you turn it on",
+      "your Claude Code login",
+      "only to Anthropic",
+      "about every five minutes",
+      "every Claude bar",
+      "Anthropic's policy for tools like this is unresolved"
+    ]) expect(note).toContain(fact);
+    expect(note).not.toMatch(/Fable|[–—]| - /u);
+    const twins = (JSON.parse(web) as { desktopReadings: Record<string, string> }).desktopReadings;
+    expect(twins["showClaudeFable"]).toBe(desktop["showClaudeFable"]);
+    expect(twins["showClaudeFableNote"]).toBe(note);
+  });
 });
