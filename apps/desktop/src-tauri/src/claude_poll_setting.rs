@@ -1,30 +1,31 @@
-//! Whether OpenLimiter may ask Anthropic for a percentage on its own.
+//! Whether OpenLimiter may ask Anthropic for Claude usage on its own.
 //!
 //! # Why this is a switch and not a feature
 //!
 //! Claude's own status line hands this product the numbers, live, free, and
 //! through a documented interface, every time somebody runs Claude Code. That
-//! is the source, and it needs no permission from anybody.
+//! is the source while this switch is off.
 //!
 //! The other path is a request to `api/oauth/usage` carrying the token Claude
-//! Code stored. Every quota monitor makes it, it identifies as OpenLimiter
-//! rather than copying Claude Code's user agent, and it exists only for the
-//! hours Claude Code is closed. It is also the one read in this product whose
-//! standing is genuinely unsettled, so it does not happen before the product
-//! has shown and durably recorded the person's choice.
+//! Code stored. It identifies as OpenLimiter rather than copying Claude Code's
+//! user agent, and Anthropic's policy for tools like this is unresolved, so it
+//! is off unless the person turned it on, and nothing asks or nudges. While it
+//! is on it is the only source of every Claude bar (`state::read_cache`).
 //!
-//! A missing document means no choice has been recorded yet. Every other read
-//! failure means invalid and stays off. A switch whose failure mode is "on" is
-//! not a switch.
+//! `claude-poll.json` is the one store of truth both runtimes read at every
+//! pass; the command line tool's setter writes it too. A missing document means
+//! no choice has been recorded. Every other read failure means invalid and
+//! stays off. A switch whose failure mode is "on" is not a switch.
 
-use std::path::PathBuf;
-use std::sync::Mutex;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
 
 /// Where the answer lives, beside the product's other state.
-const SETTING_FILE_NAME: &str = "claude-poll.json";
+#[cfg(test)]
+const SETTING_FILE_NAME: &str = crate::state::CLAUDE_POLL_FILE_NAME;
 
 const DOCUMENT_VERSION: u32 = 1;
 
@@ -33,6 +34,13 @@ const DOCUMENT_VERSION: u32 = 1;
 struct PollDocument {
     version: u32,
     enabled: bool,
+}
+
+fn write_document(directory: &Path, enabled: bool) -> Result<(), String> {
+    let encoded = serde_json::to_string(&PollDocument { version: DOCUMENT_VERSION, enabled })
+        .map_err(|_| storage_error())?;
+    crate::fsx::atomic_write(&directory.join(crate::state::CLAUDE_POLL_FILE_NAME), &encoded)
+        .map_err(|_| storage_error())
 }
 
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
@@ -49,12 +57,17 @@ pub enum PollStatus {
 pub struct PollStatusView {
     state: PollStatus,
     enabled: bool,
+    /// The last change from this window stands, and the copy a 2.1.5 runtime
+    /// reads could not be written.
+    mirror_failed: bool,
 }
 
-/// The switch, read once and kept.
+/// The switch. Nothing about its value is kept here: every answer is read
+/// from the one store of truth, so a change the command line tool made is
+/// seen at the next pass.
 pub struct ClaudePollSetting {
-    file: Option<PathBuf>,
-    status: Mutex<PollStatus>,
+    directory: Option<PathBuf>,
+    mirror_failed: AtomicBool,
 }
 
 impl Default for ClaudePollSetting {
@@ -65,41 +78,39 @@ impl Default for ClaudePollSetting {
 
 impl ClaudePollSetting {
     pub fn at(directory: Option<PathBuf>) -> Self {
-        let file = directory.map(|value| value.join(SETTING_FILE_NAME));
-        let status = match file.as_ref() {
-            None => PollStatus::Invalid,
-            Some(path) => match crate::fsx::bounded_read_result(
-                path,
-                crate::fsx::MAX_STATE_FILE_BYTES,
-            ) {
-                Err(crate::fsx::ReadFailure::Missing) => PollStatus::Missing,
-                Err(_) => PollStatus::Invalid,
-                Ok(text) => match serde_json::from_str::<PollDocument>(&text) {
-                    Ok(document) if document.version == DOCUMENT_VERSION && document.enabled => {
-                        PollStatus::Enabled
-                    }
-                    Ok(document) if document.version == DOCUMENT_VERSION => PollStatus::Disabled,
-                    _ => PollStatus::Invalid,
-                },
-            },
-        };
-        Self { file, status: Mutex::new(status) }
+        Self { directory, mirror_failed: AtomicBool::new(false) }
     }
 
-    /// Whether the poll may run at all.
-    ///
-    /// A lock this process cannot take reads as off, for the same reason an
-    /// unreadable file does: the safe answer to "may I make this request" is
-    /// no.
+    /// Whether the poll may run at all. Anything but a recorded on is off.
     pub fn enabled(&self) -> bool {
-        self.status
-            .lock()
-            .map(|value| *value == PollStatus::Enabled)
-            .unwrap_or(false)
+        self.status() == PollStatus::Enabled
     }
 
+    /// The switch as it stands now, read fresh.
+    ///
+    /// The first 2.1.7 run moves a choice the command line tool recorded on in
+    /// its legacy keys into the store of truth, when that holds no choice yet.
+    /// Off needs no move: no document already reads as off. TypeScript twin:
+    /// config.ts migrateLegacyClaudePoll.
     pub fn status(&self) -> PollStatus {
-        self.status.lock().map(|value| *value).unwrap_or(PollStatus::Invalid)
+        let read = || crate::state::read_claude_poll(self.directory.as_deref());
+        if read() == Ok(None) {
+            if let Some(directory) = self.directory.as_deref() {
+                if crate::cli_config::legacy_claude_poll(directory) {
+                    let _ = crate::cli_config::with_lock(directory, || {
+                        if read() == Ok(None) {
+                            let _ = write_document(directory, true);
+                        }
+                    });
+                }
+            }
+        }
+        match read() {
+            Ok(Some(true)) => PollStatus::Enabled,
+            Ok(Some(false)) => PollStatus::Disabled,
+            Ok(None) => PollStatus::Missing,
+            Err(()) => PollStatus::Invalid,
+        }
     }
 
     fn view(&self) -> PollStatusView {
@@ -107,31 +118,30 @@ impl ClaudePollSetting {
         PollStatusView {
             state,
             enabled: state == PollStatus::Enabled,
+            mirror_failed: self.mirror_failed.load(Ordering::Relaxed),
         }
     }
 
-    /// Set it, and remember it past this run.
+    /// Set it in the one store of truth, and mirror it into the legacy keys a
+    /// 2.1.5 runtime still installed reads. `Ok(true)` when this turned it on.
     ///
-    /// The durable write happens first and the live answer changes only once
-    /// it succeeded. The other order looks harmless and is not: a machine that
-    /// cannot write its state directory would start polling Anthropic for the
-    /// rest of the session on the strength of a switch that was never saved,
-    /// and the next launch would read the file that still says off and have no
-    /// idea it had ever happened. A switch that turns on when its own storage
-    /// failed is a switch nobody consented to.
+    /// Both writes happen under the state lock the command line tool's setter
+    /// takes too, so concurrent changes end in one state. The store of truth
+    /// is written first and the answer changes only once it succeeded: a
+    /// switch that turns on when its own storage failed is a switch nobody
+    /// consented to. A mirror that cannot be written leaves the switch as set
+    /// and is reported through the view. TypeScript twin: config.ts
+    /// setClaudePoll.
     pub fn set(&self, enabled: bool) -> Result<bool, String> {
-        let mut held = self.status.lock().map_err(|_| storage_error())?;
-        let path = self.file.as_ref().ok_or_else(storage_error)?;
-        let parent = path.parent().ok_or_else(storage_error)?;
-        crate::fsx::ensure_private_dir(parent).map_err(|_| storage_error())?;
-        let encoded = serde_json::to_string(&PollDocument {
-            version: DOCUMENT_VERSION,
-            enabled,
+        let directory = self.directory.as_deref().ok_or_else(storage_error)?;
+        let (newly_enabled, mirrored) = crate::cli_config::with_lock(directory, || {
+            let was_enabled = crate::state::read_claude_poll(Some(directory)) == Ok(Some(true));
+            write_document(directory, enabled)?;
+            let mirrored = crate::cli_config::mirror_claude_poll(directory, enabled).is_ok();
+            Ok::<_, String>((enabled && !was_enabled, mirrored))
         })
-        .map_err(|_| storage_error())?;
-        crate::fsx::atomic_write(path, &encoded).map_err(|_| storage_error())?;
-        let newly_enabled = enabled && *held != PollStatus::Enabled;
-        *held = if enabled { PollStatus::Enabled } else { PollStatus::Disabled };
+        .map_err(|_| storage_error())??;
+        self.mirror_failed.store(!mirrored, Ordering::Relaxed);
         Ok(newly_enabled)
     }
 

@@ -105,21 +105,20 @@ import path from "node:path";
 import {
   PROVIDER_KEYS,
   STATUSLINE_KEYS,
+  claudePollText,
   defaultConfig,
   initialize,
   isProviderKey,
   isStatuslineKey,
-  providerValueText,
+  migrateLegacyClaudePoll,
   readConfig,
-  readProvidersConfig,
   readStatuslineConfig,
+  setClaudePoll,
   setProviderValue,
   updateConfig,
   setStatuslineValue,
   statuslineValueText,
   writeConfig,
-  type ProviderKey,
-  type ProvidersConfig,
   type StatuslineConfig,
   type StatuslineKey
 } from "./config.js";
@@ -697,12 +696,12 @@ async function refresh(
  * other provider is unconditional: a provider with no local login simply
  * reports that it has none.
  */
-export function acquisitionSpecs(providers: ProvidersConfig): AcquisitionSpec[] {
+export function acquisitionSpecs(claudePoll: boolean): AcquisitionSpec[] {
   return [
     claudeSpec({
       parse: parseClaudePayload,
       complete: claudeWeeklySetComplete,
-      enabled: providers.claude.recorded && providers.claude.poll
+      enabled: claudePoll
     }),
     codexSpec(parseCodexPayload),
     cursorSpec(parseCursorPayload),
@@ -898,11 +897,11 @@ async function acquisitionDoctorRows(
   snapshots: readonly Snapshot[],
   now: string
 ): Promise<string> {
-  const providers = await readProvidersConfig(dependencies.stateDirectory);
+  const claudePoll = await readClaudePoll(dependencies.stateDirectory);
   const schedule = await readAcquisitionSchedule(dependencies.stateDirectory);
   const readCredential = credentialReader(dependencies);
   const rows: string[] = [];
-  for (const spec of acquisitionSpecs(providers)) {
+  for (const spec of acquisitionSpecs(claudePoll)) {
     rows.push(acquisitionLine(
       await acquisitionStatusRow(spec, schedule, readCredential, snapshots, now),
       snapshots
@@ -961,12 +960,12 @@ async function refreshCommand(
     ].join(NEWLINE));
   }
   try {
-    const providers = await readProvidersConfig(dependencies.stateDirectory);
+    const claudePoll = await readClaudePoll(dependencies.stateDirectory);
     const settled = await readSnapshotCache(dependencies.stateDirectory);
     /* No desktop row stands this tool down for Claude: the shared lease and its
        persisted deadline, which both processes honour, decide who asks and
        when, so a desktop that exited is taken over at its deadline. */
-    const specs = acquisitionSpecs(providers).filter((spec) => spec.provider === "CLAUDE" || !desktopHoldsCache(
+    const specs = acquisitionSpecs(claudePoll).filter((spec) => spec.provider === "CLAUDE" || !desktopHoldsCache(
       settled.ok ? settled.snapshots.filter((row) => row.provider === spec.provider) : [], now
     ));
     if (specs.length === 0) {
@@ -1081,11 +1080,10 @@ async function startRefreshBehind(
   try {
     const directory = dependencies.stateDirectory ?? resolveStateDirectory();
     const syncDue = await readSession(directory) !== null && await syncIsDue(directory, now);
-    const providers = await readProvidersConfig(dependencies.stateDirectory);
     await spawnDetachedRefresh({
       snapshots: syncDue ? [] : snapshots,
       now,
-      claudePoll: providers.claude.recorded && providers.claude.poll,
+      claudePoll: await readClaudePoll(dependencies.stateDirectory),
       ...(dependencies.stateDirectory === undefined
         ? {}
         : { stateDirectory: dependencies.stateDirectory }),
@@ -1826,14 +1824,9 @@ function configGet(
     .join(NEWLINE);
 }
 
-function providersGet(
-  keys: readonly ProviderKey[],
-  providers: ProvidersConfig
-): string {
-  return keys
-    .map((key) => PROVIDERS_SECTION + "." + key + "=" + providerValueText(providers, key))
-    .join(NEWLINE);
-}
+/** What a set says when the store of truth stands and its legacy copy could not be written. */
+const CLAUDE_POLL_MIRROR_FAILED =
+  "openlimiter config: saved, but the copy an older OpenLimiter on this computer reads could not be written, so an older version may keep your previous choice.";
 
 /**
  * Read or change one provider switch.
@@ -1856,16 +1849,11 @@ async function providersConfigCommand(
         PROVIDER_KEYS.join(", ") + "."
     );
   }
-  const stored = await readConfig(dependencies.stateDirectory);
-  if (!stored.ok && stored.reason !== "missing") {
-    return fail(EXIT_FAILURE, "openlimiter config: configuration could not be read.");
-  }
-  const config = stored.ok ? stored.config : defaultConfig(dependencies.environment);
+  /* The one key here is the Claude request switch, whose store of truth is
+     claude-poll.json, the document the desktop's switch writes too. */
+  const directory = dependencies.stateDirectory ?? resolveStateDirectory();
   if (action === "get") {
-    return succeed(providersGet(
-      key === null ? PROVIDER_KEYS : [key],
-      config.providers
-    ));
+    return succeed(PROVIDERS_SECTION + "." + PROVIDER_KEYS[0] + "=" + await claudePollText(directory));
   }
   if (key === null) {
     return fail(
@@ -1876,21 +1864,16 @@ async function providersConfigCommand(
   if (value === undefined) {
     return fail(EXIT_USAGE, "openlimiter config: set needs a value.");
   }
-  const update = setProviderValue(config.providers, key, value);
+  const update = setProviderValue(key, value);
   if (!update.ok) return fail(EXIT_USAGE, "openlimiter config: " + update.message);
+  let mirrored: boolean;
   try {
-    await updateConfig(
-      (latest) => {
-        const next = setProviderValue(latest.providers, key, value);
-        return { ...latest, providers: next.ok ? next.providers : update.providers };
-      },
-      dependencies.environment,
-      dependencies.stateDirectory
-    );
+    ({ mirrored } = await setClaudePoll(update.enabled, dependencies.environment, directory));
   } catch {
     return fail(EXIT_FAILURE, "openlimiter config: configuration could not be written.");
   }
-  return succeed(providersGet([key], update.providers));
+  const stdout = PROVIDERS_SECTION + "." + key + "=" + String(update.enabled);
+  return mirrored ? succeed(stdout) : { exitCode: EXIT_OK, stdout, stderr: CLAUDE_POLL_MIRROR_FAILED };
 }
 
 /**
@@ -2586,6 +2569,11 @@ export async function runCli(
   const command = argumentsList[0] ?? "setup";
   const now = dependencies.now();
   try {
+    /* The first 2.1.7 run moves a recorded legacy on into the one store of
+       truth, before anything reads the switch or the cache. */
+    if (["setup", "sync", "snapshot", "statusline", "config", "hook", "status", "refresh", "doctor", "export"].includes(command)) {
+      await migrateLegacyClaudePoll(dependencies.stateDirectory).catch(() => undefined);
+    }
     if (["snapshot", "statusline", "refresh", "status"].includes(command)) {
       await pruneSnapshotCache(dependencies.stateDirectory, Date.parse(now)).catch(() => 0);
     }

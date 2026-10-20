@@ -167,6 +167,49 @@ pub fn write_captions(directory: &Path, captions: &str) -> Result<(), String> {
     write_document(directory, &document)
 }
 
+/// Run `action` holding the state lock every OpenLimiter writer shares, the
+/// command line tool's included.
+pub(crate) fn with_lock<R>(directory: &Path, action: impl FnOnce() -> R) -> Result<R, String> {
+    let _held = lock(directory)?;
+    Ok(action())
+}
+
+/// Mirror the Claude request switch into the legacy `providers.claude` keys a
+/// 2.1.5 runtime reads, leaving the rest of the document as it is. No
+/// document is left alone: it already reads as no choice, which a 2.1.5
+/// runtime treats as off. The caller holds the lock. TypeScript twin:
+/// config.ts setClaudePoll.
+pub(crate) fn mirror_claude_poll(directory: &Path, enabled: bool) -> Result<(), String> {
+    if matches!(
+        crate::fsx::bounded_read_result(&config_path(directory), crate::fsx::MAX_STATE_FILE_BYTES),
+        Err(crate::fsx::ReadFailure::Missing)
+    ) {
+        return Ok(());
+    }
+    let mut document = read_document(directory)?;
+    let object = document.as_object_mut().ok_or_else(|| "config_refused".to_string())?;
+    let providers = object.entry("providers").or_insert_with(|| Value::Object(Map::new()));
+    let providers = providers.as_object_mut().ok_or_else(|| "config_refused".to_string())?;
+    providers.insert("claude".to_string(), serde_json::json!({ "poll": enabled, "recorded": true }));
+    write_document(directory, &document)
+}
+
+/// Whether the legacy keys record the Claude request on: `poll` true, and
+/// `recorded` true or absent, since a 2.0.3 boolean predates the marker.
+/// TypeScript twin: config.ts normalizeProviders.
+pub(crate) fn legacy_claude_poll(directory: &Path) -> bool {
+    let Ok(text) = crate::fsx::bounded_read_result(&config_path(directory), crate::fsx::MAX_STATE_FILE_BYTES) else {
+        return false;
+    };
+    let Ok(document) = serde_json::from_str::<Value>(&text) else {
+        return false;
+    };
+    let claude = &document["providers"]["claude"];
+    document.get("version") == Some(&Value::from(1))
+        && claude.get("poll") == Some(&Value::Bool(true))
+        && claude.get("recorded").is_none_or(|marker| marker == &Value::Bool(true))
+}
+
 fn read_captions(directory: &Path) -> Result<String, String> {
     let document = read_document(directory)?;
     Ok(document.get("statusline").and_then(Value::as_object).and_then(|statusline| statusline.get("captions")).and_then(Value::as_str).filter(|value| *value == "short" || *value == "tagged").unwrap_or("short").to_string())
