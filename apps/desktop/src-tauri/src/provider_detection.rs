@@ -3690,6 +3690,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        windows,
+        ignore = "the Homebrew rule runs only on macOS; on Windows the simulated root resolves through verbatim paths, and Linux and macOS CI run this test"
+    )]
     fn a_homebrew_link_runs_codex_only_from_its_own_keg_or_launcher() {
         let dir = TempDir::new();
         let home = canonical_existing_path(dir.path()).expect("canonical home");
