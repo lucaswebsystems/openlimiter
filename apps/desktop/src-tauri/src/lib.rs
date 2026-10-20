@@ -411,16 +411,27 @@ pub fn run() {
                 provider_detection::request_focus_scan(window.app_handle().clone());
             }
             if let WindowEvent::CloseRequested { api, .. } = event {
-                /* Linux with no tray host: a hidden window would leave the
-                app running where nothing can bring it back, so closing quits
-                there (2.1.7). */
+                /* Linux with no tray: a hidden window would leave the app
+                running where nothing can bring it back, so closing quits
+                there (2.1.7). The tray is asked off this thread. */
                 #[cfg(target_os = "linux")]
-                if !host::tray_present() {
-                    window.app_handle().exit(0);
-                    return;
+                {
+                    let hidden = window.clone();
+                    let app = window.app_handle().clone();
+                    host::close_without_waiting(
+                        || api.prevent_close(),
+                        host::tray_present,
+                        move || {
+                            let _ = hidden.hide();
+                        },
+                        move || app.exit(0),
+                    );
                 }
-                api.prevent_close();
-                let _ = window.hide();
+                #[cfg(not(target_os = "linux"))]
+                {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
             }
         })
         .build(app_context())

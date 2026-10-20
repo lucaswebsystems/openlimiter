@@ -19,25 +19,100 @@
 //! would leave the app running where nothing can bring it back. Closing
 //! quits there instead (`lib.rs`).
 
-use std::io::{BufRead, BufReader, Read};
+use std::io::Read;
 use std::process::{Command, Stdio};
-use std::sync::mpsc;
 use std::time::Duration;
 
 #[cfg(any(target_os = "macos", test))]
 use std::{ffi::OsString, path::PathBuf};
 
 /// The most a child may print before its answer is given up on.
-const MAX_OUTPUT_BYTES: u64 = 256 * 1024;
+const MAX_OUTPUT_BYTES: usize = 256 * 1024;
 
 /// Run `command` with no input and return the first output line `pick`
-/// answers, waiting at most `wait`. The child is killed either way, so one
-/// that hangs, prompts or never answers cannot hold the app.
+/// answers, waiting at most `wait`. The child runs in a process group of its
+/// own, which ends with it on an answer or at the deadline, and the child is
+/// reaped (Astra 2.1.7, finding 4). Its output is read without blocking and
+/// polled against the deadline, so a process that holds the pipe open, in the
+/// group or out of it, cannot hold the caller or a thread.
+#[cfg(unix)]
+fn first_line<T>(mut command: Command, wait: Duration, pick: fn(&[u8]) -> Option<T>) -> Option<T> {
+    use std::os::unix::process::CommandExt as _;
+    let mut child = command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .process_group(0)
+        .spawn()
+        .ok()?;
+    let found = child.stdout.take().and_then(|stdout| read_until(stdout, wait, pick));
+    if let Ok(group) = i32::try_from(child.id()) {
+        // SAFETY: a negative pid names the group this child leads, and only it.
+        unsafe { libc::kill(-group, libc::SIGKILL) };
+    }
+    let _ = child.wait();
+    found
+}
+
+/// Whole lines of `stdout` until `pick` answers, the output ends or `wait`
+/// runs out, never blocking past the deadline.
+#[cfg(unix)]
+fn read_until<T>(
+    mut stdout: std::process::ChildStdout,
+    wait: Duration,
+    pick: fn(&[u8]) -> Option<T>,
+) -> Option<T> {
+    use std::os::unix::io::AsRawFd as _;
+    let descriptor = stdout.as_raw_fd();
+    // SAFETY: flags read from and written back to the pipe this child owns.
+    let blocking = unsafe { libc::fcntl(descriptor, libc::F_GETFL) };
+    if blocking < 0 || unsafe { libc::fcntl(descriptor, libc::F_SETFL, blocking | libc::O_NONBLOCK) } < 0 {
+        return None;
+    }
+    let deadline = std::time::Instant::now() + wait;
+    let mut pending: Vec<u8> = Vec::new();
+    let mut chunk = [0_u8; 4096];
+    loop {
+        while let Some(end) = pending.iter().position(|byte| *byte == b'\n') {
+            let line: Vec<u8> = pending.drain(..=end).collect();
+            if let Some(found) = pick(&line[..end]) {
+                return Some(found);
+            }
+        }
+        let left = deadline.saturating_duration_since(std::time::Instant::now());
+        if left.is_zero() || pending.len() > MAX_OUTPUT_BYTES {
+            return None;
+        }
+        let mut ready = libc::pollfd { fd: descriptor, events: libc::POLLIN, revents: 0 };
+        let millis = i32::try_from(left.as_millis()).unwrap_or(i32::MAX).max(1);
+        // SAFETY: one pollfd, owned here, for the length of the call.
+        if unsafe { libc::poll(&mut ready, 1, millis) } < 0
+            && std::io::Error::last_os_error().kind() != std::io::ErrorKind::Interrupted
+        {
+            return None;
+        }
+        match stdout.read(&mut chunk) {
+            Ok(0) => return pick(&pending),
+            Ok(read) => pending.extend_from_slice(&chunk[..read]),
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::Interrupted
+                ) => {}
+            Err(_) => return None,
+        }
+    }
+}
+
+/// Windows runs this module's tests only, never the product: a reader
+/// thread and a bounded wait stand in for the Unix reader above.
+#[cfg(windows)]
 fn first_line<T: Send + 'static>(
     mut command: Command,
     wait: Duration,
     pick: fn(&[u8]) -> Option<T>,
 ) -> Option<T> {
+    use std::io::{BufRead as _, BufReader};
     let mut child = command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -45,11 +120,9 @@ fn first_line<T: Send + 'static>(
         .spawn()
         .ok()?;
     let stdout = child.stdout.take()?;
-    let (sender, receiver) = mpsc::channel();
-    /* ponytail: a process the child leaves running with this pipe open keeps
-    this reader blocked until that process ends; it holds nothing else. */
+    let (sender, receiver) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
-        let found = BufReader::new(stdout.take(MAX_OUTPUT_BYTES))
+        let found = BufReader::new(stdout.take(MAX_OUTPUT_BYTES as u64))
             .split(b'\n')
             .map_while(Result::ok)
             .find_map(|line| pick(&line));
@@ -127,13 +200,19 @@ fn merged(login: Vec<PathBuf>, current: Option<OsString>) -> Option<OsString> {
 /* --------------------------------------------------------- Linux, the tray */
 
 /// Whether a desktop on Linux shows the tray icon: a status notifier host is
-/// registered on the session bus, asked through `gdbus`, else `dbus-send`.
+/// registered on the session bus, asked through `gdbus`, else `dbus-send`;
+/// or, on X11, an XEmbed tray manager is there for the indicator's fallback.
 /// No answer at all reads as no tray, so closing never leaves the app
-/// running out of sight. ponytail: a bar that draws only the older XEmbed
-/// tray (i3bar) also reads as no tray, so there closing quits too.
+/// running out of sight. Called off the window's thread.
 #[cfg(target_os = "linux")]
 pub fn tray_present() -> bool {
-    tray_answer(tray_probes(), Duration::from_secs(2))
+    tray_shown(tray_answer(tray_probes(), Duration::from_secs(2)), || {
+        x11_session(
+            std::env::var("GDK_BACKEND").ok().as_deref(),
+            std::env::var_os("WAYLAND_DISPLAY").is_some(),
+            std::env::var_os("DISPLAY").is_some(),
+        ) && xembed_manager_present()
+    })
 }
 
 /// The two ways a desktop's session bus is asked, by the tool it may have.
@@ -189,21 +268,29 @@ fn reports(line: &[u8]) -> Option<bool> {
     })
 }
 
-/// Stub with today's behaviour: only the status notifier host counts.
+/// Whether closing may hide the window (Astra 2.1.7, finding 3): a status
+/// notifier host answered, or an XEmbed tray manager holds its selection
+/// where the indicator falls back to that older tray. Anything less certain
+/// quits, so the app never keeps running out of sight.
 #[cfg(any(target_os = "linux", test))]
 fn tray_shown(host_registered: bool, xembed_manager: impl FnOnce() -> bool) -> bool {
-    let _ = xembed_manager;
-    host_registered
+    host_registered || xembed_manager()
 }
 
-/// Stub with today's behaviour: no session is read as X11.
+/// Whether this app's windows draw through X11, the only place the XEmbed
+/// fallback can show: GDK_BACKEND's first choice when it names one, else a
+/// session with an X display and no Wayland display.
 #[cfg(any(target_os = "linux", test))]
 fn x11_session(gdk_backend: Option<&str>, wayland: bool, display: bool) -> bool {
-    let _ = (gdk_backend, wayland, display);
-    false
+    match gdk_backend.and_then(|backends| backends.split(',').next()).map(str::trim) {
+        Some(first) if !first.is_empty() && first != "*" => first == "x11" && display,
+        _ => display && !wayland,
+    }
 }
 
-/// Stub with today's behaviour: the tray is asked on the window's thread.
+/// A close where the desktop may draw no tray (Linux): the close is
+/// prevented at once, the tray is asked off the window's thread, and only
+/// then does the window hide or the app quit (Astra 2.1.7, finding 7).
 #[cfg(any(target_os = "linux", test))]
 pub fn close_without_waiting(
     prevent: impl FnOnce(),
@@ -212,10 +299,50 @@ pub fn close_without_waiting(
     quit: impl FnOnce() + Send + 'static,
 ) {
     prevent();
-    if tray() {
-        hide();
-    } else {
-        quit();
+    std::thread::spawn(move || if tray() { hide() } else { quit() });
+}
+
+/// Whether an XEmbed tray manager owns `_NET_SYSTEM_TRAY_S<screen>` on this
+/// X display, asked through libX11 loaded at run time, so nothing new is
+/// linked. A display or library that cannot be reached reads as no manager.
+#[cfg(target_os = "linux")]
+fn xembed_manager_present() -> bool {
+    use std::ffi::{c_char, c_int, c_ulong, c_void, CString};
+    type OpenDisplay = unsafe extern "C" fn(*const c_char) -> *mut c_void;
+    type DefaultScreen = unsafe extern "C" fn(*mut c_void) -> c_int;
+    type InternAtom = unsafe extern "C" fn(*mut c_void, *const c_char, c_int) -> c_ulong;
+    type SelectionOwner = unsafe extern "C" fn(*mut c_void, c_ulong) -> c_ulong;
+    type CloseDisplay = unsafe extern "C" fn(*mut c_void) -> c_int;
+    // SAFETY: each symbol is libX11's own, called with the C signature it
+    // documents, on a display this function opens and closes itself.
+    unsafe {
+        let library = libc::dlopen(c"libX11.so.6".as_ptr(), libc::RTLD_LAZY | libc::RTLD_LOCAL);
+        if library.is_null() {
+            return false;
+        }
+        let open = libc::dlsym(library, c"XOpenDisplay".as_ptr());
+        let screen = libc::dlsym(library, c"XDefaultScreen".as_ptr());
+        let intern = libc::dlsym(library, c"XInternAtom".as_ptr());
+        let owner = libc::dlsym(library, c"XGetSelectionOwner".as_ptr());
+        let close = libc::dlsym(library, c"XCloseDisplay".as_ptr());
+        let mut present = false;
+        if ![open, screen, intern, owner, close].iter().any(|symbol| symbol.is_null()) {
+            let open = std::mem::transmute::<*mut c_void, OpenDisplay>(open);
+            let screen = std::mem::transmute::<*mut c_void, DefaultScreen>(screen);
+            let intern = std::mem::transmute::<*mut c_void, InternAtom>(intern);
+            let owner = std::mem::transmute::<*mut c_void, SelectionOwner>(owner);
+            let close = std::mem::transmute::<*mut c_void, CloseDisplay>(close);
+            let display = open(std::ptr::null());
+            if !display.is_null() {
+                if let Ok(name) = CString::new(format!("_NET_SYSTEM_TRAY_S{}", screen(display))) {
+                    let atom = intern(display, name.as_ptr(), 0);
+                    present = atom != 0 && owner(display, atom) != 0;
+                }
+                close(display);
+            }
+        }
+        libc::dlclose(library);
+        present
     }
 }
 
