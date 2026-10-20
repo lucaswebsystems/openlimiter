@@ -32,8 +32,9 @@ export async function openMainWindow(tauri) {
 
 /** Sent by native code whenever the panel is shown (true) or hidden (false). */
 export const PANEL_SHOWN_EVENT = "edge-panel-shown";
-/** Sent by native code for an Escape while the panel holds itself open. */
-export const PANEL_ESCAPE_EVENT = "edge-panel-escape";
+/** Sent by native code when it ends the panel's hold: an Escape while held,
+    or the pointer away from an open menu. */
+export const PANEL_RELEASE_EVENT = "edge-panel-release";
 export const COLLECTOR_UPDATED_EVENT = "collector-updated";
 
 /**
@@ -103,7 +104,7 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
   const list = reorderList(doc, view.limits, {
     store: order,
     render: (model) => renderLimits(doc, view.limits, model, { compact: true, grips: true }),
-    hold: (held) => void Promise.resolve(invoke("plugin:rail|rail_card_hold", { held })).catch(() => {}),
+    hold: (held, kind) => void Promise.resolve(invoke("plugin:rail|rail_card_hold", { held, menu: kind === "menu" })).catch(() => {}),
     scroller: view.scroll,
   });
 
@@ -201,7 +202,7 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
   /* Every collector pass, and the startup rescan, reads again, shown or not,
      so a hidden panel never opens on a projection made before detection. */
   hear(COLLECTOR_UPDATED_EVENT, () => void refresh());
-  hear(PANEL_ESCAPE_EVENT, () => list.escape());
+  hear(PANEL_RELEASE_EVENT, () => list.cancel());
   // An order written here, in the window or in Settings: draw it.
   const unsubscribe = order.subscribe(() => void refresh());
   void order.load();

@@ -203,7 +203,7 @@ let menus = 0;
  * One reorderable list. `render(model)` draws with grips (renderLimits with
  * `grips: true`); the surface calls `draw(model)` instead, sends Escape to
  * `escape()` (true when it ended something) and calls `cancel()` when it hides.
- * `hold(held)` keeps the edge panel open through an interaction; `scroller`
+ * `hold(held, kind)` keeps the edge panel open through a "drag" or the "menu"; `scroller`
  * is what scrolls the list, the document when null.
  */
 export function reorderList(doc, mount, { store, render, hold = () => {}, scroller = null, view = globalThis } = {}) {
@@ -350,7 +350,7 @@ export function reorderList(doc, mount, { store, render, hold = () => {}, scroll
     grip.setAttribute("aria-expanded", "true");
     grip.setAttribute("aria-controls", element.id);
     menu = { grip, group, code, element };
-    hold(true);
+    hold(true, "menu");
     /* It opens downward unless that runs past what is visible. */
     const box = element.getBoundingClientRect();
     if (box.bottom > edges().bottom && box.top - box.height > edges().top) element.dataset.up = "";
@@ -421,7 +421,7 @@ export function reorderList(doc, mount, { store, render, hold = () => {}, scroll
     /* This gesture ends in no click on the grip, however the drag ends. */
     suppressClick = true;
     drag = { grip, group, code, pointerId, y, clientY: y, scroll: offset, items, from, to: from, gap, origin, slot, frame: null };
-    hold(true);
+    hold(true, "drag");
     follow(clientY);
     edgeScroll();
   }

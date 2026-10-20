@@ -1,6 +1,10 @@
 use std::time::{Duration, Instant};
 
 pub const LEAVE_GRACE: Duration = Duration::from_millis(400);
+/// How long an open reorder menu keeps the panel while the pointer is away.
+/// The panel cannot see a click in another app, so this is how a menu left
+/// open there lets go; the leave grace then closes the panel as usual.
+pub const MENU_AWAY_GRACE: Duration = Duration::from_millis(1500);
 
 /// What holds the panel open: a block being dragged, or a block's reorder menu.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -20,9 +24,13 @@ pub struct Behavior {
     /// The panel holds itself open while a block is dragged or its reorder
     /// menu is open, so the pointer may leave it without closing it.
     held: Option<Hold>,
+    /// Since when the pointer has been away from a panel its menu holds open.
+    away_since: Option<Instant>,
 }
 
 impl Behavior {
+    /// One look at the pointer. True when it ended a menu's hold here: the
+    /// panel is told, so it closes the menu.
     pub fn tick(
         &mut self,
         now: Instant,
@@ -51,6 +59,15 @@ impl Behavior {
         if inside {
             self.last_inside = Some(now);
         }
+        let mut released = false;
+        if self.held == Some(Hold::Menu) {
+            if inside {
+                self.away_since = None;
+            } else if now.saturating_duration_since(*self.away_since.get_or_insert(now)) >= MENU_AWAY_GRACE {
+                self.hold(None, now);
+                released = true;
+            }
+        }
         let grace = self
             .last_inside
             .is_some_and(|last| now.saturating_duration_since(last) < LEAVE_GRACE);
@@ -59,7 +76,7 @@ impl Behavior {
         if !self.unfolded {
             self.held = None;
         }
-        false
+        released
     }
     pub fn close_card(&mut self) {
         self.card_anchor = None;
@@ -77,6 +94,7 @@ impl Behavior {
             self.last_inside = Some(now);
         }
         self.held = if open { hold } else { None };
+        self.away_since = None;
     }
     /// Escape. While held it ends the interaction instead (true: tell the
     /// panel), so only a second Escape closes the panel.

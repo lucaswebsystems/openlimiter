@@ -362,9 +362,9 @@ fn only_the_edge_panel_may_hold_itself_open() {
     let panel = WebviewWindowBuilder::new(&app, "rail-card", Default::default())
         .build()
         .unwrap();
-    for held in [true, false] {
+    for body in [json!({ "held": true }), json!({ "held": false }), json!({ "held": true, "menu": true }), json!({ "held": false, "menu": false })] {
         assert_eq!(
-            invoke_body(&panel, "plugin:rail|rail_card_hold", InvokeBody::Json(json!({ "held": held }))),
+            invoke_body(&panel, "plugin:rail|rail_card_hold", InvokeBody::Json(body)),
             Ok(Value::Null)
         );
     }

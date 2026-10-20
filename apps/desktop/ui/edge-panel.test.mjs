@@ -4,7 +4,7 @@ import test from "node:test";
 import { messyFixtures } from "./messy-fixtures.mjs";
 import { fakeDocument, leaks, spoken } from "./test-dom.mjs";
 // The panel reaches the compiled engine, which only exists in the build.
-import { naturalHeight, openMainWindow, PANEL_ESCAPE_EVENT, PANEL_SHOWN_EVENT, startPanel } from "./dist/edge-panel.js";
+import { naturalHeight, openMainWindow, PANEL_RELEASE_EVENT, PANEL_SHOWN_EVENT, startPanel } from "./dist/edge-panel.js";
 import { ORDER_CHANGED_EVENT } from "./dist/reorder.js";
 
 const NOW = Date.parse("2026-09-29T12:00:00.000Z");
@@ -273,7 +273,7 @@ test("the panel holds itself open through a drag or its menu; a native Escape or
   await pointer("pointerdown", 10);
   await pointer("pointermove", 30);
   assert.deepEqual(holds(), [true], "a drag holds the panel open");
-  await listeners[PANEL_ESCAPE_EVENT]();
+  await listeners[PANEL_RELEASE_EVENT]();
   assert.deepEqual(holds(), [true, false], "native Escape cancels the drag first");
   assert.equal(closes(), 0, "and leaves the panel open");
   await pointer("pointerdown", 10);
@@ -284,7 +284,7 @@ test("the panel holds itself open through a drag or its menu; a native Escape or
   assert.deepEqual(holds(), [true, false, true, false], "hiding ends it");
   assert.equal(view("panel-limits").all((node) => node.className === "q-ordermenu").length, 0);
   await grip.bubble("click", { detail: 1 });
-  await listeners[PANEL_ESCAPE_EVENT]();
+  await listeners[PANEL_RELEASE_EVENT]();
   assert.equal(view("panel-limits").all((node) => node.className === "q-ordermenu").length, 0, "native Escape closes the menu");
   assert.equal(closes(), 0);
   await doc.fire("keydown", { key: "Escape" });
