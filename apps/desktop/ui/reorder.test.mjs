@@ -593,6 +593,54 @@ test("in My order a provider seen for the first time joins at the bottom once, b
   assert.deepEqual(refused.order(), ["CLAUDE", "GROK"]);
 });
 
+/* The window's Usage list hands over its bars, then the rows still waiting
+   for a first reading or a sign in (no bars yet): in a person's own order
+   those rows are blocks like any other, so they show where the order puts
+   them and a move made on one stays where it was dropped. */
+test("in My order a row with no bars yet shows where the order puts it, and a move made on it stays", async () => {
+  const waiting = (code) => ({ code, name: providerName(code), age: null, windows: [], note: "Waiting for first reading", action: null, usage: "waiting" });
+  /* The Usage tab as the window draws it: every change of the order redraws
+     its bars in that order (one here), then the row still waiting. */
+  const usageTab = async (order) => {
+    const doc = fakeDocument(["mount"]);
+    const mount = doc.getElementById("mount");
+    mount.rect = { top: 0, height: 400 };
+    const memory = memoryOrder(order);
+    const controller = reorderList(doc, mount, {
+      store: memory.store,
+      render: (shown) => renderLimits(doc, mount, shown, { grips: true }),
+      view: { setTimeout: () => {}, matchMedia: () => ({ matches: true }), addEventListener: () => {} },
+    });
+    const draw = () => controller.draw([block("CLAUDE"), waiting("CODEX")]);
+    await memory.store.load();
+    memory.store.subscribe(draw);
+    draw();
+    const groups = () => mount.all((node) => node.className === "q-group");
+    return {
+      memory,
+      shown: () => groups().map((group) => group.dataset.provider),
+      grip: (code) => groups().find((group) => group.dataset.provider === code).all((node) => node.className === "q-grip")[0],
+      menu: () => mount.all((node) => node.className === "q-ordermenu")[0] ?? null,
+    };
+  };
+  const s = await usageTab({ mode: "custom", providers: ["CODEX", "CLAUDE"], revision: 2 });
+  assert.deepEqual(s.shown(), ["CODEX", "CLAUDE"], "the order on disk, not bars first");
+  // Moved to the bottom by its menu, then back to the top: it stays where it was put.
+  await key(s.grip("CODEX"));
+  await key(s.menu().children[3]);
+  await flush();
+  assert.deepEqual(s.memory.disk.providers, ["CLAUDE", "CODEX"]);
+  assert.deepEqual(s.shown(), ["CLAUDE", "CODEX"]);
+  await key(s.grip("CODEX"));
+  await key(s.menu().children[2]);
+  await flush();
+  assert.deepEqual(s.memory.disk.providers, ["CODEX", "CLAUDE"]);
+  assert.deepEqual(s.shown(), ["CODEX", "CLAUDE"], "the redraw after the save keeps it on top");
+  // Most used first keeps the surface's own order: bars first.
+  const usage = await usageTab(USAGE);
+  assert.deepEqual(usage.shown(), ["CLAUDE", "CODEX"]);
+});
+
 /* --------------------------------------------------------- kept by code */
 
 test("a reorderable list keeps its blocks by provider code, never moves the focused one, and patches by code", () => {
