@@ -40,7 +40,7 @@ function release(html: string, version: string): string {
 describe("the changelog", () => {
   it("dates every release from 2.0.0 on", async () => {
     const releases = await readChangelog();
-    for (const entry of releases.filter((row) => /^2\.(0\.\d|1\.[0-5])$/u.test(row.version))) {
+    for (const entry of releases.filter((row) => /^2\.(0\.\d|1\.[0-6])$/u.test(row.version))) {
       expect(entry.date, entry.version).toMatch(/^\d{4}-\d{2}-\d{2}$/u);
     }
   });
