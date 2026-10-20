@@ -1451,9 +1451,11 @@ mod tests {
         assert_eq!(transport.recorded_urls().len(), 1);
         let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
         let authoritative = fs::read_to_string(dir.path().join("openlimiter-authoritative.json")).unwrap_or_default();
-        assert!(cache.contains("FIVE_HOUR"));
-        assert!(cache.contains("SEVEN_DAY") || authoritative.contains("SEVEN_DAY"));
-        assert!(!cache.contains(TOKEN));
+        /* 2.1.7: the session row joins its weeklies, where a legacy status
+        line payload cannot overwrite it. */
+        assert!(authoritative.contains("FIVE_HOUR") && authoritative.contains("SEVEN_DAY"));
+        assert!(!cache.contains("FIVE_HOUR") && !cache.contains("SEVEN_DAY"));
+        assert!(!cache.contains(TOKEN) && !authoritative.contains(TOKEN));
     }
 
     #[tokio::test]

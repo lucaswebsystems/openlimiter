@@ -165,6 +165,32 @@ describe("statusline command reference layout", () => {
     expect(result.stdout).not.toContain("4%");
   });
 
+  it("with the request on, a payload of 37 never replaces the poll's 4 and nothing is written", async () => {
+    const home = await mkdtemp(path.join(await realpath(tmpdir()), "openlimiter-statusline-home-"));
+    roots.push(home);
+    await writeFile(path.join(home, ".claude.json"), JSON.stringify({ oauthAccount: { accountUuid: "synthetic-account-uuid" } }));
+    const stateDirectory = await mkdtemp(path.join(await realpath(tmpdir()), "openlimiter-statusline-command-"));
+    roots.push(stateDirectory);
+    const [session] = normalizeMeters(parseClaudePayload(payload(), NOW)!);
+    await mergeAuthoritativeSnapshotCache([{
+      ...session!, value: 4, accountId: opaqueAccountId("CLAUDE", "synthetic-account-uuid"), writer: "desktop",
+      source: "internal_payload", provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
+      observedAt: "2025-12-31T23:55:00.000Z", expiresAt: "2026-01-01T00:02:45.000Z"
+    }], stateDirectory, NOW);
+    await writeFile(path.join(stateDirectory, "claude-poll.json"), JSON.stringify({ version: 1, enabled: true }));
+    const authoritative = await readFile(path.join(stateDirectory, AUTHORITATIVE_CACHE_FILE_NAME), "utf8");
+    const input = payload();
+    input.rate_limits.five_hour.used_percentage = 37;
+    const result = await runCli(["statusline", "--host", "claude"], {
+      stateDirectory, homeDirectory: home, now: () => NOW, environment: { NO_COLOR: "" },
+      readStandardInput: async () => JSON.stringify(input)
+    });
+    expect(result.stdout).toContain(" 4% ·3h20m");
+    expect(result.stdout).not.toContain("37%");
+    await expect(readFile(path.join(stateDirectory, CACHE_FILE_NAME), "utf8")).rejects.toThrow();
+    expect(await readFile(path.join(stateDirectory, AUTHORITATIVE_CACHE_FILE_NAME), "utf8")).toBe(authoritative);
+  });
+
   it("keeps saved segments, windows and providers hidden", async () => {
     const stateDirectory = await seeded();
     const options = { stateDirectory, now: () => NOW, environment: { NO_COLOR: "" } };

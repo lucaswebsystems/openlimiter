@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { FIXTURE_NOW } from "@openlimiter/connectors";
 import {
   ACQUISITION_STATE_FILE_NAME,
+  AUTHORITATIVE_CACHE_FILE_NAME,
   opaqueAccountId,
   CACHE_FILE_NAME,
   OPENLIMITER_USER_AGENT,
@@ -645,6 +646,20 @@ describe("the Claude poll switch", () => {
     const cached = await readSnapshotCache(state);
     const meters = cached.ok ? cached.snapshots.filter((row) => row.provider === "CLAUDE").map((row) => row.meter).sort() : [];
     expect(meters).toEqual(["FIVE_HOUR", "SEVEN_DAY"]);
+  });
+
+  /* 2.1.7: the poll's session row joins its weeklies in the authoritative
+     file, where a legacy status line payload cannot overwrite it. Rust twin:
+     claude_oauth.rs, one_success_is_cached_and_the_next_call_never_reaches_the_provider. */
+  it("writes the poll's session reading beside its weeklies in the authoritative file", async () => {
+    const state = await temporaryDirectory("openlimiter-state-");
+    const home = await machineWithLogins();
+    await runCli(["config", "set", "providers.claude.poll", "true"], dependencies(state, home, recordingTransport().transport));
+    await runCli(["refresh"], dependencies(state, home, recordingTransport().transport));
+    const claudeMeters = async (file: string) => (JSON.parse(await readFile(path.join(state, file), "utf8")) as { snapshots: Snapshot[] })
+      .snapshots.filter((row) => row.provider === "CLAUDE").map((row) => row.meter).sort();
+    expect(await claudeMeters(AUTHORITATIVE_CACHE_FILE_NAME)).toEqual(["FIVE_HOUR", "SEVEN_DAY", "SEVEN_DAY_FABLE"]);
+    expect(await claudeMeters(CACHE_FILE_NAME)).toEqual([]);
   });
 
   /* Hotfix 2.1.5 fix 3: when the desktop polled and then exited, the shared
