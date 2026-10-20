@@ -13,6 +13,8 @@ import {
   PROVIDER_CODES,
   buildAdvice,
   canonicalJson,
+  claudeRowCounts,
+  readClaudePoll,
   readSnapshotCache,
   resolveStateDirectory,
   writeFileAtomically,
@@ -490,7 +492,11 @@ export async function writeAgentContextSnapshot(
   const file = path.join(base, AGENT_CONTEXT_FILE_NAME);
   await withContextWriteTurn(base, async () => {
     const cached = await readSnapshotCache(base);
-    const committed = cached.ok ? cached.snapshots : snapshots;
+    /* A cache that cannot be read falls back to the caller's rows, through the
+       same Claude source predicate the reader applies. */
+    const committed = cached.ok
+      ? cached.snapshots
+      : await readClaudePoll(base).then((pollOn) => snapshots.filter((row) => claudeRowCounts(row, pollOn)));
     const stamp = agentContextCacheStamp(committed);
     const existing = await currentDocument(file, now);
     if (supersedes(existing, stamp, Date.parse(now))) return;
