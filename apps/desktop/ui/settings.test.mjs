@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { DOWNLOAD_URL, captionsMarkup, presetMarkup, renderSettings, themeLabel, updateView, wireAutostart } from "./settings.js";
+import { DOWNLOAD_URL, captionsMarkup, presetMarkup, renderSettings, themeLabel, updateView, wireAutostart, wireUpdates } from "./settings.js";
 
 const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
 const settings = readFileSync(new URL("./settings.js", import.meta.url), "utf8");
@@ -107,4 +107,41 @@ test("a release the manifest has no installer for links to the download page (ma
     menu: "Install OpenLimiter 2.1.7", banner: "OpenLimiter 2.1.7 is ready. Install now.", href: null,
   });
   assert.deepEqual(updateView(null), { menu: "OpenLimiter is current", banner: null, href: null });
+});
+
+function updateControls(update) {
+  const control = () => {
+    const handlers = {};
+    return { textContent: "", hidden: true, disabled: false, handlers, addEventListener: (type, handler) => { handlers[type] = handler; } };
+  };
+  const calls = [];
+  const api = {
+    checkForUpdate: async () => { calls.push("check"); return { ok: true, value: update }; },
+    installUpdate: async () => { calls.push("install"); return { ok: true, value: null }; },
+    openDownloadPage: async () => { calls.push("download"); return { ok: true, value: null }; },
+  };
+  const menu = control();
+  const banner = control();
+  return { menu, banner, calls, run: wireUpdates({ menu, banner }, api) };
+}
+
+test("both update controls open the download page through the native action for a release with no installer here (Astra finding 2)", async () => {
+  const controls = updateControls({ version: "2.1.7", currentVersion: "2.1.6", manual: true });
+  await controls.run(true);
+  assert.equal(controls.banner.hidden, false);
+  assert.equal(controls.banner.textContent, "Version 2.1.7 is out. Download it from openlimiter.com.");
+  assert.equal(controls.menu.textContent, "Version 2.1.7 is out. Download it from openlimiter.com.");
+  controls.banner.handlers.click();
+  controls.menu.handlers.click();
+  assert.deepEqual(controls.calls, ["check", "download", "download"]);
+});
+
+test("an installable release keeps the banner's install and the menu's fresh check", async () => {
+  const controls = updateControls({ version: "2.1.7", currentVersion: "2.1.6", manual: false });
+  await controls.run(true);
+  assert.equal(controls.banner.textContent, "OpenLimiter 2.1.7 is ready. Install now.");
+  controls.banner.handlers.click();
+  assert.equal(controls.banner.textContent, "Installing update");
+  controls.menu.handlers.click();
+  assert.deepEqual(controls.calls, ["check", "install", "check"]);
 });

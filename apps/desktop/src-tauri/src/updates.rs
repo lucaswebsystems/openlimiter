@@ -14,6 +14,13 @@ pub enum UpdateFailure {
     NoPendingUpdate,
     UpdateInstallFailed,
     UpdateStateUnavailable,
+    DownloadPageUnavailable,
+}
+
+/// Stub with today's behaviour: nothing native opens the download page.
+fn open_download_page_with<E>(open: impl FnOnce(&str) -> Result<(), E>) -> Result<(), UpdateFailure> {
+    let _ = open;
+    Ok(())
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize)]
@@ -177,6 +184,24 @@ mod tests {
                 "manual": false
             })
         );
+    }
+
+    /// Astra 2.1.7, finding 2: both manual update controls open the download
+    /// page through this one native action, which takes no address from the
+    /// window and opens exactly one.
+    #[test]
+    fn the_download_page_is_the_one_address_this_action_opens() {
+        let mut opened = Vec::new();
+        assert!(open_download_page_with(|url| {
+            opened.push(url.to_string());
+            Ok::<(), ()>(())
+        })
+        .is_ok());
+        assert_eq!(opened, ["https://openlimiter.com/download"]);
+        assert!(matches!(
+            open_download_page_with(|_| Err::<(), ()>(())),
+            Err(UpdateFailure::DownloadPageUnavailable)
+        ));
     }
 
     /// macOS is left out of the manifest while it is unsigned (2.1.7): the

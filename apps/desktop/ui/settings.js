@@ -100,6 +100,45 @@ export function updateView(update) {
   return { menu: "Install OpenLimiter " + version, banner: "OpenLimiter " + version + " is ready. Install now.", href: null };
 }
 
+/* Stub with today's behaviour (moved from app.js): the banner calls
+   window.open for the download page and the menu always checks again. */
+export function wireUpdates({ menu, banner }, api) {
+  let href = null;
+  const run = async (silent) => {
+    if (!silent) menu.textContent = "Checking for updates";
+    const result = await api.checkForUpdate();
+    if (!result.ok) {
+      if (!silent) menu.textContent = "Update check unavailable";
+      return;
+    }
+    const view = updateView(result.value);
+    if (view.banner === null) {
+      if (!silent) menu.textContent = view.menu;
+      return;
+    }
+    href = view.href;
+    banner.textContent = view.banner;
+    banner.hidden = false;
+    menu.textContent = view.menu;
+  };
+  menu.addEventListener("click", () => { void run(false); });
+  banner.addEventListener("click", () => {
+    if (href !== null) {
+      globalThis.window?.open(href, "_blank", "noopener,noreferrer");
+      return;
+    }
+    banner.disabled = true;
+    banner.textContent = "Installing update";
+    void api.installUpdate().then((result) => {
+      if (!result.ok) {
+        banner.disabled = false;
+        banner.textContent = "Update install unavailable";
+      }
+    });
+  });
+  return run;
+}
+
 /** Bring the plan card into view: open the menu when it is closed, then scroll. */
 export function showPlan(doc = document) {
   doc.getElementById("tab-settings")?.click();
