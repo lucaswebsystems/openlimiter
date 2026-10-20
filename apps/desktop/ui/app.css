@@ -2903,10 +2903,6 @@ button.first-run-quiet-button {
   transform: none;
 }
 
-#settings-appearance #theme {
-  padding-right: 0;
-}
-
 .menu-presets {
   display: grid;
   gap: var(--ol-space-1);

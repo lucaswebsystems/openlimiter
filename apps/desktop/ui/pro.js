@@ -33,7 +33,7 @@ export const FEATURES = [
   { key: "api_spend_beta", label: "Spend forecast from observed periods" },
   { key: "alerts", label: "Alerts that arrive with the app closed" },
   { key: "routing", label: "Live budget context for coding agent routing" },
-  { key: "theme_preset", label: "Theme presets" },
+  { key: "theme_preset", label: "Ember theme preset" },
 ];
 
 /* The service says trialing; this window has always said trial. Both are
@@ -502,14 +502,25 @@ function keyForm(doc, row, handlers, status) {
     team.setAttribute("spellcheck", "false");
     form.append(team);
   }
-  const save = element(doc, "button", "q-btn q-btn-primary", KEYS_EN.save);
+  const save = element(doc, "button", "q-btn q-btn-ghost", KEYS_EN.save);
   save.type = "button";
   save.dataset.keyAction = "save";
+  /* Save is quiet until its field holds a key, then it is the row's primary. */
+  const paint = () => {
+    save.className = String(input.value ?? "").trim() === "" ? "q-btn q-btn-ghost" : "q-btn q-btn-primary";
+  };
+  input.addEventListener("input", paint);
   save.addEventListener("click", async () => {
     const secret = String(input.value ?? "").trim();
     /* Cleared before anything is sent, so a secret never waits in a field. */
     input.value = "";
-    if (secret === "" || save.disabled) return;
+    paint();
+    /* An empty Save points at the field that needs the key. */
+    if (secret === "") {
+      input.focus?.();
+      return;
+    }
+    if (save.disabled) return;
     save.disabled = true;
     status.textContent = "";
     let result;

@@ -40,7 +40,7 @@ import {
 } from "./readings.js";
 import { providerCode, providerName, say } from "./names.js";
 import { renderPlanCap } from "./plan-cap.js";
-import { refreshDesktopTrial, renderSettings, themeLabel, tickDesktopTrial } from "./settings.js";
+import { refreshDesktopTrial, renderSettings, tickDesktopTrial } from "./settings.js";
 import { mountAgents } from "./agents.js";
 import { keyRepaintGate, keyRows, proEntitled, refreshEntitlement, renderKeys, renderPro, saveOpenrouterConnection } from "./pro.js";
 /* The phone panel and the device list it produces. Both live behind an
@@ -101,7 +101,6 @@ import {
   setClaudePollEnabled,
   setProviderEnabled,
   setTrayStatus,
-  setTerminalCaptions,
 } from "./backend.js";
 import { readConfiguredProviders, readRemovedProviders, adoptDetectedProviders, homeSelectionControl } from "./configured-providers.js";
 import { bindHomeRefresh } from "./home-refresh.js";
@@ -148,7 +147,6 @@ const elements = {
   keyRows: document.getElementById("key-rows"),
   agentsSection: document.getElementById("agents-section"),
   agentsMount: document.getElementById("agents-mount"),
-  theme: document.getElementById("theme"),
   menuButton: document.getElementById("menu-button"),
   menu: document.getElementById("app-menu"),
   menuEmail: document.getElementById("menu-account-email"),
@@ -208,11 +206,7 @@ async function readPlan() {
   const pro = result.ok ? result.value : null;
   const entitled = proEntitled(pro);
   trialOffered = !entitled;
-  if (result.ok && pro?.theme_preset !== true) {
-    const reset = await setTerminalCaptions("short");
-    return { ...result, captionsReset: reset.ok };
-  }
-  return { ...result, captionsReset: true };
+  return result;
 }
 
 /* ------------------------------------------------ account, menu and alerts */
@@ -668,13 +662,12 @@ window.addEventListener("focus", () => {
   void refreshEntitlement();
 });
 
-/* The three Settings blocks, mounted only after entitlement normalization so a
-   downgraded Tagged caption choice never paints for one frame. */
+/* The three Settings blocks, mounted once the plan is read. */
 const mountPlanCap = () => renderPlanCap(elements.planCapMount, { onChange: () => void refresh() });
 void (async () => {
-  const plan = await readPlan();
+  await readPlan();
   await renderPro(elements.proMount);
-  if (plan.captionsReset !== false) await renderSettings(elements.settingsMount);
+  await renderSettings(elements.settingsMount);
   await mountPlanCap();
 })();
 
@@ -682,10 +675,10 @@ void (async () => {
    offer, the account cap, the plan card and the preset. */
 window.addEventListener("openlimiter:pro-changed", () => {
   void (async () => {
-    const plan = await readPlan();
+    await readPlan();
     await mountPlanCap();
     await renderPro(elements.proMount);
-    if (plan.captionsReset !== false) await renderSettings(elements.settingsMount);
+    await renderSettings(elements.settingsMount);
   })();
 });
 
@@ -1093,24 +1086,24 @@ bindHomeRefresh({
  * The theme, and the only thing this window persists.
  *
  * Dark is the default and the head script has already applied any stored
- * choice, so all this does is flip the attribute the stylesheet keys off and
- * write the new choice down, under the key the site's own toggle uses.
+ * choice, so all this does is set the attribute the stylesheet keys off,
+ * press the tile that was chosen and write the choice down, under the key the
+ * site's own toggle uses.
  */
-function toggleTheme() {
-  const light = document.documentElement.getAttribute("data-theme") === "light";
-  const next = light ? "dark" : "light";
-  document.documentElement.setAttribute("data-theme", next);
-  const theme = document.getElementById("theme");
-  theme?.setAttribute("aria-pressed", next === "dark" ? "true" : "false");
-  if (theme) theme.textContent = themeLabel(next);
+function setTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  for (const button of document.querySelectorAll("[data-theme-choice]")) {
+    button.setAttribute("aria-pressed", String(button.getAttribute("data-theme-choice") === theme));
+  }
   try {
-    window.localStorage.setItem(THEME_KEY, next);
+    window.localStorage.setItem(THEME_KEY, theme);
   } catch {
     /* Storage refused. The choice still applies to this window. */
   }
 }
 document.addEventListener("click", (event) => {
-  if (event.target instanceof Element && event.target.closest("#theme")) toggleTheme();
+  const choice = event.target instanceof Element ? event.target.closest("[data-theme-choice]") : null;
+  if (choice !== null) setTheme(choice.getAttribute("data-theme-choice") === "light" ? "light" : "dark");
 });
 
 /* The tools' steps: Claude Code's setup, the pasted keys, Codex's import. */

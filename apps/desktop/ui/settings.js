@@ -13,7 +13,8 @@
  * them off by writing equal times and on by writing a real range: the trap of
  * two equal times meaning "off" can no longer be set by accident.
  *
- * The theme presets are gated on the `theme_preset` entitlement and downgrade
+ * One theme preset is Pro, Ember, on the `theme_preset` entitlement; Graphite
+ * and Meadow are free, and so are terminal captions. Ember downgrades
  * gracefully: losing Pro returns the window to the default theme and leaves
  * the chosen preset remembered rather than deleting it.
  */
@@ -224,8 +225,15 @@ const PRESETS = [
   { id: "default", name: "Product", swatches: ["var(--ol-canvas)", "var(--ol-surface)", "var(--ol-accent)"] },
   { id: "graphite", name: "Graphite", swatches: ["var(--ol-code)", "var(--ol-elevated)", "var(--ol-soft)"] },
   { id: "meadow", name: "Meadow", swatches: ["var(--ol-canvas)", "var(--ol-raised)", "var(--ol-band-green-fill)"] },
-  { id: "ember", name: "Ember", swatches: ["var(--ol-canvas)", "var(--ol-raised)", "var(--ol-band-orange-fill)"] },
+  { id: "ember", name: "Ember", swatches: ["var(--ol-canvas)", "var(--ol-raised)", "var(--ol-band-orange-fill)"], pro: true },
 ];
+
+/* Which preset the window wears: any free one, and Ember only with Pro. */
+export function appliedPreset(chosen, entitled) {
+  const preset = PRESETS.find((entry) => entry.id === chosen);
+  if (preset === undefined) return "default";
+  return preset.pro === true && entitled !== true ? "default" : preset.id;
+}
 
 const PRESET_KEY = "openlimiter-theme-preset";
 
@@ -354,12 +362,15 @@ export async function wireAutostart(control, api = { autostartStatus, setAutosta
   });
 }
 
+/* A locked tile stays focusable and pressable: it says it is Pro, and a press
+   shows the plan rather than doing nothing. */
 export function presetMarkup(entitled, chosen) {
+  const applied = appliedPreset(chosen, entitled);
   return PRESETS.map(
     (preset) => {
-      const locked = !entitled && preset.id !== "default";
-      return '<button type="button" class="preset" data-preset="' + preset.id + '" aria-pressed="' + String(preset.id === chosen) + '"' +
-        (locked ? " disabled" : "") +
+      const locked = entitled !== true && preset.pro === true;
+      return '<button type="button" class="preset" data-preset="' + preset.id + '" aria-pressed="' + String(preset.id === applied) + '"' +
+        (locked ? ' aria-disabled="true" aria-label="' + escapeText(preset.name) + ', Pro"' : "") +
         '><span class="preset-swatches" aria-hidden="true">' +
         preset.swatches.map((swatch) => '<span class="preset-swatch" style="background:' + swatch + '"></span>').join("") +
         '</span>' + (locked ? '<span class="menu-lock" aria-hidden="true">' + LOCK + "</span>" : "") +
@@ -410,23 +421,28 @@ function alertsMarkup(settings) {
   );
 }
 
+/* Light and Dark as a pair of pressed tiles, each named by its own label. */
 function themeMarkup() {
   const current = globalThis.document?.documentElement?.getAttribute("data-theme") === "light" ? "light" : "dark";
-  return '<div class="menu-line"><span>' + say("theme") + '</span><button type="button" id="theme" class="icon" aria-label="' + say("themeToggle") + '" title="' + say("themeToggle") + '">' + themeLabel(current) + '</button></div>';
+  return '<div class="menu-presets theme-choice"><span>' + say("theme") + '</span>' +
+    '<span class="preset-grid" role="group" aria-label="' + say("theme") + '">' +
+    ["light", "dark"].map((theme) => '<button type="button" class="preset" data-theme-choice="' + theme +
+      '" aria-pressed="' + String(theme === current) + '">' + themeLabel(theme) + "</button>").join("") +
+    "</span></div>";
 }
 
-export function captionsMarkup(captions, entitled) {
+/* Terminal captions are free: both tiles work on every plan. */
+export function captionsMarkup(captions) {
   return '<div class="menu-presets terminal-captions"><span>' + CAPTIONS_EN.title + '</span><span class="preset-grid">' +
     '<button type="button" class="preset" data-caption="short" aria-pressed="' + String(captions === "short") + '">' + CAPTIONS_EN.short + '</button>' +
-    '<button type="button" class="preset" data-caption="tagged" aria-pressed="' + String(captions === "tagged") + '"' + (entitled ? "" : " disabled") + '>' +
-    (entitled ? "" : '<span class="menu-lock" aria-hidden="true">' + LOCK + "</span>") + CAPTIONS_EN.tagged + '</button></span></div>' +
+    '<button type="button" class="preset" data-caption="tagged" aria-pressed="' + String(captions === "tagged") + '">' + CAPTIONS_EN.tagged + '</button></span></div>' +
     '<p class="menu-note">' + CAPTIONS_EN.note + '</p>';
 }
 
 function appearanceMarkup(chosen, entitled, captions) {
   return themeMarkup() +
     '<div class="menu-presets"><span>' + MENU_EN.preset + '</span><span class="preset-grid">' + presetMarkup(entitled, chosen) + "</span></div>" +
-    captionsMarkup(captions, entitled) + railSettingsMarkup() + autostartMarkup();
+    captionsMarkup(captions) + railSettingsMarkup() + autostartMarkup();
 }
 
 /** Settings are divided into appearance and alerts mounts, while account and Pro stay in the page. */
@@ -468,9 +484,9 @@ export async function renderSettings(mount) {
   } catch (error) {
     /* Storage refused. The product preset is already the default. */
   }
-  /* Graceful downgrade: the preset stays chosen, the window simply stops
-     applying it until the entitlement returns. */
-  ownerDocument?.documentElement?.setAttribute("data-preset", entitled ? chosen : "default");
+  /* Graceful downgrade: Ember stays chosen, the window simply stops applying
+     it until the entitlement returns. */
+  ownerDocument?.documentElement?.setAttribute("data-preset", appliedPreset(chosen, entitled));
 
   state.agentAlerts = agentResult.ok ? agentResult.value : null;
   target.appearance.innerHTML = appearanceMarkup(chosen, entitled, captions);
@@ -540,7 +556,10 @@ function wire(agents) {
      from under the click that was turning it. */
   for (const control of document.querySelectorAll("button[data-preset]")) {
     control.addEventListener("click", async () => {
-      if (control.disabled) return;
+      if (control.getAttribute("aria-disabled") === "true") {
+        showPlan();
+        return;
+      }
       try {
         globalThis.localStorage.setItem(PRESET_KEY, control.getAttribute("data-preset"));
       } catch (error) {
@@ -551,7 +570,6 @@ function wire(agents) {
   }
   for (const control of document.querySelectorAll("[data-caption]")) {
     control.addEventListener("click", async () => {
-      if (control.disabled) return;
       const result = await setTerminalCaptions(control.getAttribute("data-caption"));
       if (result.ok) await renderSettings(state.mount);
     });

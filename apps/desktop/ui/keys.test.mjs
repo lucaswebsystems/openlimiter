@@ -87,6 +87,26 @@ test("seven rows, including both OpenRouter credentials, each empty with a short
   assert.deepEqual(leaks(spoken(mount)), []);
 });
 
+test("Save stays quiet until its field holds a key, and an empty Save points at the field", async () => {
+  const { doc, calls, field, save } = draw(keyRows({}, NOW));
+  for (const provider of KEY_PROVIDERS) assert.equal(save(provider.id).className, "q-btn q-btn-ghost", provider.id);
+  field("openai").value = "sk-admin-example";
+  await field("openai").fire("input");
+  assert.equal(save("openai").className, "q-btn q-btn-primary");
+  assert.equal(save("anthropic").className, "q-btn q-btn-ghost", "one typed field lights only its own Save");
+  field("openai").value = "   ";
+  await field("openai").fire("input");
+  assert.equal(save("openai").className, "q-btn q-btn-ghost", "spaces are not a key");
+  await save("deepseek").fire("click");
+  assert.deepEqual(calls, [], "an empty Save sent something");
+  assert.equal(doc.activeElement, field("deepseek"), "an empty Save did not point at its field");
+  field("deepseek").value = "sk-example";
+  await field("deepseek").fire("input");
+  await save("deepseek").fire("click");
+  assert.equal(calls.length, 1);
+  assert.equal(save("deepseek").className, "q-btn q-btn-ghost", "the cleared field left Save lit");
+});
+
 test("the OpenRouter Save creates the quota connection and never an API spend source", async () => {
   const { calls, field, save } = draw(keyRows({}, NOW));
   field("openrouter").value = "  sk-or-example  ";
