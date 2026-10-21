@@ -27,6 +27,7 @@ import {
 } from "./engine/core/index.js";
 /* The one projection, names and drawing Home shares with the edge panel. */
 import {
+  alertBatchNote,
   alertSamples,
   fixWords,
   holdReadings,
@@ -821,7 +822,10 @@ async function repaintHome() {
     paintFailures(visibleFailures);
 
     const notificationSamples = alertSamples(visible, now);
-    if (notificationSamples.length > 0) await evaluateNotifications(notificationSamples);
+    if (notificationSamples.length > 0) {
+      const alertNote = alertBatchNote(await evaluateNotifications(notificationSamples));
+      if (alertNote !== null) console.warn(alertNote);
+    }
 
     await setTrayStatus({
       providers: trayProviders(advice, configuredProviders),

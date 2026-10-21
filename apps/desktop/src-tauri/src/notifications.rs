@@ -207,6 +207,18 @@ struct Popup {
 struct Evaluation {
     created: Vec<NotificationEvent>,
     popups: Vec<Popup>,
+    /// One short code per sample left out, in batch order.
+    skipped: Vec<&'static str>,
+}
+
+/// What `evaluate_notifications` answers: the events it created, and how many
+/// samples it skipped and why, so the window can log them.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationBatch {
+    events: Vec<NotificationEvent>,
+    skipped: usize,
+    skip_reasons: Vec<&'static str>,
 }
 
 pub struct NotificationState {
@@ -283,23 +295,47 @@ fn valid_account(value: &str) -> bool {
         })
 }
 
+/// Exactly the providers a row can name. A hand list here once left out
+/// CURSOR, and every Cursor reading then refused the whole batch (2.1.8).
 fn valid_provider(value: &str) -> bool {
-    matches!(
-        value,
-        "CLAUDE"
-            | "CODEX"
-            | "ANTIGRAVITY"
-            | "GEMINI_CLI"
-            | "GROK"
-            | "KIMI"
-            | "OPENCODE"
-            | "OPENROUTER"
-            | "OPENAI"
-            | "ANTHROPIC"
-            | "XAI"
-            | "MOONSHOT"
-            | "MANUAL"
-    )
+    crate::native_snapshot::PROVIDER_CODES.contains(&value)
+}
+
+/// The instant a sample was observed, or the short code saying why the
+/// sample cannot be used. A bad sample is skipped, never the whole batch.
+fn checked_sample(sample: &NotificationSample) -> Result<i64, &'static str> {
+    let observed_at = parse_observed_at(&sample.observed_at).ok_or("invalid_observed_at")?;
+    if !valid_account(&sample.account_id) {
+        Err("invalid_account")
+    } else if !valid_provider(&sample.provider) {
+        Err("unknown_provider")
+    } else if !valid_text(&sample.window_name, 96) || !valid_text(&sample.window_id, 128) {
+        Err("invalid_window")
+    } else if !sample.value.is_finite() || !(0.0..=sample.meter.maximum()).contains(&sample.value) {
+        Err("invalid_value")
+    } else {
+        Ok(observed_at)
+    }
+}
+
+/// Decode each sample on its own, so one that does not decode is skipped
+/// like one that fails validation instead of refusing the batch.
+fn decode_samples(
+    values: Vec<serde_json::Value>,
+) -> Result<(Vec<NotificationSample>, Vec<&'static str>), String> {
+    if values.len() > MAX_SAMPLES {
+        return Err("invalid_input".to_string());
+    }
+    let mut skipped = Vec::new();
+    let samples = values
+        .into_iter()
+        .filter_map(|value| {
+            serde_json::from_value(value)
+                .map_err(|_| skipped.push("malformed_sample"))
+                .ok()
+        })
+        .collect();
+    Ok((samples, skipped))
 }
 
 fn parse_observed_at(value: &str) -> Option<i64> {
@@ -561,17 +597,15 @@ fn evaluate_document(
     }
     let mut created = Vec::new();
     let mut popups = Vec::new();
+    let mut skipped = Vec::new();
     for sample in samples {
-        let observed_at = parse_observed_at(&sample.observed_at).ok_or("invalid_input")?;
-        if !valid_account(&sample.account_id)
-            || !valid_provider(&sample.provider)
-            || !valid_text(&sample.window_name, 96)
-            || !valid_text(&sample.window_id, 128)
-            || !sample.value.is_finite()
-            || !(0.0..=sample.meter.maximum()).contains(&sample.value)
-        {
-            return Err("invalid_input".to_string());
-        }
+        let observed_at = match checked_sample(&sample) {
+            Ok(observed_at) => observed_at,
+            Err(reason) => {
+                skipped.push(reason);
+                continue;
+            }
+        };
         let key = identity(&sample);
         let Some(mut previous) = document.meters.remove(&key) else {
             document.meters.insert(
@@ -710,7 +744,7 @@ fn evaluate_document(
         previous.last_value = sample.value;
         document.meters.insert(key, previous);
     }
-    Ok(Evaluation { created, popups })
+    Ok(Evaluation { created, popups, skipped })
 }
 
 fn now_seconds() -> i64 {
@@ -753,15 +787,17 @@ pub fn notification_gate() -> NotificationGate {
 
 #[tauri::command]
 pub fn evaluate_notifications(
-    samples: Vec<NotificationSample>,
+    samples: Vec<serde_json::Value>,
     system_time_zone: String,
     app: AppHandle,
     state: State<'_, NotificationState>,
-) -> Result<Vec<NotificationEvent>, String> {
+) -> Result<NotificationBatch, String> {
+    let (samples, mut skipped) = decode_samples(samples)?;
     let mut held = state.document.lock().map_err(|_| storage_error())?;
     let current = held.as_ref().ok_or_else(storage_error)?;
     let mut next = current.clone();
     let evaluation = evaluate_document(&mut next, samples, &system_time_zone, now_seconds())?;
+    skipped.extend(evaluation.skipped);
     state.persist(&next)?;
     *held = Some(next);
     drop(held);
@@ -782,7 +818,7 @@ pub fn evaluate_notifications(
     }
     let held = state.document.lock().map_err(|_| storage_error())?;
     let document = held.as_ref().ok_or_else(storage_error)?;
-    Ok(evaluation
+    let events = evaluation
         .created
         .into_iter()
         .map(|mut event| {
@@ -791,7 +827,12 @@ pub fn evaluate_notifications(
             }
             event
         })
-        .collect())
+        .collect();
+    Ok(NotificationBatch {
+        events,
+        skipped: skipped.len(),
+        skip_reasons: skipped,
+    })
 }
 
 #[tauri::command]
@@ -895,6 +936,89 @@ mod tests {
             value,
             observed_at: observed_at.to_string(),
         }
+    }
+
+    fn reading(provider: &str, value: f64, observed_at: &str) -> NotificationSample {
+        NotificationSample {
+            provider: provider.to_string(),
+            ..sample(value, observed_at)
+        }
+    }
+
+    /* 2.1.8: a Cursor reading failed validation and took the whole batch
+    with it, so while Cursor was connected no provider raised any alert. */
+    #[test]
+    fn a_cursor_sample_beside_a_claude_sample_records_both_alerts() {
+        let mut document = NotificationDocument::default();
+        let pair = |value: f64, observed: &str| vec![reading("CURSOR", value, observed), reading("CLAUDE", value, observed)];
+        evaluate_document(&mut document, pair(50.0, "2026-09-01T10:00:00Z"), "UTC", 1_788_278_400).unwrap();
+        let result = evaluate_document(&mut document, pair(85.0, "2026-09-01T10:01:00Z"), "UTC", 1_788_278_460).unwrap();
+        let mut alerted = result.created.iter().map(|event| (event.provider.as_str(), event.kind.as_str())).collect::<Vec<_>>();
+        alerted.sort_unstable();
+        assert_eq!(alerted, [("CLAUDE", "threshold_80"), ("CURSOR", "threshold_80")]);
+        assert_eq!(result.popups.len(), 2);
+        assert!(result.skipped.is_empty());
+    }
+
+    #[test]
+    fn a_bad_sample_is_skipped_and_never_rejects_the_batch() {
+        let mut document = NotificationDocument::default();
+        evaluate_document(&mut document, vec![reading("CLAUDE", 50.0, "2026-09-01T10:00:00Z")], "UTC", 1_788_278_400).unwrap();
+        let batch = vec![
+            reading("UNRECOGNIZED", 85.0, "2026-09-01T10:01:00Z"),
+            reading("CODEX", 85.0, "yesterday"),
+            reading("CODEX", 140.0, "2026-09-01T10:01:00Z"),
+            reading("CLAUDE", 85.0, "2026-09-01T10:01:00Z"),
+        ];
+        let result = evaluate_document(&mut document, batch, "UTC", 1_788_278_460).expect("a bad sample never rejects the batch");
+        assert_eq!(result.created.iter().map(|event| (event.provider.as_str(), event.kind.as_str())).collect::<Vec<_>>(), [("CLAUDE", "threshold_80")]);
+        assert_eq!(result.skipped, ["unknown_provider", "invalid_observed_at", "invalid_value"]);
+        assert_eq!(document.meters.len(), 1, "a skipped sample leaves no meter behind");
+    }
+
+    #[test]
+    fn a_sample_that_does_not_decode_is_skipped_like_an_invalid_one() {
+        let good = serde_json::json!({
+            "accountId": "account-one", "provider": "CURSOR", "meter": "provider_usage_percent",
+            "windowName": "MONTHLY", "windowId": "meter:MONTHLY", "value": 31.0,
+            "observedAt": "2026-09-01T10:00:00Z",
+        });
+        let mut extra = good.clone();
+        extra["windowLabel"] = serde_json::json!("Monthly");
+        let mut unknown_meter = good.clone();
+        unknown_meter["meter"] = serde_json::json!("tokens");
+        let (samples, skipped) = decode_samples(vec![extra, good, unknown_meter]).unwrap();
+        assert_eq!(samples.len(), 1);
+        assert_eq!(samples[0].provider, "CURSOR");
+        assert_eq!(skipped, ["malformed_sample", "malformed_sample"]);
+        assert!(decode_samples(vec![serde_json::Value::Null; MAX_SAMPLES + 1]).is_err(), "the batch bound still holds");
+        let batch = serde_json::to_value(NotificationBatch { events: Vec::new(), skipped: 1, skip_reasons: vec!["unknown_provider"] }).unwrap();
+        assert_eq!(batch, serde_json::json!({ "events": [], "skipped": 1, "skipReasons": ["unknown_provider"] }));
+    }
+
+    /* Contract: every provider code the TypeScript engine can put on a row
+    reaches the alert rules. A code added on one side only fails here. */
+    #[test]
+    fn every_provider_code_the_engine_emits_is_accepted_for_alerts() {
+        let types = include_str!("../../../../packages/core/src/types.ts");
+        let list = types
+            .split("export const PROVIDER_CODES = [")
+            .nth(1)
+            .and_then(|rest| rest.split("] as const").next())
+            .expect("the engine's provider vocabulary");
+        let engine = list.split('"').skip(1).step_by(2).collect::<Vec<_>>();
+        assert!(engine.contains(&"CURSOR") && engine.contains(&"MANUAL"), "{engine:?}");
+        for code in &engine {
+            assert!(valid_provider(code), "{code} is refused by the alert rules");
+        }
+        assert!(!valid_provider("UNRECOGNIZED"));
+        /* And the Rust list the alert rules read is the engine's, code for
+        code, so neither side can carry a provider the other has not got. */
+        let mut engine = engine;
+        let mut native = crate::native_snapshot::PROVIDER_CODES.to_vec();
+        engine.sort_unstable();
+        native.sort_unstable();
+        assert_eq!(native, engine);
     }
 
     #[test]

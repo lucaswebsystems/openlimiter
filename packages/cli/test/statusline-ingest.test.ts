@@ -1,10 +1,11 @@
 import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { FIXTURE_NOW, claudeFixture, grokFixture } from "@openlimiter/connectors";
 import { CACHE_FILE_NAME, opaqueAccountId, readSnapshotCache } from "@openlimiter/core";
 import { runCli } from "../src/index.js";
+import * as ingest from "../src/ingest.js";
 
 /**
  * Host aware standard input ingestion, against recorded payload shapes.
@@ -31,6 +32,7 @@ async function temporaryDirectory(): Promise<string> {
 }
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   for (const directory of created.splice(0)) {
     await rm(directory, { recursive: true, force: true });
   }
@@ -252,6 +254,71 @@ describe("statusline ingestion by host", () => {
     expect(result.stdout).toContain("27%");
     expect(result.stdout).toContain("24%");
     expect(result.stdout).not.toContain("ag5h");
+  });
+
+  /*
+   * A quota map whose buckets this build cannot read looks, on every surface,
+   * exactly like an Antigravity CLI that is closed: the bars just age. Doctor
+   * is the one place that can tell the two apart, so the drift is kept there.
+   */
+  it.each(["gemini-daily", "a".repeat(25) + "-5h"])("Antigravity: unreadable bucket %s records drift and leaves the cache alone", async (bucket) => {
+    const directory = await temporaryDirectory();
+    const options = { stateDirectory: directory, homeDirectory: await temporaryDirectory(), environment: {}, platform: "linux" as const, now: () => FIXTURE_NOW };
+    const statusline = (quota: unknown) => runCli(["statusline", "--host", "antigravity"], {
+      ...options,
+      readStandardInput: async () => JSON.stringify({ ...antigravityStatuslinePayload(FIXTURE_NOW), quota })
+    });
+    const doctor = async () => (await runCli(["doctor"], options)).stdout;
+    const documented = antigravityStatuslinePayload(FIXTURE_NOW)["quota"];
+    await statusline(documented);
+    const cache = await readFile(path.join(directory, CACHE_FILE_NAME), "utf8");
+    expect((await statusline({ [bucket]: { remaining_fraction: 0.5 } })).exitCode).toBe(0);
+    expect(await readFile(path.join(directory, CACHE_FILE_NAME), "utf8")).toBe(cache);
+    expect(await doctor()).toMatch(/^STATUSLINE WRITE FAILED \S+ ingest SchemaDriftError the last status line payload could not be read$/mu);
+    await statusline(documented);
+    expect(await doctor()).not.toMatch(/STATUSLINE WRITE FAILED/u);
+  });
+
+  it("Antigravity: rows rejected by normalisation still record drift and leave the cache alone", async () => {
+    const directory = await temporaryDirectory();
+    const options = { stateDirectory: directory, homeDirectory: await temporaryDirectory(), environment: {}, platform: "linux" as const, now: () => FIXTURE_NOW };
+    const document = antigravityStatuslinePayload(FIXTURE_NOW);
+    const statusline = () => runCli(["statusline", "--host", "antigravity"], {
+      ...options, readStandardInput: async () => JSON.stringify(document)
+    });
+    await statusline();
+    const cache = await readFile(path.join(directory, CACHE_FILE_NAME), "utf8");
+    const meters = ingest.parseAntigravityStatuslinePayload(document, FIXTURE_NOW);
+    expect(meters).not.toBeNull();
+    // Exercise the ingestion boundary even if a parser returns invalid rows.
+    vi.spyOn(ingest, "parseAntigravityStatuslinePayload").mockReturnValueOnce(
+      (meters ?? []).map(row => ({ ...row, meter: "A".repeat(33) }))
+    );
+    expect((await statusline()).exitCode).toBe(0);
+    expect(await readFile(path.join(directory, CACHE_FILE_NAME), "utf8")).toBe(cache);
+    expect((await runCli(["doctor"], options)).stdout)
+      .toMatch(/^STATUSLINE WRITE FAILED \S+ ingest SchemaDriftError the last status line payload could not be read$/mu);
+    await statusline();
+    expect((await runCli(["doctor"], options)).stdout).not.toMatch(/STATUSLINE WRITE FAILED/u);
+  });
+
+  it("Antigravity: an empty quota is no update, while a surviving row clears drift", async () => {
+    const directory = await temporaryDirectory();
+    const options = { stateDirectory: directory, homeDirectory: await temporaryDirectory(), environment: {}, platform: "linux" as const, now: () => FIXTURE_NOW };
+    const statusline = (quota: unknown) => runCli(["statusline", "--host", "antigravity"], {
+      ...options, readStandardInput: async () => JSON.stringify({ email: "person@example.com", quota })
+    });
+    const doctor = async () => (await runCli(["doctor"], options)).stdout;
+    for (const quota of [undefined, null, {}, []]) {
+      expect((await statusline(quota)).exitCode).toBe(0);
+      expect(await doctor()).not.toMatch(/STATUSLINE WRITE FAILED/u);
+    }
+    const oversized = { ["a".repeat(25) + "-5h"]: { remaining_fraction: 0.5 } };
+    await statusline(oversized);
+    expect(await doctor()).toContain("ingest SchemaDriftError");
+    await statusline({ ...oversized, "3p-5h": { remaining_fraction: 0.25 } });
+    expect((await cachedRows(directory)).map(row => row.meter)).toEqual(["THIRD_PARTY_SESSION"]);
+    expect(await doctor()).not.toMatch(/STATUSLINE WRITE FAILED/u);
   });
 
   it("Grok: the session JSON shape becomes weekly and on demand rows", async () => {
