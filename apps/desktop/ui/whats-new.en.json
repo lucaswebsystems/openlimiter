@@ -3,6 +3,10 @@
   "versionLabel": "Version {version}",
   "dismiss": "Got it",
   "releases": {
+    "2.1.9": {
+      "heading": "Clearer Antigravity bars",
+      "antigravity": "New Antigravity quota buckets each get their own bar, and a status line OpenLimiter cannot read now shows in openlimiter doctor instead of passing silently."
+    },
     "2.1.8": {
       "heading": "Logos stay in view",
       "grip": "The reorder grip now sits beside each provider's logo instead of replacing it.",

@@ -733,7 +733,8 @@ fn pool_prefixes(buckets: &[Value]) -> Option<Vec<&str>> {
     let mut prefixes = Vec::new();
     for entry in buckets {
         let id = entry.as_object()?.get("bucketId")?.as_str()?;
-        let (prefix, _) = id.split_once('-')?;
+        // The final suffix names the bucket; the pool itself can contain '-'.
+        let (prefix, _) = id.rsplit_once('-')?;
         if prefix.is_empty() {
             return None;
         }
@@ -750,48 +751,48 @@ fn pool_prefixes(buckets: &[Value]) -> Option<Vec<&str>> {
 /// models it resells, and somebody paying for both needs to see both. The
 /// Google pool keeps the plain codes it has always had, because every row
 /// already on disk under `FIVE_HOUR` and `SEVEN_DAY` belongs to it and
-/// renaming them would orphan that history. Every other pool is named after
-/// itself, so a pool this build has never seen still renders under a code a
-/// reader can print rather than being silently dropped.
+/// renaming them would orphan that history. Readable names are reversible;
+/// all other names use X_ and uppercase UTF8 hex, with X_ reserved from the
+/// readable namespace. This matches acquire/antigravity-meters.ts exactly.
 fn antigravity_meter(pool: &str, window: &str) -> Option<String> {
     let cadence = match window {
         "5h" => "SESSION",
         "weekly" => "WEEKLY",
         _ => return None,
     };
-    if pool == "gemini" {
-        return Some(
-            if cadence == "SESSION" {
-                "FIVE_HOUR"
-            } else {
-                "SEVEN_DAY"
-            }
-            .to_string(),
-        );
+    if pool.is_empty() {
+        return None;
     }
-    /* `3p` is the client's own name for the third party pool and it starts
-    with a digit, which no meter code may do, so the readable name is used
-    instead. Anything else is uppercased into a code shape, and a pool whose
-    name cannot become one is dropped rather than guessed at. */
-    let named = if pool == "3p" {
-        "THIRD_PARTY".to_string()
-    } else {
-        let upper: String = pool
-            .chars()
-            .map(|character| {
-                if character.is_ascii_alphanumeric() {
-                    character.to_ascii_uppercase()
-                } else {
-                    '_'
-                }
-            })
-            .collect();
-        if !upper.starts_with(|character: char| character.is_ascii_uppercase()) {
-            return None;
+    let meter = match pool {
+        "gemini" => {
+            if cadence == "SESSION" {
+                "FIVE_HOUR".to_string()
+            } else {
+                "SEVEN_DAY".to_string()
+            }
         }
-        upper
+        "3p" => format!("THIRD_PARTY_{cadence}"),
+        _ => {
+            let named = pool.replace('-', "_").to_ascii_uppercase();
+            let candidate = format!("{named}_{cadence}");
+            let readable = pool.starts_with(|character: char| character.is_ascii_lowercase())
+                && pool.bytes().all(|byte| {
+                    byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-'
+                });
+            let reserved = matches!(
+                candidate.as_str(),
+                "FIVE_HOUR" | "SEVEN_DAY" | "THIRD_PARTY_SESSION" | "THIRD_PARTY_WEEKLY"
+            );
+            if readable && !named.starts_with("X_") && !reserved {
+                candidate
+            } else {
+                let encoded: String = pool.bytes().map(|byte| format!("{byte:02X}")).collect();
+                format!("X_{encoded}_{cadence}")
+            }
+        }
     };
-    Some(format!("{named}_{cadence}"))
+    // All generated codes are ASCII. Match native_snapshot's complete code limit.
+    (meter.len() <= 32).then_some(meter)
 }
 
 fn antigravity_windows(
@@ -1372,6 +1373,110 @@ mod tests {
         assert!(rows
             .iter()
             .any(|row| row.meter == "MONTHLY" && row.value == 30.0));
+    }
+
+    #[test]
+    fn antigravity_meter_reserves_documented_codes() {
+        for (pool, window, expected) in [
+            ("gemini", "5h", "FIVE_HOUR"),
+            ("gemini", "weekly", "SEVEN_DAY"),
+            ("3p", "5h", "THIRD_PARTY_SESSION"),
+            ("3p", "weekly", "THIRD_PARTY_WEEKLY"),
+            ("third-party", "5h", "X_74686972642D7061727479_SESSION"),
+            ("third-party", "weekly", "X_74686972642D7061727479_WEEKLY"),
+        ] {
+            assert_eq!(antigravity_meter(pool, window).as_deref(), Some(expected));
+        }
+    }
+
+    // Same exact identities as antigravity-contract.test.ts.
+    #[test]
+    fn antigravity_meter_preserves_unknown_pool_identity() {
+        for (pool, expected) in [
+            ("argon-pro", "ARGON_PRO_SESSION"),
+            ("argon_pro", "X_6172676F6E5F70726F_SESSION"),
+            ("argon.pro", "X_6172676F6E2E70726F_SESSION"),
+            ("argon", "ARGON_SESSION"),
+            ("Argon", "X_4172676F6E_SESSION"),
+            ("third_party", "X_74686972645F7061727479_SESSION"),
+            (".", "X_2E_SESSION"),
+            ("x-2e", "X_782D3265_SESSION"),
+            ("a\u{00e9}", "X_61C3A9_SESSION"),
+            ("a\u{00e8}", "X_61C3A8_SESSION"),
+            ("a\u{1f600}", "X_61F09F9880_SESSION"),
+            ("a\u{1f603}", "X_61F09F9883_SESSION"),
+            ("a\u{fffd}", "X_61EFBFBD_SESSION"),
+        ] {
+            assert_eq!(antigravity_meter(pool, "5h").as_deref(), Some(expected));
+            assert_eq!(
+                antigravity_meter(pool, "weekly"),
+                Some(expected.replace("_SESSION", "_WEEKLY"))
+            );
+        }
+    }
+
+    #[test]
+    fn antigravity_meter_bounds_complete_codes() {
+        for (window, accepted, expected, rejected) in [
+            (
+                "5h",
+                "a".repeat(24),
+                "A".repeat(24) + "_SESSION",
+                "a".repeat(25),
+            ),
+            (
+                "weekly",
+                "a".repeat(25),
+                "A".repeat(25) + "_WEEKLY",
+                "a".repeat(26),
+            ),
+            (
+                "5h",
+                "a".repeat(10) + "_",
+                "X_".to_string() + &"61".repeat(10) + "5F_SESSION",
+                "a".repeat(11) + "_",
+            ),
+            (
+                "weekly",
+                "a".repeat(10) + "_",
+                "X_".to_string() + &"61".repeat(10) + "5F_WEEKLY",
+                "a".repeat(11) + "_",
+            ),
+        ] {
+            assert_eq!(antigravity_meter(&accepted, window), Some(expected.clone()));
+            assert!(expected.len() <= 32);
+            assert_eq!(antigravity_meter(&rejected, window), None);
+        }
+        assert_eq!(antigravity_meter("", "5h"), None);
+        assert_eq!(antigravity_meter("argon", "daily"), None);
+    }
+
+    #[test]
+    fn antigravity_keeps_the_complete_pool_prefix() {
+        let now_ms = now();
+        let reset = iso_from_epoch_ms(now_ms + 18_000_000).expect("reset");
+        let groups: Vec<Value> = ["3p", "third-party", "argon-pro", "argon_pro"]
+            .into_iter()
+            .map(|pool| {
+                serde_json::json!({ "buckets": [{
+                    "bucketId": format!("{pool}-5h"), "window": "5h",
+                    "remainingFraction": 0.25, "resetTime": &reset
+                }] })
+            })
+            .collect();
+        let body = serde_json::json!({ "groups": groups }).to_string();
+        let rows = parse_body(ReaderId::AntigravityQuota, &body, now_ms, ACCOUNT)
+            .expect("distinct pools survive the native reader");
+        assert_eq!(
+            rows.iter().map(|row| row.meter.as_str()).collect::<Vec<_>>(),
+            [
+                "THIRD_PARTY_SESSION",
+                "X_74686972642D7061727479_SESSION",
+                "ARGON_PRO_SESSION",
+                "X_6172676F6E5F70726F_SESSION",
+            ]
+        );
+        assert!(rows.iter().all(|row| row.value == 75.0));
     }
 
     #[test]

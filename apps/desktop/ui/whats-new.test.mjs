@@ -10,6 +10,9 @@ const whatsNewForVersion = (version) => selectRelease(version, WHATS_NEW_EN);
 
 /* What each recent release says, word for word; the current version is one of them. */
 const NOTES = {
+  "2.1.9": [
+    { key: "antigravity", text: "New Antigravity quota buckets each get their own bar, and a status line OpenLimiter cannot read now shows in openlimiter doctor instead of passing silently." },
+  ],
   "2.1.8": [
     { key: "grip", text: "The reorder grip now sits beside each provider's logo instead of replacing it." },
     { key: "refresh", text: "The edge panel has a refresh button." },

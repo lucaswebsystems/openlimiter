@@ -52,7 +52,7 @@ function resetInstant(bucket: Record<string, unknown>): string | null {
   return new Date(value).toISOString();
 }
 
-/** Parse only the documented quota map. Unknown bucket identities are omitted. */
+/** Parse the quota map, retaining each supported pool's exact identity. */
 export function parseAntigravityPayload(payload: unknown, observedAt: string): RawMeter[] | null {
   const root = record(payload);
   const quota = record(root?.["quota"]);
@@ -63,7 +63,7 @@ export function parseAntigravityPayload(payload: unknown, observedAt: string): R
   for (const [bucketId, value] of Object.entries(quota)) {
     const bucket = record(value);
     const remaining = bucket === null ? null : remainingFraction(bucket);
-    const mapped = antigravityMeter(bucketId.toLowerCase());
+    const mapped = antigravityMeter(bucketId);
     if (bucket === null || remaining === null || mapped === null) continue;
     meters.push(rawMeter({
       provider: "ANTIGRAVITY",
