@@ -58,6 +58,8 @@ describe("decision A and U44: one row of ten block bars inside the width", () =>
     expect(lines.length).toBeLessThanOrEqual(3);
     for (const line of lines) expect(displayColumns(line)).toBeLessThanOrEqual(120);
     expect(accounted(lines.join(" | "))).toBe(12);
+    expect(wrapped).not.toMatch(/[█░]/u);
+    expect(wrapped).toMatch(/▆/u);
     expect(render({ width: 120 }).split("\n")).toHaveLength(1);
   });
 

@@ -1152,7 +1152,9 @@ function renderBarStatusline(input: StatuslineLayoutInput): string {
     .map(noteCell);
   if (config.wrap === true) {
     // Opt in: whole cells wrap onto up to three lines before any is dropped.
-    const readings = [...quotas, ...apiMoney];
+    // Three quarter blocks over a thin track leave a gap between stacked lines.
+    const lift = (text: string): string => text.replaceAll("█", "▆").replaceAll("░", "▁");
+    const readings = [...quotas, ...apiMoney].map((cell) => ({ ...cell, plain: lift(cell.plain), painted: lift(cell.painted) }));
     return (stacked(head, [...readings, ...notes], config.width, 3, BAR_CELL_SEPARATOR) ??
       stacked(head, readings, config.width, 3, BAR_CELL_SEPARATOR) ??
       shed(head, readings, config.width, 3, BAR_CELL_SEPARATOR)) || STATUSLINE_UNKNOWN;
