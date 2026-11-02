@@ -10,6 +10,10 @@ const whatsNewForVersion = (version) => selectRelease(version, WHATS_NEW_EN);
 
 /* What each recent release says, word for word; the current version is one of them. */
 const NOTES = {
+  "2.1.10": [
+    { key: "statusline", text: "The status line wraps onto more lines at your terminal's real width instead of hiding bars behind a count." },
+    { key: "menu", text: "The web app's account menu and alerts fit their panel again." },
+  ],
   "2.1.9": [
     { key: "antigravity", text: "New Antigravity quota buckets each get their own bar, and a status line OpenLimiter cannot read now shows in openlimiter doctor instead of passing silently." },
     { key: "alerts", text: "Alerts fire again when Cursor is connected: a Cursor reading no longer blocks the alert batch for every provider." },
