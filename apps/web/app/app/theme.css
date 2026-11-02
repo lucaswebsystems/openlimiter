@@ -1096,7 +1096,7 @@
   }
 }
 
-@media (max-width: 639px) {
+@media (max-width: 767px) {
   /*
     Three areas, seven cells, no overlap and no sideways scroll.
 
@@ -2487,6 +2487,9 @@ body:has(.ol-phone-shell) .ol-phone-pro .ol-control-primary:hover {
     padding-left: var(--ol-space-7);
   }
 
+}
+
+@media (max-width: 767px) {
   .ol-directory-row {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: var(--ol-space-2) var(--ol-space-3);
