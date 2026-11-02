@@ -180,7 +180,7 @@ function golden(name: string): string {
 
 describe("statusline golden files", () => {
   it("keeps reset markers compact for provider rows", () => {
-    expect(golden("claude-bar-160")).toMatch(/cx 5h [^|]+ 51% ↻4h59m/u);
+    expect(golden("claude-bar-160")).toMatch(/cx 5h [^|]+ 51% · 4h59m/u);
   });
 
   it("differs at 80, 120 and 160 columns and keeps every row inside its width", () => {

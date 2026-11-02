@@ -318,8 +318,8 @@ describe("CLI", () => {
          through `statusline.bars false`, and the pre D6 `cells` grammar
          through `statusline.style cells`, tested in statusline.test.ts. */
       expect(statusline.stdout).toBe(
-        "7d [██████░░░░] 64% ↻7d | cx 5h [████████░░] 84%! ↻5h | oc 5h [█████████░] ~92%!! ↻4h | " +
-          "km 5h [██████░░░░] ~70% ↻5h | +10 more"
+        "7d [██████░░░░] 64% · 7d | cx 5h [████████░░] 84%! · 5h | oc 5h [█████████░] ~92%!! · 4h | " +
+          "km 5h [██████░░░░] ~70% · 5h | +10 more"
       );
     });
   });

@@ -23,8 +23,8 @@ const payload = (directory = "/work/Olá projeto") => ({
     seven_day: { used_percentage: 65, resets_at: "2026-01-05T02:00:00Z" }
   }
 });
-const plain = "opus-5-5 high | ctx 42% | 5h [█░░░░░░░░░] 17% ↻3h20m | 7d [██████░░░░] 65% ↻4d2h | cx 7d [████████░░] 85%! ↻4d2h | concise";
-const painted = "opus-5-5 high | ctx 42% | 5h \x1b[32m[█░░░░░░░░░]\x1b[0m \x1b[32m17%\x1b[0m ↻3h20m | 7d \x1b[33m[██████░░░░]\x1b[0m \x1b[33m65%\x1b[0m ↻4d2h | cx 7d \x1b[38;5;208m[████████░░]\x1b[0m \x1b[38;5;208m85%!\x1b[0m ↻4d2h | concise";
+const plain = "opus-5-5 high | ctx 42% | 5h [█░░░░░░░░░] 17% · 3h20m | 7d [██████░░░░] 65% · 4d2h | cx 7d [████████░░] 85%! · 4d2h | concise";
+const painted = "opus-5-5 high | ctx 42% | 5h \x1b[32m[█░░░░░░░░░]\x1b[0m \x1b[32m17%\x1b[0m · 3h20m | 7d \x1b[33m[██████░░░░]\x1b[0m \x1b[33m65%\x1b[0m · 4d2h | cx 7d \x1b[38;5;208m[████████░░]\x1b[0m \x1b[38;5;208m85%!\x1b[0m · 4d2h | concise";
 /* A terminal that claims 256 colours, as Claude Code's own terminal does: orange is drawn there (2.1.7, U47). */
 const TERMINAL = { TERM: "xterm-256color" };
 
@@ -185,7 +185,7 @@ describe("statusline command reference layout", () => {
       stateDirectory, homeDirectory: home, now: () => NOW, environment: { NO_COLOR: "" },
       readStandardInput: async () => JSON.stringify(input)
     });
-    expect(result.stdout).toContain("5h [███░░░░░░░] 37% ↻3h20m");
+    expect(result.stdout).toContain("5h [███░░░░░░░] 37% · 3h20m");
     expect(result.stdout).not.toContain("4%");
   });
 
@@ -210,7 +210,7 @@ describe("statusline command reference layout", () => {
       readStandardInput: async () => JSON.stringify(input)
     });
     // The poll's 4, drawn with the status line's reset arrow (U44 to U48).
-    expect(result.stdout).toContain(" 4% ↻3h20m");
+    expect(result.stdout).toContain(" 4% · 3h20m");
     expect(result.stdout).not.toContain("37%");
     await expect(readFile(path.join(stateDirectory, CACHE_FILE_NAME), "utf8")).rejects.toThrow();
     expect(await readFile(path.join(stateDirectory, AUTHORITATIVE_CACHE_FILE_NAME), "utf8")).toBe(authoritative);
@@ -322,7 +322,7 @@ describe("statusline command reference layout", () => {
     });
     expect(result).toEqual({
       exitCode: 0, stderr: "",
-      stdout: "opus-5-5 | ctx 42% | 7d [██████░░░░] 65% ↻4d2h | concise"
+      stdout: "opus-5-5 | ctx 42% | 7d [██████░░░░] 65% · 4d2h | concise"
     });
   });
 
@@ -332,7 +332,7 @@ describe("statusline command reference layout", () => {
       stateDirectory, now: () => NOW, environment: { NO_COLOR: "", LC_ALL: "C" },
       readStandardInput: async () => JSON.stringify(payload())
     });
-    expect(result.stdout).toBe(plain.replaceAll("█", "#").replaceAll("░", ".").replaceAll("↻", "resets "));
+    expect(result.stdout).toBe(plain.replaceAll("█", "#").replaceAll("░", ".").replaceAll("· ", "resets "));
   });
 
   it("NO_COLOR wins over the saved always setting", async () => {
