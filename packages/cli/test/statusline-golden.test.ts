@@ -11,11 +11,11 @@ import {
 import { GOLDEN_NOW, GOLDEN_SNAPSHOTS } from "./fixtures/statusline-snapshots.js";
 
 /**
- * Reference bars keep to the width budget on one row of ten block bars (2.1.7,
- * UX audit U44, fix round decision A): a line that does not fit keeps the
- * readings closest to their caps and counts the rest. So the 80, 120 and 160
- * goldens differ, and each stays inside its width. Legacy cells retain their
- * width budget and explicitly request worst meters.
+ * Reference bars keep to the width budget (2.1.7, UX audit U44) and wrap whole
+ * cells onto up to three lines of ten block bars, a quarter block lower so the
+ * lines do not touch; what still does not fit is counted. So the 80, 120 and
+ * 160 goldens differ, and each row stays inside its width. Legacy cells retain
+ * their width budget and explicitly request worst meters.
  */
 
 const GOLDEN_DIR = path.join(process.cwd(), "packages/cli/test/golden");

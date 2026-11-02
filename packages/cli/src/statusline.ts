@@ -1,4 +1,6 @@
+import { closeSync, openSync } from "node:fs";
 import path from "node:path";
+import { WriteStream } from "node:tty";
 import {
   PROVIDER_CODES,
   RETENTION_MILLISECONDS,
@@ -19,16 +21,17 @@ import {
   type SnapshotAvailability
 } from "@openlimiter/core";
 import { STATUSLINE_BAR_SEGMENTS, bandCode, meterBar, pressureOf, supports256Color } from "./render.js";
-import type { StatuslineColor, StatuslineConfig, StatuslineCaptions } from "./config.js";
+import { DEFAULT_STATUSLINE, type StatuslineColor, type StatuslineConfig, type StatuslineCaptions } from "./config.js";
 import type { StatuslineSession } from "./statusline-ingest.js";
 import { MONEY_TAGS, moneyCells } from "./api-spend.js";
 
 /**
  * Reference terminal layout with host session details and labelled quota bars.
- * Both styles keep to the width budget (2.1.7, UX audit U44). The bar style is
- * one row of ten block bars; the optional legacy cells style stacks onto the
- * rows allowed. Past the budget each keeps the readings closest to their caps
- * and says how many it left out.
+ * Both styles keep to the width budget (2.1.7, UX audit U44). The bar style
+ * wraps whole cells onto up to three lines of ten block bars (one row with
+ * `wrap` false); the optional legacy cells style stacks onto the rows allowed.
+ * Past the budget each keeps the readings closest to their caps and says how
+ * many it left out.
  */
 
 /**
@@ -1150,14 +1153,18 @@ function renderBarStatusline(input: StatuslineLayoutInput): string {
   const notes = [shown("style") ? session.style : undefined, shown("7d") ? input.pollHint : undefined]
     .filter((note): note is string => Boolean(note))
     .map(noteCell);
-  if (config.wrap === true) {
-    // Opt in: whole cells wrap onto up to three lines before any is dropped.
-    // Three quarter blocks over a thin track leave a gap between stacked lines.
+  if (config.wrap !== false) {
+    // The default: whole cells wrap onto up to three lines before any is dropped.
+    const laid = (cells: readonly StatuslineCell[]): string =>
+      stacked(head, [...cells, ...notes], config.width, 3, BAR_CELL_SEPARATOR) ??
+      stacked(head, cells, config.width, 3, BAR_CELL_SEPARATOR) ??
+      shed(head, cells, config.width, 3, BAR_CELL_SEPARATOR);
+    const readings = [...quotas, ...apiMoney];
+    const flat = laid(readings);
+    if (!flat.includes("\n")) return flat || STATUSLINE_UNKNOWN;
+    // Stacked lines get three quarter blocks over a thin track, which leave a gap between them.
     const lift = (text: string): string => text.replaceAll("█", "▆").replaceAll("░", "▁");
-    const readings = [...quotas, ...apiMoney].map((cell) => ({ ...cell, plain: lift(cell.plain), painted: lift(cell.painted) }));
-    return (stacked(head, [...readings, ...notes], config.width, 3, BAR_CELL_SEPARATOR) ??
-      stacked(head, readings, config.width, 3, BAR_CELL_SEPARATOR) ??
-      shed(head, readings, config.width, 3, BAR_CELL_SEPARATOR)) || STATUSLINE_UNKNOWN;
+    return laid(readings.map((cell) => ({ ...cell, plain: lift(cell.plain), painted: lift(cell.painted) })));
   }
   return oneRow(head, [...quotas, ...apiMoney], notes, config.width) || STATUSLINE_UNKNOWN;
 }
@@ -1178,16 +1185,79 @@ export interface StatuslineLayoutInput {
   pollHint?: string;
 }
 
+/* ---------------------------------------------------------- terminal width */
+
+function usableColumns(columns: number | undefined): number | null {
+  return columns !== undefined && Number.isInteger(columns) && columns > 0 ? columns : null;
+}
+
+/** The Windows console, by its device path: a bare `CONOUT$` is resolved against the working directory and never opens. */
+const CONSOLE_DEVICE = "\\\\.\\CONOUT$";
+
+/** The columns of a terminal device opened by name, or undefined when it is not one. */
+function deviceColumns(device: string): number | undefined {
+  let fd = -1;
+  try {
+    fd = openSync(device, "r+");
+    const stream = new WriteStream(fd);
+    fd = -1; // the stream owns it from here and closes it on destroy
+    const { columns } = stream;
+    stream.destroy();
+    return columns;
+  } catch {
+    return undefined;
+  } finally {
+    if (fd !== -1) {
+      try { closeSync(fd); } catch { /* already closed */ }
+    }
+  }
+}
+
+export interface TerminalProbes {
+  readonly stdout?: { readonly columns?: number };
+  readonly stderr?: { readonly columns?: number };
+  readonly platform?: NodeJS.Platform;
+  /** Reads the columns of the controlling terminal device (`/dev/tty`, `\\.\CONOUT$`). */
+  readonly device?: (path: string) => number | undefined;
+}
+
+/**
+ * The real width of the terminal this process belongs to, or null.
+ *
+ * A statusline host runs the command with its output piped, so the standard
+ * streams usually say nothing; the controlling terminal is then opened by name
+ * as a last resort. Any failure is null, never an exception.
+ */
+export function detectTerminalColumns(probes: TerminalProbes = {}): number | null {
+  const { stdout = process.stdout, stderr = process.stderr, platform = process.platform, device = deviceColumns } = probes;
+  const direct = usableColumns(stdout.columns) ?? usableColumns(stderr.columns);
+  if (direct !== null) return direct;
+  try {
+    return usableColumns(device(platform === "win32" ? CONSOLE_DEVICE : "/dev/tty"));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The column budget of one render: a column short of the detected terminal, so
+ * the last column stays free, else the configured width. A width the person
+ * set that is narrower than the terminal still wins; the default is unset.
+ */
+export function statuslineWidth(configured: number, detected: number | null): number {
+  if (detected === null) return configured;
+  return Math.min(detected - 1, configured === DEFAULT_STATUSLINE.width ? Infinity : configured);
+}
+
 /** What the statusline says when it has nothing bounded to say. */
 export const STATUSLINE_UNKNOWN = "OpenLimiter UNKNOWN";
 
 /**
  * Draw the whole line, stacking it rather than truncating it.
  *
- * The budget is a budget, not a terminal measurement: nothing here asks the
- * operating system how wide the window is, because a statusline host runs this
- * command with no terminal attached and the answer would be an invention. The
- * number in the configuration is the number that is honoured.
+ * The budget is `config.width`, which the statusline command sets from the
+ * real terminal when it can find one (`statuslineWidth`); this function only
+ * honours the number it is given.
  */
 export function renderStatuslineLayout(input: StatuslineLayoutInput): string {
   const { advice, config } = input;

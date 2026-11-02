@@ -309,17 +309,18 @@ describe("CLI", () => {
       /* `statusline.style` defaults to `bar`, decision D6's reference grammar,
          since this lane. Host defaults to `claude`, so the provider's own
          windows (`5h`, `7d`) carry no tag and every other provider's window
-         is tagged with its short code, spaced. Since 2.1.7 the line keeps to
-         the default 140 columns on one row of ten block bars (UX audit U44,
-         fix round decision A): it keeps the readings closest to their caps
-         and counts the rest, a reset reads `↻` and a band of 80 or 90 is
-         marked `!` or `!!`.
+         is tagged with its short code, spaced. The line keeps to the default
+         140 columns (UX audit U44) and wraps whole cells onto up to three
+         lines of ten block bars, a quarter block lower on a stacked line so
+         the lines do not touch; what still does not fit is counted. A reset
+         reads `↻` and a band of 80 or 90 is marked `!` or `!!`.
          The 0.1.0 line this pinned before is still reachable byte for byte
          through `statusline.bars false`, and the pre D6 `cells` grammar
          through `statusline.style cells`, tested in statusline.test.ts. */
       expect(statusline.stdout).toBe(
-        "7d [██████░░░░] 64% · 7d | cx 5h [████████░░] 84%! · 5h | oc 5h [█████████░] ~92%!! · 4h | " +
-          "km 5h [██████░░░░] ~70% · 5h | +10 more"
+        "5h [▆▆▆▆▁▁▁▁▁▁] 42% · 5h | 7d [▆▆▆▆▆▆▁▁▁▁] 64% · 7d | cx 5h [▆▆▆▆▆▆▆▆▁▁] 84%! · 5h | ag 5h [▆▆▁▁▁▁▁▁▁▁] ~28% · 5h\n" +
+          "ag 7d [▆▁▁▁▁▁▁▁▁▁] ~10% · 7d | oc 5h [▆▆▆▆▆▆▆▆▆▁] ~92%!! · 4h | oc 7d [▆▆▆▆▁▁▁▁▁▁] ~40% · 5d20h | oc mo [▆▁▁▁▁▁▁▁▁▁] ~15% · 21d\n" +
+          "gk 7d [▆▆▆▆▁▁▁▁▁▁] ~43% · 7d | km 7d [▆▁▁▁▁▁▁▁▁▁] ~10% · 7d | km 5h [▆▆▆▆▆▆▁▁▁▁] ~70% · 5h | mn mo [▆▆▆▁▁▁▁▁▁▁] 35% · 31d | +2 more"
       );
     });
   });
@@ -1019,11 +1020,13 @@ describe("CLI", () => {
     /* The claude host paints by default, so the budget is read on the text. */
     const text = (line: string): string => line.replace(/\x1b\[[0-9;]*m/gu, "");
     const rows = stacked.stdout.split("\n");
-    expect(rows).toHaveLength(1);
+    expect(rows.length).toBeGreaterThan(1);
+    expect(rows.length).toBeLessThanOrEqual(3);
     for (const row of rows) expect(text(row).length).toBeLessThanOrEqual(140);
     /* The tightest reading, OpenCode's 92, always stays. */
     expect(stacked.stdout).toContain("oc 5h");
-    expect(stacked.stdout).toMatch(/\+\d+ more$/u);
+    /* Wrapped onto three lines, every reading still fits: nothing is counted out. */
+    expect(stacked.stdout).not.toContain("more");
     await runCli(["config", "set", "statusline.width", "400"], {
       stateDirectory: directory,
       now: () => FIXTURE_NOW
@@ -1039,6 +1042,43 @@ describe("CLI", () => {
     expect(wide.stdout).toContain("or bal $7.53");
     expect(wide.stdout).not.toContain("more");
     expect(wide.stdout).not.toBe(stacked.stdout);
+  });
+
+  it("fills the real terminal width, one column short, unless the person set a narrower one or turned wrap off", async () => {
+    const directory = await temporaryDirectory();
+    await runCli(["snapshot", "--refresh"], {
+      stateDirectory: directory,
+      now: () => FIXTURE_NOW,
+      payloads
+    });
+    const draw = async (columns: number | null): Promise<string[]> => (await runCli(["statusline"], {
+      stateDirectory: directory,
+      now: () => FIXTURE_NOW,
+      environment: { NO_COLOR: "" },
+      terminalColumns: () => columns
+    })).stdout.split("\n");
+    const widest = (rows: readonly string[]): number => Math.max(...rows.map((row) => row.length));
+    /* Wider than the 140 default: the terminal decides, a column short of it. */
+    const roomy = await draw(200);
+    expect(roomy.length).toBeLessThanOrEqual((await draw(100)).length);
+    expect(widest(roomy)).toBeLessThanOrEqual(199);
+    expect(widest(roomy)).toBeGreaterThan(140);
+    expect(widest(await draw(100))).toBeLessThanOrEqual(99);
+    /* Nothing answers: the configured width, as before. */
+    expect(widest(await draw(null))).toBeLessThanOrEqual(140);
+    /* A width the person set, narrower than the terminal, still wins. */
+    await runCli(["config", "set", "statusline.width", "100"], { stateDirectory: directory, now: () => FIXTURE_NOW });
+    expect(widest(await draw(200))).toBeLessThanOrEqual(100);
+    expect(widest(await draw(80))).toBeLessThanOrEqual(79);
+    /* wrap false keeps the one row at the detected width. */
+    await writeFile(
+      path.join(directory, CONFIG_FILE_NAME),
+      JSON.stringify({ version: 1, connectors: [], statusline: { wrap: false } }),
+      "utf8"
+    );
+    const single = await draw(120);
+    expect(single).toHaveLength(1);
+    expect(widest(single)).toBeLessThanOrEqual(119);
   });
 
   it("obeys the configured order, meter mode and colour setting", async () => {
@@ -1098,8 +1138,11 @@ describe("CLI", () => {
       now: () => FIXTURE_NOW,
       colorOutput: false
     });
-    /* Every unusable key falls back to its default: one row of 140 columns. */
-    expect(statusline.stdout.split("\n")).toHaveLength(1);
+    /* Every unusable key falls back to its default: wrapped lines of 140 columns. */
+    const rows = statusline.stdout.split("\n");
+    expect(rows.length).toBeGreaterThan(1);
+    expect(rows.length).toBeLessThanOrEqual(3);
+    for (const row of rows) expect(row.replace(/\x1b\[[0-9;]*m/gu, "").length).toBeLessThanOrEqual(140);
     expect(statusline.stdout).toContain("oc 5h");
     expect(statusline.stdout).toContain("92%");
   });
