@@ -1,19 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { buildAdvice, type Snapshot } from "@openlimiter/core";
-import { DEFAULT_STATUSLINE, type StatuslineConfig } from "../src/config.js";
+import { DEFAULT_STATUSLINE, normalizeStatusline, type StatuslineConfig } from "../src/config.js";
 import {
-  captionFor, displayColumns, formatResetTime, paintBand, renderPlainStatusline, renderStatuslineLayout,
-  STATUSLINE_HOSTS, statuslineColor, statuslineWide, type StatuslineHost
+  captionFor, detectTerminalColumns, displayColumns, formatResetTime, paintBand, renderPlainStatusline, renderStatuslineLayout,
+  STATUSLINE_HOSTS, statuslineColor, statuslineWide, statuslineWidth, type StatuslineHost
 } from "../src/statusline.js";
 import type { StatuslineSession } from "../src/statusline-ingest.js";
 import { GOLDEN_NOW, GOLDEN_SNAPSHOTS } from "./fixtures/statusline-snapshots.js";
 
 /* Status line rows U44 to U48 of the 2026-10-11 UX audit, 2.1.7, in the shape
-   the owner locked in the fix round (decision A): one row of ten block bars. */
+   the owner locked in the fix round (decision A): one row of ten block bars,
+   which is the `wrap: false` path now that wrapping is the default. */
 
 const ESCAPE = /\x1b\[[0-9;]*m/gu;
 const row = (overrides: Partial<Snapshot> = {}): Snapshot => ({ ...GOLDEN_SNAPSHOTS[0]!, resetAt: null, ...overrides });
-const render = (
+/** The layout with the stored defaults, wrap included. */
+const draw = (
   config: Partial<StatuslineConfig> = {},
   options: {
     host?: StatuslineHost; color?: boolean; wide?: boolean; unicode?: boolean; snapshots?: readonly Snapshot[];
@@ -31,6 +33,11 @@ const render = (
     ...(options.apiSpend === undefined ? {} : { apiSpend: options.apiSpend })
   });
 };
+/** The one row path, which only `wrap: false` selects. */
+const render = (
+  config: Partial<StatuslineConfig> = {},
+  options: Parameters<typeof draw>[1] = {}
+): string => draw({ wrap: false, ...config }, options);
 /** Readings drawn and readings counted out: every one of the fixture's twelve, once. */
 const accounted = (line: string): number =>
   line.split(" | ").filter((cell) => !/^\+\d+ more$/u.test(cell)).length + Number(/\+(\d+) more$/u.exec(line)?.[1] ?? 0);
@@ -51,14 +58,47 @@ describe("decision A and U44: one row of ten block bars inside the width", () =>
     }
   });
 
-  it("wraps whole cells onto up to three lines when wrap is on, each inside the width", () => {
-    const wrapped = render({ width: 120, wrap: true });
+  it("wraps whole cells onto up to three lines by default, each inside the width", () => {
+    const wrapped = draw({ width: 120 });
     const lines = wrapped.split("\n");
     expect(lines.length).toBeGreaterThan(1);
     expect(lines.length).toBeLessThanOrEqual(3);
     for (const line of lines) expect(displayColumns(line)).toBeLessThanOrEqual(120);
     expect(accounted(lines.join(" | "))).toBe(12);
-    expect(render({ width: 120 }).split("\n")).toHaveLength(1);
+    expect(wrapped).not.toMatch(/[█░]/u);
+    expect(wrapped).toMatch(/▆/u);
+    expect(wrapped).toBe(draw({ width: 120, wrap: true }));
+  });
+
+  it("fills each line up to the width before it breaks, and never past it", () => {
+    for (const width of [100, 120, 140]) {
+      const lines = draw({ width }).split("\n");
+      lines.forEach((line, index) => {
+        expect(displayColumns(line)).toBeLessThanOrEqual(width);
+        const next = lines[index + 1]?.split(" | ")[0];
+        if (next !== undefined) expect(displayColumns(line) + 3 + displayColumns(next)).toBeGreaterThan(width);
+      });
+    }
+  });
+
+  it("reads wrap as on unless the stored file says false", () => {
+    expect(normalizeStatusline({ wrap: false }).wrap).toBe(false);
+    for (const wrap of [true, "no", 0, null, undefined]) expect(normalizeStatusline({ wrap }).wrap).not.toBe(false);
+    expect(DEFAULT_STATUSLINE.wrap).not.toBe(false);
+  });
+
+  it("keeps full blocks while everything fits on one line, and lowers them only once lines stack", () => {
+    expect(draw({ width: 400 })).toContain("█");
+    expect(draw({ width: 400 })).toBe(render({ width: 400 }));
+    expect(draw({ width: 120 })).not.toContain("█");
+  });
+
+  it("keeps the one row with wrap false", () => {
+    for (const width of [80, 120]) {
+      expect(draw({ width, wrap: false }).split("\n")).toHaveLength(1);
+      expect(draw({ width, wrap: false })).toBe(render({ width }));
+    }
+    expect(draw({ width: 120, wrap: false })).toMatch(/\+\d+ more$/u);
   });
 
   it("draws a different line at 80, 120 and 160 columns", () => {
@@ -260,6 +300,55 @@ describe("U48: Tagged tags every cell, Short tags every cell that is not the hos
     for (const host of STATUSLINE_HOSTS) {
       const cells = render({ width: 400, captions: "tagged" }, { host }).split(" | ");
       for (const cell of cells) expect(cell).toMatch(/^(cl|cx|ag|gm|oc|gk|km|mn|or) /u);
+    }
+  });
+});
+
+describe("the real terminal width", () => {
+  it("reads the columns of stdout, then stderr, before it opens any terminal", () => {
+    const device = (): number => { throw new Error("must not open a terminal"); };
+    expect(detectTerminalColumns({ stdout: { columns: 132 }, stderr: { columns: 90 }, device })).toBe(132);
+    expect(detectTerminalColumns({ stdout: {}, stderr: { columns: 90 }, device })).toBe(90);
+  });
+
+  it("falls back to the controlling terminal: /dev/tty on POSIX, the CONOUT$ console device on Windows", () => {
+    const asked: string[] = [];
+    const device = (path: string): number => { asked.push(path); return 101; };
+    expect(detectTerminalColumns({ stdout: {}, stderr: {}, platform: "linux", device })).toBe(101);
+    expect(detectTerminalColumns({ stdout: {}, stderr: {}, platform: "darwin", device })).toBe(101);
+    expect(detectTerminalColumns({ stdout: {}, stderr: {}, platform: "win32", device })).toBe(101);
+    expect(asked).toEqual(["/dev/tty", "/dev/tty", "\\\\.\\CONOUT$"]);
+  });
+
+  it("is null when nothing answers, when the terminal fails, or when it states no real width", () => {
+    expect(detectTerminalColumns({ stdout: {}, stderr: {}, device: () => undefined })).toBeNull();
+    expect(detectTerminalColumns({ stdout: {}, stderr: {}, device: () => { throw new Error("no tty"); } })).toBeNull();
+    expect(detectTerminalColumns({ stdout: { columns: 0 }, stderr: { columns: Number.NaN }, device: () => 0 })).toBeNull();
+    // The real thing, on whatever machine runs this: a width or null, never an exception.
+    const real = detectTerminalColumns();
+    expect(real === null || (Number.isInteger(real) && real > 0)).toBe(true);
+  });
+
+  it("budgets one column short of the terminal, else the configured width", () => {
+    expect(statuslineWidth(DEFAULT_STATUSLINE.width, 200)).toBe(199);
+    expect(statuslineWidth(DEFAULT_STATUSLINE.width, 80)).toBe(79);
+    expect(statuslineWidth(DEFAULT_STATUSLINE.width, null)).toBe(DEFAULT_STATUSLINE.width);
+    expect(statuslineWidth(100, null)).toBe(100);
+  });
+
+  it("lets a width the person set win when it is narrower than the terminal", () => {
+    expect(statuslineWidth(100, 200)).toBe(100);
+    expect(statuslineWidth(100, 80)).toBe(79);
+    expect(statuslineWidth(100, 101)).toBe(100);
+  });
+
+  it("wraps at the detected width and keeps the one row with wrap false", () => {
+    for (const columns of [90, 130, 200]) {
+      const width = statuslineWidth(DEFAULT_STATUSLINE.width, columns);
+      const lines = draw({ width }).split("\n");
+      for (const line of lines) expect(displayColumns(line)).toBeLessThanOrEqual(columns - 1);
+      expect(lines.length).toBeGreaterThan(1);
+      expect(render({ width }).split("\n")).toHaveLength(1);
     }
   });
 });

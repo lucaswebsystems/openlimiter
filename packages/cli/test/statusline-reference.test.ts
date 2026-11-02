@@ -57,8 +57,13 @@ describe("Lucas reference layout", () => {
     expect(render(snapshots, { session, config: wide })).toBe(plain);
     expect(render(snapshots, { session, config: wide, color: true })).toBe(painted);
     expect(render(snapshots, { session, config: wide, color: statuslineColor("always", { NO_COLOR: "" }, true, "claude") })).toBe(plain);
-    // At the default 140 columns the row keeps the readings closest to their caps and counts the rest (2.1.7, decision A).
+    // At the default 140 columns the cells wrap whole onto a second line, lowered so the lines do not touch.
     expect(render(snapshots, { session })).toBe(
+      "opus-5-5 high | ctx 42% | 5h [▆▁▁▁▁▁▁▁▁▁] 17% · 3h20m | 7d [▆▆▁▁▁▁▁▁▁▁] 26% · 4d2h | cx 7d [▆▆▆▁▁▁▁▁▁▁] 32% · 4d2h\n" +
+        "ag 5h [▆▁▁▁▁▁▁▁▁▁] 9% · 18m | oc 5h [▆▆▆▆▁▁▁▁▁▁] 42% | or bal $12.34 | concise"
+    );
+    // With wrap false the row keeps the readings closest to their caps and counts the rest (2.1.7, decision A).
+    expect(render(snapshots, { session, config: { ...DEFAULT_STATUSLINE, wrap: false } })).toBe(
       "opus-5-5 high | ctx 42% | 7d [██░░░░░░░░] 26% · 4d2h | cx 7d [███░░░░░░░] 32% · 4d2h | oc 5h [████░░░░░░] 42% | +3 more"
     );
     // The folder only appears once someone opts in, and then by its last name.

@@ -155,6 +155,7 @@ import {
 } from "./render.js";
 import {
   claudeWeeklyHint,
+  detectTerminalColumns,
   isStatuslineHost,
   HOST_PROVIDER,
   renderPlainStatusline,
@@ -163,6 +164,7 @@ import {
   statuslineColor,
   statuslineUnicode,
   statuslineWide,
+  statuslineWidth,
   type StatuslineHost
 } from "./statusline.js";
 import { parseStatuslineSession } from "./statusline-ingest.js";
@@ -236,6 +238,13 @@ export interface CliDependencies {
    * control characters at all.
    */
   colorOutput: boolean;
+  /**
+   * The real terminal width, or null when none can be found.
+   *
+   * The executable injects the detector; a library or test caller leaves it
+   * out and the statusline falls back to its configured width.
+   */
+  terminalColumns?: () => number | null;
   homeDirectory: string;
   openLimiterScript: string;
   nodeExecutable: string;
@@ -516,8 +525,10 @@ export function runtimeDependencies(): Pick<
   | "emit"
   | "windowsAclRunner"
   | "codexDeviceLoginRunnerFactory"
+  | "terminalColumns"
 > {
   return {
+    terminalColumns: () => detectTerminalColumns(),
     acquisitionTransport: createFetchTransport(),
     spawnDetached: (executable, argumentsList, options) => {
       const child = spawn(executable, [...argumentsList], {
@@ -1549,7 +1560,8 @@ async function statuslineCommand(
     ).catch(() => undefined);
   }
   const advice = buildAdvice(snapshots, now, PROVIDER_CODES);
-  const config = await readStatuslineConfig(dependencies.stateDirectory);
+  const stored = await readStatuslineConfig(dependencies.stateDirectory);
+  const config = { ...stored, width: statuslineWidth(stored.width, dependencies.terminalColumns?.() ?? null) };
   const pollHint = host === "claude"
     ? await claudeWeeklyHint(snapshots, now, directory, pollOn)
     : undefined;

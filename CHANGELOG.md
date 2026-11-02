@@ -2,6 +2,12 @@
 
 All notable project changes appear in this file.
 
+## [2.1.10]
+
+The status line wraps onto more lines at your terminal's real width instead of hiding bars behind a count. It measures the terminal, so each line fills before it breaks, and stacked bars keep a small gap between lines; statusline.wrap false restores the single row.
+
+The web app's account menu and alerts fit their panel again.
+
 ## [2.1.9]
 
 New Antigravity quota buckets each get their own bar, and a status line OpenLimiter cannot read now shows in openlimiter doctor instead of passing silently.
