@@ -42,7 +42,7 @@ import {
 import { providerCode, providerName, say } from "./names.js";
 import { createOrderStore, ORDER_CHANGED_EVENT, reorderList } from "./reorder.js";
 import { renderPlanCap } from "./plan-cap.js";
-import { refreshDesktopTrial, renderSettings, tickDesktopTrial, useOrderStore, wireUpdates } from "./settings.js";
+import { refreshDesktopTrial, renderSettings, startUpdateChecks, tickDesktopTrial, useOrderStore, wireUpdates } from "./settings.js";
 import { mountAgents } from "./agents.js";
 import { keyRepaintGate, keyRows, proEntitled, refreshEntitlement, renderKeys, renderPro, saveOpenrouterConnection } from "./pro.js";
 /* The phone panel and the device list it produces. Both live behind an
@@ -1224,10 +1224,7 @@ initFirstRun({
 });
 
 void refresh();
-void runUpdateCheck(true);
-window.setInterval(() => {
-  void runUpdateCheck(true);
-}, 6 * 60 * 60 * 1000);
+startUpdateChecks(runUpdateCheck, window.setInterval);
 window.addEventListener("openlimiter:providers-changed", () => {
   void accountSyncConfiguredSnapshot(readConfiguredProviders());
   void refresh();

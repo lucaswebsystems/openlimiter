@@ -1937,9 +1937,15 @@ button.first-run-continue {
 }
 
 .update-banner {
-  border-color: var(--ol-accent);
+  display: flex;
+  align-items: center;
+  gap: var(--ol-space-2);
+  padding: var(--ol-space-2) var(--ol-space-3);
+  border: 1px solid var(--ol-accent);
+  border-radius: var(--ol-radius-sm);
   background: var(--ol-accent-subtle);
   color: var(--ol-accent);
+  font-size: var(--ol-text-caption);
 }
 
 .offline-banner {

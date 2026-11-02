@@ -255,16 +255,19 @@ function updateControls(update) {
   };
   const menu = control();
   const banner = control();
-  return { menu, banner, calls, run: wireUpdates({ menu, banner }, api) };
+  const text = control();
+  const install = control();
+  const later = control();
+  return { menu, banner, text, install, later, calls, run: wireUpdates({ menu, banner, text, install, later }, api) };
 }
 
 test("both update controls open the download page through the native action for a release with no installer here (Astra finding 2)", async () => {
   const controls = updateControls({ version: "2.1.7", currentVersion: "2.1.6", manual: true });
   await controls.run(true);
   assert.equal(controls.banner.hidden, false);
-  assert.equal(controls.banner.textContent, "Version 2.1.7 is out. Download it from openlimiter.com.");
+  assert.equal(controls.text.textContent, "Version 2.1.7 is out. Download it from openlimiter.com.");
   assert.equal(controls.menu.textContent, "Version 2.1.7 is out. Download it from openlimiter.com.");
-  controls.banner.handlers.click();
+  controls.install.handlers.click();
   controls.menu.handlers.click();
   assert.deepEqual(controls.calls, ["check", "download", "download"]);
 });
@@ -272,9 +275,10 @@ test("both update controls open the download page through the native action for 
 test("an installable release keeps the banner's install and the menu's fresh check", async () => {
   const controls = updateControls({ version: "2.1.7", currentVersion: "2.1.6", manual: false });
   await controls.run(true);
-  assert.equal(controls.banner.textContent, "OpenLimiter 2.1.7 is ready");
-  controls.banner.handlers.click();
-  assert.equal(controls.banner.textContent, "Installing update");
+  assert.equal(controls.text.textContent, "OpenLimiter 2.1.7 is ready");
+  assert.equal(controls.install.textContent, "Install");
+  controls.install.handlers.click();
+  assert.equal(controls.text.textContent, "Installing update");
   controls.menu.handlers.click();
   assert.deepEqual(controls.calls, ["check", "install", "check"]);
 });

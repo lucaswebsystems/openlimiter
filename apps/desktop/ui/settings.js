@@ -106,95 +106,68 @@ export function updateView(update) {
  * native opener action (Astra 2.1.7, finding 2). Returns the check, which the
  * window also runs once, silently, at start.
  */
-function resolveControl(value, ...names) {
-  if (value !== undefined && value !== null) return value;
-  for (const name of names) {
-    if (name !== undefined && name !== null) return name;
+const DISMISSED_UPDATE_KEY = "openlimiter-dismissed-update";
+
+function readDismissedUpdate() {
+  try {
+    return globalThis.localStorage?.getItem(DISMISSED_UPDATE_KEY) ?? null;
+  } catch {
+    return null;
   }
-  return null;
 }
 
-export function wireUpdates(options = {}, api = { checkForUpdate, installUpdate, openDownloadPage }) {
-  const {
-    menu,
-    banner,
-    install: installOption,
-    later: laterOption,
-    installButton,
-    laterButton,
-    installBtn,
-    laterBtn,
-    installControl: installControlOption,
-    laterControl: laterControlOption,
-    text: textOption,
-    textElement,
-    label: labelOption,
-    message: messageOption,
-    bannerText,
-  } = options || {};
+function writeDismissedUpdate(version) {
+  try {
+    if (version === null || version === undefined) globalThis.localStorage?.removeItem(DISMISSED_UPDATE_KEY);
+    else globalThis.localStorage?.setItem(DISMISSED_UPDATE_KEY, String(version));
+  } catch {
+    /* Storage refused. The choice lasts for this window only. */
+  }
+}
 
-  const installControl = resolveControl(
-    installOption, installButton, installBtn, installControlOption,
-    banner?.install, banner?.installButton, banner?.installBtn, banner?.installControl,
-  );
-  const laterControl = resolveControl(
-    laterOption, laterButton, laterBtn, laterControlOption,
-    banner?.later, banner?.laterButton, banner?.laterBtn, banner?.laterControl,
-  );
-  const textControl = resolveControl(
-    textOption, textElement, labelOption, messageOption, bannerText,
-    banner?.text, banner?.label, banner?.message, banner?.bannerText,
-  );
-
+export function wireUpdates({ menu, banner, text, install, later }, api = { checkForUpdate, installUpdate, openDownloadPage }) {
   let href = null;
   let availableVersion = null;
-  let dismissedVersion = null;
+  let dismissedVersion = readDismissedUpdate();
 
   const hideBanner = () => {
-    if (banner) banner.hidden = true;
-    if (textControl && textControl !== banner) textControl.textContent = "";
-    if (!textControl) {
-      if (banner) banner.textContent = "";
-    }
+    banner.hidden = true;
+    text.textContent = "";
   };
 
-  const showBanner = (text, version) => {
-    if (textControl) textControl.textContent = text;
-    else if (banner) banner.textContent = text;
-    if (banner) banner.hidden = false;
-    if (installControl) {
-      installControl.textContent = "Install";
-      installControl.disabled = false;
-    }
-    if (laterControl) {
-      laterControl.textContent = "Later";
-      laterControl.disabled = false;
-    }
-    if (!textControl && !installControl && !laterControl && banner) {
-      banner.textContent = text;
-      banner.hidden = false;
-    }
+  const showBanner = (message, version) => {
+    text.textContent = message;
+    banner.hidden = false;
+    install.textContent = href !== null ? "Download" : "Install";
+    install.disabled = false;
+    later.textContent = "Later";
+    later.disabled = false;
     availableVersion = version;
   };
 
   const run = async (silent) => {
-    if (!silent && menu) menu.textContent = "Checking for updates";
+    if (!silent) menu.textContent = "Checking for updates";
     const result = await api.checkForUpdate();
     if (!result || !result.ok) {
-      if (!silent && menu) menu.textContent = "Update check unavailable";
+      if (!silent) menu.textContent = "Update check unavailable";
       return;
     }
     const view = updateView(result.value);
     const version = result.value && result.value.version ? String(result.value.version) : null;
     if (view.banner === null) {
-      if (!silent && menu) menu.textContent = view.menu;
+      if (!silent) menu.textContent = view.menu;
       hideBanner();
       availableVersion = null;
       return;
     }
     href = view.href;
+    if (!silent) {
+      showBanner(view.banner, version);
+      if (menu) menu.textContent = view.menu;
+      return;
+    }
     if (dismissedVersion !== null && version !== null && dismissedVersion === version) {
-      if (!silent && menu) menu.textContent = view.menu;
+      if (menu) menu.textContent = view.menu;
       hideBanner();
       availableVersion = version;
       return;
@@ -203,37 +176,25 @@ export function wireUpdates(options = {}, api = { checkForUpdate, installUpdate,
     if (menu) menu.textContent = view.menu;
   };
 
-  const install = () => {
+  const onInstall = () => {
     if (href !== null) {
       void api.openDownloadPage();
       return;
     }
-    const target = installControl || banner;
-    if (target) {
-      target.disabled = true;
-      target.textContent = "Installing update";
-    }
-    if (textControl && textControl !== target) textControl.textContent = "Installing update";
-    if (!textControl && banner && banner !== target) banner.textContent = "Installing update";
+    install.disabled = true;
+    install.textContent = "Installing update";
+    text.textContent = "Installing update";
     void api.installUpdate().then((result) => {
       if (result && result.ok) return;
-      if (target) {
-        target.disabled = false;
-        target.textContent = "Install";
-      }
-      if (textControl && textControl !== target) textControl.textContent = "OpenLimiter " + (availableVersion ?? "new version") + " is ready";
-      if (!textControl && banner && banner !== target) banner.textContent = "OpenLimiter " + (availableVersion ?? "new version") + " is ready";
-      if (!target && banner) {
-        banner.disabled = false;
-        banner.textContent = "Update install unavailable";
-      } else if (target) {
-        target.textContent = "Update install unavailable";
-      }
+      install.disabled = false;
+      install.textContent = "Update install unavailable";
+      text.textContent = "OpenLimiter " + (availableVersion ?? "new version") + " is ready";
     });
   };
 
-  const later = () => {
+  const onLater = () => {
     dismissedVersion = availableVersion;
+    writeDismissedUpdate(availableVersion);
     hideBanner();
   };
 
@@ -243,17 +204,23 @@ export function wireUpdates(options = {}, api = { checkForUpdate, installUpdate,
       else void run(false);
     });
   }
-  if (installControl) {
-    installControl.addEventListener("click", install);
-  }
-  if (banner && !installControl) {
-    banner.addEventListener("click", install);
-  }
-  if (laterControl) {
-    laterControl.addEventListener("click", later);
-  }
+  install.addEventListener("click", onInstall);
+  later.addEventListener("click", onLater);
   return run;
 }
+
+export const UPDATE_CHECK_INTERVAL = 6 * 60 * 60 * 1000;
+
+export function startUpdateChecks(run, setIntervalFn = globalThis.setInterval) {
+  void run(true);
+  const handle = typeof setIntervalFn === "function"
+    ? setIntervalFn(() => { void run(true); }, UPDATE_CHECK_INTERVAL)
+    : null;
+  return handle;
+}
+
+export const scheduleUpdateChecks = startUpdateChecks;
+export const beginUpdateChecks = startUpdateChecks;
 
 /** Bring the plan card into view: open the menu when it is closed, then scroll. */
 export function showPlan(doc = document) {
