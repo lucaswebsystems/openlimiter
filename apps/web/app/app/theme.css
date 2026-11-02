@@ -531,6 +531,9 @@
   box-shadow: var(--ol-elev-2);
   max-height: min(42rem, calc(100svh - 5rem));
   overflow-y: auto;
+  /* The toolbar never wraps; its menu must, or a long note widens every button. */
+  overflow-x: hidden;
+  white-space: normal;
   animation: ol-panel-in 160ms cubic-bezier(0, 0, 0.58, 1) both;
 }
 
@@ -1528,7 +1531,10 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell.ol-phone-shell {
 .ol-notification-popover {
   display: grid;
   max-height: calc(100vh - var(--ol-space-7));
+  max-width: calc(100vw - 2rem);
   overflow-y: auto;
+  overflow-x: hidden;
+  white-space: normal;
   gap: var(--ol-space-3);
   padding: var(--ol-space-4);
   border: 1px solid var(--ol-hairline-strong);
