@@ -2501,6 +2501,10 @@
       "signInTerminal": "Iniciar sesión en una terminal",
       "terminalLead": "Conecta tu terminal a esta cuenta"
     },
+    "desktopSignedIn": {
+      "title": "Has iniciado sesión",
+      "body": "OpenLimiter en tu ordenador ya ha iniciado sesión en tu cuenta. Puedes cerrar esta pestaña y volver a la aplicación."
+    },
     "cliPage": {
       "title": "Iniciar sesión en una terminal",
       "lead": "Escribe el código de ocho caracteres que aparece en tu terminal.",

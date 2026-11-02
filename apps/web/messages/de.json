@@ -2501,6 +2501,10 @@
       "signInTerminal": "In einem Terminal anmelden",
       "terminalLead": "Verbinden Sie Ihr Terminal mit diesem Konto"
     },
+    "desktopSignedIn": {
+      "title": "Du bist angemeldet",
+      "body": "OpenLimiter auf deinem Computer ist jetzt mit deinem Konto angemeldet. Du kannst diesen Tab schließen und zur App zurückkehren."
+    },
     "cliPage": {
       "title": "In einem Terminal anmelden",
       "lead": "Geben Sie den achtstelligen Code ein, der in Ihrem Terminal angezeigt wird.",
