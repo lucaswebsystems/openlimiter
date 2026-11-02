@@ -51,8 +51,8 @@ describe("account and freshness status line goldens", () => {
   });
   it.each([180, 900, 7200, 86400])("greys the last value once it is stale at %s seconds", (seconds) => {
     const stale = [row({ observedAt: ago(seconds), expiresAt: ago(seconds - 60) })];
-    expect(render(stale, [], true)).toContain(grey("42%"));
-    expect(render(stale)).toContain("~42%");
+    expect(render(stale, [], true)).toBe("5h " + grey("[████░░░░░░]") + " " + grey("42%") + " · " + (seconds === 180 ? "3m old" : seconds === 900 ? "15m old" : seconds === 7200 ? "2h old" : "1d old"));
+    expect(render(stale)).toBe("5h [████░░░░░░] ~42% · " + (seconds === 180 ? "3m old" : seconds === 900 ? "15m old" : seconds === 7200 ? "2h old" : "1d old"));
   });
   it("leaves explicitly selected providers without readings out", () => {
     expect(render([row({ value: 16 })], ["claude", "codex", "antigravity", "gemini_cli", "openrouter"]))
@@ -103,7 +103,7 @@ describe("account and freshness status line goldens", () => {
         expiresAt: ago(120)
       }),
       row({ accountId, observedAt: ago(240), expiresAt: ago(120), value: 42 })
-    ])).toContain(tenBlockBar(42) + " ~42%");
+    ])).toBe("5h " + tenBlockBar(42) + " ~42% · 4m old");
   });
   it("keeps a quiet provider's only account, stale, for seven days and then leaves it out", () => {
     expect(render([row({ value: 16 }), row({ provider: "CODEX", observedAt: ago(86401) })]))
@@ -115,7 +115,7 @@ describe("account and freshness status line goldens", () => {
     const weekly = row({ meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604800 }, value: 26,
       source: "internal_payload", provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
       observedAt: ago(7200), expiresAt: ago(6060) });
-    expect(render([row({ value: 16 }), weekly])).toContain("7d [██░░░░░░░░] ~26%");
+    expect(render([row({ value: 16 }), weekly])).toBe("5h [█░░░░░░░░░] 16% | 7d [██░░░░░░░░] ~26% · 2h old");
     expect(render([row({ value: 16 }), weekly], [], true)).toContain("7d " + grey("[██░░░░░░░░]") + " " + grey("26%"));
   });
   it("drops a weekly past its seven days beside a current session, and says the weekly is missing", async () => {
@@ -166,7 +166,7 @@ describe("account and freshness status line goldens", () => {
       config: { ...DEFAULT_STATUSLINE, style: "bar", meters: "worst", width: 1000, rows: 2 }
     });
     expect(worst([fresh, stale])).toBe("cl 7d " + tenBlockBar(10) + " 10%");
-    expect(worst([stale])).toContain("cl 7d " + tenBlockBar(99) + " ~99%");
+    expect(worst([stale])).toBe("cl 7d " + tenBlockBar(99) + " ~99% · 2h old");
   });
   it("measures last seen per account, rather than discarding every older meter", () => {
     expect(render([row({ accountId: "active", value: 16 }), row({ accountId: "active", meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604800 }, observedAt: ago(90000), value: 26 })]))

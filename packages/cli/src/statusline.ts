@@ -914,10 +914,10 @@ export function formatStaleAge(observedAt: string, now: string): string {
   const diffMs = Date.parse(now) - Date.parse(observedAt);
   const diffSec = Math.floor(diffMs / 1000);
   if (!Number.isFinite(diffSec) || diffSec < 0) return "";
-  return compactResetDuration(diffSec) + " old";
+  if (diffSec < 3600) return String(Math.floor(diffSec / 60)) + "m old";
+  if (diffSec < 86_400) return String(Math.floor(diffSec / 3600)) + "h old";
+  return String(Math.floor(diffSec / 86_400)) + "d old";
 }
-export const formatAge = formatStaleAge;
-export const staleAge = formatStaleAge;
 
 export function formatResetTime(resetAt: string | null | undefined, now: string): string {
   if (!resetAt) return "";
@@ -1046,7 +1046,7 @@ export function barStyleCells(
       const resetBase = formatResetTime(snapshot.resetAt, now).replace("↻", unicode ? "· " : "resets ");
       const ageStr = state === "stale" ? formatStaleAge(snapshot.observedAt, now) : "";
       const resetStr = resetBase !== ""
-        ? resetBase + (ageStr !== "" ? " · " + ageStr : "")
+        ? resetBase + (ageStr !== "" ? (unicode ? " · " : ", ") + ageStr : "")
         : (ageStr !== "" ? (unicode ? "· " : "") + ageStr : "");
 
       const label = tag;
