@@ -185,9 +185,6 @@ const elements = {
   accountOfferSignIn: document.getElementById("account-offer-sign-in"),
   accountOfferDismiss: document.getElementById("account-offer-dismiss"),
   updateBanner: document.getElementById("update-banner"),
-  updateBannerText: document.getElementById("update-banner-text"),
-  updateInstall: document.getElementById("update-banner-install"),
-  updateLater: document.getElementById("update-banner-later"),
   offlineBanner: document.getElementById("offline-banner"),
   refreshStatus: document.getElementById("home-refresh-status"),
   failures: document.getElementById("failures"),
@@ -592,13 +589,7 @@ elements.signInGoogle?.addEventListener("click", () => void continueWith("google
 elements.signInMicrosoft?.addEventListener("click", () => void continueWith("azure"));
 
 /* Settings' "Check for updates" and the banner: one wiring (settings.js). */
-const runUpdateCheck = wireUpdates({
-  menu: elements.menuUpdate,
-  banner: elements.updateBanner,
-  text: elements.updateBannerText,
-  install: elements.updateInstall,
-  later: elements.updateLater,
-});
+const runUpdateCheck = wireUpdates({ menu: elements.menuUpdate, banner: elements.updateBanner });
 
 /* Ask once per window, when the menu that holds the Alerts switch opens.
    Local desktop alerts are free, with or without an account. */
@@ -1225,9 +1216,6 @@ initFirstRun({
 
 void refresh();
 void runUpdateCheck(true);
-window.setInterval(() => {
-  void runUpdateCheck(true);
-}, 6 * 60 * 60 * 1000);
 window.addEventListener("openlimiter:providers-changed", () => {
   void accountSyncConfiguredSnapshot(readConfiguredProviders());
   void refresh();
