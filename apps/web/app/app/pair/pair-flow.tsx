@@ -41,7 +41,7 @@ import { visibleQuotaSnapshots } from "../live-usage";
 import { DollarRow, ProviderRows, SkeletonRows, observationAgeMinutes } from "../pieces";
 import { claudeMeterOverride, meterName, type ClaudeMeterCopy } from "../language";
 import { useClaudeMeterCopy } from "../use-claude-meter-copy";
-import { InstallControl, runningInstalled } from "../install";
+import { InstallControl } from "../install";
 import { PhoneSettings } from "./phone-settings";
 import { PhoneTabs, type PhoneTab } from "./phone-tabs";
 import { ProTab } from "./pro-tab";
@@ -507,7 +507,6 @@ export function PairFlow({ lockup = null }: { lockup?: ReactNode }) {
   const [checkingExisting, setCheckingExisting] = useState(() => state.phase !== "claiming");
   const claimStarted = useRef(false);
   /* Opened from the home screen icon, where no scan can bring a fragment. */
-  const [installed] = useState(runningInstalled);
 
   /*
    * The claim itself, for a freshly scanned or typed code only.
@@ -678,7 +677,9 @@ export function PairFlow({ lockup = null }: { lockup?: ReactNode }) {
   }
 
   const failed = state.phase === "expired" || state.phase === "denied" || state.phase === "error";
-  if (installed && (state.phase === "noCode" || failed)) {
+  /* Every phone gets the field, not only the installed app: in app browsers,
+     scanner views and iOS home screen launches all lose the #code fragment. */
+  if (state.phase === "noCode" || failed) {
     return (
       <CodeEntry
         note={
@@ -688,7 +689,7 @@ export function PairFlow({ lockup = null }: { lockup?: ReactNode }) {
               ? t("pairPage.setup.denied.title")
               : state.phase === "error"
                 ? t("pairPage.setup.error.title")
-                : null
+                : t("pairPage.setup.noCode.title")
         }
         label={t("pairPage.codeEntry.label")}
         action={t("pairPage.codeEntry.pair")}
@@ -698,19 +699,6 @@ export function PairFlow({ lockup = null }: { lockup?: ReactNode }) {
           setState(initialPairState(`code=${code}`));
         }}
       />
-    );
-  }
-
-  if (state.phase === "noCode") {
-    return (
-      <Card title={t("pairPage.setup.noCode.title")}>
-        <p>{t("pairPage.setup.noCode.body")}</p>
-        <p>
-          <Link href="/app" className={BUTTON_GHOST}>
-            {t("pairPage.openDashboard")}
-          </Link>
-        </p>
-      </Card>
     );
   }
 
