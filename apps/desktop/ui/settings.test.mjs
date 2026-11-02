@@ -237,7 +237,7 @@ test("a release the manifest has no installer for links to the download page (ma
     menu: out, banner: out, href: DOWNLOAD_URL,
   });
   assert.deepEqual(updateView({ version: "2.1.7", currentVersion: "2.1.6", manual: false }), {
-    menu: "Install OpenLimiter 2.1.7", banner: "OpenLimiter 2.1.7 is ready. Install now.", href: null,
+    menu: "Install OpenLimiter 2.1.7", banner: "OpenLimiter 2.1.7 is ready", href: null,
   });
   assert.deepEqual(updateView(null), { menu: "OpenLimiter is current", banner: null, href: null });
 });
@@ -272,7 +272,7 @@ test("both update controls open the download page through the native action for 
 test("an installable release keeps the banner's install and the menu's fresh check", async () => {
   const controls = updateControls({ version: "2.1.7", currentVersion: "2.1.6", manual: false });
   await controls.run(true);
-  assert.equal(controls.banner.textContent, "OpenLimiter 2.1.7 is ready. Install now.");
+  assert.equal(controls.banner.textContent, "OpenLimiter 2.1.7 is ready");
   controls.banner.handlers.click();
   assert.equal(controls.banner.textContent, "Installing update");
   controls.menu.handlers.click();
