@@ -740,7 +740,10 @@ function credentialReader(
        * A terminal person therefore has one documented way to supply the key,
        * and it is the same variable a shell profile already knows how to keep.
        */
-      secret ??= dependencies.environment["OPENLIMITER_OPENROUTER_KEY"] ?? null;
+      if (secret === null || secret === "") {
+        secret = [dependencies.environment["OPENLIMITER_OPENROUTER_KEY"],
+          dependencies.environment["OPENROUTER_API_KEY"]].find((value) => value !== undefined && value !== "") ?? null;
+      }
       return secret === null || secret === ""
         ? { ok: false, reason: "absent" }
         : {

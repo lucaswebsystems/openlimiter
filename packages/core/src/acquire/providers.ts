@@ -17,6 +17,7 @@ import {
   cursorUsageRequest,
   grokBillingRequest,
   kimiUsageRequest,
+  openrouterCreditsRequest,
   openrouterKeyRequest
 } from "./transport.js";
 import { codexAppServerRequest } from "./codex-app-server.js";
@@ -24,7 +25,9 @@ import { acquisitionAccountId } from "./identity.js";
 
 export type PayloadParser = (
   payload: unknown,
-  now: string
+  now: string,
+  /** Every body this attempt received, in step order; the last is `payload`. */
+  previous?: readonly unknown[]
 ) => readonly RawMeter[] | null;
 
 /**
@@ -235,7 +238,11 @@ export function openrouterSpec(parse: PayloadParser): AcquisitionSpec {
   return {
     provider: "OPENROUTER",
     credentialProvider: "OPENROUTER",
-    steps: [({ credential }) => openrouterKeyRequest(credential.secret)],
+    steps: [
+      ({ credential }) => openrouterKeyRequest(credential.secret),
+      ({ credential }) => openrouterCreditsRequest(credential.secret)
+    ],
+    optionalFrom: 1,
     parse,
     disclosure: ACQUISITION_DISCLOSURE.openrouter
   };

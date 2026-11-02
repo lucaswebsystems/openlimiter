@@ -78,8 +78,14 @@ export interface AcquisitionSpec {
   /** Whose stored credential this read uses. */
   readonly credentialProvider: AcquisitionProvider;
   readonly steps: readonly AcquisitionStep[];
+  /**
+   * The index from which a step may fail without failing the read: the loop
+   * stops there and the parser gets the bodies already received. OpenRouter's
+   * credit report is such a step, since some keys are refused it.
+   */
+  readonly optionalFrom?: number;
   /** The connector parser for this provider's response, injected by the caller. */
-  readonly parse: (payload: unknown, now: string) => readonly RawMeter[] | null;
+  readonly parse: (payload: unknown, now: string, previous?: readonly unknown[]) => readonly RawMeter[] | null;
   /**
    * Whether a response stated its whole set (Claude: its weekly set). The ok
    * report carries the answer, and only a complete read may remove a stored
@@ -232,7 +238,8 @@ async function attempt(
   const previous: unknown[] = [];
   const started = Date.now();
   let retryAfter: number | null = null;
-  for (const step of spec.steps) {
+  for (const [index, step] of spec.steps.entries()) {
+    const optional = previous.length > 0 && index >= (spec.optionalFrom ?? Number.POSITIVE_INFINITY);
     const at = options.clock?.() ?? Date.parse(options.now) + Date.now() - started;
     if (credentialExpired(credential, at)) {
       return { outcome: "unauthorized", meters: [], retryAfterSeconds: null, expiredCredentials: true };
@@ -242,9 +249,11 @@ async function attempt(
     }
     const decided = step({ credential, previous });
     if (decided === null) {
+      if (optional) break;
       return { outcome: "drift", meters: [], retryAfterSeconds: null, phase: "request" };
     }
     if ("stop" in decided) {
+      if (optional) break;
       return { outcome: decided.stop, meters: [], retryAfterSeconds: retryAfter, phase: "request" };
     }
     const request = decided;
@@ -255,6 +264,7 @@ async function attempt(
       /* The error object is never inspected and never formatted. A transport
          failure carries a URL and sometimes a header, and neither belongs
          anywhere near a row a person reads. */
+      if (optional) break;
       return { outcome: "transport", meters: [], retryAfterSeconds: null, phase: "request" };
     }
     /* A response that comes back after another process took the shared lease
@@ -264,6 +274,12 @@ async function attempt(
     if (options.lease && !(await options.lease.stillOwned(answeredAt))) {
       return { outcome: "transport", meters: [], retryAfterSeconds: null, phase: "request" };
     }
+    /* A refused optional step must not carry its backoff onto the read that
+       already succeeded, so its retry hint is only kept once it answered. */
+    const optionalFailed = optional && (reply.missingCredential === true || reply.status === 0 ||
+      (reply.outcome ?? outcomeForStatus(reply.status)) !== "ok");
+    if (optionalFailed) break;
+    const retryBefore = retryAfter;
     retryAfter = reply.retryAfterSeconds;
     if (reply.missingCredential === true) {
       return { outcome: "transport", meters: [], retryAfterSeconds: null, phase: "request", missingCredential: true };
@@ -277,6 +293,7 @@ async function attempt(
     try {
       body = JSON.parse(reply.body) as unknown;
     } catch {
+      if (optional) { retryAfter = retryBefore; break; }
       return { outcome: "drift", meters: [], retryAfterSeconds: retryAfter, phase: "parse" };
     }
     previous.push(body);
@@ -292,7 +309,7 @@ async function attempt(
   let meters: readonly RawMeter[] | null;
   let complete: boolean | undefined;
   try {
-    meters = spec.parse(payload, options.now);
+    meters = spec.parse(payload, options.now, previous);
     complete = spec.complete?.(payload, options.now);
   } catch {
     return { outcome: "drift", meters: [], retryAfterSeconds: retryAfter, phase: "parse" };

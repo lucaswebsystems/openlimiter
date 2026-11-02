@@ -44,6 +44,8 @@ export const CURSOR_USAGE_URL = "https://cursor.com/api/usage-summary";
 
 /** The OpenRouter inference key report: limit, remaining and usage. */
 export const OPENROUTER_KEY_URL = "https://openrouter.ai/api/v1/key";
+/** The OpenRouter account credit report: purchased and used, so what is left. */
+export const OPENROUTER_CREDITS_URL = "https://openrouter.ai/api/v1/credits";
 
 /**
  * Every address this path may speak to.
@@ -60,7 +62,8 @@ export const ACQUISITION_ENDPOINTS = {
   grok_billing: { url: GROK_USAGE_URL, method: "GET" },
   kimi_usage: { url: KIMI_USAGE_URL, method: "GET" },
   cursor_usage: { url: CURSOR_USAGE_URL, method: "GET" },
-  openrouter_key: { url: OPENROUTER_KEY_URL, method: "GET" }
+  openrouter_key: { url: OPENROUTER_KEY_URL, method: "GET" },
+  openrouter_credits: { url: OPENROUTER_CREDITS_URL, method: "GET" }
 } as const satisfies Readonly<Record<string, { url: string; method: "GET" | "POST" }>>;
 
 export type AcquisitionEndpointId = keyof typeof ACQUISITION_ENDPOINTS;
@@ -255,6 +258,18 @@ export function openrouterKeyRequest(secret: string): HttpAcquisitionRequest | n
   return {
     endpoint: "openrouter_key",
     url: ACQUISITION_ENDPOINTS.openrouter_key.url,
+    method: "GET",
+    headers: bearer(secret),
+    body: null
+  };
+}
+
+/** The OpenRouter credit report, read with the same key, for what is left. */
+export function openrouterCreditsRequest(secret: string): HttpAcquisitionRequest | null {
+  if (!usableHeaderSecret(secret)) return null;
+  return {
+    endpoint: "openrouter_credits",
+    url: ACQUISITION_ENDPOINTS.openrouter_credits.url,
     method: "GET",
     headers: bearer(secret),
     body: null
