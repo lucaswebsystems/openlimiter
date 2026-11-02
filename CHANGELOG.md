@@ -8,6 +8,14 @@ New Antigravity quota buckets each get their own bar, and a status line OpenLimi
 
 Alerts fire again when Cursor is connected: a Cursor reading no longer blocks the alert batch for every provider.
 
+The terminal status line shows your OpenRouter credit left, read with the OPENROUTER_API_KEY you already have, and no longer prints No key cap for a key without a limit.
+
+The time to a reset reads as a quiet dot instead of an arrow, and statusline.wrap in the configuration lets the bars wrap onto up to three lines instead of hiding some behind a count.
+
+Pairing a phone works from any browser: the code field shows on every phone, not only inside the installed app, so a scanned page that lost its code can still pair by typing it.
+
+Signing in from the desktop app now ends on openlimiter.com instead of leaving the browser on a local 127.0.0.1 page.
+
 ## [2.1.8]
 
 The reorder grip now sits beside each provider's logo instead of replacing it.
