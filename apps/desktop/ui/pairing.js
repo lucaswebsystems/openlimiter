@@ -115,9 +115,13 @@ function pendingState(panel, session) {
   const countdown = element("p", "pair-countdown", countdownText(session.secondsRemaining));
   countdown.setAttribute("role", "timer");
   panel.append(countdown);
-  /* The code above stays: the installed phone app's field types it. A
-     browser tab has no field, so the note only says scan. */
-  panel.append(element("p", "note tight", "Scan with your phone camera."));
+  panel.append(
+    element(
+      "p",
+      "note tight",
+      "Open the camera and point it at the code, or type the eight characters at openlimiter.com/app/pair.",
+    ),
+  );
   const actions = element("div", "button-row");
   const cancel = button("phone-cancel", "Cancel", null);
   cancel.addEventListener("click", () => void end());
