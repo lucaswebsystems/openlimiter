@@ -740,7 +740,10 @@ function credentialReader(
        * A terminal person therefore has one documented way to supply the key,
        * and it is the same variable a shell profile already knows how to keep.
        */
-      secret ??= dependencies.environment["OPENLIMITER_OPENROUTER_KEY"] ?? null;
+      if (secret === null || secret === "") {
+        secret = [dependencies.environment["OPENLIMITER_OPENROUTER_KEY"],
+          dependencies.environment["OPENROUTER_API_KEY"]].find((value) => value !== undefined && value !== "") ?? null;
+      }
       return secret === null || secret === ""
         ? { ok: false, reason: "absent" }
         : {
@@ -1211,7 +1214,6 @@ async function ingestStandardInput(
       : host === "grok"
         ? parseGrokStatuslinePayload(document.value, now)
         : parseClaudePayload(document.value, now);
-    if (meters === null) return { snapshots: null, payload: document.value };
     /* While the direct request is on it is the only source of every Claude
        row, so Claude's payload writes nothing and draws nothing. */
     if (host === "claude" && pollOn) {
@@ -1224,8 +1226,18 @@ async function ingestStandardInput(
         : STATUSLINE_PROVENANCE;
     /* The host wrote this to our standard input in this session. It is a live
        reading, and it says so. */
-    const incoming = normalizeMeters(withProvenance(meters, provenance).map(meter => ({ ...meter, ...(accountId ? { accountId } : {}) })));
-    if (incoming.length === 0) return { snapshots: null, payload: document.value };
+    const incoming = normalizeMeters(withProvenance(meters ?? [], provenance).map(meter => ({ ...meter, ...(accountId ? { accountId } : {}) })));
+    if (incoming.length === 0) {
+      /* Antigravity buckets this build cannot read look, on every surface,
+         like a closed Antigravity CLI: the bars only age. Include rows lost
+         during normalisation. Doctor is told the payload drifted, the cache
+         keeps its last reading, and the next readable payload clears it. */
+      const quota = host === "antigravity" ? (document.value as { quota?: unknown } | null)?.quota : undefined;
+      if (typeof quota === "object" && quota !== null && !Array.isArray(quota) && Object.keys(quota).length > 0) {
+        await recordStatuslineFailure(dependencies.stateDirectory, now, "ingest", Object.assign(new Error(), { name: "SchemaDriftError" }));
+      }
+      return { snapshots: null, payload: document.value };
+    }
     /* The render still draws when a write fails, so each failure is kept for
        doctor by its stage, and the next full success clears it. */
     let merged: Snapshot[];

@@ -36,3 +36,23 @@ it("refresh honors a desktop lease, takes over at expiry, and retains the plan's
     expect(calls).toBe(2);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+it.each([
+  [{ OPENROUTER_API_KEY: "standard-key" }, "standard-key"],
+  [{ OPENLIMITER_OPENROUTER_KEY: "", OPENROUTER_API_KEY: "standard-key" }, "standard-key"],
+  [{ OPENLIMITER_OPENROUTER_KEY: "own-key", OPENROUTER_API_KEY: "standard-key" }, "own-key"]
+])("reads the OpenRouter key from the first non empty variable (%o)", async (environment, expected) => {
+  const dir = await realpath(await mkdtemp(path.join(tmpdir(), "openlimiter-cli-orkey-")));
+  const sent: string[] = [];
+  try {
+    await runCli(["refresh"], {
+      stateDirectory: dir, homeDirectory: dir, environment,
+      now: () => "2026-11-02T12:00:00.000Z",
+      acquisitionTransport: async (request: { headers?: Record<string, string> }) => {
+        sent.push(request.headers?.["authorization"] ?? "");
+        return { status: 500, body: "", retryAfterSeconds: null };
+      }
+    } as Parameters<typeof runCli>[1]);
+    expect(sent[0]).toBe("Bearer " + expected);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});

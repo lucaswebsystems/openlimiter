@@ -15,7 +15,10 @@ pub const MAX_CACHE_ENTRIES: usize = 64;
 const MAX_AMOUNT: f64 = 1_000_000.0;
 const MAX_VALUE: f64 = 1_000_000_000_000.0;
 
-const PROVIDER_CODES: &[&str] = &[
+/// The one Rust list of provider codes a row may carry, the mirror of the
+/// engine's `PROVIDER_CODES` (packages/core/src/types.ts). The alert rules
+/// read it too, and a test in notifications.rs fails when the two drift.
+pub(crate) const PROVIDER_CODES: &[&str] = &[
     "CLAUDE",
     "OPENROUTER",
     "CODEX",

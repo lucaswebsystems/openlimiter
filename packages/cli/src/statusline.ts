@@ -986,6 +986,8 @@ export function barStyleCells(
       const grey = (text: string): string => color && state === "stale" ? paintBand(text, snapshot.value, "stale") : text;
 
       if (isAvailabilitySnapshot(snapshot)) {
+        // A key with no cap has nothing to warn about; the balance cell says what is left.
+        if (provider === "OPENROUTER" && snapshot.availability === "unlimited") continue;
         const tag = captionFor(snapshot, hostProvider, inputCaptions, claudeFamilyCodesFor(snapshot, snapshots));
         const plain = tag + " " + availabilityText(snapshot, now);
         const chosen = visibility[provider.toLowerCase()] === true ||
@@ -1032,7 +1034,7 @@ export function barStyleCells(
 
       const bar = tenBlockBar(snapshot.value, unicode);
       const percentStr = mark + Math.round(snapshot.value) + "%" + bandMark(snapshot.value, state);
-      const resetStr = formatResetTime(snapshot.resetAt, now).replace("↻", unicode ? "↻" : "resets ");
+      const resetStr = formatResetTime(snapshot.resetAt, now).replace("↻", unicode ? "· " : "resets ");
 
       const label = tag;
       const plain = resetStr !== ""
@@ -1148,6 +1150,13 @@ function renderBarStatusline(input: StatuslineLayoutInput): string {
   const notes = [shown("style") ? session.style : undefined, shown("7d") ? input.pollHint : undefined]
     .filter((note): note is string => Boolean(note))
     .map(noteCell);
+  if (config.wrap === true) {
+    // Opt in: whole cells wrap onto up to three lines before any is dropped.
+    const readings = [...quotas, ...apiMoney];
+    return (stacked(head, [...readings, ...notes], config.width, 3, BAR_CELL_SEPARATOR) ??
+      stacked(head, readings, config.width, 3, BAR_CELL_SEPARATOR) ??
+      shed(head, readings, config.width, 3, BAR_CELL_SEPARATOR)) || STATUSLINE_UNKNOWN;
+  }
   return oneRow(head, [...quotas, ...apiMoney], notes, config.width) || STATUSLINE_UNKNOWN;
 }
 

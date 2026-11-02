@@ -51,13 +51,23 @@ describe("decision A and U44: one row of ten block bars inside the width", () =>
     }
   });
 
+  it("wraps whole cells onto up to three lines when wrap is on, each inside the width", () => {
+    const wrapped = render({ width: 120, wrap: true });
+    const lines = wrapped.split("\n");
+    expect(lines.length).toBeGreaterThan(1);
+    expect(lines.length).toBeLessThanOrEqual(3);
+    for (const line of lines) expect(displayColumns(line)).toBeLessThanOrEqual(120);
+    expect(accounted(lines.join(" | "))).toBe(12);
+    expect(render({ width: 120 }).split("\n")).toHaveLength(1);
+  });
+
   it("draws a different line at 80, 120 and 160 columns", () => {
     expect(new Set([80, 120, 160].map((width) => render({ width }))).size).toBe(3);
   });
 
   it("keeps the readings closest to their caps and counts every other one exactly", () => {
     const narrow = render({ width: 80 });
-    expect(narrow).toBe("oc 5h [█████████░] 92%!! ↻5h | km 5h [██████░░░░] 70% ↻5h | +10 more");
+    expect(narrow).toBe("oc 5h [█████████░] 92%!! · 5h | km 5h [██████░░░░] 70% · 5h | +10 more");
     for (const width of [80, 120, 160, 400]) expect(accounted(render({ width }))).toBe(12);
     expect(render({ width: 400 })).not.toContain("more");
   });
@@ -98,7 +108,7 @@ describe("Astra finding 6: ranked by actual pressure, API budget pressure includ
 
 describe("Astra finding 5: display columns, and a bounded session head", () => {
   it("measures display columns, not string length", () => {
-    expect(displayColumns("5h [█░░░░░░░░░] 16% ↻3h20m")).toBe(26);
+    expect(displayColumns("5h [█░░░░░░░░░] 16% · 3h20m")).toBe(27);
     expect(displayColumns("漢字")).toBe(4);
     expect(displayColumns("é")).toBe(1);
     expect(displayColumns("\x1b[32mab\x1b[0m")).toBe(2);
@@ -138,10 +148,10 @@ describe("Astra finding 5: display columns, and a bounded session head", () => {
 });
 
 describe("U45: a reset reads as a reset, not as a second window", () => {
-  it("marks the time left to a reset with the reset arrow", () => {
+  it("marks the time left to a reset with a quiet dot, never the old arrow (owner, 2026-11-02)", () => {
     expect(formatResetTime("2026-01-07T23:00:00.000Z", GOLDEN_NOW)).toBe("↻6d23h");
-    expect(render({ width: 400 })).toContain("7d [██████░░░░] 64% ↻7d");
-    expect(render({ width: 400 })).not.toContain("·");
+    expect(render({ width: 400 })).toContain("7d [██████░░░░] 64% · 7d");
+    expect(render({ width: 400 })).not.toContain("↻");
   });
 
   it("spells it out where the terminal cannot draw the arrow", () => {

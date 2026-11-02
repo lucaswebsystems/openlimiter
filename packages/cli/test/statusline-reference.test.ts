@@ -51,15 +51,15 @@ describe("Lucas reference layout", () => {
     ["Linux", "/workspace/Olá projeto"]
   ])("renders the exact plain and ANSI payload line for %s paths", (_os, directory) => {
     const session = parseStatuslineSession(payload(directory));
-    const plain = "opus-5-5 high | ctx 42% | 5h [█░░░░░░░░░] 17% ↻3h20m | 7d [██░░░░░░░░] 26% ↻4d2h | cx 7d [███░░░░░░░] 32% ↻4d2h | ag 5h [█░░░░░░░░░] 9% ↻18m | oc 5h [████░░░░░░] 42% | or bal $12.34 | concise";
-    const painted = "opus-5-5 high | ctx 42% | 5h " + green("[█░░░░░░░░░]") + " " + green("17%") + " ↻3h20m | 7d " + green("[██░░░░░░░░]") + " " + green("26%") + " ↻4d2h | cx 7d " + green("[███░░░░░░░]") + " " + green("32%") + " ↻4d2h | ag 5h " + green("[█░░░░░░░░░]") + " " + green("9%") + " ↻18m | oc 5h " + green("[████░░░░░░]") + " " + green("42%") + " | or bal $12.34 | concise";
+    const plain = "opus-5-5 high | ctx 42% | 5h [█░░░░░░░░░] 17% · 3h20m | 7d [██░░░░░░░░] 26% · 4d2h | cx 7d [███░░░░░░░] 32% · 4d2h | ag 5h [█░░░░░░░░░] 9% · 18m | oc 5h [████░░░░░░] 42% | or bal $12.34 | concise";
+    const painted = "opus-5-5 high | ctx 42% | 5h " + green("[█░░░░░░░░░]") + " " + green("17%") + " · 3h20m | 7d " + green("[██░░░░░░░░]") + " " + green("26%") + " · 4d2h | cx 7d " + green("[███░░░░░░░]") + " " + green("32%") + " · 4d2h | ag 5h " + green("[█░░░░░░░░░]") + " " + green("9%") + " · 18m | oc 5h " + green("[████░░░░░░]") + " " + green("42%") + " | or bal $12.34 | concise";
     const wide = { ...DEFAULT_STATUSLINE, width: 400 };
     expect(render(snapshots, { session, config: wide })).toBe(plain);
     expect(render(snapshots, { session, config: wide, color: true })).toBe(painted);
     expect(render(snapshots, { session, config: wide, color: statuslineColor("always", { NO_COLOR: "" }, true, "claude") })).toBe(plain);
     // At the default 140 columns the row keeps the readings closest to their caps and counts the rest (2.1.7, decision A).
     expect(render(snapshots, { session })).toBe(
-      "opus-5-5 high | ctx 42% | 7d [██░░░░░░░░] 26% ↻4d2h | cx 7d [███░░░░░░░] 32% ↻4d2h | oc 5h [████░░░░░░] 42% | +3 more"
+      "opus-5-5 high | ctx 42% | 7d [██░░░░░░░░] 26% · 4d2h | cx 7d [███░░░░░░░] 32% · 4d2h | oc 5h [████░░░░░░] 42% | +3 more"
     );
     // The folder only appears once someone opts in, and then by its last name.
     expect(render(snapshots, { session, config: { ...wide, visibility: { dir: true } } }))
@@ -82,7 +82,7 @@ describe("Lucas reference layout", () => {
 
   it("greys a stale number, marks an estimate and keeps the reset", () => {
     const value = row({ value: 85, observedAt: "2025-12-31T23:45:00Z", expiresAt: "2025-12-31T23:46:00Z" });
-    expect(render([value], { color: true })).toBe("5h \x1b[90m[████████░░]\x1b[0m \x1b[90m85%\x1b[0m ↻3h20m");
+    expect(render([value], { color: true })).toBe("5h \x1b[90m[████████░░]\x1b[0m \x1b[90m85%\x1b[0m · 3h20m");
     expect(render([row({ value: 1, precision: "estimated" })])).toContain("~1%");
   });
 
@@ -113,12 +113,12 @@ describe("Lucas reference layout", () => {
     expect(render([...key, ...balance])).toBe("or key $10.00/$100.00 | or bal $12.34");
   });
 
-  it("shows an uncapped key and a balance unavailable without a management key", () => {
+  it("drops an uncapped key and shows a balance unavailable without a management key", () => {
     const rows = normalizeMeters(parseOpenrouterPayload({
       data: { limit: null, limit_remaining: null, usage: 500 },
     }, NOW) ?? []);
 
-    expect(render(rows)).toBe("or No key cap | or bal unavailable");
+    expect(render(rows)).toBe("or bal unavailable");
   });
 
   it("keeps the account balance beside key pressure in worst mode", () => {
@@ -231,7 +231,7 @@ describe("terminal visibility persistence", () => {
     expect(saved.config.statusline.show).toEqual([]);
     expect(saved.config.statusline.visibility).toEqual({ model: false, effort: false, dir: false, ctx: false, style: false, "7d": false, antigravity: false, codex: true, "5h": true });
     expect(render(snapshots, { config: saved.config.statusline, session: parseStatuslineSession(payload("/work/project")) }))
-      .toBe("5h [█░░░░░░░░░] 17% ↻3h20m | oc 5h [████░░░░░░] 42% | or bal $12.34");
+      .toBe("5h [█░░░░░░░░░] 17% · 3h20m | oc 5h [████░░░░░░] 42% | or bal $12.34");
     const status = await terminalStatusTable(context);
     expect(status).toContain("Hidden: model, effort, dir, ctx, style, 7d, antigravity");
     const before = saved.config;
@@ -263,19 +263,19 @@ describe("a stale reading is grey with colour, keeps its tilde without, and the 
 
   it("draws a reading taken four minutes ago with no tilde", () => {
     const recent = row({ value: 30, observedAt: "2025-12-31T23:56:00.000Z", expiresAt: "2026-01-01T00:15:00.000Z" });
-    expect(render([recent])).toBe("5h [███░░░░░░░] 30% ↻3h20m");
+    expect(render([recent])).toBe("5h [███░░░░░░░] 30% · 3h20m");
   });
 
   it("greys a reading that could not be refreshed, and keeps its 2.1.4 tilde without colour", () => {
     const stale = row({ value: 85, observedAt: "2025-12-31T23:45:00.000Z", expiresAt: "2025-12-31T23:46:00.000Z" });
-    expect(render([stale], { color: true })).toBe("5h " + grey("[████████░░]") + " " + grey("85%") + " ↻3h20m");
-    expect(render([stale])).toBe("5h [████████░░] ~85% ↻3h20m");
+    expect(render([stale], { color: true })).toBe("5h " + grey("[████████░░]") + " " + grey("85%") + " · 3h20m");
+    expect(render([stale])).toBe("5h [████████░░] ~85% · 3h20m");
   });
 
   it("keeps the tilde for an estimate, fresh or stale", () => {
-    expect(render([row({ value: 1, precision: "estimated" })])).toBe("5h [█░░░░░░░░░] ~1% ↻3h20m");
+    expect(render([row({ value: 1, precision: "estimated" })])).toBe("5h [█░░░░░░░░░] ~1% · 3h20m");
     const staleEstimate = row({ value: 85, precision: "estimated", observedAt: "2025-12-31T23:45:00.000Z", expiresAt: "2025-12-31T23:46:00.000Z" });
-    expect(render([staleEstimate], { color: true })).toBe("5h " + grey("[████████░░]") + " " + grey("~85%") + " ↻3h20m");
+    expect(render([staleEstimate], { color: true })).toBe("5h " + grey("[████████░░]") + " " + grey("~85%") + " · 3h20m");
   });
 
   it("greys a stale balance with colour and marks it with the 2.1.4 tilde without", () => {

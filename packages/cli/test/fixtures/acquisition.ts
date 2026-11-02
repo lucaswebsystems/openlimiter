@@ -93,7 +93,8 @@ export function recordedResponses(now: string): Readonly<Record<string, unknown>
     code_assist_quota: geminiCliFixture(now),
     grok_billing: grokFixture(now),
     kimi_usage: kimiFixture(now),
-    openrouter_key: openrouterFixture()
+    openrouter_key: openrouterFixture(),
+    openrouter_credits: openrouterFixture()
   };
 }
 

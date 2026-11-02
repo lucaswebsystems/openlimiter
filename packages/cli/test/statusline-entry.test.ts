@@ -80,8 +80,8 @@ describe("built statusline entry on a fresh install", () => {
     expect(readFileSync(errors, "utf8")).toBe("");
     expect(readFileSync(output, "utf8").replace(/ \| 7d [^\n]+/u, "")).toBe((
       "opus-5-5 high | ctx 31% | 5h " +
-      paint(`[${bar}]`, band) + " " + paint(`${used}%${mark}`, band) + " ↻3h20m | 7d " +
-      paint("[██░░░░░░░░]", 32) + " " + paint("27%", 32) + " ↻4d2h\n"
+      paint(`[${bar}]`, band) + " " + paint(`${used}%${mark}`, band) + " · 3h20m | 7d " +
+      paint("[██░░░░░░░░]", 32) + " " + paint("27%", 32) + " · 4d2h\n"
     ).replace(/ \| 7d [^\n]+/u, ""));
   });
 });

@@ -42,6 +42,8 @@ export interface StatuslineConfig {
   /** Column budget for the optional legacy cells style. Hosts wrap bar lines. */
   readonly width: number;
   readonly rows: 1 | 2;
+  /** True lets the bar style wrap whole cells onto up to three lines instead of "+N more". */
+  readonly wrap?: boolean;
   /** False restores the single plain line released in 0.1.0. */
   readonly bars: boolean;
   readonly color: StatuslineColor;
@@ -171,6 +173,7 @@ export function normalizeStatusline(value: unknown): StatuslineConfig {
     captions: captions === "short" || captions === "tagged" ? captions : DEFAULT_STATUSLINE.captions,
     show: normalizeShow(value["show"]) ?? DEFAULT_STATUSLINE.show,
     ...(value["showMode"] === "explicit" ? { showMode: "explicit" as const } : {}),
+    ...(value["wrap"] === true ? { wrap: true } : {}),
     ...(isRecord(value["visibility"]) ? {
       visibility: Object.fromEntries(Object.entries(value["visibility"]).filter(
         ([key, enabled]) => typeof enabled === "boolean" &&

@@ -75,7 +75,25 @@ function unavailableAccountBalance(now: string, expiresAt: string): RawMeter {
   };
 }
 
-export function parseOpenrouterPayload(payload: unknown, now: string): RawMeter[] | null {
+/**
+ * One body, or the key report followed by the credit report. With both, the
+ * key's placeholder balance is replaced by the measured one; a credit body
+ * that does not parse leaves the key rows exactly as they would be alone.
+ */
+export function parseOpenrouterPayload(
+  payload: unknown,
+  now: string,
+  previous?: readonly unknown[]
+): RawMeter[] | null {
+  if (previous === undefined || previous.length < 2) return parseOneOpenrouterPayload(payload, now);
+  const keyRows = parseOneOpenrouterPayload(previous[0], now);
+  const balance = parseOneOpenrouterPayload(payload, now)
+    ?.filter((meter) => meter.meter === "ACCOUNT_BALANCE" && meter.availability === undefined);
+  if (keyRows === null || balance === undefined || balance.length === 0) return keyRows;
+  return [...keyRows.filter((meter) => meter.meter !== "ACCOUNT_BALANCE"), ...balance];
+}
+
+function parseOneOpenrouterPayload(payload: unknown, now: string): RawMeter[] | null {
   const root = record(payload);
   const data = record(root?.["data"]);
   if (data === null) return null;

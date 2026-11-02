@@ -28,6 +28,8 @@ const LOOPBACK_CALLBACK: &str = "http://127.0.0.1:17391/auth/callback";
 /// answers as a real callback. Named apart from the constant above so the two
 /// cannot drift without the mismatch being visible at the call site.
 const LOOPBACK_CALLBACK_PATH: &str = "/auth/callback";
+/** The live page the browser is sent to once the loopback has the code. */
+const SIGNED_IN_PAGE: &str = "https://openlimiter.com/app/desktop";
 const MAX_RESPONSE_BYTES: usize = 131_072;
 const MAX_REQUEST_BYTES: usize = 8_192;
 const NETWORK_TIMEOUT_SECONDS: u64 = 15;
@@ -1585,9 +1587,11 @@ fn oauth_request_with_connection_timeout(
                     .find(|(key, _)| key == "state")
                     .map(|(_, value)| value.into_owned())
                     .unwrap_or_default();
+                /* The browser leaves the loopback address at once and lands on
+                the live site, so nobody is left looking at a 127.0.0.1 page. */
                 let body = "OpenLimiter is signed in. You can close this tab.";
                 let response = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    "HTTP/1.1 303 See Other\r\nLocation: {SIGNED_IN_PAGE}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                     body.len(), body
                 );
                 let _ = stream.write_all(response.as_bytes());
@@ -2112,7 +2116,7 @@ mod tests {
             .expect("write");
             let mut buffer = [0_u8; 256];
             let count = real.read(&mut buffer).expect("read");
-            assert!(String::from_utf8_lossy(&buffer[..count]).starts_with("HTTP/1.1 200"));
+            assert!(String::from_utf8_lossy(&buffer[..count]).starts_with("HTTP/1.1 303") && String::from_utf8_lossy(&buffer[..count]).contains("Location: https://openlimiter.com/app/desktop\r\n"));
         }
 
         let (code, state) = handle
@@ -2166,7 +2170,7 @@ mod tests {
             .expect("callback");
         let mut buffer = [0_u8; 256];
         let count = callback.read(&mut buffer).expect("response");
-        assert!(String::from_utf8_lossy(&buffer[..count]).starts_with("HTTP/1.1 200"));
+        assert!(String::from_utf8_lossy(&buffer[..count]).starts_with("HTTP/1.1 303") && String::from_utf8_lossy(&buffer[..count]).contains("Location: https://openlimiter.com/app/desktop\r\n"));
 
         let answer = handle.join().expect("thread joined").expect("callback");
         assert_eq!(
@@ -2196,7 +2200,7 @@ mod tests {
             .expect("second fragment");
         let mut buffer = [0_u8; 256];
         let count = callback.read(&mut buffer).expect("response");
-        assert!(String::from_utf8_lossy(&buffer[..count]).starts_with("HTTP/1.1 200"));
+        assert!(String::from_utf8_lossy(&buffer[..count]).starts_with("HTTP/1.1 303") && String::from_utf8_lossy(&buffer[..count]).contains("Location: https://openlimiter.com/app/desktop\r\n"));
 
         let (code, state) = handle.join().expect("thread joined").expect("callback");
         assert_eq!(code, "fragmented-code");

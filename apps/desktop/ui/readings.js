@@ -102,6 +102,21 @@ export function alertSamples(snapshots, now) {
     }));
 }
 
+/**
+ * What to log about one alert batch, or null when there is nothing to say.
+ * The native side skips a sample it cannot use and evaluates the rest; the
+ * skip is logged here, never ignored, because one silent refusal once stopped
+ * every alert (2.1.8, Cursor).
+ */
+export function alertBatchNote(result) {
+  if (result?.ok !== true) {
+    return result?.reason === "backend_absent" ? null : `Alerts could not be evaluated: ${result?.message ?? "no reason given"}.`;
+  }
+  const skipped = result.value?.skipped ?? 0;
+  if (skipped === 0) return null;
+  return `Alerts skipped ${skipped} sample${skipped === 1 ? "" : "s"}: ${(result.value.skipReasons ?? []).join(", ")}.`;
+}
+
 /** Providers a person switched off: native flags them, the window may remember more. */
 export function switchedOff(flags, removed = []) {
   return new Set([...removed.map(providerCode), ...flags.filter((flag) => flag.fixKind === "switch_on").map((flag) => flag.provider)]);

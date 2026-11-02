@@ -1211,7 +1211,7 @@ describe("the pair page", () => {
     );
   });
 
-  it("says scan again when there is no code and no existing pairing", async () => {
+  it("says pair from the desktop app and offers the code field in a browser tab too", async () => {
     vi.stubGlobal(
       "fetch",
       fetchRoutedTo({
@@ -1221,8 +1221,8 @@ describe("the pair page", () => {
     mounted = render(createElement(PairFlow));
     await flush();
     expect(mounted.container.textContent).toContain(hub.pairPage.setup.noCode.title);
-    /* The code field belongs to the installed app, not a browser tab. */
-    expect(mounted.container.querySelector("input")).toBeNull();
+    /* Every phone gets the field: browsers, scanner views and home screen launches lose the fragment (owner, 2026-11-02). */
+    expect(all(mounted.container, "input")).toHaveLength(1);
   });
 
   it("offers the code field inside the installed app with no session, and claims through the fragment's path", async () => {
@@ -1249,7 +1249,7 @@ describe("the pair page", () => {
     );
     mounted = render(createElement(PairFlow));
     await findByText(mounted.container, codeEntry.label);
-    expect(mounted.container.textContent).not.toContain(hub.pairPage.setup.noCode.title);
+    expect(mounted.container.textContent).toContain(hub.pairPage.setup.noCode.title);
     expect(all(mounted.container, "input")).toHaveLength(1);
     expect(pairButton()?.disabled).toBe(true);
 

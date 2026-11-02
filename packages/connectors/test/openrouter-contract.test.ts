@@ -194,6 +194,34 @@ describe("openrouter: finite key limits", () => {
   });
 });
 
+describe("openrouter: key report followed by credit report", () => {
+  const key = { data: { limit: null, limit_remaining: null, usage: 500 } };
+  const credits = { data: { total_credits: 20, total_usage: 19.36 } };
+
+  it("replaces the placeholder balance with the measured credit", () => {
+    const parsed = parseOpenrouterPayload(credits, NOW, [key, credits]);
+    expect(parsed?.map((meter) => meter.meter)).toEqual(["KEY_LIMIT", "ACCOUNT_BALANCE"]);
+    expect(parsed?.[0]).toMatchObject({ availability: "unlimited" });
+    expect(parsed?.[1]?.availability).toBeUndefined();
+    expect(parsed?.[1]?.usedAmount).toBe(19.36);
+    expect(parsed?.[1]?.limitAmount).toBe(20);
+  });
+
+  it("reads a spent balance as 100 percent", () => {
+    const spent = { data: { total_credits: 20, total_usage: 20 } };
+    expect(parseOpenrouterPayload(spent, NOW, [key, spent])?.[1]?.value).toBe(100);
+  });
+
+  it("keeps the key rows and placeholder when the credit body does not parse", () => {
+    const parsed = parseOpenrouterPayload({ nope: 1 }, NOW, [key, { nope: 1 }]);
+    expect(parsed).toEqual(parseOpenrouterPayload(key, NOW));
+  });
+
+  it("is unchanged for a single body", () => {
+    expect(parseOpenrouterPayload(key, NOW, [key])).toEqual(parseOpenrouterPayload(key, NOW));
+  });
+});
+
 describe("openrouter: everything it must refuse", () => {
   const refused: readonly (readonly [string, unknown])[] = [
     ["no payload at all", undefined],

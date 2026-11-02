@@ -2501,6 +2501,10 @@
       "signInTerminal": "Entrar em um terminal",
       "terminalLead": "Conecte seu terminal a esta conta"
     },
+    "desktopSignedIn": {
+      "title": "Você entrou na sua conta",
+      "body": "O OpenLimiter no seu computador já está conectado à sua conta. Você pode fechar esta aba e voltar para o app."
+    },
     "cliPage": {
       "title": "Entrar em um terminal",
       "lead": "Digite o código de oito caracteres mostrado no seu terminal.",
