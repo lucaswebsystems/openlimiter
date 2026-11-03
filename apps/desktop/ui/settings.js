@@ -95,7 +95,7 @@ export function updateView(update) {
     const out = say("updateOut", { version });
     return { menu: out, banner: out, href: DOWNLOAD_URL };
   }
-  return { menu: "Install OpenLimiter " + version, banner: "OpenLimiter " + version + " is ready. Install now.", href: null };
+  return { menu: "Install OpenLimiter " + version, banner: "OpenLimiter " + version + " is ready", href: null };
 }
 
 /**
@@ -106,45 +106,121 @@ export function updateView(update) {
  * native opener action (Astra 2.1.7, finding 2). Returns the check, which the
  * window also runs once, silently, at start.
  */
-export function wireUpdates({ menu, banner }, api = { checkForUpdate, installUpdate, openDownloadPage }) {
+const DISMISSED_UPDATE_KEY = "openlimiter-dismissed-update";
+
+function readDismissedUpdate() {
+  try {
+    return globalThis.localStorage?.getItem(DISMISSED_UPDATE_KEY) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function writeDismissedUpdate(version) {
+  try {
+    if (version === null || version === undefined) globalThis.localStorage?.removeItem(DISMISSED_UPDATE_KEY);
+    else globalThis.localStorage?.setItem(DISMISSED_UPDATE_KEY, String(version));
+  } catch {
+    /* Storage refused. The choice lasts for this window only. */
+  }
+}
+
+export function wireUpdates({ menu, banner, text, install, later }, api = { checkForUpdate, installUpdate, openDownloadPage }) {
   let href = null;
+  let availableVersion = null;
+  let dismissedVersion = readDismissedUpdate();
+
+  const hideBanner = () => {
+    banner.hidden = true;
+    text.textContent = "";
+  };
+
+  const showBanner = (message, version) => {
+    text.textContent = message;
+    banner.hidden = false;
+    install.textContent = href !== null ? "Download" : "Install";
+    install.disabled = false;
+    later.textContent = "Later";
+    later.disabled = false;
+    availableVersion = version;
+  };
+
   const run = async (silent) => {
     if (!silent) menu.textContent = "Checking for updates";
     const result = await api.checkForUpdate();
-    if (!result.ok) {
+    if (!result || !result.ok) {
       if (!silent) menu.textContent = "Update check unavailable";
       return;
     }
     const view = updateView(result.value);
+    const version = result.value && result.value.version ? String(result.value.version) : null;
     if (view.banner === null) {
       if (!silent) menu.textContent = view.menu;
+      hideBanner();
+      availableVersion = null;
       return;
     }
     href = view.href;
-    banner.textContent = view.banner;
-    banner.hidden = false;
-    menu.textContent = view.menu;
+    if (!silent) {
+      showBanner(view.banner, version);
+      if (menu) menu.textContent = view.menu;
+      return;
+    }
+    if (dismissedVersion !== null && version !== null && dismissedVersion === version) {
+      if (menu) menu.textContent = view.menu;
+      hideBanner();
+      availableVersion = version;
+      return;
+    }
+    showBanner(view.banner, version);
+    if (menu) menu.textContent = view.menu;
   };
-  menu.addEventListener("click", () => {
-    if (href !== null) void api.openDownloadPage();
-    else void run(false);
-  });
-  banner.addEventListener("click", () => {
+
+  const onInstall = () => {
     if (href !== null) {
       void api.openDownloadPage();
       return;
     }
-    banner.disabled = true;
-    banner.textContent = "Installing update";
+    install.disabled = true;
+    install.textContent = "Installing update";
+    text.textContent = "Installing update";
     void api.installUpdate().then((result) => {
-      if (!result.ok) {
-        banner.disabled = false;
-        banner.textContent = "Update install unavailable";
-      }
+      if (result && result.ok) return;
+      install.disabled = false;
+      install.textContent = "Update install unavailable";
+      text.textContent = "OpenLimiter " + (availableVersion ?? "new version") + " is ready";
     });
-  });
+  };
+
+  const onLater = () => {
+    dismissedVersion = availableVersion;
+    writeDismissedUpdate(availableVersion);
+    hideBanner();
+  };
+
+  if (menu) {
+    menu.addEventListener("click", () => {
+      if (href !== null) void api.openDownloadPage();
+      else void run(false);
+    });
+  }
+  install.addEventListener("click", onInstall);
+  later.addEventListener("click", onLater);
   return run;
 }
+
+export const UPDATE_CHECK_INTERVAL = 6 * 60 * 60 * 1000;
+
+export function startUpdateChecks(run, setIntervalFn = globalThis.setInterval) {
+  void run(true);
+  const handle = typeof setIntervalFn === "function"
+    ? setIntervalFn(() => { void run(true); }, UPDATE_CHECK_INTERVAL)
+    : null;
+  return handle;
+}
+
+export const scheduleUpdateChecks = startUpdateChecks;
+export const beginUpdateChecks = startUpdateChecks;
 
 /** Bring the plan card into view: open the menu when it is closed, then scroll. */
 export function showPlan(doc = document) {
