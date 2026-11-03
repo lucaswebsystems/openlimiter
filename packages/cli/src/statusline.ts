@@ -913,6 +913,15 @@ function compactResetDuration(diffSec: number): string {
   return diffSec >= 60 ? String(Math.floor(diffSec / 60)) + "m" : String(diffSec) + "s";
 }
 
+export function formatStaleAge(observedAt: string, now: string): string {
+  const diffMs = Date.parse(now) - Date.parse(observedAt);
+  const diffSec = Math.floor(diffMs / 1000);
+  if (!Number.isFinite(diffSec) || diffSec < 0) return "";
+  if (diffSec < 3600) return String(Math.floor(diffSec / 60)) + "m old";
+  if (diffSec < 86_400) return String(Math.floor(diffSec / 3600)) + "h old";
+  return String(Math.floor(diffSec / 86_400)) + "d old";
+}
+
 export function formatResetTime(resetAt: string | null | undefined, now: string): string {
   if (!resetAt) return "";
   const diffMs = new Date(resetAt).getTime() - new Date(now).getTime();
@@ -1037,7 +1046,11 @@ export function barStyleCells(
 
       const bar = tenBlockBar(snapshot.value, unicode);
       const percentStr = mark + Math.round(snapshot.value) + "%" + bandMark(snapshot.value, state);
-      const resetStr = formatResetTime(snapshot.resetAt, now).replace("↻", unicode ? "· " : "resets ");
+      const resetBase = formatResetTime(snapshot.resetAt, now).replace("↻", unicode ? "· " : "resets ");
+      const ageStr = state === "stale" ? formatStaleAge(snapshot.observedAt, now) : "";
+      const resetStr = resetBase !== ""
+        ? resetBase + (ageStr !== "" ? (unicode ? " · " : ", ") + ageStr : "")
+        : (ageStr !== "" ? (unicode ? "· " : "") + ageStr : "");
 
       const label = tag;
       const plain = resetStr !== ""

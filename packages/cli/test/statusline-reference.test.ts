@@ -87,7 +87,7 @@ describe("Lucas reference layout", () => {
 
   it("greys a stale number, marks an estimate and keeps the reset", () => {
     const value = row({ value: 85, observedAt: "2025-12-31T23:45:00Z", expiresAt: "2025-12-31T23:46:00Z" });
-    expect(render([value], { color: true })).toBe("5h \x1b[90m[████████░░]\x1b[0m \x1b[90m85%\x1b[0m · 3h20m");
+    expect(render([value], { color: true })).toBe("5h \x1b[90m[████████░░]\x1b[0m \x1b[90m85%\x1b[0m · 3h20m · 15m old");
     expect(render([row({ value: 1, precision: "estimated" })])).toContain("~1%");
   });
 
@@ -273,14 +273,14 @@ describe("a stale reading is grey with colour, keeps its tilde without, and the 
 
   it("greys a reading that could not be refreshed, and keeps its 2.1.4 tilde without colour", () => {
     const stale = row({ value: 85, observedAt: "2025-12-31T23:45:00.000Z", expiresAt: "2025-12-31T23:46:00.000Z" });
-    expect(render([stale], { color: true })).toBe("5h " + grey("[████████░░]") + " " + grey("85%") + " · 3h20m");
-    expect(render([stale])).toBe("5h [████████░░] ~85% · 3h20m");
+    expect(render([stale], { color: true })).toBe("5h " + grey("[████████░░]") + " " + grey("85%") + " · 3h20m · 15m old");
+    expect(render([stale])).toBe("5h [████████░░] ~85% · 3h20m · 15m old");
   });
 
   it("keeps the tilde for an estimate, fresh or stale", () => {
     expect(render([row({ value: 1, precision: "estimated" })])).toBe("5h [█░░░░░░░░░] ~1% · 3h20m");
     const staleEstimate = row({ value: 85, precision: "estimated", observedAt: "2025-12-31T23:45:00.000Z", expiresAt: "2025-12-31T23:46:00.000Z" });
-    expect(render([staleEstimate], { color: true })).toBe("5h " + grey("[████████░░]") + " " + grey("~85%") + " · 3h20m");
+    expect(render([staleEstimate], { color: true })).toBe("5h " + grey("[████████░░]") + " " + grey("~85%") + " · 3h20m · 15m old");
   });
 
   it("greys a stale balance with colour and marks it with the 2.1.4 tilde without", () => {
