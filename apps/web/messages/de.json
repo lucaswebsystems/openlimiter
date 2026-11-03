@@ -1807,7 +1807,7 @@
         "sections": {
           "overview": {
             "title": "Overview",
-            "install": "Install the global command with <code>npm install -g openlimiter</code>, or run it once with <code>npx openlimiter</code>."
+            "install": "Install the global command with <code>npm install -g openlimiter</code>, or run it once with <code>npx openlimiter@latest</code>."
           },
           "commands": {
             "title": "The commands",

@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { acquireRefreshLock, windowsSystemTool } from "@openlimiter/core";
 import { installHost, uninstallHost, hostStatus, STATUS_NOT_WIRED, STATUS_WIRED, validateToml, type TerminalHostContext } from "../src/terminal.js";
-import { installLauncher, launcherCommand, RUNTIME_STAMP_FILE_NAME, verifyLauncher } from "../src/terminal-launcher.js";
+import { installLauncher, launcherCommand, newerRelease, RUNTIME_STAMP_FILE_NAME, verifyLauncher } from "../src/terminal-launcher.js";
 import { decodeWrappedStatuslineCommand, encodeWrappedStatuslineCommand } from "../src/statusline-wrapper.js";
 import { editToml, tomlValue } from "../src/terminal-toml.js";
 import { runCli } from "../src/index.js";
@@ -309,6 +309,26 @@ describe("P2 launcher trust and migration", () => {
     await expect(verifyLauncher(launcher)).resolves.toBeUndefined();
   }, 30_000);
 
+  it("keeps a newer runtime when an older cached npx source runs", async () => {
+    const home = await scratch();
+    const state = path.join(home, "state");
+    const newer = path.join(home, "_npx", "node_modules", "openlimiter");
+    await cp(compiledLauncherSource, newer, { recursive: true, dereference: true });
+    const manifest = JSON.parse(await readFile(path.join(newer, "package.json"), "utf8")) as Record<string, unknown>;
+    await writeFile(path.join(newer, "package.json"), JSON.stringify({ ...manifest, version: "999.0.0" }));
+    await installLauncher(state, newer);
+    const kept = await installLauncher(state, compiledLauncherSource);
+    expect(kept.version).toBe("999.0.0");
+    await expect(verifyLauncher(kept)).resolves.toBeUndefined();
+  }, 30_000);
+
+  it("compares plain releases numerically and never treats a prerelease as newer", () => {
+    expect(newerRelease("2.1.10", "2.1.5")).toBe(true);
+    expect(newerRelease("2.1.5", "2.1.10")).toBe(false);
+    expect(newerRelease("2.1.10", "2.1.10")).toBe(false);
+    expect(newerRelease("3.0.0-rc.1", "2.1.10")).toBe(false);
+  });
+
   it("restores a missing shipped runtime file", async () => {
     const home = await scratch();
     const state = path.join(home, "state");
@@ -545,6 +565,26 @@ describe("P2 shell profiles", () => {
     }
     await uninstallHost("shell", ctx);
     expect(await readFile(file, "utf8")).toBe(original);
+  }, 20_000);
+  it.runIf(process.platform === "win32")("11 reads the bar as UTF-8 under a legacy code page and keeps every line", async () => {
+    const home = await scratch(), file = path.join(home, "profile.ps1");
+    await writeFile(file, "");
+    const ctx = { ...context(home, { SHELL: "powershell.exe" }), platform: "win32" as const, shellRunner: async () => ({ ok: true as const, stdout: file }) };
+    expect((await installHost("shell", ctx)).ok).toBe(true);
+    const bar = path.join(home, "bar.cjs"), lines = path.join(home, "lines.txt"), script = path.join(home, "check.ps1");
+    await writeFile(bar, 'process.stdout.write("cl 7d [\\u2586\\u2581] 15% \\u00b7 4d\\nor bal $1\\n")');
+    const offline = (await readFile(file, "utf8"))
+      .replace(/\$bar = .* statusline --host shell/, `$bar = & '${process.execPath}' '${bar}'`)
+      .replace("Write-Host $_", `Add-Content -Encoding UTF8 -LiteralPath '${lines}' -Value $_`);
+    await writeFile(script, "[Console]::OutputEncoding = [Text.Encoding]::GetEncoding(850)\n" + offline + "\n$null = prompt\n");
+    const code = await new Promise<number | null>((resolve, reject) => {
+      const child = spawn(path.join(process.env["SystemRoot"] ?? process.env["SYSTEMROOT"]!, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
+        ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script], { stdio: "ignore", windowsHide: true });
+      child.once("error", reject); child.once("close", resolve);
+    });
+    expect(code).toBe(0);
+    expect((await readFile(lines, "utf8")).replace(/^﻿/u, "").split(/\r?\n/u).filter(Boolean))
+      .toEqual(["cl 7d [▆▁] 15% · 4d", "or bal $1"]);
   }, 20_000);
   it("11 reports profile write failures and unsupported shells without a success status", async () => {
     const home = await scratch();

@@ -11,7 +11,7 @@ npm install --global openlimiter
 ## First run
 
 ```bash
-npx openlimiter
+npx openlimiter@latest
 ```
 
 With nothing after it, or once installed, `openlimiter` on its own walks the same three steps every time: sign in (skippable), connect the agent CLIs already on this machine, then show bars in. It prints the bars once at the end.
