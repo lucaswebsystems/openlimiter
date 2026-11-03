@@ -623,8 +623,8 @@
 
 .ol-phone-gear {
   display: grid;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: var(--ol-control-height-touch);
+  height: var(--ol-control-height-touch);
   cursor: pointer;
   place-items: center;
   border: 1px solid var(--ol-hairline-strong);
@@ -792,7 +792,7 @@
 }
 
 .ol-theme-choice button {
-  min-height: 2.25rem;
+  min-height: var(--ol-control-height-touch);
   cursor: pointer;
   border: 0;
   border-radius: calc(var(--ol-radius-sm) - 0.2rem);
@@ -1730,6 +1730,12 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell.ol-phone-shell {
 }
 
 .ol-card-grip { touch-action: none; cursor: grab; }
+@media (max-width: 479px) {
+  .ol-card-grip {
+    width: var(--ol-control-height-touch);
+    height: var(--ol-control-height-touch);
+  }
+}
 
 .ol-provider-card[data-dragging] .ol-card-grip {
   cursor: grabbing;
@@ -3206,7 +3212,12 @@ body:has(.ol-phone-shell) .ol-phone-pro .ol-control-primary:hover {
 @media (max-width: 479px) {
   .ol-product-wordmark { display: none; }
   .ol-commandbar-actions { gap: 0.125rem; }
+  .ol-commandbar-actions { --ol-control-height: var(--ol-control-height-touch); }
   .ol-header-trial .ol-control { padding-right: var(--ol-space-2); padding-left: var(--ol-space-2); }
+  .ol-icon-control {
+    width: var(--ol-control-height-touch);
+    min-height: var(--ol-control-height-touch);
+  }
 }
 
 /* The brand rule keeps the full lockup on every product surface (see page.tsx),
@@ -3214,12 +3225,10 @@ body:has(.ol-phone-shell) .ol-phone-pro .ol-control-primary:hover {
    it to a partial mark. */
 @media (max-width: 409px) {
   .ol-commandbar-brand .brand-lockup { height: 1.375rem; }
-  .ol-commandbar-actions { --ol-control-height: 2.125rem; }
 }
 
 @media (max-width: 359px) {
   .ol-commandbar-brand .brand-lockup { height: 1.25rem; }
-  .ol-commandbar-actions { --ol-control-height: 2rem; }
 }
 
 .ol-trial-profile {

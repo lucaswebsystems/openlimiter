@@ -130,7 +130,7 @@ export function NavSheet({
         onClick={() => {
           setOpen((current) => !current);
         }}
-        className="focus-ring inline-flex h-10 w-10 flex-none cursor-pointer items-center justify-center rounded-lg border border-hairline-strong text-heading transition-colors hover:border-heading hover:bg-surface"
+        className="focus-ring inline-flex h-11 w-11 flex-none cursor-pointer items-center justify-center rounded-lg border border-hairline-strong text-heading transition-colors hover:border-heading hover:bg-surface"
       >
         <svg
           viewBox="0 0 24 24"
