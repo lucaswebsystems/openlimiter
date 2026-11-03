@@ -12,7 +12,7 @@ import { GOLDEN_NOW, GOLDEN_SNAPSHOTS } from "./fixtures/statusline-snapshots.js
 
 /**
  * Reference bars keep to the width budget (2.1.7, UX audit U44) and wrap whole
- * cells onto up to three lines of ten block bars, a quarter block lower so the
+ * cells onto up to three lines of ten block bars, a blank line apart so the
  * lines do not touch; what still does not fit is counted. So the 80, 120 and
  * 160 goldens differ, and each row stays inside its width. Legacy cells retain
  * their width budget and explicitly request worst meters.
@@ -227,7 +227,7 @@ describe("statusline golden files", () => {
             color: false,
             host
           });
-          const cells = rendered.split("\n").flatMap((row) => row.split(" | "));
+          const cells = rendered.split("\n").filter((row) => row !== " ").flatMap((row) => row.split(" | "));
           for (const cell of cells) {
             expect(cell.startsWith(" ")).toBe(false);
             expect(cell.startsWith("[")).toBe(false);

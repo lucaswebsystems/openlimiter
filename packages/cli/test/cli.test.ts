@@ -311,16 +311,16 @@ describe("CLI", () => {
          windows (`5h`, `7d`) carry no tag and every other provider's window
          is tagged with its short code, spaced. The line keeps to the default
          140 columns (UX audit U44) and wraps whole cells onto up to three
-         lines of ten block bars, a quarter block lower on a stacked line so
-         the lines do not touch; what still does not fit is counted. A reset
-         reads `↻` and a band of 80 or 90 is marked `!` or `!!`.
+         lines of ten block bars, a blank line apart so the lines do not
+         touch; what still does not fit is counted. A reset reads `·` and a
+         band of 80 or 90 is marked `!` or `!!`.
          The 0.1.0 line this pinned before is still reachable byte for byte
          through `statusline.bars false`, and the pre D6 `cells` grammar
          through `statusline.style cells`, tested in statusline.test.ts. */
       expect(statusline.stdout).toBe(
-        "5h [▆▆▆▆▁▁▁▁▁▁] 42% · 5h | 7d [▆▆▆▆▆▆▁▁▁▁] 64% · 7d | cx 5h [▆▆▆▆▆▆▆▆▁▁] 84%! · 5h | ag 5h [▆▆▁▁▁▁▁▁▁▁] ~28% · 5h\n" +
-          "ag 7d [▆▁▁▁▁▁▁▁▁▁] ~10% · 7d | oc 5h [▆▆▆▆▆▆▆▆▆▁] ~92%!! · 4h | oc 7d [▆▆▆▆▁▁▁▁▁▁] ~40% · 5d20h | oc mo [▆▁▁▁▁▁▁▁▁▁] ~15% · 21d\n" +
-          "gk 7d [▆▆▆▆▁▁▁▁▁▁] ~43% · 7d | km 7d [▆▁▁▁▁▁▁▁▁▁] ~10% · 7d | km 5h [▆▆▆▆▆▆▁▁▁▁] ~70% · 5h | mn mo [▆▆▆▁▁▁▁▁▁▁] 35% · 31d | +2 more"
+        "5h [████░░░░░░] 42% · 5h | 7d [██████░░░░] 64% · 7d | cx 5h [████████░░] 84%! · 5h | ag 5h [██░░░░░░░░] ~28% · 5h\n \n" +
+          "ag 7d [█░░░░░░░░░] ~10% · 7d | oc 5h [█████████░] ~92%!! · 4h | oc 7d [████░░░░░░] ~40% · 5d20h | oc mo [█░░░░░░░░░] ~15% · 21d\n \n" +
+          "gk 7d [████░░░░░░] ~43% · 7d | km 7d [█░░░░░░░░░] ~10% · 7d | km 5h [██████░░░░] ~70% · 5h | mn mo [███░░░░░░░] 35% · 31d | +2 more"
       );
     });
   });
@@ -1019,7 +1019,7 @@ describe("CLI", () => {
     });
     /* The claude host paints by default, so the budget is read on the text. */
     const text = (line: string): string => line.replace(/\x1b\[[0-9;]*m/gu, "");
-    const rows = stacked.stdout.split("\n");
+    const rows = stacked.stdout.split("\n").filter((row) => row !== " ");
     expect(rows.length).toBeGreaterThan(1);
     expect(rows.length).toBeLessThanOrEqual(3);
     for (const row of rows) expect(text(row).length).toBeLessThanOrEqual(140);
@@ -1044,7 +1044,7 @@ describe("CLI", () => {
     expect(wide.stdout).not.toBe(stacked.stdout);
   });
 
-  it("fills the real terminal width, one column short, unless the person set a narrower one or turned wrap off", async () => {
+  it("fills the real terminal width, one column short, unless the person set a width or turned wrap off", async () => {
     const directory = await temporaryDirectory();
     await runCli(["snapshot", "--refresh"], {
       stateDirectory: directory,
@@ -1066,10 +1066,11 @@ describe("CLI", () => {
     expect(widest(await draw(100))).toBeLessThanOrEqual(99);
     /* Nothing answers: the configured width, as before. */
     expect(widest(await draw(null))).toBeLessThanOrEqual(140);
-    /* A width the person set, narrower than the terminal, still wins. */
+    /* A width the person set always wins: on Windows nothing else knows the window. */
     await runCli(["config", "set", "statusline.width", "100"], { stateDirectory: directory, now: () => FIXTURE_NOW });
     expect(widest(await draw(200))).toBeLessThanOrEqual(100);
-    expect(widest(await draw(80))).toBeLessThanOrEqual(79);
+    expect(widest(await draw(80))).toBeGreaterThan(79);
+    expect(widest(await draw(80))).toBeLessThanOrEqual(100);
     /* wrap false keeps the one row at the detected width. */
     await writeFile(
       path.join(directory, CONFIG_FILE_NAME),
@@ -1139,7 +1140,7 @@ describe("CLI", () => {
       colorOutput: false
     });
     /* Every unusable key falls back to its default: wrapped lines of 140 columns. */
-    const rows = statusline.stdout.split("\n");
+    const rows = statusline.stdout.split("\n").filter((row) => row !== " ");
     expect(rows.length).toBeGreaterThan(1);
     expect(rows.length).toBeLessThanOrEqual(3);
     for (const row of rows) expect(row.replace(/\x1b\[[0-9;]*m/gu, "").length).toBeLessThanOrEqual(140);

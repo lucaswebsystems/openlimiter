@@ -1159,12 +1159,9 @@ function renderBarStatusline(input: StatuslineLayoutInput): string {
       stacked(head, [...cells, ...notes], config.width, 3, BAR_CELL_SEPARATOR) ??
       stacked(head, cells, config.width, 3, BAR_CELL_SEPARATOR) ??
       shed(head, cells, config.width, 3, BAR_CELL_SEPARATOR);
-    const readings = [...quotas, ...apiMoney];
-    const flat = laid(readings);
-    if (!flat.includes("\n")) return flat || STATUSLINE_UNKNOWN;
-    // Stacked lines get three quarter blocks over a thin track, which leave a gap between them.
-    const lift = (text: string): string => text.replaceAll("█", "▆").replaceAll("░", "▁");
-    return laid(readings.map((cell) => ({ ...cell, plain: lift(cell.plain), painted: lift(cell.painted) })));
+    // A terminal has no line spacing, so wrapped rows get a blank line between
+    // them (owner, 2026-11-03); a space, so a host that drops empty lines keeps it.
+    return laid([...quotas, ...apiMoney]).replaceAll("\n", "\n \n") || STATUSLINE_UNKNOWN;
   }
   return oneRow(head, [...quotas, ...apiMoney], notes, config.width) || STATUSLINE_UNKNOWN;
 }
@@ -1190,9 +1187,6 @@ export interface StatuslineLayoutInput {
 function usableColumns(columns: number | undefined): number | null {
   return columns !== undefined && Number.isInteger(columns) && columns > 0 ? columns : null;
 }
-
-/** The Windows console, by its device path: a bare `CONOUT$` is resolved against the working directory and never opens. */
-const CONSOLE_DEVICE = "\\\\.\\CONOUT$";
 
 /** The columns of a terminal device opened by name, or undefined when it is not one. */
 function deviceColumns(device: string): number | undefined {
@@ -1232,21 +1226,23 @@ export function detectTerminalColumns(probes: TerminalProbes = {}): number | nul
   const { stdout = process.stdout, stderr = process.stderr, platform = process.platform, device = deviceColumns } = probes;
   const direct = usableColumns(stdout.columns) ?? usableColumns(stderr.columns);
   if (direct !== null) return direct;
+  // A Windows host runs the status line in a hidden console that always reports
+  // its default 120 columns, never the window the person sees: not a reading.
+  if (platform === "win32") return null;
   try {
-    return usableColumns(device(platform === "win32" ? CONSOLE_DEVICE : "/dev/tty"));
+    return usableColumns(device("/dev/tty"));
   } catch {
     return null;
   }
 }
 
 /**
- * The column budget of one render: a column short of the detected terminal, so
- * the last column stays free, else the configured width. A width the person
- * set that is narrower than the terminal still wins; the default is unset.
+ * The column budget of one render: a width the person set always wins, since
+ * on Windows nothing else knows the real window; otherwise a column short of
+ * the detected terminal, so the last column stays free, else the default.
  */
 export function statuslineWidth(configured: number, detected: number | null): number {
-  if (detected === null) return configured;
-  return Math.min(detected - 1, configured === DEFAULT_STATUSLINE.width ? Infinity : configured);
+  return configured !== DEFAULT_STATUSLINE.width || detected === null ? configured : detected - 1;
 }
 
 /** What the statusline says when it has nothing bounded to say. */
