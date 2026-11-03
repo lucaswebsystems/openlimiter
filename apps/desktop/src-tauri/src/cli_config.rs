@@ -18,7 +18,7 @@ fn skeleton() -> Value {
     serde_json::json!({
         "version": 1,
         "connectors": [],
-        "statusline": { "order": [], "meters": "worst", "width": 120, "rows": 1, "bars": true, "color": "auto", "style": "bar", "captions": "short", "show": [], "hosts": {} },
+        "statusline": { "order": [], "meters": "worst", "width": 140, "rows": 1, "bars": true, "color": "auto", "style": "bar", "captions": "short", "show": [], "hosts": {} },
         "providers": { "claude": { "poll": false, "recorded": false } }
     })
 }

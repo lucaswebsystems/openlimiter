@@ -58,21 +58,20 @@ describe("decision A and U44: one row of ten block bars inside the width", () =>
     }
   });
 
-  it("wraps whole cells onto up to three lines by default, each inside the width", () => {
+  it("wraps whole cells onto up to three lines by default, a blank line apart, each inside the width", () => {
     const wrapped = draw({ width: 120 });
-    const lines = wrapped.split("\n");
+    const lines = wrapped.split("\n").filter((line) => line !== " ");
     expect(lines.length).toBeGreaterThan(1);
     expect(lines.length).toBeLessThanOrEqual(3);
+    expect(wrapped.split("\n").filter((line) => line === " ")).toHaveLength(lines.length - 1);
     for (const line of lines) expect(displayColumns(line)).toBeLessThanOrEqual(120);
     expect(accounted(lines.join(" | "))).toBe(12);
-    expect(wrapped).not.toMatch(/[█░]/u);
-    expect(wrapped).toMatch(/▆/u);
     expect(wrapped).toBe(draw({ width: 120, wrap: true }));
   });
 
   it("fills each line up to the width before it breaks, and never past it", () => {
     for (const width of [100, 120, 140]) {
-      const lines = draw({ width }).split("\n");
+      const lines = draw({ width }).split("\n").filter((line) => line !== " ");
       lines.forEach((line, index) => {
         expect(displayColumns(line)).toBeLessThanOrEqual(width);
         const next = lines[index + 1]?.split(" | ")[0];
@@ -87,10 +86,12 @@ describe("decision A and U44: one row of ten block bars inside the width", () =>
     expect(DEFAULT_STATUSLINE.wrap).not.toBe(false);
   });
 
-  it("keeps full blocks while everything fits on one line, and lowers them only once lines stack", () => {
-    expect(draw({ width: 400 })).toContain("█");
+  it("keeps the full block and shade bars on one line and once lines stack (owner, 2026-11-03)", () => {
     expect(draw({ width: 400 })).toBe(render({ width: 400 }));
-    expect(draw({ width: 120 })).not.toContain("█");
+    for (const width of [400, 120]) {
+      expect(draw({ width })).toContain("█");
+      expect(draw({ width })).not.toMatch(/[▆▁]/u);
+    }
   });
 
   it("keeps the one row with wrap false", () => {
@@ -311,13 +312,13 @@ describe("the real terminal width", () => {
     expect(detectTerminalColumns({ stdout: {}, stderr: { columns: 90 }, device })).toBe(90);
   });
 
-  it("falls back to the controlling terminal: /dev/tty on POSIX, the CONOUT$ console device on Windows", () => {
+  it("falls back to /dev/tty on POSIX, and never to the hidden Windows console that always says 120", () => {
     const asked: string[] = [];
-    const device = (path: string): number => { asked.push(path); return 101; };
-    expect(detectTerminalColumns({ stdout: {}, stderr: {}, platform: "linux", device })).toBe(101);
-    expect(detectTerminalColumns({ stdout: {}, stderr: {}, platform: "darwin", device })).toBe(101);
-    expect(detectTerminalColumns({ stdout: {}, stderr: {}, platform: "win32", device })).toBe(101);
-    expect(asked).toEqual(["/dev/tty", "/dev/tty", "\\\\.\\CONOUT$"]);
+    const device = (path: string): number => { asked.push(path); return 120; };
+    expect(detectTerminalColumns({ stdout: {}, stderr: {}, platform: "linux", device })).toBe(120);
+    expect(detectTerminalColumns({ stdout: {}, stderr: {}, platform: "darwin", device })).toBe(120);
+    expect(detectTerminalColumns({ stdout: {}, stderr: {}, platform: "win32", device })).toBeNull();
+    expect(asked).toEqual(["/dev/tty", "/dev/tty"]);
   });
 
   it("is null when nothing answers, when the terminal fails, or when it states no real width", () => {
@@ -340,6 +341,8 @@ describe("the real terminal width", () => {
     expect(statuslineWidth(100, 200)).toBe(100);
     expect(statuslineWidth(100, 80)).toBe(79);
     expect(statuslineWidth(100, 101)).toBe(100);
+    // Windows reports no width, so the width the person set is the budget.
+    expect(statuslineWidth(204, null)).toBe(204);
   });
 
   it("wraps at the detected width and keeps the one row with wrap false", () => {

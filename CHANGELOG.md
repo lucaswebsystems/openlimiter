@@ -2,6 +2,12 @@
 
 All notable project changes appear in this file.
 
+## [2.1.12]
+
+On Windows the status line uses the width you set (statusline.width), so it fills the line instead of breaking at 120 columns. Windows runs status lines in a hidden console that always reports 120 columns, so that reading is no longer used there, and a new desktop configuration starts at the default 140 instead of 120.
+
+The bars are solid blocks again, and wrapped rows have a blank line between them instead of shorter blocks.
+
 ## [2.1.11]
 
 The PowerShell prompt bar draws cleanly on every Windows language setting: it reads the status line as UTF-8 instead of the console code page, so bars and dots no longer turn into stray characters, and each of its lines stays on its own line. Running npx openlimiter@latest again updates a prompt hook you have not edited since OpenLimiter installed it.

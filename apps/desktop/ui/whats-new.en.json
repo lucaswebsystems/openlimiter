@@ -3,6 +3,11 @@
   "versionLabel": "Version {version}",
   "dismiss": "Got it",
   "releases": {
+    "2.1.12": {
+      "heading": "Full width bars",
+      "width": "On Windows the status line uses the width you set, so it fills the line instead of breaking at 120 columns.",
+      "bars": "The bars are solid blocks again, and wrapped rows have a blank line between them."
+    },
     "2.1.11": {
       "heading": "A clean prompt bar",
       "prompt": "The PowerShell prompt bar draws cleanly on every Windows language setting, and each of its lines stays on its own line.",
