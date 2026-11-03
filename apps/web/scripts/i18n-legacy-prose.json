@@ -125,7 +125,7 @@
   "docs.pages.cli.metaTitle": {"digest":"c67038ed3485900dfc4e41f775217619b4b35118c48248836f7e71f68baec6ce","locales":["de","es","ja","pt-BR"]},
   "docs.pages.cli.description": {"digest":"7b5171de66c646c9089fd0f19b9ecd891b6b3478eceea5ca070342069be669b5","locales":["de","es","ja","pt-BR"]},
   "docs.pages.cli.lead": {"digest":"3a457d03b65b9bbcae2d99dda73edb2dd34a8081370d16fd99a91d7b68ce0cfd","locales":["de","es","ja","pt-BR"]},
-  "docs.pages.cli.sections.overview.install": {"digest":"d8f90898df7f348ce38d289ad6696009f29f67a426c406ca8362f601a8102bd2","locales":["de","es","ja","pt-BR"]},
+  "docs.pages.cli.sections.overview.install": {"digest":"b58e59382fc73f536daf681fd3fceee54b4badc2ddae87423b5c3028eefce893","locales":["de","es","ja","pt-BR"]},
   "docs.pages.cli.sections.commands.title": {"digest":"68ef8c1442d2e9f394a4790c630b43b0d13919aea17dd99bbffd0d6f03496665","locales":["de","es","ja","pt-BR"]},
   "docs.pages.cli.sections.commands.capturedFixturesLabel": {"digest":"7a66b3e7bd79d77cc514ebeb7b9dfabea44f3164a135011a015d49e10361ec2c","locales":["de","es","ja","pt-BR"]},
   "docs.pages.cli.sections.commands.capturedLabel": {"digest":"fe113fffe01649ae70f47992bddc4a21214d17dc4701a9e96b4c8cb6cf4c2d77","locales":["de","es","ja","pt-BR"]},
