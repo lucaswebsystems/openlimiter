@@ -228,6 +228,15 @@ export async function sweepDisplacedRuntimes(directory: string): Promise<void> {
     .map(name => rm(path.join(directory, name), { recursive: true, force: true }).catch(() => undefined)));
 }
 
+/** Whether `a` is a later plain x.y.z release than `b`; anything else is never newer. */
+export function newerRelease(a: string, b: string): boolean {
+  const parse = (value: string): number[] | undefined => /^(\d+)\.(\d+)\.(\d+)$/u.exec(value)?.slice(1).map(Number);
+  const x = parse(a), y = parse(b);
+  if (x === undefined || y === undefined) return false;
+  const index = x.findIndex((part, i) => part !== y[i]);
+  return index !== -1 && x[index]! > y[index]!;
+}
+
 async function installLauncherUnlocked(directory: string, source: string): Promise<Launcher> {
   const target = path.join(directory, "terminal-runtime");
   const recoveryNames = (await readdir(directory).catch(() => [] as string[]))
@@ -260,6 +269,14 @@ async function installLauncherUnlocked(directory: string, source: string): Promi
   if (typeof sourceManifest.version !== "string" || sourceManifest.version.length === 0) throw new Error("Invalid launcher");
   const version = sourceManifest.version;
   const result = { node: path.join(target, process.platform === "win32" ? "node.exe" : "node"), entry: path.join(target, "openlimiter.cjs"), version };
+  /* A stale cached `npx openlimiter` must never downgrade a newer runtime. */
+  const installed = await readFile(path.join(target, RUNTIME_STAMP_FILE_NAME), "utf8")
+    .then(text => (JSON.parse(text) as { version?: unknown }).version)
+    .catch(() => undefined);
+  if (typeof installed === "string" && newerRelease(installed, version)) {
+    const kept = { ...result, version: installed };
+    if (await existingLauncherIsTrusted(kept).catch(() => false)) return kept;
+  }
   try {
     if (await existingLauncherIsTrusted(result)) return result;
   } catch {

@@ -125,6 +125,6 @@ describe("the view the hub opens on", () => {
   });
 
   it("hands the terminal one command and keeps it out of the catalogs", () => {
-    expect(CONNECT_COMMAND).toBe("npx openlimiter");
+    expect(CONNECT_COMMAND).toBe("npx openlimiter@latest");
   });
 });

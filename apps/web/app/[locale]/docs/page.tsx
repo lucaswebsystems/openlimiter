@@ -44,7 +44,7 @@ export default async function GettingStartedPage({ params }: LocaleParams) {
             <>
               <Bullets items={[t("terminal.needs.node"), t("terminal.needs.npm")]} />
               <P>{t("terminal.intro")}</P>
-              <CodeBlock label={t("terminal.terminalLabel")} code={`npx openlimiter`} />
+              <CodeBlock label={t("terminal.terminalLabel")} code={`npx openlimiter@latest`} />
               <P>{t.rich("terminal.steps", { code: (chunks) => <Code>{chunks}</Code> })}</P>
               <P>
                 {t.rich("terminal.wiring", {

@@ -21,7 +21,7 @@
 export const ONBOARDED_METADATA_KEY = "openlimiter_onboarded";
 
 /** The command a terminal reader runs. A literal, so it is never translated. */
-export const CONNECT_COMMAND = "npx openlimiter";
+export const CONNECT_COMMAND = "npx openlimiter@latest";
 
 /** Where this browser records that an account has been through the flow. */
 export function onboardedStorageKey(userId: string): string {

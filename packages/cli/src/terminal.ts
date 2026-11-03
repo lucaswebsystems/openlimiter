@@ -624,8 +624,13 @@ function shellSnippet(kind: ShellKind, command: string, source = ""): string {
     "}",
     `if (-not (Test-Path Function:global:${hook})) {`,
     `  function global:${hook} {`,
-    `    $bar = ${command} statusline --host shell`,
-    "    if ($bar) { Write-Host $bar }",
+    // Windows PowerShell decodes captured output with the console code page
+    // (850, 437...), which turns the UTF-8 bars into mojibake; read it as UTF-8.
+    "    $encoding = [Console]::OutputEncoding",
+    "    try { [Console]::OutputEncoding = New-Object Text.UTF8Encoding $false } catch { }",
+    `    try { $bar = ${command} statusline --host shell }`,
+    "    finally { try { [Console]::OutputEncoding = $encoding } catch { } }",
+    "    if ($bar) { $bar | ForEach-Object { Write-Host $_ } }",
     `    & $function:global:${originalPrompt}`,
     "  }",
     "}",

@@ -43,14 +43,14 @@ body:
         - Linux AppImage
         - Linux deb
         - Linux rpm
-        - npm (npx openlimiter or npm install)
+        - npm (npx openlimiter@latest or npm install)
     validations:
       required: true
   - type: textarea
     id: doctor
     attributes:
       label: Output of openlimiter doctor
-      description: Run `npx openlimiter doctor`, or `openlimiter doctor` if it is installed, and paste the output. It reads local state and asks no provider anything. If you cannot run it, say why.
+      description: Run `npx openlimiter@latest doctor`, or `openlimiter doctor` if it is installed, and paste the output. It reads local state and asks no provider anything. If you cannot run it, say why.
       render: text
     validations:
       required: true

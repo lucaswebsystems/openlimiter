@@ -19,13 +19,13 @@ OpenLimiter is a free, open source meter that shows how much of each AI coding t
 | Windows x64 | [Installer](https://github.com/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-windows-x64-setup.exe) · [MSI](https://github.com/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-windows-x64.msi) | Unsigned. When SmartScreen appears, choose More info, then Run anyway. |
 | macOS preview, Apple silicon and Intel | [dmg](https://github.com/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-macos-universal.dmg) | Not signed with an Apple Developer ID and not notarised. Drag OpenLimiter to Applications and open it once; macOS blocks it. Then open System Settings, Privacy and Security, choose Open Anyway beside the OpenLimiter message and confirm with your password. Updates on macOS are manual: download the new dmg. |
 | Linux x86_64 | [deb](https://github.com/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-linux-amd64.deb) · [rpm](https://github.com/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-linux-x86_64.rpm) · [AppImage](https://github.com/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-linux-x86_64.AppImage) | The AppImage needs libfuse2 (`libfuse2t64` on Ubuntu 24.04). On Wayland, which cannot place the edge tab, the tray takes its place. |
-| Any terminal with Node 24 | `npx openlimiter` | Bars in your terminal, no desktop app needed. Install it with `npm install -g openlimiter`. |
+| Any terminal with Node 24 | `npx openlimiter@latest` | Bars in your terminal, no desktop app needed. Install it with `npm install -g openlimiter`. |
 
 **Why the warnings:** the Windows build is unsigned, and the macOS preview is ad hoc signed but not notarised, so neither system can name a publisher. To check a download, compare its SHA256 digest with the one GitHub shows beside each file on the [release page](https://github.com/lucaswebsystems/openlimiter/releases/latest): `certutil -hashfile <file> SHA256` on Windows, `shasum -a 256 <file>` on macOS, `sha256sum <file>` on Linux.
 
 ## Get started
 
-1. Download the app for your system and open it, or run `npx openlimiter` in a terminal.
+1. Download the app for your system and open it, or run `npx openlimiter@latest` in a terminal.
 2. Connect your tools. Connect Tools lists the AI coding tools on this computer, and most connect with the login their own tool already stored. OpenLimiter never asks for a vendor password.
 3. Watch the bars in the edge tab, the tray and your terminal status line. Desktop alerts arrive at 60, 80 and 90 percent and when a window resets.
 
