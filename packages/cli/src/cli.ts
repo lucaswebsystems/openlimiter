@@ -2511,8 +2511,9 @@ async function setupShowBarsStep(dependencies: CliDependencies): Promise<string[
     if (host !== "codex" && await hostStatus(host, context) === "Wired") {
       await installLauncher(context.stateDirectory ?? path.join(context.homeDirectory, ".openlimiter"));
       // Rewrite the managed prompt block so an old hook picks up hook fixes.
-      if (host === "shell") await installHost("shell", context);
-      const repaired = host === "antigravity" ? await repairAntigravityCommand(context) : null;
+      const shell = host === "shell" ? await installHost("shell", context) : null;
+      const repaired = host === "antigravity" ? await repairAntigravityCommand(context)
+        : shell?.ok === false ? shell : null;
       const line = host + ": " + (repaired?.message ?? "already wired, status line runtime updated.");
       lines.push(line);
       dependencies.emit(line);

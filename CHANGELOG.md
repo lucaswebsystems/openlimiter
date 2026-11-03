@@ -4,7 +4,7 @@ All notable project changes appear in this file.
 
 ## [2.1.11]
 
-The PowerShell prompt bar draws cleanly on every Windows language setting: it reads the status line as UTF-8 instead of the console code page, so bars and dots no longer turn into stray characters, and each of its lines stays on its own line. Running setup again rewrites an existing prompt hook with this fix.
+The PowerShell prompt bar draws cleanly on every Windows language setting: it reads the status line as UTF-8 instead of the console code page, so bars and dots no longer turn into stray characters, and each of its lines stays on its own line. Running npx openlimiter@latest again updates a prompt hook you have not edited since OpenLimiter installed it.
 
 An older cached copy of npx openlimiter no longer replaces a newer status line runtime, and every install instruction now says npx openlimiter@latest, because plain npx can keep running an old cached version.
 
