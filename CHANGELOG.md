@@ -4,7 +4,7 @@ All notable project changes appear in this file.
 
 ## [2.1.12]
 
-On Windows the status line uses the width you set (statusline.width), so it fills the line instead of breaking at 120 columns. Windows runs status lines in a hidden console that always reports 120 columns, so that reading is no longer used; a width you set now always wins over a measured one.
+On Windows the status line uses the width you set (statusline.width), so it fills the line instead of breaking at 120 columns. Windows runs status lines in a hidden console that always reports 120 columns, so that reading is no longer used there, and a new desktop configuration starts at the default 140 instead of 120.
 
 The bars are solid blocks again, and wrapped rows have a blank line between them instead of shorter blocks.
 

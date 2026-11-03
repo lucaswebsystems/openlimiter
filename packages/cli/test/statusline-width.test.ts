@@ -337,10 +337,12 @@ describe("the real terminal width", () => {
     expect(statuslineWidth(100, null)).toBe(100);
   });
 
-  it("lets a width the person set always win over a detected one", () => {
+  it("lets a width the person set win when it is narrower than the terminal", () => {
     expect(statuslineWidth(100, 200)).toBe(100);
-    expect(statuslineWidth(204, 120)).toBe(204);
+    expect(statuslineWidth(100, 80)).toBe(79);
     expect(statuslineWidth(100, 101)).toBe(100);
+    // Windows reports no width, so the width the person set is the budget.
+    expect(statuslineWidth(204, null)).toBe(204);
   });
 
   it("wraps at the detected width and keeps the one row with wrap false", () => {

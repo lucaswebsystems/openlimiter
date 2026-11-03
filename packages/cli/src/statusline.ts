@@ -1211,7 +1211,7 @@ export interface TerminalProbes {
   readonly stdout?: { readonly columns?: number };
   readonly stderr?: { readonly columns?: number };
   readonly platform?: NodeJS.Platform;
-  /** Reads the columns of the controlling terminal device (`/dev/tty`, `\\.\CONOUT$`). */
+  /** Reads the columns of the controlling terminal device (`/dev/tty`); never asked on Windows. */
   readonly device?: (path: string) => number | undefined;
 }
 
@@ -1237,12 +1237,13 @@ export function detectTerminalColumns(probes: TerminalProbes = {}): number | nul
 }
 
 /**
- * The column budget of one render: a width the person set always wins, since
- * on Windows nothing else knows the real window; otherwise a column short of
- * the detected terminal, so the last column stays free, else the default.
+ * The column budget of one render: a column short of the detected terminal, so
+ * the last column stays free, else the configured width. A width the person
+ * set that is narrower than the terminal still wins; the default is unset.
  */
 export function statuslineWidth(configured: number, detected: number | null): number {
-  return configured !== DEFAULT_STATUSLINE.width || detected === null ? configured : detected - 1;
+  if (detected === null) return configured;
+  return Math.min(detected - 1, configured === DEFAULT_STATUSLINE.width ? Infinity : configured);
 }
 
 /** What the statusline says when it has nothing bounded to say. */

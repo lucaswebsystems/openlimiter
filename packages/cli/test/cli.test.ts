@@ -1044,7 +1044,7 @@ describe("CLI", () => {
     expect(wide.stdout).not.toBe(stacked.stdout);
   });
 
-  it("fills the real terminal width, one column short, unless the person set a width or turned wrap off", async () => {
+  it("fills the real terminal width, one column short, unless the person set a narrower one or turned wrap off", async () => {
     const directory = await temporaryDirectory();
     await runCli(["snapshot", "--refresh"], {
       stateDirectory: directory,
@@ -1066,11 +1066,10 @@ describe("CLI", () => {
     expect(widest(await draw(100))).toBeLessThanOrEqual(99);
     /* Nothing answers: the configured width, as before. */
     expect(widest(await draw(null))).toBeLessThanOrEqual(140);
-    /* A width the person set always wins: on Windows nothing else knows the window. */
+    /* A width the person set, narrower than the terminal, still wins. */
     await runCli(["config", "set", "statusline.width", "100"], { stateDirectory: directory, now: () => FIXTURE_NOW });
     expect(widest(await draw(200))).toBeLessThanOrEqual(100);
-    expect(widest(await draw(80))).toBeGreaterThan(79);
-    expect(widest(await draw(80))).toBeLessThanOrEqual(100);
+    expect(widest(await draw(80))).toBeLessThanOrEqual(79);
     /* wrap false keeps the one row at the detected width. */
     await writeFile(
       path.join(directory, CONFIG_FILE_NAME),
