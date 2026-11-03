@@ -3,6 +3,11 @@
   "versionLabel": "Version {version}",
   "dismiss": "Got it",
   "releases": {
+    "2.1.11": {
+      "heading": "A clean prompt bar",
+      "prompt": "The PowerShell prompt bar draws cleanly on every Windows language setting, and each of its lines stays on its own line.",
+      "runtime": "An older cached copy of npx openlimiter no longer replaces a newer status line runtime. Run npx openlimiter@latest for the newest version."
+    },
     "2.1.10": {
       "heading": "Every bar in view",
       "statusline": "The status line wraps onto more lines at your terminal's real width instead of hiding bars behind a count.",

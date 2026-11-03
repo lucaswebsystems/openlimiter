@@ -10,6 +10,10 @@ const whatsNewForVersion = (version) => selectRelease(version, WHATS_NEW_EN);
 
 /* What each recent release says, word for word; the current version is one of them. */
 const NOTES = {
+  "2.1.11": [
+    { key: "prompt", text: "The PowerShell prompt bar draws cleanly on every Windows language setting, and each of its lines stays on its own line." },
+    { key: "runtime", text: "An older cached copy of npx openlimiter no longer replaces a newer status line runtime. Run npx openlimiter@latest for the newest version." },
+  ],
   "2.1.10": [
     { key: "statusline", text: "The status line wraps onto more lines at your terminal's real width instead of hiding bars behind a count." },
     { key: "menu", text: "The web app's account menu and alerts fit their panel again." },

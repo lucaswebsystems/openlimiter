@@ -2,6 +2,12 @@
 
 All notable project changes appear in this file.
 
+## [2.1.11]
+
+The PowerShell prompt bar draws cleanly on every Windows language setting: it reads the status line as UTF-8 instead of the console code page, so bars and dots no longer turn into stray characters, and each of its lines stays on its own line. Running setup again rewrites an existing prompt hook with this fix.
+
+An older cached copy of npx openlimiter no longer replaces a newer status line runtime, and every install instruction now says npx openlimiter@latest, because plain npx can keep running an old cached version.
+
 ## [2.1.10]
 
 The status line wraps onto more lines at your terminal's real width instead of hiding bars behind a count. It measures the terminal, so each line fills before it breaks, and stacked bars keep a small gap between lines; statusline.wrap false restores the single row.
