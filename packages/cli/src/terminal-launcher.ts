@@ -121,7 +121,9 @@ async function renameWithRetry(from: string, to: string): Promise<void> {
 
 function ownerIsCurrentUser(uid: number | undefined): boolean {
   if (process.platform === "win32" || typeof process.getuid !== "function") return true;
-  return uid === process.getuid();
+  // A root-owned file (such as the system Node binary) is not writable by the
+  // current user, so trusting it does not weaken the ownership check.
+  return uid === process.getuid() || uid === 0;
 }
 
 async function assertSafeTree(root: string): Promise<void> {
@@ -308,10 +310,10 @@ async function installLauncherUnlocked(directory: string, source: string): Promi
     }
     await copyPackage(source);
     const node = path.join(staging, path.basename(result.node));
-    /* A hard link to the system node on Windows shares its always running image,
-       so the runtime could never be removed or replaced while any node app runs. */
-    if (process.platform === "win32") await cp(process.execPath, node);
-    else try { await link(process.execPath, node); } catch { await cp(process.execPath, node); }
+    /* Copy the Node binary instead of hard-linking it. A hard link shares the
+       system executable's inode and its (usually root) ownership, which fails
+       the runtime's current-user ownership check on Unix and blocks installs. */
+    await cp(process.execPath, node);
     await writeFile(path.join(staging, "openlimiter.cjs"), LAUNCHER_ENTRY_CONTENT, { mode: 0o600 });
     const stamp = { version, files: await runtimeFileHashes(staging) };
     await writeFile(path.join(staging, RUNTIME_STAMP_FILE_NAME), JSON.stringify(stamp) + "\n", { mode: 0o600 });
