@@ -395,6 +395,12 @@ pub fn run() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "open" => show_window(app),
+                    "install-update" => {
+                        let app = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let _ = updates::install_pending(&app).await;
+                        });
+                    }
                     "refresh" => {
                         collector_runtime::refresh_all(app.clone());
                     }

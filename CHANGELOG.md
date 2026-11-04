@@ -6,6 +6,8 @@ All notable project changes appear in this file.
 
 Signing in works on Windows again. A sign in session, a Google one especially, is longer than the 1,280 characters Windows lets one saved credential hold, so saving it failed with a storage error. Long values are now saved in parts, and the phone receives your bars once you sign in.
 
+Updates are easy to see: OpenLimiter checks at start, every two hours and when you come back to it, an Update button appears in the header on every tab, the tray menu gets Install update, and one desktop notification says a new version is ready. One click installs it and restarts.
+
 ## [2.1.13]
 
 OpenCode connects by itself from the sign in the opencode command already saved on your computer, with nothing to paste. OpenLimiter reads it and never changes it. Without a sign in, connect with an OpenCode API key. OpenCode Go's 5 hour, weekly and monthly limits now refresh on their own every few minutes. The session cookie field is gone, and a cookie saved by an earlier version is removed.

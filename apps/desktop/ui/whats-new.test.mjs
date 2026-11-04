@@ -11,6 +11,7 @@ const whatsNewForVersion = (version) => selectRelease(version, WHATS_NEW_EN);
 /* What each recent release says, word for word; the current version is one of them. */
 const NOTES = {
   "2.1.14": [
+    { key: "updates", text: "Updates are easy to see: OpenLimiter checks at start, every two hours and when you come back to it, an Update button appears in the header on every tab, the tray menu gets Install update, and one desktop notification says a new version is ready. One click installs it and restarts." },
     { key: "signin", text: "Signing in works on Windows again. A sign in session, a Google one especially, is longer than the 1,280 characters Windows lets one saved credential hold, so saving it failed with a storage error. Long values are now saved in parts, and the phone receives your bars once you sign in." },
   ],
   "2.1.13": [

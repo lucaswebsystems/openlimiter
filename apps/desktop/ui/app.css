@@ -1930,16 +1930,47 @@ button.first-run-continue {
   text-decoration: none;
 }
 
-.update-banner,
 .offline-banner {
   width: calc(100% - (2 * var(--ol-space-4)));
   margin: var(--ol-space-2) var(--ol-space-4) 0;
 }
 
-.update-banner {
-  border-color: var(--ol-accent);
-  background: var(--ol-accent-subtle);
-  color: var(--ol-accent);
+/* The Update button: in the header beside Refresh, so every tab shows it and
+   scrolling never hides it. Solid accent, because it is the one action that
+   is waiting for the person. */
+button.update-pill {
+  display: inline-flex;
+  min-width: 0;
+  height: 1.875rem;
+  align-items: center;
+  padding: 0 var(--ol-space-3);
+  border: 0;
+  border-radius: var(--ol-radius-pill);
+  background: var(--ol-accent-solid);
+  color: var(--ol-on-accent);
+  font: inherit;
+  font-size: var(--ol-text-caption);
+  font-weight: var(--ol-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+button.update-pill:hover {
+  background: var(--ol-accent-solid-hover);
+}
+
+button.update-pill:focus-visible {
+  outline: none;
+  box-shadow: var(--ol-focus-ring);
+}
+
+button.update-pill[hidden] {
+  display: none;
+}
+
+button.update-pill:disabled {
+  cursor: progress;
+  opacity: 0.8;
 }
 
 .offline-banner {

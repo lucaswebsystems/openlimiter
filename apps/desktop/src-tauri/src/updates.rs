@@ -1,11 +1,50 @@
 use std::sync::Mutex;
 
 use serde::Serialize;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
+use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_updater::{Update, UpdaterExt};
 
 #[derive(Default)]
 pub struct PendingUpdate(Mutex<Option<Update>>);
+
+impl PendingUpdate {
+    /// The version an install would bring, for the tray's Install update item.
+    pub fn version(&self) -> Option<String> {
+        self.0.lock().ok().and_then(|slot| slot.as_ref().map(|update| update.version.clone()))
+    }
+}
+
+/// Remembers the last version a notification announced, so a check every two
+/// hours says it once.
+const UPDATE_NOTIFIED_FILE: &str = "update-notified.txt";
+
+/// Whether `version` still needs announcing, given what the marker holds.
+pub(crate) fn needs_notice(marker: Option<&str>, version: &str) -> bool {
+    marker.map(str::trim) != Some(version)
+}
+
+/// One desktop notification per new version, so an update is seen with the
+/// window closed. The marker is written only once the notification showed.
+fn notify_once(app: &AppHandle, version: &str) {
+    let Some(directory) = crate::state::state_directory() else {
+        return;
+    };
+    let marker = directory.join(UPDATE_NOTIFIED_FILE);
+    if !needs_notice(crate::fsx::bounded_read(&marker).as_deref(), version) {
+        return;
+    }
+    let shown = app
+        .notification()
+        .builder()
+        .title("OpenLimiter update ready")
+        .body(format!("Version {version} is ready. Press Update in OpenLimiter, or Install update in its tray menu."))
+        .show()
+        .is_ok();
+    if shown {
+        let _ = crate::fsx::atomic_write(&marker, version);
+    }
+}
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -115,6 +154,10 @@ pub async fn check_for_update(
         .lock()
         .map_err(|_| UpdateFailure::UpdateStateUnavailable)?;
     *slot = update;
+    drop(slot);
+    if let Some(found) = &metadata {
+        notify_once(&app, &found.version);
+    }
     Ok(metadata)
 }
 
@@ -130,10 +173,14 @@ fn mark_install(directory: Option<&std::path::Path>) -> Result<(), UpdateFailure
 }
 
 #[tauri::command]
-pub async fn install_update(
-    app: AppHandle,
-    pending: State<'_, PendingUpdate>,
-) -> Result<(), UpdateFailure> {
+pub async fn install_update(app: AppHandle) -> Result<(), UpdateFailure> {
+    install_pending(&app).await
+}
+
+/// Download and install the update a check left pending, then restart: the
+/// window's Update button and the tray's Install update item both land here.
+pub async fn install_pending(app: &AppHandle) -> Result<(), UpdateFailure> {
+    let pending = app.state::<PendingUpdate>();
     let directory = crate::state::state_directory();
     mark_install(directory.as_deref())?;
     let taken = pending
@@ -158,6 +205,13 @@ pub async fn install_update(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_version_is_announced_once() {
+        assert!(super::needs_notice(None, "2.1.15"));
+        assert!(super::needs_notice(Some("2.1.14"), "2.1.15"));
+        assert!(!super::needs_notice(Some("2.1.15\n"), "2.1.15"));
+    }
+
     use super::*;
 
     /// The relaunch keeps the sign in argument, so without the mark that
