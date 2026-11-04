@@ -152,14 +152,7 @@ pub fn cleanup(root: &Path, references: &[PathBuf], now: SystemTime) -> Counts {
         for entry in entries.take(MAX_ENTRIES).flatten() {
             let name = entry.file_name();
             let name = name.to_string_lossy();
-            if !["openlimiter-cache.json.", "openlimiter-agent-context.json."]
-                .iter()
-                .any(|prefix| {
-                    name.starts_with(prefix)
-                        && name.len() > prefix.len() + 4
-                        && name.ends_with(".tmp")
-                })
-            {
+            if !name.ends_with(".tmp") {
                 continue;
             }
             let path = entry.path();
@@ -341,14 +334,14 @@ mod tests {
             ("openlimiter-agent-context.json.old.tmp", 3601, true),
             ("openlimiter-cache.json.equal.tmp", 3600, false),
             ("openlimiter-cache.json.new.tmp", 59, false),
-            ("other.json.old.tmp", 7200, false),
+            ("other.json.old.tmp", 7200, true),
         ];
         for (name, age, _) in cases {
             let file = fs::File::create(root.path().join(name)).unwrap();
             file.set_times(fs::FileTimes::new().set_modified(now - Duration::from_secs(age)))
                 .unwrap();
         }
-        assert_eq!(cleanup(root.path(), &[], now).temporary_files, 2);
+        assert_eq!(cleanup(root.path(), &[], now).temporary_files, 3);
         for (name, _, removed) in cases {
             assert_eq!(root.path().join(name).exists(), !removed);
         }

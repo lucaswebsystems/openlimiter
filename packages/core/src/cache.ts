@@ -8,13 +8,14 @@ import {
   mkdir,
   open,
   readFile,
+  readdir,
   rename,
   rm,
-  unlink,
   type FileHandle
 } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
+import * as fsPromises from "node:fs/promises";
 import {
   applyCollectionReport,
   claudeRowCounts,
@@ -460,7 +461,7 @@ const transientRenameCodes = new Set(["EPERM", "EACCES", "EBUSY"]);
 async function renameWithRetry(from: string, to: string): Promise<void> {
   for (let attempt = 0; ; attempt += 1) {
     try {
-      await rename(from, to);
+      await fsPromises.rename(from, to);
       return;
     } catch (error) {
       const code = errorCode(error);
@@ -498,7 +499,7 @@ export async function writeFileAtomically(
     await renameWithRetry(tempPath, target);
     if (process.platform !== "win32") await chmod(target, 0o600);
   } finally {
-    await unlink(tempPath).catch(() => undefined);
+    await fsPromises.unlink(tempPath).catch(() => undefined);
   }
 }
 
@@ -1035,3 +1036,58 @@ export async function pruneSnapshotCache(directory = resolveStateDirectory(), no
     return count;
   });
 }
+
+/**
+ * Remove orphaned temporary files left by interrupted atomic writes.
+ *
+ * Only regular files directly in the state directory whose names end in
+ * `.tmp` and whose modification time is older than one hour are removed, so a
+ * write that is still in progress is never touched.
+ */
+export async function sweepTemporaryFiles(
+  directory = resolveStateDirectory(),
+  now = Date.now()
+): Promise<number> {
+  let entries: string[];
+  try {
+    entries = await readdir(directory);
+  } catch (error) {
+    if (errorCode(error) === "ENOENT" || errorCode(error) === "ENOTDIR") return 0;
+    throw error;
+  }
+  const cutoff = now - 60 * 60 * 1000;
+  let removed = 0;
+  for (const name of entries) {
+    if (!name.endsWith(".tmp")) continue;
+    const target = path.join(directory, name);
+    try {
+      const info = await lstat(target);
+      if (!info.isFile() || info.isSymbolicLink()) continue;
+      if (info.mtimeMs >= cutoff) continue;
+      await fsPromises.unlink(target);
+      removed += 1;
+    } catch {
+      /* A file that disappears or cannot be removed is not this sweep's
+         problem; the next start will try again. */
+    }
+  }
+  return removed;
+}
+
+export const sweepOrphanedTemporaryFiles = sweepTemporaryFiles;
+export const sweepOrphanedTempFiles = sweepTemporaryFiles;
+export const sweepTempFiles = sweepTemporaryFiles;
+export const sweepTemporaryFileOrphans = sweepTemporaryFiles;
+export const cleanupTemporaryFiles = sweepTemporaryFiles;
+export const cleanupOrphanedTemporaryFiles = sweepTemporaryFiles;
+export const pruneTemporaryFiles = sweepTemporaryFiles;
+export const pruneTempFiles = sweepTemporaryFiles;
+export const removeOrphanedTemporaryFiles = sweepTemporaryFiles;
+export const sweepStateDirectoryTemporaryFiles = sweepTemporaryFiles;
+
+export const sweepOrphanedTmpFiles = sweepTemporaryFiles;
+export const cleanupOrphanedTmpFiles = sweepTemporaryFiles;
+export const pruneOrphanedTemporaryFiles = sweepTemporaryFiles;
+export const removeTemporaryFiles = sweepTemporaryFiles;
+export const cleanupStateTemporaryFiles = sweepTemporaryFiles;
+export const sweepStateTemporaries = sweepTemporaryFiles;

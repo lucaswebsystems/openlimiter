@@ -38,6 +38,7 @@ import {
   resolveStateDirectory,
   runAcquisition,
   spawnDetachedRefresh,
+  sweepTemporaryFiles,
   trustedHelperWorkingDirectory,
   writeAcquisitionSchedule,
   windowsSystemTool,
@@ -2542,14 +2543,15 @@ export async function runCli(
   try {
     /* The first 2.1.7 run moves a recorded legacy on into the one store of
        truth, before anything reads the switch or the cache. */
+    if (command === "--version" || command === "-v" || command === "version") {
+      return succeed(packageJson.version);
+    }
     if (["setup", "sync", "snapshot", "statusline", "config", "hook", "status", "refresh", "doctor", "export"].includes(command)) {
       await migrateLegacyClaudePoll(dependencies.stateDirectory).catch(() => undefined);
+      await sweepTemporaryFiles(dependencies.stateDirectory).catch(() => undefined);
     }
     if (["snapshot", "statusline", "refresh", "status"].includes(command)) {
       await pruneSnapshotCache(dependencies.stateDirectory, Date.parse(now)).catch(() => 0);
-    }
-    if (command === "--version" || command === "-v" || command === "version") {
-      return succeed(packageJson.version);
     }
     if (command === "setup") {
       const result = await setupCommand(dependencies, now);
