@@ -1177,6 +1177,125 @@ try {
     process.stdout.write(`PASS waiting rows ${width}x${height}\n`);
     await context.close();
   }
+  /* No tab or setup panel overflows sideways at 320, 460 or 720 px, in
+     either theme: each has document scrollWidth equal to clientWidth. */
+  for (const theme of ["dark", "light"]) {
+    for (const width of [320, 460, 720]) {
+      const context = await browser.newContext({ viewport: { width, height: 800 }, serviceWorkers: "block" });
+      await context.addInitScript((chosen) => { window.__desk = { theme: chosen }; }, theme);
+      await context.addInitScript(installCaptureStub);
+      const page = await context.newPage();
+      const errors = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+      await page.goto(`${origin}/index.html`);
+      await page.waitForLoadState("networkidle");
+      await page.locator(".chrome").waitFor({ state: "visible" });
+      const firstRun = page.locator("#first-run");
+      if (await firstRun.isVisible()) await page.locator("#first-run-continue").click();
+      const whatsNew = page.locator("dialog.whats-new[open]");
+      if (await whatsNew.count()) await whatsNew.locator("button").click();
+
+      async function overflowElements() {
+        return page.evaluate(() => {
+          const clientWidth = document.documentElement.clientWidth;
+          const scrollWidth = document.documentElement.scrollWidth;
+          if (scrollWidth <= clientWidth + 1) return [];
+          const found = [];
+          for (const element of document.querySelectorAll("*")) {
+            const box = element.getBoundingClientRect();
+            if (box.right > clientWidth + 1 || box.left < -1) {
+              const id = element.id ? `#${element.id}` : "";
+              const className = typeof element.className === "string" && element.className.trim()
+                ? "." + element.className.trim().split(/\s+/).slice(0, 2).join(".")
+                : "";
+              found.push(`${element.tagName.toLowerCase()}${id}${className}`);
+            }
+          }
+          return [...new Set(found)].slice(0, 5);
+        });
+      }
+
+      for (const id of ["usage", "tools", "settings"]) {
+        await page.locator(`#tab-${id}`).click();
+        await page.waitForTimeout(30);
+        const offenders = await overflowElements();
+        assert.deepEqual(offenders, [], `${id} tab overflows at ${width}x800 (${theme}): ${offenders.join(", ")}`);
+      }
+
+      await page.locator("#tab-tools").click();
+      await page.waitForTimeout(50);
+
+      async function checkPanel(panelId, label) {
+        await page.evaluate((id) => {
+          const panel = document.getElementById(id);
+          if (panel) panel.hidden = false;
+        }, panelId);
+        await page.waitForTimeout(50);
+        const offenders = await overflowElements();
+        assert.deepEqual(offenders, [], `${label} setup panel overflows at ${width}x800 (${theme}): ${offenders.join(", ")}`);
+        await page.evaluate((id) => {
+          const panel = document.getElementById(id);
+          if (panel) panel.hidden = true;
+        }, panelId);
+      }
+
+      const antigravityConnect = page.locator('#tab-panel-tools [data-provider="ANTIGRAVITY"] [data-action="connect"]');
+      if (await antigravityConnect.count()) {
+        await antigravityConnect.first().click();
+        await page.waitForTimeout(200);
+        const offenders = await overflowElements();
+        assert.deepEqual(offenders, [], `Antigravity setup panel overflows at ${width}x800 (${theme}): ${offenders.join(", ")}`);
+        const close = page.locator("#antigravity-add [data-setup-close]");
+        if (await close.count()) await close.click();
+        await page.waitForTimeout(100);
+      } else {
+        await checkPanel("antigravity-add", "Antigravity");
+      }
+
+      const addTool = page.locator("#add-tool");
+      if (await addTool.count()) {
+        await addTool.click();
+        await page.waitForTimeout(300);
+        const opencodeConnect = page.locator('#tool-catalogue [data-provider="OPENCODE"] [data-action="connect"]');
+        if (await opencodeConnect.count()) {
+          await opencodeConnect.first().click();
+          await page.waitForTimeout(400);
+          const offenders = await overflowElements();
+          assert.deepEqual(offenders, [], `OpenCode setup panel overflows at ${width}x800 (${theme}): ${offenders.join(", ")}`);
+          const close = page.locator("#opencode-add [data-setup-close]");
+          if (await close.count()) await close.click();
+          await page.waitForTimeout(100);
+        } else {
+          await checkPanel("opencode-add", "OpenCode");
+        }
+        const claudeConnect = page.locator('#tool-catalogue [data-provider="CLAUDE"] [data-action="connect"]');
+        if (await claudeConnect.count()) {
+          await claudeConnect.first().click();
+          await page.waitForTimeout(400);
+          const offenders = await overflowElements();
+          assert.deepEqual(offenders, [], `Claude Code setup panel overflows at ${width}x800 (${theme}): ${offenders.join(", ")}`);
+          const close = page.locator("#claude-card [data-setup-close]");
+          if (await close.count()) await close.click();
+          await page.waitForTimeout(100);
+        } else {
+          await checkPanel("claude-card", "Claude Code");
+        }
+        if (await addTool.getAttribute("aria-expanded") === "true") {
+          await addTool.click();
+          await page.waitForTimeout(100);
+        }
+      } else {
+        await checkPanel("opencode-add", "OpenCode");
+        await checkPanel("claude-card", "Claude Code");
+      }
+
+      assert.deepEqual(errors, [], `overflow check browser errors at ${width}x800 (${theme})`);
+      process.stdout.write(`PASS no horizontal overflow ${theme} ${width}x800\n`);
+      await context.close();
+    }
+  }
+
 } finally {
   await browser?.close();
   if (server.listening) await new Promise(resolve => server.close(resolve));
