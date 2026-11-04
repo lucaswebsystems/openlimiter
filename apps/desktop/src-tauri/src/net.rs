@@ -73,6 +73,24 @@ pub const GEMINI_CLI_QUOTA_URL: &str =
 /// the other private reads.
 pub const OPENCODE_USAGE_URL: &str = "https://opencode.ai/zen/go/v1/usage";
 
+/// The Nous Portal account Hermes reads with its own sign in: the
+/// subscription's monthly credits and the purchased balance. Read by
+/// `hermes_cli/nous_account.py` (`_fetch_nous_account_info`); not documented.
+pub const HERMES_ACCOUNT_URL: &str = "https://portal.nousresearch.com/api/oauth/account";
+
+/// Command Code's credits and its five hour and weekly windows, read by its
+/// own CLI with the saved API key (`/alpha/billing/credits` in the
+/// command-code bundle). Not documented.
+pub const COMMANDCODE_CREDITS_URL: &str = "https://api.commandcode.ai/alpha/billing/credits";
+
+/// ClinePass's five hour, weekly and monthly limits for the bearer of a Cline
+/// sign in. Not documented by Cline.
+pub const CLINE_USAGE_URL: &str = "https://api.cline.bot/api/v1/users/me/plan/usage-limits";
+
+/// The Kilo Code account balance its own gateway reads
+/// (`packages/kilo-gateway/src/api/profile.ts`). Not documented.
+pub const KILOCODE_BALANCE_URL: &str = "https://api.kilo.ai/api/profile/balance";
+
 /// Every address this process may speak to. Adding a provider means adding a
 /// variant here, in code, in review; nothing at runtime can. One variant is
 /// one constant address, and nothing outside this file, in particular nothing
@@ -90,13 +108,17 @@ pub enum ProviderEndpoint {
     GrokUsage,
     KimiUsage,
     CursorUsage,
+    HermesAccount,
+    CommandcodeCredits,
+    ClineUsage,
+    KilocodeBalance,
 }
 
 impl ProviderEndpoint {
     /// The whole allowlist, for the tests that prove it closed. The product
     /// itself never needs the list, only a variant at a time.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [ProviderEndpoint; 9] = [
+    pub const ALL: [ProviderEndpoint; 13] = [
         ProviderEndpoint::OpenrouterKey,
         ProviderEndpoint::OpenrouterCredits,
         ProviderEndpoint::GeminiCliLoad,
@@ -106,6 +128,10 @@ impl ProviderEndpoint {
         ProviderEndpoint::GrokUsage,
         ProviderEndpoint::KimiUsage,
         ProviderEndpoint::CursorUsage,
+        ProviderEndpoint::HermesAccount,
+        ProviderEndpoint::CommandcodeCredits,
+        ProviderEndpoint::ClineUsage,
+        ProviderEndpoint::KilocodeBalance,
     ];
 
     /// The address this endpoint's request goes to.
@@ -120,6 +146,10 @@ impl ProviderEndpoint {
             ProviderEndpoint::GrokUsage => GROK_USAGE_URL,
             ProviderEndpoint::KimiUsage => KIMI_USAGE_URL,
             ProviderEndpoint::CursorUsage => CURSOR_USAGE_URL,
+            ProviderEndpoint::HermesAccount => HERMES_ACCOUNT_URL,
+            ProviderEndpoint::CommandcodeCredits => COMMANDCODE_CREDITS_URL,
+            ProviderEndpoint::ClineUsage => CLINE_USAGE_URL,
+            ProviderEndpoint::KilocodeBalance => KILOCODE_BALANCE_URL,
         }
     }
 
@@ -134,7 +164,11 @@ impl ProviderEndpoint {
             | ProviderEndpoint::ClaudeOauthUsage
             | ProviderEndpoint::GrokUsage
             | ProviderEndpoint::KimiUsage
-            | ProviderEndpoint::CursorUsage => HttpMethod::Get,
+            | ProviderEndpoint::CursorUsage
+            | ProviderEndpoint::HermesAccount
+            | ProviderEndpoint::CommandcodeCredits
+            | ProviderEndpoint::ClineUsage
+            | ProviderEndpoint::KilocodeBalance => HttpMethod::Get,
             ProviderEndpoint::GeminiCliLoad
             | ProviderEndpoint::GeminiCliQuota => HttpMethod::Post,
         }
@@ -153,7 +187,11 @@ impl ProviderEndpoint {
             | ProviderEndpoint::ClaudeOauthUsage
             | ProviderEndpoint::GrokUsage
             | ProviderEndpoint::KimiUsage
-            | ProviderEndpoint::CursorUsage => None,
+            | ProviderEndpoint::CursorUsage
+            | ProviderEndpoint::HermesAccount
+            | ProviderEndpoint::CommandcodeCredits
+            | ProviderEndpoint::ClineUsage
+            | ProviderEndpoint::KilocodeBalance => None,
         }
     }
 }
@@ -750,7 +788,7 @@ mod tests {
     use crate::reader_registry::{reader_route, CredentialKind, ProviderId};
     use crate::test_support::RecordingTransport;
 
-    const ROUTED_ENDPOINTS: [ProviderEndpoint; 7] = [
+    const ROUTED_ENDPOINTS: [ProviderEndpoint; 11] = [
         ProviderEndpoint::OpenrouterKey,
         ProviderEndpoint::OpenrouterCredits,
         ProviderEndpoint::OpencodeUsage,
@@ -758,6 +796,10 @@ mod tests {
         ProviderEndpoint::GrokUsage,
         ProviderEndpoint::KimiUsage,
         ProviderEndpoint::CursorUsage,
+        ProviderEndpoint::HermesAccount,
+        ProviderEndpoint::CommandcodeCredits,
+        ProviderEndpoint::ClineUsage,
+        ProviderEndpoint::KilocodeBalance,
     ];
 
     /// The authentication scheme each endpoint is really reached with, taken
@@ -847,6 +889,10 @@ mod tests {
                 GROK_USAGE_URL.to_string(),
                 KIMI_USAGE_URL.to_string(),
                 CURSOR_USAGE_URL.to_string(),
+                HERMES_ACCOUNT_URL.to_string(),
+                COMMANDCODE_CREDITS_URL.to_string(),
+                CLINE_USAGE_URL.to_string(),
+                KILOCODE_BALANCE_URL.to_string(),
                 GEMINI_CLI_LOAD_URL.to_string(),
                 GEMINI_CLI_QUOTA_URL.to_string(),
             ]
@@ -1275,7 +1321,7 @@ mod tests {
             .expect("the module has a body before its tests");
         assert_eq!(
             head.matches("https://").count(),
-            10,
+            14,
             "an address appeared outside the constants"
         );
     }

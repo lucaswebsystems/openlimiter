@@ -22,7 +22,13 @@ const GOLDEN_DIR = path.join(process.cwd(), "packages/cli/test/golden");
 const WIDTHS = [80, 120, 160] as const;
 const ADVICE = buildAdvice(GOLDEN_SNAPSHOTS, GOLDEN_NOW);
 const LEGACY_CELLS_SNAPSHOTS = GOLDEN_SNAPSHOTS;
-const LEGACY_CELLS_ADVICE = buildAdvice(LEGACY_CELLS_SNAPSHOTS, GOLDEN_NOW);
+/* The cells goldens pin the layout, not the provider vocabulary, so their
+   head names the unknown providers of the vocabulary they were drawn with.
+   statusline.test.ts pins the whole vocabulary's unknown list. */
+const LEGACY_CELLS_PROVIDERS = [
+  "CLAUDE", "OPENROUTER", "CODEX", "ANTIGRAVITY", "GEMINI_CLI", "OPENCODE", "GROK", "KIMI", "CURSOR", "MANUAL"
+] as const;
+const LEGACY_CELLS_ADVICE = buildAdvice(LEGACY_CELLS_SNAPSHOTS, GOLDEN_NOW, LEGACY_CELLS_PROVIDERS);
 
 describe("account and freshness status line goldens", () => {
   const row = (overrides: Partial<Snapshot> = {}): Snapshot => ({ ...GOLDEN_SNAPSHOTS[0]!, resetAt: null, ...overrides });

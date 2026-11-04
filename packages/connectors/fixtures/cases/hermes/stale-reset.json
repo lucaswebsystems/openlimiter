@@ -1,0 +1,19 @@
+{
+  "provider": "hermes",
+  "case": "stale-reset",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "subscription": {
+      "plan": "Plus",
+      "tier": 1,
+      "monthly_charge": 20,
+      "monthly_credits": 20,
+      "credits_remaining": 14,
+      "current_period_end": "2026-08-01T00:00:00Z",
+      "rollover_credits": 0
+    }
+  }
+}

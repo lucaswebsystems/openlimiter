@@ -20,6 +20,7 @@ mod runtime;
 #[path = "rail/snapshot.rs"]
 mod snapshot;
 pub(crate) use snapshot::display_name as provider_display_name;
+pub(crate) use snapshot::directory_providers;
 #[cfg(windows)]
 #[path = "rail/windows.rs"]
 mod windows;

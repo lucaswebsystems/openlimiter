@@ -1,0 +1,138 @@
+# Cline, and its ClinePass subscription limits.
+#
+# The desktop reads the sign in Cline's CLI saved after cline auth:
+# ~/.cline/data/settings/providers.json, field
+# providers.cline.settings.auth.accessToken, a workos scheme bearer that Cline
+# sends as is. Read only and never refreshed; the ClinePass entry beside it, a
+# stored key and every other provider are ignored. The token's own expiry is
+# read when the token states one; the file states none.
+#
+# Verified in source: CodexBar's ClinePass plugin and settings reader
+# (steipete/CodexBar at 897bff3) and oh-my-pi's usage reader
+# (packages/ai/src/usage/cline-pass.ts at ff0a986) both send a Bearer
+# Authorization to the usage limits route and read success, data.limits and
+# each limit's type, percentUsed and resetsAt. oh-my-pi also sends Cline's
+# own client headers; OpenLimiter sends none and identifies itself. No Cline
+# repository was available to verify against, and Cline documents none of
+# this. The address is a Rust constant in apps/desktop/src-tauri/src/net.rs.
+
+provider_id: cline
+product_id: clinepass
+display_name: Cline
+
+headlineMeter: five_hour
+weeklyMeter: weekly
+acquisitionSurfaces:
+  - desktop
+displaySurfaces:
+  - desktop
+  - rail
+  - tray
+  - cli_cache
+  - web
+  - phone
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: remote_http_internal
+d5Review: Reads the sign in Cline saved, read only and never refreshed. Only the Cline API receives the token. Honest OpenLimiter identity, no Cline client headers.
+maturity: experimental
+directory:
+  order: 12
+  rowId: cline/clinepass
+  label: Cline
+  connectorId: cline
+  access: automatic
+
+source:
+  docs_url: https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Resources/Plugins/clinepass.ts
+  reviewed_at: "2026-11-04"
+  source_status: community
+
+availability:
+  requires_plan: any
+  appears_after: local_cli_login
+  absence_is_error: false
+
+support:
+  parser: implemented
+  reader: implemented
+  auth: implemented
+
+collection:
+  reader: implemented
+  auth: implemented
+  readers:
+    - reader_id: cline_usage
+      endpoint_id: cline_usage
+      credential_kind: cline_session
+      evidence_fixture: cline.provisional.usage_limits
+      evidence_status: pending_capture
+      last_verified_at: null
+
+connections:
+  - reader: experimental
+    auth_mode: existing_local_cli
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  fixture_ids:
+    - cline.provisional.usage_limits
+    - cline.live.pending
+
+honesty:
+  connector_id: cline
+  credential_origin: official-local-tool
+  data_interface_status: internal-endpoint
+  automation_risk: high
+  verification: UNVERIFIED
+
+meters:
+  - id: five_hour
+    label: 5 hour limit
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: rolling
+      duration_seconds: 18000
+    source_format: json_path
+    source_path: data.limits.percentUsed
+    reset_path: data.limits.resetsAt
+    reset_encoding: rfc3339
+    optional: true
+    meter_code: FIVE_HOUR
+  - id: weekly
+    label: Weekly limit
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: rolling
+      duration_seconds: 604800
+    source_format: json_path
+    source_path: data.limits.percentUsed
+    reset_path: data.limits.resetsAt
+    reset_encoding: rfc3339
+    optional: true
+    meter_code: SEVEN_DAY
+  - id: monthly
+    label: Monthly limit
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: rolling
+      duration_seconds: 2592000
+    source_format: json_path
+    source_path: data.limits.percentUsed
+    reset_path: data.limits.resetsAt
+    reset_encoding: rfc3339
+    optional: true
+    meter_code: MONTHLY

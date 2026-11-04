@@ -236,6 +236,33 @@ describe("usageSamplesFromSnapshots", () => {
   });
 });
 
+describe("stated money balances", () => {
+  it("syncs the balance a tool states in money with its amount and currency, zero included", () => {
+    const balance = (provider: "HERMES" | "COMMANDCODE" | "KILOCODE", value: number) => usageSnapshot({
+      provider,
+      meter: "BALANCE",
+      value,
+      unit: "CREDITS",
+      kind: "money_balance",
+      currency: "USD",
+      window: { kind: "lifetime" },
+      resetAt: null,
+    });
+    const rows = usageSamplesFromSnapshots([
+      balance("HERMES", 0),
+      balance("COMMANDCODE", 15),
+      balance("KILOCODE", 18.25),
+      (({ currency: _currency, ...rest }) => ({ ...rest, meter: "NO_CURRENCY" }))(balance("KILOCODE", 3)),
+      usageSnapshot({ provider: "CODEX", meter: "CREDITS", unit: "CREDITS", value: 40 }),
+    ], NOW);
+    expect(rows.map((row) => [row.provider, row.meter, row.usage_percent, row.amount, row.currency])).toEqual([
+      ["HERMES", "BALANCE", null, 0, "USD"],
+      ["COMMANDCODE", "BALANCE", null, 15, "USD"],
+      ["KILOCODE", "BALANCE", null, 18.25, "USD"],
+    ]);
+  });
+});
+
 describe("apiSpendSamplesFromSnapshots", () => {
   it("builds a row only when the amount, limit and currency all travel together", async () => {
     const complete = spendSnapshot();

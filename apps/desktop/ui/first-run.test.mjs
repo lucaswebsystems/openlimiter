@@ -206,11 +206,43 @@ test("the first run opens on Connect, lists only the tools on this computer and 
   );
   assert.equal(
     harness.absent.textContent,
-    "Not on this computer: Gemini CLI, Antigravity, Grok (xAI), Kimi, OpenCode. Add them later in Connect Tools.",
+    "Not on this computer: Gemini CLI, Antigravity, Grok (xAI), Kimi, OpenCode, Cursor, Hermes, Command Code, Cline, Kilo Code. Add them later in Connect Tools.",
   );
   assert.equal(harness.status.textContent, "Scan complete.");
   /* Nothing on the screen offers to install a third party tool. */
   assert.doesNotMatch(screenWords(harness), /npm install|Verified on install|Install/u);
+});
+
+test("the tools read from their own saved sign in get rows from the registry, with nothing to extend here", async () => {
+  const report = {
+    providers: [
+      { provider_id: "hermes", state: "present", accounts: [{ account_id: "hermes-a" }] },
+      { provider_id: "commandcode", state: "present", accounts: [{ account_id: "commandcode-a" }] },
+      { provider_id: "cline", state: "installed_logged_out", accounts: [] },
+      { provider_id: "kilocode", state: "present", accounts: [{ account_id: "kilocode-a" }] },
+      { provider_id: "claude", state: "absent", accounts: [] },
+    ],
+  };
+  const result = normalizeDetections(report);
+  const byCode = new Map(result.providers.map((provider) => [provider.code, provider]));
+  for (const code of ["HERMES", "COMMANDCODE", "KILOCODE"]) {
+    assert.equal(byCode.get(code)?.state, "present", code);
+    assert.equal(byCode.get(code)?.accountCount, 1, code);
+  }
+  assert.equal(byCode.get("CLINE")?.state, "logged_out");
+  assert.deepEqual(
+    ["HERMES", "COMMANDCODE", "CLINE", "KILOCODE"].map((code) => providerSpec(code)?.name),
+    ["Hermes", "Command Code", "Cline", "Kilo Code"],
+  );
+  const harness = firstRunDom(false);
+  installFirstRunGlobals(harness);
+  initFirstRun({ detectProviders: async () => ({ ok: true, value: report }), platform: "Linux" });
+  await waitFor(() => harness.providers.children.length > 0, "the detected tools were not drawn");
+  assert.deepEqual(
+    harness.providers.children.map((row) => row.dataset.provider),
+    ["HERMES", "COMMANDCODE", "CLINE", "KILOCODE"],
+  );
+  assert.doesNotMatch(screenWords(harness), /[-‐-―−]/u);
 });
 
 test("a machine with nothing detected shows no empty list, and a failed scan claims nothing is absent", async () => {
@@ -1142,7 +1174,7 @@ test("stale detected accounts name the CLI recovery without exposing identity", 
 test("an unavailable backend never becomes a false absent claim", () => {
   const result = normalizeDetections(null);
   assert.equal(result.available, false);
-  assert.equal(result.providers.length, 8);
+  assert.equal(result.providers.length, CONNECT_PROVIDERS.length);
   assert.equal(result.providers.every((entry) => entry.state === "unavailable"), true);
   assert.equal(result.providers.some((entry) => entry.code === "MANUAL"), false);
 });
@@ -1161,7 +1193,7 @@ test("a successful empty scan is a coherent fresh machine state", () => {
     ].map((provider_id) => ({ provider_id, state: "absent", accounts: [] })),
   });
   assert.equal(result.available, true);
-  assert.equal(result.providers.length, 8);
+  assert.equal(result.providers.length, CONNECT_PROVIDERS.length);
   assert.equal(result.providers.every((entry) => entry.state === "absent"), true);
 });
 
@@ -1188,7 +1220,7 @@ test("unknown providers never enter the first run rows", () => {
   const result = normalizeDetections({
     providers: [{ provider_id: "other", state: "present", accounts: [] }],
   });
-  assert.equal(result.providers.length, 8);
+  assert.equal(result.providers.length, CONNECT_PROVIDERS.length);
   assert.equal(result.providers.some((entry) => entry.code === "OTHER"), false);
 });
 

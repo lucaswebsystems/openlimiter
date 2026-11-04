@@ -1,0 +1,24 @@
+{
+  "provider": "cline",
+  "case": "unknown-type",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "success": true,
+    "data": {
+      "limits": [
+        {
+          "type": "daily",
+          "percentUsed": 90
+        },
+        {
+          "type": "weekly",
+          "percentUsed": 5,
+          "resetsAt": "2026-08-08T12:00:00.000Z"
+        }
+      ]
+    }
+  }
+}

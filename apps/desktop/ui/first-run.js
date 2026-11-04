@@ -9,6 +9,7 @@ import {
   readConfiguredProviders,
   homeSelectionControl,
 } from "./configured-providers.js";
+import { PROVIDER_SPECS } from "./provider-specs.generated.js";
 
 /**
  * The launch truth shown before provider setup begins.
@@ -64,6 +65,22 @@ const TRY_AGAIN = "Try again";
 const GEMINI_DISCLOSURE =
   "Reads the login the Gemini CLI stored, may break when Google changes it";
 
+/*
+ * What a row needs beyond its registry entry: its own line of copy and the
+ * control only that tool has. A tool not named here reads the sign in it
+ * saved, and says so in one line built from its registry name.
+ */
+const ROW_DETAILS = Object.freeze({
+  CODEX: { line: "Reads the Codex login already on this machine.", deviceSignIn: true },
+  CLAUDE: { line: "Reads Claude Code on this machine, and never asks you to sign in.", neverSignIn: true },
+  GEMINI_CLI: { line: GEMINI_DISCLOSURE },
+  ANTIGRAVITY: { line: GEMINI_DISCLOSURE },
+  GROK: { line: "Reads the Grok Build login on this machine." },
+  KIMI: { line: "Reads the Kimi CLI login on this machine." },
+  OPENCODE: { line: "Reads the OpenCode sign in on this machine." },
+  OPENROUTER: { line: "Reads your spend from your own OpenRouter key." },
+});
+
 /**
  * The rows of the connect step, in the order they are drawn.
  *
@@ -72,32 +89,27 @@ const GEMINI_DISCLOSURE =
  * is adopted, a Codex login can be created from inside this window, and a
  * signed out tool says where to sign in. Tools the machine does not have are
  * named in one line under the list rather than asked about one by one.
+ *
+ * The providers, their names and their order are the registry directory's,
+ * so a tool added to the YAML gets its row here with nothing to extend. A key
+ * tool is never absent from a computer, so it is marked key only.
  */
-export const CONNECT_PROVIDERS = Object.freeze([
-  Object.freeze({
-    code: "CODEX",
-    name: "Codex",
-    line: "Reads the Codex login already on this machine.",
-    deviceSignIn: true,
-  }),
-  Object.freeze({
-    code: "CLAUDE",
-    name: "Claude Code",
-    line: "Reads Claude Code on this machine, and never asks you to sign in.",
-    neverSignIn: true,
-  }),
-  Object.freeze({ code: "GEMINI_CLI", name: "Gemini CLI", line: GEMINI_DISCLOSURE }),
-  Object.freeze({ code: "ANTIGRAVITY", name: "Antigravity", line: GEMINI_DISCLOSURE }),
-  Object.freeze({ code: "GROK", name: "Grok (xAI)", line: "Reads the Grok Build login on this machine." }),
-  Object.freeze({ code: "KIMI", name: "Kimi", line: "Reads the Kimi CLI login on this machine." }),
-  Object.freeze({ code: "OPENCODE", name: "OpenCode", line: "Reads the OpenCode sign in on this machine." }),
-  Object.freeze({
-    code: "OPENROUTER",
-    name: "OpenRouter",
-    line: "Reads your spend from your own OpenRouter key.",
-    keyOnly: true,
-  }),
-]);
+export const CONNECT_PROVIDERS = Object.freeze(
+  PROVIDER_SPECS.providers
+    .filter((spec) => spec.directory)
+    .sort((left, right) => left.directory.order - right.directory.order)
+    .map((spec) => {
+      const code = spec.directory.connectorId.toUpperCase().replaceAll("-", "_");
+      const name = spec.directory.label;
+      return Object.freeze({
+        code,
+        name,
+        line: "Reads the " + name + " sign in on this machine.",
+        ...(spec.directory.access === "key" ? { keyOnly: true } : {}),
+        ...ROW_DETAILS[code],
+      });
+    }),
+);
 
 const PROVIDERS = CONNECT_PROVIDERS;
 

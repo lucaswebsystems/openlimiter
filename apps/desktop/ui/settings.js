@@ -290,7 +290,8 @@ const SNOOZE_WINDOWS = [
 ];
 
 /* The tools the menu can switch, in the order the directory lists them. */
-const TOOL_SWITCHES = ["CLAUDE", "CODEX", "ANTIGRAVITY", "GEMINI_CLI", "GROK", "KIMI", "OPENCODE", "OPENROUTER", "CURSOR"];
+const TOOL_SWITCHES = ["CLAUDE", "CODEX", "ANTIGRAVITY", "GEMINI_CLI", "GROK", "KIMI", "OPENCODE", "OPENROUTER", "CURSOR",
+  "HERMES", "COMMANDCODE", "CLINE", "KILOCODE"];
 
 const PRESETS = [
   /* Each tile shows its own canvas, surface and accent, from theme.css,

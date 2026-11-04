@@ -38,6 +38,10 @@ const PROVIDER_NAMES = Object.freeze({
   OPENROUTER: "OpenRouter",
   GROK: "Grok",
   KIMI: "Kimi",
+  HERMES: "Hermes",
+  COMMANDCODE: "Command Code",
+  CLINE: "Cline",
+  KILOCODE: "Kilo Code",
   MANUAL: "Manual",
 });
 

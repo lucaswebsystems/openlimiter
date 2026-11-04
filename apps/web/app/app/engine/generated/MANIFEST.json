@@ -1,7 +1,7 @@
 {
   "generatedBy": "app/app/engine/sync.mjs",
   "sources": {
-    "core/types.ts": "7da091727b5dd55d",
+    "core/types.ts": "93d1bb1192283a56",
     "core/connection-state.ts": "ff1c1178c11820b1",
     "core/data-rules.ts": "b26d3b60f9375aff",
     "core/failures.ts": "92c8818a6dcb3557",
@@ -9,9 +9,9 @@
     "core/forecast.ts": "5155cb1a6fde4a0e",
     "core/freshness.ts": "ac39aeaff84f6eda",
     "core/merge.ts": "99ce971bdbf811e7",
-    "core/normalizer.ts": "651d84c067002a43",
+    "core/normalizer.ts": "1298a279d419a1b7",
     "core/policy.ts": "a633789edb6b3cc9",
-    "core/provider-presentation.ts": "eeed275b219c7e65",
+    "core/provider-presentation.ts": "4e710a26eb6b0ef5",
     "core/contracts/claude-presentation.json": "154e17d99423f11c",
     "core/schedule.ts": "8c4afef8c2109573",
     "core/acquire/antigravity-meters.ts": "a500c9530faac109",
@@ -20,19 +20,20 @@
     "connectors/claude.ts": "48d670bd08d3e341",
     "connectors/codex.ts": "448de6f8ad6b25b0",
     "connectors/cursor.ts": "4f48ea7b33669ff4",
-    "connectors/contract-gate.ts": "a562e2285e9d46d8",
-    "connectors/fixtures.ts": "e03b0ec3154a9e6c",
+    "connectors/contract-gate.ts": "364ca49bb8148c7c",
+    "connectors/fixtures.ts": "0b6cf0fcbc60f6d7",
     "connectors/gemini-cli.ts": "6bdf5b986d6bc9be",
     "connectors/grok.ts": "2effd4e9325bd882",
     "connectors/kimi.ts": "247cffe264807106",
+    "connectors/tool-logins.ts": "b6c1eeb8c6629967",
     "connectors/manual.ts": "2b158d66e87d44fb",
-    "connectors/opencode.ts": "d68c4b2188cff743",
+    "connectors/opencode.ts": "05b6a0da28a7056a",
     "connectors/openrouter.ts": "e12d930f3961ac2d",
-    "connectors/index.ts": "cb259accae69925b",
+    "connectors/index.ts": "9f7ec61732101dd7",
     "adapters/claude-code.ts": "781a03a27d96d34d",
     "ui/provider-connect.ts": "ac27de48b19b41e8",
-    "ui/provider-row.ts": "a8d3612005c39f52",
-    "ui/tokens.css": "0c5cf7f910d43677",
-    "provider_specs/provider-specs.json": "f963ea2c68556b76"
+    "ui/provider-row.ts": "7787f45d63209841",
+    "ui/tokens.css": "c233d980f79e6563",
+    "provider_specs/provider-specs.json": "a8c5e76140ebf1ed"
   }
 }

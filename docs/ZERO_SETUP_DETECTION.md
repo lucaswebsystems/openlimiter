@@ -77,6 +77,13 @@ Each XDG root is checked for provider folders named `claude`, `claude-code`,
 `CODEX_HOME` is checked before the default Codex home, and an explicit
 `OPENCODE_DB` before OpenCode's own `opencode.db` in its data folder.
 
+Four tools are found by the login file they saved, on every system, and read
+only: Hermes in `%LOCALAPPDATA%\hermes\auth.json` on Windows and
+`~/.hermes/auth.json` elsewhere, Command Code in `~/.commandcode/auth.json`,
+Cline in `~/.cline/data/settings/providers.json`, and Kilo Code in `kilo/auth.json`
+under the XDG data folder, `~/.local/share` on Windows too. Each one's folder
+alone reports the tool as installed and signed out.
+
 The executable scan checks `claude`, `codex`, `antigravity`, `opencode` and
 `openrouter` in the inherited executable path. Windows also checks the ordinary
 `.exe`, `.cmd` and `.bat` forms.

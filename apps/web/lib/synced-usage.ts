@@ -133,10 +133,14 @@ function rowOf(value: unknown): UsageRow | null {
   const accountId = typeof row.account_id === "string" ? row.account_id : "";
   const windowId = typeof row.window_id === "string" ? row.window_id : "";
   if (provider === "OPENROUTER" && windowId === "CREDITS") return null;
-  const balance = provider === "OPENROUTER" && windowId === "ACCOUNT_BALANCE";
   const percentage = row.used_percent === null || row.used_percent === undefined
     ? null
     : Number(row.used_percent);
+  /* Money rather than a percentage: OpenRouter's account balance, and any
+     balance a tool states with no total, which arrives with no percentage and
+     with its amount and currency (Hermes, Command Code, Kilo Code). */
+  const balance = (provider === "OPENROUTER" && windowId === "ACCOUNT_BALANCE") ||
+    (percentage === null && row.amount !== undefined && row.currency !== undefined);
   const amount = typeof row.amount === "number" ? row.amount : Number.NaN;
   const currency = row.currency === "USD" || row.currency === "CNY" ? row.currency : null;
   const resetsAt = row.resets_at === null || row.resets_at === undefined

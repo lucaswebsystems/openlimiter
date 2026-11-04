@@ -55,6 +55,10 @@ The desktop app also checks GitHub for updates and asks before installing one. O
 | Kimi | The login the Kimi CLI stored, against an internal Moonshot endpoint | Provisional |
 | OpenCode | The sign in the opencode CLI saved (read only, never refreshed) or an OpenCode API key, against an internal OpenCode Go usage endpoint | Provisional |
 | Cursor | The local Cursor session, against an internal endpoint | Experimental |
+| Hermes | The sign in Hermes saved (read only, never refreshed), against the internal Nous Portal account endpoint: monthly credits and purchased credits | Experimental |
+| Command Code | The API key Command Code saved, against an internal Command Code endpoint: 5 hour and weekly limits and credits left | Experimental |
+| Cline | The sign in Cline saved after `cline auth` (read only, never refreshed), against an internal endpoint: ClinePass 5 hour, weekly and monthly limits | Experimental |
+| Kilo Code | The sign in Kilo saved (read only, never refreshed), against an internal Kilo endpoint: the personal balance in US dollars | Experimental |
 | API spend keys | Each provider's documented cost or balance API, with a key you add | Experimental |
 
 Provisional means the provider does not document the interface, so it can change or stop working without notice. `openlimiter doctor` labels every connector `UNVERIFIED`, and a response that stops matching its expected shape makes that provider unknown rather than a guess. Anthropic's policy for tools like this is unresolved.

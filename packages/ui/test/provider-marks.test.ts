@@ -16,8 +16,9 @@ import type { ProviderCode } from "@openlimiter/core";
 
 const MARKS_DIRECTORY = path.join(process.cwd(), "packages", "ui", "src", "marks");
 
-// Cursor uses a text fallback until the UI owner supplies its mark.
-type MarkProvider = Exclude<ProviderCode, "CURSOR"> | "DEEPSEEK";
+// Cursor, Hermes, Command Code and Cline use a text fallback: no official
+// mark with a licence that allows it was found in their own repositories.
+type MarkProvider = Exclude<ProviderCode, "CURSOR" | "HERMES" | "COMMANDCODE" | "CLINE"> | "DEEPSEEK";
 
 const FILE_BY_PROVIDER: Readonly<Record<MarkProvider, string>> = {
   CLAUDE: "claude.svg",
@@ -28,6 +29,7 @@ const FILE_BY_PROVIDER: Readonly<Record<MarkProvider, string>> = {
   OPENCODE: "opencode.svg",
   GROK: "grok.svg",
   KIMI: "kimi.svg",
+  KILOCODE: "kilocode.svg",
   DEEPSEEK: "deepseek.svg",
   MANUAL: "manual.svg",
 };

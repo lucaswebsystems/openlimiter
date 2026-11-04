@@ -121,6 +121,10 @@ pub(crate) const fn detected_provider(provider_id: ProviderId) -> DetectedProvid
         ProviderId::Grok => DetectedProviderId::Grok,
         ProviderId::Kimi => DetectedProviderId::Kimi,
         ProviderId::Cursor => DetectedProviderId::Cursor,
+        ProviderId::Hermes => DetectedProviderId::Hermes,
+        ProviderId::Commandcode => DetectedProviderId::Commandcode,
+        ProviderId::Cline => DetectedProviderId::Cline,
+        ProviderId::Kilocode => DetectedProviderId::Kilocode,
     }
 }
 

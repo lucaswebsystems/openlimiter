@@ -149,6 +149,233 @@
       ]
     },
     {
+      "id": "cline/clinepass",
+      "providerId": "cline",
+      "productId": "clinepass",
+      "displayName": "Cline",
+      "headlineMeter": "five_hour",
+      "weeklyMeter": "weekly",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [
+        "desktop"
+      ],
+      "displaySurfaces": [
+        "desktop",
+        "rail",
+        "tray",
+        "cli_cache",
+        "web",
+        "phone"
+      ],
+      "acquisitionMethod": "remote_http_internal",
+      "d5Review": "Reads the sign in Cline saved, read only and never refreshed. Only the Cline API receives the token. Honest OpenLimiter identity, no Cline client headers.",
+      "maturity": "experimental",
+      "directory": {
+        "order": 12,
+        "rowId": "cline/clinepass",
+        "label": "Cline",
+        "connectorId": "cline",
+        "access": "automatic"
+      },
+      "docsUrl": "https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Resources/Plugins/clinepass.ts",
+      "reviewedAt": "2026-11-04",
+      "sourceStatus": "community",
+      "support": {
+        "parser": "implemented",
+        "reader": "implemented",
+        "auth": "implemented",
+        "verification": "unverified"
+      },
+      "collection": {
+        "readers": [
+          {
+            "readerId": "cline_usage",
+            "endpointId": "cline_usage",
+            "credentialKind": "cline_session",
+            "evidenceFixture": "cline.provisional.usage_limits",
+            "evidenceStatus": "pending_capture",
+            "lastVerifiedAt": null
+          }
+        ]
+      },
+      "honesty": {
+        "connectorId": "cline",
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "experimental"
+      ],
+      "authModes": [
+        "existing_local_cli"
+      ],
+      "platforms": [
+        "windows",
+        "macos",
+        "linux"
+      ],
+      "meters": [
+        {
+          "id": "five_hour",
+          "label": "5 hour limit",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "rolling",
+            "durationSeconds": 18000
+          },
+          "optional": true,
+          "meterCode": "FIVE_HOUR"
+        },
+        {
+          "id": "weekly",
+          "label": "Weekly limit",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "rolling",
+            "durationSeconds": 604800
+          },
+          "optional": true,
+          "meterCode": "SEVEN_DAY"
+        },
+        {
+          "id": "monthly",
+          "label": "Monthly limit",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "rolling",
+            "durationSeconds": 2592000
+          },
+          "optional": true,
+          "meterCode": "MONTHLY"
+        }
+      ]
+    },
+    {
+      "id": "commandcode/command-code",
+      "providerId": "commandcode",
+      "productId": "command-code",
+      "displayName": "Command Code",
+      "headlineMeter": "five_hour",
+      "weeklyMeter": "weekly",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [
+        "desktop"
+      ],
+      "displaySurfaces": [
+        "desktop",
+        "rail",
+        "tray",
+        "cli_cache",
+        "web",
+        "phone"
+      ],
+      "acquisitionMethod": "remote_http_internal",
+      "d5Review": "Reads the API key Command Code saved, read only. Only the Command Code API receives it. Honest OpenLimiter identity.",
+      "maturity": "experimental",
+      "directory": {
+        "order": 11,
+        "rowId": "commandcode/command-code",
+        "label": "Command Code",
+        "connectorId": "commandcode",
+        "access": "automatic"
+      },
+      "docsUrl": "https://unpkg.com/command-code@1.88.2/dist/cli.mjs",
+      "reviewedAt": "2026-11-04",
+      "sourceStatus": "provisional",
+      "support": {
+        "parser": "implemented",
+        "reader": "implemented",
+        "auth": "implemented",
+        "verification": "unverified"
+      },
+      "collection": {
+        "readers": [
+          {
+            "readerId": "commandcode_credits",
+            "endpointId": "commandcode_credits",
+            "credentialKind": "commandcode_api_key",
+            "evidenceFixture": "commandcode.provisional.credits",
+            "evidenceStatus": "pending_capture",
+            "lastVerifiedAt": null
+          }
+        ]
+      },
+      "honesty": {
+        "connectorId": "commandcode",
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "experimental"
+      ],
+      "authModes": [
+        "existing_local_cli"
+      ],
+      "platforms": [
+        "windows",
+        "macos",
+        "linux"
+      ],
+      "meters": [
+        {
+          "id": "five_hour",
+          "label": "5 hour limit",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "rolling",
+            "durationSeconds": 18000
+          },
+          "optional": true,
+          "meterCode": "FIVE_HOUR"
+        },
+        {
+          "id": "weekly",
+          "label": "Weekly limit",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "rolling",
+            "durationSeconds": 604800
+          },
+          "optional": true,
+          "meterCode": "SEVEN_DAY"
+        },
+        {
+          "id": "balance",
+          "label": "Credits left",
+          "kind": "credits",
+          "unit": "currency",
+          "scope": "account",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "credit_balance"
+          },
+          "optional": false,
+          "meterCode": "BALANCE"
+        }
+      ]
+    },
+    {
       "id": "cursor/editor",
       "providerId": "cursor",
       "productId": "editor",
@@ -580,6 +807,90 @@
       ]
     },
     {
+      "id": "kilocode/kilo-code",
+      "providerId": "kilocode",
+      "productId": "kilo-code",
+      "displayName": "Kilo Code",
+      "headlineMeter": "balance",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [
+        "desktop"
+      ],
+      "displaySurfaces": [
+        "desktop",
+        "rail",
+        "tray",
+        "cli_cache",
+        "web",
+        "phone"
+      ],
+      "acquisitionMethod": "remote_http_internal",
+      "d5Review": "Reads the sign in Kilo saved, read only and never refreshed. Only the Kilo API receives the token. Honest OpenLimiter identity, no header taken from a file.",
+      "maturity": "experimental",
+      "directory": {
+        "order": 13,
+        "rowId": "kilocode/kilo-code",
+        "label": "Kilo Code",
+        "connectorId": "kilocode",
+        "access": "automatic"
+      },
+      "docsUrl": "https://github.com/Kilo-Org/kilocode/blob/main/packages/kilo-gateway/src/api/profile.ts",
+      "reviewedAt": "2026-11-04",
+      "sourceStatus": "provisional",
+      "support": {
+        "parser": "implemented",
+        "reader": "implemented",
+        "auth": "implemented",
+        "verification": "unverified"
+      },
+      "collection": {
+        "readers": [
+          {
+            "readerId": "kilocode_balance",
+            "endpointId": "kilocode_balance",
+            "credentialKind": "kilocode_session",
+            "evidenceFixture": "kilocode.official_source.balance",
+            "evidenceStatus": "pending_capture",
+            "lastVerifiedAt": null
+          }
+        ]
+      },
+      "honesty": {
+        "connectorId": "kilocode",
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "experimental"
+      ],
+      "authModes": [
+        "existing_local_cli"
+      ],
+      "platforms": [
+        "windows",
+        "macos",
+        "linux"
+      ],
+      "meters": [
+        {
+          "id": "balance",
+          "label": "Balance",
+          "kind": "credits",
+          "unit": "currency",
+          "scope": "account",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "credit_balance"
+          },
+          "optional": false,
+          "meterCode": "BALANCE"
+        }
+      ]
+    },
+    {
       "id": "lmstudio/local",
       "providerId": "lmstudio",
       "productId": "local",
@@ -822,6 +1133,103 @@
           },
           "optional": true,
           "meterCode": "FIVE_HOUR"
+        }
+      ]
+    },
+    {
+      "id": "nous/hermes",
+      "providerId": "nous",
+      "productId": "hermes",
+      "displayName": "Hermes",
+      "headlineMeter": "monthly",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [
+        "desktop"
+      ],
+      "displaySurfaces": [
+        "desktop",
+        "rail",
+        "tray",
+        "cli_cache",
+        "web",
+        "phone"
+      ],
+      "acquisitionMethod": "remote_http_internal",
+      "d5Review": "Reads the sign in Hermes saved, read only and never refreshed. Only the Nous Portal receives the token. Honest OpenLimiter identity.",
+      "maturity": "experimental",
+      "directory": {
+        "order": 10,
+        "rowId": "nous/hermes",
+        "label": "Hermes",
+        "connectorId": "hermes",
+        "access": "automatic"
+      },
+      "docsUrl": "https://github.com/NousResearch/hermes-agent/blob/main/hermes_cli/nous_account.py",
+      "reviewedAt": "2026-11-04",
+      "sourceStatus": "provisional",
+      "support": {
+        "parser": "implemented",
+        "reader": "implemented",
+        "auth": "implemented",
+        "verification": "unverified"
+      },
+      "collection": {
+        "readers": [
+          {
+            "readerId": "hermes_account",
+            "endpointId": "hermes_account",
+            "credentialKind": "hermes_session",
+            "evidenceFixture": "hermes.official_source.account",
+            "evidenceStatus": "pending_capture",
+            "lastVerifiedAt": null
+          }
+        ]
+      },
+      "honesty": {
+        "connectorId": "hermes",
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "experimental"
+      ],
+      "authModes": [
+        "existing_local_cli"
+      ],
+      "platforms": [
+        "windows",
+        "macos",
+        "linux"
+      ],
+      "meters": [
+        {
+          "id": "monthly",
+          "label": "Monthly credits",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "billing_period"
+          },
+          "optional": true,
+          "meterCode": "MONTHLY"
+        },
+        {
+          "id": "balance",
+          "label": "Purchased credits",
+          "kind": "credits",
+          "unit": "currency",
+          "scope": "account",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "credit_balance"
+          },
+          "optional": true,
+          "meterCode": "BALANCE"
         }
       ]
     },

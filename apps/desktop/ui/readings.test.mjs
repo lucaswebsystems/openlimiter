@@ -550,6 +550,19 @@ test("money balances keep their amount and omit the empty bar track", () => {
   }
 });
 
+test("a tool that states only the dollars left shows money, not credits and not a bar", () => {
+  const base = fixtures.projected.snapshots[0];
+  const row = (provider) => ({
+    ...base, provider, accountId: "account", meter: "BALANCE", unit: "CREDITS", kind: "money_balance",
+    currency: "USD", value: 18.256, window: { kind: "lifetime" }, observedAt: now, resetAt: null,
+  });
+  const model = limitsModel(projectSnapshots([row("KILOCODE"), row("COMMANDCODE"), row("HERMES")], now).snapshots, now);
+  for (const [code, label] of [["KILOCODE", "Balance"], ["COMMANDCODE", "Credits left"], ["HERMES", "Purchased credits"]]) {
+    const balance = model.find((provider) => provider.code === code)?.windows[0];
+    assert.deepEqual([balance?.label, balance?.value, balance?.band, balance?.usedPercent], [label, "$18.25", "none", null], code);
+  }
+});
+
 test("rows without a percent keep their wide value and detail columns", () => {
   const css = read("./dist/quiet.css");
   assert.match(css, /\.q-row\s*>\s*\.q-val\s*\{[^}]*grid-column:\s*3/su);
@@ -632,7 +645,9 @@ test("the catalog has no dashes and ships translated in every locale", () => {
     "openrouterAccountBalance", "kimiWeeklyUsed", "kimiFiveHourUsed",
     "kimiFiveMinuteUsed", "kimiDailyUsed", "kimiSevenDayUsed", "kimiUsageUsed",
     "opencodeFiveHour", "opencodeWeekly",
-    "opencodeMonthly", "noKeyCap", "keyNoSpendingCap",
+    "opencodeMonthly", "hermesMonthly", "hermesBalance", "commandcodeFiveHour",
+    "commandcodeWeekly", "commandcodeBalance", "clineFiveHour", "clineWeekly",
+    "clineMonthly", "kilocodeBalance", "noKeyCap", "keyNoSpendingCap",
     "unavailableScope", "unlimitedCredits",
     "creditBalanceLimitNotReported", "accountBalanceDetail",
     "creditsBalance", "balance", "percentUsed",

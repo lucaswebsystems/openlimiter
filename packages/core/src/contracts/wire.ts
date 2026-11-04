@@ -238,8 +238,11 @@ export function toWireSampleV3(snapshot: Snapshot | LocalWireSample, now = new D
     instant(now, "now");
     const codexCredits = snapshot.provider === "CODEX" && snapshot.meter === "CREDITS" &&
       snapshot.unit === "CREDITS";
+    /* A balance a tool states in money with no total: its value is the amount. */
+    const statedBalance = snapshot.kind === "money_balance" && snapshot.unit === "CREDITS" &&
+      snapshot.usedAmount === undefined && snapshot.currency !== undefined;
     if (snapshot.unit !== "PERCENT" && snapshot.availability === undefined &&
-        snapshot.usedAmount === undefined && !codexCredits) {
+        snapshot.usedAmount === undefined && !codexCredits && !statedBalance) {
       fail("unit", "has no v2 usage representation; use an explicit amount projection");
     }
     wire = {
@@ -251,7 +254,7 @@ export function toWireSampleV3(snapshot: Snapshot | LocalWireSample, now = new D
       verification: snapshot.labels.verification
     };
     if (snapshot.availability === undefined && snapshot.unit === "PERCENT") wire["usage_percent"] = snapshot.value;
-    if (codexCredits && snapshot.availability === undefined) wire["amount"] = snapshot.value;
+    if ((codexCredits || statedBalance) && snapshot.availability === undefined) wire["amount"] = snapshot.value;
     if (snapshot.usedAmount !== undefined) wire["amount"] = snapshot.usedAmount;
     if (snapshot.currency !== undefined) wire["currency"] = snapshot.currency;
     if (snapshot.kind !== undefined) wire["kind"] = snapshot.kind;

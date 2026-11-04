@@ -143,10 +143,14 @@ pub enum DetectedProviderId {
     Grok,
     Kimi,
     Cursor,
+    Hermes,
+    Commandcode,
+    Cline,
+    Kilocode,
 }
 
 impl DetectedProviderId {
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 13] = [
         Self::Claude,
         Self::Codex,
         Self::Antigravity,
@@ -156,6 +160,10 @@ impl DetectedProviderId {
         Self::Grok,
         Self::Kimi,
         Self::Cursor,
+        Self::Hermes,
+        Self::Commandcode,
+        Self::Cline,
+        Self::Kilocode,
     ];
 
     pub(crate) const fn slug(self) -> &'static str {
@@ -169,6 +177,10 @@ impl DetectedProviderId {
             Self::Grok => "grok",
             Self::Kimi => "kimi",
             Self::Cursor => "cursor",
+            Self::Hermes => "hermes",
+            Self::Commandcode => "commandcode",
+            Self::Cline => "cline",
+            Self::Kilocode => "kilocode",
         }
     }
 
@@ -183,6 +195,10 @@ impl DetectedProviderId {
             Self::Grok => "Grok",
             Self::Kimi => "Kimi",
             Self::Cursor => "Cursor",
+            Self::Hermes => "Hermes",
+            Self::Commandcode => "Command Code",
+            Self::Cline => "Cline",
+            Self::Kilocode => "Kilo Code",
         }
     }
 
@@ -196,6 +212,10 @@ impl DetectedProviderId {
                 | Self::Kimi
                 | Self::Opencode
                 | Self::Cursor
+                | Self::Hermes
+                | Self::Commandcode
+                | Self::Cline
+                | Self::Kilocode
         )
     }
 }
@@ -290,6 +310,31 @@ pub enum AntigravityStatuslineState {
     Disabled,
 }
 
+/// What a person reads when a tool's saved sign in expired or was refused. The
+/// tools read by `tool_login_oauth` name their own way back; the rest keep the
+/// sentence they always had.
+pub(crate) fn reopen_message(provider: DetectedProviderId) -> String {
+    match provider {
+        DetectedProviderId::Hermes => "Open Hermes once so it renews its sign in.".to_string(),
+        DetectedProviderId::Commandcode => {
+            "Sign in to Command Code again so it saves a working key.".to_string()
+        }
+        DetectedProviderId::Cline => "Open Cline once so it renews its sign in.".to_string(),
+        DetectedProviderId::Kilocode => "Open Kilo Code once so it renews its sign in.".to_string(),
+        DetectedProviderId::Claude
+        | DetectedProviderId::Codex
+        | DetectedProviderId::Antigravity
+        | DetectedProviderId::GeminiCli
+        | DetectedProviderId::Opencode
+        | DetectedProviderId::Openrouter
+        | DetectedProviderId::Grok
+        | DetectedProviderId::Kimi
+        | DetectedProviderId::Cursor => {
+            format!("Reopen {} to refresh this login.", provider.display_name())
+        }
+    }
+}
+
 fn connection_mode(provider: DetectedProviderId) -> ConnectionMode {
     match provider {
         DetectedProviderId::Claude
@@ -299,7 +344,11 @@ fn connection_mode(provider: DetectedProviderId) -> ConnectionMode {
         | DetectedProviderId::Grok
         | DetectedProviderId::Kimi
         | DetectedProviderId::Opencode
-        | DetectedProviderId::Cursor => ConnectionMode::Automatic,
+        | DetectedProviderId::Cursor
+        | DetectedProviderId::Hermes
+        | DetectedProviderId::Commandcode
+        | DetectedProviderId::Cline
+        | DetectedProviderId::Kilocode => ConnectionMode::Automatic,
         DetectedProviderId::Openrouter => ConnectionMode::ApiKey,
     }
 }
@@ -320,7 +369,11 @@ fn provider_recovery(
         | DetectedProviderId::GeminiCli
         | DetectedProviderId::Grok
         | DetectedProviderId::Kimi
-        | DetectedProviderId::Cursor => match state {
+        | DetectedProviderId::Cursor
+        | DetectedProviderId::Hermes
+        | DetectedProviderId::Commandcode
+        | DetectedProviderId::Cline
+        | DetectedProviderId::Kilocode => match state {
             ProviderPresence::InstalledLoggedOut => Some(RecoveryAction::SignInToCli),
             ProviderPresence::Absent => Some(RecoveryAction::ManualEntry),
             ProviderPresence::Present => None,
@@ -714,6 +767,36 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
             );
             push_candidate(&mut paths, home, &[".grok", "auth.json"], Credential);
         }
+        DetectedProviderId::Hermes => {
+            /* Hermes keeps its home under local application data on Windows
+            and in `~/.hermes` elsewhere (`hermes_constants.py`). */
+            let (base, folder) = if context.platform == DiscoveryPlatform::Windows {
+                (context.local.as_deref(), "hermes")
+            } else {
+                (home, ".hermes")
+            };
+            push_candidate(&mut paths, base, &[folder, "auth.json"], Credential);
+            push_candidate(&mut paths, base, &[folder], Marker);
+        }
+        DetectedProviderId::Commandcode => {
+            push_candidate(&mut paths, home, &[".commandcode", "auth.json"], Credential);
+            push_candidate(&mut paths, home, &[".commandcode"], Marker);
+        }
+        DetectedProviderId::Cline => {
+            push_candidate(
+                &mut paths,
+                home,
+                &[".cline", "data", "settings", "providers.json"],
+                Credential,
+            );
+            push_candidate(&mut paths, home, &[".cline"], Marker);
+        }
+        DetectedProviderId::Kilocode => {
+            /* Kilo resolves its data folder with xdg-basedir on every system,
+            Windows included. */
+            push_candidate(&mut paths, context.xdg_data.as_deref(), &["kilo", "auth.json"], Credential);
+            push_candidate(&mut paths, context.xdg_data.as_deref(), &["kilo"], Marker);
+        }
         DetectedProviderId::Kimi => {
             push_candidate(
                 &mut paths,
@@ -801,7 +884,11 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                 }
                 DetectedProviderId::Grok
                 | DetectedProviderId::Kimi
-                | DetectedProviderId::Cursor => {}
+                | DetectedProviderId::Cursor
+                | DetectedProviderId::Hermes
+                | DetectedProviderId::Commandcode
+                | DetectedProviderId::Cline
+                | DetectedProviderId::Kilocode => {}
             }
         }
         DiscoveryPlatform::Macos => {
@@ -816,7 +903,11 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                 DetectedProviderId::GeminiCli
                 | DetectedProviderId::Grok
                 | DetectedProviderId::Kimi
-                | DetectedProviderId::Cursor => {}
+                | DetectedProviderId::Cursor
+                | DetectedProviderId::Hermes
+                | DetectedProviderId::Commandcode
+                | DetectedProviderId::Cline
+                | DetectedProviderId::Kilocode => {}
                 DetectedProviderId::Claude
                 | DetectedProviderId::Codex
                 | DetectedProviderId::Opencode
@@ -830,7 +921,11 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                         | DetectedProviderId::GeminiCli
                         | DetectedProviderId::Grok
                         | DetectedProviderId::Kimi
-                        | DetectedProviderId::Cursor => {
+                        | DetectedProviderId::Cursor
+                        | DetectedProviderId::Hermes
+                        | DetectedProviderId::Commandcode
+                        | DetectedProviderId::Cline
+                        | DetectedProviderId::Kilocode => {
                             unreachable!()
                         }
                     };
@@ -842,7 +937,11 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                         | DetectedProviderId::GeminiCli
                         | DetectedProviderId::Grok
                         | DetectedProviderId::Kimi
-                        | DetectedProviderId::Cursor => {
+                        | DetectedProviderId::Cursor
+                        | DetectedProviderId::Hermes
+                        | DetectedProviderId::Commandcode
+                        | DetectedProviderId::Cline
+                        | DetectedProviderId::Kilocode => {
                             unreachable!()
                         }
                     };
@@ -865,6 +964,10 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                     | DetectedProviderId::GeminiCli
                     | DetectedProviderId::Grok
                     | DetectedProviderId::Kimi
+                    | DetectedProviderId::Hermes
+                    | DetectedProviderId::Commandcode
+                    | DetectedProviderId::Cline
+                    | DetectedProviderId::Kilocode
             ) {
                 let directory = provider.slug();
                 let file = match provider {
@@ -876,7 +979,11 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                     DetectedProviderId::Openrouter => "config.json",
                     DetectedProviderId::Grok
                     | DetectedProviderId::Kimi
-                    | DetectedProviderId::Cursor => unreachable!(),
+                    | DetectedProviderId::Cursor
+                    | DetectedProviderId::Hermes
+                    | DetectedProviderId::Commandcode
+                    | DetectedProviderId::Cline
+                    | DetectedProviderId::Kilocode => unreachable!(),
                 };
                 push_candidate(
                     &mut paths,
@@ -960,7 +1067,11 @@ fn profile_prefix(provider: DetectedProviderId) -> Option<(&'static str, &'stati
         | DetectedProviderId::Openrouter
         | DetectedProviderId::Grok
         | DetectedProviderId::Kimi
-        | DetectedProviderId::Cursor => None,
+        | DetectedProviderId::Cursor
+        | DetectedProviderId::Hermes
+        | DetectedProviderId::Commandcode
+        | DetectedProviderId::Cline
+        | DetectedProviderId::Kilocode => None,
     }
 }
 
@@ -1041,7 +1152,11 @@ fn install_root_specs(
         DetectedProviderId::Antigravity
         | DetectedProviderId::Opencode
         | DetectedProviderId::Openrouter
-        | DetectedProviderId::Cursor => &[],
+        | DetectedProviderId::Cursor
+        | DetectedProviderId::Hermes
+        | DetectedProviderId::Commandcode
+        | DetectedProviderId::Cline
+        | DetectedProviderId::Kilocode => &[],
     }
 }
 
@@ -1311,6 +1426,10 @@ fn executable_names(provider: DetectedProviderId, platform: DiscoveryPlatform) -
         DetectedProviderId::Grok => "grok",
         DetectedProviderId::Kimi => "kimi",
         DetectedProviderId::Cursor => "cursor",
+        DetectedProviderId::Hermes => "hermes",
+        DetectedProviderId::Commandcode => "cmd",
+        DetectedProviderId::Cline => "cline",
+        DetectedProviderId::Kilocode => "kilo",
     };
     if platform == DiscoveryPlatform::Windows {
         [".exe", ".cmd", ".bat"]
@@ -1637,7 +1756,11 @@ fn package_name(provider: DetectedProviderId) -> Option<&'static str> {
         DetectedProviderId::Kimi => Some("@moonshot-ai/kimi-code"),
         DetectedProviderId::Antigravity
         | DetectedProviderId::Openrouter
-        | DetectedProviderId::Cursor => None,
+        | DetectedProviderId::Cursor
+        | DetectedProviderId::Hermes
+        | DetectedProviderId::Commandcode
+        | DetectedProviderId::Cline
+        | DetectedProviderId::Kilocode => None,
     }
 }
 
@@ -1969,7 +2092,11 @@ fn token_object<'a>(
         DetectedProviderId::Openrouter => &["openrouter", "credentials"],
         DetectedProviderId::Grok => &["auth", "credentials"],
         DetectedProviderId::Kimi => &["oauth", "credentials"],
-        DetectedProviderId::Cursor => &[],
+        DetectedProviderId::Cursor
+        | DetectedProviderId::Hermes
+        | DetectedProviderId::Commandcode
+        | DetectedProviderId::Cline
+        | DetectedProviderId::Kilocode => &[],
     };
     nested_object(account, names).unwrap_or(account)
 }
@@ -1987,7 +2114,11 @@ fn access_token<'a>(
         DetectedProviderId::Openrouter => &["api_key", "apiKey", "key", "OPENROUTER_API_KEY"],
         DetectedProviderId::Grok => &["key", "access_token", "accessToken"],
         DetectedProviderId::Kimi => &["access_token", "accessToken"],
-        DetectedProviderId::Cursor => &[],
+        DetectedProviderId::Cursor
+        | DetectedProviderId::Hermes
+        | DetectedProviderId::Commandcode
+        | DetectedProviderId::Cline
+        | DetectedProviderId::Kilocode => &[],
     };
     names
         .iter()
@@ -2055,6 +2186,56 @@ fn parse_credential_file(provider: DetectedProviderId, path: &Path) -> Vec<Parse
                     identity_material,
                     email: login.email,
                     expires_at_ms: login.expires_at_ms,
+                    identity_quality,
+                }
+            })
+            .into_iter()
+            .collect();
+    }
+    if matches!(
+        provider,
+        DetectedProviderId::Hermes
+            | DetectedProviderId::Commandcode
+            | DetectedProviderId::Cline
+            | DetectedProviderId::Kilocode
+    ) {
+        /* One login per file, the tool's own active one. The account is the
+        identity the file states, else the token's JWT subject (a Cline
+        bearer is read past its `workos:` scheme), else the profile's single
+        account. The token's own expiry counts when the file states none. */
+        return crate::tool_logins::read(provider, path)
+            .map(|login| {
+                let claims = jwt_claims(
+                    login
+                        .token
+                        .strip_prefix("workos:")
+                        .unwrap_or(login.token.as_str()),
+                );
+                let (identity_material, identity_quality) = match login.account {
+                    Some(account) => (account, IdentityQuality::ProviderAccount),
+                    None => claims
+                        .as_ref()
+                        .and_then(claim_identity)
+                        .map(|(value, quality)| (value.to_string(), quality))
+                        .unwrap_or_else(|| {
+                            (
+                                PROVIDER_SINGLETON_MATERIAL.to_string(),
+                                IdentityQuality::ProviderSingleton,
+                            )
+                        }),
+                };
+                let expires_at_ms = login.expires_at_ms.or_else(|| {
+                    claims
+                        .as_ref()
+                        .and_then(|value| value.get("exp"))
+                        .and_then(epoch_milliseconds)
+                });
+                ParsedCredential {
+                    token: login.token,
+                    provider_account_id: None,
+                    identity_material,
+                    email: None,
+                    expires_at_ms,
                     identity_quality,
                 }
             })
@@ -2324,9 +2505,7 @@ fn scan_enabled_inventory(
                     automatic_collection: provider.supports_automatic_collection(),
                     expires_at: parsed.expires_at_ms.and_then(iso_from_epoch_ms),
                     recovery: stale.then_some(RecoveryAction::ReopenCli),
-                    message: stale.then(|| {
-                        format!("Reopen {} to refresh this login.", provider.display_name())
-                    }),
+                    message: stale.then(|| reopen_message(provider)),
                 };
                 let key = (provider, account_id.clone());
                 if !accounts.contains_key(&account_id) {
@@ -2803,10 +2982,7 @@ impl DetectionStore {
         account.auth_state = DetectedAuthState::Stale;
         account.collection_state = DetectedCollectionState::Fallback;
         account.recovery = Some(RecoveryAction::ReopenCli);
-        account.message = Some(format!(
-            "Reopen {} to refresh this login.",
-            provider.display_name()
-        ));
+        account.message = Some(reopen_message(provider));
     }
 
     pub fn mark_ready(&self, provider: DetectedProviderId, account_id: &str) {

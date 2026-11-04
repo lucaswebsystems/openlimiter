@@ -82,6 +82,10 @@ const ALLOWED = new Set([
   "GROK",
   "KIMI",
   "CURSOR",
+  "HERMES",
+  "COMMANDCODE",
+  "CLINE",
+  "KILOCODE",
 ]);
 
 function normalized(provider) {

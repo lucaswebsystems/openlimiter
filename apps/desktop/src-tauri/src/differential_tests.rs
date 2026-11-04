@@ -133,6 +133,14 @@ fn run_provider(provider: &str) {
             ("opencode", "usage") => {
                 parse_body(ReaderId::OpencodeUsage, &body, now, "synthetic-parity")
             }
+            ("hermes", "usage") => parse_body(ReaderId::HermesAccount, &body, now, "synthetic-parity"),
+            ("commandcode", "usage") => {
+                parse_body(ReaderId::CommandcodeCredits, &body, now, "synthetic-parity")
+            }
+            ("cline", "usage") => parse_body(ReaderId::ClineUsage, &body, now, "synthetic-parity"),
+            ("kilocode", "usage") => {
+                parse_body(ReaderId::KilocodeBalance, &body, now, "synthetic-parity")
+            }
             ("openrouter", "credits") => {
                 parse_body(ReaderId::OpenrouterCredits, &body, now, "synthetic-parity")
             }
@@ -208,4 +216,24 @@ fn cursor_shared_corpus() {
 #[test]
 fn opencode_shared_corpus() {
     run_provider("opencode");
+}
+
+#[test]
+fn hermes_shared_corpus() {
+    run_provider("hermes");
+}
+
+#[test]
+fn commandcode_shared_corpus() {
+    run_provider("commandcode");
+}
+
+#[test]
+fn cline_shared_corpus() {
+    run_provider("cline");
+}
+
+#[test]
+fn kilocode_shared_corpus() {
+    run_provider("kilocode");
 }

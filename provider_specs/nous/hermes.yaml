@@ -1,0 +1,124 @@
+# Hermes, the Nous Research agent, and its Nous Portal subscription.
+#
+# The desktop reads the sign in Hermes saved on this computer: auth.json in
+# Hermes's home (local application data on Windows, ~/.hermes elsewhere),
+# providers.nous.access_token. Read only. Hermes rotates its refresh token on
+# every refresh, so OpenLimiter never refreshes it and never runs Hermes; the
+# access token lasts about an hour and an expired one asks the person to open
+# Hermes. A stored portal other than the public Nous Portal is never read.
+#
+# Verified in source (hermes-agent at a66e74dc, 2026-11-03):
+# hermes_constants.py resolves the home, hermes_cli/auth.py keeps the store,
+# hermes_cli/nous_account.py reads the account with a Bearer token, and
+# agent/account_usage.py draws the subscription gauge from monthly_credits and
+# credits_remaining (no gauge when the remainder exceeds the allowance) and
+# lists paid_service_access.purchased_credits_remaining as top up credits, in
+# US dollars. Nous documents none of this. The address is a Rust constant in
+# apps/desktop/src-tauri/src/net.rs and is deliberately absent from this file.
+#
+# Not read: usage window plans (usage_window.gauges), whose gauge format this
+# build has not verified; such an account shows its top up balance only.
+
+provider_id: nous
+product_id: hermes
+display_name: Hermes
+
+headlineMeter: monthly
+acquisitionSurfaces:
+  - desktop
+displaySurfaces:
+  - desktop
+  - rail
+  - tray
+  - cli_cache
+  - web
+  - phone
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: remote_http_internal
+d5Review: Reads the sign in Hermes saved, read only and never refreshed. Only the Nous Portal receives the token. Honest OpenLimiter identity.
+maturity: experimental
+directory:
+  order: 10
+  rowId: nous/hermes
+  label: Hermes
+  connectorId: hermes
+  access: automatic
+
+source:
+  docs_url: https://github.com/NousResearch/hermes-agent/blob/main/hermes_cli/nous_account.py
+  reviewed_at: "2026-11-04"
+  source_status: provisional
+
+availability:
+  requires_plan: any
+  appears_after: local_cli_login
+  absence_is_error: false
+
+support:
+  parser: implemented
+  reader: implemented
+  auth: implemented
+
+collection:
+  reader: implemented
+  auth: implemented
+  readers:
+    - reader_id: hermes_account
+      endpoint_id: hermes_account
+      credential_kind: hermes_session
+      evidence_fixture: hermes.official_source.account
+      evidence_status: pending_capture
+      last_verified_at: null
+
+connections:
+  - reader: experimental
+    auth_mode: existing_local_cli
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  fixture_ids:
+    - hermes.official_source.account
+    - hermes.live.pending
+
+honesty:
+  connector_id: hermes
+  credential_origin: official-local-tool
+  data_interface_status: internal-endpoint
+  automation_risk: high
+  verification: UNVERIFIED
+
+meters:
+  - id: monthly
+    label: Monthly credits
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: billing_period
+    source_format: json_path
+    source_path: subscription.credits_remaining
+    reset_path: subscription.current_period_end
+    reset_encoding: iso8601
+    optional: true
+    meter_code: MONTHLY
+  - id: balance
+    label: Purchased credits
+    kind: credits
+    unit: currency
+    scope: account
+    window:
+      kind: credit_balance
+    source_format: json_path
+    source_path: paid_service_access.purchased_credits_remaining
+    reset_path: null
+    reset_encoding: none
+    optional: true
+    meter_code: BALANCE

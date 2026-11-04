@@ -1,0 +1,23 @@
+{
+  "provider": "cline",
+  "case": "missing-percent",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "success": true,
+    "data": {
+      "limits": [
+        {
+          "type": "five_hour",
+          "percentUsed": 10
+        },
+        {
+          "type": "weekly",
+          "resetsAt": "2026-08-07T13:00:00.000Z"
+        }
+      ]
+    }
+  }
+}

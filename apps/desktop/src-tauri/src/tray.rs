@@ -9,7 +9,11 @@ use crate::provider_order::ProviderOrder;
 
 pub const ID: &str = "openlimiter-tray";
 
-const PROVIDER_LIMIT: usize = 9;
+/// The most providers one update may carry: every provider the registry's
+/// directory lists, each at most once.
+fn provider_limit() -> usize {
+    crate::rail::directory_providers().len()
+}
 
 const ICON_UNKNOWN: &[u8] = include_bytes!("../icons/tray-unknown-32.png");
 const ICON_OK: &[u8] = include_bytes!("../icons/tray-ok-32.png");
@@ -71,21 +75,14 @@ pub struct View {
 }
 
 /// A provider the tray lists, by code, named the way the registry names it
-/// everywhere else (the window reads the same directory label).
+/// everywhere else (the window reads the same directory label). Any provider
+/// the registry's directory lists is accepted; nothing else is.
 fn provider(code: &str) -> Option<(&'static str, &'static str)> {
-    let code = match code.to_ascii_uppercase().as_str() {
-        "CLAUDE" => "CLAUDE",
-        "OPENROUTER" => "OPENROUTER",
-        "CODEX" => "CODEX",
-        "ANTIGRAVITY" => "ANTIGRAVITY",
-        "GEMINI_CLI" => "GEMINI_CLI",
-        "OPENCODE" => "OPENCODE",
-        "GROK" => "GROK",
-        "KIMI" => "KIMI",
-        "CURSOR" => "CURSOR",
-        _ => return None,
-    };
-    Some((code, crate::rail::provider_display_name(code)?))
+    let code = code.to_ascii_uppercase();
+    crate::rail::directory_providers()
+        .iter()
+        .find(|entry| entry.code == code)
+        .map(|entry| (entry.code.as_str(), entry.label))
 }
 
 fn pressure_of(percent: Option<f64>) -> Pressure {
@@ -129,7 +126,7 @@ pub fn view_with_trial(
     stale_readings: bool,
     order: &ProviderOrder,
 ) -> Result<View, &'static str> {
-    if statuses.len() > PROVIDER_LIMIT {
+    if statuses.len() > provider_limit() {
         return Err("the tray provider list is over its bound");
     }
 
@@ -321,22 +318,32 @@ mod tests {
 
     #[test]
     fn every_supported_provider_reaches_the_tray() {
-        let rendered = view(vec![
-            status("CLAUDE", None),
-            status("OPENROUTER", None),
-            status("CODEX", None),
-            status("ANTIGRAVITY", None),
-            status("GEMINI_CLI", None),
-            status("OPENCODE", None),
-            status("GROK", None),
-            status("KIMI", None),
-            status("CURSOR", None),
-        ])
-        .expect("every provider is valid");
-        assert_eq!(rendered.providers.len(), PROVIDER_LIMIT);
+        /* Every provider the registry's directory lists, in one update: the
+        bound follows the registry, so a provider added there never makes
+        the whole tray update fail. */
+        let every = crate::rail::directory_providers()
+            .iter()
+            .map(|entry| status(&entry.code, Some(10.0)))
+            .collect::<Vec<_>>();
+        assert!(every.len() >= 13, "the registry lists every supported provider");
+        let rendered = view(every.clone()).expect("every provider is valid");
+        assert_eq!(rendered.providers.len(), provider_limit());
         let named = |code| rendered.providers.iter().find(|entry| entry.code == code).map(|entry| entry.name);
         assert_eq!(named("GROK"), Some("Grok (xAI)"));
         assert_eq!(named("KIMI"), Some("Kimi"));
+        for (code, name) in [
+            ("HERMES", "Hermes"),
+            ("COMMANDCODE", "Command Code"),
+            ("CLINE", "Cline"),
+            ("KILOCODE", "Kilo Code"),
+        ] {
+            assert_eq!(named(code), Some(name));
+        }
+        /* Past the bound, or a provider twice, is still refused. */
+        let mut over = every.clone();
+        over.push(status("CLAUDE", None));
+        assert!(view(over).is_err());
+        assert!(view(vec![status("MANUAL", None)]).is_err());
     }
 
     /// The tray names providers exactly as the window does: the registry
@@ -353,6 +360,10 @@ mod tests {
             ("GROK", "Grok (xAI)"),
             ("KIMI", "Kimi"),
             ("CURSOR", "Cursor"),
+            ("HERMES", "Hermes"),
+            ("COMMANDCODE", "Command Code"),
+            ("CLINE", "Cline"),
+            ("KILOCODE", "Kilo Code"),
         ] {
             assert_eq!(provider(code), Some((code, name)));
             assert_eq!(provider(&code.to_ascii_lowercase()), Some((code, name)));

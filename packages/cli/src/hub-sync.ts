@@ -162,6 +162,30 @@ export function usageSamplesFromSnapshots(
   for (const snapshot of snapshots) {
     if (!isSnapshotDisplayEligible(snapshot)) continue;
     if (snapshot.provider === "OPENROUTER" && snapshot.meter === "CREDITS") continue;
+    /* A balance a tool states in money with no total (Hermes, Command Code,
+       Kilo Code): the value is the amount, in the currency the row carries.
+       The row says what it is; no provider list decides. Rust twin:
+       `stated_balance` in account.rs. */
+    if (snapshot.kind === "money_balance" && snapshot.unit === "CREDITS" &&
+        snapshot.usedAmount === undefined && snapshot.limitAmount === undefined) {
+      if (snapshot.availability !== undefined || snapshot.currency === undefined) continue;
+      if (!Number.isFinite(snapshot.value) || snapshot.value < 0 || snapshot.value > 1_000_000) continue;
+      const accountId = accountIdOf(snapshot);
+      if (accountId === null) continue;
+      rows.push({
+        account_id: accountId,
+        provider: snapshot.provider,
+        meter: snapshot.meter,
+        window_id: snapshot.meter,
+        usage_percent: null,
+        reset_at: snapshot.resetAt,
+        observed_at: snapshot.observedAt,
+        stale: freshness(snapshot.observedAt, snapshot.expiresAt, now) !== "fresh",
+        amount: snapshot.value,
+        currency: snapshot.currency,
+      });
+      continue;
+    }
     if (snapshot.provider === "OPENROUTER" && snapshot.meter === "ACCOUNT_BALANCE") {
       if (snapshot.availability !== undefined || snapshot.usedAmount === undefined ||
           snapshot.limitAmount === undefined || snapshot.currency === undefined) continue;

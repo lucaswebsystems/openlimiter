@@ -1115,7 +1115,17 @@ fn usage_samples_from_cache(
                 continue;
             }
         }
-        let account_balance = provider == "OPENROUTER" && window == "ACCOUNT_BALANCE";
+        /* Money, never a percentage: OpenRouter's account balance, which
+        carries its amounts, and any balance a tool states with no total, which
+        carries its currency on a money balance row (Hermes, Command Code, Kilo
+        Code). The row says what it is; no provider list decides. */
+        let stated_balance = snapshot.get("kind").and_then(serde_json::Value::as_str)
+            == Some("money_balance")
+            && snapshot.get("unit").and_then(serde_json::Value::as_str) == Some("CREDITS")
+            && snapshot.get("usedAmount").is_none_or(serde_json::Value::is_null)
+            && snapshot.get("limitAmount").is_none_or(serde_json::Value::is_null);
+        let account_balance =
+            (provider == "OPENROUTER" && window == "ACCOUNT_BALANCE") || stated_balance;
         if !account_balance
             && snapshot.get("unit").and_then(serde_json::Value::as_str) != Some("PERCENT")
         {
@@ -1150,7 +1160,18 @@ fn usage_samples_from_cache(
         {
             continue;
         }
-        let balance_money = if account_balance {
+        let balance_money = if stated_balance {
+            let amount = snapshot.get("value").and_then(serde_json::Value::as_f64);
+            let currency = snapshot.get("currency").and_then(serde_json::Value::as_str);
+            match (amount, currency) {
+                (Some(amount), Some(currency @ ("USD" | "CNY")))
+                    if amount.is_finite() && (0.0..=1_000_000.0).contains(&amount) =>
+                {
+                    Some((amount, currency.to_string()))
+                }
+                _ => None,
+            }
+        } else if account_balance {
             let used = snapshot.get("usedAmount").and_then(serde_json::Value::as_f64);
             let limit = snapshot.get("limitAmount").and_then(serde_json::Value::as_f64);
             let currency = snapshot.get("currency").and_then(serde_json::Value::as_str);
@@ -3200,6 +3221,61 @@ mod tests {
         assert_eq!(rows[0].usage_percent, None);
         assert_eq!(rows[0].amount, Some(12.34));
         assert_eq!(rows[0].currency.as_deref(), Some("USD"));
+    }
+
+    #[test]
+    fn a_balance_a_tool_states_in_money_syncs_its_amount_and_currency() {
+        let now = time::OffsetDateTime::parse(
+            "2026-09-07T12:00:00Z",
+            &time::format_description::well_known::Rfc3339,
+        )
+        .expect("a clock");
+        let balance = |provider: &str, value: f64| serde_json::json!({
+            "provider": provider, "meter": "BALANCE", "unit": "CREDITS", "value": value,
+            "kind": "money_balance", "currency": "USD",
+            "accountId": format!("{}-personal", provider.to_ascii_lowercase()), "resetAt": null,
+            "observedAt": "2026-09-07T11:59:30.000Z", "expiresAt": "2026-09-07T12:04:30.000Z"
+        });
+        let document = serde_json::json!({ "version": 2, "snapshots": [
+            balance("HERMES", 0.0),
+            balance("COMMANDCODE", 15.0),
+            balance("KILOCODE", 18.25),
+            {
+                "provider": "HERMES", "meter": "MONTHLY", "unit": "PERCENT", "value": 30.0,
+                "accountId": "hermes-personal", "resetAt": "2026-09-30T00:00:00.000Z",
+                "observedAt": "2026-09-07T11:59:30.000Z", "expiresAt": "2026-09-07T12:04:30.000Z"
+            },
+            /* Credits that are not money, and a balance with no currency, stay out. */
+            {
+                "provider": "CODEX", "meter": "CREDITS", "unit": "CREDITS", "value": 40.0,
+                "accountId": "codex-personal", "resetAt": null,
+                "observedAt": "2026-09-07T11:59:30.000Z", "expiresAt": "2026-09-07T12:04:30.000Z"
+            },
+            {
+                "provider": "KILOCODE", "meter": "OTHER", "unit": "CREDITS", "value": 3.0,
+                "kind": "money_balance", "accountId": "kilocode-personal", "resetAt": null,
+                "observedAt": "2026-09-07T11:59:30.000Z", "expiresAt": "2026-09-07T12:04:30.000Z"
+            }
+        ]});
+        let configured = ["HERMES", "COMMANDCODE", "KILOCODE", "CODEX"]
+            .into_iter()
+            .map(str::to_string)
+            .collect::<HashSet<String>>();
+        let rows = usage_samples_from_cache(&document, &configured, "2026-09-07T12:00:00.000Z", now)
+            .expect("rows");
+        let shown = rows
+            .iter()
+            .map(|row| (row.provider.as_str(), row.meter.as_str(), row.usage_percent, row.amount, row.currency.as_deref()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            shown,
+            vec![
+                ("COMMANDCODE", "BALANCE", None, Some(15.0), Some("USD")),
+                ("HERMES", "BALANCE", None, Some(0.0), Some("USD")),
+                ("HERMES", "MONTHLY", Some(30.0), None, None),
+                ("KILOCODE", "BALANCE", None, Some(18.25), Some("USD")),
+            ]
+        );
     }
 
     #[test]

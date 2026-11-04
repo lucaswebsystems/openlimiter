@@ -1,0 +1,15 @@
+{
+  "provider": "hermes",
+  "case": "exhausted-top-up",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "subscription": null,
+    "paid_service_access": {
+      "allowed": false,
+      "purchased_credits_remaining": 0
+    }
+  }
+}

@@ -28,6 +28,10 @@ pub(crate) const PROVIDER_CODES: &[&str] = &[
     "GROK",
     "KIMI",
     "CURSOR",
+    "HERMES",
+    "COMMANDCODE",
+    "CLINE",
+    "KILOCODE",
     "MANUAL",
 ];
 const VERIFICATIONS: &[&str] = &["UNVERIFIED", "VERIFIED_FIXTURES", "VERIFIED_LIVE"];
@@ -320,6 +324,14 @@ pub(crate) fn normalize_snapshot(mut row: Snapshot) -> Option<Snapshot> {
      */
     let amounts_ok = match (&row.used_amount, &row.limit_amount, &row.currency) {
         (None, None, None) => true,
+        /* A money balance a tool states with no total beside it carries its
+        currency alone: the value is the amount. TypeScript twin:
+        `statedBalanceCurrency` in normalizer.ts. */
+        (None, None, Some(currency)) => {
+            row.kind.as_deref() == Some("money_balance")
+                && row.unit == "CREDITS"
+                && ["USD", "CNY"].contains(&currency.as_str())
+        }
         (Some(used), Some(limit), Some(currency)) => {
             used.is_finite()
                 && limit.is_finite()
