@@ -361,16 +361,31 @@ fn pieces(value: &str, units: usize) -> Vec<&str> {
     out
 }
 
-fn drop_parts(vault: &dyn RawVault, id: &str, parts: &Parts) {
+fn drop_parts(vault: &dyn RawVault, id: &str, parts: &Parts) -> Result<(), CredentialError> {
+    let mut outcome = Ok(());
     for index in 0..parts.count {
-        let _ = vault.delete(&part_id(id, &parts.generation, index));
+        match vault.delete(&part_id(id, &parts.generation, index)) {
+            Ok(()) | Err(CredentialError::NotFound) => {}
+            Err(error) => outcome = Err(error),
+        }
     }
+    outcome
+}
+
+/// One vault operation at a time in this process: a session refresh in the
+/// background and a read from the window must never see a manifest whose parts
+/// the other just replaced, and two writers must never strand a generation.
+/// ponytail: one process wide lock; per id locks if vault traffic ever matters.
+fn vault_lock() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// Store a value whole when it fits one entry, otherwise in parts under a new
 /// generation, written before the main entry that names them: a store that
 /// fails half way leaves the previous value readable, never half of a new one.
 fn store_value(vault: &dyn RawVault, id: &str, value: &str, limit: usize) -> Result<(), CredentialError> {
+    let _held = vault_lock();
     let previous = vault.get(id).ok().and_then(|head| parts_of(&head));
     if value.encode_utf16().count() <= limit && !value.starts_with(PARTS_PREFIX) {
         vault.set(id, value)?;
@@ -386,18 +401,20 @@ fn store_value(vault: &dyn RawVault, id: &str, value: &str, limit: usize) -> Res
         };
         for (index, piece) in split.iter().enumerate() {
             if let Err(error) = vault.set(&part_id(id, &parts.generation, index), piece) {
-                drop_parts(vault, id, &parts);
+                let _ = drop_parts(vault, id, &parts);
                 return Err(error);
             }
         }
         let head = format!("{PARTS_PREFIX}{}:{}:{}", parts.generation, parts.count, parts.digest);
         if let Err(error) = vault.set(id, &head) {
-            drop_parts(vault, id, &parts);
+            let _ = drop_parts(vault, id, &parts);
             return Err(error);
         }
     }
+    /* The new value is already readable; an old part that will not go is
+    left for the next store or delete of this id to try again. */
     if let Some(previous) = previous {
-        drop_parts(vault, id, &previous);
+        let _ = drop_parts(vault, id, &previous);
     }
     Ok(())
 }
@@ -405,6 +422,7 @@ fn store_value(vault: &dyn RawVault, id: &str, value: &str, limit: usize) -> Res
 /// Read a value back whole; parts that are missing or do not add up to the
 /// digest the main entry names are a store failure, never a partial secret.
 fn read_value(vault: &dyn RawVault, id: &str) -> Result<Zeroizing<String>, CredentialError> {
+    let _held = vault_lock();
     let head = vault.get(id)?;
     let Some(parts) = parts_of(&head) else {
         return Ok(head);
@@ -422,9 +440,12 @@ fn read_value(vault: &dyn RawVault, id: &str) -> Result<Zeroizing<String>, Crede
     Ok(whole)
 }
 
+/// Delete the parts first and the main entry last, so a part that will not go
+/// keeps its manifest and a later delete can find it again.
 fn delete_value(vault: &dyn RawVault, id: &str) -> Result<(), CredentialError> {
+    let _held = vault_lock();
     if let Some(parts) = vault.get(id).ok().and_then(|head| parts_of(&head)) {
-        drop_parts(vault, id, &parts);
+        drop_parts(vault, id, &parts)?;
     }
     vault.delete(id)
 }
@@ -471,13 +492,16 @@ mod tests {
     #[cfg(windows)]
     #[test]
     fn a_sign_in_sized_session_round_trips_through_the_real_vault() {
-        let id = format!("test-session-size-{}", std::process::id());
+        let vault = Keyring("com.openlimiter.desktop.test");
+        let id = format!("session-size-{}", std::process::id());
         let session = format!("{{\"version\":2,\"access_token\":\"{}\",\"refresh_token\":\"{}\"}}", "a".repeat(2_400), "r".repeat(40));
-        let stored = KeyringStore.store_secret(&id, &session);
-        let read = KeyringStore.read_secret(&id).map(|value| value.len());
-        let _ = KeyringStore.delete_secret(&id);
+        let stored = store_value(&vault, &id, &session, ENTRY_LIMIT_UNITS);
+        let read = read_value(&vault, &id).map(|value| value.len());
+        let deleted = delete_value(&vault, &id);
         assert!(stored.is_ok(), "storing a {} byte session failed: {stored:?}", session.len());
         assert_eq!(read.ok(), Some(session.len()));
+        assert_eq!(deleted, Ok(()));
+        assert_eq!(read_value(&vault, &id).map(|_| ()), Err(CredentialError::NotFound), "nothing left behind");
     }
 
 
