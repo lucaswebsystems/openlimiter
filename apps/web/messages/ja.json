@@ -1170,10 +1170,10 @@
       "providers": {
         "title": "Supported providers",
         "description": "現在提供されている8つのコネクターとmanual entry。接続方法、読み取る内容、壊れやすさを説明します。",
-        "lead": "現在は12 個のコネクターと手動入力を提供しており、デスクトップアプリケーションは実験的なコネクターとしてCursorも読み取ります。それぞれに認証情報の出所、データインターフェースの公式性、故障しやすさを示す正直なラベルがあります。",
+        "lead": "現在は17 個のコネクターと手動入力を提供しており、デスクトップアプリケーションは実験的なコネクターとしてCursorも読み取ります。それぞれに認証情報の出所、データインターフェースの公式性、故障しやすさを示す正直なラベルがあります。",
         "sections": {
           "the-nine": {
-            "title": "12 個のコネクタと手動入力",
+            "title": "17 個のコネクタと手動入力",
             "caption": "現在提供されているコネクター、接続方法、読み取る内容",
             "columns": {
               "id": "id",
@@ -1232,6 +1232,26 @@
               "kilocode": {
                 "connect": "Kilo Code が保存済みのサインインを使います。",
                 "reads": "Kilo Code の個人アカウントの残高 (米ドル)。非公開のエンドポイントから読み取るため、予告なく動かなくなる場合があります。"
+              },
+              "copilot": {
+                "connect": "GitHub Copilot がエディターに保存済みのサインインを使います。GitHub CLI のログインは読み取りません。",
+                "reads": "プレミアムリクエストとチャットの割り当て。非公開のエンドポイントから読み取るため、予告なく動かなくなる場合があります。"
+              },
+              "amp": {
+                "connect": "Amp CLI が保存済みの API キーを使います。",
+                "reads": "Amp Free の割り当てと残りのクレジット。非公開のエンドポイントから読み取るため、予告なく動かなくなる場合があります。"
+              },
+              "codebuff": {
+                "connect": "Codebuff CLI が保存済みのサインインを使います。",
+                "reads": "残りのクレジットと週間上限。非公開のエンドポイントから読み取るため、予告なく動かなくなる場合があります。"
+              },
+              "kiro": {
+                "connect": "macOS と Linux で Kiro CLI が保存済みのサインインを使います。OpenLimiter は更新しないため、期限が切れたら Kiro を一度開いてください。",
+                "reads": "月間クレジット。US East (N. Virginia) リージョン以外のプロファイルはまだ読み取りません。非公開のエンドポイントから読み取るため、予告なく動かなくなる場合があります。"
+              },
+              "crush": {
+                "connect": "Crush が保存済みの Hyper のサインインを使います。OpenLimiter は更新しないため、期限が切れたら Crush を一度開いてください。",
+                "reads": "Charm Hyper の残りのクレジット。非公開のエンドポイントから読み取るため、予告なく動かなくなる場合があります。"
               }
             },
             "calloutTitle": "実際のアカウントで検証されたコネクターはまだありません",
@@ -1248,7 +1268,7 @@
               "live": "<code>codex</code>、<code>gemini_cli</code>、<code>grok</code>、<code>kimi</code>、<code>openrouter</code> は、それぞれのツールが保存したログインを最大15分に1回読み取ります。デスクトップアプリの更新処理、またはターミナルの <code>openlimiter refresh</code> が実行します。",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
               "ingestOnly": "デスクトップアプリは、opencode CLI がこのコンピューターに保存したログイン（読み取り専用で、更新はしません）か、貼り付けた OpenCode の API キーで <code>opencode</code> を読み取ります。OpenCode Go のローリング、週間、月間の使用量を文書化されていない単一のエンドポイントから読むため、自動化リスクは高くなります。",
-              "toolLogins": "<code>hermes</code>、<code>commandcode</code>、<code>cline</code>、<code>kilocode</code> は、各ツールがこのコンピューターに保存したサインインを使い、デスクトップアプリが 5 分ごとに読み取り専用で読み取ります。更新は一切しません。各トークンはそのツール自身の非公開エンドポイントにのみ送られるため、自動化のリスクは高くなります。"
+              "toolLogins": "<code>hermes</code>、<code>commandcode</code>、<code>cline</code>、<code>kilocode</code>、<code>copilot</code>、<code>amp</code>、<code>codebuff</code>、<code>kiro</code>、<code>crush</code> は、各ツールがこのコンピューターに保存したサインインを使い、デスクトップアプリが 5 分ごとに読み取り専用で読み取ります。更新は一切しません。各トークンはそのツール自身の非公開エンドポイントにのみ送られるため、自動化のリスクは高くなります。"
             },
             "exactShapes": "<docs>取り込みのページ</docs>で、手動入力の形式をすべて説明しています。"
           },
@@ -2217,6 +2237,14 @@
     "clineWeekly": "週間上限",
     "clineMonthly": "月間上限",
     "kilocodeBalance": "残高",
+    "copilotPremium": "プレミアムリクエスト",
+    "copilotChat": "チャット",
+    "ampFree": "Amp Free の割り当て",
+    "ampBalance": "クレジット",
+    "codebuffWeekly": "週間上限",
+    "codebuffBalance": "残りのクレジット",
+    "kiroMonthly": "月間クレジット",
+    "crushBalance": "残高",
     "noKeyCap": "キー上限なし",
     "keyNoSpendingCap": "このキーには利用上限がありません",
     "unavailableScope": "利用できません",

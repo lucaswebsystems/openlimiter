@@ -1,0 +1,14 @@
+{
+  "provider": "amp",
+  "case": "grouped-amounts",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "ok": true,
+    "result": {
+      "displayText": "Amp Free: $1,500 / $2,000 remaining\nIndividual credits: $12,345.50 remaining"
+    }
+  }
+}

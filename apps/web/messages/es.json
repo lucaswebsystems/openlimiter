@@ -1170,10 +1170,10 @@
       "providers": {
         "title": "Supported providers",
         "description": "Los ocho conectores disponibles hoy y manual entry: cómo conectar cada uno, qué lee y qué probabilidad tiene de fallar.",
-        "lead": "Hoy hay doce conectores y la entrada manual, y la aplicación de escritorio también lee Cursor como conector experimental. Cada uno lleva etiquetas claras sobre el origen de sus credenciales, el carácter oficial de su interfaz de datos y la probabilidad de fallar.",
+        "lead": "Hoy hay diecisiete conectores y la entrada manual, y la aplicación de escritorio también lee Cursor como conector experimental. Cada uno lleva etiquetas claras sobre el origen de sus credenciales, el carácter oficial de su interfaz de datos y la probabilidad de fallar.",
         "sections": {
           "the-nine": {
-            "title": "Los doce conectores y la entrada manual",
+            "title": "Los diecisiete conectores y la entrada manual",
             "caption": "Conectores disponibles hoy, cómo conectar cada uno y qué lee",
             "columns": {
               "id": "id",
@@ -1232,6 +1232,26 @@
               "kilocode": {
                 "connect": "Usa el inicio de sesión que Kilo Code ya guardó.",
                 "reads": "Tu saldo personal de Kilo Code en dólares estadounidenses, desde un endpoint no documentado. Puede fallar sin aviso."
+              },
+              "copilot": {
+                "connect": "Usa el inicio de sesión que GitHub Copilot ya guardó en tu editor. OpenLimiter nunca lee un inicio de sesión de la CLI de GitHub.",
+                "reads": "Tus cuotas de solicitudes premium y de chat, desde un endpoint no documentado. Puede fallar sin aviso."
+              },
+              "amp": {
+                "connect": "Usa la clave de API que la CLI de Amp ya guardó.",
+                "reads": "Tu asignación de Amp Free y los créditos que te quedan, desde un endpoint no documentado. Puede fallar sin aviso."
+              },
+              "codebuff": {
+                "connect": "Usa el inicio de sesión que la CLI de Codebuff ya guardó.",
+                "reads": "Los créditos que te quedan y tu límite semanal, desde endpoints no documentados. Puede fallar sin aviso."
+              },
+              "kiro": {
+                "connect": "Usa el inicio de sesión que la CLI de Kiro ya guardó, en macOS y Linux. OpenLimiter nunca lo renueva, así que abre Kiro una vez cuando caduque.",
+                "reads": "Tus créditos mensuales, desde un endpoint no documentado. Los perfiles fuera de la región US East (N. Virginia) todavía no se leen. Puede fallar sin aviso."
+              },
+              "crush": {
+                "connect": "Usa el inicio de sesión de Hyper que Crush ya guardó. OpenLimiter nunca lo renueva, así que abre Crush una vez cuando caduque.",
+                "reads": "Los créditos de Charm Hyper que te quedan, desde un endpoint no documentado. Puede fallar sin aviso."
               }
             },
             "calloutTitle": "Todavía ningún conector está verificado contra una cuenta real",
@@ -1248,7 +1268,7 @@
               "live": "<code>codex</code>, <code>gemini_cli</code>, <code>grok</code>, <code>kimi</code> y <code>openrouter</code> leen la sesión guardada por su propia herramienta, como máximo una vez cada quince minutos, mediante la actualización de la aplicación de escritorio o <code>openlimiter refresh</code> en el terminal.",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
               "ingestOnly": "La aplicación de escritorio lee <code>opencode</code> con el inicio de sesión que la CLI de opencode guardó en este equipo, solo en modo lectura y sin renovarlo nunca, o con una clave de API de OpenCode que pegues. Lee el uso móvil, semanal y mensual de OpenCode Go desde un único endpoint no documentado, por eso tiene un alto riesgo de automatización.",
-              "toolLogins": "La aplicación de escritorio lee <code>hermes</code>, <code>commandcode</code>, <code>cline</code> y <code>kilocode</code> cada cinco minutos con el inicio de sesión que cada herramienta guardó en este equipo, solo en modo lectura y sin renovarlo nunca. Cada token va solo al endpoint no documentado de su propia herramienta, así que conllevan un alto riesgo de automatización."
+              "toolLogins": "La aplicación de escritorio lee <code>hermes</code>, <code>commandcode</code>, <code>cline</code>, <code>kilocode</code>, <code>copilot</code>, <code>amp</code>, <code>codebuff</code>, <code>kiro</code> y <code>crush</code> cada cinco minutos con el inicio de sesión que cada herramienta guardó en este equipo, solo en modo lectura y sin renovarlo nunca. Cada token va solo al endpoint no documentado de su propia herramienta, así que conllevan un alto riesgo de automatización."
             },
             "exactShapes": "La <docs>página de ingesta</docs> documenta por completo el formato manual."
           },
@@ -2217,6 +2237,14 @@
     "clineWeekly": "Límite semanal",
     "clineMonthly": "Límite mensual",
     "kilocodeBalance": "Saldo",
+    "copilotPremium": "Solicitudes premium",
+    "copilotChat": "Chat",
+    "ampFree": "Cuota de Amp Free",
+    "ampBalance": "Créditos",
+    "codebuffWeekly": "Límite semanal",
+    "codebuffBalance": "Créditos restantes",
+    "kiroMonthly": "Créditos mensuales",
+    "crushBalance": "Saldo",
     "noKeyCap": "Sin límite en la clave",
     "keyNoSpendingCap": "Esta clave no tiene límite de gasto",
     "unavailableScope": "No disponible",

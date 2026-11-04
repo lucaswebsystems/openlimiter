@@ -155,9 +155,14 @@ describe("provider ordering", () => {
       "HERMES",
       "COMMANDCODE",
       "CLINE",
+      "COPILOT",
+      "AMP",
+      "CODEBUFF",
+      "KIRO",
       "MANUAL",
       "OPENROUTER",
-      "KILOCODE"
+      "KILOCODE",
+      "CRUSH"
     ]);
   });
 
@@ -191,7 +196,12 @@ describe("provider ordering", () => {
       "HERMES",
       "COMMANDCODE",
       "CLINE",
-      "KILOCODE"
+      "COPILOT",
+      "AMP",
+      "CODEBUFF",
+      "KIRO",
+      "KILOCODE",
+      "CRUSH"
     ]);
   });
 
@@ -208,9 +218,14 @@ describe("provider ordering", () => {
       "HERMES",
       "COMMANDCODE",
       "CLINE",
+      "COPILOT",
+      "AMP",
+      "CODEBUFF",
+      "KIRO",
       "MANUAL",
       "OPENROUTER",
-      "KILOCODE"
+      "KILOCODE",
+      "CRUSH"
     ]);
   });
 
@@ -356,13 +371,13 @@ describe("the cell", () => {
 describe("the head", () => {
   it("leads with the reason code and carries the recommendation", () => {
     expect(statuslineHead(buildAdvice(everyProvider, NOW)))
-      .toBe("OpenLimiter NEAR_CAP PREFER ANTIGRAVITY UNKNOWN OPENROUTER,CURSOR,HERMES,COMMANDCODE,CLINE,KILOCODE");
+      .toBe("OpenLimiter NEAR_CAP PREFER ANTIGRAVITY UNKNOWN OPENROUTER,CURSOR,HERMES,COMMANDCODE,CLINE,KILOCODE,COPILOT,AMP,CODEBUFF,KIRO,CRUSH");
   });
 
   it("names the providers it has nothing for", () => {
     const head = statuslineHead(buildAdvice([reading()], NOW));
     expect(head).toContain(
-      "UNKNOWN OPENROUTER,CODEX,ANTIGRAVITY,GEMINI_CLI,OPENCODE,GROK,KIMI,CURSOR,HERMES,COMMANDCODE,CLINE,KILOCODE,MANUAL"
+      "UNKNOWN OPENROUTER,CODEX,ANTIGRAVITY,GEMINI_CLI,OPENCODE,GROK,KIMI,CURSOR,HERMES,COMMANDCODE,CLINE,KILOCODE,COPILOT,AMP,CODEBUFF,KIRO,CRUSH,MANUAL"
     );
   });
 
@@ -411,19 +426,19 @@ describe("stacking", () => {
   it("stops at one row when told to, and says what it dropped", () => {
     const rendered = layout(everyProvider, { rows: 1 });
     expect(rendered.split("\n")).toHaveLength(1);
-    expect(rendered).toContain("+8 more");
+    expect(rendered).toContain("+9 more");
   });
 
   it("keeps the worst providers when it has to drop some", () => {
     /* The head names every provider it has nothing for, so the row is wide
        enough for the head and the worst cell. */
-    const rendered = layout(everyProvider, { rows: 1, width: 130 });
+    const rendered = layout(everyProvider, { rows: 1, width: 160 });
     const shown = rowsOf(rendered)[0]!.slice(1);
     expect(rendered).toContain("oc ####. 92%");
     expect(rendered).toContain("+8 more");
     /* Twenty eight percent is the furthest from a cap, so it goes first. */
     expect(shown.some((cell) => cell.startsWith("ANTIGRAVITY "))).toBe(false);
-    expect(rendered.length).toBeLessThanOrEqual(130);
+    expect(rendered.length).toBeLessThanOrEqual(160);
   });
 
   it("ends the last row with the dropped count and nothing after it", () => {

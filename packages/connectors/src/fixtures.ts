@@ -65,6 +65,14 @@ export const HERMES_ACCOUNT_SOURCE_URL =
 export const KILOCODE_BALANCE_SOURCE_URL =
   "https://github.com/Kilo-Org/kilocode/blob/main/packages/kilo-gateway/src/api/profile.ts";
 
+/** The Codebuff CLI source that reads the credit balance. */
+export const CODEBUFF_USAGE_SOURCE_URL =
+  "https://github.com/CodebuffAI/codebuff/blob/main/cli/src/hooks/use-usage-query.ts";
+
+/** The Crush source that reads the Charm Hyper credit balance. */
+export const CRUSH_CREDITS_SOURCE_URL =
+  "https://github.com/charmbracelet/crush/blob/main/internal/agent/hyper/provider.go";
+
 export const KIMI_USAGE_SOURCE_URL =
   "https://github.com/MoonshotAI/kimi-code/blob/main/packages/oauth/src/managed-usage.ts";
 
@@ -322,6 +330,52 @@ export function kilocodeFixture(): Record<string, unknown> {
   return { balance: 18.25 };
 }
 
+/** GitHub Copilot's quota report, in the shape CodexBar reads. */
+export function copilotFixture(now: string = FIXTURE_NOW): Record<string, unknown> {
+  return {
+    copilot_plan: "individual",
+    quota_reset_date: offset(now, 21 * ONE_DAY),
+    quota_snapshots: {
+      premium_interactions: { entitlement: 300, remaining: 210, percent_remaining: 70, unlimited: false },
+      chat: { entitlement: 0, remaining: 0, percent_remaining: 100, unlimited: true }
+    }
+  };
+}
+
+/** Amp's balance procedure reply, in the shape its CLI prints. */
+export function ampFixture(): Record<string, unknown> {
+  return {
+    ok: true,
+    result: {
+      displayText: "Signed in as person\nAmp Free: $7.50 / $10 remaining (replenishes +$0.42 / hour)\n" +
+        "Individual credits: $4.25 remaining"
+    }
+  };
+}
+
+/** Codebuff's usage reply, in the shape its CLI reads. */
+export function codebuffFixture(): Record<string, unknown> {
+  return { type: "usage-response", usage: 80, remainingBalance: 420, next_quota_reset: null };
+}
+
+/** Kiro's usage limits, in the shape CodexBar reads. */
+export function kiroFixture(now: string = FIXTURE_NOW): Record<string, unknown> {
+  return {
+    usageBreakdownList: [{
+      resourceType: "CREDIT",
+      currentUsageWithPrecision: 120,
+      usageLimitWithPrecision: 500,
+      currentOveragesWithPrecision: 0,
+      nextDateReset: epochOffset(now, 21 * ONE_DAY)
+    }]
+  };
+}
+
+/** Charm Hyper's credits, in the shape Crush reads. */
+export function crushFixture(): Record<string, unknown> {
+  return { balance: 95 };
+}
+
 /**
  * The one fixture in the red band.
  *
@@ -558,6 +612,62 @@ export const documentedFixtures: readonly DocumentedFixture[] = [
     note: "The official Kilo Code gateway source reads the balance field of the profile balance reply.",
     expectedMeters: 1,
     build: () => kilocodeFixture()
+  },
+  {
+    id: "copilot.provisional.user",
+    connector: "copilot",
+    docsUrl: null,
+    reviewedAt: "2026-11-04",
+    sourceStatus: "provisional",
+    note: "The Copilot quota report as CodexBar's CopilotUsageFetcher reads it on 2026-11-04: " +
+      "quota_snapshots with percent_remaining and unlimited, and quota_reset_date. GitHub " +
+      "documents none of it, so this is design evidence only.",
+    expectedMeters: 1,
+    build: (now) => copilotFixture(now)
+  },
+  {
+    id: "amp.provisional.balance",
+    connector: "amp",
+    docsUrl: null,
+    reviewedAt: "2026-11-04",
+    sourceStatus: "provisional",
+    note: "The balance procedure reply as the Amp CLI prints it and CodexBar parses it on " +
+      "2026-11-04: a displayText with the Amp Free and Individual credits lines. Amp " +
+      "documents none of it, so this is design evidence only.",
+    expectedMeters: 2,
+    build: () => ampFixture()
+  },
+  {
+    id: "codebuff.official_source.usage",
+    connector: "codebuff",
+    docsUrl: CODEBUFF_USAGE_SOURCE_URL,
+    reviewedAt: "2026-11-04",
+    sourceStatus: "official",
+    note: "The official Codebuff CLI source reads remainingBalance from the usage reply.",
+    expectedMeters: 1,
+    build: () => codebuffFixture()
+  },
+  {
+    id: "kiro.provisional.usage_limits",
+    connector: "kiro",
+    docsUrl: null,
+    reviewedAt: "2026-11-04",
+    sourceStatus: "provisional",
+    note: "The GetUsageLimits reply as CodexBar's KiroUsageLimitsAPI reads it on 2026-11-04: " +
+      "usageBreakdownList with one CREDIT entry and nextDateReset in epoch seconds. AWS " +
+      "documents none of it for Kiro, so this is design evidence only.",
+    expectedMeters: 1,
+    build: (now) => kiroFixture(now)
+  },
+  {
+    id: "crush.official_source.credits",
+    connector: "crush",
+    docsUrl: CRUSH_CREDITS_SOURCE_URL,
+    reviewedAt: "2026-11-04",
+    sourceStatus: "official",
+    note: "The official Crush source reads the balance field of the Hyper credits reply.",
+    expectedMeters: 1,
+    build: () => crushFixture()
   },
   {
     id: "manual.documented.plan",
@@ -822,6 +932,56 @@ export const toolLoginSanitizedLive: readonly SanitizedLiveFixture[] = [
     capturedAt: null,
     providerVersion: null,
     skipReason: "PENDING CAPTURE: the fixture follows the tool's own source, not a live Kilo Code account.",
+    expectedMeters: 0,
+    build: () => null
+  },
+  {
+    id: "copilot.live.pending",
+    connector: "copilot",
+    status: "pending_capture",
+    capturedAt: null,
+    providerVersion: null,
+    skipReason: "PENDING CAPTURE: the fixture follows a meter that reads the tool, not a live GitHub Copilot account.",
+    expectedMeters: 0,
+    build: () => null
+  },
+  {
+    id: "amp.live.pending",
+    connector: "amp",
+    status: "pending_capture",
+    capturedAt: null,
+    providerVersion: null,
+    skipReason: "PENDING CAPTURE: the fixture follows a meter that reads the tool, not a live Amp account.",
+    expectedMeters: 0,
+    build: () => null
+  },
+  {
+    id: "codebuff.live.pending",
+    connector: "codebuff",
+    status: "pending_capture",
+    capturedAt: null,
+    providerVersion: null,
+    skipReason: "PENDING CAPTURE: the fixture follows the tool's own source, not a live Codebuff account.",
+    expectedMeters: 0,
+    build: () => null
+  },
+  {
+    id: "kiro.live.pending",
+    connector: "kiro",
+    status: "pending_capture",
+    capturedAt: null,
+    providerVersion: null,
+    skipReason: "PENDING CAPTURE: the fixture follows a meter that reads the tool, not a live Kiro account.",
+    expectedMeters: 0,
+    build: () => null
+  },
+  {
+    id: "crush.live.pending",
+    connector: "crush",
+    status: "pending_capture",
+    capturedAt: null,
+    providerVersion: null,
+    skipReason: "PENDING CAPTURE: the fixture follows the tool's own source, not a live Crush account.",
     expectedMeters: 0,
     build: () => null
   }
@@ -1106,6 +1266,11 @@ const genericIds: readonly ConnectorId[] = [
   "commandcode",
   "cline",
   "kilocode",
+  "copilot",
+  "amp",
+  "codebuff",
+  "kiro",
+  "crush",
   "manual"
 ];
 

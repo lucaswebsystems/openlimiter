@@ -422,7 +422,12 @@ const READER_IDS = new Set([
   "hermes_account",
   "commandcode_credits",
   "cline_usage",
-  "kilocode_balance"
+  "kilocode_balance",
+  "copilot_user",
+  "amp_balance",
+  "codebuff_usage",
+  "kiro_usage_limits",
+  "crush_credits"
 ]);
 const ENDPOINT_IDS = new Set([
   "cursor_usage",
@@ -437,7 +442,12 @@ const ENDPOINT_IDS = new Set([
   "hermes_account",
   "commandcode_credits",
   "cline_usage",
-  "kilocode_balance"
+  "kilocode_balance",
+  "copilot_user",
+  "amp_balance",
+  "codebuff_usage",
+  "kiro_usage_limits",
+  "crush_credits"
 ]);
 const CREDENTIAL_KINDS = new Set([
   "cursor_session",
@@ -452,7 +462,12 @@ const CREDENTIAL_KINDS = new Set([
   "hermes_session",
   "commandcode_api_key",
   "cline_session",
-  "kilocode_session"
+  "kilocode_session",
+  "copilot_session",
+  "amp_api_key",
+  "codebuff_session",
+  "kiro_session",
+  "crush_session"
 ]);
 const COLLECTION_SUPPORT = new Set(["implemented"]);
 
@@ -490,8 +505,73 @@ const CONNECTOR_IDS = new Set([
   "commandcode",
   "cline",
   "kilocode",
+  "copilot",
+  "amp",
+  "codebuff",
+  "kiro",
+  "crush",
   "manual"
 ]);
+/*
+ * Provenance: what a shipped reader rests on, beyond its code. Whether the
+ * endpoint's terms were reviewed, every source consulted with its licence, and
+ * the mark shown with its licence or initials. Validated when present; a URL
+ * never appears here (the address rule below covers every line), so a source
+ * is named by repository or package and the files read in it.
+ */
+const PROVENANCE_KEYS = new Set(["endpoint_terms", "terms_note", "sources", "mark", "mark_licence"]);
+const ENDPOINT_TERMS = new Set(["unreviewed", "no_terms_found", "permits", "restricts"]);
+const SOURCE_KEYS = new Set(["name", "repository", "package", "files", "licence"]);
+const SOURCE_LICENCES = new Set([
+  "MIT", "Apache-2.0", "MIT OR Apache-2.0", "FSL-1.1-MIT", "proprietary", "unlicensed", "unknown"
+]);
+const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u;
+const PACKAGE = /^(?:@[a-z0-9_.-]+\/)?[a-z0-9_.-]+@[A-Za-z0-9_.+-]+$/u;
+const MARK_FILE = /^[a-z0-9-]+\.svg$/u;
+
+function validateProvenance(block, where) {
+  if (!isPlainObject(block)) fail(where, "provenance must be a block");
+  for (const key of Object.keys(block)) {
+    if (!PROVENANCE_KEYS.has(key)) fail(where, "provenance may not carry " + key);
+  }
+  requireString(block, where, "endpoint_terms", ENDPOINT_TERMS);
+  if (block["terms_note"] !== undefined) requireString(block, where, "terms_note");
+  const sources = requireArray(block, where, "sources");
+  if (sources.length === 0) fail(where, "provenance must name at least one source");
+  for (const source of sources) {
+    const at = where + " source";
+    if (!isPlainObject(source)) fail(at, "each source must be a block");
+    for (const key of Object.keys(source)) {
+      if (!SOURCE_KEYS.has(key)) fail(at, "a source may not carry " + key);
+    }
+    requireString(source, at, "name");
+    requireString(source, at, "licence", SOURCE_LICENCES);
+    const repository = source["repository"] ?? null;
+    const pkg = source["package"] ?? null;
+    if (repository === null && pkg === null) fail(at, "a source names a repository or a package");
+    if (repository !== null && (typeof repository !== "string" || !REPOSITORY.test(repository))) {
+      fail(at, "repository must be owner/name");
+    }
+    if (pkg !== null && (typeof pkg !== "string" || !PACKAGE.test(pkg))) {
+      fail(at, "package must be name@version");
+    }
+    const files = requireArray(source, at, "files");
+    if (files.length === 0 || files.some((file) => typeof file !== "string" || file === "")) {
+      fail(at, "files must list the files read");
+    }
+  }
+  const mark = requireString(block, where, "mark");
+  const markLicence = block["mark_licence"] ?? null;
+  if (mark === "initials") {
+    if (markLicence !== null) fail(where, "initials carry no mark licence");
+  } else {
+    if (!MARK_FILE.test(mark)) fail(where, "mark must be initials or a file in packages/ui/src/marks");
+    if (typeof markLicence !== "string" || markLicence === "") {
+      fail(where, "an official mark records its licence");
+    }
+  }
+}
+
 const HONESTY_KEYS = new Set([
   "connector_id",
   "credential_origin",
@@ -988,6 +1068,10 @@ export function validateSpec(document, file, relative, fixtureIds) {
     };
   } else if (status === "provisional" && reader === "implemented") {
     fail(file, "a shipped reader must publish its honesty labels");
+  }
+
+  if (document["provenance"] !== undefined) {
+    validateProvenance(document["provenance"], file + " provenance");
   }
 
   if (directory !== null &&

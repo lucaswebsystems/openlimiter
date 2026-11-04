@@ -46,6 +46,11 @@ pub enum ProviderId {
     Commandcode,
     Cline,
     Kilocode,
+    Copilot,
+    Amp,
+    Codebuff,
+    Kiro,
+    Crush,
 }
 
 impl ProviderId {
@@ -55,7 +60,7 @@ impl ProviderId {
     variant at a time, so they are dead code outside a test build and are
     marked as such rather than deleted: the sweep is the security property. */
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [ProviderId; 10] = [
+    pub const ALL: [ProviderId; 15] = [
         ProviderId::Openrouter,
         ProviderId::Codex,
         ProviderId::Opencode,
@@ -66,10 +71,15 @@ impl ProviderId {
         ProviderId::Commandcode,
         ProviderId::Cline,
         ProviderId::Kilocode,
+        ProviderId::Copilot,
+        ProviderId::Amp,
+        ProviderId::Codebuff,
+        ProviderId::Kiro,
+        ProviderId::Crush,
     ];
 
     /// Providers whose current collection path is an HTTP reader.
-    pub const HTTP_READER_PROVIDERS: [ProviderId; 10] = [
+    pub const HTTP_READER_PROVIDERS: [ProviderId; 15] = [
         ProviderId::Openrouter,
         ProviderId::Codex,
         ProviderId::Opencode,
@@ -80,10 +90,15 @@ impl ProviderId {
         ProviderId::Commandcode,
         ProviderId::Cline,
         ProviderId::Kilocode,
+        ProviderId::Copilot,
+        ProviderId::Amp,
+        ProviderId::Codebuff,
+        ProviderId::Kiro,
+        ProviderId::Crush,
     ];
 
     /// Providers whose bounded cache rows may be uploaded to account sync.
-    pub const SYNC_ELIGIBLE: [ProviderId; 11] = [
+    pub const SYNC_ELIGIBLE: [ProviderId; 16] = [
         ProviderId::Openrouter,
         ProviderId::Codex,
         ProviderId::Antigravity,
@@ -95,6 +110,11 @@ impl ProviderId {
         ProviderId::Commandcode,
         ProviderId::Cline,
         ProviderId::Kilocode,
+        ProviderId::Copilot,
+        ProviderId::Amp,
+        ProviderId::Codebuff,
+        ProviderId::Kiro,
+        ProviderId::Crush,
     ];
 
     /// The uppercase provider code the TypeScript engine speaks, so a record
@@ -113,6 +133,11 @@ impl ProviderId {
             ProviderId::Commandcode => "COMMANDCODE",
             ProviderId::Cline => "CLINE",
             ProviderId::Kilocode => "KILOCODE",
+            ProviderId::Copilot => "COPILOT",
+            ProviderId::Amp => "AMP",
+            ProviderId::Codebuff => "CODEBUFF",
+            ProviderId::Kiro => "KIRO",
+            ProviderId::Crush => "CRUSH",
         }
     }
 }
@@ -135,6 +160,11 @@ pub enum ReaderId {
     CommandcodeCredits,
     ClineUsage,
     KilocodeBalance,
+    CopilotUser,
+    AmpBalance,
+    CodebuffUsage,
+    KiroUsageLimits,
+    CrushCredits,
 }
 
 /// A source's scheduling shape, without pretending every source has a timer.
@@ -182,7 +212,7 @@ impl ReaderId {
     variant at a time, so they are dead code outside a test build and are
     marked as such rather than deleted: the sweep is the security property. */
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [ReaderId; 11] = [
+    pub const ALL: [ReaderId; 16] = [
         ReaderId::OpenrouterKey,
         ReaderId::OpenrouterCredits,
         ReaderId::CodexUsage,
@@ -194,6 +224,11 @@ impl ReaderId {
         ReaderId::CommandcodeCredits,
         ReaderId::ClineUsage,
         ReaderId::KilocodeBalance,
+        ReaderId::CopilotUser,
+        ReaderId::AmpBalance,
+        ReaderId::CodebuffUsage,
+        ReaderId::KiroUsageLimits,
+        ReaderId::CrushCredits,
     ];
 
     /// Which provider this reader belongs to, so a record's reader and its
@@ -212,6 +247,11 @@ impl ReaderId {
             ReaderId::CommandcodeCredits => ProviderId::Commandcode,
             ReaderId::ClineUsage => ProviderId::Cline,
             ReaderId::KilocodeBalance => ProviderId::Kilocode,
+            ReaderId::CopilotUser => ProviderId::Copilot,
+            ReaderId::AmpBalance => ProviderId::Amp,
+            ReaderId::CodebuffUsage => ProviderId::Codebuff,
+            ReaderId::KiroUsageLimits => ProviderId::Kiro,
+            ReaderId::CrushCredits => ProviderId::Crush,
         }
     }
 
@@ -230,7 +270,12 @@ impl ReaderId {
             | ReaderId::HermesAccount
             | ReaderId::CommandcodeCredits
             | ReaderId::ClineUsage
-            | ReaderId::KilocodeBalance => 300,
+            | ReaderId::KilocodeBalance
+            | ReaderId::CopilotUser
+            | ReaderId::AmpBalance
+            | ReaderId::CodebuffUsage
+            | ReaderId::KiroUsageLimits
+            | ReaderId::CrushCredits => 300,
             ReaderId::AntigravityQuota => 600,
         }
     }
@@ -269,6 +314,16 @@ pub enum CredentialKind {
     ClineSession,
     /// The Kilo Code gateway token Kilo's CLI saved.
     KilocodeSession,
+    /// The GitHub Copilot OAuth token the Copilot sign in saved in `apps.json`.
+    CopilotSession,
+    /// The API key the Amp CLI saved in its `secrets.json`.
+    AmpApiKey,
+    /// The auth token the Codebuff CLI saved in `credentials.json`.
+    CodebuffSession,
+    /// The access token the Kiro CLI saved in its `data.sqlite3`.
+    KiroSession,
+    /// The Charm Hyper token Crush saved in `crush.json`.
+    CrushSession,
 }
 
 impl CredentialKind {
@@ -277,7 +332,7 @@ impl CredentialKind {
     variant at a time, so they are dead code outside a test build and are
     marked as such rather than deleted: the sweep is the security property. */
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [CredentialKind; 11] = [
+    pub const ALL: [CredentialKind; 16] = [
         CredentialKind::OpenrouterInferenceKey,
         CredentialKind::OpenrouterManagementKey,
         CredentialKind::CodexSession,
@@ -289,6 +344,11 @@ impl CredentialKind {
         CredentialKind::CommandcodeApiKey,
         CredentialKind::ClineSession,
         CredentialKind::KilocodeSession,
+        CredentialKind::CopilotSession,
+        CredentialKind::AmpApiKey,
+        CredentialKind::CodebuffSession,
+        CredentialKind::KiroSession,
+        CredentialKind::CrushSession,
     ];
 
     /// The largest secret of this kind that will be accepted, in bytes.
@@ -312,7 +372,12 @@ impl CredentialKind {
             | CredentialKind::HermesSession
             | CredentialKind::CommandcodeApiKey
             | CredentialKind::ClineSession
-            | CredentialKind::KilocodeSession => MAX_KEY_SECRET_BYTES,
+            | CredentialKind::KilocodeSession
+            | CredentialKind::CopilotSession
+            | CredentialKind::AmpApiKey
+            | CredentialKind::CodebuffSession
+            | CredentialKind::KiroSession
+            | CredentialKind::CrushSession => MAX_KEY_SECRET_BYTES,
         }
     }
 
@@ -335,6 +400,11 @@ impl CredentialKind {
             CredentialKind::CommandcodeApiKey => ProviderId::Commandcode,
             CredentialKind::ClineSession => ProviderId::Cline,
             CredentialKind::KilocodeSession => ProviderId::Kilocode,
+            CredentialKind::CopilotSession => ProviderId::Copilot,
+            CredentialKind::AmpApiKey => ProviderId::Amp,
+            CredentialKind::CodebuffSession => ProviderId::Codebuff,
+            CredentialKind::KiroSession => ProviderId::Kiro,
+            CredentialKind::CrushSession => ProviderId::Crush,
         }
     }
 }
@@ -365,6 +435,14 @@ pub enum AuthApplication {
     /// the OpenLimiter identity. This scheme is used only by the two constant
     /// Code Assist quota addresses in `net.rs`.
     GeminiCliBearer,
+    /// `Authorization: token <secret>`, GitHub's OAuth token scheme, with the
+    /// OpenLimiter identity. Used only by the constant Copilot quota address,
+    /// and with no editor or plugin header: no request claims to be an editor.
+    GithubTokenAuthorization,
+    /// A bearer token plus the CodeWhisperer JSON protocol header and target
+    /// for the constant Kiro usage limits address. Its body is built only by
+    /// `net.rs`, from one validated profile.
+    KiroUsageBearer,
 }
 
 /// Everything a probe needs, and nothing it could be talked out of.
@@ -428,7 +506,12 @@ pub const fn reader_route(
             | CredentialKind::HermesSession
             | CredentialKind::CommandcodeApiKey
             | CredentialKind::ClineSession
-            | CredentialKind::KilocodeSession => mismatch,
+            | CredentialKind::KilocodeSession
+            | CredentialKind::CopilotSession
+            | CredentialKind::AmpApiKey
+            | CredentialKind::CodebuffSession
+            | CredentialKind::KiroSession
+            | CredentialKind::CrushSession => mismatch,
         },
         ProviderId::Codex => match credential {
             CredentialKind::CodexSession => Ok(ReaderRoute {
@@ -447,7 +530,12 @@ pub const fn reader_route(
             | CredentialKind::HermesSession
             | CredentialKind::CommandcodeApiKey
             | CredentialKind::ClineSession
-            | CredentialKind::KilocodeSession => mismatch,
+            | CredentialKind::KilocodeSession
+            | CredentialKind::CopilotSession
+            | CredentialKind::AmpApiKey
+            | CredentialKind::CodebuffSession
+            | CredentialKind::KiroSession
+            | CredentialKind::CrushSession => mismatch,
         },
         ProviderId::Antigravity => mismatch,
         ProviderId::Opencode => match credential {
@@ -467,7 +555,12 @@ pub const fn reader_route(
             | CredentialKind::HermesSession
             | CredentialKind::CommandcodeApiKey
             | CredentialKind::ClineSession
-            | CredentialKind::KilocodeSession => mismatch,
+            | CredentialKind::KilocodeSession
+            | CredentialKind::CopilotSession
+            | CredentialKind::AmpApiKey
+            | CredentialKind::CodebuffSession
+            | CredentialKind::KiroSession
+            | CredentialKind::CrushSession => mismatch,
         },
         ProviderId::Grok => match credential {
             CredentialKind::GrokSession => Ok(ReaderRoute {
@@ -486,7 +579,12 @@ pub const fn reader_route(
             | CredentialKind::HermesSession
             | CredentialKind::CommandcodeApiKey
             | CredentialKind::ClineSession
-            | CredentialKind::KilocodeSession => mismatch,
+            | CredentialKind::KilocodeSession
+            | CredentialKind::CopilotSession
+            | CredentialKind::AmpApiKey
+            | CredentialKind::CodebuffSession
+            | CredentialKind::KiroSession
+            | CredentialKind::CrushSession => mismatch,
         },
         ProviderId::Kimi => match credential {
             CredentialKind::KimiSession => Ok(ReaderRoute {
@@ -505,7 +603,12 @@ pub const fn reader_route(
             | CredentialKind::HermesSession
             | CredentialKind::CommandcodeApiKey
             | CredentialKind::ClineSession
-            | CredentialKind::KilocodeSession => mismatch,
+            | CredentialKind::KilocodeSession
+            | CredentialKind::CopilotSession
+            | CredentialKind::AmpApiKey
+            | CredentialKind::CodebuffSession
+            | CredentialKind::KiroSession
+            | CredentialKind::CrushSession => mismatch,
         },
         ProviderId::Cursor => match credential {
             CredentialKind::CursorSession => Ok(ReaderRoute {
@@ -524,7 +627,12 @@ pub const fn reader_route(
             | CredentialKind::HermesSession
             | CredentialKind::CommandcodeApiKey
             | CredentialKind::ClineSession
-            | CredentialKind::KilocodeSession => mismatch,
+            | CredentialKind::KilocodeSession
+            | CredentialKind::CopilotSession
+            | CredentialKind::AmpApiKey
+            | CredentialKind::CodebuffSession
+            | CredentialKind::KiroSession
+            | CredentialKind::CrushSession => mismatch,
         },
         ProviderId::Hermes => match credential {
             CredentialKind::HermesSession => Ok(ReaderRoute {
@@ -543,7 +651,12 @@ pub const fn reader_route(
             | CredentialKind::CursorSession
             | CredentialKind::CommandcodeApiKey
             | CredentialKind::ClineSession
-            | CredentialKind::KilocodeSession => mismatch,
+            | CredentialKind::KilocodeSession
+            | CredentialKind::CopilotSession
+            | CredentialKind::AmpApiKey
+            | CredentialKind::CodebuffSession
+            | CredentialKind::KiroSession
+            | CredentialKind::CrushSession => mismatch,
         },
         ProviderId::Commandcode => match credential {
             CredentialKind::CommandcodeApiKey => Ok(ReaderRoute {
@@ -562,7 +675,12 @@ pub const fn reader_route(
             | CredentialKind::CursorSession
             | CredentialKind::HermesSession
             | CredentialKind::ClineSession
-            | CredentialKind::KilocodeSession => mismatch,
+            | CredentialKind::KilocodeSession
+            | CredentialKind::CopilotSession
+            | CredentialKind::AmpApiKey
+            | CredentialKind::CodebuffSession
+            | CredentialKind::KiroSession
+            | CredentialKind::CrushSession => mismatch,
         },
         ProviderId::Cline => match credential {
             CredentialKind::ClineSession => Ok(ReaderRoute {
@@ -581,7 +699,12 @@ pub const fn reader_route(
             | CredentialKind::CursorSession
             | CredentialKind::HermesSession
             | CredentialKind::CommandcodeApiKey
-            | CredentialKind::KilocodeSession => mismatch,
+            | CredentialKind::KilocodeSession
+            | CredentialKind::CopilotSession
+            | CredentialKind::AmpApiKey
+            | CredentialKind::CodebuffSession
+            | CredentialKind::KiroSession
+            | CredentialKind::CrushSession => mismatch,
         },
         ProviderId::Kilocode => match credential {
             CredentialKind::KilocodeSession => Ok(ReaderRoute {
@@ -600,7 +723,132 @@ pub const fn reader_route(
             | CredentialKind::CursorSession
             | CredentialKind::HermesSession
             | CredentialKind::CommandcodeApiKey
-            | CredentialKind::ClineSession => mismatch,
+            | CredentialKind::ClineSession
+            | CredentialKind::CopilotSession
+            | CredentialKind::AmpApiKey
+            | CredentialKind::CodebuffSession
+            | CredentialKind::KiroSession
+            | CredentialKind::CrushSession => mismatch,
+        },
+        ProviderId::Copilot => match credential {
+            CredentialKind::CopilotSession => Ok(ReaderRoute {
+                reader_id: ReaderId::CopilotUser,
+                endpoint: Some(ProviderEndpoint::CopilotUser),
+                auth: AuthApplication::GithubTokenAuthorization,
+            }),
+            CredentialKind::OpenrouterInferenceKey
+            | CredentialKind::OpenrouterManagementKey
+            | CredentialKind::CodexSession
+            | CredentialKind::AntigravitySession
+            | CredentialKind::OpencodeBrowserSession
+            | CredentialKind::OpencodeApiKey
+            | CredentialKind::GrokSession
+            | CredentialKind::KimiSession
+            | CredentialKind::CursorSession
+            | CredentialKind::HermesSession
+            | CredentialKind::CommandcodeApiKey
+            | CredentialKind::ClineSession
+            | CredentialKind::KilocodeSession
+            | CredentialKind::AmpApiKey
+            | CredentialKind::CodebuffSession
+            | CredentialKind::KiroSession
+            | CredentialKind::CrushSession => mismatch,
+        },
+        ProviderId::Amp => match credential {
+            CredentialKind::AmpApiKey => Ok(ReaderRoute {
+                reader_id: ReaderId::AmpBalance,
+                endpoint: Some(ProviderEndpoint::AmpBalance),
+                auth: AuthApplication::BearerAuthorization,
+            }),
+            CredentialKind::OpenrouterInferenceKey
+            | CredentialKind::OpenrouterManagementKey
+            | CredentialKind::CodexSession
+            | CredentialKind::AntigravitySession
+            | CredentialKind::OpencodeBrowserSession
+            | CredentialKind::OpencodeApiKey
+            | CredentialKind::GrokSession
+            | CredentialKind::KimiSession
+            | CredentialKind::CursorSession
+            | CredentialKind::HermesSession
+            | CredentialKind::CommandcodeApiKey
+            | CredentialKind::ClineSession
+            | CredentialKind::KilocodeSession
+            | CredentialKind::CopilotSession
+            | CredentialKind::CodebuffSession
+            | CredentialKind::KiroSession
+            | CredentialKind::CrushSession => mismatch,
+        },
+        ProviderId::Codebuff => match credential {
+            CredentialKind::CodebuffSession => Ok(ReaderRoute {
+                reader_id: ReaderId::CodebuffUsage,
+                endpoint: Some(ProviderEndpoint::CodebuffUsage),
+                auth: AuthApplication::BearerAuthorization,
+            }),
+            CredentialKind::OpenrouterInferenceKey
+            | CredentialKind::OpenrouterManagementKey
+            | CredentialKind::CodexSession
+            | CredentialKind::AntigravitySession
+            | CredentialKind::OpencodeBrowserSession
+            | CredentialKind::OpencodeApiKey
+            | CredentialKind::GrokSession
+            | CredentialKind::KimiSession
+            | CredentialKind::CursorSession
+            | CredentialKind::HermesSession
+            | CredentialKind::CommandcodeApiKey
+            | CredentialKind::ClineSession
+            | CredentialKind::KilocodeSession
+            | CredentialKind::CopilotSession
+            | CredentialKind::AmpApiKey
+            | CredentialKind::KiroSession
+            | CredentialKind::CrushSession => mismatch,
+        },
+        ProviderId::Kiro => match credential {
+            CredentialKind::KiroSession => Ok(ReaderRoute {
+                reader_id: ReaderId::KiroUsageLimits,
+                endpoint: Some(ProviderEndpoint::KiroUsageLimits),
+                auth: AuthApplication::KiroUsageBearer,
+            }),
+            CredentialKind::OpenrouterInferenceKey
+            | CredentialKind::OpenrouterManagementKey
+            | CredentialKind::CodexSession
+            | CredentialKind::AntigravitySession
+            | CredentialKind::OpencodeBrowserSession
+            | CredentialKind::OpencodeApiKey
+            | CredentialKind::GrokSession
+            | CredentialKind::KimiSession
+            | CredentialKind::CursorSession
+            | CredentialKind::HermesSession
+            | CredentialKind::CommandcodeApiKey
+            | CredentialKind::ClineSession
+            | CredentialKind::KilocodeSession
+            | CredentialKind::CopilotSession
+            | CredentialKind::AmpApiKey
+            | CredentialKind::CodebuffSession
+            | CredentialKind::CrushSession => mismatch,
+        },
+        ProviderId::Crush => match credential {
+            CredentialKind::CrushSession => Ok(ReaderRoute {
+                reader_id: ReaderId::CrushCredits,
+                endpoint: Some(ProviderEndpoint::CrushCredits),
+                auth: AuthApplication::BearerAuthorization,
+            }),
+            CredentialKind::OpenrouterInferenceKey
+            | CredentialKind::OpenrouterManagementKey
+            | CredentialKind::CodexSession
+            | CredentialKind::AntigravitySession
+            | CredentialKind::OpencodeBrowserSession
+            | CredentialKind::OpencodeApiKey
+            | CredentialKind::GrokSession
+            | CredentialKind::KimiSession
+            | CredentialKind::CursorSession
+            | CredentialKind::HermesSession
+            | CredentialKind::CommandcodeApiKey
+            | CredentialKind::ClineSession
+            | CredentialKind::KilocodeSession
+            | CredentialKind::CopilotSession
+            | CredentialKind::AmpApiKey
+            | CredentialKind::CodebuffSession
+            | CredentialKind::KiroSession => mismatch,
         },
     }
 }
@@ -741,6 +989,11 @@ mod tests {
             (ProviderId::Commandcode, "COMMANDCODE"),
             (ProviderId::Cline, "CLINE"),
             (ProviderId::Kilocode, "KILOCODE"),
+            (ProviderId::Copilot, "COPILOT"),
+            (ProviderId::Amp, "AMP"),
+            (ProviderId::Codebuff, "CODEBUFF"),
+            (ProviderId::Kiro, "KIRO"),
+            (ProviderId::Crush, "CRUSH"),
         ];
         for (provider, code) in pairs {
             assert_eq!(provider.code(), code);
@@ -761,6 +1014,11 @@ mod tests {
             (ReaderId::CommandcodeCredits, 300),
             (ReaderId::ClineUsage, 300),
             (ReaderId::KilocodeBalance, 300),
+            (ReaderId::CopilotUser, 300),
+            (ReaderId::AmpBalance, 300),
+            (ReaderId::CodebuffUsage, 300),
+            (ReaderId::KiroUsageLimits, 300),
+            (ReaderId::CrushCredits, 300),
         ];
         for (reader, seconds) in expected {
             assert_eq!(reader.base_seconds(), seconds);

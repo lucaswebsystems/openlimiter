@@ -1,0 +1,31 @@
+{
+  "provider": "kiro",
+  "case": "two-credits",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "usageBreakdownList": [
+      {
+        "resourceType": "CREDIT",
+        "currentUsageWithPrecision": 1,
+        "usageLimitWithPrecision": 10,
+        "currentOveragesWithPrecision": 0,
+        "currency": "USD",
+        "nextDateReset": 1788220800
+      },
+      {
+        "resourceType": "CREDIT",
+        "currentUsageWithPrecision": 2,
+        "usageLimitWithPrecision": 10,
+        "currentOveragesWithPrecision": 0,
+        "currency": "USD",
+        "nextDateReset": 1788220800
+      }
+    ],
+    "overageConfiguration": {
+      "overageStatus": "DISABLED"
+    }
+  }
+}

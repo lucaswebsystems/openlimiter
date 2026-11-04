@@ -75,3 +75,5 @@ DeepSeek's mark is the whale from the official logo file in DeepSeek's own GitHu
 Kilo Code's mark is the logo from Kilo Code's own repository (`Kilo-Org/kilocode`, `packages/kilo-docs/public/img/logo.svg` at commit `080ca6c4`, MIT licence), its coordinates scaled from the 100 box into the 24 box with the shape unchanged and drawn on `currentColor` as the source file is.
 
 Hermes, Command Code and Cline show their initials. Hermes's repository ships only an illustration, not a mark that reads at 16px; Command Code's package is unlicensed; no Cline repository was available to take an official file from.
+
+GitHub Copilot, Amp, Codebuff, Kiro and Crush show their initials too. No official mark with a licence that allows it was found in a source of their own: GitHub's brand terms govern the Copilot logo, Amp and Kiro ship closed binaries, and neither the Codebuff repository (Apache 2.0) nor the Crush repository carries a logo file.

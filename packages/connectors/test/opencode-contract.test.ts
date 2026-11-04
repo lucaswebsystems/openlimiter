@@ -156,7 +156,9 @@ describe("opencode: the connector around it", () => {
     expect(opencodeConnector.encoding).toBe("json");
     expect(connectorMaturity(opencodeConnector)).toBe("beta");
     for (const connector of connectors) {
-      const experimental = ["cursor", "hermes", "commandcode", "cline", "kilocode"];
+      const experimental = [
+        "cursor", "hermes", "commandcode", "cline", "kilocode", "copilot", "amp", "codebuff", "kiro", "crush"
+      ];
       const expected = connector.id === "opencode" ? "beta" : experimental.includes(connector.id) ? "experimental" : "stable";
       expect(connectorMaturity(connector), connector.id).toBe(expected);
     }

@@ -1,60 +1,90 @@
-# GitHub Copilot. The only one of the three coding assistant tools in this
-# research pass, Copilot, Cursor, Windsurf, whose usage API also works for
-# an ordinary individual user rather than only a team or enterprise admin.
-# GET /users/{username}/settings/billing/usage/summary and three sibling
-# paths, /usage, /premium_request/usage, /ai_credit/usage, are documented at
-# the source_url, reachable with a normal bearer token. The exact OAuth
-# scope or fine grained PAT permission the endpoint needs was not stated on
-# the page read: unknown, not guessed, flagged here and in RESEARCH.md.
+# GitHub Copilot, and its premium request and chat quotas.
 #
-# GitHub is also mid migration: the billing unit changed from "premium
-# requests" to "GitHub AI Credits" on 2026-06-01, and both terms still
-# appear across current docs, so the response shape may still move. The
-# documented sample response is a per line item array, usageItems, each
-# with product, sku, model, unitType, pricePerUnit, grossQuantity,
-# grossAmount, netQuantity, netAmount: there is no single confirmed
-# aggregate "percent of monthly credits used" field, so source_path below
-# names the array itself. A real parser would need to sum it, which this
-# file's plain dotted path cannot express.
+# The desktop reads the sign in the GitHub Copilot editor and language server
+# saved: apps.json under local application data on Windows and ~/.config
+# elsewhere, the entry github.com:Iv1.b507a08c87ecfe98 (the GitHub Copilot
+# OAuth app), field oauth_token, account user. An entry for any other host,
+# an enterprise one included, or any other app is never read. Read only; the
+# token does not expire and is never refreshed. No generic GitHub credential
+# is read: never gh auth token, never a GitHub CLI login.
 #
-# Documented monthly credit allotments: Pro 1500, Pro+ 7000, Max 20000,
-# Business 1900 per user, Enterprise 3900 per user, resetting at
-# 00:00:00 UTC on the first of each calendar month. Free tier states "an
-# allowance of AI credits" without publishing the exact number.
+# Verified in source: Crush (charmbracelet/crush, internal/oauth/copilot/
+# disk.go) reads the same file, key and field; CodexBar (Sources/CodexBarCore/
+# Providers/Copilot/CopilotUsageFetcher.swift) reads the address below with
+# that app's OAuth token as Authorization: token <t>, and
+# CopilotUsageModels.swift the reply: quota_snapshots.premium_interactions and
+# quota_snapshots.chat, percent used = 100 minus percent_remaining, unlimited
+# draws no bar, reset at quota_reset_date. GitHub documents none of it. The
+# address is a Rust constant in apps/desktop/src-tauri/src/net.rs, and the
+# request carries no editor or plugin header: CodexBar sends ones that claim
+# to be VS Code, this does not, and whether the address answers without them
+# is verified on the first install that has a Copilot login.
+#
+# Not read: the Copilot CLI's own login. The current Copilot CLI keeps it in
+# the system credential store under copilot-cli, or in ~/.copilot/config.json
+# when no store is available, and both formats live in the CLI's native
+# runtime: the npm bundle (@github/copilot-win32-x64 1.0.105) states the
+# service name but no readable account name or value format, so neither is
+# read. GitHub's documented billing usage API (docs.github.com/en/rest/
+# billing/usage) needs a personal access token and is not read either.
 
 provider_id: github
 product_id: copilot
 display_name: GitHub Copilot
 
-headlineMeter: ai_credits
-acquisitionSurfaces: []
-displaySurfaces: []
+headlineMeter: premium
+acquisitionSurfaces:
+  - desktop
+displaySurfaces:
+  - desktop
+  - rail
+  - tray
+  - cli_cache
+  - web
+  - phone
 platforms:
   - windows
   - macos
   - linux
-acquisitionMethod: remote_http_official
-d5Review: Recipe only; no shipped reader.
-maturity: planned
+acquisitionMethod: remote_http_internal
+d5Review: Reads the sign in the Copilot editor login saved, read only and never refreshed. Only api.github.com receives the token, for the github.com Copilot app alone. Honest OpenLimiter identity, no editor header.
+maturity: experimental
+directory:
+  order: 14
+  rowId: github/copilot
+  label: GitHub Copilot
+  connectorId: copilot
+  access: automatic
 
 source:
-  docs_url: https://docs.github.com/en/rest/billing/usage
-  reviewed_at: "2026-08-10"
-  source_status: official
+  docs_url: null
+  reviewed_at: "2026-11-04"
+  source_status: provisional
 
 availability:
   requires_plan: any
-  appears_after: credential_stored
-  absence_is_error: true
+  appears_after: local_cli_login
+  absence_is_error: false
 
 support:
-  parser: absent
-  reader: absent
-  auth: absent
+  parser: implemented
+  reader: implemented
+  auth: implemented
+
+collection:
+  reader: implemented
+  auth: implemented
+  readers:
+    - reader_id: copilot_user
+      endpoint_id: copilot_user
+      credential_kind: copilot_session
+      evidence_fixture: copilot.provisional.user
+      evidence_status: pending_capture
+      last_verified_at: null
 
 connections:
-  - reader: official_remote_api
-    auth_mode: oauth
+  - reader: experimental
+    auth_mode: existing_local_cli
     platforms:
       - windows
       - macos
@@ -64,18 +94,64 @@ verification:
   verification_status: unverified
   last_verified_at: null
   fixture_ids:
-    - github.documented.usage
+    - copilot.provisional.user
+    - copilot.live.pending
+
+honesty:
+  connector_id: copilot
+  credential_origin: official-local-tool
+  data_interface_status: internal-endpoint
+  automation_risk: high
+  verification: UNVERIFIED
+
+provenance:
+  endpoint_terms: unreviewed
+  terms_note: The GitHub terms of service and API terms govern api.github.com; they were not reviewed for this internal address.
+  sources:
+    - name: CodexBar
+      repository: steipete/CodexBar
+      files:
+        - Sources/CodexBarCore/Providers/Copilot/CopilotUsageFetcher.swift
+        - Sources/CodexBarCore/CopilotUsageModels.swift
+        - Sources/CodexBarCore/Providers/Copilot/CopilotDeviceFlow.swift
+      licence: MIT
+    - name: Crush
+      repository: charmbracelet/crush
+      files:
+        - internal/oauth/copilot/disk.go
+      licence: FSL-1.1-MIT
+    - name: GitHub Copilot CLI
+      package: "@github/copilot-win32-x64@1.0.105"
+      files:
+        - copilot.exe embedded runtime.node (strings only)
+      licence: proprietary
+  mark: initials
+  mark_licence: null
 
 meters:
-  - id: ai_credits
-    label: AI credits used this month
-    kind: credits
+  - id: premium
+    label: Premium requests
+    kind: subscription_quota
     unit: percent_used
     scope: account
     window:
       kind: calendar_month
-    source_path: usageItems
-    reset_path: null
-    reset_encoding: none
+    source_format: json_path
+    source_path: quota_snapshots.premium_interactions.percent_remaining
+    reset_path: quota_reset_date
+    reset_encoding: iso8601
     optional: true
-    meter_code: AI_CREDITS
+    meter_code: PREMIUM
+  - id: chat
+    label: Chat
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: calendar_month
+    source_format: json_path
+    source_path: quota_snapshots.chat.percent_remaining
+    reset_path: quota_reset_date
+    reset_encoding: iso8601
+    optional: true
+    meter_code: CHAT

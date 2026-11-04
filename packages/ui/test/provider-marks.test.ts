@@ -16,9 +16,13 @@ import type { ProviderCode } from "@openlimiter/core";
 
 const MARKS_DIRECTORY = path.join(process.cwd(), "packages", "ui", "src", "marks");
 
-// Cursor, Hermes, Command Code and Cline use a text fallback: no official
-// mark with a licence that allows it was found in their own repositories.
-type MarkProvider = Exclude<ProviderCode, "CURSOR" | "HERMES" | "COMMANDCODE" | "CLINE"> | "DEEPSEEK";
+// Cursor, Hermes, Command Code, Cline, GitHub Copilot, Amp, Codebuff, Kiro
+// and Crush use a text fallback: no official mark with a licence that allows
+// it was found in their own repositories.
+type MarkProvider = Exclude<
+  ProviderCode,
+  "CURSOR" | "HERMES" | "COMMANDCODE" | "CLINE" | "COPILOT" | "AMP" | "CODEBUFF" | "KIRO" | "CRUSH"
+> | "DEEPSEEK";
 
 const FILE_BY_PROVIDER: Readonly<Record<MarkProvider, string>> = {
   CLAUDE: "claude.svg",

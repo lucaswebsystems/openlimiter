@@ -1,0 +1,153 @@
+# Codebuff, its credit balance and its weekly limit.
+#
+# The desktop reads the sign in the Codebuff CLI saved: credentials.json in
+# ~/.config/manicode on every system, the default profile's authToken, its
+# account the profile's id. Read only; the token does not expire. A profile
+# whose token moved to the system keychain (tokenStore keychain, the Freebuff
+# CLI's choice) holds no token in the file and is not read.
+#
+# Verified in source (CodebuffAI/codebuff at 0955f4f, Apache 2.0):
+# cli/src/utils/config-dir.ts and auth.ts place the file and the profile;
+# cli/src/hooks/use-usage-query.ts posts /api/v1/usage and reads
+# remainingBalance, in Codebuff credits; use-subscription-query.ts makes the
+# plain GET /api/user/subscription, and common/src/types/subscription.ts
+# types rateLimit.weeklyUsed, weeklyLimit and weeklyResetsAt. Codebuff
+# documents none of it. Both addresses are Rust constants in
+# apps/desktop/src-tauri/src/net.rs: the subscription is the usage address's
+# one companion, read with the same token only after the balance answered,
+# and every reply of the pass follows the same refusal and rate rules.
+#
+# The request follows CodexBar (CodebuffUsageFetcher.swift), not the CLI: the
+# token travels in the Authorization header rather than in the body, and the
+# body's fingerprintId is a constant that names OpenLimiter
+# (openlimiter-usage). The CLI sends its own constant, cli-usage, and the
+# stored fingerprint is never read or sent.
+
+provider_id: codebuff
+product_id: codebuff
+display_name: Codebuff
+
+headlineMeter: weekly
+acquisitionSurfaces:
+  - desktop
+displaySurfaces:
+  - desktop
+  - rail
+  - tray
+  - cli_cache
+  - web
+  - phone
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: remote_http_internal
+d5Review: Reads the sign in the Codebuff CLI saved, read only. Only codebuff.com receives the token, in the Authorization header of two constant requests. Honest OpenLimiter identity, nothing taken from the file but the token.
+maturity: experimental
+directory:
+  order: 16
+  rowId: codebuff/codebuff
+  label: Codebuff
+  connectorId: codebuff
+  access: automatic
+
+source:
+  docs_url: https://github.com/CodebuffAI/codebuff/blob/main/cli/src/hooks/use-usage-query.ts
+  reviewed_at: "2026-11-04"
+  source_status: provisional
+
+availability:
+  requires_plan: any
+  appears_after: local_cli_login
+  absence_is_error: false
+
+support:
+  parser: implemented
+  reader: implemented
+  auth: implemented
+
+collection:
+  reader: implemented
+  auth: implemented
+  readers:
+    - reader_id: codebuff_usage
+      endpoint_id: codebuff_usage
+      credential_kind: codebuff_session
+      evidence_fixture: codebuff.official_source.usage
+      evidence_status: pending_capture
+      last_verified_at: null
+
+connections:
+  - reader: experimental
+    auth_mode: existing_local_cli
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  fixture_ids:
+    - codebuff.official_source.usage
+    - codebuff.live.pending
+
+honesty:
+  connector_id: codebuff
+  credential_origin: official-local-tool
+  data_interface_status: internal-endpoint
+  automation_risk: high
+  verification: UNVERIFIED
+
+provenance:
+  endpoint_terms: unreviewed
+  sources:
+    - name: Codebuff
+      repository: CodebuffAI/codebuff
+      files:
+        - cli/src/utils/config-dir.ts
+        - cli/src/utils/auth.ts
+        - cli/src/utils/auth-token-store.ts
+        - cli/src/hooks/use-usage-query.ts
+        - cli/src/hooks/use-subscription-query.ts
+        - common/src/types/subscription.ts
+      licence: Apache-2.0
+    - name: CodexBar
+      repository: steipete/CodexBar
+      files:
+        - Sources/CodexBarCore/Providers/Codebuff/CodebuffUsageFetcher.swift
+        - Sources/CodexBarCore/Providers/Codebuff/CodebuffSettingsReader.swift
+      licence: MIT
+  mark: initials
+  mark_licence: null
+
+meters:
+  - id: weekly
+    label: Weekly limit
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: rolling
+      duration_seconds: 604800
+    source_format: json_path
+    source_path: rateLimit.weeklyUsed
+    reset_path: rateLimit.weeklyResetsAt
+    reset_encoding: rfc3339
+    optional: true
+    meter_code: SEVEN_DAY
+  # Codebuff credits, not money: drawn as a count of credits left. The
+  # registry's balance unit is currency; the readers set no money kind.
+  - id: balance
+    label: Credits left
+    kind: credits
+    unit: currency
+    scope: account
+    window:
+      kind: credit_balance
+    source_format: json_path
+    source_path: remainingBalance
+    reset_path: null
+    reset_encoding: none
+    optional: false
+    meter_code: BALANCE

@@ -1,0 +1,19 @@
+{
+  "provider": "codebuff",
+  "case": "negative-balance",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "type": "usage-response",
+    "usage": 80,
+    "remainingBalance": -5,
+    "balanceBreakdown": {
+      "free": 100,
+      "paid": 320
+    },
+    "next_quota_reset": null,
+    "autoTopupEnabled": false
+  }
+}

@@ -48,10 +48,15 @@ import { parseManualPayload } from "./manual";
 import { parseOpencodePayload } from "./opencode";
 import { parseOpenrouterPayload } from "./openrouter";
 import {
+  parseAmpPayload,
   parseClinePayload,
+  parseCodebuffPayload,
   parseCommandcodePayload,
+  parseCopilotPayload,
+  parseCrushPayload,
   parseHermesPayload,
-  parseKilocodePayload
+  parseKilocodePayload,
+  parseKiroPayload
 } from "./tool-logins";
 
 /** Why a provider is unknown, in a closed vocabulary a surface can switch on. */
@@ -90,6 +95,11 @@ const PARSER_BY_PROVIDER: Readonly<Partial<Record<ProviderCode, Parser>>> = {
   COMMANDCODE: parseCommandcodePayload,
   CLINE: parseClinePayload,
   KILOCODE: parseKilocodePayload,
+  COPILOT: parseCopilotPayload,
+  AMP: parseAmpPayload,
+  CODEBUFF: parseCodebuffPayload,
+  KIRO: parseKiroPayload,
+  CRUSH: parseCrushPayload,
   MANUAL: parseManualPayload
 };
 

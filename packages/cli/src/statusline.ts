@@ -60,6 +60,11 @@ const PROVIDER_CLASS: Record<ProviderCode, "subscription" | "api"> = {
   COMMANDCODE: "subscription",
   CLINE: "subscription",
   KILOCODE: "api",
+  COPILOT: "subscription",
+  AMP: "subscription",
+  CODEBUFF: "subscription",
+  KIRO: "subscription",
+  CRUSH: "api",
   MANUAL: "subscription",
   OPENROUTER: "api"
 };
@@ -767,6 +772,11 @@ export const PROVIDER_SHORT_TAGS: Readonly<Record<ProviderCode, string>> = {
   COMMANDCODE: "cm",
   CLINE: "cn",
   KILOCODE: "kl",
+  COPILOT: "cp",
+  AMP: "am",
+  CODEBUFF: "cb",
+  KIRO: "kr",
+  CRUSH: "cr",
   OPENCODE: "oc",
   OPENROUTER: "or",
   MANUAL: "mn"

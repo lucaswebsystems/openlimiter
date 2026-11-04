@@ -8,7 +8,7 @@ import { providerCode } from "./names.js";
  * rules. This list only answers which providers a person has in play.
  */
 const KNOWN = new Set(["CLAUDE", "CODEX", "ANTIGRAVITY", "GEMINI_CLI", "GROK", "KIMI", "OPENROUTER", "OPENCODE", "CURSOR",
-  "HERMES", "COMMANDCODE", "CLINE", "KILOCODE"]);
+  "HERMES", "COMMANDCODE", "CLINE", "KILOCODE", "COPILOT", "AMP", "CODEBUFF", "KIRO", "CRUSH"]);
 
 function code(value) {
   const normalized = providerCode(value);

@@ -1170,10 +1170,10 @@
       "providers": {
         "title": "Supported providers",
         "description": "Die acht heute verfügbaren Connectoren und manual entry: wie du jeden verbindest, was er liest und wie wahrscheinlich er ausfällt.",
-        "lead": "Heute gibt es zwölf Connectoren und die manuelle Eingabe, und die Desktop Anwendung liest Cursor zusätzlich als experimentellen Connector. Jeder trägt ehrliche Hinweise zur Herkunft seiner Zugangsdaten, zur offiziellen Datenoberfläche und zur Ausfallwahrscheinlichkeit.",
+        "lead": "Heute gibt es siebzehn Connectoren und die manuelle Eingabe, und die Desktop Anwendung liest Cursor zusätzlich als experimentellen Connector. Jeder trägt ehrliche Hinweise zur Herkunft seiner Zugangsdaten, zur offiziellen Datenoberfläche und zur Ausfallwahrscheinlichkeit.",
         "sections": {
           "the-nine": {
-            "title": "Die zwölf Connectoren und die manuelle Eingabe",
+            "title": "Die siebzehn Connectoren und die manuelle Eingabe",
             "caption": "Heute verfügbare Connectoren, ihre Verbindung und ihre Messwerte",
             "columns": {
               "id": "id",
@@ -1232,6 +1232,26 @@
               "kilocode": {
                 "connect": "Die Anmeldung verwenden, die Kilo Code bereits gespeichert hat.",
                 "reads": "Dein persönliches Kilo Code Guthaben in US Dollar, über einen nicht dokumentierten Endpunkt. Kann ohne Vorwarnung ausfallen."
+              },
+              "copilot": {
+                "connect": "Die Anmeldung verwenden, die GitHub Copilot bereits in deinem Editor gespeichert hat. OpenLimiter liest nie eine Anmeldung der GitHub CLI.",
+                "reads": "Deine Kontingente für Premium Anfragen und Chat, über einen nicht dokumentierten Endpunkt. Kann ohne Vorwarnung ausfallen."
+              },
+              "amp": {
+                "connect": "Den API Schlüssel verwenden, den die Amp CLI bereits gespeichert hat.",
+                "reads": "Dein Amp Free Kontingent und dein verbleibendes Guthaben, über einen nicht dokumentierten Endpunkt. Kann ohne Vorwarnung ausfallen."
+              },
+              "codebuff": {
+                "connect": "Die Anmeldung verwenden, die die Codebuff CLI bereits gespeichert hat.",
+                "reads": "Deine verbleibenden Kredite und dein Wochenlimit, über nicht dokumentierte Endpunkte. Kann ohne Vorwarnung ausfallen."
+              },
+              "kiro": {
+                "connect": "Die Anmeldung verwenden, die die Kiro CLI unter macOS und Linux bereits gespeichert hat. OpenLimiter erneuert sie nie, öffne Kiro also einmal, wenn sie abläuft.",
+                "reads": "Deine monatlichen Kredite, über einen nicht dokumentierten Endpunkt. Profile außerhalb der Region US East (N. Virginia) werden noch nicht gelesen. Kann ohne Vorwarnung ausfallen."
+              },
+              "crush": {
+                "connect": "Die Hyper Anmeldung verwenden, die Crush bereits gespeichert hat. OpenLimiter erneuert sie nie, öffne Crush also einmal, wenn sie abläuft.",
+                "reads": "Deine verbleibenden Charm Hyper Kredite, über einen nicht dokumentierten Endpunkt. Kann ohne Vorwarnung ausfallen."
               }
             },
             "calloutTitle": "Noch ist kein Connector gegen ein echtes Konto verifiziert",
@@ -1248,7 +1268,7 @@
               "live": "<code>codex</code>, <code>gemini_cli</code>, <code>grok</code>, <code>kimi</code> und <code>openrouter</code> lesen die vom jeweiligen Tool gespeicherte Anmeldung höchstens alle fünfzehn Minuten. Dies übernimmt die Aktualisierung der Desktopanwendung oder <code>openlimiter refresh</code> im Terminal.",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
               "ingestOnly": "Die Desktopanwendung liest <code>opencode</code> mit der Anmeldung, die die opencode CLI auf diesem Computer gespeichert hat, nur lesend und nie erneuert, oder mit einem eingefügten OpenCode API Schlüssel. Gelesen wird die rollierende, wöchentliche und monatliche Nutzung von OpenCode Go über einen einzigen nicht dokumentierten Endpunkt, daher ist das Automatisierungsrisiko hoch.",
-              "toolLogins": "Die Desktopanwendung liest <code>hermes</code>, <code>commandcode</code>, <code>cline</code> und <code>kilocode</code> alle fünf Minuten mit der Anmeldung, die das jeweilige Werkzeug auf diesem Computer gespeichert hat, nur lesend und nie erneuert. Jedes Token geht nur an den nicht dokumentierten Endpunkt seines eigenen Werkzeugs, daher tragen sie ein hohes Automatisierungsrisiko."
+              "toolLogins": "Die Desktopanwendung liest <code>hermes</code>, <code>commandcode</code>, <code>cline</code>, <code>kilocode</code>, <code>copilot</code>, <code>amp</code>, <code>codebuff</code>, <code>kiro</code> und <code>crush</code> alle fünf Minuten mit der Anmeldung, die das jeweilige Werkzeug auf diesem Computer gespeichert hat, nur lesend und nie erneuert. Jedes Token geht nur an den nicht dokumentierten Endpunkt seines eigenen Werkzeugs, daher tragen sie ein hohes Automatisierungsrisiko."
             },
             "exactShapes": "Die <docs>Seite zur Datenaufnahme</docs> beschreibt das manuelle Format vollständig."
           },
@@ -2217,6 +2237,14 @@
     "clineWeekly": "Wöchentliches Limit",
     "clineMonthly": "Monatliches Limit",
     "kilocodeBalance": "Guthaben",
+    "copilotPremium": "Premium Anfragen",
+    "copilotChat": "Chat",
+    "ampFree": "Amp Free Kontingent",
+    "ampBalance": "Guthaben",
+    "codebuffWeekly": "Wöchentliches Limit",
+    "codebuffBalance": "Verbleibende Kredite",
+    "kiroMonthly": "Monatliche Kredite",
+    "crushBalance": "Guthaben",
     "noKeyCap": "Kein Limit für den Schlüssel",
     "keyNoSpendingCap": "Dieser Schlüssel hat kein Ausgabenlimit",
     "unavailableScope": "Nicht verfügbar",

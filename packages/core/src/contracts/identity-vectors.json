@@ -260,6 +260,106 @@
     "expected": "kilocode-b736871745ef2ec039ff585b"
   },
   {
+    "provider": "COPILOT",
+    "material": "fixture-account-a",
+    "expected": "copilot-72279ffa4ed3f3105e9b8760"
+  },
+  {
+    "provider": "COPILOT",
+    "material": "fixture-account-b",
+    "expected": "copilot-ae4143db2aa08e48580a2469"
+  },
+  {
+    "provider": "COPILOT",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "copilot-e424c64f36ea96765dae0f40"
+  },
+  {
+    "provider": "COPILOT",
+    "material": "fixture-?",
+    "expected": "copilot-c9c102c4e8ddbfa996d67951"
+  },
+  {
+    "provider": "AMP",
+    "material": "fixture-account-a",
+    "expected": "amp-f012ba865ec9e1e6a35efcb2"
+  },
+  {
+    "provider": "AMP",
+    "material": "fixture-account-b",
+    "expected": "amp-111ec80be278e74fa87e2549"
+  },
+  {
+    "provider": "AMP",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "amp-748efe1fed301883b55ef3ac"
+  },
+  {
+    "provider": "AMP",
+    "material": "fixture-?",
+    "expected": "amp-c6c6076cfa8dde2e0a92b0fa"
+  },
+  {
+    "provider": "CODEBUFF",
+    "material": "fixture-account-a",
+    "expected": "codebuff-77b2196b276636d0e97cf789"
+  },
+  {
+    "provider": "CODEBUFF",
+    "material": "fixture-account-b",
+    "expected": "codebuff-0d80754849abd8fb1ebc04c3"
+  },
+  {
+    "provider": "CODEBUFF",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "codebuff-4506314043b37d3b5012cad6"
+  },
+  {
+    "provider": "CODEBUFF",
+    "material": "fixture-?",
+    "expected": "codebuff-b4df33777733b0a4d205ecea"
+  },
+  {
+    "provider": "KIRO",
+    "material": "fixture-account-a",
+    "expected": "kiro-132751b8505c155770d78503"
+  },
+  {
+    "provider": "KIRO",
+    "material": "fixture-account-b",
+    "expected": "kiro-eb2ca18943cd11eb1884fe78"
+  },
+  {
+    "provider": "KIRO",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "kiro-9548bad2934fc6d3a89fb46f"
+  },
+  {
+    "provider": "KIRO",
+    "material": "fixture-?",
+    "expected": "kiro-c1439600c281b06f375038f7"
+  },
+  {
+    "provider": "CRUSH",
+    "material": "fixture-account-a",
+    "expected": "crush-8c42ad42afc85b12e1fb293d"
+  },
+  {
+    "provider": "CRUSH",
+    "material": "fixture-account-b",
+    "expected": "crush-16f6b9d3208692798439dbd5"
+  },
+  {
+    "provider": "CRUSH",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "crush-056e986b1393c98f8abc0863"
+  },
+  {
+    "provider": "CRUSH",
+    "material": "fixture-?",
+    "expected": "crush-84787b764294a9fbc2c28dc0"
+  },
+  {
     "provider": "MANUAL",
     "material": "fixture-account-a",
     "expected": "manual-7aba75a3ff2acc1f07b4436a"

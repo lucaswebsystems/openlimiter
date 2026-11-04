@@ -31,10 +31,15 @@ import { manualConnector } from "./manual";
 import { opencodeConnector } from "./opencode";
 import { openrouterConnector } from "./openrouter";
 import {
+  ampConnector,
   clineConnector,
+  codebuffConnector,
   commandcodeConnector,
+  copilotConnector,
+  crushConnector,
   hermesConnector,
-  kilocodeConnector
+  kilocodeConnector,
+  kiroConnector
 } from "./tool-logins";
 
 export const connectors: readonly ConnectorContract[] = [
@@ -51,5 +56,10 @@ export const connectors: readonly ConnectorContract[] = [
   commandcodeConnector,
   clineConnector,
   kilocodeConnector,
+  copilotConnector,
+  ampConnector,
+  codebuffConnector,
+  kiroConnector,
+  crushConnector,
   manualConnector
 ];

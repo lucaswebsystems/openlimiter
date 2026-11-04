@@ -91,6 +91,11 @@ const PROVIDER_NAMES: Record<ProviderCode | "DEEPSEEK", string> = {
   COMMANDCODE: "Command Code",
   CLINE: "Cline",
   KILOCODE: "Kilo Code",
+  COPILOT: "GitHub Copilot",
+  AMP: "Amp",
+  CODEBUFF: "Codebuff",
+  KIRO: "Kiro",
+  CRUSH: "Crush",
   MANUAL: "Manual",
 };
 
@@ -108,6 +113,11 @@ const PROVIDER_CODE_BY_SPEC_ID: Readonly<
   "commandcode/command-code": "COMMANDCODE",
   "cline/clinepass": "CLINE",
   "kilocode/kilo-code": "KILOCODE",
+  "github/copilot": "COPILOT",
+  "amp/amp": "AMP",
+  "codebuff/codebuff": "CODEBUFF",
+  "kiro/kiro-cli": "KIRO",
+  "charm/crush": "CRUSH",
   "opencode/opencode": "OPENCODE",
   "openrouter/api": "OPENROUTER",
   "openlimiter/manual": "MANUAL",
@@ -124,6 +134,11 @@ const PROVIDER_MARKS: Record<ProviderCode | "DEEPSEEK", string> = {
   HERMES: "H",
   COMMANDCODE: "CC",
   CLINE: "Cl",
+  COPILOT: "GC",
+  AMP: "A",
+  CODEBUFF: "Cb",
+  KIRO: "K",
+  CRUSH: "Cr",
   KILOCODE:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M0,0v24h24V0H0ZM22.222,22.222H1.778V1.778h20.444v20.444ZM14.667,17.258h2.222v1.778h-2.794l-1.206-1.206v-2.794h1.778v2.222ZM18.667,17.258h-1.778v-2.222h-2.222v-1.778h2.794l1.206,1.206v2.794ZM11.111,14.667h-1.778v-1.778h1.778v1.778ZM5.333,12.889h1.778v4h4v1.778h-4.571l-1.206-1.206v-4.571ZM18.667,9.333v1.778h-5.778v-1.778h1.987v-2.222h-1.987v-1.778h2.558l1.206,1.206v2.794h2.013ZM7.111,7.333h2.222l1.778,1.778v2h-1.778v-2h-2.222v2h-1.778v-5.778h1.778v2ZM11.111,7.333h-1.778v-2h1.778v2Z"/></svg>',
   CLAUDE:

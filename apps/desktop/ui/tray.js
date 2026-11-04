@@ -42,6 +42,11 @@ const PROVIDER_NAMES = Object.freeze({
   COMMANDCODE: "Command Code",
   CLINE: "Cline",
   KILOCODE: "Kilo Code",
+  COPILOT: "GitHub Copilot",
+  AMP: "Amp",
+  CODEBUFF: "Codebuff",
+  KIRO: "Kiro",
+  CRUSH: "Crush",
   MANUAL: "Manual",
 });
 

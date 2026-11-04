@@ -59,6 +59,11 @@ The desktop app also checks GitHub for updates and asks before installing one. O
 | Command Code | The API key Command Code saved, against an internal Command Code endpoint: 5 hour and weekly limits and credits left | Experimental |
 | Cline | The sign in Cline saved after `cline auth` (read only, never refreshed), against an internal endpoint: ClinePass 5 hour, weekly and monthly limits | Experimental |
 | Kilo Code | The sign in Kilo saved (read only, never refreshed), against an internal Kilo endpoint: the personal balance in US dollars | Experimental |
+| GitHub Copilot | The sign in the Copilot editor login saved in `apps.json` (github.com only, never a GitHub CLI login), against an internal GitHub endpoint: premium request and chat quotas | Experimental |
+| Amp | The API key the Amp CLI saved, against an internal Amp endpoint: the Amp Free allowance and credits in US dollars | Experimental |
+| Codebuff | The sign in the Codebuff CLI saved, against internal Codebuff endpoints: credits left and the weekly limit | Experimental |
+| Kiro | The sign in the Kiro CLI saved on macOS and Linux (read only, never refreshed), against the internal CodeWhisperer usage limits in the US East region: monthly credits | Experimental |
+| Crush | The Charm Hyper sign in Crush saved (read only, never refreshed), against an internal Hyper endpoint: Hyper credits left | Experimental |
 | API spend keys | Each provider's documented cost or balance API, with a key you add | Experimental |
 
 Provisional means the provider does not document the interface, so it can change or stop working without notice. `openlimiter doctor` labels every connector `UNVERIFIED`, and a response that stops matching its expected shape makes that provider unknown rather than a guess. Anthropic's policy for tools like this is unresolved.

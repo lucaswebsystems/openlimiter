@@ -16,7 +16,9 @@ describe("generated provider directory", () => {
       const kimi = expected.find((row) => row.connectorId === "kimi")!;
       const opencode = { ...kimi, key: "opencode/opencode", specId: "opencode/opencode", connectorId: "opencode", displayName: "OpenCode" };
       /* Cursor and the four tools read from their own saved sign in arrived later. */
-      const later = new Set(["cursor", "hermes", "commandcode", "cline", "kilocode"]);
+      const later = new Set([
+        "cursor", "hermes", "commandcode", "cline", "kilocode", "copilot", "amp", "codebuff", "kiro", "crush"
+      ]);
       expect(buildProviderDirectory(registry, { states }).filter(row => !later.has(row.connectorId ?? "")))
         .toEqual(expected.map((row) => row.connectorId === "opencode" ? opencode : row));
     }
@@ -27,6 +29,11 @@ describe("generated provider directory", () => {
       "commandcode/command-code",
       "cline/clinepass",
       "kilocode/kilo-code",
+      "github/copilot",
+      "amp/amp",
+      "codebuff/codebuff",
+      "kiro/kiro-cli",
+      "charm/crush",
     ]);
   });
 

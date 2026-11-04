@@ -891,7 +891,12 @@ pub const fn provider_interval_seconds(provider: DetectedProviderId) -> u64 {
         | DetectedProviderId::Hermes
         | DetectedProviderId::Commandcode
         | DetectedProviderId::Cline
-        | DetectedProviderId::Kilocode => 300,
+        | DetectedProviderId::Kilocode
+        | DetectedProviderId::Copilot
+        | DetectedProviderId::Amp
+        | DetectedProviderId::Codebuff
+        | DetectedProviderId::Kiro
+        | DetectedProviderId::Crush => 300,
     }
 }
 

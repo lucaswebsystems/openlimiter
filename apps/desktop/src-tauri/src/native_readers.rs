@@ -1219,6 +1219,22 @@ fn finite(value: Option<&Value>) -> Option<f64> {
     value?.as_f64().filter(|number| number.is_finite())
 }
 
+/// Credits left in the tool's own unit, not money: a balance with no total
+/// and no currency, drawn as a count of credits rather than a bar.
+fn tool_credits(provider: &str, value: f64, observed_at: &str, account_id: &str) -> Option<Snapshot> {
+    let mut snapshot = tool_balance(provider, value, observed_at, account_id)?;
+    snapshot.kind = None;
+    snapshot.currency = None;
+    Some(snapshot)
+}
+
+fn month_window() -> SnapshotWindow {
+    SnapshotWindow {
+        kind: "fixed".to_string(),
+        duration_seconds: Some(MONTH_SECONDS),
+    }
+}
+
 /// Hermes's Nous Portal account (`hermes_cli/nous_account.py`, the gauge in
 /// `agent/account_usage.py`): the month's subscription credits used, from
 /// `subscription.monthly_credits` and `subscription.credits_remaining`, reset
@@ -1377,6 +1393,271 @@ fn parse_cline(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot
     (!snapshots.is_empty()).then_some(snapshots)
 }
 
+/// One Copilot quota snapshot as a percentage used, or None when it draws no
+/// bar: unlimited, a zero entitlement placeholder, or no usable percentage.
+/// `percent_remaining` is preferred; without it, `remaining` of `entitlement`
+/// (CodexBar `CopilotUsageModels.swift`).
+fn copilot_used_percent(snapshot: &Map<String, Value>) -> Option<f64> {
+    if snapshot.get("unlimited").and_then(Value::as_bool) == Some(true) {
+        return None;
+    }
+    let entitlement = finite(snapshot.get("entitlement"));
+    let remaining = finite(snapshot.get("remaining"));
+    if entitlement == Some(0.0) && remaining == Some(0.0) {
+        return None;
+    }
+    let percent_remaining = finite(snapshot.get("percent_remaining")).or_else(|| {
+        let (entitlement, remaining) = (entitlement?, remaining?);
+        (entitlement > 0.0).then(|| remaining / entitlement * 100.0)
+    })?;
+    Some((100.0 - percent_remaining).clamp(0.0, 100.0))
+}
+
+/// A reset stated as a calendar date (`2026-09-01`) or an RFC3339 instant.
+fn date_or_instant(value: Option<&Value>, now_ms: u64, max_ahead_seconds: u64) -> Option<String> {
+    let text = value?.as_str()?.trim();
+    let is_date = text.len() == 10
+        && text.bytes().enumerate().all(|(index, byte)| {
+            if index == 4 || index == 7 {
+                byte == b'-'
+            } else {
+                byte.is_ascii_digit()
+            }
+        });
+    if is_date {
+        future_rfc3339(&format!("{text}T00:00:00Z"), now_ms, max_ahead_seconds)
+    } else {
+        future_rfc3339(text, now_ms, max_ahead_seconds)
+    }
+}
+
+/// GitHub Copilot's own quota report (CodexBar `CopilotUsageFetcher.swift`
+/// and `CopilotUsageModels.swift`): `quota_snapshots.premium_interactions`
+/// and `quota_snapshots.chat`, each used percent = 100 minus
+/// `percent_remaining`, reset at `quota_reset_date`. An unlimited snapshot
+/// draws no bar; an ended subscription and a reply with no bar are not read.
+fn parse_copilot(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
+    let root: Value = serde_json::from_str(body).ok()?;
+    let root = root.as_object()?;
+    if root.get("access_type_sku").and_then(Value::as_str) == Some("subscription_ended") {
+        return None;
+    }
+    let snapshots = root.get("quota_snapshots")?.as_object()?;
+    let observed_at = iso_from_epoch_ms(now_ms)?;
+    let reset_at = date_or_instant(
+        root.get("quota_reset_date"),
+        now_ms,
+        MONTH_SECONDS * 2 + CLOCK_SKEW_SECONDS,
+    );
+    let mut rows = Vec::new();
+    for (name, meter) in [("premium_interactions", "PREMIUM"), ("chat", "CHAT")] {
+        let Some(percent) = snapshots
+            .get(name)
+            .and_then(Value::as_object)
+            .and_then(copilot_used_percent)
+        else {
+            continue;
+        };
+        rows.push(tool_percent(
+            "COPILOT",
+            meter,
+            percent,
+            month_window(),
+            reset_at.clone(),
+            &observed_at,
+            account_id,
+        ));
+    }
+    (!rows.is_empty()).then_some(rows)
+}
+
+/// A dollar amount as the Amp CLI prints it: digits with optional thousands
+/// commas and decimals.
+/// Thousands commas must group the whole number in threes after one to three
+/// leading digits: `1,234.50` is read, `1,2` and `1,,000` are not.
+fn amp_amount(text: &str) -> Option<f64> {
+    let whole = text.split('.').next()?;
+    let groups: Vec<&str> = whole.split(',').collect();
+    let grouped = groups.len() == 1
+        || ((1..=3).contains(&groups[0].len()) && groups[1..].iter().all(|group| group.len() == 3));
+    if !grouped {
+        return None;
+    }
+    text.replace(',', "").parse::<f64>().ok().filter(|value| value.is_finite())
+}
+
+/// Amp's balance procedure (`amp usage` in the Amp CLI bundle, the patterns
+/// CodexBar's `AmpUsageParser.swift` reads): `{"ok": true, "result":
+/// {"displayText"}}`, a text whose lines state "Amp Free: $R / $Q remaining"
+/// (or "Amp Free: N% remaining") and "Individual credits: $N remaining". The
+/// free allowance is drawn as a percentage used, the credits as dollars left.
+/// Subscription and workspace lines are not read.
+fn parse_amp(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
+    use std::sync::OnceLock;
+    static PATTERNS: OnceLock<Option<[regex::Regex; 4]>> = OnceLock::new();
+    let [ansi, free, free_percent, credits] = PATTERNS
+        .get_or_init(|| {
+            let amount = r"([0-9][0-9,]*(?:\.[0-9]+)?)";
+            Some([
+                regex::Regex::new(r"\x1b\[[0-9;]*[A-Za-z]").ok()?,
+                regex::Regex::new(&format!(
+                    r"(?im)^[ \t]*Amp Free:[ \t]*\$?{amount}[ \t]*/[ \t]*\$?{amount}[ \t]+remaining"
+                ))
+                .ok()?,
+                regex::Regex::new(&format!(r"(?im)^[ \t]*Amp Free:[ \t]*{amount}[ \t]*%[ \t]+remaining")).ok()?,
+                regex::Regex::new(&format!(
+                    r"(?im)^[ \t]*Individual credits:[ \t]*\$?{amount}[ \t]+remaining"
+                ))
+                .ok()?,
+            ])
+        })
+        .as_ref()?;
+    let root: Value = serde_json::from_str(body).ok()?;
+    let root = root.as_object()?;
+    if root.get("ok")?.as_bool()? != true {
+        return None;
+    }
+    let shown = root.get("result")?.as_object()?.get("displayText")?.as_str()?;
+    let text = ansi.replace_all(shown, "").replace("**", "");
+    let observed_at = iso_from_epoch_ms(now_ms)?;
+    let mut rows = Vec::new();
+    let used = free
+        .captures(&text)
+        .and_then(|found| {
+            let remaining = amp_amount(found.get(1)?.as_str())?;
+            let quota = amp_amount(found.get(2)?.as_str()).filter(|quota| *quota > 0.0)?;
+            Some((quota - remaining) / quota * 100.0)
+        })
+        .or_else(|| {
+            let found = free_percent.captures(&text)?;
+            Some(100.0 - amp_amount(found.get(1)?.as_str())?)
+        });
+    if let Some(used) = used {
+        rows.push(tool_percent(
+            "AMP",
+            "FREE",
+            used.clamp(0.0, 100.0),
+            /* The allowance replenishes by the hour up to a day's worth. */
+            SnapshotWindow {
+                kind: "rolling".to_string(),
+                duration_seconds: Some(86_400),
+            },
+            None,
+            &observed_at,
+            account_id,
+        ));
+    }
+    if let Some(balance) = credits
+        .captures(&text)
+        .and_then(|found| amp_amount(found.get(1)?.as_str()))
+        .and_then(|value| tool_balance("AMP", value, &observed_at, account_id))
+    {
+        rows.push(balance);
+    }
+    (!rows.is_empty()).then_some(rows)
+}
+
+/// Codebuff's usage reply (`fetchUsageData` in the Codebuff CLI):
+/// `{"type": "usage-response", "usage", "remainingBalance", ...}`. The
+/// remaining balance is Codebuff credits, not money, drawn as credits left.
+/// A null balance is not read as zero.
+fn parse_codebuff(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
+    let root: Value = serde_json::from_str(body).ok()?;
+    let balance = finite(root.as_object()?.get("remainingBalance"))?;
+    let observed_at = iso_from_epoch_ms(now_ms)?;
+    Some(vec![tool_credits("CODEBUFF", balance, &observed_at, account_id)?])
+}
+
+/// Codebuff's subscription reply (`SubscriptionResponse` in
+/// `common/src/types/subscription.ts`): with `hasSubscription` true,
+/// `rateLimit.weeklyUsed` of `rateLimit.weeklyLimit`, reset at
+/// `rateLimit.weeklyResetsAt`. No subscription is no weekly bar, not an error.
+pub fn parse_codebuff_subscription(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
+    let root: Value = serde_json::from_str(body).ok()?;
+    let root = root.as_object()?;
+    if !root.get("hasSubscription")?.as_bool()? {
+        return Some(Vec::new());
+    }
+    let limit = root.get("rateLimit")?.as_object()?;
+    let cap = finite(limit.get("weeklyLimit")).filter(|cap| *cap > 0.0)?;
+    let used = finite(limit.get("weeklyUsed")).filter(|used| *used >= 0.0)?;
+    let observed_at = iso_from_epoch_ms(now_ms)?;
+    let reset_at = limit
+        .get("weeklyResetsAt")
+        .and_then(Value::as_str)
+        .and_then(|text| future_rfc3339(text, now_ms, 604_800 * 2 + CLOCK_SKEW_SECONDS));
+    let mut row = tool_percent(
+        "CODEBUFF",
+        "SEVEN_DAY",
+        (used / cap * 100.0).min(100.0),
+        SnapshotWindow {
+            kind: "rolling".to_string(),
+            duration_seconds: Some(604_800),
+        },
+        reset_at,
+        &observed_at,
+        account_id,
+    );
+    row.expires_at = iso_from_epoch_ms(now_ms.saturating_add(ReaderId::CodebuffUsage.base_seconds() * 1_000))?;
+    Some(vec![row])
+}
+
+/// Kiro's usage limits (CodexBar `KiroUsageLimitsAPI.swift`): the one
+/// `usageBreakdownList` entry whose `resourceType` is `CREDIT`, plan credits
+/// used (`currentUsageWithPrecision` less `currentOveragesWithPrecision`) of
+/// `usageLimitWithPrecision`, reset at `nextDateReset` in epoch seconds. Two
+/// credit entries, a negative part or an overage above the total is not read.
+fn parse_kiro(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
+    let root: Value = serde_json::from_str(body).ok()?;
+    let root = root.as_object()?;
+    let mut credits = root
+        .get("usageBreakdownList")?
+        .as_array()?
+        .iter()
+        .filter_map(Value::as_object)
+        .filter(|entry| entry.get("resourceType").and_then(Value::as_str) == Some("CREDIT"));
+    let credit = credits.next()?;
+    if credits.next().is_some() {
+        return None;
+    }
+    let limit = finite(credit.get("usageLimitWithPrecision")).filter(|limit| *limit > 0.0)?;
+    let total = finite(credit.get("currentUsageWithPrecision")).filter(|used| *used >= 0.0)?;
+    let overage = match credit.get("currentOveragesWithPrecision") {
+        None | Some(Value::Null) => 0.0,
+        value => finite(value).filter(|overage| *overage >= 0.0)?,
+    };
+    if overage > total {
+        return None;
+    }
+    let observed_at = iso_from_epoch_ms(now_ms)?;
+    let reset_at = finite(credit.get("nextDateReset"))
+        .or_else(|| finite(root.get("nextDateReset")))
+        .and_then(|seconds| future_epoch_seconds(seconds, now_ms, Some(MONTH_SECONDS * 2 + CLOCK_SKEW_SECONDS)));
+    Some(vec![tool_percent(
+        "KIRO",
+        "MONTHLY",
+        ((total - overage) / limit * 100.0).clamp(0.0, 100.0),
+        month_window(),
+        reset_at,
+        &observed_at,
+        account_id,
+    )])
+}
+
+/// Charm Hyper's credits (`FetchCredits` in Crush): `{"balance"}` in Hyper
+/// credits, drawn as credits left; a team that shows dollars instead states
+/// `balance_usd`, drawn as money left. Neither is read as zero when absent.
+fn parse_crush(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
+    let root: Value = serde_json::from_str(body).ok()?;
+    let root = root.as_object()?;
+    let observed_at = iso_from_epoch_ms(now_ms)?;
+    if let Some(credits) = finite(root.get("balance")) {
+        return Some(vec![tool_credits("CRUSH", credits, &observed_at, account_id)?]);
+    }
+    let dollars = finite(root.get("balance_usd"))?;
+    Some(vec![tool_balance("CRUSH", dollars, &observed_at, account_id)?])
+}
+
 /// Kilo Code's balance (`fetchBalance` in `packages/kilo-gateway`):
 /// `{"balance": <dollars>}`. A missing balance is not read as zero.
 fn parse_kilocode(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
@@ -1406,6 +1687,11 @@ pub fn parse_body(
         ReaderId::CommandcodeCredits => parse_commandcode(body, now_ms, account_id),
         ReaderId::ClineUsage => parse_cline(body, now_ms, account_id),
         ReaderId::KilocodeBalance => parse_kilocode(body, now_ms, account_id),
+        ReaderId::CopilotUser => parse_copilot(body, now_ms, account_id),
+        ReaderId::AmpBalance => parse_amp(body, now_ms, account_id),
+        ReaderId::CodebuffUsage => parse_codebuff(body, now_ms, account_id),
+        ReaderId::KiroUsageLimits => parse_kiro(body, now_ms, account_id),
+        ReaderId::CrushCredits => parse_crush(body, now_ms, account_id),
     }?;
     // A reading remains live for its provider cadence, not a one minute
     // repaint budget. Explicit only readers retain their existing expiry.

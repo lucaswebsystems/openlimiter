@@ -206,7 +206,8 @@ test("the first run opens on Connect, lists only the tools on this computer and 
   );
   assert.equal(
     harness.absent.textContent,
-    "Not on this computer: Gemini CLI, Antigravity, Grok (xAI), Kimi, OpenCode, Cursor, Hermes, Command Code, Cline, Kilo Code. Add them later in Connect Tools.",
+    "Not on this computer: Gemini CLI, Antigravity, Grok (xAI), Kimi, OpenCode, Cursor, Hermes, Command Code, Cline, Kilo Code, " +
+      "GitHub Copilot, Amp, Codebuff, Kiro, Crush. Add them later in Connect Tools.",
   );
   assert.equal(harness.status.textContent, "Scan complete.");
   /* Nothing on the screen offers to install a third party tool. */

@@ -20,10 +20,11 @@ import {
 } from "./shared.js";
 
 /**
- * The readers for four tools whose saved sign in the desktop app reads on its
- * own: Hermes (Nous Portal), Command Code, Cline and Kilo Code. Each reply is
- * one undocumented endpoint's JSON; the field names come from each tool's own
- * source, recorded beside every parser. The Rust twins live in
+ * The readers for nine tools whose saved sign in the desktop app reads on its
+ * own: Hermes (Nous Portal), Command Code, Cline, Kilo Code, GitHub Copilot,
+ * Amp, Codebuff, Kiro and Crush (Charm Hyper). Each reply is one undocumented
+ * endpoint's JSON; the field names come from each tool's own source, or the
+ * meter that reads it, recorded beside every parser. The Rust twins live in
  * apps/desktop/src-tauri/src/native_readers.rs and both read the same shared
  * cases under packages/connectors/fixtures/cases.
  */
@@ -67,6 +68,19 @@ function percentMeter(
     expiresAt,
     labels: toolLoginLabels
   });
+}
+
+/** Credits left in the tool's own unit, not money: no kind, no currency. */
+function creditsMeter(
+  provider: ProviderCode,
+  value: number,
+  now: string,
+  expiresAt: string
+): RawMeter | null {
+  const meter = balanceMeter(provider, value, now, expiresAt);
+  if (meter === null) return null;
+  const { kind: _money, currency: _currency, ...credits } = meter;
+  return credits;
 }
 
 /**
@@ -242,6 +256,226 @@ export function parseKilocodePayload(payload: unknown, now: string): RawMeter[] 
   return meter === null ? null : [meter];
 }
 
+/**
+ * One Copilot quota snapshot as a percentage used, or null when it draws no
+ * bar: unlimited, a zero entitlement placeholder, or no usable percentage.
+ * `percent_remaining` is preferred; without it, `remaining` of `entitlement`
+ * (CodexBar `CopilotUsageModels.swift`).
+ */
+function copilotUsedPercent(snapshot: Record<string, unknown>): number | null {
+  if (snapshot["unlimited"] === true) return null;
+  const entitlement = finite(snapshot["entitlement"]);
+  const remaining = finite(snapshot["remaining"]);
+  if (entitlement === 0 && remaining === 0) return null;
+  const stated = finite(snapshot["percent_remaining"]);
+  const percentRemaining = stated ?? (
+    entitlement !== null && remaining !== null && entitlement > 0 ? remaining / entitlement * 100 : null
+  );
+  if (percentRemaining === null) return null;
+  return Math.min(100, Math.max(0, 100 - percentRemaining));
+}
+
+/** A reset stated as a calendar date (`2026-09-01`) or an RFC3339 instant. */
+function dateOrInstant(value: unknown, now: string, maxAheadSeconds: number): string | null {
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+  const stated = /^\d{4}-\d{2}-\d{2}$/u.test(text) ? text + "T00:00:00Z" : text;
+  return futureInstantFromRfc3339(stated, now, maxAheadSeconds);
+}
+
+/**
+ * GitHub Copilot's own quota report (CodexBar `CopilotUsageFetcher.swift` and
+ * `CopilotUsageModels.swift`): `quota_snapshots.premium_interactions` and
+ * `quota_snapshots.chat`, each used percent = 100 minus `percent_remaining`,
+ * reset at `quota_reset_date`. An unlimited snapshot draws no bar; an ended
+ * subscription and a reply with no bar are not read.
+ */
+export function parseCopilotPayload(payload: unknown, now: string): RawMeter[] | null {
+  const root = record(payload);
+  const expiresAt = shortExpiry(now);
+  if (root === null || expiresAt === null) return null;
+  if (root["access_type_sku"] === "subscription_ended") return null;
+  const snapshots = record(root["quota_snapshots"]);
+  if (snapshots === null) return null;
+  const resetAt = dateOrInstant(root["quota_reset_date"], now, plausibleResetHorizon(MONTH_SECONDS));
+  const meters: RawMeter[] = [];
+  for (const [name, meter] of [["premium_interactions", "PREMIUM"], ["chat", "CHAT"]] as const) {
+    const snapshot = record(snapshots[name]);
+    const percent = snapshot === null ? null : copilotUsedPercent(snapshot);
+    if (percent === null) continue;
+    meters.push(percentMeter(
+      "COPILOT",
+      meter,
+      percent,
+      { kind: "fixed", durationSeconds: MONTH_SECONDS },
+      resetAt,
+      now,
+      expiresAt
+    ));
+  }
+  return meters.length === 0 ? null : meters;
+}
+
+/** A dollar amount as the Amp CLI prints it: digits, thousands commas, decimals. */
+function ampAmount(text: string | undefined): number | null {
+  if (text === undefined) return null;
+  /* Thousands commas must group the whole number in threes after one to three
+     leading digits: `1,234.50` is read, `1,2` and `1,,000` are not. */
+  if (!/^(?:[0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)(?:\.[0-9]+)?$/u.test(text)) return null;
+  const value = Number(text.replace(/,/gu, ""));
+  return Number.isFinite(value) ? value : null;
+}
+
+const AMP_AMOUNT = "([0-9][0-9,]*(?:\\.[0-9]+)?)";
+const AMP_ANSI = /\x1b\[[0-9;]*[A-Za-z]/gu;
+const AMP_FREE = new RegExp(
+  "^[ \\t]*Amp Free:[ \\t]*\\$?" + AMP_AMOUNT + "[ \\t]*/[ \\t]*\\$?" + AMP_AMOUNT + "[ \\t]+remaining",
+  "imu"
+);
+const AMP_FREE_PERCENT = new RegExp("^[ \\t]*Amp Free:[ \\t]*" + AMP_AMOUNT + "[ \\t]*%[ \\t]+remaining", "imu");
+const AMP_CREDITS = new RegExp("^[ \\t]*Individual credits:[ \\t]*\\$?" + AMP_AMOUNT + "[ \\t]+remaining", "imu");
+
+/**
+ * Amp's balance procedure (`amp usage` in the Amp CLI bundle, the patterns
+ * CodexBar's `AmpUsageParser.swift` reads): `{"ok": true, "result":
+ * {"displayText"}}`, a text whose lines state "Amp Free: $R / $Q remaining"
+ * (or "Amp Free: N% remaining") and "Individual credits: $N remaining". The
+ * free allowance is drawn as a percentage used, the credits as dollars left.
+ * Subscription and workspace lines are not read.
+ */
+export function parseAmpPayload(payload: unknown, now: string): RawMeter[] | null {
+  const root = record(payload);
+  const expiresAt = shortExpiry(now);
+  if (root === null || expiresAt === null || root["ok"] !== true) return null;
+  const shown = record(root["result"])?.["displayText"];
+  if (typeof shown !== "string") return null;
+  const text = shown.replace(AMP_ANSI, "").split("**").join("");
+  const meters: RawMeter[] = [];
+  const free = AMP_FREE.exec(text);
+  let used: number | null = null;
+  if (free !== null) {
+    const remaining = ampAmount(free[1]);
+    const quota = ampAmount(free[2]);
+    if (remaining !== null && quota !== null && quota > 0) used = (quota - remaining) / quota * 100;
+  }
+  if (used === null) {
+    const percent = AMP_FREE_PERCENT.exec(text);
+    const remaining = percent === null ? null : ampAmount(percent[1]);
+    if (remaining !== null) used = 100 - remaining;
+  }
+  if (used !== null) {
+    meters.push(percentMeter(
+      "AMP",
+      "FREE",
+      Math.min(100, Math.max(0, used)),
+      /* The allowance replenishes by the hour up to a day's worth. */
+      { kind: "rolling", durationSeconds: 86_400 },
+      null,
+      now,
+      expiresAt
+    ));
+  }
+  const credits = AMP_CREDITS.exec(text);
+  const dollars = credits === null ? null : ampAmount(credits[1]);
+  const balance = dollars === null ? null : balanceMeter("AMP", dollars, now, expiresAt);
+  if (balance !== null) meters.push(balance);
+  return meters.length === 0 ? null : meters;
+}
+
+/**
+ * Codebuff's usage reply (`fetchUsageData` in the Codebuff CLI):
+ * `{"type": "usage-response", "usage", "remainingBalance", ...}`. The remaining
+ * balance is Codebuff credits, not money, drawn as credits left. A null balance
+ * is not read as zero.
+ */
+export function parseCodebuffPayload(payload: unknown, now: string): RawMeter[] | null {
+  const balance = finite(record(payload)?.["remainingBalance"]);
+  const expiresAt = shortExpiry(now);
+  if (balance === null || expiresAt === null) return null;
+  const meter = creditsMeter("CODEBUFF", balance, now, expiresAt);
+  return meter === null ? null : [meter];
+}
+
+/**
+ * Codebuff's subscription reply (`SubscriptionResponse` in
+ * `common/src/types/subscription.ts`): with `hasSubscription` true,
+ * `rateLimit.weeklyUsed` of `rateLimit.weeklyLimit`, reset at
+ * `rateLimit.weeklyResetsAt`. No subscription is no weekly bar, not an error.
+ */
+export function parseCodebuffSubscriptionPayload(payload: unknown, now: string): RawMeter[] | null {
+  const root = record(payload);
+  const expiresAt = shortExpiry(now);
+  if (root === null || expiresAt === null || typeof root["hasSubscription"] !== "boolean") return null;
+  if (!root["hasSubscription"]) return [];
+  const limit = record(root["rateLimit"]);
+  const cap = finite(limit?.["weeklyLimit"]);
+  const used = finite(limit?.["weeklyUsed"]);
+  if (limit === null || cap === null || cap <= 0 || used === null || used < 0) return null;
+  return [percentMeter(
+    "CODEBUFF",
+    "SEVEN_DAY",
+    Math.min(100, used / cap * 100),
+    { kind: "rolling", durationSeconds: 604_800 },
+    futureInstantFromRfc3339(limit["weeklyResetsAt"], now, plausibleResetHorizon(604_800)),
+    now,
+    expiresAt
+  )];
+}
+
+/**
+ * Kiro's usage limits (CodexBar `KiroUsageLimitsAPI.swift`): the one
+ * `usageBreakdownList` entry whose `resourceType` is `CREDIT`, plan credits used
+ * (`currentUsageWithPrecision` less `currentOveragesWithPrecision`) of
+ * `usageLimitWithPrecision`, reset at `nextDateReset` in epoch seconds. Two
+ * credit entries, a negative part or an overage above the total is not read.
+ */
+export function parseKiroPayload(payload: unknown, now: string): RawMeter[] | null {
+  const root = record(payload);
+  const expiresAt = shortExpiry(now);
+  const list = root?.["usageBreakdownList"];
+  if (root === null || expiresAt === null || !Array.isArray(list)) return null;
+  const credits = list
+    .map((entry) => record(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null && entry["resourceType"] === "CREDIT");
+  if (credits.length !== 1) return null;
+  const credit = credits[0]!;
+  const limit = finite(credit["usageLimitWithPrecision"]);
+  const total = finite(credit["currentUsageWithPrecision"]);
+  if (limit === null || limit <= 0 || total === null || total < 0) return null;
+  const statedOverage = credit["currentOveragesWithPrecision"];
+  const overage = statedOverage === undefined || statedOverage === null ? 0 : finite(statedOverage);
+  if (overage === null || overage < 0 || overage > total) return null;
+  const reset = finite(credit["nextDateReset"]) ?? finite(root["nextDateReset"]);
+  return [percentMeter(
+    "KIRO",
+    "MONTHLY",
+    Math.min(100, Math.max(0, (total - overage) / limit * 100)),
+    { kind: "fixed", durationSeconds: MONTH_SECONDS },
+    reset === null ? null : futureInstantFromEpochSeconds(reset, now, plausibleResetHorizon(MONTH_SECONDS)),
+    now,
+    expiresAt
+  )];
+}
+
+/**
+ * Charm Hyper's credits (`FetchCredits` in Crush): `{"balance"}` in Hyper
+ * credits, drawn as credits left; a team that shows dollars instead states
+ * `balance_usd`, drawn as money left. Neither is read as zero when absent.
+ */
+export function parseCrushPayload(payload: unknown, now: string): RawMeter[] | null {
+  const root = record(payload);
+  const expiresAt = shortExpiry(now);
+  if (root === null || expiresAt === null) return null;
+  const credits = finite(root["balance"]);
+  if (credits !== null) {
+    const meter = creditsMeter("CRUSH", credits, now, expiresAt);
+    return meter === null ? null : [meter];
+  }
+  const dollars = finite(root["balance_usd"]);
+  const meter = dollars === null ? null : balanceMeter("CRUSH", dollars, now, expiresAt);
+  return meter === null ? null : [meter];
+}
+
 function toolConnector(
   id: ConnectorContract["id"],
   displayName: string,
@@ -276,3 +510,8 @@ export const commandcodeConnector = toolConnector(
 );
 export const clineConnector = toolConnector("cline", "Cline", "Cline", parseClinePayload);
 export const kilocodeConnector = toolConnector("kilocode", "Kilo Code", "Kilo Code", parseKilocodePayload);
+export const copilotConnector = toolConnector("copilot", "GitHub Copilot", "GitHub Copilot", parseCopilotPayload);
+export const ampConnector = toolConnector("amp", "Amp", "Amp", parseAmpPayload);
+export const codebuffConnector = toolConnector("codebuff", "Codebuff", "Codebuff", parseCodebuffPayload);
+export const kiroConnector = toolConnector("kiro", "Kiro", "Kiro", parseKiroPayload);
+export const crushConnector = toolConnector("crush", "Crush", "Crush", parseCrushPayload);

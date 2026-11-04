@@ -1,0 +1,135 @@
+# Crush (Charm Hyper), its Hyper credit balance.
+#
+# The desktop reads the Hyper sign in Crush saved in its global data file,
+# crush.json under local application data on Windows and the XDG data folder
+# elsewhere: providers.hyper.oauth.access_token with its expires_at in epoch
+# seconds when Crush signed in, else providers.hyper.api_key. Read only; the
+# OAuth token expires and Crush renews it, never this, so an expired one
+# shows the reopen sentence. A key naming an environment variable ($NAME) is
+# not a key and is not read.
+#
+# Verified in source (charmbracelet/crush at 3b1f860): internal/config/load.go
+# (GlobalConfigData) places the file, internal/config/store.go writes
+# providers.hyper.oauth and api_key, internal/oauth/token.go types the token,
+# and internal/agent/hyper/provider.go (FetchCredits) reads the address below
+# with Bearer and the balance field, in Hyper credits; a team that shows
+# dollars gets balance_usd instead. Charm documents none of it. The address is
+# a Rust constant in apps/desktop/src-tauri/src/net.rs. Hyper credits are not
+# money and are drawn as credits left; balance_usd is drawn as dollars.
+#
+# Not read: CRUSH_GLOBAL_DATA and HYPER_URL overrides (another address is
+# never reached), and HYPER_API_KEY in the environment.
+
+provider_id: charm
+product_id: crush
+display_name: Crush
+
+headlineMeter: balance
+acquisitionSurfaces:
+  - desktop
+# Hyper credits are not money, and account sync carries a balance only as
+# money, so the phone and the web show Crush only when a reply states dollars.
+displaySurfaces:
+  - desktop
+  - rail
+  - tray
+  - cli_cache
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: remote_http_internal
+d5Review: Reads the Hyper sign in Crush saved, read only and never refreshed. Only hyper.charm.land receives the token. Honest OpenLimiter identity, no header taken from a file.
+maturity: experimental
+directory:
+  order: 18
+  rowId: charm/crush
+  label: Crush
+  connectorId: crush
+  access: automatic
+
+source:
+  docs_url: https://github.com/charmbracelet/crush/blob/main/internal/agent/hyper/provider.go
+  reviewed_at: "2026-11-04"
+  source_status: provisional
+
+availability:
+  requires_plan: any
+  appears_after: local_cli_login
+  absence_is_error: false
+
+support:
+  parser: implemented
+  reader: implemented
+  auth: implemented
+
+collection:
+  reader: implemented
+  auth: implemented
+  readers:
+    - reader_id: crush_credits
+      endpoint_id: crush_credits
+      credential_kind: crush_session
+      evidence_fixture: crush.official_source.credits
+      evidence_status: pending_capture
+      last_verified_at: null
+
+connections:
+  - reader: experimental
+    auth_mode: existing_local_cli
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  fixture_ids:
+    - crush.official_source.credits
+    - crush.live.pending
+
+honesty:
+  connector_id: crush
+  credential_origin: official-local-tool
+  data_interface_status: internal-endpoint
+  automation_risk: high
+  verification: UNVERIFIED
+
+provenance:
+  endpoint_terms: unreviewed
+  sources:
+    - name: Crush
+      repository: charmbracelet/crush
+      files:
+        - internal/config/load.go
+        - internal/config/store.go
+        - internal/config/provider.go
+        - internal/oauth/token.go
+        - internal/agent/hyper/provider.go
+      licence: FSL-1.1-MIT
+    - name: oh-my-pi
+      repository: can1357/oh-my-pi
+      files:
+        - packages/ai/src/usage/charm-hyper.ts
+      licence: MIT
+  mark: initials
+  mark_licence: null
+
+meters:
+  # Hyper credits, not money, unless the reply states balance_usd. The
+  # registry's balance unit is currency; the readers set the money kind only
+  # for balance_usd.
+  - id: balance
+    label: Balance
+    kind: credits
+    unit: currency
+    scope: account
+    window:
+      kind: credit_balance
+    source_format: json_path
+    source_path: balance
+    reset_path: null
+    reset_encoding: none
+    optional: false
+    meter_code: BALANCE

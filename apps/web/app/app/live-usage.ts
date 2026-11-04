@@ -23,6 +23,11 @@ const CONNECTOR_PROVIDERS: Readonly<Record<string, ProviderCode | undefined>> = 
   commandcode: "COMMANDCODE",
   cline: "CLINE",
   kilocode: "KILOCODE",
+  copilot: "COPILOT",
+  amp: "AMP",
+  codebuff: "CODEBUFF",
+  kiro: "KIRO",
+  crush: "CRUSH",
 };
 
 /** A numeric quota row, identified by its contract rather than its meter name. */
