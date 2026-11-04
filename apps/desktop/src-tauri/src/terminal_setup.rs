@@ -139,7 +139,9 @@ impl Drop for Release {
 }
 
 fn claim() -> Option<Release> {
-    (!RUNNING.swap(true, Ordering::AcqRel)).then_some(Release)
+    /* Lazily: a refused claim must never build, and so drop, a `Release`,
+    which would free the lock the running setup still holds. */
+    (!RUNNING.swap(true, Ordering::AcqRel)).then(|| Release)
 }
 
 /// Run every installer step for one host, stopping at the first failure.
@@ -178,6 +180,7 @@ mod tests {
     fn only_one_setup_runs_at_a_time_and_the_lock_always_comes_back() {
         let first = claim().expect("free");
         assert!(claim().is_none(), "a second setup is refused while one runs");
+        assert!(claim().is_none(), "and a refusal does not free the lock for a third");
         drop(first);
         let again = claim().expect("released when the worker ends");
         drop(again);
