@@ -3,6 +3,10 @@
   "versionLabel": "Version {version}",
   "dismiss": "Got it",
   "releases": {
+    "2.1.14": {
+      "heading": "Sign in works again",
+      "signin": "Signing in works on Windows again. A sign in session, a Google one especially, is longer than the 1,280 characters Windows lets one saved credential hold, so saving it failed with a storage error. Long values are now saved in parts, and the phone receives your bars once you sign in."
+    },
     "2.1.13": {
       "heading": "Easier connecting",
       "opencode": "OpenCode connects by itself from the sign in the opencode command already saved on your computer, with nothing to paste. OpenLimiter reads it and never changes it. Without a sign in, connect with an OpenCode API key.",
