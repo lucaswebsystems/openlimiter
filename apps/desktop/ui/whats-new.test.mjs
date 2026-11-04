@@ -10,6 +10,10 @@ const whatsNewForVersion = (version) => selectRelease(version, WHATS_NEW_EN);
 
 /* What each recent release says, word for word; the current version is one of them. */
 const NOTES = {
+  "2.1.13": [
+    { key: "opencode", text: "OpenCode connects by itself from the sign in the opencode command already saved on your computer, with nothing to paste. OpenLimiter reads it and never changes it. Without a sign in, connect with an OpenCode API key." },
+    { key: "panels", text: "The setup panels for Claude Code, Antigravity and OpenCode span the whole card, say what they do, and walk through numbered steps. Claude Code and Antigravity set up with one click, and the terminal commands are still there if you prefer them." },
+  ],
   "2.1.12": [
     { key: "width", text: "On Windows the status line uses the width you set, so it fills the line instead of breaking at 120 columns." },
     { key: "bars", text: "The bars are solid blocks again, and wrapped rows have a blank line between them." },

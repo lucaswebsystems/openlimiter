@@ -1032,18 +1032,18 @@ export const PROVIDER_SPECS = {
         "web",
         "phone"
       ],
-      "acquisitionMethod": "authenticated_page",
-      "d5Review": "Authenticated page extraction; high automation risk and capture pending.",
+      "acquisitionMethod": "remote_http_internal",
+      "d5Review": "Internal provider interface; high automation risk and capture pending.",
       "maturity": "headline",
       "directory": {
         "order": 6,
         "rowId": "opencode/opencode",
         "label": "OpenCode",
         "connectorId": "opencode",
-        "access": "manual"
+        "access": "automatic"
       },
       "docsUrl": "packages/connectors/src/opencode.ts",
-      "reviewedAt": "2026-08-10",
+      "reviewedAt": "2026-11-03",
       "sourceStatus": "provisional",
       "support": {
         "parser": "implemented",
@@ -1056,7 +1056,7 @@ export const PROVIDER_SPECS = {
           {
             "readerId": "opencode_usage",
             "endpointId": "opencode_usage",
-            "credentialKind": "opencode_browser_session",
+            "credentialKind": "opencode_api_key",
             "evidenceFixture": "opencode.sanitized_live.usage",
             "evidenceStatus": "pending_capture",
             "lastVerifiedAt": null
@@ -1065,8 +1065,8 @@ export const PROVIDER_SPECS = {
       },
       "honesty": {
         "connectorId": "opencode",
-        "credentialOrigin": "browser-session",
-        "dataInterfaceStatus": "authenticated-scrape",
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
         "automationRisk": "high",
         "verification": "UNVERIFIED"
       },
@@ -1075,7 +1075,7 @@ export const PROVIDER_SPECS = {
         "experimental"
       ],
       "authModes": [
-        "manual"
+        "existing_local_cli"
       ],
       "platforms": [
         "windows",
@@ -1089,7 +1089,7 @@ export const PROVIDER_SPECS = {
           "kind": "subscription_quota",
           "unit": "percent_used",
           "scope": "account",
-          "sourceFormat": "html_label",
+          "sourceFormat": "json_path",
           "window": {
             "kind": "rolling",
             "durationSeconds": 18000
@@ -1103,7 +1103,7 @@ export const PROVIDER_SPECS = {
           "kind": "subscription_quota",
           "unit": "percent_used",
           "scope": "account",
-          "sourceFormat": "html_label",
+          "sourceFormat": "json_path",
           "window": {
             "kind": "rolling",
             "durationSeconds": 604800
@@ -1117,12 +1117,12 @@ export const PROVIDER_SPECS = {
           "kind": "subscription_quota",
           "unit": "percent_used",
           "scope": "account",
-          "sourceFormat": "html_label",
+          "sourceFormat": "json_path",
           "window": {
             "kind": "rolling",
             "durationSeconds": 2592000
           },
-          "optional": false,
+          "optional": true,
           "meterCode": "MONTHLY"
         }
       ]

@@ -34,8 +34,8 @@
     },
     "opencode": {
       "fixtureVerified": false,
-      "evidence": "scrape",
-      "reason": "Left UNVERIFIED on purpose: the evidence is too thin for a trustworthy fixture. OpenCode publishes no usage interface at all, so the only source is the HTML of a logged in workspace page, and any fixture is a snapshot of a layout rather than a contract. The parser reads the frozen page correctly, but a passing scrape proves only that one frozen layout still parses, not that the provider exposes anything stable, so it is not marked fixture verified. This matches the connector's own labels: authenticated-scrape, automationRisk high."
+      "evidence": "official_source",
+      "reason": "Left UNVERIFIED on purpose: OpenCode Go's usage comes from an internal JSON endpoint that OpenCode does not document. The address is the one OpenCode's own clients read, but no response type is published and no live capture is committed, so the frozen file is a synthetic reply in that shape. It proves the parser reads the shape offline, not that the interface is stable, so it is not marked fixture verified. This matches the connector's own labels: internal-endpoint, automationRisk high."
     },
     "grok": {
       "fixtureVerified": true,

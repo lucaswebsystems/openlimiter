@@ -91,8 +91,7 @@ export const contractUnknownSentence: Readonly<Record<ContractUnknownReason, str
 /**
  * Run a provider response through its parser and return an explicit outcome.
  *
- * `payload` is whatever was read for the provider: a parsed JSON object for
- * every provider except OpenCode, whose payload is the raw HTML string. A
+ * `payload` is whatever was read for the provider, as parsed JSON. A
  * missing payload is unknown, a shape the parser refuses is unknown, and a
  * shape that parses but survives normalization as nothing is unknown. Only a
  * response that both parses and yields at least one believable reading is ok.

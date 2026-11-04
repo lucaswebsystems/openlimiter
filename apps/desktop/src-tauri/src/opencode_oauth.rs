@@ -1,0 +1,702 @@
+//! OpenCode's automatic read: each pass takes the sign in OpenCode saved on
+//! this computer (see `opencode_login`) and reads OpenCode Go's usage with it.
+//! Cloned from `kimi_oauth`, the same detected login shape. The sign in is
+//! never refreshed here; a rejected one asks the person to open OpenCode.
+
+use std::collections::{BTreeMap, HashSet};
+use std::sync::{Arc, Mutex};
+
+use serde::Serialize;
+use tauri::{AppHandle, Manager};
+
+use crate::cache_write::CacheWriter;
+use crate::native_readers::parse_body;
+use crate::native_snapshot::{iso_from_epoch_ms, write_report, CacheReport};
+use crate::net::{fetch_endpoint, NetError, ProviderEndpoint, ReqwestTransport, Transport};
+use crate::poll_identity::PollIdentity;
+use crate::provider_detection::{
+    DetectedCredentialError, DetectedProviderId, DetectedSecret, DetectionStore,
+};
+use crate::reader_registry::{AuthApplication, ProviderId, ReaderId};
+use crate::request_policy::{GateRejection, RequestPolicy};
+
+pub const REFRESH_SECONDS: u64 = 300;
+const BLOCKED_BACKOFF_SECONDS: u64 = 86_400;
+const MAX_THROTTLE_ENTRIES: usize = 128;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OpencodeFailure {
+    Timeout,
+    Connect,
+    Tls,
+    TooLarge,
+    Protocol,
+    ProviderResponse,
+    RateLimited,
+    ProviderBlocked,
+    Drift,
+    Cache,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum OpencodeOutcome {
+    CacheCommitted {
+        account_id: String,
+    },
+    Cached {
+        account_id: String,
+        retry_at: String,
+    },
+    ReopenCli {
+        account_id: String,
+        message: String,
+    },
+    Fallback {
+        account_id: String,
+        reason: OpencodeFailure,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        retry_after_seconds: Option<u64>,
+    },
+    Failed {
+        account_id: String,
+        reason: OpencodeFailure,
+    },
+}
+
+impl OpencodeOutcome {
+    fn reopen(account_id: &str) -> Self {
+        Self::ReopenCli {
+            account_id: account_id.to_string(),
+            message: "Open OpenCode once so it renews its sign in.".to_string(),
+        }
+    }
+
+    fn fallback(account_id: &str, reason: OpencodeFailure) -> Self {
+        Self::Fallback {
+            account_id: account_id.to_string(),
+            reason,
+            retry_after_seconds: None,
+        }
+    }
+
+    fn rate_limited(account_id: &str, retry_after_seconds: Option<u64>) -> Self {
+        Self::Fallback {
+            account_id: account_id.to_string(),
+            reason: OpencodeFailure::RateLimited,
+            retry_after_seconds,
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct OpencodeOauthRuntime {
+    next_allowed: Mutex<BTreeMap<String, u64>>,
+}
+
+impl OpencodeOauthRuntime {
+    fn begin(&self, account_id: &str, now_ms: u64) -> Result<(), u64> {
+        let mut entries = self.next_allowed.lock().map_err(|_| now_ms)?;
+        if let Some(next) = entries.get(account_id).copied() {
+            if now_ms < next {
+                return Err(next);
+            }
+        }
+        if entries.len() >= MAX_THROTTLE_ENTRIES {
+            entries.retain(|_, next| *next > now_ms);
+        }
+        if entries.len() >= MAX_THROTTLE_ENTRIES {
+            if let Some(first) = entries.keys().next().cloned() {
+                entries.remove(&first);
+            }
+        }
+        entries.insert(
+            account_id.to_string(),
+            now_ms.saturating_add(REFRESH_SECONDS.saturating_mul(1_000)),
+        );
+        Ok(())
+    }
+
+    fn postpone(&self, account_id: &str, now_ms: u64, seconds: u64) {
+        if let Ok(mut entries) = self.next_allowed.lock() {
+            entries.insert(
+                account_id.to_string(),
+                now_ms.saturating_add(seconds.saturating_mul(1_000)),
+            );
+        }
+    }
+}
+
+fn net_failure(error: NetError) -> OpencodeFailure {
+    match error {
+        NetError::Timeout => OpencodeFailure::Timeout,
+        NetError::Connect => OpencodeFailure::Connect,
+        NetError::Tls => OpencodeFailure::Tls,
+        NetError::TooLarge => OpencodeFailure::TooLarge,
+        NetError::Protocol => OpencodeFailure::Protocol,
+    }
+}
+
+async fn commit_report(writer: Arc<CacheWriter>, account_id: String, report: CacheReport) -> bool {
+    tauri::async_runtime::spawn_blocking(move || {
+        write_report(&writer, "OPENCODE", Some(&account_id), report)
+    })
+    .await
+    .is_ok_and(|result| result.is_ok())
+}
+
+async fn fallback_report(writer: Arc<CacheWriter>, account_id: &str, drift: bool, now_ms: u64) {
+    let report = if drift {
+        CacheReport::Drift {
+            observed_at: iso_from_epoch_ms(now_ms)
+                .unwrap_or_else(|| "1970-01-01T00:00:00.000Z".to_string()),
+        }
+    } else {
+        CacheReport::Unavailable
+    };
+    let _ = commit_report(writer, account_id.to_string(), report).await;
+}
+
+async fn collect_with_secret<T: Transport>(
+    runtime: &OpencodeOauthRuntime,
+    transport: &T,
+    writer: Arc<CacheWriter>,
+    account_id: &str,
+    secret: &DetectedSecret,
+    now_ms: u64,
+) -> OpencodeOutcome {
+    if let Err(retry_ms) = runtime.begin(account_id, now_ms) {
+        return OpencodeOutcome::Cached {
+            account_id: account_id.to_string(),
+            retry_at: iso_from_epoch_ms(retry_ms)
+                .unwrap_or_else(|| "1970-01-01T00:00:00.000Z".to_string()),
+        };
+    }
+    let response = match fetch_endpoint(
+        transport,
+        ProviderEndpoint::OpencodeUsage,
+        AuthApplication::BearerAuthorization,
+        &secret.access_token,
+        None,
+    )
+    .await
+    {
+        Ok(response) => response,
+        Err(error) => {
+            return OpencodeOutcome::Failed {
+                account_id: account_id.to_string(),
+                reason: net_failure(error),
+            }
+        }
+    };
+    match response.status {
+        200..=299 => {
+            let snapshots = response
+                .body
+                .as_deref()
+                .and_then(|body| parse_body(ReaderId::OpencodeUsage, body, now_ms, account_id));
+            let Some(snapshots) = snapshots else {
+                fallback_report(writer, account_id, true, now_ms).await;
+                return OpencodeOutcome::fallback(account_id, OpencodeFailure::Drift);
+            };
+            if commit_report(
+                writer,
+                account_id.to_string(),
+                CacheReport::Success(snapshots),
+            )
+            .await
+            {
+                OpencodeOutcome::CacheCommitted {
+                    account_id: account_id.to_string(),
+                }
+            } else {
+                OpencodeOutcome::Failed {
+                    account_id: account_id.to_string(),
+                    reason: OpencodeFailure::Cache,
+                }
+            }
+        }
+        401 => {
+            runtime.postpone(account_id, now_ms, BLOCKED_BACKOFF_SECONDS);
+            fallback_report(writer, account_id, false, now_ms).await;
+            OpencodeOutcome::reopen(account_id)
+        }
+        403 | 404 | 410 => {
+            runtime.postpone(account_id, now_ms, BLOCKED_BACKOFF_SECONDS);
+            fallback_report(writer, account_id, false, now_ms).await;
+            OpencodeOutcome::fallback(account_id, OpencodeFailure::ProviderBlocked)
+        }
+        429 | 503 if response.status == 429 || response.retry_after_seconds.is_some() => {
+            let retry_after_seconds = response.retry_after_seconds;
+            runtime.postpone(account_id, now_ms, 0);
+            fallback_report(writer, account_id, false, now_ms).await;
+            OpencodeOutcome::rate_limited(account_id, retry_after_seconds)
+        }
+        _ => OpencodeOutcome::Failed {
+            account_id: account_id.to_string(),
+            reason: OpencodeFailure::ProviderResponse,
+        },
+    }
+}
+
+fn credential_failure(account_id: &str, _error: DetectedCredentialError) -> OpencodeOutcome {
+    OpencodeOutcome::reopen(account_id)
+}
+
+pub async fn collect_account<T: Transport>(
+    detection: &DetectionStore,
+    runtime: &OpencodeOauthRuntime,
+    transport: &T,
+    writer: Arc<CacheWriter>,
+    account_id: String,
+    now_ms: u64,
+) -> OpencodeOutcome {
+    let secret = match detection.read_credential(DetectedProviderId::Opencode, &account_id) {
+        Ok(secret) => secret,
+        Err(error) => {
+            detection.mark_stale(DetectedProviderId::Opencode, &account_id);
+            return credential_failure(&account_id, error);
+        }
+    };
+    let outcome =
+        collect_with_secret(runtime, transport, writer, &account_id, &secret, now_ms).await;
+    match &outcome {
+        OpencodeOutcome::CacheCommitted { .. } => {
+            detection.mark_ready(DetectedProviderId::Opencode, &account_id)
+        }
+        OpencodeOutcome::ReopenCli { .. } => {
+            detection.mark_stale(DetectedProviderId::Opencode, &account_id)
+        }
+        OpencodeOutcome::Fallback { .. } => {
+            detection.mark_fallback(DetectedProviderId::Opencode, &account_id)
+        }
+        OpencodeOutcome::Cached { .. } | OpencodeOutcome::Failed { .. } => {}
+    }
+    outcome
+}
+
+async fn collect_account_guarded<T: Transport>(
+    detection: &DetectionStore,
+    runtime: &OpencodeOauthRuntime,
+    policy: &RequestPolicy,
+    transport: &T,
+    writer: Arc<CacheWriter>,
+    account_id: String,
+    now_ms: u64,
+) -> (OpencodeOutcome, bool) {
+    let revision = detection
+        .read_credential(DetectedProviderId::Opencode, &account_id)
+        .map(|secret| secret.credential_revision)
+        .unwrap_or_else(|_| "unavailable".to_string());
+    let _lease = match policy.begin_with_revision(
+        DetectedProviderId::Opencode,
+        &account_id,
+        now_ms,
+        Some(&revision),
+    ) {
+        Ok(lease) => lease,
+        Err(GateRejection::Deferred { retry_at }) => {
+            return (
+                OpencodeOutcome::Cached {
+                    account_id,
+                    retry_at: iso_from_epoch_ms(retry_at)
+                        .unwrap_or_else(|| "1970-01-01T00:00:00.000Z".to_string()),
+                },
+                false,
+            )
+        }
+        Err(GateRejection::Busy | GateRejection::Unavailable) => {
+            return (
+                OpencodeOutcome::Failed {
+                    account_id,
+                    reason: OpencodeFailure::Protocol,
+                },
+                false,
+            )
+        }
+    };
+    // The durable gate owns retry timing, including after a process restart.
+    runtime.postpone(&account_id, now_ms, 0);
+    let outcome = collect_account(
+        detection,
+        runtime,
+        transport,
+        writer,
+        account_id.clone(),
+        now_ms,
+    )
+    .await;
+    let abort_provider = complete_outcome(policy, &account_id, now_ms, &outcome);
+    (outcome, abort_provider)
+}
+
+fn complete_outcome(
+    policy: &RequestPolicy,
+    account_id: &str,
+    now_ms: u64,
+    outcome: &OpencodeOutcome,
+) -> bool {
+    match outcome {
+        OpencodeOutcome::Cached { .. } => false,
+        OpencodeOutcome::Failed { .. } => {
+            policy.retry_account(DetectedProviderId::Opencode, &account_id, now_ms, None, false);
+            false
+        }
+        OpencodeOutcome::Fallback {
+            reason: OpencodeFailure::ProviderBlocked,
+            ..
+        } => {
+            policy.refuse_account(DetectedProviderId::Opencode, &account_id, now_ms, true);
+            true
+        }
+        OpencodeOutcome::Fallback {
+            reason: OpencodeFailure::RateLimited,
+            retry_after_seconds,
+            ..
+        } => {
+            policy.rate_limit_account(
+                DetectedProviderId::Opencode,
+                &account_id,
+                now_ms,
+                *retry_after_seconds,
+            );
+            true
+        }
+        OpencodeOutcome::ReopenCli { .. } => {
+            policy.refuse_account(DetectedProviderId::Opencode, &account_id, now_ms, false);
+            false
+        }
+        _ => {
+            policy.complete_after(
+                DetectedProviderId::Opencode,
+                &account_id,
+                now_ms,
+                REFRESH_SECONDS,
+            );
+            false
+        }
+    }
+}
+
+fn uncovered_account_ids(
+    detected_account_ids: Vec<String>,
+    covered: &HashSet<PollIdentity>,
+) -> Vec<String> {
+    detected_account_ids
+        .into_iter()
+        .filter(|account_id| {
+            !covered.contains(&PollIdentity::detected(
+                ProviderId::Opencode,
+                account_id.clone(),
+            ))
+        })
+        .collect()
+}
+
+fn pass_read_succeeded(outcome: &OpencodeOutcome) -> bool {
+    matches!(
+        outcome,
+        OpencodeOutcome::CacheCommitted { .. } | OpencodeOutcome::Cached { .. }
+    )
+}
+
+pub async fn run_pass(
+    app: &AppHandle,
+    covered: &HashSet<PollIdentity>,
+    automatic_account_limit: usize,
+) -> bool {
+    let mut account_ids = uncovered_account_ids(
+        app.state::<DetectionStore>()
+            .account_ids(DetectedProviderId::Opencode),
+        covered,
+    );
+    account_ids.truncate(automatic_account_limit);
+    let mut succeeded = true;
+    for account_id in account_ids {
+        let detection = app.state::<DetectionStore>();
+        let runtime = app.state::<OpencodeOauthRuntime>();
+        let policy = app.state::<RequestPolicy>();
+        let transport = app.state::<ReqwestTransport>();
+        let writer = app.state::<Arc<CacheWriter>>();
+        let (outcome, abort_provider) = collect_account_guarded(
+            &detection,
+            &runtime,
+            &policy,
+            &*transport,
+            Arc::clone(&writer),
+            account_id,
+            crate::connections::now_epoch_ms(),
+        )
+        .await;
+        succeeded &= pass_read_succeeded(&outcome);
+        if abort_provider {
+            break;
+        }
+    }
+    succeeded
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn home_refresh_reports_a_committed_read_and_a_login_failure() {
+        assert!(pass_read_succeeded(&OpencodeOutcome::CacheCommitted {
+            account_id: "fixture".into()
+        }));
+        assert!(pass_read_succeeded(&OpencodeOutcome::Cached {
+            account_id: "fixture".into(),
+            retry_at: "2026-09-08T12:00:00Z".into()
+        }));
+        assert!(!pass_read_succeeded(&OpencodeOutcome::ReopenCli {
+            account_id: "fixture".into(),
+            message: "Open the CLI once.".into()
+        }));
+    }
+
+    use std::fs;
+
+    use crate::cache_write::CACHE_FILE_NAME;
+    use crate::native_snapshot::epoch_ms_from_rfc3339;
+    use crate::net::OPENCODE_USAGE_URL;
+    use crate::test_support::{RecordingTransport, TempDir};
+    use zeroize::Zeroizing;
+
+    const NOW_TEXT: &str = "2026-08-07T12:00:00.000Z";
+    const TOKEN: &str = "opencode-access-token-for-tests-only";
+    const FIXTURE: &str = r#"{"usage":{"rolling":{"status":"ok","percent":12,"resetsAt":"2026-08-07T15:00:00.000Z"},"weekly":{"status":"ok","percent":40,"resetsAt":"2026-08-10T00:00:00.000Z"},"monthly":{"status":"ok","percent":20,"resetsAt":"2026-08-30T00:00:00.000Z"}}}"#;
+
+    fn now() -> u64 {
+        epoch_ms_from_rfc3339(NOW_TEXT).expect("fixture clock")
+    }
+
+    fn secret(token: &str, revision: &str) -> DetectedSecret {
+        DetectedSecret {
+            access_token: Zeroizing::new(token.to_string()),
+            provider_account_id: None,
+            credential_revision: revision.to_string(),
+        }
+    }
+
+    fn writer(dir: &TempDir) -> Arc<CacheWriter> {
+        Arc::new(CacheWriter::at(Some(dir.path().to_path_buf())))
+    }
+
+    #[tokio::test]
+    async fn official_source_fixture_runs_through_request_parser_and_cache() {
+        let dir = TempDir::new();
+        let runtime = OpencodeOauthRuntime::default();
+        let transport = RecordingTransport::replying(200, FIXTURE.as_bytes().to_vec(), None);
+        let outcome = collect_with_secret(
+            &runtime,
+            &transport,
+            writer(&dir),
+            "opencode-account-one",
+            &secret(TOKEN, "one"),
+            now(),
+        )
+        .await;
+        assert!(matches!(outcome, OpencodeOutcome::CacheCommitted { .. }));
+        assert_eq!(transport.recorded_urls(), vec![OPENCODE_USAGE_URL]);
+        assert_eq!(
+            transport.recorded_auths(),
+            vec![AuthApplication::BearerAuthorization]
+        );
+        assert_eq!(transport.recorded_provider_account_ids(), vec![None]);
+        let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
+        assert!(cache.contains("SEVEN_DAY"));
+        assert!(cache.contains("FIVE_HOUR"));
+        assert!(cache.contains("MONTHLY"));
+        assert!(!cache.contains(TOKEN));
+    }
+
+    #[tokio::test]
+    async fn cadence_is_bound_to_the_resolved_account_not_the_token() {
+        let dir = TempDir::new();
+        let runtime = OpencodeOauthRuntime::default();
+        let transport = RecordingTransport::replying(200, FIXTURE.as_bytes().to_vec(), None);
+        let _ = collect_with_secret(
+            &runtime,
+            &transport,
+            writer(&dir),
+            "opencode-account-one",
+            &secret(TOKEN, "one"),
+            now(),
+        )
+        .await;
+        let second = collect_with_secret(
+            &runtime,
+            &transport,
+            writer(&dir),
+            "opencode-account-one",
+            &secret("rotated-opencode-token-for-tests-only", "two"),
+            now() + 1_000,
+        )
+        .await;
+        assert!(matches!(second, OpencodeOutcome::Cached { .. }));
+        assert_eq!(transport.recorded_urls().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn two_accounts_keep_distinct_rows() {
+        let dir = TempDir::new();
+        let runtime = OpencodeOauthRuntime::default();
+        let transport = RecordingTransport::replying(200, FIXTURE.as_bytes().to_vec(), None);
+        for account in ["opencode-account-one", "opencode-account-two"] {
+            let outcome = collect_with_secret(
+                &runtime,
+                &transport,
+                writer(&dir),
+                account,
+                &secret(TOKEN, account),
+                now(),
+            )
+            .await;
+            assert!(matches!(outcome, OpencodeOutcome::CacheCommitted { .. }));
+        }
+        let cache: serde_json::Value = serde_json::from_str(
+            &fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache"),
+        )
+        .expect("json");
+        assert_eq!(cache["snapshots"].as_array().expect("rows").len(), 6);
+    }
+
+    #[tokio::test]
+    async fn drift_suppresses_previous_rows_without_inventing_zero() {
+        let dir = TempDir::new();
+        let runtime = OpencodeOauthRuntime::default();
+        let transport = RecordingTransport::replying(200, br#"{"usage":{}}"#.to_vec(), None);
+        let outcome = collect_with_secret(
+            &runtime,
+            &transport,
+            writer(&dir),
+            "opencode-account-one",
+            &secret(TOKEN, "drift"),
+            now(),
+        )
+        .await;
+        assert!(matches!(
+            outcome,
+            OpencodeOutcome::Fallback {
+                reason: OpencodeFailure::Drift,
+                ..
+            }
+        ));
+        let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
+        assert!(cache.contains("suppressions"));
+        assert!(!cache.contains("\"value\":0"));
+    }
+
+    #[test]
+    fn generic_and_detected_paths_dedupe_by_account_identity() {
+        let account_id = "opencode-account-one".to_string();
+        let covered = HashSet::from([PollIdentity::detected(ProviderId::Opencode, account_id.clone())]);
+        assert!(uncovered_account_ids(vec![account_id], &covered).is_empty());
+    }
+
+    #[tokio::test]
+    async fn guarded_acquisitions_follow_shared_exponential_retry() {
+        let dir = TempDir::new();
+        let path = dir.path().join(".local/share/opencode/auth.json");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, r#"{"opencode-go":{"type":"api","key":"synthetic-test-key"}}"#).unwrap();
+        let detection = DetectionStore::for_test_home(dir.path(), now());
+        let account = detection
+            .account_ids(DetectedProviderId::Opencode)
+            .pop()
+            .expect("synthetic account");
+        let runtime = OpencodeOauthRuntime::default();
+        let transport = RecordingTransport::replying(429, Vec::new(), None);
+        let mut at = now();
+        for (index, seconds) in [60, 120, 240, 480, 900, 900].into_iter().enumerate() {
+            // Reopen the policy to prove attempts survive a process restart.
+            let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
+            let (outcome, _) = collect_account_guarded(
+                &detection,
+                &runtime,
+                &policy,
+                &transport,
+                writer(&dir),
+                account.clone(),
+                at,
+            )
+            .await;
+            assert!(
+                matches!(outcome, OpencodeOutcome::Fallback { .. }),
+                "{outcome:?}"
+            );
+            assert_eq!(transport.recorded_urls().len(), index + 1);
+            let next = at + seconds * 1000;
+            let (early, _) = collect_account_guarded(
+                &detection,
+                &runtime,
+                &policy,
+                &transport,
+                writer(&dir),
+                account.clone(),
+                next - 1,
+            )
+            .await;
+            assert!(matches!(early, OpencodeOutcome::Cached { .. }), "{early:?}");
+            assert_eq!(transport.recorded_urls().len(), index + 1);
+            at = next;
+        }
+    }
+
+    #[test]
+    fn cached_outcome_preserves_shared_failures() {
+        let dir = TempDir::new();
+        let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
+        let account = "synthetic-account";
+        let lease = policy
+            .begin(DetectedProviderId::Opencode, account, now())
+            .unwrap();
+        policy.rate_limit_account(DetectedProviderId::Opencode, account, now(), None);
+        drop(lease);
+        let at = now() + 60_000;
+        let _lease = policy.begin(DetectedProviderId::Opencode, account, at).unwrap();
+        complete_outcome(
+            &policy,
+            account,
+            at,
+            &OpencodeOutcome::Cached {
+                account_id: account.into(),
+                retry_at: iso_from_epoch_ms(at + 1).unwrap(),
+            },
+        );
+        policy.rate_limit_account(DetectedProviderId::Opencode, account, at, None);
+        let document: serde_json::Value = serde_json::from_str(
+            &fs::read_to_string(
+                dir.path()
+                    .join(crate::request_policy::REQUEST_POLICY_FILE_NAME),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(document["providers"]["opencode"]["attempts"][account], 2);
+    }
+
+    #[tokio::test]
+    async fn service_retry_after_reaches_the_shared_policy_boundary() {
+        let dir = TempDir::new();
+        let outcome = collect_with_secret(
+            &OpencodeOauthRuntime::default(),
+            &RecordingTransport::replying(503, Vec::new(), Some(7_200)),
+            writer(&dir),
+            "opencode-account-one",
+            &secret(TOKEN, "service-backoff"),
+            now(),
+        )
+        .await;
+        assert!(matches!(
+            outcome,
+            OpencodeOutcome::Fallback {
+                reason: OpencodeFailure::RateLimited,
+                retry_after_seconds: Some(7_200),
+                ..
+            }
+        ));
+    }
+}

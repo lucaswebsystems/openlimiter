@@ -741,7 +741,6 @@ mod tests {
                             status,
                             body,
                             retry_after_seconds,
-                            location_workspace: None,
                         })
                         .collect(),
                 ),

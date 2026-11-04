@@ -1892,7 +1892,7 @@ mod tests {
     use super::*;
     use crate::credentials::encode_codex_session_v1;
     use crate::net::{ProviderEndpoint, TransportFailure};
-    use crate::reader_registry::{MAX_BROWSER_SESSION_BYTES, MAX_KEY_SECRET_BYTES};
+    use crate::reader_registry::MAX_KEY_SECRET_BYTES;
     use crate::test_support::{FailingTransport, InMemorySecrets, RecordingTransport, TempDir};
     use std::fs;
     use std::sync::{
@@ -2131,7 +2131,6 @@ mod tests {
                 status: 200,
                 body: br#"{"data":{"limit":20,"limit_remaining":7.53,"usage":12.47,"is_free_tier":false}}"#.to_vec(),
                 retry_after_seconds: None,
-                location_workspace: None,
             })
         }
     }
@@ -2210,48 +2209,36 @@ mod tests {
     }
 
     #[test]
-    fn a_browser_session_may_be_larger_than_a_key_and_is_still_bounded() {
-        /* A real Cookie header is kilobytes. A real key is not. Both bounds are
-        exercised at the command boundary, and the oversized case must store
-        nothing rather than store a shortened secret. */
+    fn an_opencode_key_connects_and_the_retired_cookie_kind_is_refused() {
         let dir = TempDir::new();
         let (connections, secrets) = stores(&dir);
-        let big = "c".repeat(MAX_KEY_SECRET_BYTES + 1);
-
-        let mut key = connect_input();
-        key.secret = big.clone();
-        assert_eq!(
-            connect_core(&connections, &secrets, key).map(|_| ()),
-            Err(CommandFailure::InvalidInput)
-        );
-        assert_eq!(secrets.stored_count(), 0);
-
-        /* The same length is ordinary for a browser session. */
+        let key = ConnectProviderInput {
+            provider_id: ProviderId::Opencode,
+            credential_kind: CredentialKind::OpencodeApiKey,
+            account_alias: "personal".to_string(),
+            secret: "opencode-key-for-tests".to_string(),
+        };
+        let record = connect_core(&connections, &secrets, key).expect("connect");
+        assert_eq!(record.credential_kind, CredentialKind::OpencodeApiKey);
+        assert_eq!(record.reader_id.base_seconds(), 300);
         let cookie = ConnectProviderInput {
             provider_id: ProviderId::Opencode,
             credential_kind: CredentialKind::OpencodeBrowserSession,
-            account_alias: "personal".to_string(),
-            secret: big,
+            account_alias: "other".to_string(),
+            secret: "auth=retired-cookie".to_string(),
         };
-        let record = connect_core(&connections, &secrets, cookie).expect("connect");
-        assert_eq!(
-            record.credential_kind,
-            CredentialKind::OpencodeBrowserSession
-        );
-        assert_eq!(secrets.stored_count(), 1);
-
-        /* And it still has a ceiling of its own. */
+        assert!(connect_core(&connections, &secrets, cookie).is_err());
+        assert_eq!(secrets.stored_count(), 1, "the retired kind stored nothing");
         let oversized = ConnectProviderInput {
             provider_id: ProviderId::Opencode,
-            credential_kind: CredentialKind::OpencodeBrowserSession,
-            account_alias: "personal".to_string(),
-            secret: "c".repeat(MAX_BROWSER_SESSION_BYTES + 1),
+            credential_kind: CredentialKind::OpencodeApiKey,
+            account_alias: "third".to_string(),
+            secret: "k".repeat(MAX_KEY_SECRET_BYTES + 1),
         };
         assert_eq!(
             connect_core(&connections, &secrets, oversized).map(|_| ()),
             Err(CommandFailure::InvalidInput)
         );
-        assert_eq!(secrets.stored_count(), 1, "nothing more reached the store");
     }
 
     #[test]
@@ -3086,7 +3073,7 @@ mod tests {
             ),
             (
                 ProviderId::Opencode,
-                CredentialKind::OpencodeBrowserSession,
+                CredentialKind::OpencodeApiKey,
                 ProviderEndpoint::OpencodeUsage,
             ),
         ];
@@ -3101,20 +3088,9 @@ mod tests {
             test_core(&connections, &secrets, &transport, probe(&record.id))
                 .await
                 .expect("probe");
-            /* OpenCode is two hops, both inside its own origin: the entry point
-            names the workspace and the workspace page carries the meters.
-            Every other provider is one address exactly. */
-            let expected: Vec<String> = if endpoint.needs_workspace() {
-                vec![
-                    endpoint.url().to_string(),
-                    "https://opencode.ai/workspace/wrk_testworkspace/go".to_string(),
-                ]
-            } else {
-                vec![endpoint.url().to_string()]
-            };
             assert_eq!(
                 transport.recorded_urls(),
-                expected,
+                vec![endpoint.url().to_string()],
                 "a provider reached an address that is not its own"
             );
         }

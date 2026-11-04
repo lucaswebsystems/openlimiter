@@ -28,8 +28,8 @@ export function useClaudeMeterCopy(): ClaudeMeterCopy {
     kimiDailyUsed: t("kimiDailyUsed"),
     kimiSevenDayUsed: t("kimiSevenDayUsed"),
     kimiUsageUsed: t("kimiUsageUsed"),
-    opencodeFiveHourPage: t("opencodeFiveHourPage"),
-    opencodeWeeklyPage: t("opencodeWeeklyPage"),
-    opencodeMonthlyPage: t("opencodeMonthlyPage"),
+    opencodeFiveHour: t("opencodeFiveHour"),
+    opencodeWeekly: t("opencodeWeekly"),
+    opencodeMonthly: t("opencodeMonthly"),
   }), [t]);
 }

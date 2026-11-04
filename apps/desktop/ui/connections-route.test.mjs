@@ -19,6 +19,9 @@ const NEWER = "99.0.0";
 const CLAUDE_COMMANDS = [`npx -y openlimiter@${BUILD} terminal install claude`, `npx -y openlimiter@${BUILD} hooks install claude`];
 let runtimeVersion = OLDER;
 let preflight = { kind: "ready", cli_path: "openlimiter" };
+// What the next Set up answers: null succeeds, a string is the native refusal.
+let setupFailure = null;
+let detected = { providers: [] };
 // Commands the next calls reject, with the failure kind native code sends.
 const refusing = new Map();
 const storage = new Map();
@@ -27,7 +30,11 @@ globalThis.window = {
   __TAURI__: { core: { invoke: async (command, args) => {
     calls.push([command, args]);
     if (refusing.has(command)) throw { kind: refusing.get(command) };
-    if (command === "list_detected_providers") return { providers: [] };
+    if (command === "list_detected_providers" || command === "rescan_detected_providers") return detected;
+    if (command === "run_terminal_setup") {
+      if (setupFailure !== null) throw setupFailure;
+      return null;
+    }
     if (command === "repair_codex_connection") return { kind: "cache_committed", connection_id: args.input.connection_id };
     if (command === "list_connections") return records;
     // The stamp read's own app version, which no command may name.
@@ -52,7 +59,7 @@ globalThis.window = {
   setTimeout: (callback) => callback(),
 };
 globalThis.CustomEvent = class { constructor(type) { this.type = type; } };
-globalThis.document = fakeDocument(["claude-card", "claude-body", "claude-note", "antigravity-add", "antigravity-body", "antigravity-note", "opencode-add"]);
+globalThis.document = fakeDocument(["claude-card", "claude-body", "claude-note", "antigravity-add", "antigravity-body", "antigravity-note", "opencode-add", "opencode-body", "opencode-note"]);
 const { catalogueModel, checkTool, chooseTool, claudeRuntimeNotice, connectTool, initConnections, refreshConnection, saveOpenrouterKey } = await import("./dist/connections.js");
 
 const settle = () => new Promise((resolve) => setImmediate(resolve));
@@ -122,22 +129,24 @@ test("Connect for Claude Code, Antigravity and OpenCode opens that tool's setup 
   }
   await connectTool("ANTIGRAVITY");
   const antigravityBody = document.getElementById("antigravity-body");
-  assert.ok(antigravityBody.textContent.includes(`Installed terminal runtime ${OLDER}.`));
+  assert.ok(antigravityBody.textContent.includes(`Your terminal runtime is ${OLDER}, older than this app. Set up updates it.`));
+  const buttons = (node) => node.all((child) => child.localName === "button").map((button) => button.textContent);
+  assert.deepEqual(buttons(antigravityBody), ["Set up", "Check again", "Copy"]);
   assert.deepEqual(await copiedCommands(antigravityBody), [`npx -y openlimiter@${BUILD} terminal install antigravity`]);
   assert.equal(calls.some(([command, input]) => command === "connect_provider" && input?.input?.provider_id === "antigravity"), false);
-  // Claude Code's setup shows what wires both the status line and the prompt hook:
-  // the two pinned commands in order, each with its own Copy, then Verify.
+  // Claude Code's setup: what it does, Set up and Verify as steps, and the two
+  // pinned commands folded underneath, each with its own Copy.
   await connectTool("CLAUDE");
   const body = document.getElementById("claude-body");
-  assert.match(body.textContent, /Run these two commands in order, then Verify\./u);
+  assert.match(body.textContent, /Set up adds OpenLimiter's status line and prompt hook to Claude Code\./u);
   assert.doesNotMatch(body.textContent, /openlimiter (?:statusline|hook)|npm install|will be replaced/u);
-  assert.deepEqual(body.all((node) => node.localName === "button").map((button) => button.textContent), ["Copy", "Copy", "Verify"]);
+  assert.deepEqual(buttons(body), ["Set up", "Verify", "Copy", "Copy"]);
   assert.deepEqual(await copiedCommands(body), CLAUDE_COMMANDS);
-  // Without a global command or a runtime the panel offers the same two, never a bare one.
+  // Without a global command or a runtime the same panel offers Set up and the same two commands.
   preflight = { kind: "cli_missing" };
   try {
     await connectTool("CLAUDE");
-    assert.match(body.textContent, /Install the OpenLimiter command first\./u);
+    assert.deepEqual(buttons(body), ["Set up", "Verify", "Copy", "Copy"]);
     assert.doesNotMatch(body.textContent, /npm install/u);
     assert.deepEqual(shownCommands(body), CLAUDE_COMMANDS);
   } finally {
@@ -149,26 +158,90 @@ test("Connect for Claude Code, Antigravity and OpenCode opens that tool's setup 
   await body.all((node) => node.localName === "button" && node.textContent === "Verify")[0].fire("click");
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(calls.filter(([command]) => command === "terminal_runtime_status").length, runtimeReads + 1);
-  assert.ok(document.getElementById("claude-body").textContent.includes(`Installed terminal runtime ${NEWER}.`));
-  assert.match(document.getElementById("claude-body").textContent, /newer than OpenLimiter/u);
+  assert.doesNotMatch(document.getElementById("claude-body").textContent, /older than this app/u);
   runtimeVersion = OLDER;
 });
 
-test("a status line of the person's own is named as replaced, above the commands", async () => {
-  const warning = "Your own status line will be replaced. The installer keeps a backup of it.";
+test("a status line of the person's own is named as replaced, before the steps", async () => {
+  const warning = "Your own status line will be replaced. Set up keeps a backup of it.";
   const body = document.getElementById("claude-body");
   for (const kind of ["guided_manual", "cli_missing"]) {
     preflight = { kind, foreign_status_line: true };
     try {
       await connectTool("CLAUDE");
-      const order = body.children.map((node) => node.className === "q-command-box" ? "command" : node.textContent);
-      assert.deepEqual(order.slice(order.indexOf(warning), order.indexOf(warning) + 3), [warning, "command", "command"], kind);
+      const order = body.children.map((node) => node.localName === "ol" ? "steps" : node.localName === "details" ? "commands" : node.textContent);
+      assert.ok(order.indexOf(warning) !== -1 && order.indexOf(warning) < order.indexOf("steps"), kind);
+      assert.ok(order.indexOf("steps") < order.indexOf("commands"), kind);
     } finally {
       preflight = { kind: "ready", cli_path: "openlimiter" };
       await connectTool("CLAUDE");
     }
   }
   assert.ok(!body.textContent.includes(warning), "no warning without a status line of the person's own");
+});
+
+test("Set up runs the pinned installer for its host and says plainly when it could not", async () => {
+  await connectTool("CLAUDE");
+  const body = document.getElementById("claude-body");
+  const note = document.getElementById("claude-note");
+  const press = async () => {
+    await body.all((node) => node.localName === "button" && node.textContent === "Set up")[0].fire("click");
+    await settle();
+  };
+  calls.length = 0;
+  await press();
+  assert.deepEqual(calls.find(([command]) => command === "run_terminal_setup")[1], { host: "claude" });
+  assert.equal(note.textContent, "Set up finished.");
+  assert.ok(commands().includes("claude_connect_preflight"), "the panel rereads what Set up changed");
+  for (const [failure, sentence] of [
+    ["setup_unavailable", /^Set up needs Node\.js\./u],
+    ["setup_busy", /^Set up is already running\./u],
+    ["setup_failed", /^Set up did not finish\./u],
+  ]) {
+    setupFailure = failure;
+    try {
+      await press();
+      assert.match(note.textContent, sentence, failure);
+      const fold = body.all((node) => node.localName === "details")[0];
+      assert.equal(fold.open, true, "a failed Set up unfolds the commands");
+    } finally {
+      setupFailure = null;
+    }
+  }
+  await press();
+  assert.equal(body.all((node) => node.localName === "details")[0].open, false);
+});
+
+test("OpenCode's panel offers its sign in command, Check again, and a key that saves as an OpenCode API key", async () => {
+  await connectTool("OPENCODE");
+  const body = document.getElementById("opencode-body");
+  const note = document.getElementById("opencode-note");
+  assert.deepEqual(shownCommands(body), ["opencode auth login opencode"]);
+  assert.doesNotMatch(body.textContent, /cookie/iu);
+  const press = async (label) => {
+    await body.all((node) => node.localName === "button" && node.textContent === label)[0].fire("click");
+    await settle();
+  };
+  await press("Check again");
+  assert.match(note.textContent, /^Still no OpenCode sign in that works\./u);
+  detected = { providers: [{ provider_id: "opencode", state: "present", accounts: [{ account_id: "opencode-1" }] }] };
+  try {
+    await connectTool("OPENCODE");
+    await press("Check again");
+    assert.match(note.textContent, /^Found your OpenCode sign in\./u);
+    assert.equal(document.getElementById("opencode-add").hidden, true, "a found sign in closes the panel");
+  } finally {
+    detected = { providers: [] };
+  }
+  await connectTool("OPENCODE");
+  const input = body.all((node) => node.localName === "input")[0];
+  input.value = "  opencode-key-for-tests  ";
+  calls.length = 0;
+  await press("Save");
+  const connect = calls.find(([command]) => command === "connect_provider")[1].input;
+  assert.deepEqual([connect.provider_id, connect.credential_kind, connect.secret], ["opencode", "opencode_api_key", "opencode-key-for-tests"]);
+  assert.equal(input.value, "", "the field is cleared before anything is sent");
+  records = [];
 });
 
 test("every pinned command names this build even when the runtime stamp cannot be read", async () => {

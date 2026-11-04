@@ -607,8 +607,8 @@
         "detail": "Lê a quota pela statusline documentada do Antigravity CLI. Não lê nenhuma credencial nem faz nenhuma requisição de rede."
       },
       "openCode": {
-        "tag": "lê uma sessão que você já abriu",
-        "detail": "Lê o uso do OpenCode por meio do adaptador experimental e deixa clara a versão e a configuração necessárias."
+        "tag": "lê o login que o OpenCode já salvou",
+        "detail": "Lê o uso móvel, semanal e mensal do OpenCode Go com o login que a CLI do opencode salvou neste computador, ou com uma chave de API que você colar. Nunca renova esse login, e o endpoint não é documentado, então pode parar de funcionar."
       },
       "gemini": {
         "tag": "lê a quota de modelos pela CLI instalada",
@@ -1198,8 +1198,8 @@
                 "reads": "Cota da linha de status documentada. Use /usage no Antigravity CLI para fazer a atualização."
               },
               "opencode": {
-                "connect": "Somente importação: você fornece o documento.",
-                "reads": "A usage view behind a session you already signed in to. May break without notice."
+                "connect": "Use o login que a CLI do opencode já salvou, ou cole uma chave de API do OpenCode.",
+                "reads": "O uso móvel, semanal e mensal do OpenCode Go, a partir de um endpoint não documentado. Pode parar de funcionar sem aviso."
               },
               "manual": {
                 "connect": "Você informa os números.",
@@ -1225,15 +1225,15 @@
           },
           "how-data-arrives": {
             "title": "How data actually arrives",
-            "intro": "Most connectors read for themselves now. Two still do not, and this is the part worth stating plainly.",
+            "intro": "Hoje a maioria dos conectores lê por conta própria. Só a entrada manual ainda não, e vale dizer isso com clareza.",
             "bullets": {
               "antigravity": "<code>antigravity</code> chega pela linha de status documentada do Antigravity CLI. Use <code>/usage</code> no Antigravity CLI para atualizar a cota.",
               "claude": "<code>claude</code> recebe dados da linha de status do Claude Code assim que ela aparece. Uma solicitação direta de uso fica desativada até que você a ative; ativada, ela passa a ser a fonte de todas as barras do Claude.",
               "live": "<code>codex</code>, <code>gemini_cli</code>, <code>grok</code>, <code>kimi</code> e <code>openrouter</code> leem a sessão salva pela própria ferramenta, no máximo uma vez a cada quinze minutos, pela atualização do aplicativo ou por <code>openlimiter refresh</code> no terminal.",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
-              "ingestOnly": "<code>opencode</code> is the one connector left with no reader of its own: it only accepts data through <code>openlimiter ingest --provider opencode</code>, because it reads an authenticated page rather than a login file."
+              "ingestOnly": "O aplicativo de desktop lê <code>opencode</code> com o login que a CLI do opencode salvou neste computador, só para leitura e nunca renovado, ou com uma chave de API do OpenCode que você colar. Ele lê o uso móvel, semanal e mensal do OpenCode Go a partir de um único endpoint não documentado, por isso tem alto risco de automação."
             },
-            "exactShapes": "The <docs>ingestion page</docs> documents the manual and OpenCode shapes in full."
+            "exactShapes": "A <docs>página de ingestão</docs> documenta o formato manual por completo."
           },
           "labels": {
             "title": "Reading the labels",
@@ -1415,8 +1415,8 @@
               },
               "opencode": {
                 "name": "OpenCode",
-                "reports": "A janela móvel de uso mais restritiva e sua contagem regressiva de reset.",
-                "source": "Uma sessão existente do navegador e a leitura autenticada da página do workspace."
+                "reports": "Uso de cinco horas, semanal e mensal do OpenCode Go, com horários de reset.",
+                "source": "O login que a CLI do opencode salvou neste dispositivo, só lido e nunca renovado, ou uma chave de API do OpenCode, enviados somente ao endpoint de uso não documentado do OpenCode."
               },
               "openrouter": {
                 "name": "OpenRouter",
@@ -1940,7 +1940,7 @@
             "bullets": {
               "noOfficialApi": "A maioria dos provedores de assinatura para consumidor não oferece nenhuma API oficial de quota. Vários connectors, por isso, descrevem interfaces não oficiais que podem mudar ou desaparecer sem aviso.",
               "unverified": "Nenhum connector foi confirmado contra uma conta real por um verificador explícito ainda. Codex e Cursor passam nos seus fixtures gravados, e todos os outros connectors vêm marcados <code>UNVERIFIED</code>.",
-              "opencode": "O conector OpenCode descreve o formato de uma página autenticada e tem alto risco de automação. Considere o mais frágil dos oito.",
+              "opencode": "O conector OpenCode lê um endpoint não documentado do OpenCode e tem alto risco de automação. Considere o mais frágil dos oito.",
               "adviceOnly": "O OpenLimiter fornece recomendações de roteamento. Ele não roteia requisições automaticamente, não contorna limites, e não muda como seu agente se autentica."
             }
           },
@@ -2188,9 +2188,9 @@
     "kimiDailyUsed": "Limite diário",
     "kimiSevenDayUsed": "Limite de 7 dias",
     "kimiUsageUsed": "Limite de uso",
-    "opencodeFiveHourPage": "Limite de 5 horas, lido na página do OpenCode",
-    "opencodeWeeklyPage": "Limite semanal, lido na página do OpenCode",
-    "opencodeMonthlyPage": "Limite mensal, lido na página do OpenCode",
+    "opencodeFiveHour": "Limite de 5 horas",
+    "opencodeWeekly": "Limite semanal",
+    "opencodeMonthly": "Limite mensal",
     "noKeyCap": "Sem limite na chave",
     "keyNoSpendingCap": "Esta chave não tem limite de gastos",
     "unavailableScope": "Indisponível",

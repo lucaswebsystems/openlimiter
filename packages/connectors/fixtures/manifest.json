@@ -146,10 +146,10 @@
     {
       "provider": "OPENCODE",
       "connector": "opencode",
-      "file": "opencode.workspace.html",
-      "encoding": "text",
+      "file": "opencode.usage.json",
+      "encoding": "json",
       "parser": "parseOpencodePayload",
-      "evidence": "scrape",
+      "evidence": "official_source",
       "expectedMeters": 3,
       "expect": [
         {

@@ -3,6 +3,11 @@
   "versionLabel": "Version {version}",
   "dismiss": "Got it",
   "releases": {
+    "2.1.13": {
+      "heading": "Easier connecting",
+      "opencode": "OpenCode connects by itself from the sign in the opencode command already saved on your computer, with nothing to paste. OpenLimiter reads it and never changes it. Without a sign in, connect with an OpenCode API key.",
+      "panels": "The setup panels for Claude Code, Antigravity and OpenCode span the whole card, say what they do, and walk through numbered steps. Claude Code and Antigravity set up with one click, and the terminal commands are still there if you prefer them."
+    },
     "2.1.12": {
       "heading": "Full width bars",
       "width": "On Windows the status line uses the width you set, so it fills the line instead of breaking at 120 columns.",

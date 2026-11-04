@@ -236,7 +236,6 @@ export function sanitizeEvidence(
 /** A payload file a person pointed this harness at, or null. */
 async function readPayloadFile(
   connectorId: string,
-  encoding: "json" | "text",
   environment: Readonly<Record<string, string | undefined>>
 ): Promise<{ ok: true; payload: unknown } | { ok: false; reason: string } | null> {
   const key = PAYLOAD_ENVIRONMENT_PREFIX + connectorId.toUpperCase();
@@ -249,7 +248,6 @@ async function readPayloadFile(
     return { ok: false, reason: "could not be read" };
   }
   if (text.length > MAX_PAYLOAD_BYTES) return { ok: false, reason: "is too large" };
-  if (encoding === "text") return { ok: true, payload: text };
   try {
     return { ok: true, payload: JSON.parse(text) as unknown };
   } catch {
@@ -282,7 +280,6 @@ export async function collectSmoke(
     const detected = connector.detect(dependencies.environment);
     const supplied = await readPayloadFile(
       connector.id,
-      connector.encoding,
       dependencies.environment
     );
     let connection: ConnectionStatus | null = null;

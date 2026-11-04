@@ -17,7 +17,7 @@ describe("provider catalogue", () => {
         ["openrouter", "OpenRouter", "api_key"],
         ["codex", "Codex", "existing_local_cli"],
         ["antigravity", "Antigravity", "existing_local_cli"],
-        ["opencode", "OpenCode", "manual"],
+        ["opencode", "OpenCode", "existing_local_cli"],
         ["grok", "Grok", "existing_local_cli"],
         ["kimi", "Kimi", "existing_local_cli"]
       ]);
@@ -31,11 +31,7 @@ describe("provider catalogue", () => {
       linux: { mode: "manual", maturity: "supported", label: "Manual" }
     });
     for (const capability of Object.values(byId.get("opencode")?.capabilities ?? {})) {
-      expect(capability).toEqual({
-        mode: "manual",
-        maturity: "experimental",
-        label: "Manual experimental"
-      });
+      expect(capability).toEqual({ mode: "automatic", maturity: "supported", label: "Supported" });
     }
   });
 

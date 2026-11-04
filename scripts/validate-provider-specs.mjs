@@ -370,21 +370,11 @@ const RESET_ENCODINGS = new Set([
   "unix_milliseconds",
   "iso8601",
   "rfc3339",
-  "duration_words",
   "none"
 ]);
 
-/*
- * Where a meter's number lives in whatever the provider returned.
- *
- * `json_path` is the ordinary case and keeps the dotted path rule. `html_label`
- * exists for exactly one provider: OpenCode publishes no interface at all, so
- * its meters are found by the LABEL rendered beside them on a logged in page.
- * A dotted path cannot describe that, and writing one anyway would be the
- * registry stating a location that does not exist. A meter that is found by
- * label carries `source_label` and no `source_path`.
- */
-const SOURCE_FORMATS = new Set(["json_path", "html_label"]);
+/* Where a meter's number lives in whatever the provider returned: a dotted path. */
+const SOURCE_FORMATS = new Set(["json_path"]);
 const UNITS = new Set(["percent_used", "tokens", "requests", "currency"]);
 const VERIFICATION_STATUS = new Set([
   "unverified",
@@ -448,7 +438,7 @@ const CREDENTIAL_KINDS = new Set([
   "codex_session",
   "antigravity_session",
   "gemini_cli_session",
-  "opencode_browser_session",
+  "opencode_api_key",
   "grok_session",
   "kimi_session"
 ]);
@@ -620,36 +610,22 @@ function validateMeter(meter, where) {
       fail(at + " window", "a rolling window needs a duration in seconds");
     }
   }
-  /*
-   * Absent means json_path, so every spec written before a scraped provider
-   * existed still validates and still means what it said.
-   */
+  /* Absent means json_path, the only format. */
   const sourceFormat = meter["source_format"] === undefined
     ? "json_path"
     : requireString(meter, at, "source_format", SOURCE_FORMATS);
   const sourcePath = meter["source_path"];
-  const sourceLabel = meter["source_label"];
-  if (sourceFormat === "json_path") {
-    if (typeof sourcePath !== "string" || !DOTTED_PATH.test(sourcePath)) {
-      fail(at, "source_path is not a dotted path");
-    }
-    if (sourceLabel !== undefined) {
-      fail(at, "a json_path meter has no source_label");
-    }
-  } else {
-    if (typeof sourceLabel !== "string" || sourceLabel === "") {
-      fail(at, "an html_label meter must state the source_label it is found by");
-    }
-    if (sourcePath !== undefined && sourcePath !== null) {
-      fail(at, "an html_label meter has no source_path, because there is no path");
-    }
+  if (typeof sourcePath !== "string" || !DOTTED_PATH.test(sourcePath)) {
+    fail(at, "source_path is not a dotted path");
+  }
+  if (meter["source_label"] !== undefined) {
+    fail(at, "a json_path meter has no source_label");
   }
   const resetPath = meter["reset_path"];
   if (resetPath !== null && typeof resetPath !== "string") {
     fail(at, "reset_path must be a dotted path or null");
   }
-  if (typeof resetPath === "string" && sourceFormat === "json_path" &&
-      !DOTTED_PATH.test(resetPath)) {
+  if (typeof resetPath === "string" && !DOTTED_PATH.test(resetPath)) {
     fail(at, "reset_path is not a dotted path");
   }
   const encoding = requireString(meter, at, "reset_encoding", RESET_ENCODINGS);
@@ -658,26 +634,11 @@ function validateMeter(meter, where) {
    * has nothing to read. Either mistake would silently cost a reset countdown,
    * so the pair has to agree.
    */
-  if (sourceFormat === "json_path") {
-    if (resetPath === null && encoding !== "none") {
-      fail(at, "a meter with no reset path must state reset_encoding none");
-    }
-    if (typeof resetPath === "string" && encoding === "none") {
-      fail(at, "a meter with a reset path must state how it is encoded");
-    }
-  } else {
-    /*
-     * A scraped meter's reset has no path either: it is a countdown rendered
-     * beside the label, so the encoding says how to read the words and the path
-     * stays null. Only that one encoding makes sense here, and stating any
-     * other would be claiming a document shape that does not exist.
-     */
-    if (resetPath !== null) {
-      fail(at, "an html_label meter has no reset path, because there is no path");
-    }
-    if (encoding !== "duration_words" && encoding !== "none") {
-      fail(at, "an html_label meter reads its reset as duration_words, or not at all");
-    }
+  if (resetPath === null && encoding !== "none") {
+    fail(at, "a meter with no reset path must state reset_encoding none");
+  }
+  if (typeof resetPath === "string" && encoding === "none") {
+    fail(at, "a meter with a reset path must state how it is encoded");
   }
   const optional = requireBoolean(meter, at, "optional");
   const code = meter["meter_code"];

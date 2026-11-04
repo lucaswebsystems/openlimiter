@@ -286,7 +286,7 @@ export const WIRE_CREDENTIAL_KINDS = Object.freeze([
   "openrouter_inference_key",
   "openrouter_management_key",
   "codex_session",
-  "opencode_browser_session",
+  "opencode_api_key",
 ]);
 
 function refusedInput(command) {
@@ -446,6 +446,11 @@ export async function setTerminalCaptions(captions) {
 
 export async function terminalRuntimeStatus() {
   return call("terminal_runtime_status");
+}
+
+/** Run this build's pinned terminal installer for one host: "claude" or "antigravity". */
+export async function runTerminalSetup(host) {
+  return call("run_terminal_setup", { host });
 }
 
 /** The provider and account presence report owned by the native detector. */

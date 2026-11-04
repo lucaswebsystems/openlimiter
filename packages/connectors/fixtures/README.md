@@ -13,7 +13,7 @@ call and no network.
 | `openrouter.credits.json` | OpenRouter | Documented credits API | documented |
 | `codex.usage.json` | Codex | Documented app server rate limits | documented |
 | `antigravity.quota.json` | Antigravity | Internal quota summary | observed against a real account |
-| `opencode.workspace.html` | OpenCode | Logged in workspace page (HTML) | scrape of a rendered page |
+| `opencode.usage.json` | OpenCode | Internal usage endpoint | synthetic reply in the shape OpenCode's own clients read |
 | `grok.billing.json` | Grok | Internal billing endpoint | response type in the official Grok CLI source |
 | `kimi.usages.json` | Kimi | Internal usage endpoint | response type in the official Kimi CLI source |
 
@@ -34,7 +34,7 @@ window's plausibility horizon.
 ## Why absolute timestamps
 
 Each file carries absolute reset instants (Claude and Codex in Unix epoch
-seconds, with Antigravity, Grok, and Kimi in RFC3339) because that is what each response carries.
+seconds, with Antigravity, Grok, Kimi, and OpenCode in RFC3339) because that is what each response carries.
 The test does not read them against the wall clock; it reads them against the
 fixed `captureClock` in the manifest, so the fixtures are deterministic and
 never rot.
@@ -57,8 +57,8 @@ The OpenRouter `key` and `credits` readers are exercised separately.
 
 The TypeScript suite is `test/differential.test.ts`. The Rust suite is
 `apps/desktop/src-tauri/src/differential_tests.rs`. Rust calls Claude's
-`parse_usage` and the same `parse_body` entry point used by Codex and Kimi OAuth
-collection, plus both OpenRouter reader identifiers. Neither suite uses the
+`parse_usage` and the same `parse_body` entry point used by Codex, Kimi and
+OpenCode collection, plus both OpenRouter reader identifiers. Neither suite uses the
 network or reads credentials. Both discover every JSON case in each provider
 directory and require a matching expected file with no orphan expectations.
 

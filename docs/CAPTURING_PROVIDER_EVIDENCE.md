@@ -1,6 +1,6 @@
 # Capturing provider evidence
 
-Three live readers ship on a request contract observed against real accounts on
+The live readers ship on a request contract observed against real accounts on
 2026-08-07, and on no captured **response** at all. The registry says so on
 every run, `node scripts/validate-provider-specs.mjs --require-captures` fails
 because of it, and each provider's contract test prints its own skip reason.
@@ -26,7 +26,6 @@ What survives, and nothing else:
 |---|---|
 | Codex | the percentage, the window length in minutes, the reset as **seconds from capture** |
 | Antigravity | per bucket: the pool prefix (`gemini` or `3p`), the window name, the remaining fraction, the reset as seconds from capture |
-| OpenCode | per window: the label, the percentage, the countdown in seconds. The page itself is discarded |
 
 Resets become **durations**, never instants. A wall clock instant dates the
 capture, so a fixture pinning one either expires or quietly records when
@@ -45,11 +44,6 @@ account identifier, an invoice figure, a byte count, would have come through as
 a number. A value that is not the meter it claims to be is refused rather than
 reduced, and the message says which field and what range a real one occupies.
 
-The OpenCode reduction stops 2,000 characters past the last window label, the
-same bound the parser uses. It used to read to the end of the saved page, so any
-percentage below the monthly label, an invoice line, a discount, a storage bar,
-would have been captured as the monthly reading and frozen into a fixture.
-
 The reducer also refuses to emit anything that is not a bounded number or a word
 from a closed vocabulary. If a future edit to a reducer starts copying a provider
 string across, or emits a number that skipped its bound, the run fails and says
@@ -66,8 +60,6 @@ the script reads a file and prints to your terminal.
   `POST .../v1internal:retrieveUserQuotaSummary` call, empty `{}` body, bearer
   token, and a **non empty** User-Agent (the same valid token is answered 403
   without one). Save as `.json`.
-- **OpenCode** — the HTML of the logged in workspace page,
-  `https://opencode.ai/workspace/<handle>/go`. Save as `.html`.
 
 ## Running it
 
@@ -114,6 +106,5 @@ branch instead of the pending one, and parses the rebuilt payload.
 
 `verification: UNVERIFIED` does not move, and neither do the honesty labels. A
 capture proves OpenLimiter observed a shape. It does not turn an internal
-endpoint into a documented API, and it does not make OpenCode's authenticated
-page anything other than a scrape. Those labels describe the **method**, not the
+endpoint into a documented API. Those labels describe the **method**, not the
 amount of evidence gathered about it.

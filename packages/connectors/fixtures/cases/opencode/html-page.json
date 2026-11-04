@@ -1,0 +1,9 @@
+{
+  "provider": "opencode",
+  "case": "html-page",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": "<!doctype html><html><body><h3>Rolling Usage</h3><span>40%</span></body></html>"
+}

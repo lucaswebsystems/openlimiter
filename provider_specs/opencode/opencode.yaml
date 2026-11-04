@@ -1,19 +1,10 @@
-# OpenCode, and the riskiest reader in the registry.
+# OpenCode Go usage.
 #
-# OpenCode publishes no usage interface of any kind. The plan percentages exist
-# only inside the HTML of a logged in workspace page, which is why this reader is
-# an authenticated scrape and why its four honesty labels do not improve with
-# evidence: credentialOrigin browser-session, dataInterfaceStatus
-# authenticated-scrape, automationRisk high, verification UNVERIFIED. Those
-# describe the method, not how much is known about it. The connector carries the
-# same statement as an explicit flag, opencodeHonesty.
-#
-# The reader is live. Both requests it makes, and the rule that the workspace
-# handle between them is parsed out of a redirect rather than followed, are Rust
-# constants and comments in apps/desktop/src-tauri/src/net.rs. They are
-# deliberately absent from this file.
-#
-# What the parser reads is stated once, in the meters block below.
+# The desktop reads the sign in the opencode CLI saved on this computer, read
+# only and never refreshed, or an OpenCode API key a person pasted. Either one
+# is sent to a single endpoint OpenCode does not document, which answers the
+# rolling, weekly and monthly windows as JSON. The address is a Rust constant in
+# apps/desktop/src-tauri/src/net.rs and is deliberately absent from this file.
 
 provider_id: opencode
 product_id: opencode
@@ -34,24 +25,24 @@ platforms:
   - windows
   - macos
   - linux
-acquisitionMethod: authenticated_page
-d5Review: Authenticated page extraction; high automation risk and capture pending.
+acquisitionMethod: remote_http_internal
+d5Review: Internal provider interface; high automation risk and capture pending.
 maturity: headline
 directory:
   order: 6
   rowId: opencode/opencode
   label: OpenCode
   connectorId: opencode
-  access: manual
+  access: automatic
 
 source:
   docs_url: packages/connectors/src/opencode.ts
-  reviewed_at: "2026-08-10"
+  reviewed_at: "2026-11-03"
   source_status: provisional
 
 availability:
   requires_plan: any
-  appears_after: browser_session_captured
+  appears_after: local_cli_login
   absence_is_error: false
 
 support:
@@ -59,22 +50,20 @@ support:
   reader: implemented
   auth: implemented
 
-# The live collection block, and the least trustworthy one in the registry.
-# See the file header for what that means and where the requests are defined.
 collection:
   reader: implemented
   auth: implemented
   readers:
     - reader_id: opencode_usage
       endpoint_id: opencode_usage
-      credential_kind: opencode_browser_session
+      credential_kind: opencode_api_key
       evidence_fixture: opencode.sanitized_live.usage
       evidence_status: pending_capture
       last_verified_at: null
 
 connections:
   - reader: experimental
-    auth_mode: manual
+    auth_mode: existing_local_cli
     platforms:
       - windows
       - macos
@@ -87,28 +76,10 @@ verification:
     - opencode.provisional.usage
     - opencode.sanitized_live.usage
 
-# There is no path to this meter, because there is no interface. The number is
-# rendered into the HTML of a logged in page beside a label, so the registry
-# states the LABEL it is found by and states source_format html_label rather
-# than inventing a dotted path to a document that has none. The reset is a
-# countdown in words, "Resets in 5 days 20 hours", not a timestamp.
-#
-# The reader reports all three provider windows. Shared policy chooses the
-# highest percentage when it needs one binding number. All three labels must be
-# present for any of them to be believed: a page that has changed enough to lose
-# one has changed enough not to be trusted for the other two.
-# The four honesty labels, in the exact words every surface must print.
-#
-# These are OpenLimiter's own vocabulary, not the provider's, and they are the
-# whole answer to "how much should I trust this number". They live here because
-# three surfaces have to say the same thing about one provider, and the way that
-# goes wrong is each surface keeping its own copy until one of them softens a
-# word. The desktop registry is generated from this block; a test proves the
-# connector's own labels are identical to it.
 honesty:
   connector_id: opencode
-  credential_origin: browser-session
-  data_interface_status: authenticated-scrape
+  credential_origin: official-local-tool
+  data_interface_status: internal-endpoint
   automation_risk: high
   verification: UNVERIFIED
 
@@ -121,10 +92,10 @@ meters:
     window:
       kind: rolling
       duration_seconds: 18000
-    source_format: html_label
-    source_label: Rolling Usage
-    reset_path: null
-    reset_encoding: duration_words
+    source_format: json_path
+    source_path: usage.rolling.percent
+    reset_path: usage.rolling.resetsAt
+    reset_encoding: rfc3339
     optional: false
     meter_code: FIVE_HOUR
   - id: weekly
@@ -135,10 +106,10 @@ meters:
     window:
       kind: rolling
       duration_seconds: 604800
-    source_format: html_label
-    source_label: Weekly Usage
-    reset_path: null
-    reset_encoding: duration_words
+    source_format: json_path
+    source_path: usage.weekly.percent
+    reset_path: usage.weekly.resetsAt
+    reset_encoding: rfc3339
     optional: false
     meter_code: SEVEN_DAY
   - id: monthly
@@ -149,9 +120,9 @@ meters:
     window:
       kind: rolling
       duration_seconds: 2592000
-    source_format: html_label
-    source_label: Monthly Usage
-    reset_path: null
-    reset_encoding: duration_words
-    optional: false
+    source_format: json_path
+    source_path: usage.monthly.percent
+    reset_path: usage.monthly.resetsAt
+    reset_encoding: rfc3339
+    optional: true
     meter_code: MONTHLY

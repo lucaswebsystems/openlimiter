@@ -194,6 +194,7 @@ impl DetectedProviderId {
                 | Self::GeminiCli
                 | Self::Grok
                 | Self::Kimi
+                | Self::Opencode
                 | Self::Cursor
         )
     }
@@ -246,7 +247,6 @@ pub enum RecoveryAction {
 pub enum ConnectionMode {
     Automatic,
     ApiKey,
-    ManualEntry,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -298,9 +298,9 @@ fn connection_mode(provider: DetectedProviderId) -> ConnectionMode {
         | DetectedProviderId::GeminiCli
         | DetectedProviderId::Grok
         | DetectedProviderId::Kimi
+        | DetectedProviderId::Opencode
         | DetectedProviderId::Cursor => ConnectionMode::Automatic,
         DetectedProviderId::Openrouter => ConnectionMode::ApiKey,
-        DetectedProviderId::Opencode => ConnectionMode::ManualEntry,
     }
 }
 
@@ -313,8 +313,8 @@ fn provider_recovery(
     }
     match provider {
         DetectedProviderId::Openrouter => Some(RecoveryAction::ConnectApiKey),
-        DetectedProviderId::Opencode => Some(RecoveryAction::ManualEntry),
-        DetectedProviderId::Claude
+        DetectedProviderId::Opencode
+        | DetectedProviderId::Claude
         | DetectedProviderId::Codex
         | DetectedProviderId::Antigravity
         | DetectedProviderId::GeminiCli
@@ -335,10 +335,6 @@ fn provider_message(provider: DetectedProviderId, state: ProviderPresence) -> Op
         } else {
             "Connect an OpenRouter API key to collect its documented credits.".to_string()
         }),
-        DetectedProviderId::Opencode => Some(
-            "OpenCode exposes no zero setup subscription quota source. Add usage manually."
-                .to_string(),
-        ),
         _ => match state {
             ProviderPresence::Present => None,
             ProviderPresence::InstalledLoggedOut => Some(format!(
@@ -393,6 +389,8 @@ struct DiscoveryContext {
     managed_codex_root: Option<PathBuf>,
     grok_home: Option<PathBuf>,
     kimi_code_home: Option<PathBuf>,
+    /// OpenCode's own database override, `OPENCODE_DB`: absolute, or under its data folder.
+    opencode_db: Option<PathBuf>,
     kimi_share_dir: Option<PathBuf>,
     program_files: Vec<PathBuf>,
     path_entries: Vec<PathBuf>,
@@ -425,6 +423,7 @@ impl DiscoveryContext {
             managed_codex_root: Some(home.join("accounts/codex")),
             grok_home: None,
             kimi_code_home: None,
+            opencode_db: None,
             kimi_share_dir: None,
             program_files: Vec::new(),
             path_entries: Vec::new(),
@@ -467,6 +466,7 @@ impl DiscoveryContext {
             managed_codex_root,
             grok_home: non_empty_path("GROK_HOME"),
             kimi_code_home: non_empty_path("KIMI_CODE_HOME"),
+            opencode_db: non_empty_path("OPENCODE_DB"),
             kimi_share_dir: non_empty_path("KIMI_SHARE_DIR"),
             program_files,
             path_entries: Vec::new(),
@@ -647,6 +647,19 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
             push_candidate(&mut paths, home, &[".gemini", "settings.json"], Marker);
         }
         DetectedProviderId::Opencode => {
+            if let Some(chosen) = context.opencode_db.as_deref() {
+                if chosen.is_absolute() {
+                    paths.push(CandidatePath { path: chosen.to_path_buf(), kind: Credential });
+                } else if let Some(data) = context.xdg_data.as_deref() {
+                    paths.push(CandidatePath { path: data.join("opencode").join(chosen), kind: Credential });
+                }
+            }
+            push_candidate(
+                &mut paths,
+                context.xdg_data.as_deref(),
+                &["opencode", "opencode.db"],
+                Credential,
+            );
             push_candidate(
                 &mut paths,
                 context.xdg_data.as_deref(),
@@ -1946,7 +1959,7 @@ fn token_object<'a>(
         DetectedProviderId::Codex => &["tokens", "oauth", "credentials"],
         DetectedProviderId::Antigravity => &["oauth", "token", "tokens", "credentials"],
         DetectedProviderId::GeminiCli => &["oauth", "tokens", "credentials"],
-        DetectedProviderId::Opencode => &["session", "auth", "credentials"],
+        DetectedProviderId::Opencode => &[],
         DetectedProviderId::Openrouter => &["openrouter", "credentials"],
         DetectedProviderId::Grok => &["auth", "credentials"],
         DetectedProviderId::Kimi => &["oauth", "credentials"],
@@ -1964,7 +1977,7 @@ fn access_token<'a>(
         DetectedProviderId::Codex => &["access_token", "accessToken"],
         DetectedProviderId::Antigravity => &["access_token", "accessToken", "token"],
         DetectedProviderId::GeminiCli => &["access_token", "accessToken"],
-        DetectedProviderId::Opencode => &["cookie", "session", "access_token", "accessToken"],
+        DetectedProviderId::Opencode => &[],
         DetectedProviderId::Openrouter => &["api_key", "apiKey", "key", "OPENROUTER_API_KEY"],
         DetectedProviderId::Grok => &["key", "access_token", "accessToken"],
         DetectedProviderId::Kimi => &["access_token", "accessToken"],
@@ -2019,6 +2032,28 @@ pub(crate) fn provider_singleton_account_id(provider: DetectedProviderId) -> Str
 fn parse_credential_file(provider: DetectedProviderId, path: &Path) -> Vec<ParsedCredential> {
     if provider == DetectedProviderId::Antigravity {
         return Vec::new();
+    }
+    if provider == DetectedProviderId::Opencode {
+        /* One login per profile: the Console sign in when there is one, else
+        the newest key. A key has no account of its own, so it is the profile's
+        single OpenCode account. */
+        return crate::opencode_login::at(path)
+            .map(|login| {
+                let (identity_material, identity_quality) = match login.account {
+                    Some(account) => (account, IdentityQuality::ProviderAccount),
+                    None => (PROVIDER_SINGLETON_MATERIAL.to_string(), IdentityQuality::ProviderSingleton),
+                };
+                ParsedCredential {
+                    token: login.token,
+                    provider_account_id: None,
+                    identity_material,
+                    email: login.email,
+                    expires_at_ms: login.expires_at_ms,
+                    identity_quality,
+                }
+            })
+            .into_iter()
+            .collect();
     }
     if provider == DetectedProviderId::Cursor {
         let Ok(session) = crate::native_readers::cursor::session(path) else {
@@ -2847,6 +2882,7 @@ impl DetectionStore {
             managed_codex_root: Some(home.join("accounts").join("codex")),
             grok_home: None,
             kimi_code_home: None,
+            opencode_db: None,
             kimi_share_dir: None,
             program_files: Vec::new(),
             path_entries: vec![home.join("bin")],
@@ -3303,6 +3339,7 @@ mod tests {
             managed_codex_root: Some(home.join("managed-codex")),
             grok_home: Some(home.join("grok-home")),
             kimi_code_home: Some(home.join("kimi-code-home")),
+            opencode_db: None,
             kimi_share_dir: Some(home.join("kimi-share")),
             program_files: Vec::new(),
             path_entries: vec![home.join("bin")],
@@ -3973,12 +4010,12 @@ mod tests {
             DetectedProviderId::Grok,
             DetectedProviderId::Kimi,
             DetectedProviderId::GeminiCli,
+            DetectedProviderId::Opencode,
         ] {
             assert!(provider.supports_automatic_collection());
         }
         for provider in [
             DetectedProviderId::Antigravity,
-            DetectedProviderId::Opencode,
             DetectedProviderId::Openrouter,
         ] {
             assert!(!provider.supports_automatic_collection());
@@ -3986,7 +4023,7 @@ mod tests {
     }
 
     #[test]
-    fn product_truth_distinguishes_manual_opencode_from_key_based_openrouter() {
+    fn opencode_connects_from_its_own_key_while_openrouter_still_needs_one() {
         let dir = TempDir::new();
         write(
             &dir.path().join("data").join("opencode").join("auth.json"),
@@ -3998,14 +4035,11 @@ mod tests {
         );
 
         let opencode = provider(&inventory.report, DetectedProviderId::Opencode);
-        assert_eq!(opencode.state, ProviderPresence::InstalledLoggedOut);
-        assert!(opencode.accounts.is_empty());
-        assert_eq!(opencode.connection_mode, ConnectionMode::ManualEntry);
-        assert_eq!(opencode.recovery, Some(RecoveryAction::ManualEntry));
-        assert!(opencode
-            .message
-            .as_deref()
-            .is_some_and(|message| message.contains("no zero setup subscription quota")));
+        assert_eq!(opencode.state, ProviderPresence::Present);
+        assert_eq!(opencode.accounts.len(), 1);
+        assert!(opencode.accounts[0].automatic_collection);
+        assert_eq!(opencode.connection_mode, ConnectionMode::Automatic);
+        assert_eq!(opencode.recovery, None);
 
         let openrouter = provider(&inventory.report, DetectedProviderId::Openrouter);
         assert_eq!(openrouter.state, ProviderPresence::Absent);
@@ -4017,9 +4051,28 @@ mod tests {
             .is_some_and(|message| message.contains("OpenRouter API key")));
 
         let wire = serde_json::to_string(&inventory.report).expect("wire");
-        assert!(wire.contains(r#""connection_mode":"manual_entry""#));
         assert!(wire.contains(r#""connection_mode":"api_key""#));
         assert!(!wire.contains("fixture-opencode-api-key"));
+    }
+
+    #[test]
+    fn opencode_two_reads_its_database_sign_in_and_ignores_the_old_key_file() {
+        let dir = TempDir::new();
+        let folder = dir.path().join("data").join("opencode");
+        write(&folder.join("auth.json"), r#"{"opencode-go":{"type":"api","key":"expired-legacy-key"}}"#);
+        let db = rusqlite::Connection::open(folder.join("opencode.db")).unwrap();
+        db.execute_batch(
+            "CREATE TABLE credential (id text PRIMARY KEY, integration_id text, label text NOT NULL,              value text NOT NULL, connector_id text, method_id text, active integer,              time_created integer NOT NULL, time_updated integer NOT NULL);              INSERT INTO credential VALUES ('c1', 'opencode', 'Personal',              '{\"type\":\"oauth\",\"access\":\"console-token\",\"refresh\":\"r\",\"expires\":1900000000000,\"metadata\":{\"server\":\"https://opencode.ai/console\",\"accountID\":\"acc_1\",\"email\":\"person@example.com\",\"orgID\":\"org_1\"}}',              NULL, NULL, 1, 0, 0);",
+        )
+        .unwrap();
+        drop(db);
+        let inventory = scan_inventory(&context(DiscoveryPlatform::Linux, dir.path()), 1_800_000_000_000);
+        let opencode = provider(&inventory.report, DetectedProviderId::Opencode);
+        assert_eq!(opencode.accounts.len(), 1, "one account, not one per stored login");
+        assert_eq!(opencode.accounts[0].label, "p***@example.com");
+        assert_eq!(opencode.accounts[0].auth_state, DetectedAuthState::Ready);
+        let wire = serde_json::to_string(&inventory.report).expect("wire");
+        assert!(!wire.contains("console-token") && !wire.contains("expired-legacy-key"));
     }
 
     #[test]

@@ -1,0 +1,22 @@
+{
+  "provider": "opencode",
+  "case": "missing-weekly",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "usage": {
+      "rolling": {
+        "status": "ok",
+        "percent": 40,
+        "resetsAt": "2026-08-07T15:00:00.000Z"
+      },
+      "monthly": {
+        "status": "ok",
+        "percent": 15,
+        "resetsAt": "2026-08-30T00:00:00.000Z"
+      }
+    }
+  }
+}

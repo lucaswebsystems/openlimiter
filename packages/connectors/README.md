@@ -14,7 +14,7 @@ Connectors are bounded payload parsers. Only Claude and Manual have local input 
 | OpenRouter | Explicit documented API response passed through `ingest --provider openrouter`; no API client or local reader ships |
 | Codex | Explicit payload passed through `ingest --provider codex`; no local reader ships |
 | Antigravity | Explicit payload passed through `ingest --provider antigravity`; no local reader ships |
-| OpenCode | Explicit payload passed through `ingest --provider opencode`; no browser automation or local reader ships |
+| OpenCode | Explicit OpenCode Go usage reply passed through `ingest --provider opencode`; the desktop reads it from OpenCode's own sign in or an API key |
 | Manual | `manual.json` in the OpenLimiter state directory, or an explicit payload passed through `ingest --provider manual` |
 
 Every connector is UNVERIFIED. Unknown, missing, stale, or malformed input never becomes available quota.

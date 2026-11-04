@@ -44,7 +44,7 @@ OpenAI, Anthropic, xAI, and OpenRouter observations are spend. Moonshot and Deep
 
 Which address a stored secret may be sent to is decided by `reader_route`, exhaustively, from the connection's own provider and credential kind. All twenty provider and credential pairings are decided in code; the fifteen wrong ones are refused. A secret is never handed to an address that belongs to another provider.
 
-One reader takes two requests. OpenCode publishes no usage interface, so its meters are read from a logged in workspace page whose path is per account. Both addresses are still constants; the workspace handle between them is parsed out of a redirect target, validated against the provider's own opaque token shape, and joined between two constants. The redirect is never followed.
+OpenCode documents no usage interface. Its reader makes one request to one constant address, `https://opencode.ai/zen/go/v1/usage`, with a Bearer token taken either from the sign in the `opencode` CLI saved on this computer, read only and never refreshed, or from an OpenCode API key the person pasted. No cookie is read or sent, no address is built from a response, and a redirect is refused like every other.
 
 No connector may send cache content, other provider state, prompts, source code, or diagnostics.
 

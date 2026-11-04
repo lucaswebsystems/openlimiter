@@ -187,21 +187,21 @@ describe("CLI", () => {
         now: () => FIXTURE_NOW
       });
       expect(result.stdout).toBe([
-        "PROVIDER    METER                                 BAR        USAGE             AMOUNT STATE RESET                    IN    SOURCE       ",
-        "OPENCODE    5 hour limit, from the OpenCode page  #########. 92.00PERCENT      NONE   fresh 2026-01-01T04:00:00.000Z 4h0m  [import only]",
-        "OPENCODE    Weekly limit, from the OpenCode page  ####...... 40.00PERCENT      NONE   fresh 2026-01-06T20:00:00.000Z 5d20h [import only]",
-        "OPENCODE    Monthly limit, from the OpenCode page #......... 15.00PERCENT      NONE   fresh 2026-01-22T00:00:00.000Z 21d0h [import only]",
-        "CODEX       5h                                    ########.. 84.00PERCENT      NONE   fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
-        "KIMI        Weekly limit                          #......... 10.44PERCENT USED NONE   fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
-        "KIMI        5 hour limit                          ######.... 69.50PERCENT USED NONE   fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
-        "CLAUDE      Current session                       ####...... 42.00PERCENT      NONE   fresh 2026-01-01T05:00:00.000Z 5h0m  [connected]  ",
-        "CLAUDE      Weekly, all models                    ######.... 64.00PERCENT      NONE   fresh 2026-01-08T00:00:00.000Z 7d0h  [connected]  ",
-        "GROK        Weekly                                ####...... 42.50PERCENT      NONE   fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
-        "GROK        On demand monthly                     .......... 6.00PERCENT       NONE   fresh NONE                     NONE  [import only]",
-        "MANUAL      Monthly                               ###....... 35.00PERCENT      NONE   fresh 2026-02-01T00:00:00.000Z 31d0h [import only]",
-        "ANTIGRAVITY 5h                                    ##........ 28.00PERCENT      NONE   fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
-        "ANTIGRAVITY Weekly                                #......... 10.00PERCENT      NONE   fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
-        "OPENROUTER  Account balance                       NONE       NONE              $7.53  fresh NONE                     NONE  [import only]"
+        "PROVIDER    METER              BAR        USAGE             AMOUNT STATE RESET                    IN    SOURCE       ",
+        "OPENCODE    5 hour limit       #########. 92.00PERCENT      NONE   fresh 2026-01-01T04:00:00.000Z 4h0m  [import only]",
+        "OPENCODE    Weekly limit       ####...... 40.00PERCENT      NONE   fresh 2026-01-06T20:00:00.000Z 5d20h [import only]",
+        "OPENCODE    Monthly limit      #......... 15.00PERCENT      NONE   fresh 2026-01-22T00:00:00.000Z 21d0h [import only]",
+        "CODEX       5h                 ########.. 84.00PERCENT      NONE   fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
+        "KIMI        Weekly limit       #......... 10.44PERCENT USED NONE   fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
+        "KIMI        5 hour limit       ######.... 69.50PERCENT USED NONE   fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
+        "CLAUDE      Current session    ####...... 42.00PERCENT      NONE   fresh 2026-01-01T05:00:00.000Z 5h0m  [connected]  ",
+        "CLAUDE      Weekly, all models ######.... 64.00PERCENT      NONE   fresh 2026-01-08T00:00:00.000Z 7d0h  [connected]  ",
+        "GROK        Weekly             ####...... 42.50PERCENT      NONE   fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
+        "GROK        On demand monthly  .......... 6.00PERCENT       NONE   fresh NONE                     NONE  [import only]",
+        "MANUAL      Monthly            ###....... 35.00PERCENT      NONE   fresh 2026-02-01T00:00:00.000Z 31d0h [import only]",
+        "ANTIGRAVITY 5h                 ##........ 28.00PERCENT      NONE   fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
+        "ANTIGRAVITY Weekly             #......... 10.00PERCENT      NONE   fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
+        "OPENROUTER  Account balance    NONE       NONE              $7.53  fresh NONE                     NONE  [import only]"
       ].join("\n"));
     });
 
@@ -417,14 +417,10 @@ describe("CLI", () => {
       expect(rows[0]?.provenance?.observedVia).not.toBe("claude_code_statusline");
     });
 
-    it("ingests an OpenCode page, which is text rather than JSON", async () => {
-      /* This is the regression the encoding declaration exists for. The ingest
-         command used to JSON.parse every payload, so a real OpenCode capture,
-         a logged in HTML page, died with "input is not valid JSON" and the
-         reader was unreachable from the command line entirely. */
+    it("ingests an OpenCode usage reply", async () => {
       const directory = await temporaryDirectory();
       const result = await runCli(
-        ["ingest", "--provider", "opencode", "--payload", opencodeFixture(FIXTURE_NOW)],
+        ["ingest", "--provider", "opencode", "--payload", JSON.stringify(opencodeFixture(FIXTURE_NOW))],
         { stateDirectory: directory, now: () => FIXTURE_NOW }
       );
       expect(result.exitCode).toBe(0);
@@ -439,8 +435,7 @@ describe("CLI", () => {
       }
     });
 
-    it("still refuses a JSON connector's payload when it is not JSON", async () => {
-      /* The text path is per connector, not a general relaxation. */
+    it("refuses a connector's payload when it is not JSON", async () => {
       const directory = await temporaryDirectory();
       const result = await runCli(
         ["ingest", "--provider", "codex", "--payload", "<html>not json</html>"],

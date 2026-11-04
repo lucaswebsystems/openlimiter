@@ -11,7 +11,12 @@ describe("generated provider directory", () => {
   it("preserves every field for the existing eight across connection states", () => {
     for (const [state, expected] of Object.entries(legacy)) {
       const states = Object.fromEntries(expected.map((row) => [row.connectorId, state]));
-      expect(buildProviderDirectory(registry, { states }).filter(row => row.connectorId !== "cursor")).toEqual(expected);
+      /* The frozen record predates OpenCode's automatic read. Its row now follows
+         the same automatic access path as Kimi's, field for field. */
+      const kimi = expected.find((row) => row.connectorId === "kimi")!;
+      const opencode = { ...kimi, key: "opencode/opencode", specId: "opencode/opencode", connectorId: "opencode", displayName: "OpenCode" };
+      expect(buildProviderDirectory(registry, { states }).filter(row => row.connectorId !== "cursor"))
+        .toEqual(expected.map((row) => row.connectorId === "opencode" ? opencode : row));
     }
     expect(PROVIDER_RECOGNITION_ORDER).toEqual([...legacy.NOT_CONFIGURED.map((row) => row.specId), "cursor/editor"]);
   });

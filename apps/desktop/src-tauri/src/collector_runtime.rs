@@ -527,6 +527,20 @@ pub async fn run_pass(
                     {
                         failed_providers.push(DetectedProviderId::Kimi);
                     }
+                    if allowed(DetectedProviderId::Opencode)
+                        && !crate::opencode_oauth::run_pass(
+                            app,
+                            &coverage.covered,
+                            automatic_account_limit(
+                                multi_account,
+                                &coverage.known_providers,
+                                DetectedProviderId::Opencode,
+                            ),
+                        )
+                        .await
+                    {
+                        failed_providers.push(DetectedProviderId::Opencode);
+                    }
                     if allowed(DetectedProviderId::Cursor)
                         && !crate::native_readers::cursor::run_pass(
                             app,

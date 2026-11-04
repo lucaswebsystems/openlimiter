@@ -130,6 +130,9 @@ fn run_provider(provider: &str) {
             ("codex", "usage") => parse_body(ReaderId::CodexUsage, &body, now, "synthetic-parity"),
             ("kimi", "usage") => parse_body(ReaderId::KimiUsage, &body, now, "synthetic-parity"),
             ("cursor", "usage") => parse_body(ReaderId::CursorUsage, &body, now, "synthetic-parity"),
+            ("opencode", "usage") => {
+                parse_body(ReaderId::OpencodeUsage, &body, now, "synthetic-parity")
+            }
             ("openrouter", "credits") => {
                 parse_body(ReaderId::OpenrouterCredits, &body, now, "synthetic-parity")
             }
@@ -200,4 +203,9 @@ fn kimi_shared_corpus() {
 #[test]
 fn cursor_shared_corpus() {
     run_provider("cursor");
+}
+
+#[test]
+fn opencode_shared_corpus() {
+    run_provider("opencode");
 }

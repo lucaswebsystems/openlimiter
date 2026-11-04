@@ -26,7 +26,8 @@ mod grok_oauth;
 #[cfg(any(target_os = "macos", target_os = "linux", test))]
 mod host;
 mod kimi_oauth;
-mod native_opencode;
+mod opencode_login;
+mod opencode_oauth;
 mod native_readers;
 mod native_snapshot;
 mod native_time;
@@ -44,6 +45,7 @@ mod reader_registry;
 mod request_policy;
 mod startup_cleanup;
 mod state;
+mod terminal_setup;
 #[cfg(test)]
 mod test_support;
 mod tray;
@@ -243,6 +245,7 @@ pub fn run() {
         .manage(codex_oauth::CodexOauthRuntime::default())
         .manage(grok_oauth::GrokOauthRuntime::default())
         .manage(kimi_oauth::KimiOauthRuntime::default())
+        .manage(opencode_oauth::OpencodeOauthRuntime::default())
         .manage(gemini_cli_oauth::GeminiCliOauthRuntime::default())
         .manage(collector_runtime::CollectorRuntime::default())
         .manage(data_rules::ConnectionIdentities::default())
@@ -264,6 +267,7 @@ pub fn run() {
             cli_config::terminal_captions,
             cli_config::set_terminal_captions,
             cli_config::terminal_runtime_status,
+            terminal_setup::run_terminal_setup,
             set_tray_status,
             provider_order::provider_order,
             provider_order::set_provider_order,

@@ -79,7 +79,7 @@ export function messyFixtures(now = Date.now()) {
     row(at, "ANTIGRAVITY", "ACQUISITION", 0, { account: ACCOUNTS.antigravity, availability: "expired_credentials" }),
     // A window with no measurable meaning.
     row(at, "GEMINI_CLI", "GEMINI_3_1_PRO_PREVIEW", 0, { account: ACCOUNTS.gemini, window: { kind: "unknown" } }),
-    // A revoked browser session.
+    // A revoked sign in.
     row(at, "OPENCODE", "SEVEN_DAY", 0, { account: ACCOUNTS.opencode, availability: "access_denied" }),
   ];
   const raw = { version: 2, snapshots: [...hidden, ...shown], suppressions: [] };

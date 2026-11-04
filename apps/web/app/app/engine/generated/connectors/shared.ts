@@ -207,38 +207,6 @@ export function futureInstantFromRfc3339(
   return new Date(parsed).toISOString();
 }
 
-/** How many seconds each unit a provider spells out is worth. */
-const DURATION_UNITS: Readonly<Record<string, number>> = {
-  day: 86_400,
-  hour: 3_600,
-  minute: 60,
-  second: 1
-};
-
-/**
- * Seconds from a duration a page spelled out in words, or null.
- *
- * OpenCode's workspace page prints "Resets in 5 days 20 hours" rather than a
- * timestamp, so the only reset available is a countdown rendered for a human.
- * Only consecutive number and unit pairs are read, and an empty or zero total
- * is null rather than now: a reset of zero seconds would render as a countdown
- * that has already finished.
- */
-export function durationSecondsFromWords(text: string): number | null {
-  let total = 0;
-  let seen = false;
-  const pattern = /(\d{1,6})\s*(day|hour|minute|second)s?/giu;
-  for (const match of text.matchAll(pattern)) {
-    const count = Number.parseInt(match[1] ?? "", 10);
-    const unit = DURATION_UNITS[(match[2] ?? "").toLowerCase()];
-    if (!Number.isFinite(count) || unit === undefined) return null;
-    total += count * unit;
-    seen = true;
-  }
-  if (!seen || total <= 0 || total > MAX_WINDOW_SECONDS) return null;
-  return total;
-}
-
 /** An instant this many seconds after the supplied clock, or null. */
 export function instantAfter(now: string, seconds: number): string | null {
   const current = Date.parse(now);

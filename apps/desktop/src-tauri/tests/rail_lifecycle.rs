@@ -11,8 +11,8 @@ mod connections;
 mod credentials;
 #[path = "../src/fsx.rs"]
 mod fsx;
-#[path = "../src/native_opencode.rs"]
-mod native_opencode;
+#[path = "../src/opencode_login.rs"]
+mod opencode_login;
 #[path = "../src/native_readers.rs"]
 mod native_readers;
 #[path = "../src/native_snapshot.rs"]

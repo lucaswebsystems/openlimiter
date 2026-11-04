@@ -224,9 +224,9 @@ export type ProviderMeterLabelKey =
   | "kimiDailyUsed"
   | "kimiSevenDayUsed"
   | "kimiUsageUsed"
-  | "opencodeFiveHourPage"
-  | "opencodeWeeklyPage"
-  | "opencodeMonthlyPage"
+  | "opencodeFiveHour"
+  | "opencodeWeekly"
+  | "opencodeMonthly"
   | "cursorLegacyHidden";
 
 export interface ProviderMeterPresentation {
@@ -273,15 +273,9 @@ const FIXED_PRESENTATION: Readonly<Record<string, ProviderMeterPresentation>> = 
   "KIMI:FIVE_MINUTE": presentation("kimiFiveMinuteUsed", "5 minute limit", "5m used", 24),
   "KIMI:DAILY": presentation("kimiDailyUsed", "Daily limit", "1d used", 25),
   "KIMI:SEVEN_DAY": presentation("kimiSevenDayUsed", "7 day limit", "7d used", 30),
-  "OPENCODE:FIVE_HOUR": presentation(
-    "opencodeFiveHourPage", "5 hour limit, from the OpenCode page", "Page 5h", 10,
-  ),
-  "OPENCODE:SEVEN_DAY": presentation(
-    "opencodeWeeklyPage", "Weekly limit, from the OpenCode page", "Page 7d", 20,
-  ),
-  "OPENCODE:MONTHLY": presentation(
-    "opencodeMonthlyPage", "Monthly limit, from the OpenCode page", "Page month", 30,
-  ),
+  "OPENCODE:FIVE_HOUR": presentation("opencodeFiveHour", "5 hour limit", "5h", 10),
+  "OPENCODE:SEVEN_DAY": presentation("opencodeWeekly", "Weekly limit", "7d", 20),
+  "OPENCODE:MONTHLY": presentation("opencodeMonthly", "Monthly limit", "Monthly", 30),
   "CURSOR:AUTO": presentation("cursorLegacyHidden", "", "", 90, "used", false),
   "CURSOR:API": presentation("cursorLegacyHidden", "", "", 90, "used", false),
   "CURSOR:INCLUDED": presentation("cursorLegacyHidden", "", "", 90, "used", false),

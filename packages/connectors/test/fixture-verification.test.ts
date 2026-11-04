@@ -47,7 +47,7 @@ const parsers: Readonly<Record<string, Parser>> = {
 interface ManifestProvider {
   connector: string;
   file: string;
-  encoding: "json" | "text";
+  encoding: "json";
   parser: string;
   expectedMeters: number;
 }
@@ -89,7 +89,7 @@ const LIVE_PROVIDERS = new Set([
 
 function loadFixture(entry: ManifestProvider): unknown {
   const raw = readFileSync(resolve(FIXTURE_DIR, entry.file), "utf8");
-  return entry.encoding === "text" ? raw : JSON.parse(raw);
+  return JSON.parse(raw);
 }
 
 describe("fixture verification markers", () => {

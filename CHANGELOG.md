@@ -2,6 +2,12 @@
 
 All notable project changes appear in this file.
 
+## [2.1.13]
+
+OpenCode connects by itself from the sign in the opencode command already saved on your computer, with nothing to paste. OpenLimiter reads it and never changes it. Without a sign in, connect with an OpenCode API key. OpenCode Go's 5 hour, weekly and monthly limits now refresh on their own every few minutes. The session cookie field is gone, and a cookie saved by an earlier version is removed.
+
+The setup panels for Claude Code, Antigravity and OpenCode span the whole card, say what they do, and walk through numbered steps. Claude Code and Antigravity set up with one click, and the terminal commands are still there if you prefer them.
+
 ## [2.1.12]
 
 On Windows the status line uses the width you set (statusline.width), so it fills the line instead of breaking at 120 columns. Windows runs status lines in a hidden console that always reports 120 columns, so that reading is no longer used there, and a new desktop configuration starts at the default 140 instead of 120.

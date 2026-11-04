@@ -6,7 +6,7 @@ use zeroize::Zeroizing;
 
 use crate::credentials::{CredentialError, SecretStore};
 use crate::net::{
-    EndpointRequest, HttpMethod, Transport, TransportFailure, TransportReply, WorkspaceHandle,
+    EndpointRequest, HttpMethod, Transport, TransportFailure, TransportReply,
 };
 use crate::reader_registry::AuthApplication;
 
@@ -104,9 +104,6 @@ impl SecretStore for InMemorySecrets {
 /// was handed, so a test can prove only constant urls are ever fetched.
 pub(crate) struct RecordingTransport {
     replies: Mutex<VecDeque<RecordedReply>>,
-    /// A workspace handle the double pretends a redirect named, so the two hop
-    /// OpenCode read can be exercised without a socket.
-    workspace: Option<WorkspaceHandle>,
     urls: Mutex<Vec<String>>,
     secrets: Mutex<Vec<String>>,
     methods: Mutex<Vec<HttpMethod>>,
@@ -142,10 +139,6 @@ impl RecordingTransport {
                     })
                     .collect(),
             ),
-            /* Every OpenCode read is two hops, so the default double names a
-            workspace: a double that never did would make the second hop
-            unreachable in every test that is not about a dead session. */
-            workspace: WorkspaceHandle::parse("wrk_testworkspace"),
             urls: Mutex::new(Vec::new()),
             secrets: Mutex::new(Vec::new()),
             methods: Mutex::new(Vec::new()),
@@ -153,13 +146,6 @@ impl RecordingTransport {
             provider_account_ids: Mutex::new(Vec::new()),
             bodies: Mutex::new(Vec::new()),
         }
-    }
-
-    /// A double whose entry point names no workspace, which is what a dead
-    /// OpenCode session looks like from outside.
-    pub(crate) fn without_workspace(mut self) -> Self {
-        self.workspace = None;
-        self
     }
 
     pub(crate) fn recorded_urls(&self) -> Vec<String> {
@@ -276,7 +262,6 @@ impl Transport for RecordingTransport {
             status: reply.status,
             body: reply.body,
             retry_after_seconds: reply.retry_after_seconds,
-            location_workspace: self.workspace.clone(),
         })
     }
 }

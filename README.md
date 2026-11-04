@@ -53,7 +53,7 @@ The desktop app also checks GitHub for updates and asks before installing one. O
 | Gemini CLI | The login Gemini CLI stored, against an internal Google endpoint | Provisional |
 | Grok | The login the Grok CLI stored, against an internal xAI endpoint | Provisional |
 | Kimi | The login the Kimi CLI stored, against an internal Moonshot endpoint | Provisional |
-| OpenCode | A usage page behind a session you already opened | Provisional |
+| OpenCode | The sign in the opencode CLI saved (read only, never refreshed) or an OpenCode API key, against an internal OpenCode Go usage endpoint | Provisional |
 | Cursor | The local Cursor session, against an internal endpoint | Experimental |
 | API spend keys | Each provider's documented cost or balance API, with a key you add | Experimental |
 
