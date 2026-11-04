@@ -374,6 +374,7 @@ pub fn run() {
                 })
                 .await;
                 collector_runtime::spawn_collector(startup.clone());
+                updates::spawn_periodic_checks(startup.clone());
                 provider_detection::spawn_rescans(startup);
             });
             api_spend::spawn_polling(app.handle().clone());

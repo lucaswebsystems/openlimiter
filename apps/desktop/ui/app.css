@@ -1936,8 +1936,8 @@ button.first-run-continue {
 }
 
 /* The Update button: in the header beside Refresh, so every tab shows it and
-   scrolling never hides it. Solid accent, because it is the one action that
-   is waiting for the person. */
+   scrolling never hides it. The primary fill, because it is the one action
+   waiting for the person, in the colours that keep its words readable. */
 button.update-pill {
   display: inline-flex;
   min-width: 0;
@@ -1946,8 +1946,8 @@ button.update-pill {
   padding: 0 var(--ol-space-3);
   border: 0;
   border-radius: var(--ol-radius-pill);
-  background: var(--ol-accent-solid);
-  color: var(--ol-on-accent);
+  background: var(--ol-primary);
+  color: var(--ol-on-primary);
   font: inherit;
   font-size: var(--ol-text-caption);
   font-weight: var(--ol-weight-semibold);
@@ -1956,7 +1956,7 @@ button.update-pill {
 }
 
 button.update-pill:hover {
-  background: var(--ol-accent-solid-hover);
+  background: var(--ol-primary-hover);
 }
 
 button.update-pill:focus-visible {

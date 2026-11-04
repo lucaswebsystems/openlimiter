@@ -1,4 +1,6 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::time::Duration;
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
@@ -13,6 +15,34 @@ impl PendingUpdate {
     pub fn version(&self) -> Option<String> {
         self.0.lock().ok().and_then(|slot| slot.as_ref().map(|update| update.version.clone()))
     }
+}
+
+/// Set from the moment an install takes the pending update until it restarts
+/// or fails: no second install, and no check that would refill the update
+/// while one is being installed.
+static INSTALLING: AtomicBool = AtomicBool::new(false);
+
+/// One check at a time, whichever window, timer or tray asked.
+static CHECKING: AtomicBool = AtomicBool::new(false);
+
+/// How long one check may wait on the release manifest.
+const CHECK_DEADLINE: Duration = Duration::from_secs(30);
+
+/// How often the native side checks on its own, window open or not: a hidden
+/// window's timers can be suspended, so the window alone is not enough.
+pub const CHECK_EVERY: Duration = Duration::from_secs(2 * 60 * 60);
+
+/// Clears a flag when the holder ends, however it ends.
+struct Clears(&'static AtomicBool);
+
+impl Drop for Clears {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Release);
+    }
+}
+
+fn claim(flag: &'static AtomicBool) -> Option<Clears> {
+    (!flag.swap(true, Ordering::AcqRel)).then(|| Clears(flag))
 }
 
 /// Remembers the last version a notification announced, so a check every two
@@ -110,6 +140,29 @@ pub async fn check_for_update(
     app: AppHandle,
     pending: State<'_, PendingUpdate>,
 ) -> Result<Option<UpdateMetadata>, UpdateFailure> {
+    check_now(&app, &pending).await
+}
+
+/// The native timer: check every two hours for the life of the process, so
+/// the tray item and the one notification appear with the window closed.
+pub fn spawn_periodic_checks(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        loop {
+            tokio::time::sleep(CHECK_EVERY).await;
+            let pending = app.state::<PendingUpdate>();
+            let _ = check_now(&app, &pending).await;
+        }
+    });
+}
+
+async fn check_now(app: &AppHandle, pending: &PendingUpdate) -> Result<Option<UpdateMetadata>, UpdateFailure> {
+    /* While an install runs, nothing may refill the update it took. */
+    if INSTALLING.load(Ordering::Acquire) {
+        return Err(UpdateFailure::UpdateCheckFailed);
+    }
+    let Some(_checking) = claim(&CHECKING) else {
+        return Err(UpdateFailure::UpdateCheckFailed);
+    };
     /* The comparator reads the manifest's version before the plugin looks
     for this platform's download, which is how macOS, left out of the
     manifest while it is unsigned, learns of a newer release: the same one
@@ -118,6 +171,7 @@ pub async fn check_for_update(
     let witness = seen.clone();
     let checked = app
         .updater_builder()
+        .timeout(CHECK_DEADLINE)
         .version_comparator(move |current, release| {
             let newer = release.version > current;
             if let Ok(mut slot) = witness.lock() {
@@ -156,7 +210,7 @@ pub async fn check_for_update(
     *slot = update;
     drop(slot);
     if let Some(found) = &metadata {
-        notify_once(&app, &found.version);
+        notify_once(app, &found.version);
     }
     Ok(metadata)
 }
@@ -180,31 +234,38 @@ pub async fn install_update(app: AppHandle) -> Result<(), UpdateFailure> {
 /// Download and install the update a check left pending, then restart: the
 /// window's Update button and the tray's Install update item both land here.
 pub async fn install_pending(app: &AppHandle) -> Result<(), UpdateFailure> {
+    /* Ownership first: a second click, from the window or the tray, is
+    refused before it can touch the update or the restart mark. */
+    let Some(_installing) = claim(&INSTALLING) else {
+        return Err(UpdateFailure::NoPendingUpdate);
+    };
     let pending = app.state::<PendingUpdate>();
-    let directory = crate::state::state_directory();
-    mark_install(directory.as_deref())?;
-    let taken = pending
+    let update = pending
         .0
         .lock()
         .map(|mut slot| slot.take())
         .map_err(|_| UpdateFailure::UpdateStateUnavailable)
-        .and_then(|update| update.ok_or(UpdateFailure::NoPendingUpdate));
-    let installed = match taken {
-        Ok(update) => update
-            .download_and_install(|_, _| {}, || {})
-            .await
-            .map_err(|_| UpdateFailure::UpdateInstallFailed),
-        Err(failure) => Err(failure),
-    };
-    if let Err(failure) = installed {
+        .and_then(|update| update.ok_or(UpdateFailure::NoPendingUpdate))?;
+    let directory = crate::state::state_directory();
+    mark_install(directory.as_deref())?;
+    if update.download_and_install(|_, _| {}, || {}).await.is_err() {
         crate::autostart::take_update_mark(directory.as_deref());
-        return Err(failure);
+        return Err(UpdateFailure::UpdateInstallFailed);
     }
     app.restart();
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn one_install_and_one_check_at_a_time() {
+        let first = super::claim(&super::INSTALLING).expect("free");
+        assert!(super::claim(&super::INSTALLING).is_none());
+        assert!(super::claim(&super::INSTALLING).is_none(), "a refusal does not free it");
+        drop(first);
+        assert!(super::claim(&super::INSTALLING).is_some());
+    }
+
     #[test]
     fn a_version_is_announced_once() {
         assert!(super::needs_notice(None, "2.1.15"));
