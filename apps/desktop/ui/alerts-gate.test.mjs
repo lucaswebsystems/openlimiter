@@ -9,10 +9,13 @@ import { shouldNotifyLocally, shouldSendRemote, thresholdDedupeKey } from "../..
 
 const read = (name) => readFileSync(new URL("./" + name, import.meta.url), "utf8");
 
-test("the header is refresh, the phone and the menu, with no bell and no tab bar", () => {
+test("the header is the Update button, refresh and the phone, with no bell and no tab bar", () => {
   const html = read("index.html");
   const header = html.slice(html.indexOf('<header class="strip">'), html.indexOf("</header>"));
-  assert.deepEqual([...header.matchAll(/<button[^>]*\bid="([^"]+)"/gu)].map((match) => match[1]), ["home-refresh", "phone-button"]);
+  assert.deepEqual([...header.matchAll(/<button[^>]*\bid="([^"]+)"/gu)].map((match) => match[1]), ["update-banner", "home-refresh", "phone-button"]);
+  /* It waits hidden until a check finds a release, and lives in the header so
+     no tab and no scroll position hides it. */
+  assert.match(header, /<button type="button" id="update-banner" class="update-pill" hidden><\/button>/u);
   assert.doesNotMatch(html, /notification-bell|notification-popover/u);
   assert.match(html, /<nav class="tabs" role="tablist"/u);
 });

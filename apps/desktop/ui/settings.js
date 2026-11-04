@@ -89,18 +89,23 @@ export const DOWNLOAD_URL = "https://openlimiter.com/download";
  * banner links to the download page instead (2.1.7).
  */
 export function updateView(update) {
-  if (update === null || update === undefined) return { menu: "OpenLimiter is current", banner: null, href: null };
+  if (update === null || update === undefined) return { menu: "OpenLimiter is current", banner: null, title: null, href: null };
   const version = String(update.version ?? "new version");
   if (update.manual === true) {
     const out = say("updateOut", { version });
-    return { menu: out, banner: out, href: DOWNLOAD_URL };
+    return { menu: out, banner: "Get " + version, title: out, href: DOWNLOAD_URL };
   }
-  return { menu: "Install OpenLimiter " + version, banner: "OpenLimiter " + version + " is ready. Install now.", href: null };
+  return {
+    menu: "Install OpenLimiter " + version,
+    banner: "Update to " + version,
+    title: "OpenLimiter " + version + " is ready. Click to install; OpenLimiter restarts by itself.",
+    href: null,
+  };
 }
 
 /**
- * The two update controls, Settings' "Check for updates" and the banner over
- * the tabs. A release this app installs is offered as an install, and the
+ * The two update controls, Settings' "Check for updates" and the Update
+ * button in the header, which every tab shows and scrolling never hides. A release this app installs is offered as an install, and the
  * menu checks again. A release the manifest has no installer for here
  * (macOS) sends both controls to the download page through the app's one
  * native opener action (Astra 2.1.7, finding 2). Returns the check, which the
@@ -122,6 +127,7 @@ export function wireUpdates({ menu, banner }, api = { checkForUpdate, installUpd
     }
     href = view.href;
     banner.textContent = view.banner;
+    banner.title = view.title;
     banner.hidden = false;
     menu.textContent = view.menu;
   };
@@ -135,7 +141,7 @@ export function wireUpdates({ menu, banner }, api = { checkForUpdate, installUpd
       return;
     }
     banner.disabled = true;
-    banner.textContent = "Installing update";
+    banner.textContent = "Installing";
     void api.installUpdate().then((result) => {
       if (!result.ok) {
         banner.disabled = false;

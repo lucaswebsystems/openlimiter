@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use serde::Deserialize;
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
-use tauri::{AppHandle, Runtime};
+use tauri::{AppHandle, Manager, Runtime};
 
 use crate::provider_order::ProviderOrder;
 
@@ -226,6 +226,19 @@ pub fn menu<R: Runtime>(app: &AppHandle<R>, view: &View) -> tauri::Result<Menu<R
     }
 
     menu.append(&PredefinedMenuItem::separator(app)?)?;
+    /* An update a check found is one click away here too, window closed or not. */
+    if let Some(version) = app
+        .try_state::<crate::updates::PendingUpdate>()
+        .and_then(|pending| pending.version())
+    {
+        menu.append(&MenuItem::with_id(
+            app,
+            "install-update",
+            format!("Install update {version}"),
+            true,
+            None::<&str>,
+        )?)?;
+    }
     menu.append(&MenuItem::with_id(app, "open", "Open", true, None::<&str>)?)?;
     menu.append(&crate::rail::visibility_menu_item(app)?)?;
     menu.append(&MenuItem::with_id(

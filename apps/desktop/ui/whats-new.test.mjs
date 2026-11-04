@@ -10,6 +10,10 @@ const whatsNewForVersion = (version) => selectRelease(version, WHATS_NEW_EN);
 
 /* What each recent release says, word for word; the current version is one of them. */
 const NOTES = {
+  "2.1.14": [
+    { key: "updates", text: "Updates are easy to see: OpenLimiter checks at start, every two hours and when you come back to it, an Update button appears in the header on every tab, the tray menu gets Install update, and one desktop notification says a new version is ready. One click installs it and restarts." },
+    { key: "signin", text: "Signing in works on Windows again. A sign in session, a Google one especially, is longer than the 1,280 characters Windows lets one saved credential hold, so saving it failed with a storage error. Long values are now saved in parts, and the phone receives your bars once you sign in." },
+  ],
   "2.1.13": [
     { key: "opencode", text: "OpenCode connects by itself from the sign in the opencode command already saved on your computer, with nothing to paste. OpenLimiter reads it and never changes it. Without a sign in, connect with an OpenCode API key." },
     { key: "panels", text: "The setup panels for Claude Code, Antigravity and OpenCode span the whole card, say what they do, and walk through numbered steps. Claude Code and Antigravity set up with one click, and the terminal commands are still there if you prefer them." },
