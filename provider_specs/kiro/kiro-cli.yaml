@@ -1,0 +1,118 @@
+# Kiro, its monthly credits.
+#
+# The desktop reads the sign in the Kiro CLI saved in its state database,
+# data.sqlite3 in kiro-cli under Application Support on macOS and the XDG
+# data folder on Linux: table auth_kv, key kirocli:odic:token (a JSON token,
+# access_token and expires_at), and table state, key
+# api.codewhisperer.profile (a JSON profile whose arn the request names). The
+# database is opened read only on its live WAL, never copied, never written.
+# The token lasts about an hour and the Kiro CLI renews it; it is never
+# refreshed here, and an expired one shows the reopen sentence.
+#
+# Verified in source: CodexBar (Sources/CodexBarCore/Providers/Kiro/
+# KiroUsageLimitsAPI.swift) reads the same rows and posts GetUsageLimits to
+# the us-east-1 service with Content-Type application/x-amz-json-1.0,
+# X-Amz-Target AmazonCodeWhispererService.GetUsageLimits, Bearer and the
+# body {"profileArn"}; it reads usageBreakdownList's CREDIT entry
+# (currentUsageWithPrecision, currentOveragesWithPrecision,
+# usageLimitWithPrecision, nextDateReset in epoch seconds). The token's
+# expires_at is RFC3339 in the Amazon Q Developer CLI the Kiro CLI continues
+# (aws/amazon-q-developer-cli, crates/chat-cli/src/auth/builder_id.rs,
+# BuilderIdToken); Kiro's own CLI source is not public. AWS documents none of
+# this for Kiro. The address is a Rust constant in
+# apps/desktop/src-tauri/src/net.rs, and the body is built there from one
+# validated profile.
+#
+# Not read: a profile in any region but us-east-1 (CodexBar also knows
+# eu-central-1's service; only us-east-1 is in the allowlist, so such a sign
+# in shows that it is not read yet), and the Kiro CLI on Windows, whose folder
+# no source confirms.
+
+provider_id: kiro
+product_id: kiro-cli
+display_name: Kiro
+
+headlineMeter: monthly
+acquisitionSurfaces:
+  - desktop
+displaySurfaces:
+  - desktop
+  - rail
+  - tray
+  - cli_cache
+  - web
+  - phone
+platforms:
+  - macos
+  - linux
+acquisitionMethod: remote_http_internal
+d5Review: Reads the sign in the Kiro CLI saved, read only and never refreshed. Only the us-east-1 CodeWhisperer service receives the token, with one validated profile in the body. Honest OpenLimiter identity.
+maturity: experimental
+directory:
+  order: 17
+  rowId: kiro/kiro-cli
+  label: Kiro
+  connectorId: kiro
+  access: automatic
+
+source:
+  docs_url: null
+  reviewed_at: "2026-11-04"
+  source_status: provisional
+
+availability:
+  requires_plan: any
+  appears_after: local_cli_login
+  absence_is_error: false
+
+support:
+  parser: implemented
+  reader: implemented
+  auth: implemented
+
+collection:
+  reader: implemented
+  auth: implemented
+  readers:
+    - reader_id: kiro_usage_limits
+      endpoint_id: kiro_usage_limits
+      credential_kind: kiro_session
+      evidence_fixture: kiro.provisional.usage_limits
+      evidence_status: pending_capture
+      last_verified_at: null
+
+connections:
+  - reader: experimental
+    auth_mode: existing_local_cli
+    platforms:
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  fixture_ids:
+    - kiro.provisional.usage_limits
+    - kiro.live.pending
+
+honesty:
+  connector_id: kiro
+  credential_origin: official-local-tool
+  data_interface_status: internal-endpoint
+  automation_risk: high
+  verification: UNVERIFIED
+
+meters:
+  - id: monthly
+    label: Monthly credits
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: billing_period
+    source_format: json_path
+    source_path: usageBreakdownList.currentUsageWithPrecision
+    reset_path: usageBreakdownList.nextDateReset
+    reset_encoding: unix_seconds
+    optional: false
+    meter_code: MONTHLY

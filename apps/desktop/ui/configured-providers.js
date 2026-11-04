@@ -86,6 +86,11 @@ const ALLOWED = new Set([
   "COMMANDCODE",
   "CLINE",
   "KILOCODE",
+  "COPILOT",
+  "AMP",
+  "CODEBUFF",
+  "KIRO",
+  "CRUSH",
 ]);
 
 function normalized(provider) {

@@ -307,6 +307,11 @@ const PROVIDER_NAMES: Record<ProviderCode, string> = {
   COMMANDCODE: "Command Code",
   CLINE: "Cline",
   KILOCODE: "Kilo Code",
+  COPILOT: "GitHub Copilot",
+  AMP: "Amp",
+  CODEBUFF: "Codebuff",
+  KIRO: "Kiro",
+  CRUSH: "Crush",
   MANUAL: "Manual",
 };
 
@@ -329,6 +334,11 @@ const PROVIDER_ORIGIN: Record<ProviderCode, string> = {
   COMMANDCODE: "Official local CLI session",
   CLINE: "Official local CLI session",
   KILOCODE: "Official local CLI session",
+  COPILOT: "Official local CLI session",
+  AMP: "Official local CLI session",
+  CODEBUFF: "Official local CLI session",
+  KIRO: "Official local CLI session",
+  CRUSH: "Official local CLI session",
   MANUAL: "Written down by you",
 };
 
@@ -391,6 +401,11 @@ const PROVIDER_DEFAULT_SOURCE: Record<ProviderCode, SourceState> = {
   COMMANDCODE: "CONNECTED",
   CLINE: "CONNECTED",
   KILOCODE: "CONNECTED",
+  COPILOT: "CONNECTED",
+  AMP: "CONNECTED",
+  CODEBUFF: "CONNECTED",
+  KIRO: "CONNECTED",
+  CRUSH: "CONNECTED",
   MANUAL: "MANUAL",
 };
 

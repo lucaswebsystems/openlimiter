@@ -1,0 +1,23 @@
+{
+  "provider": "copilot",
+  "case": "derived-percent",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "copilot_plan": "individual",
+    "access_type_sku": "free_limited_copilot",
+    "quota_reset_date": "2026-09-01",
+    "quota_snapshots": {
+      "premium_interactions": {
+        "quota_id": "premium_interactions",
+        "unlimited": false,
+        "overage_count": 0,
+        "overage_permitted": false,
+        "entitlement": 300,
+        "remaining": 75
+      }
+    }
+  }
+}

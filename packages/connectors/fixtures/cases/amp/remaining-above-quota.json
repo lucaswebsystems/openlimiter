@@ -1,0 +1,14 @@
+{
+  "provider": "amp",
+  "case": "remaining-above-quota",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "ok": true,
+    "result": {
+      "displayText": "Amp Free: $12 / $10 remaining"
+    }
+  }
+}

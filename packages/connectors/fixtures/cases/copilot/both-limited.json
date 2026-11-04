@@ -1,0 +1,33 @@
+{
+  "provider": "copilot",
+  "case": "both-limited",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "copilot_plan": "individual",
+    "access_type_sku": "free_limited_copilot",
+    "quota_reset_date": "2026-09-01T00:00:00Z",
+    "quota_snapshots": {
+      "premium_interactions": {
+        "quota_id": "premium_interactions",
+        "unlimited": false,
+        "overage_count": 0,
+        "overage_permitted": false,
+        "entitlement": 300,
+        "remaining": 37.5,
+        "percent_remaining": 12.5
+      },
+      "chat": {
+        "quota_id": "chat",
+        "unlimited": false,
+        "overage_count": 0,
+        "overage_permitted": false,
+        "entitlement": 50,
+        "remaining": 40,
+        "percent_remaining": 80
+      }
+    }
+  }
+}

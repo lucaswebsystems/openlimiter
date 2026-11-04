@@ -147,10 +147,15 @@ pub enum DetectedProviderId {
     Commandcode,
     Cline,
     Kilocode,
+    Copilot,
+    Amp,
+    Codebuff,
+    Kiro,
+    Crush,
 }
 
 impl DetectedProviderId {
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 18] = [
         Self::Claude,
         Self::Codex,
         Self::Antigravity,
@@ -164,6 +169,11 @@ impl DetectedProviderId {
         Self::Commandcode,
         Self::Cline,
         Self::Kilocode,
+        Self::Copilot,
+        Self::Amp,
+        Self::Codebuff,
+        Self::Kiro,
+        Self::Crush,
     ];
 
     pub(crate) const fn slug(self) -> &'static str {
@@ -181,6 +191,11 @@ impl DetectedProviderId {
             Self::Commandcode => "commandcode",
             Self::Cline => "cline",
             Self::Kilocode => "kilocode",
+            Self::Copilot => "copilot",
+            Self::Amp => "amp",
+            Self::Codebuff => "codebuff",
+            Self::Kiro => "kiro",
+            Self::Crush => "crush",
         }
     }
 
@@ -199,6 +214,11 @@ impl DetectedProviderId {
             Self::Commandcode => "Command Code",
             Self::Cline => "Cline",
             Self::Kilocode => "Kilo Code",
+            Self::Copilot => "GitHub Copilot",
+            Self::Amp => "Amp",
+            Self::Codebuff => "Codebuff",
+            Self::Kiro => "Kiro",
+            Self::Crush => "Crush",
         }
     }
 
@@ -216,6 +236,11 @@ impl DetectedProviderId {
                 | Self::Commandcode
                 | Self::Cline
                 | Self::Kilocode
+                | Self::Copilot
+                | Self::Amp
+                | Self::Codebuff
+                | Self::Kiro
+                | Self::Crush
         )
     }
 }
@@ -321,6 +346,11 @@ pub(crate) fn reopen_message(provider: DetectedProviderId) -> String {
         }
         DetectedProviderId::Cline => "Open Cline once so it renews its sign in.".to_string(),
         DetectedProviderId::Kilocode => "Open Kilo Code once so it renews its sign in.".to_string(),
+        DetectedProviderId::Copilot => "Sign in to GitHub Copilot again so it saves a working login.".to_string(),
+        DetectedProviderId::Amp => "Sign in to Amp again so it saves a working key.".to_string(),
+        DetectedProviderId::Codebuff => "Sign in to Codebuff again so it saves a working login.".to_string(),
+        DetectedProviderId::Kiro => "Open Kiro once so it renews its sign in.".to_string(),
+        DetectedProviderId::Crush => "Open Crush once so it renews its sign in.".to_string(),
         DetectedProviderId::Claude
         | DetectedProviderId::Codex
         | DetectedProviderId::Antigravity
@@ -348,7 +378,12 @@ fn connection_mode(provider: DetectedProviderId) -> ConnectionMode {
         | DetectedProviderId::Hermes
         | DetectedProviderId::Commandcode
         | DetectedProviderId::Cline
-        | DetectedProviderId::Kilocode => ConnectionMode::Automatic,
+        | DetectedProviderId::Kilocode
+        | DetectedProviderId::Copilot
+        | DetectedProviderId::Amp
+        | DetectedProviderId::Codebuff
+        | DetectedProviderId::Kiro
+        | DetectedProviderId::Crush => ConnectionMode::Automatic,
         DetectedProviderId::Openrouter => ConnectionMode::ApiKey,
     }
 }
@@ -373,7 +408,12 @@ fn provider_recovery(
         | DetectedProviderId::Hermes
         | DetectedProviderId::Commandcode
         | DetectedProviderId::Cline
-        | DetectedProviderId::Kilocode => match state {
+        | DetectedProviderId::Kilocode
+        | DetectedProviderId::Copilot
+        | DetectedProviderId::Amp
+        | DetectedProviderId::Codebuff
+        | DetectedProviderId::Kiro
+        | DetectedProviderId::Crush => match state {
             ProviderPresence::InstalledLoggedOut => Some(RecoveryAction::SignInToCli),
             ProviderPresence::Absent => Some(RecoveryAction::ManualEntry),
             ProviderPresence::Present => None,
@@ -797,6 +837,56 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
             push_candidate(&mut paths, context.xdg_data.as_deref(), &["kilo", "auth.json"], Credential);
             push_candidate(&mut paths, context.xdg_data.as_deref(), &["kilo"], Marker);
         }
+        DetectedProviderId::Copilot => {
+            /* The GitHub Copilot sign in's `apps.json`: local application data
+            on Windows, `~/.config` elsewhere (Crush `oauth/copilot/disk.go`). */
+            let base = if context.platform == DiscoveryPlatform::Windows {
+                context.local.clone()
+            } else {
+                home.map(|value| value.join(".config"))
+            };
+            push_candidate(&mut paths, base.as_deref(), &["github-copilot", "apps.json"], Credential);
+            push_candidate(&mut paths, base.as_deref(), &["github-copilot"], Marker);
+        }
+        DetectedProviderId::Amp => {
+            /* Amp keeps its data in `~/.local/share/amp` on Windows and macOS
+            and under the XDG data folder on Linux (the Amp CLI bundle). */
+            let base = if context.platform == DiscoveryPlatform::Linux {
+                context.xdg_data.clone()
+            } else {
+                home.map(|value| value.join(".local").join("share"))
+            };
+            push_candidate(&mut paths, base.as_deref(), &["amp", "secrets.json"], Credential);
+            push_candidate(&mut paths, base.as_deref(), &["amp"], Marker);
+        }
+        DetectedProviderId::Codebuff => {
+            /* `~/.config/manicode` on every system (`cli/src/utils/config-dir.ts`). */
+            push_candidate(&mut paths, home, &[".config", "manicode", "credentials.json"], Credential);
+            push_candidate(&mut paths, home, &[".config", "manicode"], Marker);
+        }
+        DetectedProviderId::Kiro => {
+            /* The Kiro CLI's state database: Application Support on macOS, the
+            XDG data folder on Linux (CodexBar `KiroUsageLimitsAPI.swift`). Its
+            Windows folder is not confirmed in any source, so none is read. */
+            let base = match context.platform {
+                DiscoveryPlatform::Macos => context.application_support.as_deref(),
+                DiscoveryPlatform::Linux => context.xdg_data.as_deref(),
+                DiscoveryPlatform::Windows => None,
+            };
+            push_candidate(&mut paths, base, &["kiro-cli", "data.sqlite3"], Credential);
+            push_candidate(&mut paths, base, &["kiro-cli"], Marker);
+        }
+        DetectedProviderId::Crush => {
+            /* Crush's global data file: local application data on Windows, the
+            XDG data folder elsewhere (`internal/config/load.go`, `GlobalConfigData`). */
+            let base = if context.platform == DiscoveryPlatform::Windows {
+                context.local.as_deref()
+            } else {
+                context.xdg_data.as_deref()
+            };
+            push_candidate(&mut paths, base, &["crush", "crush.json"], Credential);
+            push_candidate(&mut paths, base, &["crush"], Marker);
+        }
         DetectedProviderId::Kimi => {
             push_candidate(
                 &mut paths,
@@ -888,7 +978,12 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                 | DetectedProviderId::Hermes
                 | DetectedProviderId::Commandcode
                 | DetectedProviderId::Cline
-                | DetectedProviderId::Kilocode => {}
+                | DetectedProviderId::Kilocode
+                | DetectedProviderId::Copilot
+                | DetectedProviderId::Amp
+                | DetectedProviderId::Codebuff
+                | DetectedProviderId::Kiro
+                | DetectedProviderId::Crush => {}
             }
         }
         DiscoveryPlatform::Macos => {
@@ -907,7 +1002,12 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                 | DetectedProviderId::Hermes
                 | DetectedProviderId::Commandcode
                 | DetectedProviderId::Cline
-                | DetectedProviderId::Kilocode => {}
+                | DetectedProviderId::Kilocode
+                | DetectedProviderId::Copilot
+                | DetectedProviderId::Amp
+                | DetectedProviderId::Codebuff
+                | DetectedProviderId::Kiro
+                | DetectedProviderId::Crush => {}
                 DetectedProviderId::Claude
                 | DetectedProviderId::Codex
                 | DetectedProviderId::Opencode
@@ -925,7 +1025,12 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                         | DetectedProviderId::Hermes
                         | DetectedProviderId::Commandcode
                         | DetectedProviderId::Cline
-                        | DetectedProviderId::Kilocode => {
+                        | DetectedProviderId::Kilocode
+                        | DetectedProviderId::Copilot
+                        | DetectedProviderId::Amp
+                        | DetectedProviderId::Codebuff
+                        | DetectedProviderId::Kiro
+                        | DetectedProviderId::Crush => {
                             unreachable!()
                         }
                     };
@@ -941,7 +1046,12 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                         | DetectedProviderId::Hermes
                         | DetectedProviderId::Commandcode
                         | DetectedProviderId::Cline
-                        | DetectedProviderId::Kilocode => {
+                        | DetectedProviderId::Kilocode
+                        | DetectedProviderId::Copilot
+                        | DetectedProviderId::Amp
+                        | DetectedProviderId::Codebuff
+                        | DetectedProviderId::Kiro
+                        | DetectedProviderId::Crush => {
                             unreachable!()
                         }
                     };
@@ -968,6 +1078,11 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                     | DetectedProviderId::Commandcode
                     | DetectedProviderId::Cline
                     | DetectedProviderId::Kilocode
+                    | DetectedProviderId::Copilot
+                    | DetectedProviderId::Amp
+                    | DetectedProviderId::Codebuff
+                    | DetectedProviderId::Kiro
+                    | DetectedProviderId::Crush
             ) {
                 let directory = provider.slug();
                 let file = match provider {
@@ -983,7 +1098,12 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                     | DetectedProviderId::Hermes
                     | DetectedProviderId::Commandcode
                     | DetectedProviderId::Cline
-                    | DetectedProviderId::Kilocode => unreachable!(),
+                    | DetectedProviderId::Kilocode
+                    | DetectedProviderId::Copilot
+                    | DetectedProviderId::Amp
+                    | DetectedProviderId::Codebuff
+                    | DetectedProviderId::Kiro
+                    | DetectedProviderId::Crush => unreachable!(),
                 };
                 push_candidate(
                     &mut paths,
@@ -1071,7 +1191,12 @@ fn profile_prefix(provider: DetectedProviderId) -> Option<(&'static str, &'stati
         | DetectedProviderId::Hermes
         | DetectedProviderId::Commandcode
         | DetectedProviderId::Cline
-        | DetectedProviderId::Kilocode => None,
+        | DetectedProviderId::Kilocode
+        | DetectedProviderId::Copilot
+        | DetectedProviderId::Amp
+        | DetectedProviderId::Codebuff
+        | DetectedProviderId::Kiro
+        | DetectedProviderId::Crush => None,
     }
 }
 
@@ -1156,7 +1281,12 @@ fn install_root_specs(
         | DetectedProviderId::Hermes
         | DetectedProviderId::Commandcode
         | DetectedProviderId::Cline
-        | DetectedProviderId::Kilocode => &[],
+        | DetectedProviderId::Kilocode
+        | DetectedProviderId::Copilot
+        | DetectedProviderId::Amp
+        | DetectedProviderId::Codebuff
+        | DetectedProviderId::Kiro
+        | DetectedProviderId::Crush => &[],
     }
 }
 
@@ -1430,6 +1560,11 @@ fn executable_names(provider: DetectedProviderId, platform: DiscoveryPlatform) -
         DetectedProviderId::Commandcode => "cmd",
         DetectedProviderId::Cline => "cline",
         DetectedProviderId::Kilocode => "kilo",
+        DetectedProviderId::Copilot => "copilot",
+        DetectedProviderId::Amp => "amp",
+        DetectedProviderId::Codebuff => "codebuff",
+        DetectedProviderId::Kiro => "kiro-cli",
+        DetectedProviderId::Crush => "crush",
     };
     if platform == DiscoveryPlatform::Windows {
         [".exe", ".cmd", ".bat"]
@@ -1760,7 +1895,12 @@ fn package_name(provider: DetectedProviderId) -> Option<&'static str> {
         | DetectedProviderId::Hermes
         | DetectedProviderId::Commandcode
         | DetectedProviderId::Cline
-        | DetectedProviderId::Kilocode => None,
+        | DetectedProviderId::Kilocode
+        | DetectedProviderId::Copilot
+        | DetectedProviderId::Amp
+        | DetectedProviderId::Codebuff
+        | DetectedProviderId::Kiro
+        | DetectedProviderId::Crush => None,
     }
 }
 
@@ -2096,7 +2236,12 @@ fn token_object<'a>(
         | DetectedProviderId::Hermes
         | DetectedProviderId::Commandcode
         | DetectedProviderId::Cline
-        | DetectedProviderId::Kilocode => &[],
+        | DetectedProviderId::Kilocode
+        | DetectedProviderId::Copilot
+        | DetectedProviderId::Amp
+        | DetectedProviderId::Codebuff
+        | DetectedProviderId::Kiro
+        | DetectedProviderId::Crush => &[],
     };
     nested_object(account, names).unwrap_or(account)
 }
@@ -2118,7 +2263,12 @@ fn access_token<'a>(
         | DetectedProviderId::Hermes
         | DetectedProviderId::Commandcode
         | DetectedProviderId::Cline
-        | DetectedProviderId::Kilocode => &[],
+        | DetectedProviderId::Kilocode
+        | DetectedProviderId::Copilot
+        | DetectedProviderId::Amp
+        | DetectedProviderId::Codebuff
+        | DetectedProviderId::Kiro
+        | DetectedProviderId::Crush => &[],
     };
     names
         .iter()
@@ -2198,6 +2348,11 @@ fn parse_credential_file(provider: DetectedProviderId, path: &Path) -> Vec<Parse
             | DetectedProviderId::Commandcode
             | DetectedProviderId::Cline
             | DetectedProviderId::Kilocode
+            | DetectedProviderId::Copilot
+            | DetectedProviderId::Amp
+            | DetectedProviderId::Codebuff
+            | DetectedProviderId::Kiro
+            | DetectedProviderId::Crush
     ) {
         /* One login per file, the tool's own active one. The account is the
         identity the file states, else the token's JWT subject (a Cline
@@ -2232,7 +2387,7 @@ fn parse_credential_file(provider: DetectedProviderId, path: &Path) -> Vec<Parse
                 });
                 ParsedCredential {
                     token: login.token,
-                    provider_account_id: None,
+                    provider_account_id: login.provider_account_id,
                     identity_material,
                     email: None,
                     expires_at_ms,
@@ -3002,6 +3157,18 @@ impl DetectionStore {
             DetectedCollectionState::Fallback,
             Some(RecoveryAction::ManualEntry),
             Some("Automatic usage is unavailable. Statusline and manual entry remain available."),
+        );
+    }
+
+    /// A login this build finds but does not read yet, with the reason shown
+    /// in its own words. No request was made for it.
+    pub fn mark_unsupported(&self, provider: DetectedProviderId, account_id: &str, message: &str) {
+        self.update_collection(
+            provider,
+            account_id,
+            DetectedCollectionState::Fallback,
+            None,
+            Some(message),
         );
     }
 
@@ -4173,6 +4340,10 @@ mod tests {
                     assert!(candidates
                         .iter()
                         .all(|entry| entry.kind != CandidateKind::Credential));
+                } else if provider == DetectedProviderId::Kiro && platform == DiscoveryPlatform::Windows {
+                    /* No source confirms the Kiro CLI's Windows folder, so
+                    nothing there is looked at. */
+                    assert!(candidates.is_empty());
                 } else {
                     assert!(candidates
                         .iter()

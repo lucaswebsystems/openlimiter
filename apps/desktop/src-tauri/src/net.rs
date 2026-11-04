@@ -91,6 +91,33 @@ pub const CLINE_USAGE_URL: &str = "https://api.cline.bot/api/v1/users/me/plan/us
 /// (`packages/kilo-gateway/src/api/profile.ts`). Not documented.
 pub const KILOCODE_BALANCE_URL: &str = "https://api.kilo.ai/api/profile/balance";
 
+/// GitHub Copilot's own quota report for the signed in user, read with the
+/// Copilot OAuth token as `Authorization: token <t>` (CodexBar
+/// `CopilotUsageFetcher.swift`). Internal to GitHub; not documented.
+pub const COPILOT_USER_URL: &str = "https://api.github.com/copilot_internal/user";
+
+/// Amp's balance procedure, the one `amp usage` calls (`userDisplayBalanceInfo`
+/// on `/api/internal` in the Amp CLI bundle). Not documented.
+pub const AMP_BALANCE_URL: &str = "https://ampcode.com/api/internal?userDisplayBalanceInfo";
+
+/// Codebuff's credit balance (`fetchUsageData` in the Codebuff CLI,
+/// `CodebuffUsageFetcher.swift` in CodexBar). Not documented.
+pub const CODEBUFF_USAGE_URL: &str = "https://www.codebuff.com/api/v1/usage";
+
+/// Codebuff's subscription and its weekly limit, the plain GET its CLI makes
+/// (`use-subscription-query.ts`). Read only after the balance answered, with
+/// the same token, as that endpoint's companion. Not documented.
+pub const CODEBUFF_SUBSCRIPTION_URL: &str = "https://www.codebuff.com/api/user/subscription";
+
+/// Kiro's usage limits, the CodeWhisperer service the Kiro CLI itself calls
+/// (CodexBar `KiroUsageLimitsAPI.swift`). Only the us-east-1 service is in
+/// the allowlist; a profile in any other region is not read yet.
+pub const KIRO_USAGE_LIMITS_URL: &str = "https://codewhisperer.us-east-1.amazonaws.com/";
+
+/// Charm Hyper's credit balance, the GET Crush makes after every Hyper
+/// request (`internal/agent/hyper/provider.go`, `FetchCredits`). Not documented.
+pub const CRUSH_CREDITS_URL: &str = "https://hyper.charm.land/v1/credits";
+
 /// Every address this process may speak to. Adding a provider means adding a
 /// variant here, in code, in review; nothing at runtime can. One variant is
 /// one constant address, and nothing outside this file, in particular nothing
@@ -112,13 +139,19 @@ pub enum ProviderEndpoint {
     CommandcodeCredits,
     ClineUsage,
     KilocodeBalance,
+    CopilotUser,
+    AmpBalance,
+    CodebuffUsage,
+    CodebuffSubscription,
+    KiroUsageLimits,
+    CrushCredits,
 }
 
 impl ProviderEndpoint {
     /// The whole allowlist, for the tests that prove it closed. The product
     /// itself never needs the list, only a variant at a time.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [ProviderEndpoint; 13] = [
+    pub const ALL: [ProviderEndpoint; 19] = [
         ProviderEndpoint::OpenrouterKey,
         ProviderEndpoint::OpenrouterCredits,
         ProviderEndpoint::GeminiCliLoad,
@@ -132,6 +165,12 @@ impl ProviderEndpoint {
         ProviderEndpoint::CommandcodeCredits,
         ProviderEndpoint::ClineUsage,
         ProviderEndpoint::KilocodeBalance,
+        ProviderEndpoint::CopilotUser,
+        ProviderEndpoint::AmpBalance,
+        ProviderEndpoint::CodebuffUsage,
+        ProviderEndpoint::CodebuffSubscription,
+        ProviderEndpoint::KiroUsageLimits,
+        ProviderEndpoint::CrushCredits,
     ];
 
     /// The address this endpoint's request goes to.
@@ -150,6 +189,12 @@ impl ProviderEndpoint {
             ProviderEndpoint::CommandcodeCredits => COMMANDCODE_CREDITS_URL,
             ProviderEndpoint::ClineUsage => CLINE_USAGE_URL,
             ProviderEndpoint::KilocodeBalance => KILOCODE_BALANCE_URL,
+            ProviderEndpoint::CopilotUser => COPILOT_USER_URL,
+            ProviderEndpoint::AmpBalance => AMP_BALANCE_URL,
+            ProviderEndpoint::CodebuffUsage => CODEBUFF_USAGE_URL,
+            ProviderEndpoint::CodebuffSubscription => CODEBUFF_SUBSCRIPTION_URL,
+            ProviderEndpoint::KiroUsageLimits => KIRO_USAGE_LIMITS_URL,
+            ProviderEndpoint::CrushCredits => CRUSH_CREDITS_URL,
         }
     }
 
@@ -168,9 +213,15 @@ impl ProviderEndpoint {
             | ProviderEndpoint::HermesAccount
             | ProviderEndpoint::CommandcodeCredits
             | ProviderEndpoint::ClineUsage
-            | ProviderEndpoint::KilocodeBalance => HttpMethod::Get,
+            | ProviderEndpoint::KilocodeBalance
+            | ProviderEndpoint::CopilotUser
+            | ProviderEndpoint::CodebuffSubscription
+            | ProviderEndpoint::CrushCredits => HttpMethod::Get,
             ProviderEndpoint::GeminiCliLoad
-            | ProviderEndpoint::GeminiCliQuota => HttpMethod::Post,
+            | ProviderEndpoint::GeminiCliQuota
+            | ProviderEndpoint::AmpBalance
+            | ProviderEndpoint::CodebuffUsage
+            | ProviderEndpoint::KiroUsageLimits => HttpMethod::Post,
         }
     }
 
@@ -181,6 +232,11 @@ impl ProviderEndpoint {
             /* The quota body contains one validated server supplied project
             identifier and is constructed only by `fetch_gemini_cli_quota`. */
             ProviderEndpoint::GeminiCliQuota => None,
+            ProviderEndpoint::AmpBalance => Some(AMP_BALANCE_BODY),
+            ProviderEndpoint::CodebuffUsage => Some(CODEBUFF_USAGE_BODY),
+            /* The Kiro body names one validated profile and is constructed
+            only inside `fetch_endpoint`, from the profile the login states. */
+            ProviderEndpoint::KiroUsageLimits => None,
             ProviderEndpoint::OpenrouterKey
             | ProviderEndpoint::OpenrouterCredits
             | ProviderEndpoint::OpencodeUsage
@@ -191,8 +247,111 @@ impl ProviderEndpoint {
             | ProviderEndpoint::HermesAccount
             | ProviderEndpoint::CommandcodeCredits
             | ProviderEndpoint::ClineUsage
-            | ProviderEndpoint::KilocodeBalance => None,
+            | ProviderEndpoint::KilocodeBalance
+            | ProviderEndpoint::CopilotUser
+            | ProviderEndpoint::CodebuffSubscription
+            | ProviderEndpoint::CrushCredits => None,
         }
+    }
+
+    /// The second constant address a pass reads after this one answered, with
+    /// the same token and scheme, or None. A companion is never routed on its
+    /// own: it exists only beside the endpoint named here, so a token reaches
+    /// it only after its own provider's first address answered.
+    pub const fn companion(self) -> Option<ProviderEndpoint> {
+        match self {
+            ProviderEndpoint::CodebuffUsage => Some(ProviderEndpoint::CodebuffSubscription),
+            ProviderEndpoint::OpenrouterKey
+            | ProviderEndpoint::OpenrouterCredits
+            | ProviderEndpoint::GeminiCliLoad
+            | ProviderEndpoint::GeminiCliQuota
+            | ProviderEndpoint::OpencodeUsage
+            | ProviderEndpoint::ClaudeOauthUsage
+            | ProviderEndpoint::GrokUsage
+            | ProviderEndpoint::KimiUsage
+            | ProviderEndpoint::CursorUsage
+            | ProviderEndpoint::HermesAccount
+            | ProviderEndpoint::CommandcodeCredits
+            | ProviderEndpoint::ClineUsage
+            | ProviderEndpoint::KilocodeBalance
+            | ProviderEndpoint::CopilotUser
+            | ProviderEndpoint::AmpBalance
+            | ProviderEndpoint::CodebuffSubscription
+            | ProviderEndpoint::KiroUsageLimits
+            | ProviderEndpoint::CrushCredits => None,
+        }
+    }
+}
+
+/// The balance procedure's envelope, constant: the Amp CLI posts
+/// `{"method", "params"}` to `/api/internal` and this procedure takes no
+/// parameters.
+pub const AMP_BALANCE_BODY: &str = r#"{"method":"userDisplayBalanceInfo","params":{}}"#;
+
+/// Codebuff's usage body. The token travels in the Authorization header, as
+/// CodexBar sends it; the fingerprint is a constant label naming OpenLimiter,
+/// never a value read from Codebuff's files.
+pub const CODEBUFF_USAGE_BODY: &str = r#"{"fingerprintId":"openlimiter-usage"}"#;
+
+/// The JSON protocol header and operation the CodeWhisperer service reads.
+pub const KIRO_TARGET_HEADER: &str = "x-amz-target";
+pub const KIRO_TARGET_VALUE: &str = "AmazonCodeWhispererService.GetUsageLimits";
+pub const KIRO_CONTENT_TYPE: &str = "application/x-amz-json-1.0";
+
+/// The one region whose CodeWhisperer service is in the allowlist.
+pub const KIRO_SUPPORTED_REGION: &str = "us-east-1";
+
+/// Why a Kiro profile cannot be read.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum KiroProfileError {
+    /// Not a CodeWhisperer profile ARN at all.
+    Malformed,
+    /// A well formed profile in a region whose service is not allowlisted.
+    OtherRegion,
+}
+
+/// A Kiro CodeWhisperer profile, accepted only as
+/// `arn:aws:codewhisperer:us-east-1:<12 digits>:profile/<id>`, the one value
+/// the usage limits body carries. It cannot hold a host, a quote, a space or
+/// JSON syntax, so the request stays closed although the value comes from a
+/// file.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct KiroProfileArn(String);
+
+impl KiroProfileArn {
+    pub fn parse(value: &str) -> Result<Self, KiroProfileError> {
+        let parts: Vec<&str> = value.split(':').collect();
+        let [arn, partition, service, region, account, resource] = parts[..] else {
+            return Err(KiroProfileError::Malformed);
+        };
+        let id = resource.strip_prefix("profile/").unwrap_or_default();
+        let region_shape = region.split('-').count() == 3
+            && region.split('-').all(|part| !part.is_empty())
+            && region
+                .bytes()
+                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-');
+        let well_formed = arn == "arn"
+            && partition == "aws"
+            && service == "codewhisperer"
+            && region_shape
+            && account.len() == 12
+            && account.bytes().all(|byte| byte.is_ascii_digit())
+            && !id.is_empty()
+            && id.len() <= 64
+            && id
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_');
+        if !well_formed {
+            return Err(KiroProfileError::Malformed);
+        }
+        if region != KIRO_SUPPORTED_REGION {
+            return Err(KiroProfileError::OtherRegion);
+        }
+        Ok(Self(value.to_string()))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
     }
 }
 
@@ -454,6 +613,26 @@ async fn fetch_endpoint_inner<T: Transport>(
     if auth == AuthApplication::CodexSessionBearer {
         return Err(NetError::Protocol);
     }
+    if endpoint == ProviderEndpoint::KiroUsageLimits || auth == AuthApplication::KiroUsageBearer {
+        /* The one place a Kiro body is built: from a validated us-east-1
+        profile, for the one Kiro address, with the one Kiro scheme. */
+        if endpoint != ProviderEndpoint::KiroUsageLimits || auth != AuthApplication::KiroUsageBearer {
+            return Err(NetError::Protocol);
+        }
+        let profile = provider_account_id
+            .and_then(|value| KiroProfileArn::parse(value).ok())
+            .ok_or(NetError::Protocol)?;
+        let body = serde_json::to_string(&serde_json::json!({ "profileArn": profile.as_str() }))
+            .map_err(|_| NetError::Protocol)?;
+        let request = EndpointRequest {
+            url: endpoint.url(),
+            method: endpoint.method(),
+            auth,
+            provider_account_id: None,
+            body: Some(&body),
+        };
+        return outcome_of(transport.send(&request, secret).await.map_err(NetError::from)?);
+    }
     if auth == AuthApplication::GrokSessionBearer {
         let account_id = provider_account_id
             .filter(|value| crate::credentials::valid_codex_account_id(value))
@@ -675,8 +854,16 @@ fn authenticated_builder(
         | AuthApplication::ClaudeOauthBearer
         | AuthApplication::GrokSessionBearer
         | AuthApplication::KimiSessionBearer
-        | AuthApplication::GeminiCliBearer => {
+        | AuthApplication::GeminiCliBearer
+        | AuthApplication::KiroUsageBearer => {
             credential.push_str("Bearer ");
+            credential.push_str(secret);
+        }
+        AuthApplication::GithubTokenAuthorization => {
+            if request.url != COPILOT_USER_URL {
+                return Err(TransportFailure::Protocol);
+            }
+            credential.push_str("token ");
             credential.push_str(secret);
         }
         AuthApplication::CursorSessionCookie => {
@@ -697,10 +884,33 @@ fn authenticated_builder(
         .map_err(|_| TransportFailure::Protocol)?;
     header_value.set_sensitive(true);
     builder = match request.auth {
-        AuthApplication::BearerAuthorization => builder
+        AuthApplication::BearerAuthorization => {
+            let builder = builder
+                .header(reqwest::header::AUTHORIZATION, header_value)
+                .header(reqwest::header::USER_AGENT, OPENLIMITER_USER_AGENT)
+                .header(reqwest::header::ACCEPT, "application/json");
+            /* A constant body is JSON; a GET carries no body and no type. */
+            if request.body.is_some() {
+                builder.header(reqwest::header::CONTENT_TYPE, "application/json")
+            } else {
+                builder
+            }
+        }
+        AuthApplication::GithubTokenAuthorization => builder
             .header(reqwest::header::AUTHORIZATION, header_value)
             .header(reqwest::header::USER_AGENT, OPENLIMITER_USER_AGENT)
             .header(reqwest::header::ACCEPT, "application/json"),
+        AuthApplication::KiroUsageBearer => {
+            if request.url != KIRO_USAGE_LIMITS_URL {
+                return Err(TransportFailure::Protocol);
+            }
+            builder
+                .header(reqwest::header::AUTHORIZATION, header_value)
+                .header(reqwest::header::CONTENT_TYPE, KIRO_CONTENT_TYPE)
+                .header(KIRO_TARGET_HEADER, KIRO_TARGET_VALUE)
+                .header(reqwest::header::USER_AGENT, OPENLIMITER_USER_AGENT)
+                .header(reqwest::header::ACCEPT, "application/json")
+        }
         AuthApplication::ClaudeOauthBearer => builder
             .header(reqwest::header::AUTHORIZATION, header_value)
             .header(reqwest::header::USER_AGENT, CLAUDE_OAUTH_USER_AGENT)
@@ -788,7 +998,7 @@ mod tests {
     use crate::reader_registry::{reader_route, CredentialKind, ProviderId};
     use crate::test_support::RecordingTransport;
 
-    const ROUTED_ENDPOINTS: [ProviderEndpoint; 11] = [
+    const ROUTED_ENDPOINTS: [ProviderEndpoint; 16] = [
         ProviderEndpoint::OpenrouterKey,
         ProviderEndpoint::OpenrouterCredits,
         ProviderEndpoint::OpencodeUsage,
@@ -800,7 +1010,15 @@ mod tests {
         ProviderEndpoint::CommandcodeCredits,
         ProviderEndpoint::ClineUsage,
         ProviderEndpoint::KilocodeBalance,
+        ProviderEndpoint::CopilotUser,
+        ProviderEndpoint::AmpBalance,
+        ProviderEndpoint::CodebuffUsage,
+        ProviderEndpoint::KiroUsageLimits,
+        ProviderEndpoint::CrushCredits,
     ];
+
+    /// A synthetic Kiro profile in the one allowlisted region.
+    const KIRO_ARN: &str = "arn:aws:codewhisperer:us-east-1:123456789012:profile/PROFILE1";
 
     /// The authentication scheme each endpoint is really reached with, taken
     /// from the routing function rather than restated, so a test can never
@@ -832,11 +1050,22 @@ mod tests {
     }
 
     fn account_for(endpoint: ProviderEndpoint) -> Option<&'static str> {
+        if endpoint == ProviderEndpoint::KiroUsageLimits {
+            return Some(KIRO_ARN);
+        }
         matches!(
             endpoint,
             ProviderEndpoint::GrokUsage | ProviderEndpoint::CursorUsage
         )
         .then_some("fake-account-id")
+    }
+
+    /// The body each routed endpoint is sent with.
+    fn body_for(endpoint: ProviderEndpoint) -> Option<String> {
+        if endpoint == ProviderEndpoint::KiroUsageLimits {
+            return Some(format!(r#"{{"profileArn":"{KIRO_ARN}"}}"#));
+        }
+        endpoint.body().map(str::to_string)
     }
 
     fn transport_for(
@@ -867,6 +1096,18 @@ mod tests {
             .expect("fetch");
             recorded_urls.extend(transport.recorded_urls());
         }
+        /* The one companion, reached with its provider's own scheme. */
+        let companion = RecordingTransport::replying(200, b"{}".to_vec(), None);
+        fetch_endpoint(
+            &companion,
+            ProviderEndpoint::CodebuffSubscription,
+            AuthApplication::BearerAuthorization,
+            "fake",
+            None,
+        )
+        .await
+        .expect("companion");
+        recorded_urls.extend(companion.recorded_urls());
         let gemini_transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
         fetch_gemini_cli_load(&gemini_transport, "gemini-secret")
             .await
@@ -893,6 +1134,12 @@ mod tests {
                 COMMANDCODE_CREDITS_URL.to_string(),
                 CLINE_USAGE_URL.to_string(),
                 KILOCODE_BALANCE_URL.to_string(),
+                COPILOT_USER_URL.to_string(),
+                AMP_BALANCE_URL.to_string(),
+                CODEBUFF_USAGE_URL.to_string(),
+                KIRO_USAGE_LIMITS_URL.to_string(),
+                CRUSH_CREDITS_URL.to_string(),
+                CODEBUFF_SUBSCRIPTION_URL.to_string(),
                 GEMINI_CLI_LOAD_URL.to_string(),
                 GEMINI_CLI_QUOTA_URL.to_string(),
             ]
@@ -913,15 +1160,39 @@ mod tests {
         for endpoint in ProviderEndpoint::ALL {
             let expected_post = matches!(
                 endpoint,
-                ProviderEndpoint::GeminiCliLoad | ProviderEndpoint::GeminiCliQuota
+                ProviderEndpoint::GeminiCliLoad
+                    | ProviderEndpoint::GeminiCliQuota
+                    | ProviderEndpoint::AmpBalance
+                    | ProviderEndpoint::CodebuffUsage
+                    | ProviderEndpoint::KiroUsageLimits
             );
             assert_eq!(endpoint.method() == HttpMethod::Post, expected_post);
+            /* A GET never carries a body. */
+            if endpoint.method() == HttpMethod::Get {
+                assert_eq!(endpoint.body(), None);
+            }
         }
         assert_eq!(
             ProviderEndpoint::GeminiCliLoad.body(),
             Some(GEMINI_CLI_LOAD_BODY)
         );
         assert_eq!(ProviderEndpoint::GeminiCliQuota.body(), None);
+        assert_eq!(ProviderEndpoint::AmpBalance.body(), Some(AMP_BALANCE_BODY));
+        assert_eq!(ProviderEndpoint::CodebuffUsage.body(), Some(CODEBUFF_USAGE_BODY));
+        assert_eq!(ProviderEndpoint::KiroUsageLimits.body(), None);
+        for body in [AMP_BALANCE_BODY, CODEBUFF_USAGE_BODY] {
+            assert!(serde_json::from_str::<serde_json::Value>(body).is_ok());
+        }
+        /* Exactly one companion exists, and it is a GET of the same provider. */
+        let companions: Vec<_> = ProviderEndpoint::ALL
+            .iter()
+            .filter_map(|endpoint| endpoint.companion().map(|companion| (*endpoint, companion)))
+            .collect();
+        assert_eq!(
+            companions,
+            vec![(ProviderEndpoint::CodebuffUsage, ProviderEndpoint::CodebuffSubscription)]
+        );
+        assert_eq!(ProviderEndpoint::CodebuffSubscription.method(), HttpMethod::Get);
     }
 
     #[tokio::test]
@@ -942,8 +1213,7 @@ mod tests {
             for observed in transport.recorded_methods() {
                 assert_eq!(observed, endpoint.method());
             }
-            let bodies = transport.recorded_bodies();
-            assert!(bodies.iter().all(Option::is_none));
+            assert_eq!(transport.recorded_bodies(), vec![body_for(endpoint)]);
         }
     }
 
@@ -1160,6 +1430,100 @@ mod tests {
     }
 
     #[test]
+    fn kiro_profiles_cannot_widen_the_request_and_other_regions_are_named() {
+        assert!(KiroProfileArn::parse(KIRO_ARN).is_ok());
+        assert_eq!(
+            KiroProfileArn::parse("arn:aws:codewhisperer:eu-central-1:123456789012:profile/PROFILE1"),
+            Err(KiroProfileError::OtherRegion)
+        );
+        for hostile in [
+            "",
+            "not-an-arn",
+            "arn:aws:codewhisperer:us-east-1:123456789012",
+            "arn:aws-cn:codewhisperer:us-east-1:123456789012:profile/P",
+            "arn:aws:s3:us-east-1:123456789012:profile/P",
+            "arn:aws:codewhisperer::123456789012:profile/P",
+            "arn:aws:codewhisperer:US-EAST-1:123456789012:profile/P",
+            "arn:aws:codewhisperer:us-east-1:12345678901:profile/P",
+            "arn:aws:codewhisperer:us-east-1:123456789012:profile/",
+            "arn:aws:codewhisperer:us-east-1:123456789012:other/P",
+            "arn:aws:codewhisperer:us-east-1:123456789012:profile/P ",
+            "arn:aws:codewhisperer:us-east-1:123456789012:profile/P\"}",
+            "arn:aws:codewhisperer:us-east-1:123456789012:profile/P:extra",
+            "arn:aws:codewhisperer:us-east-1.example.com:123456789012:profile/P",
+        ] {
+            assert_eq!(KiroProfileArn::parse(hostile), Err(KiroProfileError::Malformed), "{hostile}");
+        }
+    }
+
+    #[tokio::test]
+    async fn the_kiro_body_is_built_only_for_its_own_address_and_scheme() {
+        let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
+        for (endpoint, auth, account) in [
+            (ProviderEndpoint::KiroUsageLimits, AuthApplication::BearerAuthorization, Some(KIRO_ARN)),
+            (ProviderEndpoint::CrushCredits, AuthApplication::KiroUsageBearer, Some(KIRO_ARN)),
+            (ProviderEndpoint::KiroUsageLimits, AuthApplication::KiroUsageBearer, None),
+            (
+                ProviderEndpoint::KiroUsageLimits,
+                AuthApplication::KiroUsageBearer,
+                Some("arn:aws:codewhisperer:eu-central-1:123456789012:profile/PROFILE1"),
+            ),
+            (ProviderEndpoint::CrushCredits, AuthApplication::BearerAuthorization, Some(KIRO_ARN)),
+        ] {
+            assert_eq!(
+                fetch_endpoint(&transport, endpoint, auth, "token", account).await,
+                Err(NetError::Protocol)
+            );
+        }
+        assert!(transport.recorded_urls().is_empty());
+    }
+
+    fn headers_for(url: &'static str, method: HttpMethod, auth: AuthApplication, body: Option<&str>) -> reqwest::header::HeaderMap {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let client = reqwest::Client::new();
+        let request = EndpointRequest { url, method, auth, provider_account_id: None, body };
+        authenticated_builder(&client, &request, "credential-canary")
+            .expect("headers")
+            .build()
+            .expect("request")
+            .headers()
+            .clone()
+    }
+
+    #[test]
+    fn copilot_kiro_and_json_bodies_carry_only_their_own_headers() {
+        let copilot = headers_for(COPILOT_USER_URL, HttpMethod::Get, AuthApplication::GithubTokenAuthorization, None);
+        assert_eq!(copilot[reqwest::header::AUTHORIZATION], "token credential-canary");
+        assert!(copilot[reqwest::header::AUTHORIZATION].is_sensitive());
+        assert_eq!(copilot[reqwest::header::USER_AGENT], OPENLIMITER_USER_AGENT);
+        assert_eq!(copilot.len(), 3, "no editor or plugin header claims to be an editor");
+        let rendered = format!("{copilot:?}").to_lowercase();
+        for marker in ["editor-version", "editor-plugin-version", "vscode", "copilot-chat"] {
+            assert!(!rendered.contains(marker), "{marker}");
+        }
+        let kiro = headers_for(KIRO_USAGE_LIMITS_URL, HttpMethod::Post, AuthApplication::KiroUsageBearer, Some("{}"));
+        assert_eq!(kiro[reqwest::header::AUTHORIZATION], "Bearer credential-canary");
+        assert_eq!(kiro[reqwest::header::CONTENT_TYPE], KIRO_CONTENT_TYPE);
+        assert_eq!(kiro[KIRO_TARGET_HEADER], KIRO_TARGET_VALUE);
+        assert_eq!(kiro[reqwest::header::USER_AGENT], OPENLIMITER_USER_AGENT);
+        assert_eq!(kiro.len(), 5);
+        let amp = headers_for(AMP_BALANCE_URL, HttpMethod::Post, AuthApplication::BearerAuthorization, Some(AMP_BALANCE_BODY));
+        assert_eq!(amp[reqwest::header::CONTENT_TYPE], "application/json");
+        let crush = headers_for(CRUSH_CREDITS_URL, HttpMethod::Get, AuthApplication::BearerAuthorization, None);
+        assert!(!crush.contains_key(reqwest::header::CONTENT_TYPE));
+        /* Each scheme refuses any other address. */
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let client = reqwest::Client::new();
+        for (url, auth) in [
+            (OPENROUTER_KEY_URL, AuthApplication::GithubTokenAuthorization),
+            (OPENROUTER_KEY_URL, AuthApplication::KiroUsageBearer),
+        ] {
+            let request = EndpointRequest { url, method: HttpMethod::Get, auth, provider_account_id: None, body: None };
+            assert!(authenticated_builder(&client, &request, "credential-canary").is_err());
+        }
+    }
+
+    #[test]
     fn every_third_party_request_identifies_openlimiter() {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let client = reqwest::Client::new();
@@ -1321,7 +1685,7 @@ mod tests {
             .expect("the module has a body before its tests");
         assert_eq!(
             head.matches("https://").count(),
-            14,
+            20,
             "an address appeared outside the constants"
         );
     }

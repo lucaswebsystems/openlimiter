@@ -422,7 +422,12 @@ const READER_IDS = new Set([
   "hermes_account",
   "commandcode_credits",
   "cline_usage",
-  "kilocode_balance"
+  "kilocode_balance",
+  "copilot_user",
+  "amp_balance",
+  "codebuff_usage",
+  "kiro_usage_limits",
+  "crush_credits"
 ]);
 const ENDPOINT_IDS = new Set([
   "cursor_usage",
@@ -437,7 +442,12 @@ const ENDPOINT_IDS = new Set([
   "hermes_account",
   "commandcode_credits",
   "cline_usage",
-  "kilocode_balance"
+  "kilocode_balance",
+  "copilot_user",
+  "amp_balance",
+  "codebuff_usage",
+  "kiro_usage_limits",
+  "crush_credits"
 ]);
 const CREDENTIAL_KINDS = new Set([
   "cursor_session",
@@ -452,7 +462,12 @@ const CREDENTIAL_KINDS = new Set([
   "hermes_session",
   "commandcode_api_key",
   "cline_session",
-  "kilocode_session"
+  "kilocode_session",
+  "copilot_session",
+  "amp_api_key",
+  "codebuff_session",
+  "kiro_session",
+  "crush_session"
 ]);
 const COLLECTION_SUPPORT = new Set(["implemented"]);
 
@@ -490,6 +505,11 @@ const CONNECTOR_IDS = new Set([
   "commandcode",
   "cline",
   "kilocode",
+  "copilot",
+  "amp",
+  "codebuff",
+  "kiro",
+  "crush",
   "manual"
 ]);
 const HONESTY_KEYS = new Set([

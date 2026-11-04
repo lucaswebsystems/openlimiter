@@ -1,0 +1,133 @@
+# Amp, its free daily allowance and its credits.
+#
+# The desktop reads the API key the Amp CLI saved in its file secret storage:
+# secrets.json in Amp's data folder (~/.local/share/amp on Windows and macOS,
+# the XDG data folder on Linux), key apiKey@ followed by Amp's public server
+# address with its trailing slash. Read only;
+# the key does not expire. A key for any other Amp server is never read, and a
+# file that also holds a saved multi account login (a key carrying
+# #cli-account=) is not read at all: the newer Amp CLI selects one of several
+# saved accounts in a format no readable source confirms, so reading the
+# legacy key beside them could show another account.
+#
+# Verified in source: the Amp CLI JavaScript bundle (@sourcegraph/amp
+# 0.0.1778357489, May 2026) places the data folder (jx), the file (gf4,
+# secrets.json, key name@url with the URL normalized to the public server's,
+# the API key named apiKey), and the usage command: POST
+# /api/internal?userDisplayBalanceInfo with the body
+# {"method":"userDisplayBalanceInfo","params":{}}, JSON, Bearer, printing
+# result.displayText. The current native CLI (@ampcode/cli 0.0.1793764839)
+# still places the folder the same way and still names secrets.json and the
+# apiKey@ key, now as its legacy CLI login. The display text lines
+# ("Amp Free: $R / $Q remaining", "Individual credits: $N remaining") are the
+# patterns CodexBar's AmpUsageParser.swift reads. Amp documents none of it.
+# The address is a Rust constant in apps/desktop/src-tauri/src/net.rs.
+#
+# Not read: the native secret storage Amp can opt into (the system keyring,
+# service amp.cli.apiKey), subscription and workspace lines of the text, and
+# a login made only through the newer multi account flow.
+
+provider_id: amp
+product_id: amp
+display_name: Amp
+
+headlineMeter: free
+acquisitionSurfaces:
+  - desktop
+displaySurfaces:
+  - desktop
+  - rail
+  - tray
+  - cli_cache
+  - web
+  - phone
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: remote_http_internal
+d5Review: Reads the API key the Amp CLI saved, read only. Only ampcode.com receives it, in a constant request. Honest OpenLimiter identity, no header taken from a file.
+maturity: experimental
+directory:
+  order: 15
+  rowId: amp/amp
+  label: Amp
+  connectorId: amp
+  access: automatic
+
+source:
+  docs_url: null
+  reviewed_at: "2026-11-04"
+  source_status: provisional
+
+availability:
+  requires_plan: any
+  appears_after: local_cli_login
+  absence_is_error: false
+
+support:
+  parser: implemented
+  reader: implemented
+  auth: implemented
+
+collection:
+  reader: implemented
+  auth: implemented
+  readers:
+    - reader_id: amp_balance
+      endpoint_id: amp_balance
+      credential_kind: amp_api_key
+      evidence_fixture: amp.provisional.balance
+      evidence_status: pending_capture
+      last_verified_at: null
+
+connections:
+  - reader: experimental
+    auth_mode: existing_local_cli
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  fixture_ids:
+    - amp.provisional.balance
+    - amp.live.pending
+
+honesty:
+  connector_id: amp
+  credential_origin: official-local-tool
+  data_interface_status: internal-endpoint
+  automation_risk: high
+  verification: UNVERIFIED
+
+meters:
+  - id: free
+    label: Amp Free
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: rolling
+      duration_seconds: 86400
+    source_format: json_path
+    source_path: result.displayText
+    reset_path: null
+    reset_encoding: none
+    optional: true
+    meter_code: FREE
+  - id: balance
+    label: Credits
+    kind: credits
+    unit: currency
+    scope: account
+    window:
+      kind: credit_balance
+    source_format: json_path
+    source_path: result.displayText
+    reset_path: null
+    reset_encoding: none
+    optional: true
+    meter_code: BALANCE

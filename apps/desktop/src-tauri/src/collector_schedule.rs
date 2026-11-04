@@ -127,6 +127,11 @@ mod tests {
             }
             ReaderId::ClineUsage => (ProviderId::Cline, CredentialKind::ClineSession),
             ReaderId::KilocodeBalance => (ProviderId::Kilocode, CredentialKind::KilocodeSession),
+            ReaderId::CopilotUser => (ProviderId::Copilot, CredentialKind::CopilotSession),
+            ReaderId::AmpBalance => (ProviderId::Amp, CredentialKind::AmpApiKey),
+            ReaderId::CodebuffUsage => (ProviderId::Codebuff, CredentialKind::CodebuffSession),
+            ReaderId::KiroUsageLimits => (ProviderId::Kiro, CredentialKind::KiroSession),
+            ReaderId::CrushCredits => (ProviderId::Crush, CredentialKind::CrushSession),
         };
         ConnectionRecord {
             id: id.to_string(),
@@ -168,6 +173,11 @@ mod tests {
             (ReaderId::CommandcodeCredits, Some(300)),
             (ReaderId::ClineUsage, Some(300)),
             (ReaderId::KilocodeBalance, Some(300)),
+            (ReaderId::CopilotUser, Some(300)),
+            (ReaderId::AmpBalance, Some(300)),
+            (ReaderId::CodebuffUsage, Some(300)),
+            (ReaderId::KiroUsageLimits, Some(300)),
+            (ReaderId::CrushCredits, Some(300)),
         ];
         for (reader, expected_seconds) in cases {
             let next = scheduled_at(CollectionSource::Reader(reader), NOW, 0, None, 0.5);

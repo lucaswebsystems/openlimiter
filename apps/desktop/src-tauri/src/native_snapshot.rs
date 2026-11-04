@@ -32,6 +32,11 @@ pub(crate) const PROVIDER_CODES: &[&str] = &[
     "COMMANDCODE",
     "CLINE",
     "KILOCODE",
+    "COPILOT",
+    "AMP",
+    "CODEBUFF",
+    "KIRO",
+    "CRUSH",
     "MANUAL",
 ];
 const VERIFICATIONS: &[&str] = &["UNVERIFIED", "VERIFIED_FIXTURES", "VERIFIED_LIVE"];

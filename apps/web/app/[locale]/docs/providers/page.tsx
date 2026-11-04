@@ -15,8 +15,9 @@ export async function generateMetadata({ params }: LocaleParams): Promise<Metada
  * These are the parser ids, spelled exactly as `openlimiter ingest --provider`
  * wants them, which is why Gemini appears as `gemini_cli`. Nine ship: the six
  * this page has always listed, plus the three that arrived with the Gemini CLI,
- * Grok and Kimi readers, and the four read from a tool's own saved sign in:
- * Hermes, Command Code, Cline and Kilo Code.
+ * Grok and Kimi readers, and the nine read from a tool's own saved sign in:
+ * Hermes, Command Code, Cline, Kilo Code, GitHub Copilot, Amp, Codebuff, Kiro
+ * and Crush.
  */
 const CONNECTOR_IDS = [
   "claude",
@@ -31,6 +32,11 @@ const CONNECTOR_IDS = [
   "commandcode",
   "cline",
   "kilocode",
+  "copilot",
+  "amp",
+  "codebuff",
+  "kiro",
+  "crush",
   "manual",
 ] as const;
 

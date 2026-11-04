@@ -1,7 +1,8 @@
-//! One automatic read for the tools whose saved sign in is a single bearer
-//! token: Hermes (Nous Portal), Command Code, Cline and Kilo Code. Each pass
-//! takes the login the tool saved on this computer (`tool_logins`), asks that
-//! tool's one address and caches the reply.
+//! One automatic read for the tools whose saved sign in is a single token:
+//! Hermes (Nous Portal), Command Code, Cline, Kilo Code, GitHub Copilot, Amp,
+//! Codebuff, Kiro and Crush (Charm Hyper). Each pass takes the login the tool
+//! saved on this computer (`tool_logins`), asks that tool's address (and, for
+//! Codebuff, its one constant companion) and caches the reply.
 //!
 //! The orchestration is shared; the destination is not. `login_route` is an
 //! exhaustive match with no wildcard arm, and it names only who a login
@@ -23,7 +24,10 @@ use tauri::{AppHandle, Manager};
 use crate::cache_write::CacheWriter;
 use crate::native_readers::parse_body;
 use crate::native_snapshot::{iso_from_epoch_ms, write_report, CacheReport};
-use crate::net::{fetch_endpoint, NetError, ReqwestTransport, Transport};
+use crate::net::{
+    fetch_endpoint, EndpointOutcome, KiroProfileArn, KiroProfileError, NetError, ProviderEndpoint,
+    ReqwestTransport, Transport,
+};
 use crate::poll_identity::PollIdentity;
 use crate::provider_detection::{
     reopen_message, DetectedCredentialError, DetectedProviderId, DetectedSecret, DetectionStore,
@@ -42,11 +46,31 @@ pub enum LoginProvider {
     Commandcode,
     Cline,
     Kilocode,
+    Copilot,
+    Amp,
+    Codebuff,
+    Kiro,
+    Crush,
 }
 
 impl LoginProvider {
-    pub const ALL: [Self; 4] = [Self::Hermes, Self::Commandcode, Self::Cline, Self::Kilocode];
+    pub const ALL: [Self; 9] = [
+        Self::Hermes,
+        Self::Commandcode,
+        Self::Cline,
+        Self::Kilocode,
+        Self::Copilot,
+        Self::Amp,
+        Self::Codebuff,
+        Self::Kiro,
+        Self::Crush,
+    ];
 }
+
+/// What a Kiro sign in whose profile lives outside the allowlisted region
+/// shows instead of a bar.
+pub const KIRO_OTHER_REGION_MESSAGE: &str =
+    "Kiro profiles outside the US East (N. Virginia) region are not read yet, so this sign in shows no bar.";
 
 /// Who a saved login belongs to, in every vocabulary that names it. There is
 /// no address and no header here: those are `reader_route`'s alone.
@@ -80,6 +104,31 @@ pub const fn login_route(provider: LoginProvider) -> LoginRoute {
             provider: ProviderId::Kilocode,
             credential: CredentialKind::KilocodeSession,
         },
+        LoginProvider::Copilot => LoginRoute {
+            detected: DetectedProviderId::Copilot,
+            provider: ProviderId::Copilot,
+            credential: CredentialKind::CopilotSession,
+        },
+        LoginProvider::Amp => LoginRoute {
+            detected: DetectedProviderId::Amp,
+            provider: ProviderId::Amp,
+            credential: CredentialKind::AmpApiKey,
+        },
+        LoginProvider::Codebuff => LoginRoute {
+            detected: DetectedProviderId::Codebuff,
+            provider: ProviderId::Codebuff,
+            credential: CredentialKind::CodebuffSession,
+        },
+        LoginProvider::Kiro => LoginRoute {
+            detected: DetectedProviderId::Kiro,
+            provider: ProviderId::Kiro,
+            credential: CredentialKind::KiroSession,
+        },
+        LoginProvider::Crush => LoginRoute {
+            detected: DetectedProviderId::Crush,
+            provider: ProviderId::Crush,
+            credential: CredentialKind::CrushSession,
+        },
     }
 }
 
@@ -96,6 +145,8 @@ pub enum LoginFailure {
     ProviderBlocked,
     Drift,
     Cache,
+    /// A login this build finds but does not read yet; no request was made.
+    Unsupported,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -224,6 +275,54 @@ async fn fallback_report(
     let _ = commit_report(writer, provider, account_id.to_string(), report).await;
 }
 
+/// One reply read by the shared rules: the body of a success, or the outcome
+/// that ends the pass. Every request of a pass, a companion's included, is
+/// read by these same rules.
+async fn checked_body(
+    provider: LoginProvider,
+    runtime: &ToolLoginRuntime,
+    writer: &Arc<CacheWriter>,
+    account_id: &str,
+    response: EndpointOutcome,
+    now_ms: u64,
+) -> Result<Option<String>, LoginOutcome> {
+    match response.status {
+        200..=299 => Ok(response.body),
+        401 => {
+            runtime.postpone(provider, account_id, now_ms, BLOCKED_BACKOFF_SECONDS);
+            fallback_report(Arc::clone(writer), provider, account_id, false, now_ms).await;
+            Err(LoginOutcome::reopen(provider, account_id))
+        }
+        403 | 404 | 410 => {
+            runtime.postpone(provider, account_id, now_ms, BLOCKED_BACKOFF_SECONDS);
+            fallback_report(Arc::clone(writer), provider, account_id, false, now_ms).await;
+            Err(LoginOutcome::fallback(account_id, LoginFailure::ProviderBlocked, None))
+        }
+        429 | 503 if response.status == 429 || response.retry_after_seconds.is_some() => {
+            runtime.postpone(provider, account_id, now_ms, 0);
+            fallback_report(Arc::clone(writer), provider, account_id, false, now_ms).await;
+            Err(LoginOutcome::fallback(
+                account_id,
+                LoginFailure::RateLimited,
+                response.retry_after_seconds,
+            ))
+        }
+        _ => Err(LoginOutcome::failed(account_id, LoginFailure::ProviderResponse)),
+    }
+}
+
+/// The rows a companion reply adds. A companion shape this build does not
+/// recognize adds nothing; the first reply's rows still stand.
+fn companion_rows(companion: ProviderEndpoint, body: &str, now_ms: u64, account_id: &str) -> Vec<crate::native_snapshot::Snapshot> {
+    let rows = match companion {
+        ProviderEndpoint::CodebuffSubscription => {
+            crate::native_readers::parse_codebuff_subscription(body, now_ms, account_id)
+        }
+        _ => None,
+    };
+    rows.unwrap_or_default()
+}
+
 async fn collect_with_secret<T: Transport>(
     provider: LoginProvider,
     runtime: &ToolLoginRuntime,
@@ -247,44 +346,57 @@ async fn collect_with_secret<T: Transport>(
                 .unwrap_or_else(|| "1970-01-01T00:00:00.000Z".to_string()),
         };
     }
-    let response = match fetch_endpoint(transport, endpoint, route.auth, &secret.access_token, None).await {
+    /* Only Kiro's login states a value beside the token: its profile, which
+    `fetch_endpoint` validates before it writes the one Kiro body. */
+    let beside = secret.provider_account_id.as_deref();
+    let response = match fetch_endpoint(transport, endpoint, route.auth, &secret.access_token, beside).await {
         Ok(response) => response,
         Err(error) => return LoginOutcome::failed(account_id, net_failure(error)),
     };
-    match response.status {
-        200..=299 => {
-            let snapshots = response
-                .body
-                .as_deref()
-                .and_then(|body| parse_body(route.reader_id, body, now_ms, account_id));
-            let Some(snapshots) = snapshots else {
-                fallback_report(writer, provider, account_id, true, now_ms).await;
-                return LoginOutcome::fallback(account_id, LoginFailure::Drift, None);
-            };
-            if commit_report(writer, provider, account_id.to_string(), CacheReport::Success(snapshots)).await {
-                LoginOutcome::CacheCommitted {
-                    account_id: account_id.to_string(),
-                }
-            } else {
-                LoginOutcome::failed(account_id, LoginFailure::Cache)
-            }
+    let body = match checked_body(provider, runtime, &writer, account_id, response, now_ms).await {
+        Ok(body) => body,
+        Err(outcome) => return outcome,
+    };
+    let snapshots = body
+        .as_deref()
+        .and_then(|body| parse_body(route.reader_id, body, now_ms, account_id));
+    let Some(mut snapshots) = snapshots else {
+        fallback_report(writer, provider, account_id, true, now_ms).await;
+        return LoginOutcome::fallback(account_id, LoginFailure::Drift, None);
+    };
+    if let Some(companion) = endpoint.companion() {
+        let response = match fetch_endpoint(transport, companion, route.auth, &secret.access_token, beside).await {
+            Ok(response) => response,
+            Err(error) => return LoginOutcome::failed(account_id, net_failure(error)),
+        };
+        match checked_body(provider, runtime, &writer, account_id, response, now_ms).await {
+            Ok(body) => snapshots.extend(
+                body.as_deref()
+                    .map(|body| companion_rows(companion, body, now_ms, account_id))
+                    .unwrap_or_default(),
+            ),
+            Err(outcome) => return outcome,
         }
-        401 => {
-            runtime.postpone(provider, account_id, now_ms, BLOCKED_BACKOFF_SECONDS);
-            fallback_report(writer, provider, account_id, false, now_ms).await;
-            LoginOutcome::reopen(provider, account_id)
+    }
+    if commit_report(writer, provider, account_id.to_string(), CacheReport::Success(snapshots)).await {
+        LoginOutcome::CacheCommitted {
+            account_id: account_id.to_string(),
         }
-        403 | 404 | 410 => {
-            runtime.postpone(provider, account_id, now_ms, BLOCKED_BACKOFF_SECONDS);
-            fallback_report(writer, provider, account_id, false, now_ms).await;
-            LoginOutcome::fallback(account_id, LoginFailure::ProviderBlocked, None)
-        }
-        429 | 503 if response.status == 429 || response.retry_after_seconds.is_some() => {
-            runtime.postpone(provider, account_id, now_ms, 0);
-            fallback_report(writer, provider, account_id, false, now_ms).await;
-            LoginOutcome::fallback(account_id, LoginFailure::RateLimited, response.retry_after_seconds)
-        }
-        _ => LoginOutcome::failed(account_id, LoginFailure::ProviderResponse),
+    } else {
+        LoginOutcome::failed(account_id, LoginFailure::Cache)
+    }
+}
+
+/// The sentence for a login this build finds but does not read, or None.
+/// Today that is a Kiro profile outside us-east-1: its service is not in the
+/// allowlist, so its token is sent nowhere.
+fn unread_login(provider: LoginProvider, secret: &DetectedSecret) -> Option<&'static str> {
+    if login_route(provider).credential != CredentialKind::KiroSession {
+        return None;
+    }
+    match secret.provider_account_id.as_deref().map(KiroProfileArn::parse) {
+        Some(Err(KiroProfileError::OtherRegion)) => Some(KIRO_OTHER_REGION_MESSAGE),
+        Some(Ok(_)) | Some(Err(KiroProfileError::Malformed)) | None => None,
     }
 }
 
@@ -305,6 +417,10 @@ pub async fn collect_account<T: Transport>(
             return LoginOutcome::reopen(provider, &account_id);
         }
     };
+    if let Some(message) = unread_login(provider, &secret) {
+        detection.mark_unsupported(detected, &account_id, message);
+        return LoginOutcome::fallback(&account_id, LoginFailure::Unsupported, None);
+    }
     let outcome = collect_with_secret(provider, runtime, transport, writer, &account_id, &secret, now_ms).await;
     match &outcome {
         LoginOutcome::CacheCommitted { .. } => detection.mark_ready(detected, &account_id),
@@ -404,8 +520,15 @@ fn uncovered_account_ids(
         .collect()
 }
 
+/// A login this build does not read yet is shown on its own row; it is not a
+/// failed refresh, so it does not mark every pass as failed.
 fn pass_read_succeeded(outcome: &LoginOutcome) -> bool {
-    matches!(outcome, LoginOutcome::CacheCommitted { .. } | LoginOutcome::Cached { .. })
+    matches!(
+        outcome,
+        LoginOutcome::CacheCommitted { .. }
+            | LoginOutcome::Cached { .. }
+            | LoginOutcome::Fallback { reason: LoginFailure::Unsupported, .. }
+    )
 }
 
 pub async fn run_pass(
@@ -457,8 +580,9 @@ mod tests {
     use crate::cache_write::CACHE_FILE_NAME;
     use crate::native_snapshot::epoch_ms_from_rfc3339;
     use crate::net::{
-        ProviderEndpoint, CLINE_USAGE_URL, COMMANDCODE_CREDITS_URL,
-        HERMES_ACCOUNT_URL, KILOCODE_BALANCE_URL,
+        AMP_BALANCE_URL, CLINE_USAGE_URL, CODEBUFF_SUBSCRIPTION_URL, CODEBUFF_USAGE_URL,
+        COMMANDCODE_CREDITS_URL, COPILOT_USER_URL, CRUSH_CREDITS_URL, HERMES_ACCOUNT_URL,
+        KILOCODE_BALANCE_URL, KIRO_USAGE_LIMITS_URL,
     };
     use crate::reader_registry::AuthApplication;
     use crate::test_support::{RecordingTransport, TempDir};
@@ -470,12 +594,44 @@ mod tests {
         epoch_ms_from_rfc3339(NOW_TEXT).expect("fixture clock")
     }
 
+    /// A synthetic Kiro profile in the one allowlisted region.
+    const KIRO_ARN: &str = "arn:aws:codewhisperer:us-east-1:123456789012:profile/PROFILE1";
+
     fn url(provider: LoginProvider) -> &'static str {
         match provider {
             LoginProvider::Hermes => HERMES_ACCOUNT_URL,
             LoginProvider::Commandcode => COMMANDCODE_CREDITS_URL,
             LoginProvider::Cline => CLINE_USAGE_URL,
             LoginProvider::Kilocode => KILOCODE_BALANCE_URL,
+            LoginProvider::Copilot => COPILOT_USER_URL,
+            LoginProvider::Amp => AMP_BALANCE_URL,
+            LoginProvider::Codebuff => CODEBUFF_USAGE_URL,
+            LoginProvider::Kiro => KIRO_USAGE_LIMITS_URL,
+            LoginProvider::Crush => CRUSH_CREDITS_URL,
+        }
+    }
+
+    /// Every address one pass reaches, in order: Codebuff reads its
+    /// subscription after its balance; every other tool makes one request.
+    fn urls(provider: LoginProvider) -> Vec<&'static str> {
+        if provider == LoginProvider::Codebuff {
+            vec![CODEBUFF_USAGE_URL, CODEBUFF_SUBSCRIPTION_URL]
+        } else {
+            vec![url(provider)]
+        }
+    }
+
+    fn auth(provider: LoginProvider) -> AuthApplication {
+        match provider {
+            LoginProvider::Copilot => AuthApplication::GithubTokenAuthorization,
+            LoginProvider::Kiro => AuthApplication::KiroUsageBearer,
+            LoginProvider::Hermes
+            | LoginProvider::Commandcode
+            | LoginProvider::Cline
+            | LoginProvider::Kilocode
+            | LoginProvider::Amp
+            | LoginProvider::Codebuff
+            | LoginProvider::Crush => AuthApplication::BearerAuthorization,
         }
     }
 
@@ -492,6 +648,21 @@ mod tests {
                 r#"{"success":true,"data":{"limits":[{"type":"five_hour","percentUsed":12,"resetsAt":"2026-08-07T15:00:00.000Z"},{"type":"weekly","percentUsed":40,"resetsAt":"2026-08-10T00:00:00.000Z"},{"type":"monthly","percentUsed":20,"resetsAt":"2026-08-30T00:00:00.000Z"}]}}"#
             }
             LoginProvider::Kilocode => r#"{"balance":18.25}"#,
+            LoginProvider::Copilot => {
+                r#"{"copilot_plan":"individual","quota_reset_date":"2026-09-01","quota_snapshots":{"premium_interactions":{"entitlement":300,"remaining":210,"percent_remaining":70,"unlimited":false,"quota_id":"premium_interactions"},"chat":{"entitlement":0,"remaining":0,"percent_remaining":100,"unlimited":true,"quota_id":"chat"}}}"#
+            }
+            LoginProvider::Amp => {
+                r#"{"ok":true,"result":{"displayText":"Signed in as person\nAmp Free: $7.50 / $10 remaining (replenishes +$0.42 / hour)\nIndividual credits: $4.25 remaining"}}"#
+            }
+            /* One body both Codebuff readers accept: the balance reply and the
+            subscription reply the same transport answers with. */
+            LoginProvider::Codebuff => {
+                r#"{"type":"usage-response","usage":80,"remainingBalance":420,"next_quota_reset":null,"hasSubscription":true,"rateLimit":{"limited":false,"canStartNewBlock":true,"weeklyUsed":30,"weeklyLimit":120,"weeklyResetsAt":"2026-08-10T00:00:00.000Z","weeklyPercentUsed":25}}"#
+            }
+            LoginProvider::Kiro => {
+                r#"{"usageBreakdownList":[{"resourceType":"CREDIT","currentUsageWithPrecision":120,"usageLimitWithPrecision":500,"currentOveragesWithPrecision":0,"nextDateReset":1788220800}],"nextDateReset":1788220800}"#
+            }
+            LoginProvider::Crush => r#"{"balance":95}"#,
         }
     }
 
@@ -502,6 +673,11 @@ mod tests {
             LoginProvider::Commandcode => home.join(".commandcode").join("auth.json"),
             LoginProvider::Cline => home.join(".cline/data/settings/providers.json"),
             LoginProvider::Kilocode => home.join(".local/share/kilo/auth.json"),
+            LoginProvider::Copilot => home.join(".config/github-copilot/apps.json"),
+            LoginProvider::Amp => home.join(".local/share/amp/secrets.json"),
+            LoginProvider::Codebuff => home.join(".config/manicode/credentials.json"),
+            LoginProvider::Kiro => home.join(".local/share/kiro-cli/data.sqlite3"),
+            LoginProvider::Crush => home.join(".local/share/crush/crush.json"),
         }
     }
 
@@ -518,7 +694,35 @@ mod tests {
                 r#"{{"kilo":{{"type":"oauth","access":"{token}","refresh":"{token}","expires":{}}}}}"#,
                 epoch_ms_from_rfc3339(expires).unwrap()
             ),
+            LoginProvider::Copilot => format!(
+                r#"{{"github.com:Iv1.b507a08c87ecfe98":{{"user":"octo","oauth_token":"{token}","githubAppId":"Iv1.b507a08c87ecfe98"}}}}"#
+            ),
+            LoginProvider::Amp => format!(r#"{{"apiKey@https://ampcode.com/":"{token}"}}"#),
+            LoginProvider::Codebuff => format!(
+                r#"{{"default":{{"id":"user-1","name":"","email":"person@example.com","authToken":"{token}","fingerprintId":"never-sent"}}}}"#
+            ),
+            LoginProvider::Kiro => format!(
+                r#"{{"access_token":"{token}","refresh_token":"never-sent","expires_at":"{expires}","region":"us-east-1"}}"#
+            ),
+            LoginProvider::Crush => format!(
+                r#"{{"providers":{{"hyper":{{"api_key":"{token}","oauth":{{"access_token":"{token}","refresh_token":"never-sent","expires_in":3600,"expires_at":{}}}}}}}}}"#,
+                epoch_ms_from_rfc3339(expires).unwrap() / 1_000
+            ),
         }
+    }
+
+    /// The Kiro CLI's state database with one token and one profile.
+    fn kiro_database(path: &Path, token_text: &str, arn: &str) {
+        let _ = fs::remove_file(path);
+        let db = rusqlite::Connection::open(path).unwrap();
+        db.execute_batch(
+            "CREATE TABLE auth_kv(key TEXT PRIMARY KEY, value TEXT); \
+             CREATE TABLE state(key TEXT PRIMARY KEY, value TEXT);",
+        )
+        .unwrap();
+        db.execute("INSERT INTO auth_kv VALUES ('kirocli:odic:token', ?1)", [token_text]).unwrap();
+        let profile = format!(r#"{{"arn":"{arn}","profile_name":"Synthetic"}}"#);
+        db.execute("INSERT INTO state VALUES ('api.codewhisperer.profile', ?1)", [profile]).unwrap();
     }
 
     fn sent_token(provider: LoginProvider, token: &str) -> String {
@@ -532,7 +736,11 @@ mod tests {
     fn write_login(provider: LoginProvider, home: &Path, token: &str, expires: &str) {
         let path = login_file(provider, home);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(path, login_text(provider, token, expires)).unwrap();
+        if provider == LoginProvider::Kiro {
+            kiro_database(&path, &login_text(provider, token, expires), KIRO_ARN);
+        } else {
+            fs::write(path, login_text(provider, token, expires)).unwrap();
+        }
     }
 
     fn writer(dir: &TempDir) -> Arc<CacheWriter> {
@@ -547,6 +755,15 @@ mod tests {
         }
     }
 
+    /// The secret a provider's login yields: Kiro's carries its profile.
+    fn secret_for(provider: LoginProvider, token: &str) -> DetectedSecret {
+        let mut found = secret(token);
+        if provider == LoginProvider::Kiro {
+            found.provider_account_id = Some(KIRO_ARN.to_string());
+        }
+        found
+    }
+
     #[test]
     fn each_login_is_paired_with_its_own_route_and_every_other_pairing_is_refused() {
         let mut endpoints = Vec::new();
@@ -556,11 +773,19 @@ mod tests {
             assert_eq!(crate::poll_identity::detected_provider(identity.provider), identity.detected);
             let route = reader_route(identity.provider, identity.credential).expect("own route");
             assert_eq!(route.reader_id.provider(), identity.provider);
-            assert_eq!(route.auth, AuthApplication::BearerAuthorization);
+            assert_eq!(route.auth, auth(provider), "{provider:?} uses another scheme");
             let endpoint = route.endpoint.expect("an address");
             assert_eq!(endpoint.url(), url(provider));
             assert!(!endpoints.contains(&endpoint), "two tools share an address");
             endpoints.push(endpoint);
+            /* A companion is reached only behind its own provider's address. */
+            if let Some(companion) = endpoint.companion() {
+                assert_eq!(urls(provider), vec![endpoint.url(), companion.url()]);
+                assert!(!endpoints.contains(&companion), "a companion is another tool's address");
+                endpoints.push(companion);
+            } else {
+                assert_eq!(urls(provider), vec![endpoint.url()]);
+            }
             for credential in CredentialKind::ALL {
                 assert_eq!(
                     reader_route(identity.provider, credential).is_ok(),
@@ -577,11 +802,16 @@ mod tests {
                 }
             }
         }
-        /* And none of the four addresses is any other reader's. */
+        /* And none of these addresses is any other reader's, and no
+        companion is reachable as a route of its own. */
         for provider in ProviderId::ALL {
             for credential in CredentialKind::ALL {
                 if let Ok(route) = reader_route(provider, credential) {
                     if let Some(endpoint) = route.endpoint {
+                        assert!(
+                            ProviderEndpoint::ALL.iter().all(|other| other.companion() != Some(endpoint)),
+                            "a companion address is routed on its own"
+                        );
                         if endpoints.contains(&endpoint) {
                             assert!(LoginProvider::ALL.iter().any(|login| {
                                 let identity = login_route(*login);
@@ -592,12 +822,15 @@ mod tests {
                 }
             }
         }
-        assert!(ProviderEndpoint::ALL.iter().filter(|endpoint| endpoints.contains(endpoint)).count() == 4);
+        assert_eq!(
+            ProviderEndpoint::ALL.iter().filter(|endpoint| endpoints.contains(endpoint)).count(),
+            LoginProvider::ALL.len() + 1
+        );
     }
 
     #[tokio::test]
     async fn each_saved_login_reaches_only_its_own_address_and_never_the_cache() {
-        /* All four tools signed in on one machine, each with a canary token:
+        /* Every tool signed in on one machine, each with a canary token:
         every pass sends exactly its own tool's token to exactly its own
         address, and no canary reaches the cache, the outcome sent over IPC,
         the detection report or the request policy file. */
@@ -626,10 +859,19 @@ mod tests {
             )
             .await;
             assert!(matches!(outcome, LoginOutcome::CacheCommitted { .. }), "{provider:?}: {outcome:?}");
-            assert_eq!(transport.recorded_urls(), vec![url(provider)]);
-            assert_eq!(transport.recorded_secrets(), vec![sent_token(provider, &canary(provider))]);
-            assert_eq!(transport.recorded_auths(), vec![AuthApplication::BearerAuthorization]);
-            assert_eq!(transport.recorded_provider_account_ids(), vec![None]);
+            let requests = urls(provider).len();
+            assert_eq!(transport.recorded_urls(), urls(provider));
+            assert_eq!(transport.recorded_secrets(), vec![sent_token(provider, &canary(provider)); requests]);
+            assert_eq!(transport.recorded_auths(), vec![auth(provider); requests]);
+            assert_eq!(transport.recorded_provider_account_ids(), vec![None; requests]);
+            /* No body carries the token; only Kiro's names its profile. */
+            for body in transport.recorded_bodies().into_iter().flatten() {
+                assert!(!body.contains("CANARY"), "{provider:?} put a token in a body");
+                assert!(!body.contains("never-sent"));
+                if provider == LoginProvider::Kiro {
+                    assert_eq!(body, format!(r#"{{"profileArn":"{KIRO_ARN}"}}"#));
+                }
+            }
             let ipc = serde_json::to_string(&outcome).unwrap();
             let debug = format!("{outcome:?}");
             let report = serde_json::to_string(&detection.report()).unwrap();
@@ -640,11 +882,14 @@ mod tests {
             }
         }
         let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
-        for code in ["HERMES", "COMMANDCODE", "CLINE", "KILOCODE"] {
-            assert!(cache.contains(code), "{code} rows");
+        for code in [
+            "HERMES", "COMMANDCODE", "CLINE", "KILOCODE", "COPILOT", "AMP", "CODEBUFF", "KIRO", "CRUSH",
+        ] {
+            assert!(cache.contains(&format!("\"{code}\"")), "{code} rows");
         }
         assert!(!cache.contains("CANARY"));
         assert!(!cache.contains("never-sent"));
+        assert!(!cache.contains("123456789012"), "the Kiro profile reached the cache");
         let policy_file = fs::read_to_string(dir.path().join(crate::request_policy::REQUEST_POLICY_FILE_NAME)).unwrap();
         assert!(!policy_file.contains("CANARY"));
     }
@@ -687,7 +932,7 @@ mod tests {
 
     #[tokio::test]
     async fn an_expired_login_is_never_sent() {
-        for provider in [LoginProvider::Hermes, LoginProvider::Kilocode] {
+        for provider in [LoginProvider::Hermes, LoginProvider::Kilocode, LoginProvider::Kiro, LoginProvider::Crush] {
             let dir = TempDir::new();
             write_login(provider, dir.path(), "expired-token", "2026-08-07T11:00:00Z");
             let detection = DetectionStore::for_test_home(dir.path(), now());
@@ -773,11 +1018,14 @@ mod tests {
                 &transport,
                 writer(&dir),
                 "account",
-                &secret("token"),
+                &secret_for(provider, "token"),
                 now(),
             )
             .await;
-            assert!(matches!(outcome, LoginOutcome::Fallback { reason: LoginFailure::Drift, .. }));
+            assert!(
+                matches!(outcome, LoginOutcome::Fallback { reason: LoginFailure::Drift, .. }),
+                "{provider:?}: {outcome:?}"
+            );
             let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
             assert!(cache.contains("suppressions"));
             assert!(!cache.contains("\"value\":0"));
@@ -794,6 +1042,7 @@ mod tests {
         for provider in LoginProvider::ALL {
             let path = login_file(provider, dir.path());
             fs::create_dir_all(path.parent().unwrap()).unwrap();
+            /* Kiro's database file holding text is malformed the same way. */
             fs::write(&path, "{ not json").unwrap();
         }
         let detection = DetectionStore::for_test_home(dir.path(), now());
@@ -822,8 +1071,32 @@ mod tests {
             r#"{"providers":{"cline":{"settings":{"auth":{"accessToken":"workos:active"}}},"cline-pass":{"settings":{"auth":{"accessToken":"workos:other"}}}}}"#,
         )
         .unwrap();
+        /* Copilot keeps an enterprise host's login beside github.com's, Codebuff
+        other profiles beside its default, Crush other providers' keys. */
+        fs::write(
+            login_file(LoginProvider::Copilot, dir.path()),
+            r#"{"github.com:Iv1.b507a08c87ecfe98":{"user":"octo","oauth_token":"active"},"ghe.example.com:Iv1.b507a08c87ecfe98":{"user":"octo","oauth_token":"other"}}"#,
+        )
+        .unwrap();
+        fs::write(
+            login_file(LoginProvider::Codebuff, dir.path()),
+            r#"{"default":{"id":"user-1","email":"person@example.com","authToken":"active"},"work":{"id":"user-2","email":"other@example.com","authToken":"other"}}"#,
+        )
+        .unwrap();
+        fs::write(
+            login_file(LoginProvider::Crush, dir.path()),
+            r#"{"providers":{"hyper":{"api_key":"active"},"openai":{"api_key":"other"},"copilot":{"api_key":"other"}}}"#,
+        )
+        .unwrap();
         let detection = DetectionStore::for_test_home(dir.path(), now());
-        for provider in [LoginProvider::Hermes, LoginProvider::Kilocode, LoginProvider::Cline] {
+        for provider in [
+            LoginProvider::Hermes,
+            LoginProvider::Kilocode,
+            LoginProvider::Cline,
+            LoginProvider::Copilot,
+            LoginProvider::Codebuff,
+            LoginProvider::Crush,
+        ] {
             let detected = login_route(provider).detected;
             let accounts = detection.account_ids(detected);
             assert_eq!(accounts.len(), 1, "{provider:?}");
@@ -839,7 +1112,8 @@ mod tests {
     }
 
     /// Save a login for `person`, as each tool states who is signed in: a JWT
-    /// subject for Hermes, Cline and Kilo, the user id for Command Code. The
+    /// subject for Hermes, Cline, Kilo, Amp and Crush, the user id for Command
+    /// Code and Codebuff, the `user` for Copilot, the profile for Kiro. The
     /// returned bearer is exactly what the tool's own address must receive.
     fn sign_in(provider: LoginProvider, home: &Path, person: &str, secret: &str) -> String {
         let token = jwt(serde_json::json!({ "sub": person, "jti": secret }));
@@ -862,9 +1136,50 @@ mod tests {
                 format!(r#"{{"kilo":{{"type":"oauth","access":"{token}","refresh":"{token}","expires":4070908800000}}}}"#),
                 token,
             ),
+            LoginProvider::Copilot => (
+                format!(r#"{{"github.com:Iv1.b507a08c87ecfe98":{{"user":"{person}","oauth_token":"gho_{secret}"}}}}"#),
+                format!("gho_{secret}"),
+            ),
+            LoginProvider::Amp => (format!(r#"{{"apiKey@https://ampcode.com/":"{token}"}}"#), token),
+            LoginProvider::Codebuff => (
+                format!(r#"{{"default":{{"id":"{person}","email":"person@example.com","authToken":"{secret}"}}}}"#),
+                secret.to_string(),
+            ),
+            LoginProvider::Kiro => {
+                let saved = format!(r#"{{"access_token":"{secret}","expires_at":"2099-01-01T00:00:00Z"}}"#);
+                kiro_database(&path, &saved, &format!("arn:aws:codewhisperer:us-east-1:123456789012:profile/{person}"));
+                return secret.to_string();
+            }
+            LoginProvider::Crush => (
+                format!(r#"{{"providers":{{"hyper":{{"api_key":"{token}","oauth":{{"access_token":"{token}","expires_at":4070908800}}}}}}}}"#),
+                token,
+            ),
         };
         fs::write(path, text).unwrap();
         sent
+    }
+
+    #[tokio::test]
+    async fn an_amp_key_without_a_subject_is_the_one_amp_account_and_is_read_again() {
+        let dir = TempDir::new();
+        let path = login_file(LoginProvider::Amp, dir.path());
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, r#"{"apiKey@https://ampcode.com/":"sgamp-one"}"#).unwrap();
+        let detection = DetectionStore::for_test_home(dir.path(), now());
+        let account = detection.account_ids(DetectedProviderId::Amp).pop().expect("account");
+        let runtime = ToolLoginRuntime::default();
+        let transport = RecordingTransport::replying(200, reply(LoginProvider::Amp).as_bytes().to_vec(), None);
+        let outcome = collect_account(LoginProvider::Amp, &detection, &runtime, &transport, writer(&dir), account.clone(), now()).await;
+        assert!(matches!(outcome, LoginOutcome::CacheCommitted { .. }), "{outcome:?}");
+        /* A key with no subject is the machine's one Amp account: a new key is
+        read again for that account, and a rescan names the same account. */
+        fs::write(&path, r#"{"apiKey@https://ampcode.com/":"sgamp-two"}"#).unwrap();
+        let outcome =
+            collect_account(LoginProvider::Amp, &detection, &runtime, &transport, writer(&dir), account.clone(), now() + 301_000).await;
+        assert!(matches!(outcome, LoginOutcome::CacheCommitted { .. }), "{outcome:?}");
+        assert_eq!(transport.recorded_secrets(), vec!["sgamp-one", "sgamp-two"]);
+        let rescanned = DetectionStore::for_test_home(dir.path(), now());
+        assert_eq!(rescanned.account_ids(DetectedProviderId::Amp), vec![account]);
     }
 
     #[tokio::test]
@@ -889,7 +1204,10 @@ mod tests {
             let outcome =
                 collect_account(provider, &detection, &runtime, &transport, writer(&dir), person_a.clone(), now() + 301_000).await;
             assert!(matches!(outcome, LoginOutcome::CacheCommitted { .. }), "{provider:?}: {outcome:?}");
-            assert_eq!(transport.recorded_secrets(), vec![first, rotated], "{provider:?}");
+            /* Codebuff's pass asks two addresses with the same token. */
+            let requests = urls(provider).len();
+            let sent: Vec<String> = [vec![first; requests], vec![rotated; requests]].concat();
+            assert_eq!(transport.recorded_secrets(), sent, "{provider:?}");
 
             /* Another person signed in. Before a rescan the old account's
             reference no longer names the saved login, so nothing is sent under
@@ -898,7 +1216,7 @@ mod tests {
             let outcome =
                 collect_account(provider, &detection, &runtime, &transport, writer(&dir), person_a.clone(), now() + 602_000).await;
             assert!(matches!(outcome, LoginOutcome::ReopenCli { .. }), "{provider:?}: {outcome:?}");
-            assert_eq!(transport.recorded_urls().len(), 2, "{provider:?}");
+            assert_eq!(transport.recorded_urls().len(), 2 * requests, "{provider:?}");
             let rescanned = DetectionStore::for_test_home(dir.path(), now());
             let accounts = rescanned.account_ids(detected);
             assert_eq!(accounts.len(), 1, "{provider:?}");
@@ -909,7 +1227,7 @@ mod tests {
                 collect_account(provider, &rescanned, &runtime, &transport, writer(&dir), person_b, now() + 903_000).await;
             assert!(matches!(outcome, LoginOutcome::CacheCommitted { .. }), "{provider:?}: {outcome:?}");
             assert_eq!(transport.recorded_secrets().last(), Some(&switched), "{provider:?}");
-            assert_eq!(transport.recorded_urls(), vec![url(provider); 3], "{provider:?}");
+            assert_eq!(transport.recorded_urls(), urls(provider).repeat(3), "{provider:?}");
         }
     }
 
@@ -1015,6 +1333,108 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn a_kiro_profile_outside_us_east_1_is_shown_and_never_sent() {
+        let dir = TempDir::new();
+        let path = login_file(LoginProvider::Kiro, dir.path());
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        kiro_database(
+            &path,
+            &login_text(LoginProvider::Kiro, "eu-token", "2099-01-01T00:00:00Z"),
+            "arn:aws:codewhisperer:eu-central-1:123456789012:profile/PROFILE1",
+        );
+        let detection = DetectionStore::for_test_home(dir.path(), now());
+        let account = detection.account_ids(DetectedProviderId::Kiro).pop().expect("account");
+        let transport = RecordingTransport::replying(200, reply(LoginProvider::Kiro).as_bytes().to_vec(), None);
+        let outcome = collect_account(
+            LoginProvider::Kiro,
+            &detection,
+            &ToolLoginRuntime::default(),
+            &transport,
+            writer(&dir),
+            account,
+            now(),
+        )
+        .await;
+        assert!(
+            matches!(outcome, LoginOutcome::Fallback { reason: LoginFailure::Unsupported, .. }),
+            "{outcome:?}"
+        );
+        assert!(transport.recorded_urls().is_empty(), "a token reached a region outside the allowlist");
+        let report = detection.report();
+        let shown = report
+            .providers
+            .iter()
+            .find(|entry| entry.provider_id == DetectedProviderId::Kiro)
+            .and_then(|entry| entry.accounts.first())
+            .expect("account row");
+        assert_eq!(shown.message.as_deref(), Some(KIRO_OTHER_REGION_MESSAGE));
+        assert!(!serde_json::to_string(&report).unwrap().contains("eu-token"));
+    }
+
+    #[tokio::test]
+    async fn a_copilot_login_is_sent_with_the_token_scheme_and_no_editor_claim() {
+        let dir = TempDir::new();
+        let transport = RecordingTransport::replying(200, reply(LoginProvider::Copilot).as_bytes().to_vec(), None);
+        let outcome = collect_with_secret(
+            LoginProvider::Copilot,
+            &ToolLoginRuntime::default(),
+            &transport,
+            writer(&dir),
+            "copilot-account",
+            &secret("gho_synthetic"),
+            now(),
+        )
+        .await;
+        assert!(matches!(outcome, LoginOutcome::CacheCommitted { .. }), "{outcome:?}");
+        assert_eq!(transport.recorded_auths(), vec![AuthApplication::GithubTokenAuthorization]);
+        assert_eq!(transport.recorded_bodies(), vec![None]);
+        let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
+        assert!(cache.contains("\"PREMIUM\""));
+        assert!(!cache.contains("\"CHAT\""), "an unlimited snapshot drew a bar");
+    }
+
+    #[tokio::test]
+    async fn a_codebuff_companion_follows_the_same_rules_and_never_runs_alone() {
+        let usage = reply(LoginProvider::Codebuff).as_bytes().to_vec();
+        /* A refused balance stops the pass before the companion is asked. */
+        let dir = TempDir::new();
+        let refused = RecordingTransport::replying(403, Vec::new(), None);
+        let outcome = collect_with_secret(
+            LoginProvider::Codebuff, &ToolLoginRuntime::default(), &refused, writer(&dir), "cb", &secret("t"), now(),
+        )
+        .await;
+        assert!(matches!(outcome, LoginOutcome::Fallback { reason: LoginFailure::ProviderBlocked, .. }));
+        assert_eq!(refused.recorded_urls(), vec![CODEBUFF_USAGE_URL]);
+        /* A refused companion is a refusal of the pass, never retried around. */
+        let dir = TempDir::new();
+        let companion_refused = RecordingTransport::scripted(vec![(200, usage.clone(), None), (403, Vec::new(), None)]);
+        let outcome = collect_with_secret(
+            LoginProvider::Codebuff, &ToolLoginRuntime::default(), &companion_refused, writer(&dir), "cb", &secret("t"), now(),
+        )
+        .await;
+        assert!(matches!(outcome, LoginOutcome::Fallback { reason: LoginFailure::ProviderBlocked, .. }));
+        assert_eq!(companion_refused.recorded_urls(), vec![CODEBUFF_USAGE_URL, CODEBUFF_SUBSCRIPTION_URL]);
+        /* No subscription is no weekly bar, and the balance still stands. */
+        let dir = TempDir::new();
+        let no_plan = RecordingTransport::scripted(vec![
+            (200, usage, None),
+            (200, br#"{"hasSubscription":false,"fallbackToALaCarte":true}"#.to_vec(), None),
+        ]);
+        let outcome = collect_with_secret(
+            LoginProvider::Codebuff, &ToolLoginRuntime::default(), &no_plan, writer(&dir), "cb", &secret("t"), now(),
+        )
+        .await;
+        assert!(matches!(outcome, LoginOutcome::CacheCommitted { .. }), "{outcome:?}");
+        let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
+        assert!(cache.contains("\"BALANCE\""));
+        assert!(!cache.contains("\"SEVEN_DAY\""));
+        assert_eq!(
+            no_plan.recorded_bodies(),
+            vec![Some(crate::net::CODEBUFF_USAGE_BODY.to_string()), None]
+        );
+    }
+
     #[test]
     fn generic_and_detected_paths_dedupe_by_account_identity() {
         let account_id = "hermes-account".to_string();
@@ -1027,6 +1447,8 @@ mod tests {
     fn home_refresh_reports_a_committed_read_and_a_login_failure() {
         assert!(pass_read_succeeded(&LoginOutcome::CacheCommitted { account_id: "a".into() }));
         assert!(!pass_read_succeeded(&LoginOutcome::reopen(LoginProvider::Kilocode, "a")));
+        assert!(pass_read_succeeded(&LoginOutcome::fallback("a", LoginFailure::Unsupported, None)));
+        assert!(!pass_read_succeeded(&LoginOutcome::fallback("a", LoginFailure::Drift, None)));
     }
 
     #[test]

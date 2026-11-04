@@ -1,0 +1,26 @@
+{
+  "expected": {
+    "outcome": "readings",
+    "readings": [
+      {
+        "provider": "CRUSH",
+        "meter": "BALANCE",
+        "value": 12.5,
+        "unit": "CREDITS",
+        "window": {
+          "kind": "lifetime",
+          "durationSeconds": null
+        },
+        "resetAt": null,
+        "precision": "exact",
+        "source": "internal_payload",
+        "kind": "money_balance",
+        "availability": null,
+        "currency": "USD",
+        "usedAmount": null,
+        "limitAmount": null,
+        "observedAt": "2026-08-07T12:00:00.000Z"
+      }
+    ]
+  }
+}

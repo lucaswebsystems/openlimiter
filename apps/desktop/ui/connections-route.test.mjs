@@ -333,7 +333,8 @@ test("the catalogue holds every tool not in play with its row's step; choosing a
     ["CODEX", "Connect"], ["GEMINI_CLI", "Check again"], ["GROK", "Check again"],
     ["KIMI", "Check again"], ["OPENCODE", "Connect"], ["CURSOR", "Check again"],
     ["HERMES", "Check again"], ["COMMANDCODE", "Check again"], ["CLINE", "Check again"],
-    ["KILOCODE", "Check again"],
+    ["KILOCODE", "Check again"], ["COPILOT", "Check again"], ["AMP", "Check again"],
+    ["CODEBUFF", "Check again"], ["KIRO", "Check again"], ["CRUSH", "Check again"],
   ]);
   assert.ok(model.every((tool) => tool.windows.length === 0));
   storage.set("openlimiter-removed-providers-v1", JSON.stringify(["KIMI"]));

@@ -141,6 +141,16 @@ fn run_provider(provider: &str) {
             ("kilocode", "usage") => {
                 parse_body(ReaderId::KilocodeBalance, &body, now, "synthetic-parity")
             }
+            ("copilot", "usage") => parse_body(ReaderId::CopilotUser, &body, now, "synthetic-parity"),
+            ("amp", "usage") => parse_body(ReaderId::AmpBalance, &body, now, "synthetic-parity"),
+            ("codebuff", "usage") => {
+                parse_body(ReaderId::CodebuffUsage, &body, now, "synthetic-parity")
+            }
+            ("codebuff", "subscription") => {
+                crate::native_readers::parse_codebuff_subscription(&body, now, "synthetic-parity")
+            }
+            ("kiro", "usage") => parse_body(ReaderId::KiroUsageLimits, &body, now, "synthetic-parity"),
+            ("crush", "usage") => parse_body(ReaderId::CrushCredits, &body, now, "synthetic-parity"),
             ("openrouter", "credits") => {
                 parse_body(ReaderId::OpenrouterCredits, &body, now, "synthetic-parity")
             }
@@ -236,4 +246,29 @@ fn cline_shared_corpus() {
 #[test]
 fn kilocode_shared_corpus() {
     run_provider("kilocode");
+}
+
+#[test]
+fn copilot_shared_corpus() {
+    run_provider("copilot");
+}
+
+#[test]
+fn amp_shared_corpus() {
+    run_provider("amp");
+}
+
+#[test]
+fn codebuff_shared_corpus() {
+    run_provider("codebuff");
+}
+
+#[test]
+fn kiro_shared_corpus() {
+    run_provider("kiro");
+}
+
+#[test]
+fn crush_shared_corpus() {
+    run_provider("crush");
 }

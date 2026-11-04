@@ -236,6 +236,14 @@ export type ProviderMeterLabelKey =
   | "clineWeekly"
   | "clineMonthly"
   | "kilocodeBalance"
+  | "copilotPremium"
+  | "copilotChat"
+  | "ampFree"
+  | "ampBalance"
+  | "codebuffWeekly"
+  | "codebuffBalance"
+  | "kiroMonthly"
+  | "crushBalance"
   | "cursorLegacyHidden";
 
 export interface ProviderMeterPresentation {
@@ -294,6 +302,14 @@ const FIXED_PRESENTATION: Readonly<Record<string, ProviderMeterPresentation>> = 
   "CLINE:SEVEN_DAY": presentation("clineWeekly", "Weekly limit", "7d", 20),
   "CLINE:MONTHLY": presentation("clineMonthly", "Monthly limit", "Monthly", 30),
   "KILOCODE:BALANCE": presentation("kilocodeBalance", "Balance", "Balance", 100, "balance"),
+  "COPILOT:PREMIUM": presentation("copilotPremium", "Premium requests", "Premium", 10),
+  "COPILOT:CHAT": presentation("copilotChat", "Chat", "Chat", 20),
+  "AMP:FREE": presentation("ampFree", "Amp Free", "Free", 10),
+  "AMP:BALANCE": presentation("ampBalance", "Credits", "Balance", 100, "balance"),
+  "CODEBUFF:SEVEN_DAY": presentation("codebuffWeekly", "Weekly limit", "7d", 20),
+  "CODEBUFF:BALANCE": presentation("codebuffBalance", "Credits left", "Balance", 100, "balance"),
+  "KIRO:MONTHLY": presentation("kiroMonthly", "Monthly credits", "Monthly", 10),
+  "CRUSH:BALANCE": presentation("crushBalance", "Balance", "Balance", 100, "balance"),
   "CURSOR:AUTO": presentation("cursorLegacyHidden", "", "", 90, "used", false),
   "CURSOR:API": presentation("cursorLegacyHidden", "", "", 90, "used", false),
   "CURSOR:INCLUDED": presentation("cursorLegacyHidden", "", "", 90, "used", false),

@@ -12,6 +12,104 @@ export const PROVIDER_SPECS = {
   "note": "Generated from provider_specs/**/*.yaml by scripts/validate-provider-specs.mjs. Do not edit by hand. Regenerate with: node scripts/validate-provider-specs.mjs --emit",
   "providers": [
     {
+      "id": "amp/amp",
+      "providerId": "amp",
+      "productId": "amp",
+      "displayName": "Amp",
+      "headlineMeter": "free",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [
+        "desktop"
+      ],
+      "displaySurfaces": [
+        "desktop",
+        "rail",
+        "tray",
+        "cli_cache",
+        "web",
+        "phone"
+      ],
+      "acquisitionMethod": "remote_http_internal",
+      "d5Review": "Reads the API key the Amp CLI saved, read only. Only ampcode.com receives it, in a constant request. Honest OpenLimiter identity, no header taken from a file.",
+      "maturity": "experimental",
+      "directory": {
+        "order": 15,
+        "rowId": "amp/amp",
+        "label": "Amp",
+        "connectorId": "amp",
+        "access": "automatic"
+      },
+      "docsUrl": null,
+      "reviewedAt": "2026-11-04",
+      "sourceStatus": "provisional",
+      "support": {
+        "parser": "implemented",
+        "reader": "implemented",
+        "auth": "implemented",
+        "verification": "unverified"
+      },
+      "collection": {
+        "readers": [
+          {
+            "readerId": "amp_balance",
+            "endpointId": "amp_balance",
+            "credentialKind": "amp_api_key",
+            "evidenceFixture": "amp.provisional.balance",
+            "evidenceStatus": "pending_capture",
+            "lastVerifiedAt": null
+          }
+        ]
+      },
+      "honesty": {
+        "connectorId": "amp",
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "experimental"
+      ],
+      "authModes": [
+        "existing_local_cli"
+      ],
+      "platforms": [
+        "windows",
+        "macos",
+        "linux"
+      ],
+      "meters": [
+        {
+          "id": "free",
+          "label": "Amp Free",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "rolling",
+            "durationSeconds": 86400
+          },
+          "optional": true,
+          "meterCode": "FREE"
+        },
+        {
+          "id": "balance",
+          "label": "Credits",
+          "kind": "credits",
+          "unit": "currency",
+          "scope": "account",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "credit_balance"
+          },
+          "optional": true,
+          "meterCode": "BALANCE"
+        }
+      ]
+    },
+    {
       "id": "anthropic/api",
       "providerId": "anthropic",
       "productId": "api",
@@ -158,6 +256,88 @@ export const PROVIDER_SPECS = {
       ]
     },
     {
+      "id": "charm/crush",
+      "providerId": "charm",
+      "productId": "crush",
+      "displayName": "Crush",
+      "headlineMeter": "balance",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [
+        "desktop"
+      ],
+      "displaySurfaces": [
+        "desktop",
+        "rail",
+        "tray",
+        "cli_cache"
+      ],
+      "acquisitionMethod": "remote_http_internal",
+      "d5Review": "Reads the Hyper sign in Crush saved, read only and never refreshed. Only hyper.charm.land receives the token. Honest OpenLimiter identity, no header taken from a file.",
+      "maturity": "experimental",
+      "directory": {
+        "order": 18,
+        "rowId": "charm/crush",
+        "label": "Crush",
+        "connectorId": "crush",
+        "access": "automatic"
+      },
+      "docsUrl": "https://github.com/charmbracelet/crush/blob/main/internal/agent/hyper/provider.go",
+      "reviewedAt": "2026-11-04",
+      "sourceStatus": "provisional",
+      "support": {
+        "parser": "implemented",
+        "reader": "implemented",
+        "auth": "implemented",
+        "verification": "unverified"
+      },
+      "collection": {
+        "readers": [
+          {
+            "readerId": "crush_credits",
+            "endpointId": "crush_credits",
+            "credentialKind": "crush_session",
+            "evidenceFixture": "crush.official_source.credits",
+            "evidenceStatus": "pending_capture",
+            "lastVerifiedAt": null
+          }
+        ]
+      },
+      "honesty": {
+        "connectorId": "crush",
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "experimental"
+      ],
+      "authModes": [
+        "existing_local_cli"
+      ],
+      "platforms": [
+        "windows",
+        "macos",
+        "linux"
+      ],
+      "meters": [
+        {
+          "id": "balance",
+          "label": "Balance",
+          "kind": "credits",
+          "unit": "currency",
+          "scope": "account",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "credit_balance"
+          },
+          "optional": false,
+          "meterCode": "BALANCE"
+        }
+      ]
+    },
+    {
       "id": "cline/clinepass",
       "providerId": "cline",
       "productId": "clinepass",
@@ -268,6 +448,104 @@ export const PROVIDER_SPECS = {
           },
           "optional": true,
           "meterCode": "MONTHLY"
+        }
+      ]
+    },
+    {
+      "id": "codebuff/codebuff",
+      "providerId": "codebuff",
+      "productId": "codebuff",
+      "displayName": "Codebuff",
+      "headlineMeter": "weekly",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [
+        "desktop"
+      ],
+      "displaySurfaces": [
+        "desktop",
+        "rail",
+        "tray",
+        "cli_cache",
+        "web",
+        "phone"
+      ],
+      "acquisitionMethod": "remote_http_internal",
+      "d5Review": "Reads the sign in the Codebuff CLI saved, read only. Only codebuff.com receives the token, in the Authorization header of two constant requests. Honest OpenLimiter identity, nothing taken from the file but the token.",
+      "maturity": "experimental",
+      "directory": {
+        "order": 16,
+        "rowId": "codebuff/codebuff",
+        "label": "Codebuff",
+        "connectorId": "codebuff",
+        "access": "automatic"
+      },
+      "docsUrl": "https://github.com/CodebuffAI/codebuff/blob/main/cli/src/hooks/use-usage-query.ts",
+      "reviewedAt": "2026-11-04",
+      "sourceStatus": "provisional",
+      "support": {
+        "parser": "implemented",
+        "reader": "implemented",
+        "auth": "implemented",
+        "verification": "unverified"
+      },
+      "collection": {
+        "readers": [
+          {
+            "readerId": "codebuff_usage",
+            "endpointId": "codebuff_usage",
+            "credentialKind": "codebuff_session",
+            "evidenceFixture": "codebuff.official_source.usage",
+            "evidenceStatus": "pending_capture",
+            "lastVerifiedAt": null
+          }
+        ]
+      },
+      "honesty": {
+        "connectorId": "codebuff",
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "experimental"
+      ],
+      "authModes": [
+        "existing_local_cli"
+      ],
+      "platforms": [
+        "windows",
+        "macos",
+        "linux"
+      ],
+      "meters": [
+        {
+          "id": "weekly",
+          "label": "Weekly limit",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "rolling",
+            "durationSeconds": 604800
+          },
+          "optional": true,
+          "meterCode": "SEVEN_DAY"
+        },
+        {
+          "id": "balance",
+          "label": "Credits left",
+          "kind": "credits",
+          "unit": "currency",
+          "scope": "account",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "credit_balance"
+          },
+          "optional": false,
+          "meterCode": "BALANCE"
         }
       ]
     },
@@ -552,31 +830,63 @@ export const PROVIDER_SPECS = {
       "providerId": "github",
       "productId": "copilot",
       "displayName": "GitHub Copilot",
-      "headlineMeter": "ai_credits",
+      "headlineMeter": "premium",
       "noQuotaConcept": false,
-      "acquisitionSurfaces": [],
-      "displaySurfaces": [],
-      "acquisitionMethod": "remote_http_official",
-      "d5Review": "Recipe only; no shipped reader.",
-      "maturity": "planned",
-      "directory": null,
-      "docsUrl": "https://docs.github.com/en/rest/billing/usage",
-      "reviewedAt": "2026-08-10",
-      "sourceStatus": "official",
+      "acquisitionSurfaces": [
+        "desktop"
+      ],
+      "displaySurfaces": [
+        "desktop",
+        "rail",
+        "tray",
+        "cli_cache",
+        "web",
+        "phone"
+      ],
+      "acquisitionMethod": "remote_http_internal",
+      "d5Review": "Reads the sign in the Copilot editor login saved, read only and never refreshed. Only api.github.com receives the token, for the github.com Copilot app alone. Honest OpenLimiter identity, no editor header.",
+      "maturity": "experimental",
+      "directory": {
+        "order": 14,
+        "rowId": "github/copilot",
+        "label": "GitHub Copilot",
+        "connectorId": "copilot",
+        "access": "automatic"
+      },
+      "docsUrl": null,
+      "reviewedAt": "2026-11-04",
+      "sourceStatus": "provisional",
       "support": {
-        "parser": "absent",
-        "reader": "absent",
-        "auth": "absent",
+        "parser": "implemented",
+        "reader": "implemented",
+        "auth": "implemented",
         "verification": "unverified"
       },
-      "collection": null,
-      "honesty": null,
+      "collection": {
+        "readers": [
+          {
+            "readerId": "copilot_user",
+            "endpointId": "copilot_user",
+            "credentialKind": "copilot_session",
+            "evidenceFixture": "copilot.provisional.user",
+            "evidenceStatus": "pending_capture",
+            "lastVerifiedAt": null
+          }
+        ]
+      },
+      "honesty": {
+        "connectorId": "copilot",
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
       "lastVerifiedAt": null,
       "readers": [
-        "official_remote_api"
+        "experimental"
       ],
       "authModes": [
-        "oauth"
+        "existing_local_cli"
       ],
       "platforms": [
         "windows",
@@ -585,9 +895,9 @@ export const PROVIDER_SPECS = {
       ],
       "meters": [
         {
-          "id": "ai_credits",
-          "label": "AI credits used this month",
-          "kind": "credits",
+          "id": "premium",
+          "label": "Premium requests",
+          "kind": "subscription_quota",
           "unit": "percent_used",
           "scope": "account",
           "sourceFormat": "json_path",
@@ -595,7 +905,20 @@ export const PROVIDER_SPECS = {
             "kind": "calendar_month"
           },
           "optional": true,
-          "meterCode": "AI_CREDITS"
+          "meterCode": "PREMIUM"
+        },
+        {
+          "id": "chat",
+          "label": "Chat",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "calendar_month"
+          },
+          "optional": true,
+          "meterCode": "CHAT"
         }
       ]
     },
@@ -896,6 +1219,89 @@ export const PROVIDER_SPECS = {
           },
           "optional": false,
           "meterCode": "BALANCE"
+        }
+      ]
+    },
+    {
+      "id": "kiro/kiro-cli",
+      "providerId": "kiro",
+      "productId": "kiro-cli",
+      "displayName": "Kiro",
+      "headlineMeter": "monthly",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [
+        "desktop"
+      ],
+      "displaySurfaces": [
+        "desktop",
+        "rail",
+        "tray",
+        "cli_cache",
+        "web",
+        "phone"
+      ],
+      "acquisitionMethod": "remote_http_internal",
+      "d5Review": "Reads the sign in the Kiro CLI saved, read only and never refreshed. Only the us-east-1 CodeWhisperer service receives the token, with one validated profile in the body. Honest OpenLimiter identity.",
+      "maturity": "experimental",
+      "directory": {
+        "order": 17,
+        "rowId": "kiro/kiro-cli",
+        "label": "Kiro",
+        "connectorId": "kiro",
+        "access": "automatic"
+      },
+      "docsUrl": null,
+      "reviewedAt": "2026-11-04",
+      "sourceStatus": "provisional",
+      "support": {
+        "parser": "implemented",
+        "reader": "implemented",
+        "auth": "implemented",
+        "verification": "unverified"
+      },
+      "collection": {
+        "readers": [
+          {
+            "readerId": "kiro_usage_limits",
+            "endpointId": "kiro_usage_limits",
+            "credentialKind": "kiro_session",
+            "evidenceFixture": "kiro.provisional.usage_limits",
+            "evidenceStatus": "pending_capture",
+            "lastVerifiedAt": null
+          }
+        ]
+      },
+      "honesty": {
+        "connectorId": "kiro",
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "experimental"
+      ],
+      "authModes": [
+        "existing_local_cli"
+      ],
+      "platforms": [
+        "macos",
+        "linux"
+      ],
+      "meters": [
+        {
+          "id": "monthly",
+          "label": "Monthly credits",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "billing_period"
+          },
+          "optional": false,
+          "meterCode": "MONTHLY"
         }
       ]
     },

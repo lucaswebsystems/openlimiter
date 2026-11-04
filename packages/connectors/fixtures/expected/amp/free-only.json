@@ -1,0 +1,26 @@
+{
+  "expected": {
+    "outcome": "readings",
+    "readings": [
+      {
+        "provider": "AMP",
+        "meter": "FREE",
+        "value": 0,
+        "unit": "PERCENT",
+        "window": {
+          "kind": "rolling",
+          "durationSeconds": 86400
+        },
+        "resetAt": null,
+        "precision": "exact",
+        "source": "internal_payload",
+        "kind": null,
+        "availability": null,
+        "currency": null,
+        "usedAmount": null,
+        "limitAmount": null,
+        "observedAt": "2026-08-07T12:00:00.000Z"
+      }
+    ]
+  }
+}

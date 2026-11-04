@@ -1,0 +1,14 @@
+{
+  "provider": "amp",
+  "case": "styled-text",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "ok": true,
+    "result": {
+      "displayText": "\u001b[1m**Amp Free:**\u001b[0m $2 / $10 remaining\n**Individual credits:** $0 remaining"
+    }
+  }
+}

@@ -84,6 +84,15 @@ Cline in `~/.cline/data/settings/providers.json`, and Kilo Code in `kilo/auth.js
 under the XDG data folder, `~/.local/share` on Windows too. Each one's folder
 alone reports the tool as installed and signed out.
 
+Five more follow the same rule. GitHub Copilot in `github-copilot/apps.json`
+under local application data on Windows and `~/.config` elsewhere; Amp in
+`amp/secrets.json` under `~/.local/share` on Windows and macOS and the XDG data
+folder on Linux; Codebuff in `~/.config/manicode/credentials.json`; Kiro in the
+Kiro CLI's `kiro-cli/data.sqlite3` under Application Support on macOS and the
+XDG data folder on Linux, opened read only (no Windows folder is confirmed, so
+none is read); and Crush in `crush/crush.json` under local application data on
+Windows and the XDG data folder elsewhere.
+
 The executable scan checks `claude`, `codex`, `antigravity`, `opencode` and
 `openrouter` in the inherited executable path. Windows also checks the ordinary
 `.exe`, `.cmd` and `.bat` forms.

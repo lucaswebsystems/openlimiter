@@ -1,0 +1,34 @@
+{
+  "provider": "codebuff",
+  "case": "subscription-stale-reset",
+  "reader": "subscription",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "hasSubscription": true,
+    "displayName": "Pro",
+    "fallbackToALaCarte": true,
+    "subscription": {
+      "id": "sub_synthetic",
+      "status": "active",
+      "billingPeriodEnd": "2026-08-30T00:00:00.000Z",
+      "cancelAtPeriodEnd": false,
+      "canceledAt": null,
+      "tier": 1
+    },
+    "rateLimit": {
+      "limited": false,
+      "canStartNewBlock": true,
+      "weeklyUsed": 60,
+      "weeklyLimit": 120,
+      "weeklyResetsAt": "2026-08-01T00:00:00.000Z",
+      "weeklyPercentUsed": 25
+    },
+    "limits": {
+      "creditsPerBlock": 50,
+      "blockDurationHours": 5,
+      "weeklyCreditsLimit": 120
+    }
+  }
+}

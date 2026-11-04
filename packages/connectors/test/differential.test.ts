@@ -9,23 +9,30 @@ import { parseKimiPayload } from "../src/kimi.js";
 import { parseCursorPayload } from "../src/cursor.js";
 import { parseOpencodePayload } from "../src/opencode.js";
 import {
+  parseAmpPayload,
   parseClinePayload,
+  parseCodebuffPayload,
+  parseCodebuffSubscriptionPayload,
   parseCommandcodePayload,
+  parseCopilotPayload,
+  parseCrushPayload,
   parseHermesPayload,
-  parseKilocodePayload
+  parseKilocodePayload,
+  parseKiroPayload
 } from "../src/tool-logins.js";
 
 const root = resolve(process.cwd(), "packages/connectors/fixtures");
 const providers = [
   "claude", "codex", "openrouter", "kimi", "cursor", "opencode",
-  "hermes", "commandcode", "cline", "kilocode"
+  "hermes", "commandcode", "cline", "kilocode",
+  "copilot", "amp", "codebuff", "kiro", "crush"
 ] as const;
 type Provider = typeof providers[number];
 type Answer = { outcome: "readings" | "rejected"; readings: unknown[] };
 interface Case {
   provider: Provider;
   case: string;
-  reader: "usage" | "credits" | "key";
+  reader: "usage" | "credits" | "key" | "subscription";
   now: string;
   status: number;
   headers: Record<string, string>;
@@ -47,7 +54,12 @@ const parsers = {
   hermes: parseHermesPayload,
   commandcode: parseCommandcodePayload,
   cline: parseClinePayload,
-  kilocode: parseKilocodePayload
+  kilocode: parseKilocodePayload,
+  copilot: parseCopilotPayload,
+  amp: parseAmpPayload,
+  codebuff: parseCodebuffPayload,
+  kiro: parseKiroPayload,
+  crush: parseCrushPayload
 };
 const json = <T>(path: string): T => JSON.parse(readFileSync(path, "utf8")) as T;
 function text(value: unknown): string {
@@ -103,13 +115,19 @@ describe("shared differential provider corpus", () => {
         expect(spec.provider).toBe(provider);
         expect(name).toBe(spec.case + ".json");
         expect(spec.now).toBe("2026-08-07T12:00:00.000Z");
-        expect(spec.reader).toMatch(provider === "openrouter" ? /^(key|credits)$/u : /^usage$/u);
+        expect(spec.reader).toMatch(
+          provider === "openrouter" ? /^(key|credits)$/u
+            : provider === "codebuff" ? /^(usage|subscription)$/u
+            : /^usage$/u
+        );
         expect([200, 401, 403, 429]).toContain(spec.status);
         expect(spec.headers).toEqual(spec.status === 429 ? { "retry-after": "120" } : {});
         expect(spec.fixture === undefined).toBe(Object.hasOwn(spec, "body"));
         const body = spec.fixture === undefined ? spec.body : json<unknown>(resolve(root, spec.fixture));
         // Even error bodies reach the parser. No test-only HTTP status shortcut can hide acceptance.
-        const rows = parsers[provider](body, spec.now);
+        /* Codebuff's subscription is its balance's companion, read by its own parser. */
+        const parse = spec.reader === "subscription" ? parseCodebuffSubscriptionPayload : parsers[provider];
+        const rows = parse(body, spec.now);
         const actual = normalize(rows);
         if (provider === "codex" && spec.case === "existing") {
           expect(rows?.[0]).toMatchObject({

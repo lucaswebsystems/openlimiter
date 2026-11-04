@@ -21,13 +21,18 @@ describe("provider connection directory", () => {
       "commandcode/command-code",
       "cline/clinepass",
       "kilocode/kilo-code",
+      "github/copilot",
+      "amp/amp",
+      "codebuff/codebuff",
+      "kiro/kiro-cli",
+      "charm/crush",
     ]);
   });
 
-  it("shows only the thirteen providers with collecting connectors", () => {
+  it("shows only the eighteen providers with collecting connectors", () => {
     const rows = buildProviderDirectory(providerSpecs);
 
-    expect(rows).toHaveLength(13);
+    expect(rows).toHaveLength(18);
     expect(rows.filter((row) => row.availability === "ready").map((row) => row.displayName))
       .toEqual([
         "Codex",
@@ -43,12 +48,17 @@ describe("provider connection directory", () => {
         "Command Code",
         "Cline",
         "Kilo Code",
+        "GitHub Copilot",
+        "Amp",
+        "Codebuff",
+        "Kiro",
+        "Crush",
       ]);
     expect(rows.some((row) => row.availability === "planned")).toBe(false);
     expect(rows.some((row) => row.connectorId === "manual")).toBe(false);
   });
 
-  it("classifies the thirteen collecting providers by their real access path", () => {
+  it("classifies the eighteen collecting providers by their real access path", () => {
     const rows = buildProviderDirectory(providerSpecs);
     const byId = new Map(rows.map((row) => [row.specId, row]));
 
@@ -72,7 +82,10 @@ describe("provider connection directory", () => {
       connectorId: "kimi",
       availability: "ready",
     });
-    for (const specId of ["nous/hermes", "commandcode/command-code", "cline/clinepass", "kilocode/kilo-code"]) {
+    for (const specId of [
+      "nous/hermes", "commandcode/command-code", "cline/clinepass", "kilocode/kilo-code",
+      "github/copilot", "amp/amp", "codebuff/codebuff", "kiro/kiro-cli", "charm/crush",
+    ]) {
       expect(byId.get(specId)).toMatchObject({ access: "automatic", availability: "ready" });
     }
     expect(rows.every((row) => row.availability === "ready")).toBe(true);
@@ -105,7 +118,7 @@ describe("provider connection directory", () => {
     });
   });
 
-  it("keeps every required connection state distinct across all thirteen rows", () => {
+  it("keeps every required connection state distinct across all eighteen rows", () => {
     const rows = buildProviderDirectory(providerSpecs, {
       states: {
         claude: "CONNECTED",
@@ -116,7 +129,7 @@ describe("provider connection directory", () => {
     });
     const byConnector = new Map(rows.map((row) => [row.connectorId, row]));
 
-    expect(rows).toHaveLength(13);
+    expect(rows).toHaveLength(18);
     expect(byConnector.get("claude")).toMatchObject({
       access: "automatic",
       stateLabel: "Connected",

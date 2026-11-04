@@ -22,6 +22,11 @@ export const PROVIDER_CODES = [
   "COMMANDCODE",
   "CLINE",
   "KILOCODE",
+  "COPILOT",
+  "AMP",
+  "CODEBUFF",
+  "KIRO",
+  "CRUSH",
   "MANUAL"
 ] as const;
 

@@ -40,5 +40,13 @@ export function useClaudeMeterCopy(): ClaudeMeterCopy {
     clineWeekly: t("clineWeekly"),
     clineMonthly: t("clineMonthly"),
     kilocodeBalance: t("kilocodeBalance"),
+    copilotPremium: t("copilotPremium"),
+    copilotChat: t("copilotChat"),
+    ampFree: t("ampFree"),
+    ampBalance: t("ampBalance"),
+    codebuffWeekly: t("codebuffWeekly"),
+    codebuffBalance: t("codebuffBalance"),
+    kiroMonthly: t("kiroMonthly"),
+    crushBalance: t("crushBalance"),
   }), [t]);
 }
