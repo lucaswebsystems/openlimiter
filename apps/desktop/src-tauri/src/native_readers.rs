@@ -1473,7 +1473,16 @@ fn parse_copilot(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapsh
 
 /// A dollar amount as the Amp CLI prints it: digits with optional thousands
 /// commas and decimals.
+/// Thousands commas must group the whole number in threes after one to three
+/// leading digits: `1,234.50` is read, `1,2` and `1,,000` are not.
 fn amp_amount(text: &str) -> Option<f64> {
+    let whole = text.split('.').next()?;
+    let groups: Vec<&str> = whole.split(',').collect();
+    let grouped = groups.len() == 1
+        || ((1..=3).contains(&groups[0].len()) && groups[1..].iter().all(|group| group.len() == 3));
+    if !grouped {
+        return None;
+    }
     text.replace(',', "").parse::<f64>().ok().filter(|value| value.is_finite())
 }
 

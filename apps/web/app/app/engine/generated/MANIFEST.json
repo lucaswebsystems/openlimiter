@@ -25,7 +25,7 @@
     "connectors/gemini-cli.ts": "6bdf5b986d6bc9be",
     "connectors/grok.ts": "2effd4e9325bd882",
     "connectors/kimi.ts": "247cffe264807106",
-    "connectors/tool-logins.ts": "c2efef3491b6ab94",
+    "connectors/tool-logins.ts": "d28fd138c2c63929",
     "connectors/manual.ts": "2b158d66e87d44fb",
     "connectors/opencode.ts": "05b6a0da28a7056a",
     "connectors/openrouter.ts": "e12d930f3961ac2d",

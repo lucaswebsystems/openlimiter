@@ -319,6 +319,9 @@ export function parseCopilotPayload(payload: unknown, now: string): RawMeter[] |
 /** A dollar amount as the Amp CLI prints it: digits, thousands commas, decimals. */
 function ampAmount(text: string | undefined): number | null {
   if (text === undefined) return null;
+  /* Thousands commas must group the whole number in threes after one to three
+     leading digits: `1,234.50` is read, `1,2` and `1,,000` are not. */
+  if (!/^(?:[0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)(?:\.[0-9]+)?$/u.test(text)) return null;
   const value = Number(text.replace(/,/gu, ""));
   return Number.isFinite(value) ? value : null;
 }

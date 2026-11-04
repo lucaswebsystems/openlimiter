@@ -2555,8 +2555,22 @@ fn masked_email(value: &str) -> Option<String> {
     Some(format!("{first}***@{domain}"))
 }
 
-fn account_label(provider: DetectedProviderId, email: Option<&str>, account_id: &str) -> String {
-    masked_email(email.unwrap_or_default()).unwrap_or_else(|| {
+/// A GitHub login masked like an email: its first character and stars.
+fn masked_github_user(value: &str) -> Option<String> {
+    let first = value.chars().next()?;
+    (value.len() <= 39 && value.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-'))
+        .then(|| format!("GitHub user {first}***"))
+}
+
+fn account_label(provider: DetectedProviderId, parsed: &ParsedCredential, account_id: &str) -> String {
+    /* Copilot's login names the GitHub user its token belongs to; masked, it
+    tells two Copilot accounts apart without showing the name. */
+    if provider == DetectedProviderId::Copilot && parsed.identity_quality == IdentityQuality::ProviderAccount {
+        if let Some(label) = masked_github_user(&parsed.identity_material) {
+            return label;
+        }
+    }
+    masked_email(parsed.email.as_deref().unwrap_or_default()).unwrap_or_else(|| {
         let suffix = account_id.rsplit('-').next().unwrap_or(account_id);
         let visible = suffix.get(..6).unwrap_or(suffix);
         format!("{} account {visible}", provider.display_name())
@@ -2653,7 +2667,7 @@ fn scan_enabled_inventory(
                 };
                 let public = DetectedAccount {
                     account_id: account_id.clone(),
-                    label: account_label(provider, parsed.email.as_deref(), &account_id),
+                    label: account_label(provider, &parsed, &account_id),
                     auth_state,
                     collection_state: DetectedCollectionState::Waiting,
                     identity_quality: parsed.identity_quality,

@@ -99,6 +99,28 @@ honesty:
   automation_risk: high
   verification: UNVERIFIED
 
+provenance:
+  endpoint_terms: unreviewed
+  sources:
+    - name: Codebuff
+      repository: CodebuffAI/codebuff
+      files:
+        - cli/src/utils/config-dir.ts
+        - cli/src/utils/auth.ts
+        - cli/src/utils/auth-token-store.ts
+        - cli/src/hooks/use-usage-query.ts
+        - cli/src/hooks/use-subscription-query.ts
+        - common/src/types/subscription.ts
+      licence: Apache-2.0
+    - name: CodexBar
+      repository: steipete/CodexBar
+      files:
+        - Sources/CodexBarCore/Providers/Codebuff/CodebuffUsageFetcher.swift
+        - Sources/CodexBarCore/Providers/Codebuff/CodebuffSettingsReader.swift
+      licence: MIT
+  mark: initials
+  mark_licence: null
+
 meters:
   - id: weekly
     label: Weekly limit

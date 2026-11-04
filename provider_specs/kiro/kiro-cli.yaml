@@ -102,6 +102,25 @@ honesty:
   automation_risk: high
   verification: UNVERIFIED
 
+provenance:
+  endpoint_terms: unreviewed
+  terms_note: AWS service terms govern the CodeWhisperer service; they were not reviewed for this use.
+  sources:
+    - name: CodexBar
+      repository: steipete/CodexBar
+      files:
+        - Sources/CodexBarCore/Providers/Kiro/KiroUsageLimitsAPI.swift
+        - Tests/CodexBarTests/KiroUsageLimitsAPITests.swift
+      licence: MIT
+    - name: Amazon Q Developer CLI
+      repository: aws/amazon-q-developer-cli
+      files:
+        - crates/chat-cli/src/auth/builder_id.rs
+        - crates/chat-cli/src/database/mod.rs
+      licence: MIT OR Apache-2.0
+  mark: initials
+  mark_licence: null
+
 meters:
   - id: monthly
     label: Monthly credits

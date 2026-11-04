@@ -311,16 +311,22 @@ async fn checked_body(
     }
 }
 
-/// The rows a companion reply adds. A companion shape this build does not
-/// recognize adds nothing; the first reply's rows still stand.
-fn companion_rows(companion: ProviderEndpoint, body: &str, now_ms: u64, account_id: &str) -> Vec<crate::native_snapshot::Snapshot> {
-    let rows = match companion {
+/// The rows a companion reply adds, or None when its shape is not one this
+/// build reads. An explicit "nothing to add" (Codebuff with no subscription)
+/// is an empty list; an unreadable reply is drift for the whole read, never an
+/// empty success that would drop the previous rows and mark the account ready.
+fn companion_rows(
+    companion: ProviderEndpoint,
+    body: Option<&str>,
+    now_ms: u64,
+    account_id: &str,
+) -> Option<Vec<crate::native_snapshot::Snapshot>> {
+    match companion {
         ProviderEndpoint::CodebuffSubscription => {
-            crate::native_readers::parse_codebuff_subscription(body, now_ms, account_id)
+            crate::native_readers::parse_codebuff_subscription(body?, now_ms, account_id)
         }
         _ => None,
-    };
-    rows.unwrap_or_default()
+    }
 }
 
 async fn collect_with_secret<T: Transport>(
@@ -369,14 +375,15 @@ async fn collect_with_secret<T: Transport>(
             Ok(response) => response,
             Err(error) => return LoginOutcome::failed(account_id, net_failure(error)),
         };
-        match checked_body(provider, runtime, &writer, account_id, response, now_ms).await {
-            Ok(body) => snapshots.extend(
-                body.as_deref()
-                    .map(|body| companion_rows(companion, body, now_ms, account_id))
-                    .unwrap_or_default(),
-            ),
+        let body = match checked_body(provider, runtime, &writer, account_id, response, now_ms).await {
+            Ok(body) => body,
             Err(outcome) => return outcome,
-        }
+        };
+        let Some(rows) = companion_rows(companion, body.as_deref(), now_ms, account_id) else {
+            fallback_report(writer, provider, account_id, true, now_ms).await;
+            return LoginOutcome::fallback(account_id, LoginFailure::Drift, None);
+        };
+        snapshots.extend(rows);
     }
     if commit_report(writer, provider, account_id.to_string(), CacheReport::Success(snapshots)).await {
         LoginOutcome::CacheCommitted {
@@ -1372,6 +1379,24 @@ mod tests {
         assert!(!serde_json::to_string(&report).unwrap().contains("eu-token"));
     }
 
+    #[test]
+    fn a_copilot_account_is_labelled_with_its_masked_github_user() {
+        let dir = TempDir::new();
+        write_login(LoginProvider::Copilot, dir.path(), "gho_synthetic", "2099-01-01T00:00:00Z");
+        let detection = DetectionStore::for_test_home(dir.path(), now());
+        let report = detection.report();
+        let shown = report
+            .providers
+            .iter()
+            .find(|entry| entry.provider_id == DetectedProviderId::Copilot)
+            .and_then(|entry| entry.accounts.first())
+            .expect("account row");
+        assert_eq!(shown.label, "GitHub user o***");
+        let text = serde_json::to_string(&report).unwrap();
+        assert!(!text.contains("octo"), "the GitHub user reached the report unmasked");
+        assert!(!text.contains("gho_synthetic"));
+    }
+
     #[tokio::test]
     async fn a_copilot_login_is_sent_with_the_token_scheme_and_no_editor_claim() {
         let dir = TempDir::new();
@@ -1433,6 +1458,41 @@ mod tests {
             no_plan.recorded_bodies(),
             vec![Some(crate::net::CODEBUFF_USAGE_BODY.to_string()), None]
         );
+    }
+
+    #[tokio::test]
+    async fn a_valid_codebuff_balance_with_an_unreadable_subscription_is_drift_never_ready() {
+        let dir = TempDir::new();
+        write_login(LoginProvider::Codebuff, dir.path(), "cb-token", "2099-01-01T00:00:00Z");
+        let detection = DetectionStore::for_test_home(dir.path(), now());
+        let account = detection.account_ids(DetectedProviderId::Codebuff).pop().expect("account");
+        let transport = RecordingTransport::scripted(vec![
+            (200, reply(LoginProvider::Codebuff).as_bytes().to_vec(), None),
+            (200, br#"{"plan":"pro","rateLimits":[]}"#.to_vec(), None),
+        ]);
+        let outcome = collect_account(
+            LoginProvider::Codebuff,
+            &detection,
+            &ToolLoginRuntime::default(),
+            &transport,
+            writer(&dir),
+            account,
+            now(),
+        )
+        .await;
+        assert!(matches!(outcome, LoginOutcome::Fallback { reason: LoginFailure::Drift, .. }), "{outcome:?}");
+        assert_eq!(transport.recorded_urls(), vec![CODEBUFF_USAGE_URL, CODEBUFF_SUBSCRIPTION_URL]);
+        let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
+        assert!(cache.contains("suppressions"), "the read was not marked as drift");
+        assert!(!cache.contains("\"BALANCE\""), "a partial read was committed as a success");
+        let shown = detection
+            .report()
+            .providers
+            .iter()
+            .find(|entry| entry.provider_id == DetectedProviderId::Codebuff)
+            .and_then(|entry| entry.accounts.first().cloned())
+            .expect("account row");
+        assert_ne!(shown.collection_state, crate::provider_detection::DetectedCollectionState::Ready);
     }
 
     #[test]

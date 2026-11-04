@@ -96,6 +96,26 @@ honesty:
   automation_risk: high
   verification: UNVERIFIED
 
+provenance:
+  endpoint_terms: unreviewed
+  sources:
+    - name: Crush
+      repository: charmbracelet/crush
+      files:
+        - internal/config/load.go
+        - internal/config/store.go
+        - internal/config/provider.go
+        - internal/oauth/token.go
+        - internal/agent/hyper/provider.go
+      licence: FSL-1.1-MIT
+    - name: oh-my-pi
+      repository: can1357/oh-my-pi
+      files:
+        - packages/ai/src/usage/charm-hyper.ts
+      licence: MIT
+  mark: initials
+  mark_licence: null
+
 meters:
   # Hyper credits, not money, unless the reply states balance_usd. The
   # registry's balance unit is currency; the readers set the money kind only

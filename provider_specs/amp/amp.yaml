@@ -103,6 +103,29 @@ honesty:
   automation_risk: high
   verification: UNVERIFIED
 
+provenance:
+  endpoint_terms: unreviewed
+  terms_note: The Amp terms of service govern use of Amp and are named in its CLI licence; they were not reviewed for this internal address.
+  sources:
+    - name: Amp CLI JavaScript bundle
+      package: "@sourcegraph/amp@0.0.1778357489-g5fbfbe"
+      files:
+        - dist/main.js
+      licence: proprietary
+    - name: Amp CLI native build
+      package: "@ampcode/cli-linux-x64@0.0.1793764839-g19a5bc"
+      files:
+        - amp (strings only)
+      licence: proprietary
+    - name: CodexBar
+      repository: steipete/CodexBar
+      files:
+        - Sources/CodexBarCore/Providers/Amp/AmpUsageFetcher.swift
+        - Sources/CodexBarCore/Providers/Amp/AmpUsageParser.swift
+      licence: MIT
+  mark: initials
+  mark_licence: null
+
 meters:
   - id: free
     label: Amp Free

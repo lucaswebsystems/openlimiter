@@ -104,6 +104,30 @@ honesty:
   automation_risk: high
   verification: UNVERIFIED
 
+provenance:
+  endpoint_terms: unreviewed
+  terms_note: The GitHub terms of service and API terms govern api.github.com; they were not reviewed for this internal address.
+  sources:
+    - name: CodexBar
+      repository: steipete/CodexBar
+      files:
+        - Sources/CodexBarCore/Providers/Copilot/CopilotUsageFetcher.swift
+        - Sources/CodexBarCore/CopilotUsageModels.swift
+        - Sources/CodexBarCore/Providers/Copilot/CopilotDeviceFlow.swift
+      licence: MIT
+    - name: Crush
+      repository: charmbracelet/crush
+      files:
+        - internal/oauth/copilot/disk.go
+      licence: FSL-1.1-MIT
+    - name: GitHub Copilot CLI
+      package: "@github/copilot-win32-x64@1.0.105"
+      files:
+        - copilot.exe embedded runtime.node (strings only)
+      licence: proprietary
+  mark: initials
+  mark_licence: null
+
 meters:
   - id: premium
     label: Premium requests

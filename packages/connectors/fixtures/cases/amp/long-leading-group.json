@@ -1,0 +1,14 @@
+{
+  "provider": "amp",
+  "case": "long-leading-group",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "ok": true,
+    "result": {
+      "displayText": "Amp Free: $5 / $1000,000 remaining\nIndividual credits: $1234,567 remaining"
+    }
+  }
+}

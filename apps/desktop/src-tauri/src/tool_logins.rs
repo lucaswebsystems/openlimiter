@@ -250,13 +250,25 @@ fn kiro(path: &Path) -> Option<ToolLogin> {
     )
     .ok()?;
     db.busy_timeout(Duration::from_millis(250)).ok()?;
+    kiro_login(&db, || ())
+}
+
+/// The token and the profile from one committed state of the database. Both
+/// are read inside one read transaction (as `cursor_reader.rs` does), so a
+/// sign in the Kiro CLI writes between the two reads can never pair one
+/// account's token with another account's profile. `between` runs between the
+/// two reads; only a test gives it anything to do. The transaction is never
+/// committed: dropping the connection ends it.
+fn kiro_login(db: &Connection, between: impl FnOnce()) -> Option<ToolLogin> {
+    db.execute_batch("BEGIN").ok()?;
     let token_text = kiro_value(
-        &db,
+        db,
         "SELECT value FROM auth_kv WHERE key = ?1 AND length(value) <= ?2",
         KIRO_TOKEN_KEY,
     )?;
+    between();
     let profile_text = kiro_value(
-        &db,
+        db,
         "SELECT value FROM state WHERE key = ?1 AND length(value) <= ?2",
         KIRO_PROFILE_KEY,
     )?;
@@ -495,6 +507,41 @@ mod tests {
         let not_a_database = dir.path().join("plain.sqlite3");
         std::fs::write(&not_a_database, "not sqlite").unwrap();
         assert!(read(DetectedProviderId::Kiro, &not_a_database).is_none());
+    }
+
+    #[test]
+    fn a_kiro_account_switch_between_the_two_reads_never_mixes_two_accounts() {
+        /* The Kiro CLI signs another account in while the token was read and
+        the profile was not yet: the read still yields one account's pair. */
+        let dir = TempDir::new();
+        let path = dir.path().join("data.sqlite3");
+        let arn = |person: &str| format!("arn:aws:codewhisperer:us-east-1:123456789012:profile/{person}");
+        let saved = |token: &str| format!(r#"{{"access_token":"{token}","expires_at":"2099-01-01T00:00:00Z"}}"#);
+        let profile = |person: &str| format!(r#"{{"arn":"{}"}}"#, arn(person));
+        kiro_database(&path, Some(saved("token-a").as_str()), Some(profile("A").as_str()));
+        let writer = Connection::open(&path).unwrap();
+        writer.query_row("PRAGMA journal_mode=WAL", [], |_| Ok(())).unwrap();
+        let reader = Connection::open_with_flags(
+            &path,
+            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )
+        .unwrap();
+        let found = kiro_login(&reader, || {
+            writer
+                .execute("UPDATE auth_kv SET value = ?1 WHERE key = 'kirocli:odic:token'", [saved("token-b")])
+                .unwrap();
+            writer
+                .execute("UPDATE state SET value = ?1 WHERE key = 'api.codewhisperer.profile'", [profile("B")])
+                .unwrap();
+        })
+        .expect("one account's login");
+        assert_eq!(found.token.as_str(), "token-a");
+        assert_eq!(found.provider_account_id.as_deref(), Some(arn("A").as_str()));
+        drop(reader);
+        /* The next read sees the switched account whole. */
+        let switched = read(DetectedProviderId::Kiro, &path).expect("the new account");
+        assert_eq!(switched.token.as_str(), "token-b");
+        assert_eq!(switched.provider_account_id.as_deref(), Some(arn("B").as_str()));
     }
 
     #[test]
