@@ -121,6 +121,12 @@ mod tests {
             ReaderId::GrokUsage => (ProviderId::Grok, CredentialKind::GrokSession),
             ReaderId::KimiUsage => (ProviderId::Kimi, CredentialKind::KimiSession),
             ReaderId::CursorUsage => (ProviderId::Cursor, CredentialKind::CursorSession),
+            ReaderId::HermesAccount => (ProviderId::Hermes, CredentialKind::HermesSession),
+            ReaderId::CommandcodeCredits => {
+                (ProviderId::Commandcode, CredentialKind::CommandcodeApiKey)
+            }
+            ReaderId::ClineUsage => (ProviderId::Cline, CredentialKind::ClineSession),
+            ReaderId::KilocodeBalance => (ProviderId::Kilocode, CredentialKind::KilocodeSession),
         };
         ConnectionRecord {
             id: id.to_string(),
@@ -158,6 +164,10 @@ mod tests {
             (ReaderId::GrokUsage, Some(300)),
             (ReaderId::KimiUsage, Some(300)),
             (ReaderId::CursorUsage, Some(300)),
+            (ReaderId::HermesAccount, Some(300)),
+            (ReaderId::CommandcodeCredits, Some(300)),
+            (ReaderId::ClineUsage, Some(300)),
+            (ReaderId::KilocodeBalance, Some(300)),
         ];
         for (reader, expected_seconds) in cases {
             let next = scheduled_at(CollectionSource::Reader(reader), NOW, 0, None, 0.5);

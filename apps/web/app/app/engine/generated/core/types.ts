@@ -18,6 +18,10 @@ export const PROVIDER_CODES = [
   "GROK",
   "KIMI",
   "CURSOR",
+  "HERMES",
+  "COMMANDCODE",
+  "CLINE",
+  "KILOCODE",
   "MANUAL"
 ] as const;
 

@@ -28,6 +28,8 @@ mod host;
 mod kimi_oauth;
 mod opencode_login;
 mod opencode_oauth;
+mod tool_login_oauth;
+mod tool_logins;
 mod native_readers;
 mod native_snapshot;
 mod native_time;
@@ -246,6 +248,7 @@ pub fn run() {
         .manage(grok_oauth::GrokOauthRuntime::default())
         .manage(kimi_oauth::KimiOauthRuntime::default())
         .manage(opencode_oauth::OpencodeOauthRuntime::default())
+        .manage(tool_login_oauth::ToolLoginRuntime::default())
         .manage(gemini_cli_oauth::GeminiCliOauthRuntime::default())
         .manage(collector_runtime::CollectorRuntime::default())
         .manage(data_rules::ConnectionIdentities::default())

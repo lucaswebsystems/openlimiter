@@ -78,6 +78,7 @@ const MIRROR = {
       "gemini-cli.ts",
       "grok.ts",
       "kimi.ts",
+      "tool-logins.ts",
       "manual.ts",
       "opencode.ts",
       "openrouter.ts",

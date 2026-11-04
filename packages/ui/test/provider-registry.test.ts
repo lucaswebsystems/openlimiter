@@ -15,10 +15,19 @@ describe("generated provider directory", () => {
          the same automatic access path as Kimi's, field for field. */
       const kimi = expected.find((row) => row.connectorId === "kimi")!;
       const opencode = { ...kimi, key: "opencode/opencode", specId: "opencode/opencode", connectorId: "opencode", displayName: "OpenCode" };
-      expect(buildProviderDirectory(registry, { states }).filter(row => row.connectorId !== "cursor"))
+      /* Cursor and the four tools read from their own saved sign in arrived later. */
+      const later = new Set(["cursor", "hermes", "commandcode", "cline", "kilocode"]);
+      expect(buildProviderDirectory(registry, { states }).filter(row => !later.has(row.connectorId ?? "")))
         .toEqual(expected.map((row) => row.connectorId === "opencode" ? opencode : row));
     }
-    expect(PROVIDER_RECOGNITION_ORDER).toEqual([...legacy.NOT_CONFIGURED.map((row) => row.specId), "cursor/editor"]);
+    expect(PROVIDER_RECOGNITION_ORDER).toEqual([
+      ...legacy.NOT_CONFIGURED.map((row) => row.specId),
+      "cursor/editor",
+      "nous/hermes",
+      "commandcode/command-code",
+      "cline/clinepass",
+      "kilocode/kilo-code",
+    ]);
   });
 
   it("takes labels and ordering from the supplied registry", () => {

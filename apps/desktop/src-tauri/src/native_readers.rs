@@ -1153,6 +1153,237 @@ fn parse_opencode(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snaps
     Some(snapshots)
 }
 
+/// Largest money balance a tool's reading may carry, the cache's own bound.
+const MAX_BALANCE: f64 = 1_000_000.0;
+const MONTH_SECONDS: u64 = 2_592_000;
+
+fn tool_labels() -> ConnectorLabels {
+    labels("official-local-tool", "internal-endpoint", "high")
+}
+
+/// A percentage of a stated window, read from the tool's own reply.
+fn tool_percent(
+    provider: &str,
+    meter: &str,
+    percent: f64,
+    window: SnapshotWindow,
+    reset_at: Option<String>,
+    observed_at: &str,
+    account_id: &str,
+) -> Snapshot {
+    base_snapshot(
+        provider,
+        meter,
+        percent,
+        window,
+        reset_at,
+        "internal_payload",
+        "exact",
+        observed_at,
+        observed_at,
+        tool_labels(),
+        account_id,
+    )
+}
+
+/// Money left, stated in US dollars by the tool itself, with no total beside
+/// it: a balance rather than a bar.
+fn tool_balance(provider: &str, value: f64, observed_at: &str, account_id: &str) -> Option<Snapshot> {
+    if !value.is_finite() || !(0.0..=MAX_BALANCE).contains(&value) {
+        return None;
+    }
+    let mut snapshot = base_snapshot(
+        provider,
+        "BALANCE",
+        value,
+        SnapshotWindow {
+            kind: "lifetime".to_string(),
+            duration_seconds: None,
+        },
+        None,
+        "internal_payload",
+        "exact",
+        observed_at,
+        observed_at,
+        tool_labels(),
+        account_id,
+    );
+    snapshot.unit = "CREDITS".to_string();
+    snapshot.kind = Some("money_balance".to_string());
+    Some(snapshot)
+}
+
+fn finite(value: Option<&Value>) -> Option<f64> {
+    value?.as_f64().filter(|number| number.is_finite())
+}
+
+/// Hermes's Nous Portal account (`hermes_cli/nous_account.py`, the gauge in
+/// `agent/account_usage.py`): the month's subscription credits used, from
+/// `subscription.monthly_credits` and `subscription.credits_remaining`, reset
+/// at `subscription.current_period_end`; and the purchased credits left,
+/// `paid_service_access.purchased_credits_remaining`, when there are any.
+/// Hermes's own rule holds: a remainder above the allowance (rollover) makes
+/// the allowance no denominator, so no percentage is drawn.
+fn parse_hermes(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
+    let root: Value = serde_json::from_str(body).ok()?;
+    let root = root.as_object()?;
+    let observed_at = iso_from_epoch_ms(now_ms)?;
+    let mut snapshots = Vec::new();
+    if let Some(subscription) = root.get("subscription").and_then(Value::as_object) {
+        let cap = finite(subscription.get("monthly_credits")).filter(|cap| *cap > 0.0);
+        let remaining = finite(subscription.get("credits_remaining"));
+        if let (Some(cap), Some(remaining)) = (cap, remaining) {
+            if remaining <= cap {
+                let percent = ((cap - remaining) / cap * 100.0).clamp(0.0, 100.0);
+                let reset_at = subscription
+                    .get("current_period_end")
+                    .and_then(Value::as_str)
+                    .and_then(|text| {
+                        future_rfc3339(text, now_ms, MONTH_SECONDS * 2 + CLOCK_SKEW_SECONDS)
+                    });
+                snapshots.push(tool_percent(
+                    "HERMES",
+                    "MONTHLY",
+                    percent,
+                    SnapshotWindow {
+                        kind: "fixed".to_string(),
+                        duration_seconds: Some(MONTH_SECONDS),
+                    },
+                    reset_at,
+                    &observed_at,
+                    account_id,
+                ));
+            }
+        }
+    }
+    let purchased = root
+        .get("paid_service_access")
+        .and_then(Value::as_object)
+        .and_then(|access| finite(access.get("purchased_credits_remaining")))
+        .filter(|value| *value > 0.0);
+    if let Some(balance) = purchased.and_then(|value| tool_balance("HERMES", value, &observed_at, account_id)) {
+        snapshots.push(balance);
+    }
+    (!snapshots.is_empty()).then_some(snapshots)
+}
+
+/// A Command Code window reset, stated as epoch milliseconds (the CLI compares
+/// it with `Date.now()`), or as epoch seconds.
+fn epoch_reset(value: Option<&Value>, now_ms: u64, window_seconds: u64) -> Option<String> {
+    let value = finite(value)?;
+    let seconds = if value >= 1_000_000_000_000.0 { value / 1_000.0 } else { value };
+    future_epoch_seconds(seconds, now_ms, Some(window_seconds * 2 + CLOCK_SKEW_SECONDS))
+}
+
+/// Command Code's credits (`projectUsageView` and `WindowLimitMeter` in the
+/// command-code bundle): `windowLimits.fiveHour` and `windowLimits.weekly`
+/// as `used` of `cap` with `resetAt`, and the credits left, monthly plus
+/// purchased plus free, as one balance. A reply wrapped in `data` is read
+/// inside it.
+fn parse_commandcode(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
+    const WINDOWS: [(&str, &str, u64); 2] = [
+        ("fiveHour", "FIVE_HOUR", 18_000),
+        ("weekly", "SEVEN_DAY", 604_800),
+    ];
+    let root: Value = serde_json::from_str(body).ok()?;
+    let root = root.as_object()?;
+    let root = root.get("data").and_then(Value::as_object).unwrap_or(root);
+    let credits = root.get("credits")?.as_object()?;
+    let parts: Vec<f64> = ["monthlyCredits", "purchasedCredits", "freeCredits"]
+        .iter()
+        .filter_map(|name| finite(credits.get(*name)))
+        .collect();
+    if parts.is_empty() {
+        return None;
+    }
+    let observed_at = iso_from_epoch_ms(now_ms)?;
+    let mut snapshots = Vec::new();
+    let windows = root.get("windowLimits").and_then(Value::as_object);
+    for (name, meter, seconds) in WINDOWS {
+        let Some(window) = windows.and_then(|all| all.get(name)).and_then(Value::as_object) else {
+            continue;
+        };
+        let (Some(cap), Some(used)) = (
+            finite(window.get("cap")).filter(|cap| *cap > 0.0),
+            finite(window.get("used")).filter(|used| *used >= 0.0),
+        ) else {
+            continue;
+        };
+        snapshots.push(tool_percent(
+            "COMMANDCODE",
+            meter,
+            (used / cap * 100.0).min(100.0),
+            SnapshotWindow {
+                kind: "rolling".to_string(),
+                duration_seconds: Some(seconds),
+            },
+            epoch_reset(window.get("resetAt"), now_ms, seconds),
+            &observed_at,
+            account_id,
+        ));
+    }
+    let total: f64 = parts.iter().map(|part| part.max(0.0)).sum();
+    snapshots.push(tool_balance("COMMANDCODE", total, &observed_at, account_id)?);
+    Some(snapshots)
+}
+
+/// ClinePass's limits (CodexBar `clinepass.ts`, oh-my-pi `cline-pass.ts`):
+/// `{"success": true, "data": {"limits": [{"type", "percentUsed",
+/// "resetsAt"}]}}`, of which `five_hour`, `weekly` and `monthly` are read.
+/// An unknown type is skipped; a known one without a numeric percentage
+/// costs the whole reply.
+fn parse_cline(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
+    let root: Value = serde_json::from_str(body).ok()?;
+    if root.get("success")?.as_bool()? != true {
+        return None;
+    }
+    let limits = root.get("data")?.as_object()?.get("limits")?.as_array()?;
+    let observed_at = iso_from_epoch_ms(now_ms)?;
+    let mut snapshots: Vec<Snapshot> = Vec::new();
+    for limit in limits {
+        let limit = limit.as_object()?;
+        let (meter, seconds) = match limit.get("type")?.as_str()? {
+            "five_hour" => ("FIVE_HOUR", 18_000),
+            "weekly" => ("SEVEN_DAY", 604_800),
+            "monthly" => ("MONTHLY", MONTH_SECONDS),
+            _ => continue,
+        };
+        let percent = finite(limit.get("percentUsed"))?.clamp(0.0, 100.0);
+        let reset_at = match limit.get("resetsAt") {
+            None | Some(Value::Null) => None,
+            Some(Value::String(text)) => {
+                future_rfc3339(text, now_ms, seconds * 2 + CLOCK_SKEW_SECONDS)
+            }
+            Some(_) => return None,
+        };
+        if snapshots.iter().any(|row| row.meter == meter) {
+            continue;
+        }
+        snapshots.push(tool_percent(
+            "CLINE",
+            meter,
+            percent,
+            SnapshotWindow {
+                kind: "rolling".to_string(),
+                duration_seconds: Some(seconds),
+            },
+            reset_at,
+            &observed_at,
+            account_id,
+        ));
+    }
+    (!snapshots.is_empty()).then_some(snapshots)
+}
+
+/// Kilo Code's balance (`fetchBalance` in `packages/kilo-gateway`):
+/// `{"balance": <dollars>}`. A missing balance is not read as zero.
+fn parse_kilocode(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
+    let root: Value = serde_json::from_str(body).ok()?;
+    let balance = finite(root.as_object()?.get("balance"))?;
+    let observed_at = iso_from_epoch_ms(now_ms)?;
+    Some(vec![tool_balance("KILOCODE", balance, &observed_at, account_id)?])
+}
+
 pub fn parse_body(
     reader: ReaderId,
     body: &str,
@@ -1169,6 +1400,10 @@ pub fn parse_body(
         ReaderId::GrokUsage => parse_grok(body, now_ms, account_id),
         ReaderId::KimiUsage => parse_kimi(body, now_ms, account_id),
         ReaderId::CursorUsage => cursor::parse(body, now_ms, account_id),
+        ReaderId::HermesAccount => parse_hermes(body, now_ms, account_id),
+        ReaderId::CommandcodeCredits => parse_commandcode(body, now_ms, account_id),
+        ReaderId::ClineUsage => parse_cline(body, now_ms, account_id),
+        ReaderId::KilocodeBalance => parse_kilocode(body, now_ms, account_id),
     }?;
     // A reading remains live for its provider cadence, not a one minute
     // repaint budget. Explicit only readers retain their existing expiry.

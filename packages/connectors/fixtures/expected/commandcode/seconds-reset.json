@@ -1,0 +1,45 @@
+{
+  "expected": {
+    "outcome": "readings",
+    "readings": [
+      {
+        "provider": "COMMANDCODE",
+        "meter": "BALANCE",
+        "value": 1,
+        "unit": "CREDITS",
+        "window": {
+          "kind": "lifetime",
+          "durationSeconds": null
+        },
+        "resetAt": null,
+        "precision": "exact",
+        "source": "internal_payload",
+        "kind": "money_balance",
+        "availability": null,
+        "currency": null,
+        "usedAmount": null,
+        "limitAmount": null,
+        "observedAt": "2026-08-07T12:00:00.000Z"
+      },
+      {
+        "provider": "COMMANDCODE",
+        "meter": "SEVEN_DAY",
+        "value": 25,
+        "unit": "PERCENT",
+        "window": {
+          "kind": "rolling",
+          "durationSeconds": 604800
+        },
+        "resetAt": "2026-08-09T12:00:00.000Z",
+        "precision": "exact",
+        "source": "internal_payload",
+        "kind": null,
+        "availability": null,
+        "currency": null,
+        "usedAmount": null,
+        "limitAmount": null,
+        "observedAt": "2026-08-07T12:00:00.000Z"
+      }
+    ]
+  }
+}

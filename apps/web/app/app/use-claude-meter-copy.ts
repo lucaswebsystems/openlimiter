@@ -31,5 +31,14 @@ export function useClaudeMeterCopy(): ClaudeMeterCopy {
     opencodeFiveHour: t("opencodeFiveHour"),
     opencodeWeekly: t("opencodeWeekly"),
     opencodeMonthly: t("opencodeMonthly"),
+    hermesMonthly: t("hermesMonthly"),
+    hermesBalance: t("hermesBalance"),
+    commandcodeFiveHour: t("commandcodeFiveHour"),
+    commandcodeWeekly: t("commandcodeWeekly"),
+    commandcodeBalance: t("commandcodeBalance"),
+    clineFiveHour: t("clineFiveHour"),
+    clineWeekly: t("clineWeekly"),
+    clineMonthly: t("clineMonthly"),
+    kilocodeBalance: t("kilocodeBalance"),
   }), [t]);
 }

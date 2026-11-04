@@ -18,6 +18,8 @@ mod credentials;
 mod fsx;
 #[path = "../src/opencode_login.rs"]
 mod opencode_login;
+#[path = "../src/tool_logins.rs"]
+mod tool_logins;
 #[path = "../src/native_readers.rs"]
 mod native_readers;
 #[path = "../src/native_snapshot.rs"]

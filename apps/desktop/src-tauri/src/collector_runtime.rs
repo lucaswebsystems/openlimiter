@@ -541,6 +541,24 @@ pub async fn run_pass(
                     {
                         failed_providers.push(DetectedProviderId::Opencode);
                     }
+                    for provider in crate::tool_login_oauth::LoginProvider::ALL {
+                        let detected = crate::tool_login_oauth::login_route(provider).detected;
+                        if allowed(detected)
+                            && !crate::tool_login_oauth::run_pass(
+                                app,
+                                provider,
+                                &coverage.covered,
+                                automatic_account_limit(
+                                    multi_account,
+                                    &coverage.known_providers,
+                                    detected,
+                                ),
+                            )
+                            .await
+                        {
+                            failed_providers.push(detected);
+                        }
+                    }
                     if allowed(DetectedProviderId::Cursor)
                         && !crate::native_readers::cursor::run_pass(
                             app,

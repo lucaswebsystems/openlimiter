@@ -303,6 +303,10 @@ const PROVIDER_NAMES: Record<ProviderCode, string> = {
   GROK: "Grok weekly usage across Grok products",
   KIMI: "Kimi",
   CURSOR: "Cursor",
+  HERMES: "Hermes",
+  COMMANDCODE: "Command Code",
+  CLINE: "Cline",
+  KILOCODE: "Kilo Code",
   MANUAL: "Manual",
 };
 
@@ -321,6 +325,10 @@ const PROVIDER_ORIGIN: Record<ProviderCode, string> = {
   GROK: "Official local CLI session",
   KIMI: "Official local CLI session",
   CURSOR: "Local editor session",
+  HERMES: "Official local CLI session",
+  COMMANDCODE: "Official local CLI session",
+  CLINE: "Official local CLI session",
+  KILOCODE: "Official local CLI session",
   MANUAL: "Written down by you",
 };
 
@@ -379,6 +387,10 @@ const PROVIDER_DEFAULT_SOURCE: Record<ProviderCode, SourceState> = {
   GROK: "CONNECTED",
   KIMI: "CONNECTED",
   CURSOR: "CONNECTED",
+  HERMES: "CONNECTED",
+  COMMANDCODE: "CONNECTED",
+  CLINE: "CONNECTED",
+  KILOCODE: "CONNECTED",
   MANUAL: "MANUAL",
 };
 

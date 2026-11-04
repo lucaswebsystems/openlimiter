@@ -1,0 +1,139 @@
+# Command Code, the coding agent CLI.
+#
+# The desktop reads the API key Command Code's CLI saved after its sign in,
+# ~/.commandcode/auth.json, field apiKey. Read only; the key does not expire
+# on a clock, so a rejected one asks the person to sign in to Command Code
+# again. The key is sent only to Command Code's own API.
+#
+# Verified in source: the published command-code 1.88.2 package bundle
+# (dist/cli.mjs), which is unlicensed and minified. readCommandAuthFile reads
+# the auth file, fetchUsageCredits calls the credits route the CLI's own usage
+# screen uses, and projectUsageView and WindowLimitMeter read
+# windowLimits.fiveHour and windowLimits.weekly as used of cap with resetAt in
+# epoch milliseconds, and the credits object's monthlyCredits, purchasedCredits
+# and freeCredits, in US dollars. Command Code documents none of this. The
+# address is a Rust constant in apps/desktop/src-tauri/src/net.rs.
+#
+# Not read: a monthly percentage. The credits reply states what is left, not
+# the plan's grant; the CLI sizes the grant from a second route and a plan
+# table, so this build shows the credits left as a balance instead.
+
+provider_id: commandcode
+product_id: command-code
+display_name: Command Code
+
+headlineMeter: five_hour
+weeklyMeter: weekly
+acquisitionSurfaces:
+  - desktop
+displaySurfaces:
+  - desktop
+  - rail
+  - tray
+  - cli_cache
+  - web
+  - phone
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: remote_http_internal
+d5Review: Reads the API key Command Code saved, read only. Only the Command Code API receives it. Honest OpenLimiter identity.
+maturity: experimental
+directory:
+  order: 11
+  rowId: commandcode/command-code
+  label: Command Code
+  connectorId: commandcode
+  access: automatic
+
+source:
+  docs_url: https://unpkg.com/command-code@1.88.2/dist/cli.mjs
+  reviewed_at: "2026-11-04"
+  source_status: provisional
+
+availability:
+  requires_plan: any
+  appears_after: local_cli_login
+  absence_is_error: false
+
+support:
+  parser: implemented
+  reader: implemented
+  auth: implemented
+
+collection:
+  reader: implemented
+  auth: implemented
+  readers:
+    - reader_id: commandcode_credits
+      endpoint_id: commandcode_credits
+      credential_kind: commandcode_api_key
+      evidence_fixture: commandcode.provisional.credits
+      evidence_status: pending_capture
+      last_verified_at: null
+
+connections:
+  - reader: experimental
+    auth_mode: existing_local_cli
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  fixture_ids:
+    - commandcode.provisional.credits
+    - commandcode.live.pending
+
+honesty:
+  connector_id: commandcode
+  credential_origin: official-local-tool
+  data_interface_status: internal-endpoint
+  automation_risk: high
+  verification: UNVERIFIED
+
+meters:
+  - id: five_hour
+    label: 5 hour limit
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: rolling
+      duration_seconds: 18000
+    source_format: json_path
+    source_path: windowLimits.fiveHour.used
+    reset_path: windowLimits.fiveHour.resetAt
+    reset_encoding: unix_milliseconds
+    optional: true
+    meter_code: FIVE_HOUR
+  - id: weekly
+    label: Weekly limit
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: rolling
+      duration_seconds: 604800
+    source_format: json_path
+    source_path: windowLimits.weekly.used
+    reset_path: windowLimits.weekly.resetAt
+    reset_encoding: unix_milliseconds
+    optional: true
+    meter_code: SEVEN_DAY
+  - id: balance
+    label: Credits left
+    kind: credits
+    unit: currency
+    scope: account
+    window:
+      kind: credit_balance
+    source_format: json_path
+    source_path: credits.monthlyCredits
+    reset_path: null
+    reset_encoding: none
+    optional: false
+    meter_code: BALANCE

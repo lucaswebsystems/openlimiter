@@ -136,7 +136,7 @@ describe("CLI", () => {
     const config = JSON.parse(configText) as {
       connectors: { enabled: boolean }[];
     };
-    expect(config.connectors).toHaveLength(10);
+    expect(config.connectors).toHaveLength(14);
     expect(config.connectors.every((connector) => connector.enabled)).toBe(true);
     expect(configText.includes("sk-DEMO-000")).toBe(false);
   });
@@ -230,7 +230,7 @@ describe("CLI", () => {
           "reset_at=2026-01-01T05:00:00.000Z",
         "provider=MANUAL meter=MONTHLY state=fresh usage_percent=35 " +
           "reset_at=2026-02-01T00:00:00.000Z",
-        "unknown=OPENROUTER,GEMINI_CLI,CURSOR",
+        "unknown=OPENROUTER,GEMINI_CLI,CURSOR,HERMES,COMMANDCODE,CLINE,KILOCODE",
         "</openlimiter_untrusted_data>"
       ].join("\n");
       const hook = await runCli(["hook"], {
@@ -1240,7 +1240,7 @@ describe("CLI", () => {
       show: [],
       hosts: {}
     });
-    expect(stored.connectors).toHaveLength(10);
+    expect(stored.connectors).toHaveLength(14);
   });
 
   it("reads back style, show and hosts, the three keys this lane added", async () => {

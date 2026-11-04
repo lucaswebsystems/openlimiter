@@ -64,6 +64,14 @@ export const OPENROUTER_CREDITS_DOCS_URL =
 export const GROK_BILLING_SOURCE_URL =
   "https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-shell/src/extensions/billing.rs";
 
+/** The Hermes source that reads the Nous Portal account and draws its gauge. */
+export const HERMES_ACCOUNT_SOURCE_URL =
+  "https://github.com/NousResearch/hermes-agent/blob/main/hermes_cli/nous_account.py";
+
+/** The Kilo Code gateway source that reads the account balance. */
+export const KILOCODE_BALANCE_SOURCE_URL =
+  "https://github.com/Kilo-Org/kilocode/blob/main/packages/kilo-gateway/src/api/profile.ts";
+
 export const KIMI_USAGE_SOURCE_URL =
   "https://github.com/MoonshotAI/kimi-code/blob/main/packages/oauth/src/managed-usage.ts";
 
@@ -278,6 +286,49 @@ export function kimiFixture(now: string = FIXTURE_NOW): Record<string, unknown> 
   };
 }
 
+/** Hermes's Nous Portal account, in the shape `hermes_cli/nous_account.py` reads. */
+export function hermesFixture(now: string = FIXTURE_NOW): Record<string, unknown> {
+  return {
+    subscription: {
+      plan: "Plus",
+      monthly_credits: 20,
+      credits_remaining: 14,
+      current_period_end: offset(now, 21 * ONE_DAY)
+    },
+    paid_service_access: { allowed: true, purchased_credits_remaining: 7.5 }
+  };
+}
+
+/** Command Code's credits, in the shape its CLI bundle reads. */
+export function commandcodeFixture(now: string = FIXTURE_NOW): Record<string, unknown> {
+  return {
+    credits: { monthlyCredits: 12.5, purchasedCredits: 2, freeCredits: 0.5, planId: "individual-pro" },
+    windowLimits: {
+      fiveHour: { used: 3, cap: 12, resetAt: (epochOffset(now, 2 * 3_600)) * 1_000 },
+      weekly: { used: 30, cap: 60, resetAt: (epochOffset(now, 4 * ONE_DAY)) * 1_000 }
+    }
+  };
+}
+
+/** ClinePass's limits, in the shape CodexBar and oh-my-pi read. */
+export function clineFixture(now: string = FIXTURE_NOW): Record<string, unknown> {
+  return {
+    success: true,
+    data: {
+      limits: [
+        { type: "five_hour", percentUsed: 12, resetsAt: offset(now, 3 * 3_600) },
+        { type: "weekly", percentUsed: 40, resetsAt: offset(now, 3 * ONE_DAY) },
+        { type: "monthly", percentUsed: 20, resetsAt: offset(now, 21 * ONE_DAY) }
+      ]
+    }
+  };
+}
+
+/** Kilo Code's balance, in the shape its gateway reads. */
+export function kilocodeFixture(): Record<string, unknown> {
+  return { balance: 18.25 };
+}
+
 /**
  * The one fixture in the red band.
  *
@@ -469,6 +520,51 @@ export const documentedFixtures: readonly DocumentedFixture[] = [
     note: "The official Kimi CLI source publishes the usage summary and provider defined windows.",
     expectedMeters: 2,
     build: (now) => kimiFixture(now)
+  },
+  {
+    id: "hermes.official_source.account",
+    connector: "hermes",
+    docsUrl: HERMES_ACCOUNT_SOURCE_URL,
+    reviewedAt: "2026-11-04",
+    sourceStatus: "official",
+    note: "The official Hermes source reads subscription.monthly_credits, credits_remaining, " +
+      "current_period_end and paid_service_access.purchased_credits_remaining.",
+    expectedMeters: 2,
+    build: (now) => hermesFixture(now)
+  },
+  {
+    id: "commandcode.provisional.credits",
+    connector: "commandcode",
+    docsUrl: null,
+    reviewedAt: "2026-11-04",
+    sourceStatus: "provisional",
+    note: "The credits reply as the command-code 1.88.2 bundle reads it on 2026-11-04: " +
+      "credits and windowLimits with used, cap and resetAt. The bundle is unlicensed " +
+      "and Command Code documents none of it, so this is design evidence only.",
+    expectedMeters: 3,
+    build: (now) => commandcodeFixture(now)
+  },
+  {
+    id: "cline.provisional.usage_limits",
+    connector: "cline",
+    docsUrl: null,
+    reviewedAt: "2026-11-04",
+    sourceStatus: "provisional",
+    note: "The ClinePass usage limits reply as CodexBar and oh-my-pi read it on 2026-11-04: " +
+      "limits with a type, a percentUsed and an RFC3339 resetsAt. Cline documents " +
+      "none of it, so this is design evidence only.",
+    expectedMeters: 3,
+    build: (now) => clineFixture(now)
+  },
+  {
+    id: "kilocode.official_source.balance",
+    connector: "kilocode",
+    docsUrl: KILOCODE_BALANCE_SOURCE_URL,
+    reviewedAt: "2026-11-04",
+    sourceStatus: "official",
+    note: "The official Kilo Code gateway source reads the balance field of the profile balance reply.",
+    expectedMeters: 1,
+    build: () => kilocodeFixture()
   },
   {
     id: "manual.documented.plan",
@@ -694,6 +790,50 @@ export const kimiSanitizedLive: SanitizedLiveFixture = {
   build: () => null
 };
 
+/** PENDING CAPTURE: the four tools read from their own saved sign in. */
+export const toolLoginSanitizedLive: readonly SanitizedLiveFixture[] = [
+  {
+    id: "hermes.live.pending",
+    connector: "hermes",
+    status: "pending_capture",
+    capturedAt: null,
+    providerVersion: null,
+    skipReason: "PENDING CAPTURE: the fixture follows the tool's own source, not a live Hermes account.",
+    expectedMeters: 0,
+    build: () => null
+  },
+  {
+    id: "commandcode.live.pending",
+    connector: "commandcode",
+    status: "pending_capture",
+    capturedAt: null,
+    providerVersion: null,
+    skipReason: "PENDING CAPTURE: the fixture follows the tool's own source, not a live Command Code account.",
+    expectedMeters: 0,
+    build: () => null
+  },
+  {
+    id: "cline.live.pending",
+    connector: "cline",
+    status: "pending_capture",
+    capturedAt: null,
+    providerVersion: null,
+    skipReason: "PENDING CAPTURE: the fixture follows the tool's own source, not a live Cline account.",
+    expectedMeters: 0,
+    build: () => null
+  },
+  {
+    id: "kilocode.live.pending",
+    connector: "kilocode",
+    status: "pending_capture",
+    capturedAt: null,
+    providerVersion: null,
+    skipReason: "PENDING CAPTURE: the fixture follows the tool's own source, not a live Kilo Code account.",
+    expectedMeters: 0,
+    build: () => null
+  }
+];
+
 /* ------------------------------------------------------------------ *
  * Rebuilding a payload from a reduced capture
  *
@@ -734,7 +874,8 @@ export const sanitizedLiveFixtures: readonly SanitizedLiveFixture[] = [
   antigravitySanitizedLive,
   opencodeSanitizedLive,
   grokSanitizedLive,
-  kimiSanitizedLive
+  kimiSanitizedLive,
+  ...toolLoginSanitizedLive
 ];
 
 /* ------------------------------------------------------------------ *
@@ -968,6 +1109,10 @@ const genericIds: readonly ConnectorId[] = [
   "opencode",
   "grok",
   "kimi",
+  "hermes",
+  "commandcode",
+  "cline",
+  "kilocode",
   "manual"
 ];
 

@@ -152,8 +152,12 @@ describe("provider ordering", () => {
       "GROK",
       "KIMI",
       "CURSOR",
+      "HERMES",
+      "COMMANDCODE",
+      "CLINE",
       "MANUAL",
-      "OPENROUTER"
+      "OPENROUTER",
+      "KILOCODE"
     ]);
   });
 
@@ -183,7 +187,11 @@ describe("provider ordering", () => {
       "OPENCODE",
       "GROK",
       "KIMI",
-      "CURSOR"
+      "CURSOR",
+      "HERMES",
+      "COMMANDCODE",
+      "CLINE",
+      "KILOCODE"
     ]);
   });
 
@@ -197,8 +205,12 @@ describe("provider ordering", () => {
       "GROK",
       "KIMI",
       "CURSOR",
+      "HERMES",
+      "COMMANDCODE",
+      "CLINE",
       "MANUAL",
-      "OPENROUTER"
+      "OPENROUTER",
+      "KILOCODE"
     ]);
   });
 
@@ -330,18 +342,27 @@ describe("the cell", () => {
     const credits = reading({ unit: "CREDITS", value: 400, meter: "CREDITS" });
     expect(cellsOf([credits], ["CLAUDE"])).toEqual([]);
   });
+
+  it("prints the dollars a tool states it has left as money", () => {
+    const balance = reading({
+      provider: "KILOCODE", meter: "BALANCE", unit: "CREDITS", kind: "money_balance",
+      value: 18.25, window: { kind: "lifetime" }
+    });
+    const [cell] = cellsOf([balance], ["KILOCODE"]);
+    expect(cell).toMatch(/^kl .*\$18\.25$/u);
+  });
 });
 
 describe("the head", () => {
   it("leads with the reason code and carries the recommendation", () => {
     expect(statuslineHead(buildAdvice(everyProvider, NOW)))
-      .toBe("OpenLimiter NEAR_CAP PREFER ANTIGRAVITY UNKNOWN OPENROUTER,CURSOR");
+      .toBe("OpenLimiter NEAR_CAP PREFER ANTIGRAVITY UNKNOWN OPENROUTER,CURSOR,HERMES,COMMANDCODE,CLINE,KILOCODE");
   });
 
   it("names the providers it has nothing for", () => {
     const head = statuslineHead(buildAdvice([reading()], NOW));
     expect(head).toContain(
-      "UNKNOWN OPENROUTER,CODEX,ANTIGRAVITY,GEMINI_CLI,OPENCODE,GROK,KIMI,CURSOR,MANUAL"
+      "UNKNOWN OPENROUTER,CODEX,ANTIGRAVITY,GEMINI_CLI,OPENCODE,GROK,KIMI,CURSOR,HERMES,COMMANDCODE,CLINE,KILOCODE,MANUAL"
     );
   });
 
@@ -390,17 +411,19 @@ describe("stacking", () => {
   it("stops at one row when told to, and says what it dropped", () => {
     const rendered = layout(everyProvider, { rows: 1 });
     expect(rendered.split("\n")).toHaveLength(1);
-    expect(rendered).toContain("+5 more");
+    expect(rendered).toContain("+8 more");
   });
 
   it("keeps the worst providers when it has to drop some", () => {
-    const rendered = layout(everyProvider, { rows: 1, width: 100 });
+    /* The head names every provider it has nothing for, so the row is wide
+       enough for the head and the worst cell. */
+    const rendered = layout(everyProvider, { rows: 1, width: 130 });
     const shown = rowsOf(rendered)[0]!.slice(1);
     expect(rendered).toContain("oc ####. 92%");
     expect(rendered).toContain("+8 more");
     /* Twenty eight percent is the furthest from a cap, so it goes first. */
     expect(shown.some((cell) => cell.startsWith("ANTIGRAVITY "))).toBe(false);
-    expect(rendered.length).toBeLessThanOrEqual(100);
+    expect(rendered.length).toBeLessThanOrEqual(130);
   });
 
   it("ends the last row with the dropped count and nothing after it", () => {

@@ -1,0 +1,30 @@
+{
+  "provider": "commandcode",
+  "case": "full",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "credits": {
+      "monthlyCredits": 12.5,
+      "purchasedCredits": 2,
+      "freeCredits": 0.5,
+      "planId": "individual-pro"
+    },
+    "windowLimits": {
+      "fiveHour": {
+        "used": 3,
+        "cap": 12,
+        "resetAt": 1786111200000
+      },
+      "weekly": {
+        "used": 30,
+        "cap": 60,
+        "resetAt": 1786406400000
+      }
+    },
+    "sandboxMinutes": null,
+    "sandboxAccess": false
+  }
+}

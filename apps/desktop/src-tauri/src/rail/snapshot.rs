@@ -93,6 +93,10 @@ fn spec_id(provider: &str) -> Option<&'static str> {
         "OPENCODE" => "opencode/opencode",
         "OPENROUTER" => "openrouter/api",
         "CURSOR" => "cursor/editor",
+        "HERMES" => "nous/hermes",
+        "COMMANDCODE" => "commandcode/command-code",
+        "CLINE" => "cline/clinepass",
+        "KILOCODE" => "kilocode/kilo-code",
         "MANUAL" => "openlimiter/manual",
         _ => return None,
     })

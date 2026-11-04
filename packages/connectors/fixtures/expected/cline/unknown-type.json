@@ -1,0 +1,26 @@
+{
+  "expected": {
+    "outcome": "readings",
+    "readings": [
+      {
+        "provider": "CLINE",
+        "meter": "SEVEN_DAY",
+        "value": 5,
+        "unit": "PERCENT",
+        "window": {
+          "kind": "rolling",
+          "durationSeconds": 604800
+        },
+        "resetAt": "2026-08-08T12:00:00.000Z",
+        "precision": "exact",
+        "source": "internal_payload",
+        "kind": null,
+        "availability": null,
+        "currency": null,
+        "usedAmount": null,
+        "limitAmount": null,
+        "observedAt": "2026-08-07T12:00:00.000Z"
+      }
+    ]
+  }
+}

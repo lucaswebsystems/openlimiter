@@ -32,6 +32,10 @@ import {
   parseManualPayload,
   parseOpencodePayload,
   parseOpenrouterPayload,
+  parseHermesPayload,
+  parseCommandcodePayload,
+  parseClinePayload,
+  parseKilocodePayload,
   sanitizeClaudeStatusline,
   sanitizedLiveFixtures,
   type ConnectorId
@@ -48,6 +52,10 @@ const parsers: Partial<Record<ConnectorId, Parser>> = {
   opencode: parseOpencodePayload,
   grok: parseGrokPayload,
   kimi: parseKimiPayload,
+  hermes: parseHermesPayload,
+  commandcode: parseCommandcodePayload,
+  cline: parseClinePayload,
+  kilocode: parseKilocodePayload,
   manual: parseManualPayload
 };
 
@@ -505,9 +513,13 @@ describe("fixture classes", () => {
     expect([...covered].sort()).toEqual([
       "antigravity",
       "claude",
+      "cline",
       "codex",
+      "commandcode",
       "gemini_cli",
       "grok",
+      "hermes",
+      "kilocode",
       "kimi",
       "manual",
       "opencode",

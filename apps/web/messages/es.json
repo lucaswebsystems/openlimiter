@@ -1170,10 +1170,10 @@
       "providers": {
         "title": "Supported providers",
         "description": "Los ocho conectores disponibles hoy y manual entry: cómo conectar cada uno, qué lee y qué probabilidad tiene de fallar.",
-        "lead": "Hoy hay ocho conectores y manual entry, y la aplicación de escritorio también lee Cursor como conector experimental. Cada uno lleva etiquetas claras sobre el origen de sus credenciales, el carácter oficial de su interfaz de datos y la probabilidad de fallar.",
+        "lead": "Hoy hay doce conectores y la entrada manual, y la aplicación de escritorio también lee Cursor como conector experimental. Cada uno lleva etiquetas claras sobre el origen de sus credenciales, el carácter oficial de su interfaz de datos y la probabilidad de fallar.",
         "sections": {
           "the-nine": {
-            "title": "Los ocho conectores y manual entry",
+            "title": "Los doce conectores y la entrada manual",
             "caption": "Conectores disponibles hoy, cómo conectar cada uno y qué lee",
             "columns": {
               "id": "id",
@@ -1216,6 +1216,22 @@
               "kimi": {
                 "connect": "Usa la sesión existente. OpenLimiter aún no puede iniciar la sesión propia de Kimi.",
                 "reads": "The usage response the Kimi CLI defines. May break when Moonshot changes it."
+              },
+              "hermes": {
+                "connect": "Usa el inicio de sesión que Hermes ya guardó. OpenLimiter nunca lo renueva, así que abre Hermes una vez cuando caduque.",
+                "reads": "Los créditos mensuales y los créditos comprados de tu cuenta de Nous Portal, desde un endpoint no documentado. Puede fallar sin aviso."
+              },
+              "commandcode": {
+                "connect": "Usa la clave que Command Code ya guardó al iniciar sesión.",
+                "reads": "Los límites de 5 horas y semanal y los créditos restantes, desde un endpoint no documentado. Puede fallar sin aviso."
+              },
+              "cline": {
+                "connect": "Usa el inicio de sesión que Cline guardó tras cline auth.",
+                "reads": "Los límites de ClinePass de 5 horas, semanal y mensual, desde un endpoint no documentado. Puede fallar sin aviso."
+              },
+              "kilocode": {
+                "connect": "Usa el inicio de sesión que Kilo Code ya guardó.",
+                "reads": "Tu saldo personal de Kilo Code en dólares estadounidenses, desde un endpoint no documentado. Puede fallar sin aviso."
               }
             },
             "calloutTitle": "Todavía ningún conector está verificado contra una cuenta real",
@@ -1231,7 +1247,8 @@
               "claude": "<code>claude</code> recibe datos de la línea de estado de Claude Code en cuanto aparece. Una solicitud directa de uso está desactivada hasta que la actives; activada, pasa a ser la fuente de todas las barras de Claude.",
               "live": "<code>codex</code>, <code>gemini_cli</code>, <code>grok</code>, <code>kimi</code> y <code>openrouter</code> leen la sesión guardada por su propia herramienta, como máximo una vez cada quince minutos, mediante la actualización de la aplicación de escritorio o <code>openlimiter refresh</code> en el terminal.",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
-              "ingestOnly": "La aplicación de escritorio lee <code>opencode</code> con el inicio de sesión que la CLI de opencode guardó en este equipo, solo en modo lectura y sin renovarlo nunca, o con una clave de API de OpenCode que pegues. Lee el uso móvil, semanal y mensual de OpenCode Go desde un único endpoint no documentado, por eso tiene un alto riesgo de automatización."
+              "ingestOnly": "La aplicación de escritorio lee <code>opencode</code> con el inicio de sesión que la CLI de opencode guardó en este equipo, solo en modo lectura y sin renovarlo nunca, o con una clave de API de OpenCode que pegues. Lee el uso móvil, semanal y mensual de OpenCode Go desde un único endpoint no documentado, por eso tiene un alto riesgo de automatización.",
+              "toolLogins": "La aplicación de escritorio lee <code>hermes</code>, <code>commandcode</code>, <code>cline</code> y <code>kilocode</code> cada cinco minutos con el inicio de sesión que cada herramienta guardó en este equipo, solo en modo lectura y sin renovarlo nunca. Cada token va solo al endpoint no documentado de su propia herramienta, así que conllevan un alto riesgo de automatización."
             },
             "exactShapes": "La <docs>página de ingesta</docs> documenta por completo el formato manual."
           },
@@ -2191,6 +2208,15 @@
     "opencodeFiveHour": "Límite de 5 horas",
     "opencodeWeekly": "Límite semanal",
     "opencodeMonthly": "Límite mensual",
+    "hermesMonthly": "Créditos mensuales",
+    "hermesBalance": "Créditos comprados",
+    "commandcodeFiveHour": "Límite de 5 horas",
+    "commandcodeWeekly": "Límite semanal",
+    "commandcodeBalance": "Créditos restantes",
+    "clineFiveHour": "Límite de 5 horas",
+    "clineWeekly": "Límite semanal",
+    "clineMonthly": "Límite mensual",
+    "kilocodeBalance": "Saldo",
     "noKeyCap": "Sin límite en la clave",
     "keyNoSpendingCap": "Esta clave no tiene límite de gasto",
     "unavailableScope": "No disponible",

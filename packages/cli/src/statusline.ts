@@ -56,6 +56,10 @@ const PROVIDER_CLASS: Record<ProviderCode, "subscription" | "api"> = {
   GROK: "subscription",
   KIMI: "subscription",
   CURSOR: "subscription",
+  HERMES: "subscription",
+  COMMANDCODE: "subscription",
+  CLINE: "subscription",
+  KILOCODE: "api",
   MANUAL: "subscription",
   OPENROUTER: "api"
 };
@@ -330,7 +334,10 @@ function balanceCell(label: string, snapshot: Snapshot, mark: string, stale: boo
     snapshot.limitAmount !== undefined
   ) {
     value = "$" + Math.max(0, snapshot.limitAmount - snapshot.usedAmount).toFixed(2);
-  } else if (isOpenRouterAccountBalance(snapshot) && snapshot.unit === "CREDITS") {
+  } else if (
+    (isOpenRouterAccountBalance(snapshot) || snapshot.kind === "money_balance") &&
+    snapshot.unit === "CREDITS"
+  ) {
     // The current balance identity can carry a direct credit amount, as the
     // capture fixture does. Version 3 also retires the ambiguous legacy name,
     // but an already loaded balance keeps the same terminal meaning.
@@ -754,6 +761,10 @@ export const PROVIDER_SHORT_TAGS: Readonly<Record<ProviderCode, string>> = {
   GROK: "gk",
   KIMI: "km",
   CURSOR: "cu",
+  HERMES: "hm",
+  COMMANDCODE: "cm",
+  CLINE: "cn",
+  KILOCODE: "kl",
   OPENCODE: "oc",
   OPENROUTER: "or",
   MANUAL: "mn"

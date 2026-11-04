@@ -1,0 +1,24 @@
+{
+  "provider": "hermes",
+  "case": "full",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "subscription": {
+      "plan": "Plus",
+      "tier": 1,
+      "monthly_charge": 20,
+      "monthly_credits": 20,
+      "credits_remaining": 14,
+      "current_period_end": "2026-08-30T00:00:00+00:00",
+      "rollover_credits": 0
+    },
+    "paid_service_access": {
+      "allowed": true,
+      "purchased_credits_remaining": 7.5,
+      "total_usable_credits": 21.5
+    }
+  }
+}

@@ -418,7 +418,11 @@ const READER_IDS = new Set([
   "gemini_cli_quota",
   "opencode_usage",
   "grok_usage",
-  "kimi_usage"
+  "kimi_usage",
+  "hermes_account",
+  "commandcode_credits",
+  "cline_usage",
+  "kilocode_balance"
 ]);
 const ENDPOINT_IDS = new Set([
   "cursor_usage",
@@ -429,7 +433,11 @@ const ENDPOINT_IDS = new Set([
   "gemini_cli_quota",
   "opencode_usage",
   "grok_usage",
-  "kimi_usage"
+  "kimi_usage",
+  "hermes_account",
+  "commandcode_credits",
+  "cline_usage",
+  "kilocode_balance"
 ]);
 const CREDENTIAL_KINDS = new Set([
   "cursor_session",
@@ -440,7 +448,11 @@ const CREDENTIAL_KINDS = new Set([
   "gemini_cli_session",
   "opencode_api_key",
   "grok_session",
-  "kimi_session"
+  "kimi_session",
+  "hermes_session",
+  "commandcode_api_key",
+  "cline_session",
+  "kilocode_session"
 ]);
 const COLLECTION_SUPPORT = new Set(["implemented"]);
 
@@ -474,6 +486,10 @@ const CONNECTOR_IDS = new Set([
   "opencode",
   "grok",
   "kimi",
+  "hermes",
+  "commandcode",
+  "cline",
+  "kilocode",
   "manual"
 ]);
 const HONESTY_KEYS = new Set([

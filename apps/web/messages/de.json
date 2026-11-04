@@ -1170,10 +1170,10 @@
       "providers": {
         "title": "Supported providers",
         "description": "Die acht heute verfügbaren Connectoren und manual entry: wie du jeden verbindest, was er liest und wie wahrscheinlich er ausfällt.",
-        "lead": "Heute gibt es acht Connectoren und manual entry, und die Desktop Anwendung liest Cursor zusätzlich als experimentellen Connector. Jeder trägt ehrliche Hinweise zur Herkunft seiner Zugangsdaten, zur offiziellen Datenoberfläche und zur Ausfallwahrscheinlichkeit.",
+        "lead": "Heute gibt es zwölf Connectoren und die manuelle Eingabe, und die Desktop Anwendung liest Cursor zusätzlich als experimentellen Connector. Jeder trägt ehrliche Hinweise zur Herkunft seiner Zugangsdaten, zur offiziellen Datenoberfläche und zur Ausfallwahrscheinlichkeit.",
         "sections": {
           "the-nine": {
-            "title": "Die acht Connectoren und manual entry",
+            "title": "Die zwölf Connectoren und die manuelle Eingabe",
             "caption": "Heute verfügbare Connectoren, ihre Verbindung und ihre Messwerte",
             "columns": {
               "id": "id",
@@ -1216,6 +1216,22 @@
               "kimi": {
                 "connect": "Vorhandene Anmeldung verwenden. OpenLimiter kann die Anmeldung von Kimi noch nicht starten.",
                 "reads": "The usage response the Kimi CLI defines. May break when Moonshot changes it."
+              },
+              "hermes": {
+                "connect": "Die Anmeldung verwenden, die Hermes bereits gespeichert hat. OpenLimiter erneuert sie nie, öffne Hermes also einmal, wenn sie abläuft.",
+                "reads": "Monatliche und gekaufte Kredite deines Nous Portal Kontos, über einen nicht dokumentierten Endpunkt. Kann ohne Vorwarnung ausfallen."
+              },
+              "commandcode": {
+                "connect": "Den Schlüssel verwenden, den Command Code bei der Anmeldung gespeichert hat.",
+                "reads": "Das Limit für 5 Stunden, das Wochenlimit und die verbleibenden Kredite, über einen nicht dokumentierten Endpunkt. Kann ohne Vorwarnung ausfallen."
+              },
+              "cline": {
+                "connect": "Die Anmeldung verwenden, die Cline nach cline auth gespeichert hat.",
+                "reads": "Die ClinePass Limits für 5 Stunden, eine Woche und einen Monat, über einen nicht dokumentierten Endpunkt. Kann ohne Vorwarnung ausfallen."
+              },
+              "kilocode": {
+                "connect": "Die Anmeldung verwenden, die Kilo Code bereits gespeichert hat.",
+                "reads": "Dein persönliches Kilo Code Guthaben in US Dollar, über einen nicht dokumentierten Endpunkt. Kann ohne Vorwarnung ausfallen."
               }
             },
             "calloutTitle": "Noch ist kein Connector gegen ein echtes Konto verifiziert",
@@ -1231,7 +1247,8 @@
               "claude": "<code>claude</code> erhält Daten aus der Statuszeile von Claude Code, sobald sie erscheint. Eine direkte Nutzungsanfrage ist aus, bis du sie einschaltest; eingeschaltet ist stattdessen sie die Quelle jedes Claude Balkens.",
               "live": "<code>codex</code>, <code>gemini_cli</code>, <code>grok</code>, <code>kimi</code> und <code>openrouter</code> lesen die vom jeweiligen Tool gespeicherte Anmeldung höchstens alle fünfzehn Minuten. Dies übernimmt die Aktualisierung der Desktopanwendung oder <code>openlimiter refresh</code> im Terminal.",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
-              "ingestOnly": "Die Desktopanwendung liest <code>opencode</code> mit der Anmeldung, die die opencode CLI auf diesem Computer gespeichert hat, nur lesend und nie erneuert, oder mit einem eingefügten OpenCode API Schlüssel. Gelesen wird die rollierende, wöchentliche und monatliche Nutzung von OpenCode Go über einen einzigen nicht dokumentierten Endpunkt, daher ist das Automatisierungsrisiko hoch."
+              "ingestOnly": "Die Desktopanwendung liest <code>opencode</code> mit der Anmeldung, die die opencode CLI auf diesem Computer gespeichert hat, nur lesend und nie erneuert, oder mit einem eingefügten OpenCode API Schlüssel. Gelesen wird die rollierende, wöchentliche und monatliche Nutzung von OpenCode Go über einen einzigen nicht dokumentierten Endpunkt, daher ist das Automatisierungsrisiko hoch.",
+              "toolLogins": "Die Desktopanwendung liest <code>hermes</code>, <code>commandcode</code>, <code>cline</code> und <code>kilocode</code> alle fünf Minuten mit der Anmeldung, die das jeweilige Werkzeug auf diesem Computer gespeichert hat, nur lesend und nie erneuert. Jedes Token geht nur an den nicht dokumentierten Endpunkt seines eigenen Werkzeugs, daher tragen sie ein hohes Automatisierungsrisiko."
             },
             "exactShapes": "Die <docs>Seite zur Datenaufnahme</docs> beschreibt das manuelle Format vollständig."
           },
@@ -2191,6 +2208,15 @@
     "opencodeFiveHour": "Limit für 5 Stunden",
     "opencodeWeekly": "Wöchentliches Limit",
     "opencodeMonthly": "Monatliches Limit",
+    "hermesMonthly": "Monatliche Kredite",
+    "hermesBalance": "Gekaufte Kredite",
+    "commandcodeFiveHour": "Limit für 5 Stunden",
+    "commandcodeWeekly": "Wöchentliches Limit",
+    "commandcodeBalance": "Verbleibende Kredite",
+    "clineFiveHour": "Limit für 5 Stunden",
+    "clineWeekly": "Wöchentliches Limit",
+    "clineMonthly": "Monatliches Limit",
+    "kilocodeBalance": "Guthaben",
     "noKeyCap": "Kein Limit für den Schlüssel",
     "keyNoSpendingCap": "Dieser Schlüssel hat kein Ausgabenlimit",
     "unavailableScope": "Nicht verfügbar",

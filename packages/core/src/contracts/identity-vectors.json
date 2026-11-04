@@ -180,6 +180,86 @@
     "expected": "opencode-7506a8790bc665292fbac11a"
   },
   {
+    "provider": "HERMES",
+    "material": "fixture-account-a",
+    "expected": "hermes-d03c341f5eeda17bbdc587dc"
+  },
+  {
+    "provider": "HERMES",
+    "material": "fixture-account-b",
+    "expected": "hermes-f2c91696e34ff44f28ae6ebb"
+  },
+  {
+    "provider": "HERMES",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "hermes-741ba2dd98ca831f911d7446"
+  },
+  {
+    "provider": "HERMES",
+    "material": "fixture-?",
+    "expected": "hermes-ad9d53b902a8fc921a3cbe7e"
+  },
+  {
+    "provider": "COMMANDCODE",
+    "material": "fixture-account-a",
+    "expected": "commandcode-0d4749b558a6ad0886b0317d"
+  },
+  {
+    "provider": "COMMANDCODE",
+    "material": "fixture-account-b",
+    "expected": "commandcode-19f6d804d7db54f4e07939e5"
+  },
+  {
+    "provider": "COMMANDCODE",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "commandcode-6b6216ca0f88defee585ee65"
+  },
+  {
+    "provider": "COMMANDCODE",
+    "material": "fixture-?",
+    "expected": "commandcode-64abc2feaa54103f3721c218"
+  },
+  {
+    "provider": "CLINE",
+    "material": "fixture-account-a",
+    "expected": "cline-712b1489406c861cbb49b467"
+  },
+  {
+    "provider": "CLINE",
+    "material": "fixture-account-b",
+    "expected": "cline-e1d892d4d4a1246036d4831b"
+  },
+  {
+    "provider": "CLINE",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "cline-8b1d3ca2e9d723c39ba8eaee"
+  },
+  {
+    "provider": "CLINE",
+    "material": "fixture-?",
+    "expected": "cline-d9495f13a04d85671bede4d7"
+  },
+  {
+    "provider": "KILOCODE",
+    "material": "fixture-account-a",
+    "expected": "kilocode-6e3fc1818997cb6c909a3613"
+  },
+  {
+    "provider": "KILOCODE",
+    "material": "fixture-account-b",
+    "expected": "kilocode-6bb527e7468c1131983f54d1"
+  },
+  {
+    "provider": "KILOCODE",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "kilocode-0dc933a8206b257fed1f8abb"
+  },
+  {
+    "provider": "KILOCODE",
+    "material": "fixture-?",
+    "expected": "kilocode-b736871745ef2ec039ff585b"
+  },
+  {
     "provider": "MANUAL",
     "material": "fixture-account-a",
     "expected": "manual-7aba75a3ff2acc1f07b4436a"

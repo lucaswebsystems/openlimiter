@@ -34,6 +34,7 @@ nominatively, never as a claim of partnership.
 | `openrouter.svg` | OpenRouter | https://openrouter.ai | 16px | Dark and light surfaces | Yes | `#FAFAFA` |
 | `grok.svg` | xAI Grok | https://x.ai | 16px | Pure black or pure white | Yes | `#FAFAFA` |
 | `kimi.svg` | Moonshot Kimi | https://www.moonshot.cn | 16px | Dark and light surfaces | No | `#007CFF` |
+| `kilocode.svg` | Kilo Code | https://github.com/Kilo-Org/kilocode/blob/main/packages/kilo-docs/public/img/logo.svg (MIT licence, Kilo Code) | 16px | Dark and light surfaces | Yes | `#FAFAFA` |
 | `deepseek.svg` | DeepSeek | https://github.com/deepseek-ai/DeepSeek-V2/blob/main/figures/logo.svg | 16px | Dark and light surfaces | Yes | `#4D6BFE` |
 | `manual.svg` | OpenLimiter manual entry | This repository | 16px | Any product surface | Yes | product accent |
 
@@ -70,3 +71,7 @@ reviewable place. No third party asset was fetched, hotlinked or embedded from
 a brand site to produce them.
 
 DeepSeek's mark is the whale from the official logo file in DeepSeek's own GitHub organisation, its coordinates scaled into the 24 box with the shape unchanged.
+
+Kilo Code's mark is the logo from Kilo Code's own repository (`Kilo-Org/kilocode`, `packages/kilo-docs/public/img/logo.svg` at commit `080ca6c4`, MIT licence), its coordinates scaled from the 100 box into the 24 box with the shape unchanged and drawn on `currentColor` as the source file is.
+
+Hermes, Command Code and Cline show their initials. Hermes's repository ships only an illustration, not a mark that reads at 16px; Command Code's package is unlicensed; no Cline repository was available to take an official file from.

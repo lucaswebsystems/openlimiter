@@ -19,6 +19,10 @@ const CONNECTOR_PROVIDERS: Readonly<Record<string, ProviderCode | undefined>> = 
   kimi: "KIMI",
   opencode: "OPENCODE",
   openrouter: "OPENROUTER",
+  hermes: "HERMES",
+  commandcode: "COMMANDCODE",
+  cline: "CLINE",
+  kilocode: "KILOCODE",
 };
 
 /** A numeric quota row, identified by its contract rather than its meter name. */

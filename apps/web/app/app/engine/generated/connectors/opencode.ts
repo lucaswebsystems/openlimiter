@@ -73,7 +73,7 @@ export function parseOpencodePayload(payload: unknown, now: string): RawMeter[] 
     meters.push(rawMeter({
       provider: "OPENCODE",
       meter,
-      value: status === "rate-limited" ? 100 : percent,
+      value: percent,
       window: { kind: "rolling", durationSeconds: seconds },
       resetAt: futureInstantFromRfc3339(window["resetsAt"], now, plausibleResetHorizon(seconds)),
       source: "internal_payload",

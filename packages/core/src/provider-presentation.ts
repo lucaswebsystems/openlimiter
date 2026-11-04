@@ -227,6 +227,15 @@ export type ProviderMeterLabelKey =
   | "opencodeFiveHour"
   | "opencodeWeekly"
   | "opencodeMonthly"
+  | "hermesMonthly"
+  | "hermesBalance"
+  | "commandcodeFiveHour"
+  | "commandcodeWeekly"
+  | "commandcodeBalance"
+  | "clineFiveHour"
+  | "clineWeekly"
+  | "clineMonthly"
+  | "kilocodeBalance"
   | "cursorLegacyHidden";
 
 export interface ProviderMeterPresentation {
@@ -276,6 +285,15 @@ const FIXED_PRESENTATION: Readonly<Record<string, ProviderMeterPresentation>> = 
   "OPENCODE:FIVE_HOUR": presentation("opencodeFiveHour", "5 hour limit", "5h", 10),
   "OPENCODE:SEVEN_DAY": presentation("opencodeWeekly", "Weekly limit", "7d", 20),
   "OPENCODE:MONTHLY": presentation("opencodeMonthly", "Monthly limit", "Monthly", 30),
+  "HERMES:MONTHLY": presentation("hermesMonthly", "Monthly credits", "Monthly", 10),
+  "HERMES:BALANCE": presentation("hermesBalance", "Purchased credits", "Balance", 100, "balance"),
+  "COMMANDCODE:FIVE_HOUR": presentation("commandcodeFiveHour", "5 hour limit", "5h", 10),
+  "COMMANDCODE:SEVEN_DAY": presentation("commandcodeWeekly", "Weekly limit", "7d", 20),
+  "COMMANDCODE:BALANCE": presentation("commandcodeBalance", "Credits left", "Balance", 100, "balance"),
+  "CLINE:FIVE_HOUR": presentation("clineFiveHour", "5 hour limit", "5h", 10),
+  "CLINE:SEVEN_DAY": presentation("clineWeekly", "Weekly limit", "7d", 20),
+  "CLINE:MONTHLY": presentation("clineMonthly", "Monthly limit", "Monthly", 30),
+  "KILOCODE:BALANCE": presentation("kilocodeBalance", "Balance", "Balance", 100, "balance"),
   "CURSOR:AUTO": presentation("cursorLegacyHidden", "", "", 90, "used", false),
   "CURSOR:API": presentation("cursorLegacyHidden", "", "", 90, "used", false),
   "CURSOR:INCLUDED": presentation("cursorLegacyHidden", "", "", 90, "used", false),

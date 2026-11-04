@@ -83,6 +83,10 @@ fn provider(code: &str) -> Option<(&'static str, &'static str)> {
         "GROK" => "GROK",
         "KIMI" => "KIMI",
         "CURSOR" => "CURSOR",
+        "HERMES" => "HERMES",
+        "COMMANDCODE" => "COMMANDCODE",
+        "CLINE" => "CLINE",
+        "KILOCODE" => "KILOCODE",
         _ => return None,
     };
     Some((code, crate::rail::provider_display_name(code)?))

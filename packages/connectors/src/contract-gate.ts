@@ -40,6 +40,12 @@ import { parseKimiPayload } from "./kimi.js";
 import { parseManualPayload } from "./manual.js";
 import { parseOpencodePayload } from "./opencode.js";
 import { parseOpenrouterPayload } from "./openrouter.js";
+import {
+  parseClinePayload,
+  parseCommandcodePayload,
+  parseHermesPayload,
+  parseKilocodePayload
+} from "./tool-logins.js";
 
 /** Why a provider is unknown, in a closed vocabulary a surface can switch on. */
 export type ContractUnknownReason =
@@ -73,6 +79,10 @@ const PARSER_BY_PROVIDER: Readonly<Partial<Record<ProviderCode, Parser>>> = {
   OPENCODE: parseOpencodePayload,
   GROK: parseGrokPayload,
   KIMI: parseKimiPayload,
+  HERMES: parseHermesPayload,
+  COMMANDCODE: parseCommandcodePayload,
+  CLINE: parseClinePayload,
+  KILOCODE: parseKilocodePayload,
   MANUAL: parseManualPayload
 };
 

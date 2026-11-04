@@ -332,6 +332,8 @@ test("the catalogue holds every tool not in play with its row's step; choosing a
   assert.deepEqual(model.map((tool) => [tool.code, tool.action.label]), [
     ["CODEX", "Connect"], ["GEMINI_CLI", "Check again"], ["GROK", "Check again"],
     ["KIMI", "Check again"], ["OPENCODE", "Connect"], ["CURSOR", "Check again"],
+    ["HERMES", "Check again"], ["COMMANDCODE", "Check again"], ["CLINE", "Check again"],
+    ["KILOCODE", "Check again"],
   ]);
   assert.ok(model.every((tool) => tool.windows.length === 0));
   storage.set("openlimiter-removed-providers-v1", JSON.stringify(["KIMI"]));

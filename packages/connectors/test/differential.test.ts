@@ -8,9 +8,18 @@ import { parseOpenrouterPayload } from "../src/openrouter.js";
 import { parseKimiPayload } from "../src/kimi.js";
 import { parseCursorPayload } from "../src/cursor.js";
 import { parseOpencodePayload } from "../src/opencode.js";
+import {
+  parseClinePayload,
+  parseCommandcodePayload,
+  parseHermesPayload,
+  parseKilocodePayload
+} from "../src/tool-logins.js";
 
 const root = resolve(process.cwd(), "packages/connectors/fixtures");
-const providers = ["claude", "codex", "openrouter", "kimi", "cursor", "opencode"] as const;
+const providers = [
+  "claude", "codex", "openrouter", "kimi", "cursor", "opencode",
+  "hermes", "commandcode", "cline", "kilocode"
+] as const;
 type Provider = typeof providers[number];
 type Answer = { outcome: "readings" | "rejected"; readings: unknown[] };
 interface Case {
@@ -34,7 +43,11 @@ const parsers = {
   openrouter: parseOpenrouterPayload,
   kimi: parseKimiPayload,
   cursor: parseCursorPayload,
-  opencode: parseOpencodePayload
+  opencode: parseOpencodePayload,
+  hermes: parseHermesPayload,
+  commandcode: parseCommandcodePayload,
+  cline: parseClinePayload,
+  kilocode: parseKilocodePayload
 };
 const json = <T>(path: string): T => JSON.parse(readFileSync(path, "utf8")) as T;
 function text(value: unknown): string {

@@ -1,0 +1,111 @@
+# Kilo Code, and its account balance.
+#
+# The desktop reads the sign in Kilo's CLI saved: auth.json in Kilo's data
+# folder, which Kilo resolves with xdg-basedir on every system (Windows
+# included), field kilo, an oauth value whose access token is sent. Read
+# only and never refreshed. A legacy login stating expires 0 has an unknown
+# expiry, not a past one.
+#
+# Verified in source (Kilo-Org/kilocode at 080ca6c, MIT): packages/core
+# global.ts places the data folder, packages/opencode/src/auth/index.ts
+# defines the store, and packages/kilo-gateway/src/api/profile.ts reads the
+# balance route with a Bearer token and the balance field, in US dollars.
+# Kilo documents none of this. The address is a Rust constant in
+# apps/desktop/src-tauri/src/net.rs.
+#
+# Not read: an organization's balance. Kilo sends the organization chosen at
+# sign in as a request header; OpenLimiter sends no header taken from a file,
+# so the balance shown is the personal account's. Also not read: the Kilo
+# Pass state, a tRPC batch procedure with an input envelope rather than a
+# plain read.
+
+provider_id: kilocode
+product_id: kilo-code
+display_name: Kilo Code
+
+headlineMeter: balance
+acquisitionSurfaces:
+  - desktop
+displaySurfaces:
+  - desktop
+  - rail
+  - tray
+  - cli_cache
+  - web
+  - phone
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: remote_http_internal
+d5Review: Reads the sign in Kilo saved, read only and never refreshed. Only the Kilo API receives the token. Honest OpenLimiter identity, no header taken from a file.
+maturity: experimental
+directory:
+  order: 13
+  rowId: kilocode/kilo-code
+  label: Kilo Code
+  connectorId: kilocode
+  access: automatic
+
+source:
+  docs_url: https://github.com/Kilo-Org/kilocode/blob/main/packages/kilo-gateway/src/api/profile.ts
+  reviewed_at: "2026-11-04"
+  source_status: provisional
+
+availability:
+  requires_plan: any
+  appears_after: local_cli_login
+  absence_is_error: false
+
+support:
+  parser: implemented
+  reader: implemented
+  auth: implemented
+
+collection:
+  reader: implemented
+  auth: implemented
+  readers:
+    - reader_id: kilocode_balance
+      endpoint_id: kilocode_balance
+      credential_kind: kilocode_session
+      evidence_fixture: kilocode.official_source.balance
+      evidence_status: pending_capture
+      last_verified_at: null
+
+connections:
+  - reader: experimental
+    auth_mode: existing_local_cli
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  fixture_ids:
+    - kilocode.official_source.balance
+    - kilocode.live.pending
+
+honesty:
+  connector_id: kilocode
+  credential_origin: official-local-tool
+  data_interface_status: internal-endpoint
+  automation_risk: high
+  verification: UNVERIFIED
+
+meters:
+  - id: balance
+    label: Balance
+    kind: credits
+    unit: currency
+    scope: account
+    window:
+      kind: credit_balance
+    source_format: json_path
+    source_path: balance
+    reset_path: null
+    reset_encoding: none
+    optional: false
+    meter_code: BALANCE

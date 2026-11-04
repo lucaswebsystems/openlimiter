@@ -1,0 +1,24 @@
+{
+  "provider": "commandcode",
+  "case": "zero-cap",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "credits": {
+      "monthlyCredits": 2
+    },
+    "windowLimits": {
+      "fiveHour": {
+        "used": 0,
+        "cap": 0
+      },
+      "weekly": {
+        "used": 1,
+        "cap": 4,
+        "resetAt": null
+      }
+    }
+  }
+}

@@ -1170,10 +1170,10 @@
       "providers": {
         "title": "Supported providers",
         "description": "現在提供されている8つのコネクターとmanual entry。接続方法、読み取る内容、壊れやすさを説明します。",
-        "lead": "現在は8つのコネクターとmanual entryを提供しており、デスクトップアプリケーションは実験的なコネクターとしてCursorも読み取ります。それぞれに認証情報の出所、データインターフェースの公式性、故障しやすさを示す正直なラベルがあります。",
+        "lead": "現在は12 個のコネクターと手動入力を提供しており、デスクトップアプリケーションは実験的なコネクターとしてCursorも読み取ります。それぞれに認証情報の出所、データインターフェースの公式性、故障しやすさを示す正直なラベルがあります。",
         "sections": {
           "the-nine": {
-            "title": "8つのコネクターとmanual entry",
+            "title": "12 個のコネクタと手動入力",
             "caption": "現在提供されているコネクター、接続方法、読み取る内容",
             "columns": {
               "id": "id",
@@ -1216,6 +1216,22 @@
               "kimi": {
                 "connect": "既存のログインを使います。OpenLimiterからKimi自身のログインを開始することはまだできません。",
                 "reads": "The usage response the Kimi CLI defines. May break when Moonshot changes it."
+              },
+              "hermes": {
+                "connect": "Hermes が保存済みのサインインを使います。OpenLimiter は更新しないため、期限が切れたら Hermes を一度開いてください。",
+                "reads": "Nous Portal アカウントの月間クレジットと購入済みクレジット。非公開のエンドポイントから読み取るため、予告なく動かなくなる場合があります。"
+              },
+              "commandcode": {
+                "connect": "Command Code がサインイン時に保存したキーを使います。",
+                "reads": "5 時間と週間の上限、残りのクレジット。非公開のエンドポイントから読み取るため、予告なく動かなくなる場合があります。"
+              },
+              "cline": {
+                "connect": "cline auth の後に Cline が保存したサインインを使います。",
+                "reads": "ClinePass の 5 時間、週間、月間の上限。非公開のエンドポイントから読み取るため、予告なく動かなくなる場合があります。"
+              },
+              "kilocode": {
+                "connect": "Kilo Code が保存済みのサインインを使います。",
+                "reads": "Kilo Code の個人アカウントの残高 (米ドル)。非公開のエンドポイントから読み取るため、予告なく動かなくなる場合があります。"
               }
             },
             "calloutTitle": "実際のアカウントで検証されたコネクターはまだありません",
@@ -1231,7 +1247,8 @@
               "claude": "<code>claude</code> は Claude Code のステータス行が表示されるとすぐにデータを受け取ります。直接使用量リクエストはオンにするまでオフです。オンにすると、代わりにそれがすべての Claude のバーの情報源になります。",
               "live": "<code>codex</code>、<code>gemini_cli</code>、<code>grok</code>、<code>kimi</code>、<code>openrouter</code> は、それぞれのツールが保存したログインを最大15分に1回読み取ります。デスクトップアプリの更新処理、またはターミナルの <code>openlimiter refresh</code> が実行します。",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
-              "ingestOnly": "デスクトップアプリは、opencode CLI がこのコンピューターに保存したログイン（読み取り専用で、更新はしません）か、貼り付けた OpenCode の API キーで <code>opencode</code> を読み取ります。OpenCode Go のローリング、週間、月間の使用量を文書化されていない単一のエンドポイントから読むため、自動化リスクは高くなります。"
+              "ingestOnly": "デスクトップアプリは、opencode CLI がこのコンピューターに保存したログイン（読み取り専用で、更新はしません）か、貼り付けた OpenCode の API キーで <code>opencode</code> を読み取ります。OpenCode Go のローリング、週間、月間の使用量を文書化されていない単一のエンドポイントから読むため、自動化リスクは高くなります。",
+              "toolLogins": "<code>hermes</code>、<code>commandcode</code>、<code>cline</code>、<code>kilocode</code> は、各ツールがこのコンピューターに保存したサインインを使い、デスクトップアプリが 5 分ごとに読み取り専用で読み取ります。更新は一切しません。各トークンはそのツール自身の非公開エンドポイントにのみ送られるため、自動化のリスクは高くなります。"
             },
             "exactShapes": "<docs>取り込みのページ</docs>で、手動入力の形式をすべて説明しています。"
           },
@@ -2191,6 +2208,15 @@
     "opencodeFiveHour": "5 時間上限",
     "opencodeWeekly": "週間上限",
     "opencodeMonthly": "月間上限",
+    "hermesMonthly": "月間クレジット",
+    "hermesBalance": "購入済みクレジット",
+    "commandcodeFiveHour": "5 時間上限",
+    "commandcodeWeekly": "週間上限",
+    "commandcodeBalance": "残りのクレジット",
+    "clineFiveHour": "5 時間上限",
+    "clineWeekly": "週間上限",
+    "clineMonthly": "月間上限",
+    "kilocodeBalance": "残高",
     "noKeyCap": "キー上限なし",
     "keyNoSpendingCap": "このキーには利用上限がありません",
     "unavailableScope": "利用できません",

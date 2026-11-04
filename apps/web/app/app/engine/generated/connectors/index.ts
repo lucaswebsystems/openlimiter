@@ -17,6 +17,7 @@ export * from "./kimi";
 export * from "./manual";
 export * from "./opencode";
 export * from "./openrouter";
+export * from "./tool-logins";
 
 import type { ConnectorContract } from "../core";
 import { antigravityConnector } from "./antigravity";
@@ -29,6 +30,12 @@ import { kimiConnector } from "./kimi";
 import { manualConnector } from "./manual";
 import { opencodeConnector } from "./opencode";
 import { openrouterConnector } from "./openrouter";
+import {
+  clineConnector,
+  commandcodeConnector,
+  hermesConnector,
+  kilocodeConnector
+} from "./tool-logins";
 
 export const connectors: readonly ConnectorContract[] = [
   claudeConnector,
@@ -40,5 +47,9 @@ export const connectors: readonly ConnectorContract[] = [
   opencodeConnector,
   grokConnector,
   kimiConnector,
+  hermesConnector,
+  commandcodeConnector,
+  clineConnector,
+  kilocodeConnector,
   manualConnector
 ];

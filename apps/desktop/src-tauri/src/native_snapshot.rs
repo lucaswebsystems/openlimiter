@@ -28,6 +28,10 @@ pub(crate) const PROVIDER_CODES: &[&str] = &[
     "GROK",
     "KIMI",
     "CURSOR",
+    "HERMES",
+    "COMMANDCODE",
+    "CLINE",
+    "KILOCODE",
     "MANUAL",
 ];
 const VERIFICATIONS: &[&str] = &["UNVERIFIED", "VERIFIED_FIXTURES", "VERIFIED_LIVE"];
