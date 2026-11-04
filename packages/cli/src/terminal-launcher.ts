@@ -291,10 +291,22 @@ async function installLauncherUnlocked(directory: string, source: string): Promi
     }
     await copyPackage(source);
     const node = path.join(staging, path.basename(result.node));
-    /* A hard link to the system node on Windows shares its always running image,
-       so the runtime could never be removed or replaced while any node app runs. */
+    /* A hard link to the system node shares its owner, so a non-root user would
+       end up with a runtime file owned by someone else and fail the ownership
+       check below. Prefer a copy whenever linking cannot yield our own file. */
     if (process.platform === "win32") await cp(process.execPath, node);
-    else try { await link(process.execPath, node); } catch { await cp(process.execPath, node); }
+    else {
+      let linked = false;
+      try { await link(process.execPath, node); linked = true; } catch { linked = false; }
+      if (linked) {
+        const linkedInfo = await lstat(node).catch(() => null);
+        if (linkedInfo === null || !ownerIsCurrentUser(linkedInfo.uid)) {
+          await rm(node, { force: true }).catch(() => undefined);
+          linked = false;
+        }
+      }
+      if (!linked) await cp(process.execPath, node);
+    }
     await writeFile(path.join(staging, "openlimiter.cjs"), LAUNCHER_ENTRY_CONTENT, { mode: 0o600 });
     const stamp = { version, files: await runtimeFileHashes(staging) };
     await writeFile(path.join(staging, RUNTIME_STAMP_FILE_NAME), JSON.stringify(stamp) + "\n", { mode: 0o600 });

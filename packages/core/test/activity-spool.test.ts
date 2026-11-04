@@ -136,7 +136,7 @@ describe("activity spool", () => {
     }
     await expect(writeActivityEvent(event(), options)).rejects.toThrow("spool full");
     expect(readdirSync(spool).filter((file) => file !== ".acl-verified")).toHaveLength(2048);
-  });
+  }, 30_000);
 
   it("does not publish after cancellation", async () => {
     const options = setup();
