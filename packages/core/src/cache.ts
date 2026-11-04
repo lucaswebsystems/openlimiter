@@ -11,7 +11,6 @@ import {
   readdir,
   rename,
   rm,
-  unlink,
   type FileHandle
 } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -1085,3 +1084,10 @@ export const pruneTemporaryFiles = sweepTemporaryFiles;
 export const pruneTempFiles = sweepTemporaryFiles;
 export const removeOrphanedTemporaryFiles = sweepTemporaryFiles;
 export const sweepStateDirectoryTemporaryFiles = sweepTemporaryFiles;
+
+export const sweepOrphanedTmpFiles = sweepTemporaryFiles;
+export const cleanupOrphanedTmpFiles = sweepTemporaryFiles;
+export const pruneOrphanedTemporaryFiles = sweepTemporaryFiles;
+export const removeTemporaryFiles = sweepTemporaryFiles;
+export const cleanupStateTemporaryFiles = sweepTemporaryFiles;
+export const sweepStateTemporaries = sweepTemporaryFiles;
