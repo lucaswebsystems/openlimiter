@@ -62,6 +62,7 @@ export const SETUP_EN = Object.freeze({
   setUpNeedsNode: "Set up needs Node.js. Install it from nodejs.org and press Set up again, or run the commands below.",
   setUpBusy: "Set up is already running.",
   opencodeFound: "Found your OpenCode sign in. Its bars appear in Usage.",
+  opencodeExpired: "OpenCode's saved sign in has expired or was refused. Open OpenCode once so it renews it, then check again.",
   runtimeOutdatedVersion: "Your terminal runtime is {version}, older than this app. Set up updates it.",
   runtimeMissing: "The terminal runtime is not installed yet. Set up installs it.",
   copy: "Copy",
@@ -439,12 +440,18 @@ function renderAntigravity() {
 const OPENCODE_SIGN_IN_COMMAND = "opencode auth login opencode";
 const OPENCODE_KEYS_URL = "https://opencode.ai/auth";
 
-/** Whether a detection report holds an OpenCode login OpenLimiter can read. */
-export function opencodeSignInFound(report) {
+/**
+ * What a detection report says about OpenCode's login: "found" when an account
+ * is current and its last read did not fail, "expired" when one exists but is
+ * stale or was refused, else "none".
+ */
+export function opencodeSignIn(report) {
   const entry = Array.isArray(report?.providers)
     ? report.providers.find((provider) => provider?.provider_id === "opencode")
     : null;
-  return entry?.state === "present" && Array.isArray(entry.accounts) && entry.accounts.length > 0;
+  const accounts = entry?.state === "present" && Array.isArray(entry.accounts) ? entry.accounts : [];
+  if (accounts.some((account) => account?.auth_state !== "stale" && account?.collection_state !== "fallback")) return "found";
+  return accounts.length > 0 ? "expired" : "none";
 }
 
 function renderOpencode() {
@@ -458,11 +465,12 @@ function renderOpencode() {
     /* Found means the native scan now holds an OpenCode login, not merely
        that the scan answered. */
     await checkTool("OPENCODE");
-    const found = opencodeSignInFound((await backend.listDetectedProviders()).value);
+    const login = opencodeSignIn((await backend.listDetectedProviders()).value);
     check.disabled = false;
     check.textContent = SETUP_EN.checkAgain;
-    setNote(note, found ? SETUP_EN.opencodeFound : SETUP_EN.opencodeNotYet, found ? "ok" : "bad");
-    if (found) {
+    const sentence = { found: SETUP_EN.opencodeFound, expired: SETUP_EN.opencodeExpired, none: SETUP_EN.opencodeNotYet }[login];
+    setNote(note, sentence, login === "found" ? "ok" : "bad");
+    if (login === "found") {
       session.activeSetup = null;
       render();
     }

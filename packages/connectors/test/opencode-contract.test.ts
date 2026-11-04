@@ -66,13 +66,13 @@ describe("opencode: the reply it reads", () => {
     });
   });
 
-  it("reads a rate limited window as full, whatever percent it states", () => {
+  it("keeps the percent a rate limited window states, inventing nothing", () => {
     const meters = parseOpencodePayload(reply({
       rolling: { status: "rate-limited", percent: 37, resetsAt: "2026-08-07T15:00:00.000Z" },
       weekly: ok(50, "2026-08-10T00:00:00.000Z")
     }), NOW);
     expect(meters?.map((meter) => [meter.meter, meter.value])).toEqual([
-      ["FIVE_HOUR", 100],
+      ["FIVE_HOUR", 37],
       ["SEVEN_DAY", 50]
     ]);
   });

@@ -1101,8 +1101,8 @@ fn parse_kimi(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>
 }
 
 /// OpenCode Go's usage JSON: the rolling five hours and the week, always, and
-/// the month when the plan states one. A window the server reports as
-/// rate limited is exhausted, whatever its rounded percentage says.
+/// the month when the plan states one. A rate limited window keeps the
+/// percentage the server states: nothing here invents a number.
 fn parse_opencode(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
     const WINDOWS: [(&str, &str, u64, bool); 3] = [
         ("rolling", "FIVE_HOUR", 18_000, true),
@@ -1123,11 +1123,9 @@ fn parse_opencode(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snaps
             continue;
         };
         let window = window.as_object()?;
-        let limited = match window.get("status")?.as_str()? {
-            "ok" => false,
-            "rate-limited" => true,
-            _ => return None,
-        };
+        if !matches!(window.get("status")?.as_str()?, "ok" | "rate-limited") {
+            return None;
+        }
         let percent = window.get("percent")?.as_f64()?;
         if !percent.is_finite() || !(0.0..=100.0).contains(&percent) {
             return None;
@@ -1138,7 +1136,7 @@ fn parse_opencode(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snaps
         snapshots.push(base_snapshot(
             "OPENCODE",
             meter,
-            if limited { 100.0 } else { percent },
+            percent,
             SnapshotWindow {
                 kind: "rolling".to_string(),
                 duration_seconds: Some(seconds),
@@ -1410,7 +1408,7 @@ mod tests {
         assert_eq!(rows.len(), 3);
         assert!(rows.iter().all(|row| row.provider == "OPENCODE" && row.account_id.as_deref() == Some(ACCOUNT)));
         assert!(rows.iter().any(|row| row.meter == "FIVE_HOUR" && row.value == 10.0 && row.reset_at.is_some()));
-        assert!(rows.iter().any(|row| row.meter == "SEVEN_DAY" && row.value == 100.0), "rate limited reads as full");
+        assert!(rows.iter().any(|row| row.meter == "SEVEN_DAY" && row.value == 97.0), "rate limited keeps its percent");
         assert!(rows.iter().any(|row| row.meter == "MONTHLY" && row.value == 30.0));
         let without_month = r#"{"usage":{"rolling":{"status":"ok","percent":1},"weekly":{"status":"ok","percent":2}}}"#;
         assert_eq!(parse_body(ReaderId::OpencodeUsage, without_month, now(), ACCOUNT).expect("two windows").len(), 2);

@@ -224,8 +224,15 @@ test("OpenCode's panel offers its sign in command, Check again, and a key that s
   };
   await press("Check again");
   assert.match(note.textContent, /^Still no OpenCode sign in that works\./u);
-  detected = { providers: [{ provider_id: "opencode", state: "present", accounts: [{ account_id: "opencode-1" }] }] };
+  detected = { providers: [{ provider_id: "opencode", state: "present", accounts: [{ account_id: "opencode-1", auth_state: "stale", collection_state: "waiting" }] }] };
   try {
+    await press("Check again");
+    assert.match(note.textContent, /^OpenCode's saved sign in has expired or was refused\./u);
+    assert.equal(document.getElementById("opencode-add").hidden, false, "an expired sign in keeps the panel open");
+    detected.providers[0].accounts[0] = { account_id: "opencode-1", auth_state: "ready", collection_state: "fallback" };
+    await press("Check again");
+    assert.match(note.textContent, /^OpenCode's saved sign in has expired or was refused\./u);
+    detected.providers[0].accounts[0] = { account_id: "opencode-1", auth_state: "ready", collection_state: "ready" };
     await connectTool("OPENCODE");
     await press("Check again");
     assert.match(note.textContent, /^Found your OpenCode sign in\./u);

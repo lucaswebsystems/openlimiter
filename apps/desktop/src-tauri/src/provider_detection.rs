@@ -647,11 +647,17 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
             push_candidate(&mut paths, home, &[".gemini", "settings.json"], Marker);
         }
         DetectedProviderId::Opencode => {
+            /* OpenCode reads only the database `OPENCODE_DB` names when it is
+            set, so this does too: no default login competes with it. */
             if let Some(chosen) = context.opencode_db.as_deref() {
-                if chosen.is_absolute() {
-                    paths.push(CandidatePath { path: chosen.to_path_buf(), kind: Credential });
-                } else if let Some(data) = context.xdg_data.as_deref() {
-                    paths.push(CandidatePath { path: data.join("opencode").join(chosen), kind: Credential });
+                let path = if chosen.is_absolute() {
+                    Some(chosen.to_path_buf())
+                } else {
+                    context.xdg_data.as_deref().map(|data| data.join("opencode").join(chosen))
+                };
+                if let Some(path) = path {
+                    paths.push(CandidatePath { path, kind: Credential });
+                    return paths;
                 }
             }
             push_candidate(

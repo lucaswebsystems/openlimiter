@@ -77,8 +77,9 @@ fn from_value(object: &Map<String, Value>) -> Option<OpencodeLogin> {
     }
 }
 
-/// The best login in an OpenCode 2 database: a Console sign in first (the
-/// active one first), then the newest Go API key.
+/// The best login in an OpenCode 2 database: the ACTIVE Console sign in (the
+/// account OpenCode itself uses; another signed in account is not read), else
+/// the newest Go API key.
 pub(crate) fn from_database(path: &Path) -> Option<OpencodeLogin> {
     let metadata = std::fs::symlink_metadata(path).ok()?;
     if !metadata.is_file() || metadata.file_type().is_symlink() {
@@ -94,8 +95,9 @@ pub(crate) fn from_database(path: &Path) -> Option<OpencodeLogin> {
     let mut statement = db
         .prepare(
             "SELECT value FROM credential \
-             WHERE integration_id IN ('opencode', 'opencode-go') AND length(value) BETWEEN 2 AND 65536 \
-             ORDER BY integration_id = 'opencode' DESC, active IS 1 DESC, time_updated DESC \
+             WHERE ((integration_id = 'opencode' AND active = 1) OR integration_id = 'opencode-go') \
+             AND length(value) BETWEEN 2 AND 65536 \
+             ORDER BY integration_id = 'opencode' DESC, time_updated DESC \
              LIMIT ?1",
         )
         .ok()?;
@@ -120,11 +122,12 @@ pub(crate) fn from_auth_file(path: &Path) -> Option<OpencodeLogin> {
         .find_map(|name| from_value(root.get(*name)?.as_object()?).filter(|login| login.account.is_none()))
 }
 
-/// The login at one candidate path: a database (`opencode.db`, or the file
-/// `OPENCODE_DB` names), or a key file. An `auth.json` beside an `opencode.db`
-/// is OpenCode 1's leftover: OpenCode 2 reads the database, and so does this.
+/// The login at one candidate path: OpenCode 1's `auth.json`, or a database
+/// (`opencode.db`, or whatever file `OPENCODE_DB` names). An `auth.json` beside
+/// an `opencode.db` is OpenCode 1's leftover: OpenCode 2 reads the database,
+/// and so does this.
 pub(crate) fn at(path: &Path) -> Option<OpencodeLogin> {
-    if path.extension().is_some_and(|extension| extension == "db") {
+    if path.file_name().is_none_or(|name| name != "auth.json") {
         return from_database(path);
     }
     if path.with_file_name("opencode.db").exists() {
@@ -171,6 +174,28 @@ mod tests {
         assert_eq!(login.account.as_deref(), Some("acc_1\u{0}org_1"));
         assert_eq!(login.email.as_deref(), Some("person@example.com"));
         assert_eq!(login.expires_at_ms, Some(1_893_456_000_000));
+    }
+
+    #[test]
+    fn another_signed_in_account_is_not_read_and_the_newest_key_wins_over_it() {
+        let dir = TempDir::new();
+        let path = database(&dir, &[
+            ("opencode", Some(0), 9, SIGN_IN),
+            ("opencode-go", Some(1), 1, r#"{"type":"api","key":"older-active-key"}"#),
+            ("opencode-go", None, 5, r#"{"type":"api","key":"newer-key"}"#),
+        ]);
+        let login = at(&path).expect("key");
+        assert_eq!(login.token.as_str(), "newer-key");
+        assert!(login.account.is_none());
+    }
+
+    #[test]
+    fn a_database_override_with_any_name_is_read_as_a_database() {
+        let dir = TempDir::new();
+        let path = database(&dir, &[("opencode", Some(1), 1, SIGN_IN)]);
+        let renamed = dir.path().join("credentials.sqlite");
+        std::fs::rename(&path, &renamed).unwrap();
+        assert_eq!(at(&renamed).expect("sign in").token.as_str(), "console-access-for-tests");
     }
 
     #[test]

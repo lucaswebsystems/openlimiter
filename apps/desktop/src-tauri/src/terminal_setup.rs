@@ -61,7 +61,8 @@ fn command_for(step: &[&str]) -> Command {
         let shell = std::env::var("SHELL").ok().filter(|value| value.starts_with('/')).unwrap_or_else(|| "/bin/sh".to_string());
         use std::os::unix::process::CommandExt;
         let mut command = Command::new(shell);
-        command.arg("-lc").arg(format!("npx {}", arguments.join(" ")));
+        /* 127 is the shell's own "not found", read below as missing Node. */
+        command.arg("-lc").arg(format!("command -v npx >/dev/null 2>&1 || exit 127; exec npx {}", arguments.join(" ")));
         /* Its own process group, so a timeout ends npx and every node under it. */
         command.process_group(0);
         command
@@ -98,7 +99,14 @@ fn end_tree(child: &mut Child) {
 }
 
 fn run_step(step: &[&str]) -> Result<(), String> {
-    let mut child = command_for(step)
+    let mut command = command_for(step);
+    /* From the person's home, never wherever the app was started: a project
+    folder's own npm configuration or local packages must not decide what
+    this runs. */
+    if let Some(home) = crate::cli_config::runtime_home() {
+        command.current_dir(home);
+    }
+    let mut child = command
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -108,6 +116,7 @@ fn run_step(step: &[&str]) -> Result<(), String> {
     loop {
         match child.try_wait() {
             Ok(Some(status)) if status.success() => return Ok(()),
+            Ok(Some(status)) if status.code() == Some(127) => return Err("setup_unavailable".to_string()),
             Ok(Some(_)) => return Err("setup_failed".to_string()),
             Ok(None) if started.elapsed() > STEP_LIMIT => {
                 end_tree(&mut child);
@@ -119,21 +128,26 @@ fn run_step(step: &[&str]) -> Result<(), String> {
     }
 }
 
+/// Held while a setup runs. Released by the worker itself when its last step
+/// ends, even if the window that asked has gone or the worker panicked.
+struct Release;
+
+impl Drop for Release {
+    fn drop(&mut self) {
+        RUNNING.store(false, Ordering::Release);
+    }
+}
+
+fn claim() -> Option<Release> {
+    (!RUNNING.swap(true, Ordering::AcqRel)).then_some(Release)
+}
+
 /// Run every installer step for one host, stopping at the first failure.
 #[tauri::command]
 pub async fn run_terminal_setup(host: SetupHost) -> Result<(), String> {
-    if RUNNING.swap(true, Ordering::AcqRel) {
+    let Some(release) = claim() else {
         return Err("setup_busy".to_string());
-    }
-    /* Released by the worker itself, when its last step ends, even if the
-    window that asked has gone or the worker panicked. */
-    struct Release;
-    impl Drop for Release {
-        fn drop(&mut self) {
-            RUNNING.store(false, Ordering::Release);
-        }
-    }
-    let release = Release;
+    };
     tauri::async_runtime::spawn_blocking(move || {
         let _release = release;
         steps(host).iter().try_for_each(|step| run_step(step))
@@ -158,6 +172,15 @@ mod tests {
     #[test]
     fn antigravity_runs_one_step() {
         assert_eq!(npx_arguments(steps(SetupHost::Antigravity)[0], "1.2.3"), vec!["-y", "openlimiter@1.2.3", "terminal", "install", "antigravity"]);
+    }
+
+    #[test]
+    fn only_one_setup_runs_at_a_time_and_the_lock_always_comes_back() {
+        let first = claim().expect("free");
+        assert!(claim().is_none(), "a second setup is refused while one runs");
+        drop(first);
+        let again = claim().expect("released when the worker ends");
+        drop(again);
     }
 
     #[test]
