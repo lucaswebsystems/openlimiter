@@ -76,7 +76,11 @@ function percentMeter(
   });
 }
 
-/** Money left, stated in US dollars by the tool itself, with no total beside it. */
+/**
+ * Money left, stated in US dollars by the tool itself, with no total beside it.
+ * The currency travels on the row, so every surface and the account sync print
+ * it as money without guessing.
+ */
 function balanceMeter(
   provider: ProviderCode,
   value: number,
@@ -90,6 +94,7 @@ function balanceMeter(
     value,
     unit: "CREDITS",
     kind: "money_balance",
+    currency: "USD",
     window: { kind: "lifetime" },
     resetAt: null,
     source: "internal_payload",
@@ -105,7 +110,7 @@ function balanceMeter(
  * `agent/account_usage.py`): the month's subscription credits used, from
  * `subscription.monthly_credits` and `subscription.credits_remaining`, reset at
  * `subscription.current_period_end`; and the purchased credits left,
- * `paid_service_access.purchased_credits_remaining`, when there are any. A
+ * `paid_service_access.purchased_credits_remaining`, zero included. A
  * remainder above the allowance (rollover) draws no percentage, as in Hermes.
  */
 export function parseHermesPayload(payload: unknown, now: string): RawMeter[] | null {
@@ -131,7 +136,7 @@ export function parseHermesPayload(payload: unknown, now: string): RawMeter[] | 
     }
   }
   const purchased = finite(record(root["paid_service_access"])?.["purchased_credits_remaining"]);
-  if (purchased !== null && purchased > 0) {
+  if (purchased !== null) {
     const balance = balanceMeter("HERMES", purchased, now, expiresAt);
     if (balance !== null) meters.push(balance);
   }

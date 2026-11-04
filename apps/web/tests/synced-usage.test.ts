@@ -304,6 +304,28 @@ describe("the read path", () => {
     })]);
   });
 
+  it("keeps every balance a tool states in money, zero included, and nothing without its currency", () => {
+    const base = usageRows()[0];
+    const money = (provider: string, amount: number) => ({
+      ...base, provider, account_id: provider.toLowerCase() + "-personal", window_id: "BALANCE",
+      used_percent: null, amount, currency: "USD",
+    });
+    const grouped = groupLatestSyncedUsage([
+      money("HERMES", 0),
+      money("COMMANDCODE", 15),
+      money("KILOCODE", 18.25),
+      { ...money("KILOCODE", 3), window_id: "OTHER", currency: undefined },
+      { ...money("KILOCODE", 3), window_id: "BIG", amount: 2_000_000 },
+    ]);
+    expect(grouped.flatMap((provider) => provider.windows.map((window) =>
+      [provider.provider, window.windowName, window.amount, window.currency, window.kind])).sort())
+      .toEqual([
+        ["COMMANDCODE", "BALANCE", 15, "USD", "money_balance"],
+        ["HERMES", "BALANCE", 0, "USD", "money_balance"],
+        ["KILOCODE", "BALANCE", 18.25, "USD", "money_balance"],
+      ]);
+  });
+
   it("keeps the newest reading of a window when a device sent two", () => {
     const [first] = usageRows();
     const older = { ...first, used_percent: 9, observed_at: "2026-09-07T10:00:00.000Z" };

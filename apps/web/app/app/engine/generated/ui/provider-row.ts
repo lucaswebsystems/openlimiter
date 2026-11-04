@@ -495,8 +495,6 @@ function toWindowView(
     : snapshot.value;
   const moneyBalance = balance && snapshot.currency !== undefined
     ? (snapshot.currency === "USD" ? "$" : "CN¥") + floorFixed(balanceValue, 2)
-    : balance && snapshot.kind === "money_balance"
-    ? "$" + floorFixed(balanceValue, 2)
     : null;
   const readout = moneyBalance !== null
     ? moneyBalance

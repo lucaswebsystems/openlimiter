@@ -346,7 +346,7 @@ describe("the cell", () => {
   it("prints the dollars a tool states it has left as money", () => {
     const balance = reading({
       provider: "KILOCODE", meter: "BALANCE", unit: "CREDITS", kind: "money_balance",
-      value: 18.25, window: { kind: "lifetime" }
+      currency: "USD", value: 18.25, window: { kind: "lifetime" }
     });
     const [cell] = cellsOf([balance], ["KILOCODE"]);
     expect(cell).toMatch(/^kl .*\$18\.25$/u);

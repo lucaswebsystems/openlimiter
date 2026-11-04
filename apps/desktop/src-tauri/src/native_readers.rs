@@ -1187,7 +1187,8 @@ fn tool_percent(
 }
 
 /// Money left, stated in US dollars by the tool itself, with no total beside
-/// it: a balance rather than a bar.
+/// it: a balance rather than a bar. The currency travels on the row, so every
+/// surface and the account sync print it as money without guessing.
 fn tool_balance(provider: &str, value: f64, observed_at: &str, account_id: &str) -> Option<Snapshot> {
     if !value.is_finite() || !(0.0..=MAX_BALANCE).contains(&value) {
         return None;
@@ -1210,6 +1211,7 @@ fn tool_balance(provider: &str, value: f64, observed_at: &str, account_id: &str)
     );
     snapshot.unit = "CREDITS".to_string();
     snapshot.kind = Some("money_balance".to_string());
+    snapshot.currency = Some("USD".to_string());
     Some(snapshot)
 }
 
@@ -1221,7 +1223,8 @@ fn finite(value: Option<&Value>) -> Option<f64> {
 /// `agent/account_usage.py`): the month's subscription credits used, from
 /// `subscription.monthly_credits` and `subscription.credits_remaining`, reset
 /// at `subscription.current_period_end`; and the purchased credits left,
-/// `paid_service_access.purchased_credits_remaining`, when there are any.
+/// `paid_service_access.purchased_credits_remaining`, zero included: an
+/// exhausted top up is a reading, not a changed reply.
 /// Hermes's own rule holds: a remainder above the allowance (rollover) makes
 /// the allowance no denominator, so no percentage is drawn.
 fn parse_hermes(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
@@ -1259,8 +1262,7 @@ fn parse_hermes(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapsho
     let purchased = root
         .get("paid_service_access")
         .and_then(Value::as_object)
-        .and_then(|access| finite(access.get("purchased_credits_remaining")))
-        .filter(|value| *value > 0.0);
+        .and_then(|access| finite(access.get("purchased_credits_remaining")));
     if let Some(balance) = purchased.and_then(|value| tool_balance("HERMES", value, &observed_at, account_id)) {
         snapshots.push(balance);
     }

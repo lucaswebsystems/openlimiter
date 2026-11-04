@@ -82,24 +82,54 @@ fn claude_window_label(provider: &str, meter: &str) -> Option<String> {
         .map(|template| template.replace("{model}", &model))
 }
 
-fn spec_id(provider: &str) -> Option<&'static str> {
-    Some(match provider {
-        "CODEX" => "openai/codex",
-        "CLAUDE" => "anthropic/claude-code",
-        "GEMINI_CLI" => "google/gemini-cli",
-        "ANTIGRAVITY" => "google/antigravity",
-        "GROK" => "xai/grok-cli",
-        "KIMI" => "moonshot/kimi-code",
-        "OPENCODE" => "opencode/opencode",
-        "OPENROUTER" => "openrouter/api",
-        "CURSOR" => "cursor/editor",
-        "HERMES" => "nous/hermes",
-        "COMMANDCODE" => "commandcode/command-code",
-        "CLINE" => "cline/clinepass",
-        "KILOCODE" => "kilocode/kilo-code",
-        "MANUAL" => "openlimiter/manual",
-        _ => return None,
+/// One provider the registry's directory lists: its code, the spec that
+/// carries the directory row, and the label every surface shows.
+pub(crate) struct DirectoryProvider {
+    pub code: String,
+    pub spec_id: &'static str,
+    pub label: &'static str,
+}
+
+/// Every provider the registry's directory lists, in directory order. The
+/// code is the directory's connector id as the engine spells codes (upper case,
+/// underscores), so a provider added to the YAML reaches the rail and the tray
+/// with no table here to extend.
+pub(crate) fn directory_providers() -> &'static [DirectoryProvider] {
+    static PROVIDERS: OnceLock<Vec<DirectoryProvider>> = OnceLock::new();
+    PROVIDERS.get_or_init(|| {
+        let mut rows: Vec<(u64, DirectoryProvider)> = registry()["providers"]
+            .as_array()
+            .expect("provider list")
+            .iter()
+            .filter_map(|spec| {
+                let directory = spec.get("directory")?.as_object()?;
+                let connector = directory.get("connectorId")?.as_str()?;
+                Some((
+                    directory.get("order")?.as_u64()?,
+                    DirectoryProvider {
+                        code: connector.to_ascii_uppercase().replace('-', "_"),
+                        spec_id: spec["id"].as_str()?,
+                        label: directory
+                            .get("label")
+                            .and_then(serde_json::Value::as_str)
+                            .or_else(|| spec["displayName"].as_str())?,
+                    },
+                ))
+            })
+            .collect();
+        rows.sort_by_key(|(order, _)| *order);
+        rows.into_iter().map(|(_, provider)| provider).collect()
     })
+}
+
+fn spec_id(provider: &str) -> Option<&'static str> {
+    if provider == "MANUAL" {
+        return Some("openlimiter/manual");
+    }
+    directory_providers()
+        .iter()
+        .find(|entry| entry.code == provider)
+        .map(|entry| entry.spec_id)
 }
 
 /// The name every surface shows for a provider code: the registry directory's
@@ -371,6 +401,30 @@ pub(super) fn sessions(records: Vec<ActivityDisplayRecord>, now: i64) -> Vec<Ses
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_directory_maps_every_engine_code_to_its_spec_as_the_old_table_did() {
+        for (code, id) in [
+            ("CODEX", "openai/codex"),
+            ("CLAUDE", "anthropic/claude-code"),
+            ("GEMINI_CLI", "google/gemini-cli"),
+            ("ANTIGRAVITY", "google/antigravity"),
+            ("GROK", "xai/grok-cli"),
+            ("KIMI", "moonshot/kimi-code"),
+            ("OPENCODE", "opencode/opencode"),
+            ("OPENROUTER", "openrouter/api"),
+            ("CURSOR", "cursor/editor"),
+            ("HERMES", "nous/hermes"),
+            ("COMMANDCODE", "commandcode/command-code"),
+            ("CLINE", "cline/clinepass"),
+            ("KILOCODE", "kilocode/kilo-code"),
+            ("MANUAL", "openlimiter/manual"),
+        ] {
+            assert_eq!(super::spec_id(code), Some(id), "{code}");
+        }
+        assert_eq!(super::spec_id("UNRECOGNIZED"), None);
+        assert_eq!(super::display_name("KILOCODE"), Some("Kilo Code"));
+    }
+
     use super::*;
 
     const NOW: &str = "2026-09-28T12:00:00.000Z";

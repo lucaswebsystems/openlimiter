@@ -367,6 +367,24 @@ impl RequestPolicy {
         }
     }
 
+    /// A refusal nothing may step around: the account's own day, as
+    /// `refuse_account` records it, and the same day for the whole provider.
+    /// A rotated token releases an account refusal; it never releases this
+    /// one, and neither does another account of the same provider.
+    pub(crate) fn refuse_provider(&self, provider: DetectedProviderId, account_id: &str, now_ms: u64) {
+        self.refuse_account(provider, account_id, now_ms, true);
+        let now_ms = self.clock.map_or(now_ms, |clock| clock().max(now_ms));
+        let blocked_until = now_ms.saturating_add(BLOCKED_PROVIDER_SECONDS * 1000);
+        self.mutate_durable(|document| {
+            let state = document.providers.entry(provider).or_default();
+            state.blocked_until = Some(
+                state
+                    .blocked_until
+                    .map_or(blocked_until, |current| current.max(blocked_until)),
+            );
+        });
+    }
+
     pub fn block_provider(&self, provider: DetectedProviderId, now_ms: u64, minimum_seconds: u64) {
         let now_ms = self.clock.map_or(now_ms, |clock| clock().max(now_ms));
         let delay = minimum_seconds.max(BLOCKED_PROVIDER_SECONDS);

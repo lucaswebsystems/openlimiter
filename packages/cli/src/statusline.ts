@@ -335,9 +335,11 @@ function balanceCell(label: string, snapshot: Snapshot, mark: string, stale: boo
   ) {
     value = "$" + Math.max(0, snapshot.limitAmount - snapshot.usedAmount).toFixed(2);
   } else if (
-    (isOpenRouterAccountBalance(snapshot) || snapshot.kind === "money_balance") &&
-    snapshot.unit === "CREDITS"
+    snapshot.kind === "money_balance" && snapshot.unit === "CREDITS" && snapshot.currency !== undefined
   ) {
+    // A balance a tool states with no total: the value is the amount.
+    value = (snapshot.currency === "CNY" ? "CN¥" : "$") + snapshot.value.toFixed(2);
+  } else if (isOpenRouterAccountBalance(snapshot) && snapshot.unit === "CREDITS") {
     // The current balance identity can carry a direct credit amount, as the
     // capture fixture does. Version 3 also retires the ambiguous legacy name,
     // but an already loaded balance keeps the same terminal meaning.

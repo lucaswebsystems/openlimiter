@@ -158,6 +158,22 @@ function normalizeAmounts(raw: RawMeter): SnapshotAmounts | null {
 }
 
 /**
+ * The currency of a money balance a tool states with no total beside it.
+ *
+ * Such a row carries its currency alone, because its value is the amount:
+ * there is no used figure and no limit to pair it with. Only a money balance
+ * in CREDITS may do this; on any other row a lone currency is dropped, as it
+ * always was. Rust twin: `normalize_snapshot` in native_snapshot.rs.
+ */
+function statedBalanceCurrency(raw: RawMeter): SnapshotCurrency | null {
+  if (raw.usedAmount !== undefined || raw.limitAmount !== undefined) return null;
+  if (raw.kind !== "money_balance" || raw.unit !== "CREDITS") return null;
+  return typeof raw.currency === "string" && currencies.has(raw.currency as SnapshotCurrency)
+    ? raw.currency as SnapshotCurrency
+    : null;
+}
+
+/**
  * Read the account this reading belongs to.
  *
  * Absent is the ordinary case and means one unnamed account. Present but
@@ -261,6 +277,7 @@ export function normalizeMeter(input: unknown): Snapshot | null {
   const writer = readWriter(raw.writer);
   const accountLabel = readAccountLabel(raw.accountLabel);
   const amounts = normalizeAmounts(raw);
+  const balanceCurrency = amounts === null ? statedBalanceCurrency(raw) : null;
   return {
     provider: raw.provider as Snapshot["provider"],
     meter: raw.meter,
@@ -274,6 +291,7 @@ export function normalizeMeter(input: unknown): Snapshot | null {
     expiresAt: raw.expiresAt,
     labels,
     ...(amounts === null ? {} : amounts),
+    ...(balanceCurrency === null ? {} : { currency: balanceCurrency }),
     ...(account.accountId === null ? {} : { accountId: account.accountId }),
     ...(accountLabel === null || account.accountId === null
       ? {}

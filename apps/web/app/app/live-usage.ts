@@ -134,9 +134,11 @@ export function snapshotsFromSyncedUsage(
   const snapshots = providers.flatMap((provider) => {
     if (!supported.has(provider.provider)) return [];
     return provider.windows.flatMap((window): Snapshot[] => {
-      const balance = provider.provider === "OPENROUTER" && window.windowName === "ACCOUNT_BALANCE" &&
-        window.percentage === null && window.amount !== undefined && window.currency !== undefined &&
-        window.kind === "money_balance";
+      /* Every money balance the desktop synced, OpenRouter's account balance
+         and the balances a tool states with no total, carries its amount and
+         currency and no percentage. */
+      const balance = window.percentage === null && window.amount !== undefined &&
+        window.currency !== undefined && window.kind === "money_balance";
       if (!balance && window.percentage === null) return [];
       return [{
       provider: provider.provider as ProviderCode,

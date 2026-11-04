@@ -370,7 +370,7 @@ fn complete_outcome(
             reason: LoginFailure::ProviderBlocked,
             ..
         } => {
-            policy.refuse_account(detected, account_id, now_ms, true);
+            policy.refuse_provider(detected, account_id, now_ms);
             true
         }
         LoginOutcome::Fallback {
@@ -829,6 +829,189 @@ mod tests {
             assert_eq!(accounts.len(), 1, "{provider:?}");
             let read = detection.read_credential(detected, &accounts[0]).unwrap();
             assert_eq!(read.access_token.as_str(), sent_token(provider, "active"));
+        }
+    }
+
+    fn jwt(claims: serde_json::Value) -> String {
+        use base64::Engine;
+        let encode = |bytes: &[u8]| base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes);
+        format!("{}.{}.signature", encode(br#"{"alg":"none"}"#), encode(claims.to_string().as_bytes()))
+    }
+
+    /// Save a login for `person`, as each tool states who is signed in: a JWT
+    /// subject for Hermes, Cline and Kilo, the user id for Command Code. The
+    /// returned bearer is exactly what the tool's own address must receive.
+    fn sign_in(provider: LoginProvider, home: &Path, person: &str, secret: &str) -> String {
+        let token = jwt(serde_json::json!({ "sub": person, "jti": secret }));
+        let path = login_file(provider, home);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let (text, sent) = match provider {
+            LoginProvider::Hermes => (
+                format!(r#"{{"providers":{{"nous":{{"access_token":"{token}","expires_at":"2099-01-01T00:00:00Z"}}}}}}"#),
+                token,
+            ),
+            LoginProvider::Commandcode => (
+                format!(r#"{{"apiKey":"{secret}","userId":"{person}"}}"#),
+                secret.to_string(),
+            ),
+            LoginProvider::Cline => (
+                format!(r#"{{"providers":{{"cline":{{"settings":{{"auth":{{"accessToken":"workos:{token}"}}}}}}}}}}"#),
+                format!("workos:{token}"),
+            ),
+            LoginProvider::Kilocode => (
+                format!(r#"{{"kilo":{{"type":"oauth","access":"{token}","refresh":"{token}","expires":4070908800000}}}}"#),
+                token,
+            ),
+        };
+        fs::write(path, text).unwrap();
+        sent
+    }
+
+    #[tokio::test]
+    async fn a_rotated_login_is_read_again_and_a_switched_account_is_a_new_account() {
+        for provider in LoginProvider::ALL {
+            let dir = TempDir::new();
+            let detected = login_route(provider).detected;
+            let runtime = ToolLoginRuntime::default();
+
+            let first = sign_in(provider, dir.path(), "person-a", "secret-one");
+            let detection = DetectionStore::for_test_home(dir.path(), now());
+            let accounts = detection.account_ids(detected);
+            assert_eq!(accounts.len(), 1, "{provider:?}");
+            let person_a = accounts[0].clone();
+            let transport = RecordingTransport::replying(200, reply(provider).as_bytes().to_vec(), None);
+            let outcome = collect_account(provider, &detection, &runtime, &transport, writer(&dir), person_a.clone(), now()).await;
+            assert!(matches!(outcome, LoginOutcome::CacheCommitted { .. }), "{provider:?}: {outcome:?}");
+
+            /* The tool renewed its token: the next pass reads the file again
+            and sends the renewed token for the same account. */
+            let rotated = sign_in(provider, dir.path(), "person-a", "secret-two");
+            let outcome =
+                collect_account(provider, &detection, &runtime, &transport, writer(&dir), person_a.clone(), now() + 301_000).await;
+            assert!(matches!(outcome, LoginOutcome::CacheCommitted { .. }), "{provider:?}: {outcome:?}");
+            assert_eq!(transport.recorded_secrets(), vec![first, rotated], "{provider:?}");
+
+            /* Another person signed in. Before a rescan the old account's
+            reference no longer names the saved login, so nothing is sent under
+            the old account; after it the new person is a new account. */
+            let switched = sign_in(provider, dir.path(), "person-b", "secret-three");
+            let outcome =
+                collect_account(provider, &detection, &runtime, &transport, writer(&dir), person_a.clone(), now() + 602_000).await;
+            assert!(matches!(outcome, LoginOutcome::ReopenCli { .. }), "{provider:?}: {outcome:?}");
+            assert_eq!(transport.recorded_urls().len(), 2, "{provider:?}");
+            let rescanned = DetectionStore::for_test_home(dir.path(), now());
+            let accounts = rescanned.account_ids(detected);
+            assert_eq!(accounts.len(), 1, "{provider:?}");
+            let person_b = accounts[0].clone();
+            assert_ne!(person_b, person_a, "{provider:?}");
+            assert!(rescanned.read_credential(detected, &person_a).is_err());
+            let outcome =
+                collect_account(provider, &rescanned, &runtime, &transport, writer(&dir), person_b, now() + 903_000).await;
+            assert!(matches!(outcome, LoginOutcome::CacheCommitted { .. }), "{provider:?}: {outcome:?}");
+            assert_eq!(transport.recorded_secrets().last(), Some(&switched), "{provider:?}");
+            assert_eq!(transport.recorded_urls(), vec![url(provider); 3], "{provider:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn an_expired_cline_token_is_stale_with_its_sentence_and_never_sent() {
+        let dir = TempDir::new();
+        let token = jwt(serde_json::json!({ "sub": "person-a", "exp": 1_786_100_000u64 }));
+        let path = login_file(LoginProvider::Cline, dir.path());
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(
+            &path,
+            format!(r#"{{"providers":{{"cline":{{"settings":{{"auth":{{"accessToken":"workos:{token}"}}}}}}}}}}"#),
+        )
+        .unwrap();
+        let detection = DetectionStore::for_test_home(dir.path(), now());
+        let report = detection.report();
+        let shown = report
+            .providers
+            .iter()
+            .find(|entry| entry.provider_id == DetectedProviderId::Cline)
+            .and_then(|entry| entry.accounts.first())
+            .expect("the expired login is still an account");
+        assert_eq!(shown.auth_state, crate::provider_detection::DetectedAuthState::Stale);
+        assert_eq!(shown.message.as_deref(), Some("Open Cline once so it renews its sign in."));
+        let transport = RecordingTransport::replying(200, reply(LoginProvider::Cline).as_bytes().to_vec(), None);
+        let outcome = collect_account(
+            LoginProvider::Cline,
+            &detection,
+            &ToolLoginRuntime::default(),
+            &transport,
+            writer(&dir),
+            shown.account_id.clone(),
+            now(),
+        )
+        .await;
+        assert!(matches!(outcome, LoginOutcome::ReopenCli { .. }), "{outcome:?}");
+        assert!(transport.recorded_urls().is_empty());
+    }
+
+    async fn restarted(
+        provider: LoginProvider,
+        detection: &DetectionStore,
+        policy: &RequestPolicy,
+        dir: &TempDir,
+        account: String,
+        at: u64,
+        transport: &RecordingTransport,
+    ) -> (LoginOutcome, bool) {
+        collect_account_guarded(
+            provider,
+            detection,
+            &ToolLoginRuntime::default(),
+            policy,
+            transport,
+            writer(dir),
+            account,
+            at,
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn a_refusal_holds_the_whole_provider_for_a_day_across_rotation_and_account_change() {
+        for provider in LoginProvider::ALL {
+            let dir = TempDir::new();
+            let detected = login_route(provider).detected;
+            let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
+            let refusing = RecordingTransport::replying(403, Vec::new(), None);
+            /* Each step starts with an empty in memory throttle, as a restart
+            would: only the durable gate stands between the request and the
+            address, which is the gate under test. */
+            let guarded = |detection, account, at, transport| {
+                restarted(provider, detection, &policy, &dir, account, at, transport)
+            };
+
+            sign_in(provider, dir.path(), "person-a", "secret-one");
+            let detection = DetectionStore::for_test_home(dir.path(), now());
+            let person_a = detection.account_ids(detected).pop().unwrap();
+            let (outcome, abort) = guarded(&detection, person_a.clone(), now(), &refusing).await;
+            assert!(
+                matches!(outcome, LoginOutcome::Fallback { reason: LoginFailure::ProviderBlocked, .. }),
+                "{provider:?}: {outcome:?}"
+            );
+            assert!(abort);
+
+            /* A renewed token for the refused account waits out the day. */
+            sign_in(provider, dir.path(), "person-a", "secret-two");
+            let (outcome, _) = guarded(&detection, person_a, now() + 3_600_000, &refusing).await;
+            assert!(matches!(outcome, LoginOutcome::Cached { .. }), "{provider:?}: {outcome:?}");
+
+            /* So does another account of the same provider. */
+            sign_in(provider, dir.path(), "person-b", "secret-three");
+            let rescanned = DetectionStore::for_test_home(dir.path(), now());
+            let person_b = rescanned.account_ids(detected).pop().unwrap();
+            let (outcome, _) = guarded(&rescanned, person_b.clone(), now() + 7_200_000, &refusing).await;
+            assert!(matches!(outcome, LoginOutcome::Cached { .. }), "{provider:?}: {outcome:?}");
+            assert_eq!(refusing.recorded_urls().len(), 1, "{provider:?}: the refusal was stepped around");
+
+            /* The day over, the provider is read again. */
+            let answering = RecordingTransport::replying(200, reply(provider).as_bytes().to_vec(), None);
+            let (outcome, _) = guarded(&rescanned, person_b, now() + 86_400_000 + 60_000, &answering).await;
+            assert!(matches!(outcome, LoginOutcome::CacheCommitted { .. }), "{provider:?}: {outcome:?}");
         }
     }
 

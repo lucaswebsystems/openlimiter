@@ -189,8 +189,8 @@ function windowView(row, now) {
   }
   const hasMoney = Number.isFinite(row.usedAmount) && Number.isFinite(row.limitAmount) && typeof row.currency === "string";
   const balance = presentation?.valueSemantics === "balance";
-  /* A tool that states only the dollars left, with no total beside them. */
-  const moneyLeft = balance && !hasMoney && row.kind === "money_balance";
+  /* A tool that states only the money left, in its currency, with no total beside it. */
+  const moneyLeft = balance && !hasMoney && row.kind === "money_balance" && typeof row.currency === "string";
   const unbounded = row.unit === "CREDITS" && !hasMoney && !balance;
   const usedPercent = unbounded ? null : Math.min(100, Math.max(0, row.value));
   const stale = freshness(row.observedAt, row.expiresAt, now) !== "fresh";
@@ -201,7 +201,7 @@ function windowView(row, now) {
     observedAt: row.observedAt,
     band: stale ? "stale" : balance || usedPercent === null ? "none" : bandForPercent(usedPercent),
     value: balance && hasMoney ? money(Math.max(0, row.limitAmount - row.usedAmount), row.currency)
-      : moneyLeft ? money(Math.floor(row.value * 100) / 100, "USD")
+      : moneyLeft ? money(Math.floor(row.value * 100) / 100, row.currency)
       : balance ? say("creditsBalance", { value: String(Math.floor(row.value * 100) / 100) })
       : hasMoney ? money(row.usedAmount, row.currency)
       : unbounded ? String(Math.floor(row.value * 100) / 100)

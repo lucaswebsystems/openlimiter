@@ -554,7 +554,7 @@ test("a tool that states only the dollars left shows money, not credits and not 
   const base = fixtures.projected.snapshots[0];
   const row = (provider) => ({
     ...base, provider, accountId: "account", meter: "BALANCE", unit: "CREDITS", kind: "money_balance",
-    value: 18.256, window: { kind: "lifetime" }, observedAt: now, resetAt: null,
+    currency: "USD", value: 18.256, window: { kind: "lifetime" }, observedAt: now, resetAt: null,
   });
   const model = limitsModel(projectSnapshots([row("KILOCODE"), row("COMMANDCODE"), row("HERMES")], now).snapshots, now);
   for (const [code, label] of [["KILOCODE", "Balance"], ["COMMANDCODE", "Credits left"], ["HERMES", "Purchased credits"]]) {

@@ -187,6 +187,27 @@ describe("live synced usage", () => {
     });
   });
 
+  it("projects the balances Hermes, Command Code and Kilo Code state as money", () => {
+    const money = (code: string, amount: number) => provider(code, code.toLowerCase() + "-account", [{
+      windowName: "BALANCE",
+      percentage: null,
+      amount,
+      currency: "USD",
+      kind: "money_balance",
+      resetAt: null,
+      observedAt: NOW,
+      stale: false,
+    }]);
+    const snapshots = snapshotsFromSyncedUsage([money("HERMES", 0), money("COMMANDCODE", 15), money("KILOCODE", 18.25)], NOW);
+    expect(snapshots.map((row) => [row.provider, row.meter, row.unit, row.value, row.currency])).toEqual([
+      ["COMMANDCODE", "BALANCE", "CREDITS", 15, "USD"],
+      ["HERMES", "BALANCE", "CREDITS", 0, "USD"],
+      ["KILOCODE", "BALANCE", "CREDITS", 18.25, "USD"],
+    ]);
+    expect(buildProviderAccountRows(snapshots, NOW).flatMap((row) => row.windows.map((window) => window.readout)))
+      .toEqual(["$0.00", "$15.00", "$18.25"]);
+  });
+
   it("reproduces the owner screen with every login's real quota meters from the last seven days", () => {
     const snapshots = snapshotsFromSyncedUsage(OWNER_SCREEN, NOW, (count) => `Account ${count}`);
     expect(snapshots.map((row) => [row.provider, row.accountId, row.meter, row.value])).toEqual([
