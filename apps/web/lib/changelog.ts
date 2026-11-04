@@ -38,9 +38,11 @@ export interface ChangelogRelease {
   entries: readonly ChangelogEntry[];
 }
 
-/* The root file when this runs inside the monorepo, and the build time copy
-   scripts/pull-changelog.mjs makes when it does not: the deploy uploads only
-   this directory, so without the copy the page rendered empty in production. */
+/* The root file when this runs inside the monorepo, and the tracked build-time
+   copy scripts/pull-changelog.mjs keeps in sync (apps/web/CHANGELOG.md) when
+   the root is not reachable, as on a Vercel deploy whose root directory is
+   apps/web. The root stays the single authored source; the copy is a build
+   artifact committed so a plain deploy still ships the current file. */
 const CHANGELOG_PATHS = [
   path.join(process.cwd(), "..", "..", "CHANGELOG.md"),
   path.join(process.cwd(), "CHANGELOG.md"),
