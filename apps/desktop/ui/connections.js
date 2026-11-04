@@ -39,17 +39,38 @@ const KNOWN_STATES = new Set(CONNECTION_STATES);
 
 // English catalog for the setup panels. L7 owns translations.
 export const SETUP_EN = Object.freeze({
-  ready: "Run these two commands in order, then Verify.",
-  replacesStatusLine: "Your own status line will be replaced. The installer keeps a backup of it.",
-  cliMissing: "Install the OpenLimiter command first.",
-  cliNotWorking: "The OpenLimiter command did not answer.",
-  runtimeMissing: say("runtimeMissing"),
-  runtimeOutdated: say("runtimeOutdated"),
+  claudeLead: "Shows your Claude Code limits here and under its prompt. Set up adds OpenLimiter's status line and prompt hook to Claude Code.",
+  replacesStatusLine: "Your own status line will be replaced. Set up keeps a backup of it.",
+  claudeStepSetUp: "Set up Claude Code",
+  claudeStepVerify: "Send any message in Claude Code, then verify",
+  antigravityLead: "Antigravity shares its limits through OpenLimiter's status line in Antigravity CLI.",
+  antigravityStepSetUp: "Set up Antigravity",
+  antigravityStepUsage: "Run /usage once in Antigravity CLI, then check again",
+  opencodeLead: "OpenLimiter reads the sign in OpenCode saved on this computer, so there is nothing to paste. It has not found one that works yet.",
+  opencodeStepSignIn: "Sign in to OpenCode in any terminal",
+  opencodeStepCheck: "Come back and check again",
+  opencodeNotYet: "Still no OpenCode sign in that works. Sign in first, or use a key below.",
+  opencodeKeyHead: "Or use an OpenCode API key",
+  opencodeKeyField: "OpenCode API key",
+  getKey: "Get a key",
+  manualHead: "Run it in a terminal instead",
+  manualClaude: "Run these two commands in order, then verify.",
+  setUp: "Set up",
+  settingUp: "Setting up",
+  setUpDone: "Set up finished.",
+  setUpFailed: "Set up did not finish. Run the commands below in a terminal instead.",
+  setUpNeedsNode: "Set up needs Node.js. Install it from nodejs.org and press Set up again, or run the commands below.",
+  setUpBusy: "Set up is already running.",
+  opencodeFound: "Found your OpenCode sign in. Its bars appear in Usage.",
+  opencodeExpired: "OpenCode's saved sign in has expired or was refused. Open OpenCode once so it renews it, then check again.",
+  runtimeOutdatedVersion: "Your terminal runtime is {version}, older than this app. Set up updates it.",
+  runtimeMissing: "The terminal runtime is not installed yet. Set up installs it.",
   copy: "Copy",
   copied: "Copied",
   copyRefused: "Copy refused, select it by hand",
   verify: "Verify",
   checkAgain: "Check again",
+  checking: "Checking",
   close: "Close",
   save: "Save",
   stored: "Saved, checking",
@@ -69,6 +90,10 @@ const session = {
   runtime: null,
   /** The one setup panel open under the list, or null. */
   activeSetup: null,
+  /** The host whose Set up is running, kept here because panels redraw. */
+  settingUp: null,
+  /** The host whose last Set up failed: its commands stay unfolded. */
+  setupFailed: null,
 };
 
 /** Wired by initConnections. Nothing here runs before that. */
@@ -80,7 +105,7 @@ const setupPanels = new Map();
 
 /* The closed wire words for the remaining pasted credential. */
 const PASTED = {
-  OPENCODE: { providerId: "opencode", credentialKind: "opencode_browser_session" },
+  OPENCODE: { providerId: "opencode", credentialKind: "opencode_api_key" },
 };
 
 /* ----------------------------------------------------------------- backend */
@@ -291,49 +316,91 @@ function commandBox(command, note) {
   return box;
 }
 
-/* The runtime's version and state. Each panel draws the install command
-   itself, once, right after this. */
+/* One line, only when the terminal runtime needs Set up to install or update it. */
 function appendRuntimeGuidance(body) {
-  const runtime = session.runtime;
-  if (runtime?.version) body.append(element("p", "q-setup-line", say("runtimeInstalled", { version: runtime.version })));
-  const state = runtimeState(runtime);
-  if (state === "older" || state === "missing") {
-    body.append(element("p", "q-setup-line", state === "older" ? SETUP_EN.runtimeOutdated : SETUP_EN.runtimeMissing));
-  } else if (state === "newer") {
-    body.append(element("p", "q-setup-line", say("runtimeNewer")));
-  }
+  const state = runtimeState(session.runtime);
+  if (state === "older") body.append(element("p", "q-setup-line", SETUP_EN.runtimeOutdatedVersion.replace("{version}", session.runtime.version)));
+  else if (state === "missing") body.append(element("p", "q-setup-line", SETUP_EN.runtimeMissing));
 }
 
-/* The Claude setup panel: one short line, the warning when the preflight found
-   a status line of the person's own, the two installer commands, which write
-   the settings with the runtime launcher themselves, and its controls. */
+/* One numbered step: its words, then whatever it holds, on one left edge. */
+function step(text, ...parts) {
+  const item = element("li", "q-step");
+  item.append(element("p", "q-step-text", text), ...parts);
+  return item;
+}
+
+function steps(...items) {
+  const list = element("ol", "q-steps");
+  list.append(...items);
+  return list;
+}
+
+/* The pasteable commands, folded away under the steps and opened by a failed
+   Set up, for a machine where the app cannot run them itself. */
+function manualCommands(host, commands, lead) {
+  const fold = element("details", "q-setup-alt q-manual");
+  fold.dataset.host = host;
+  fold.open = session.setupFailed === host;
+  fold.append(element("summary", "q-step-text", SETUP_EN.manualHead));
+  if (lead) fold.append(element("p", "q-setup-line", lead));
+  fold.append(...commands);
+  return fold;
+}
+
+/* The Set up button: runs the pinned installer through the backend, then
+   rereads what it changed. Its running state lives in the session, so the
+   panels redrawing every refresh never offer a second press mid run. A
+   failure unfolds the commands to run by hand. */
+function setUpButton(host, note, after) {
+  const busy = session.settingUp === host;
+  const control = button(busy ? SETUP_EN.settingUp : SETUP_EN.setUp, async () => {
+    if (session.settingUp !== null) return;
+    session.settingUp = host;
+    session.setupFailed = null;
+    setNote(note, "", "plain");
+    render();
+    const result = await backend.runTerminalSetup(host);
+    session.settingUp = null;
+    if (result.ok) {
+      setNote(note, SETUP_EN.setUpDone, "ok");
+      await after();
+      render();
+      return;
+    }
+    session.setupFailed = host;
+    const sentence = result.reason === backend.BACKEND_ABSENT ? SETUP_EN.noBackend
+      : result.message === "setup_unavailable" ? SETUP_EN.setUpNeedsNode
+      : result.message === "setup_busy" ? SETUP_EN.setUpBusy
+      : SETUP_EN.setUpFailed;
+    setNote(note, sentence, "bad");
+    render();
+  }, "q-btn q-btn-primary");
+  control.disabled = session.settingUp !== null;
+  if (busy) control.setAttribute("aria-busy", "true");
+  return control;
+}
+
+/* Claude Code: what Set up does, a warning when the preflight found a status
+   line of the person's own, two steps, and the two installer commands folded
+   underneath. Every preflight verdict gets the same panel: Set up installs
+   the runtime too, so a missing command is something it fixes. */
 function renderClaude() {
   const body = document.getElementById("claude-body");
   const note = document.getElementById("claude-note");
   if (!body) return;
   body.textContent = "";
   const verdict = session.claudeVerdict;
-  const commands = () => [
-    ...(verdict?.foreignStatusLine ? [element("p", "q-setup-line", SETUP_EN.replacesStatusLine)] : []),
-    commandBox(runtimeInstallCommand("claude"), note),
-    commandBox(CLAUDE_HOOK_INSTALL_COMMAND, note),
-  ];
-  const recheck = button(SETUP_EN.checkAgain, () => void verifyClaude());
-  const verify = button(SETUP_EN.verify, () => void verifyClaude(), "q-btn q-btn-primary");
-  const actions = element("div", "q-setup-actions");
+  body.append(element("p", "q-setup-lead", SETUP_EN.claudeLead));
+  if (verdict?.foreignStatusLine) body.append(element("p", "q-setup-line", SETUP_EN.replacesStatusLine));
   appendRuntimeGuidance(body);
-  if (verdict?.kind === "cli_missing" || verdict?.kind === "cli_not_working") {
-    const missing = verdict.kind === "cli_missing";
-    body.append(element("p", "q-setup-line", missing ? SETUP_EN.cliMissing : SETUP_EN.cliNotWorking));
-    if (!missing) body.append(element("pre", "q-snippet mono", verdict.cliPath ?? ""));
-    else body.append(...commands());
-    actions.append(recheck);
-    body.append(actions);
-    return;
-  }
-  body.append(element("p", "q-setup-line", SETUP_EN.ready), ...commands());
-  actions.append(verify);
-  body.append(actions);
+  body.append(
+    steps(
+      step(SETUP_EN.claudeStepSetUp, setUpButton("claude", note, verifyClaude)),
+      step(SETUP_EN.claudeStepVerify, button(SETUP_EN.verify, () => void verifyClaude())),
+    ),
+    manualCommands("claude", [commandBox(runtimeInstallCommand("claude"), note), commandBox(CLAUDE_HOOK_INSTALL_COMMAND, note)], SETUP_EN.manualClaude),
+  );
 }
 
 /**
@@ -357,8 +424,81 @@ function renderAntigravity() {
   const note = document.getElementById("antigravity-note");
   if (!body) return;
   body.textContent = "";
+  body.append(element("p", "q-setup-lead", SETUP_EN.antigravityLead));
   appendRuntimeGuidance(body);
-  body.append(element("p", "q-setup-line", say("antigravitySetupNote")), commandBox(runtimeInstallCommand("antigravity"), note));
+  body.append(
+    steps(
+      step(SETUP_EN.antigravityStepSetUp, setUpButton("antigravity", note, async () => { await refreshRuntime(); render(); })),
+      step(SETUP_EN.antigravityStepUsage, button(SETUP_EN.checkAgain, () => void checkTool("ANTIGRAVITY"))),
+    ),
+    manualCommands("antigravity", [commandBox(runtimeInstallCommand("antigravity"), note)]),
+  );
+}
+
+/* OpenCode connects by itself from the sign in OpenCode saved; this panel is
+   for a machine where none works yet: sign in there, or paste a key. */
+const OPENCODE_SIGN_IN_COMMAND = "opencode auth login opencode";
+const OPENCODE_KEYS_URL = "https://opencode.ai/auth";
+
+/**
+ * What a detection report says about OpenCode's login: "found" when an account
+ * is current and its last read did not fail, "expired" when one exists but is
+ * stale or was refused, else "none".
+ */
+export function opencodeSignIn(report) {
+  const entry = Array.isArray(report?.providers)
+    ? report.providers.find((provider) => provider?.provider_id === "opencode")
+    : null;
+  const accounts = entry?.state === "present" && Array.isArray(entry.accounts) ? entry.accounts : [];
+  if (accounts.some((account) => account?.auth_state !== "stale" && account?.collection_state !== "fallback")) return "found";
+  return accounts.length > 0 ? "expired" : "none";
+}
+
+function renderOpencode() {
+  const body = document.getElementById("opencode-body");
+  const note = document.getElementById("opencode-note");
+  if (!body) return;
+  body.textContent = "";
+  const check = button(SETUP_EN.checkAgain, async () => {
+    check.disabled = true;
+    check.textContent = SETUP_EN.checking;
+    /* Found means the native scan now holds an OpenCode login, not merely
+       that the scan answered. */
+    await checkTool("OPENCODE");
+    const login = opencodeSignIn((await backend.listDetectedProviders()).value);
+    check.disabled = false;
+    check.textContent = SETUP_EN.checkAgain;
+    const sentence = { found: SETUP_EN.opencodeFound, expired: SETUP_EN.opencodeExpired, none: SETUP_EN.opencodeNotYet }[login];
+    setNote(note, sentence, login === "found" ? "ok" : "bad");
+    if (login === "found") {
+      session.activeSetup = null;
+      render();
+    }
+  }, "q-btn q-btn-primary");
+  const alt = element("div", "q-setup-alt");
+  const head = element("div", "q-setup-alt-head");
+  const link = element("a", "q-klink", SETUP_EN.getKey);
+  link.setAttribute("href", OPENCODE_KEYS_URL);
+  link.setAttribute("target", "_blank");
+  link.setAttribute("rel", "noopener noreferrer");
+  head.append(element("p", "q-step-text", SETUP_EN.opencodeKeyHead), link);
+  const field = element("div", "q-setup-field");
+  const input = element("input", "q-kfield");
+  Object.assign(input, { type: "password", autocomplete: "off", spellcheck: false, placeholder: SETUP_EN.opencodeKeyField });
+  input.setAttribute("autocapitalize", "off");
+  input.setAttribute("aria-label", SETUP_EN.opencodeKeyField);
+  const save = button(SETUP_EN.save, () => void savePasted("OPENCODE", input, note, save));
+  input.addEventListener("keydown", (event) => { if (event.key === "Enter") save.click(); });
+  field.append(input, save);
+  alt.append(head, field);
+  body.append(
+    element("p", "q-setup-lead", SETUP_EN.opencodeLead),
+    steps(
+      step(SETUP_EN.opencodeStepSignIn, commandBox(OPENCODE_SIGN_IN_COMMAND, note)),
+      step(SETUP_EN.opencodeStepCheck, check),
+    ),
+    alt,
+  );
 }
 
 /* ------------------------------------------------------------------ render */
@@ -371,6 +511,7 @@ function render() {
   }
   renderClaude();
   renderAntigravity();
+  renderOpencode();
 }
 
 /** Keep each setup panel immediately after the row that opens it. */
@@ -610,12 +751,6 @@ export function initConnections(configuration) {
       session.activeSetup = null;
       render();
     });
-    const save = panel?.querySelector?.("[data-setup-save]");
-    if (save && PASTED[code]) {
-      const input = panel.querySelector("input");
-      const note = panel.querySelector("[data-setup-note]");
-      save.addEventListener("click", () => void savePasted(code, input, note, save));
-    }
   }
   /* The runtime is reread too, so the Usage tab's update line leaves once
      the terminal runtime has been updated. */

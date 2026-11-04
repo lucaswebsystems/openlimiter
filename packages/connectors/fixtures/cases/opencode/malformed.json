@@ -1,0 +1,22 @@
+{
+  "provider": "opencode",
+  "case": "malformed",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "usage": {
+      "rolling": {
+        "status": "exhausted",
+        "percent": 40,
+        "resetsAt": "2026-08-07T15:00:00.000Z"
+      },
+      "weekly": {
+        "status": "ok",
+        "percent": 92,
+        "resetsAt": "2026-08-10T00:00:00.000Z"
+      }
+    }
+  }
+}

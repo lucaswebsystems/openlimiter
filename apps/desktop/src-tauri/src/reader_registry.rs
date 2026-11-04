@@ -118,14 +118,13 @@ pub enum ReaderId {
 pub enum SchedulePolicy {
     EventDriven,
     Interval { base_seconds: u64 },
-    ExplicitOnly,
 }
 
 impl SchedulePolicy {
     /// The trusted interval only when this policy actually has one.
     pub const fn interval_seconds(self) -> Option<u64> {
         match self {
-            SchedulePolicy::EventDriven | SchedulePolicy::ExplicitOnly => None,
+            SchedulePolicy::EventDriven => None,
             SchedulePolicy::Interval { base_seconds } => Some(base_seconds),
         }
     }
@@ -146,7 +145,6 @@ impl CollectionSource {
     pub const fn schedule_policy(self) -> SchedulePolicy {
         match self {
             CollectionSource::ClaudeStatusline => SchedulePolicy::EventDriven,
-            CollectionSource::Reader(ReaderId::OpencodeUsage) => SchedulePolicy::ExplicitOnly,
             CollectionSource::Reader(reader) => SchedulePolicy::Interval {
                 base_seconds: reader.base_seconds(),
             },
@@ -185,12 +183,9 @@ impl ReaderId {
         }
     }
 
-    /// The trusted background cadence for this reader, in seconds.
-    ///
-    /// Zero is the explicit schedule exemption used by OpenCode. Its session
-    /// is browser held and HTTP only, so collection happens only when a person
-    /// asks for it. Local Claude observations do not have a `ReaderId` or a
-    /// connection record at all: they arrive through the statusline event.
+    /// The trusted background cadence for this reader, in seconds. Local
+    /// Claude observations do not have a `ReaderId` or a connection record at
+    /// all: they arrive through the statusline event.
     pub const fn base_seconds(self) -> u64 {
         match self {
             ReaderId::OpenrouterKey
@@ -198,9 +193,9 @@ impl ReaderId {
             | ReaderId::CodexUsage
             | ReaderId::GrokUsage
             | ReaderId::KimiUsage
+            | ReaderId::OpencodeUsage
             | ReaderId::CursorUsage => 300,
             ReaderId::AntigravityQuota => 600,
-            ReaderId::OpencodeUsage => 0,
         }
     }
 }
@@ -209,20 +204,13 @@ impl ReaderId {
 /// tokens are well under two hundred bytes; four kibibytes is generosity.
 pub const MAX_KEY_SECRET_BYTES: usize = 4_096;
 
-/// Largest browser session accepted, in bytes. A Cookie header carries several
-/// signed values at once, so it is measured in kilobytes rather than hundreds
-/// of bytes. See `CredentialKind::max_secret_bytes` for why this is not one
-/// number for everything.
-pub const MAX_BROWSER_SESSION_BYTES: usize = 16_384;
-
 /// What kind of secret a connection holds.
 ///
 /// The kind is not decoration: it decides the address the secret may be sent
 /// to and the header it may be written into. An OpenRouter inference key and
 /// an OpenRouter management key read different endpoints; a Codex session is a
-/// bearer token for one host and nothing else; an OpenCode browser session is
-/// a cookie, which is the least trustworthy credential in the product and is
-/// labelled that way on every surface.
+/// bearer token for one host and nothing else; an OpenCode API key reads only
+/// OpenCode's usage address.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CredentialKind {
@@ -230,10 +218,13 @@ pub enum CredentialKind {
     OpenrouterManagementKey,
     CodexSession,
     AntigravitySession,
+    /// Retired in 2.1.13 with the OpenCode page scrape: kept so a stored record
+    /// still parses and can be retired, never routed.
     OpencodeBrowserSession,
     GrokSession,
     KimiSession,
     CursorSession,
+    OpencodeApiKey,
 }
 
 impl CredentialKind {
@@ -246,7 +237,7 @@ impl CredentialKind {
         CredentialKind::OpenrouterInferenceKey,
         CredentialKind::OpenrouterManagementKey,
         CredentialKind::CodexSession,
-        CredentialKind::OpencodeBrowserSession,
+        CredentialKind::OpencodeApiKey,
         CredentialKind::GrokSession,
         CredentialKind::KimiSession,
         CredentialKind::CursorSession,
@@ -256,21 +247,15 @@ impl CredentialKind {
     ///
     /// Per kind, because the kinds are not the same shape of thing. An API key
     /// or an access token is a compact string and four kibibytes is already
-    /// generous for one. A browser session is a whole Cookie header, which
-    /// carries several signed values at once and is routinely several
-    /// kilobytes, so holding it to a key's bound would refuse perfectly
-    /// ordinary real sessions.
-    ///
-    /// Sixteen kibibytes is a bound, not a target. Anything above it is refused
-    /// with the ordinary fixed error and NEVER truncated: half a cookie is not
-    /// a smaller cookie, it is a credential that fails authentication in a way
-    /// nobody can debug, and a silently shortened secret is the worst outcome
-    /// available here.
+    /// generous for one; Cursor's session is larger. Anything above the bound
+    /// is refused with the ordinary fixed error and NEVER truncated: a
+    /// silently shortened secret is the worst outcome available here.
     pub const fn max_secret_bytes(self) -> usize {
         match self {
-            CredentialKind::OpencodeBrowserSession => MAX_BROWSER_SESSION_BYTES,
             CredentialKind::CursorSession => 32_768,
-            CredentialKind::OpenrouterInferenceKey
+            CredentialKind::OpencodeBrowserSession
+            | CredentialKind::OpencodeApiKey
+            | CredentialKind::OpenrouterInferenceKey
             | CredentialKind::OpenrouterManagementKey
             | CredentialKind::CodexSession
             | CredentialKind::AntigravitySession
@@ -288,7 +273,9 @@ impl CredentialKind {
             }
             CredentialKind::CodexSession => ProviderId::Codex,
             CredentialKind::AntigravitySession => ProviderId::Antigravity,
-            CredentialKind::OpencodeBrowserSession => ProviderId::Opencode,
+            CredentialKind::OpencodeBrowserSession | CredentialKind::OpencodeApiKey => {
+                ProviderId::Opencode
+            }
             CredentialKind::GrokSession => ProviderId::Grok,
             CredentialKind::KimiSession => ProviderId::Kimi,
             CredentialKind::CursorSession => ProviderId::Cursor,
@@ -306,7 +293,7 @@ impl CredentialKind {
 #[serde(rename_all = "snake_case")]
 pub enum AuthApplication {
     /// `Authorization: Bearer <secret>` with the OpenLimiter identity and JSON
-    /// response preference. The OpenRouter path.
+    /// response preference. The OpenRouter and OpenCode path.
     BearerAuthorization,
     /// A bearer token plus the fixed OAuth usage contract headers Claude Code uses.
     ClaudeOauthBearer,
@@ -322,10 +309,6 @@ pub enum AuthApplication {
     /// the OpenLimiter identity. This scheme is used only by the two constant
     /// Code Assist quota addresses in `net.rs`.
     GeminiCliBearer,
-    /// `Cookie: <secret>` with the OpenLimiter identity. The authenticated page
-    /// path, and the reason OpenCode is permanently labelled an authenticated
-    /// scrape.
-    BrowserSessionCookie,
 }
 
 /// Everything a probe needs, and nothing it could be talked out of.
@@ -382,6 +365,7 @@ pub const fn reader_route(
             CredentialKind::CodexSession
             | CredentialKind::AntigravitySession
             | CredentialKind::OpencodeBrowserSession
+            | CredentialKind::OpencodeApiKey
             | CredentialKind::GrokSession
             | CredentialKind::KimiSession
             | CredentialKind::CursorSession => mismatch,
@@ -396,18 +380,20 @@ pub const fn reader_route(
             | CredentialKind::OpenrouterManagementKey
             | CredentialKind::AntigravitySession
             | CredentialKind::OpencodeBrowserSession
+            | CredentialKind::OpencodeApiKey
             | CredentialKind::GrokSession
             | CredentialKind::KimiSession
             | CredentialKind::CursorSession => mismatch,
         },
         ProviderId::Antigravity => mismatch,
         ProviderId::Opencode => match credential {
-            CredentialKind::OpencodeBrowserSession => Ok(ReaderRoute {
+            CredentialKind::OpencodeApiKey => Ok(ReaderRoute {
                 reader_id: ReaderId::OpencodeUsage,
                 endpoint: Some(ProviderEndpoint::OpencodeUsage),
-                auth: AuthApplication::BrowserSessionCookie,
+                auth: AuthApplication::BearerAuthorization,
             }),
-            CredentialKind::OpenrouterInferenceKey
+            CredentialKind::OpencodeBrowserSession
+            | CredentialKind::OpenrouterInferenceKey
             | CredentialKind::OpenrouterManagementKey
             | CredentialKind::CodexSession
             | CredentialKind::AntigravitySession
@@ -426,6 +412,7 @@ pub const fn reader_route(
             | CredentialKind::CodexSession
             | CredentialKind::AntigravitySession
             | CredentialKind::OpencodeBrowserSession
+            | CredentialKind::OpencodeApiKey
             | CredentialKind::KimiSession
             | CredentialKind::CursorSession => mismatch,
         },
@@ -440,6 +427,7 @@ pub const fn reader_route(
             | CredentialKind::CodexSession
             | CredentialKind::AntigravitySession
             | CredentialKind::OpencodeBrowserSession
+            | CredentialKind::OpencodeApiKey
             | CredentialKind::GrokSession
             | CredentialKind::CursorSession => mismatch,
         },
@@ -454,6 +442,7 @@ pub const fn reader_route(
             | CredentialKind::CodexSession
             | CredentialKind::AntigravitySession
             | CredentialKind::OpencodeBrowserSession
+            | CredentialKind::OpencodeApiKey
             | CredentialKind::GrokSession
             | CredentialKind::KimiSession => mismatch,
         },
@@ -607,7 +596,7 @@ mod tests {
             (ReaderId::OpenrouterCredits, 300),
             (ReaderId::CodexUsage, 300),
             (ReaderId::AntigravityQuota, 600),
-            (ReaderId::OpencodeUsage, 0),
+            (ReaderId::OpencodeUsage, 300),
         ];
         for (reader, seconds) in expected {
             assert_eq!(reader.base_seconds(), seconds);
@@ -623,18 +612,24 @@ mod tests {
     }
 
     #[test]
-    fn session_pairs_and_browser_sessions_have_explicit_bounds() {
+    fn session_pairs_have_explicit_bounds() {
         for credential in CredentialKind::ALL {
-            let expected = if credential == CredentialKind::OpencodeBrowserSession {
-                MAX_BROWSER_SESSION_BYTES
-            } else if credential == CredentialKind::CursorSession {
+            let expected = if credential == CredentialKind::CursorSession {
                 32_768
             } else {
                 MAX_KEY_SECRET_BYTES
             };
             assert_eq!(credential.max_secret_bytes(), expected);
         }
-        assert!(MAX_BROWSER_SESSION_BYTES > MAX_KEY_SECRET_BYTES);
+    }
+
+    #[test]
+    fn the_retired_opencode_cookie_never_routes() {
+        assert!(reader_route(ProviderId::Opencode, CredentialKind::OpencodeBrowserSession).is_err());
+        let route = reader_route(ProviderId::Opencode, CredentialKind::OpencodeApiKey).expect("key route");
+        assert_eq!(route.endpoint, Some(ProviderEndpoint::OpencodeUsage));
+        assert_eq!(route.auth, AuthApplication::BearerAuthorization);
+        assert!(!CredentialKind::ALL.contains(&CredentialKind::OpencodeBrowserSession));
     }
 
     #[test]

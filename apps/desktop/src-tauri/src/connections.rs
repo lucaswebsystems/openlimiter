@@ -240,10 +240,39 @@ struct ConnectionsDocumentV3 {
     cap_migration_v1: CapMigrationV1,
 }
 
+/// A record of a kind this build no longer reads: Antigravity's retired
+/// session, and OpenCode's browser cookie (2.1.13), replaced by OpenCode's own
+/// sign in and an API key.
 fn is_retired_antigravity(record: &ConnectionRecord) -> bool {
     record.provider_id == ProviderId::Antigravity
         || record.credential_kind == CredentialKind::AntigravitySession
         || record.reader_id == ReaderId::AntigravityQuota
+        || (record.provider_id == ProviderId::Opencode
+            && record.credential_kind == CredentialKind::OpencodeBrowserSession)
+}
+
+/// Retire records of a retired kind from a current document in place, the way
+/// the version 3 migration does. True when anything left.
+fn retire_in_place(document: &mut ConnectionsDocument) -> bool {
+    let (connections, retired) = retire_antigravity_connections(std::mem::take(&mut document.connections));
+    document.connections = connections;
+    if retired.is_empty() {
+        return false;
+    }
+    document
+        .cap_migration_v1
+        .grandfathered_ids
+        .retain(|id| !retired.contains(id));
+    document
+        .cap_migration_v1
+        .consumed
+        .retain(|entry| !retired.contains(&entry.stable_id));
+    for id in retired {
+        if !document.retired_credential_ids.contains(&id) {
+            document.retired_credential_ids.push(id);
+        }
+    }
+    true
 }
 
 fn retire_antigravity_connections(
@@ -654,10 +683,12 @@ impl ConnectionsStore {
         reads AND writes, so the file survives. */
         let probe: DocumentVersionProbe =
             serde_json::from_str(&text).map_err(|_| StoreError::Corrupt)?;
+        let mut retired_now = false;
         let mut document = match probe.version {
             CONNECTIONS_DOCUMENT_VERSION => {
-                let document: ConnectionsDocument =
+                let mut document: ConnectionsDocument =
                     serde_json::from_str(&text).map_err(|_| StoreError::Corrupt)?;
+                retired_now = retire_in_place(&mut document);
                 document
             }
             CONNECTIONS_DOCUMENT_VERSION_PRE_CAP => {
@@ -702,7 +733,7 @@ impl ConnectionsStore {
             record.base_seconds = record.reader_id.base_seconds();
         }
         validate_document(&document)?;
-        if probe.version != CONNECTIONS_DOCUMENT_VERSION {
+        if probe.version != CONNECTIONS_DOCUMENT_VERSION || retired_now {
             self.save_document(&document)?;
             let reopened = fsx::bounded_read(&file).ok_or(StoreError::Io)?;
             let verified: ConnectionsDocument =
@@ -1519,6 +1550,35 @@ mod tests {
         assert_eq!(store.list(), Err(StoreError::Corrupt));
         assert_eq!(store.get("../../evil"), Err(StoreError::Corrupt));
         assert_eq!(store.insert(record("z9")), Err(StoreError::Corrupt));
+    }
+
+    #[test]
+    fn a_saved_opencode_cookie_is_retired_and_the_store_stays_usable() {
+        let dir = TempDir::new();
+        let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        let cookie = record_json("abc-123", "personal", "opencode_browser_session")
+            .replace(r#""provider_id":"openrouter","reader_id":"openrouter_key""#, r#""provider_id":"opencode","reader_id":"opencode_usage""#);
+        write_document(&dir, &[cookie, record_json("keep-1", "work", "openrouter_inference_key")]);
+        let kept = store.list().expect("the store still opens");
+        assert_eq!(kept.iter().map(|record| record.id.as_str()).collect::<Vec<_>>(), vec!["keep-1"]);
+        let saved = std::fs::read_to_string(dir.path().join(CONNECTIONS_FILE_NAME)).expect("saved");
+        assert!(saved.contains(r#""retired_credential_ids":["abc-123"]"#), "{saved}");
+        /* A cookie record inside a current document is retired the same way. */
+        let current: serde_json::Value = serde_json::from_str(&saved).expect("json");
+        let mut current = current;
+        let late = serde_json::from_str::<serde_json::Value>(
+            &record_json("late-1", "late", "opencode_browser_session")
+                .replace(r#""provider_id":"openrouter","reader_id":"openrouter_key""#, r#""provider_id":"opencode","reader_id":"opencode_usage""#),
+        )
+        .expect("record");
+        let mut late = late;
+        late["base_seconds"] = serde_json::json!(300);
+        current["connections"].as_array_mut().expect("array").push(late);
+        std::fs::write(dir.path().join(CONNECTIONS_FILE_NAME), current.to_string()).expect("write");
+        assert_eq!(store.list().expect("opens").len(), 1);
+        let saved = std::fs::read_to_string(dir.path().join(CONNECTIONS_FILE_NAME)).expect("saved");
+        assert!(saved.contains("late-1") && !saved.contains(r#""id":"late-1""#), "{saved}");
+        assert!(store.insert(record("z9")).is_ok());
     }
 
     #[test]

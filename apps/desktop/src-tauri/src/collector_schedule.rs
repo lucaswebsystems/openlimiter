@@ -116,7 +116,7 @@ mod tests {
                 (ProviderId::Antigravity, CredentialKind::AntigravitySession)
             }
             ReaderId::OpencodeUsage => {
-                (ProviderId::Opencode, CredentialKind::OpencodeBrowserSession)
+                (ProviderId::Opencode, CredentialKind::OpencodeApiKey)
             }
             ReaderId::GrokUsage => (ProviderId::Grok, CredentialKind::GrokSession),
             ReaderId::KimiUsage => (ProviderId::Kimi, CredentialKind::KimiSession),
@@ -154,7 +154,7 @@ mod tests {
             (ReaderId::OpenrouterCredits, Some(300)),
             (ReaderId::CodexUsage, Some(300)),
             (ReaderId::AntigravityQuota, Some(600)),
-            (ReaderId::OpencodeUsage, None),
+            (ReaderId::OpencodeUsage, Some(300)),
             (ReaderId::GrokUsage, Some(300)),
             (ReaderId::KimiUsage, Some(300)),
             (ReaderId::CursorUsage, Some(300)),

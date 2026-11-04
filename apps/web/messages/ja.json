@@ -607,8 +607,8 @@
         "detail": "ドキュメント化されたAntigravity CLIのstatuslineからquotaを読み取ります。認証情報は読まず、ネットワークリクエストも行いません。"
       },
       "openCode": {
-        "tag": "すでに開いているセッションを読み取ります",
-        "detail": "実験的なアダプターで OpenCode の使用量を読み取り、必要なバージョンと設定を明示します。"
+        "tag": "OpenCode が保存済みのログインを読み取ります",
+        "detail": "opencode CLI がこのコンピューターに保存したログイン、または貼り付けた API キーで、OpenCode Go のローリング、週間、月間の使用量を読み取ります。そのログインを更新することはなく、エンドポイントは文書化されていないため、動かなくなることがあります。"
       },
       "gemini": {
         "tag": "インストール済みCLIからモデルquotaを読み取ります",
@@ -1198,8 +1198,8 @@
                 "reads": "文書化されたステータス行から割り当てを読みます。Antigravity CLI で /usage を使って更新してください。"
               },
               "opencode": {
-                "connect": "インポート専用です。ドキュメントは自分で用意します。",
-                "reads": "A usage view behind a session you already signed in to. May break without notice."
+                "connect": "opencode CLI が保存済みのログインを使うか、OpenCode の API キーを貼り付けます。",
+                "reads": "文書化されていないエンドポイントから読み取る、OpenCode Go のローリング、週間、月間の使用量です。予告なく動かなくなることがあります。"
               },
               "manual": {
                 "connect": "数値は自分で入力します。",
@@ -1225,15 +1225,15 @@
           },
           "how-data-arrives": {
             "title": "How data actually arrives",
-            "intro": "Most connectors read for themselves now. Two still do not, and this is the part worth stating plainly.",
+            "intro": "現在、ほとんどのコネクターは自分で読み取ります。手動入力だけはそうではなく、その点ははっきり書いておきます。",
             "bullets": {
               "antigravity": "<code>antigravity</code> は文書化された Antigravity CLI のステータス行から届きます。Antigravity CLI で <code>/usage</code> を使って割り当てを更新してください。",
               "claude": "<code>claude</code> は Claude Code のステータス行が表示されるとすぐにデータを受け取ります。直接使用量リクエストはオンにするまでオフです。オンにすると、代わりにそれがすべての Claude のバーの情報源になります。",
               "live": "<code>codex</code>、<code>gemini_cli</code>、<code>grok</code>、<code>kimi</code>、<code>openrouter</code> は、それぞれのツールが保存したログインを最大15分に1回読み取ります。デスクトップアプリの更新処理、またはターミナルの <code>openlimiter refresh</code> が実行します。",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
-              "ingestOnly": "<code>opencode</code> is the one connector left with no reader of its own: it only accepts data through <code>openlimiter ingest --provider opencode</code>, because it reads an authenticated page rather than a login file."
+              "ingestOnly": "デスクトップアプリは、opencode CLI がこのコンピューターに保存したログイン（読み取り専用で、更新はしません）か、貼り付けた OpenCode の API キーで <code>opencode</code> を読み取ります。OpenCode Go のローリング、週間、月間の使用量を文書化されていない単一のエンドポイントから読むため、自動化リスクは高くなります。"
             },
-            "exactShapes": "The <docs>ingestion page</docs> documents the manual and OpenCode shapes in full."
+            "exactShapes": "<docs>取り込みのページ</docs>で、手動入力の形式をすべて説明しています。"
           },
           "labels": {
             "title": "Reading the labels",
@@ -1415,8 +1415,8 @@
               },
               "opencode": {
                 "name": "OpenCode",
-                "reports": "最も制約の強いローリング使用量ウィンドウとリセットまでの時間。",
-                "source": "既存のブラウザーセッションと、認証済みworkspaceページの読み取り。"
+                "reports": "OpenCode Go の五時間、週間、月間の使用量、およびリセット時刻。",
+                "source": "opencode CLI がこのデバイスに保存したログイン（読み取りのみで、更新はしません）または OpenCode の API キー。送信先は OpenCode の文書化されていない使用量エンドポイントだけです。"
               },
               "openrouter": {
                 "name": "OpenRouter",
@@ -1940,7 +1940,7 @@
             "bullets": {
               "noOfficialApi": "ほとんどのコンシューマー向けサブスクリプションのプロバイダーは、公式のquota APIを提供していません。そのため、いくつかのconnectorは、予告なく変更されたり消えたりしうる非公式なインターフェースを扱っています。",
               "unverified": "明示的な検証者によって実際のアカウントで確認されたconnectorは、まだありません。CodexとCursorは記録済みのフィクスチャーに合格しており、その他のconnectorはすべて<code>UNVERIFIED</code>のマークつきで提供されます。",
-              "opencode": "OpenCodeコネクターは認証済みページの形式を扱い、自動化リスクが高い機能です。8つの中で最も壊れやすいものとして扱ってください。",
+              "opencode": "OpenCodeコネクターは文書化されていないOpenCodeのエンドポイントを読み取り、自動化リスクが高い機能です。8つの中で最も壊れやすいものとして扱ってください。",
               "adviceOnly": "OpenLimiterはルーティングのアドバイスを提供します。自動でリクエストをルーティングすることも、上限を回避することも、エージェントの認証の仕組みを変えることもありません。"
             }
           },
@@ -2188,9 +2188,9 @@
     "kimiDailyUsed": "1 日上限",
     "kimiSevenDayUsed": "7 日間上限",
     "kimiUsageUsed": "利用上限",
-    "opencodeFiveHourPage": "OpenCode ページから読み取った 5 時間上限",
-    "opencodeWeeklyPage": "OpenCode ページから読み取った週間上限",
-    "opencodeMonthlyPage": "OpenCode ページから読み取った月間上限",
+    "opencodeFiveHour": "5 時間上限",
+    "opencodeWeekly": "週間上限",
+    "opencodeMonthly": "月間上限",
     "noKeyCap": "キー上限なし",
     "keyNoSpendingCap": "このキーには利用上限がありません",
     "unavailableScope": "利用できません",

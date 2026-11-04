@@ -286,51 +286,14 @@ export function kimiFixture(now: string = FIXTURE_NOW): Record<string, unknown> 
  * critical threshold and every surface has to draw it. With Codex at 84 above,
  * the demo set now lands one meter in each of the four bands.
  */
-export function opencodeFixture(now: string = FIXTURE_NOW): string {
-  return opencodePage(
-    { percent: 92, resetsIn: "4 hours" },
-    { percent: 40, resetsIn: "5 days 20 hours" },
-    { percent: 15, resetsIn: "21 days" },
-    now
-  );
-}
-
-/** One window block as the workspace page renders it, hydration markers and all. */
-function opencodeWindowBlock(
-  label: string,
-  window: { percent: number; resetsIn: string | null }
-): string {
-  const reset = window.resetsIn === null
-    ? ""
-    : `<p class="muted">Resets in<!--/--> <!--$-->${window.resetsIn}<!--/--></p>`;
-  return `<section><h3>${label}</h3>` +
-    `<div class="bar"><span><!--$-->${String(window.percent)}%<!--/--></span></div>` +
-    reset +
-    `</section>`;
-}
-
-/**
- * The OpenCode workspace page, as HTML, because that is the only place these
- * numbers exist.
- *
- * Built rather than pasted so a fixture can move its numbers without anybody
- * hand editing markup, and deliberately carrying the framework's hydration
- * comments: a fixture of clean HTML would pass while the real page failed.
- * The `now` parameter is accepted for symmetry with the other builders; the
- * page states durations rather than instants, so it does not use one.
- */
-export function opencodePage(
-  rolling: { percent: number; resetsIn: string | null },
-  weekly: { percent: number; resetsIn: string | null },
-  monthly: { percent: number; resetsIn: string | null },
-  now: string = FIXTURE_NOW
-): string {
-  void now;
-  return `<!doctype html><html><body><main>` +
-    opencodeWindowBlock("Rolling Usage", rolling) +
-    opencodeWindowBlock("Weekly Usage", weekly) +
-    opencodeWindowBlock("Monthly Usage", monthly) +
-    `</main></body></html>`;
+export function opencodeFixture(now: string = FIXTURE_NOW): Record<string, unknown> {
+  return {
+    usage: {
+      rolling: { status: "ok", percent: 92, resetsAt: offset(now, 4 * 3_600) },
+      weekly: { status: "ok", percent: 40, resetsAt: offset(now, 5 * ONE_DAY + 20 * 3_600) },
+      monthly: { status: "ok", percent: 15, resetsAt: offset(now, 21 * ONE_DAY) }
+    }
+  };
 }
 
 export function manualFixture(now: string = FIXTURE_NOW): Record<string, unknown> {
@@ -480,9 +443,10 @@ export const documentedFixtures: readonly DocumentedFixture[] = [
     docsUrl: null,
     reviewedAt: FIXTURE_REVIEWED_AT,
     sourceStatus: "provisional",
-    note: "The logged in workspace page as observed on 2026-08-03: three labelled " +
-      "windows rendered into HTML. OpenCode publishes no usage interface at " +
-      "all, so this is design evidence only and stays a scrape.",
+    note: "The OpenCode Go usage reply as the desktop reader reads it on 2026-11-03: " +
+      "rolling, weekly and monthly windows with a status, a percent and an " +
+      "RFC3339 resetsAt. OpenCode documents none of it, so this is design " +
+      "evidence only.",
     expectedMeters: 3,
     build: (now) => opencodeFixture(now)
   },
@@ -695,27 +659,15 @@ export const antigravitySanitizedLive: SanitizedLiveFixture = {
   build: () => null
 };
 
-/**
- * PENDING CAPTURE: OpenCode workspace usage.
- *
- * The weakest evidence of the three, and permanently so. There is no interface
- * to capture: the meters exist only inside the html of a logged in page, so any
- * capture is a capture of a layout. That is why this provider's labels do not
- * improve when the slot is filled: browser-session, authenticated-scrape,
- * automationRisk high and UNVERIFIED are properties of the method, not of how
- * much evidence has been gathered about it.
- */
+/** PENDING CAPTURE: the OpenCode Go usage reply. */
 export const opencodeSanitizedLive: SanitizedLiveFixture = {
   id: "opencode.sanitized_live.usage",
   connector: "opencode",
   status: "pending_capture",
   capturedAt: null,
   providerVersion: null,
-  skipReason: "PENDING CAPTURE: no sanitized live OpenCode workspace page " +
-    "exists yet. Capture one on a real account, reduce it to the window " +
-    "labels, percentages and remaining durations only, paste the result " +
-    "here, then remove this reason. The honesty labels do not change when " +
-    "it lands.",
+  skipReason: "PENDING CAPTURE: the fixture is a synthetic reply in the observed " +
+    "shape, not a capture from a live OpenCode account.",
   expectedMeters: 0,
   build: () => null
 };
@@ -774,42 +726,6 @@ export function rebuildCodexCapture(capture: unknown, now: string): unknown {
   };
   if (length !== null) primary["windowDurationMins"] = length / 60;
   return { rateLimits: { limitId: "codex", primary } };
-}
-
-function captureDurationWords(seconds: number): string {
-  const days = Math.floor(seconds / 86_400);
-  const hours = Math.floor((seconds % 86_400) / 3_600);
-  const minutes = Math.floor((seconds % 3_600) / 60);
-  const parts: string[] = [];
-  if (days > 0) parts.push(String(days) + (days === 1 ? " day" : " days"));
-  if (hours > 0) parts.push(String(hours) + (hours === 1 ? " hour" : " hours"));
-  if (parts.length === 0 && minutes > 0) {
-    parts.push(String(minutes) + (minutes === 1 ? " minute" : " minutes"));
-  }
-  return parts.join(" ");
-}
-
-export function rebuildOpencodeCapture(capture: unknown, now: string): unknown {
-  const reduced = captureRecord(capture);
-  const windows = reduced?.["windows"];
-  if (!Array.isArray(windows) || windows.length !== 3) return null;
-  const byLabel = new Map<string, { percent: number; resetsIn: string | null }>();
-  for (const entry of windows) {
-    const window = captureRecord(entry);
-    const label = window?.["label"];
-    const percent = captureNumber(window?.["percent"]);
-    if (typeof label !== "string" || percent === null) return null;
-    const resetsIn = captureNumber(window?.["resetsInSeconds"]);
-    byLabel.set(label, {
-      percent,
-      resetsIn: resetsIn === null ? null : captureDurationWords(resetsIn)
-    });
-  }
-  const rolling = byLabel.get("Rolling Usage");
-  const weekly = byLabel.get("Weekly Usage");
-  const monthly = byLabel.get("Monthly Usage");
-  if (rolling === undefined || weekly === undefined || monthly === undefined) return null;
-  return opencodePage(rolling, weekly, monthly, now);
 }
 
 export const sanitizedLiveFixtures: readonly SanitizedLiveFixture[] = [

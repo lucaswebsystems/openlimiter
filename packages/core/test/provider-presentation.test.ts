@@ -67,9 +67,12 @@ describe("provider meter presentation", () => {
       .toBe("Limite de uso (2h) 2");
   });
 
-  it("names OpenCode page readings and hides unverified Cursor bars", () => {
-    expect(providerMeterPresentation("OPENCODE", "FIVE_HOUR")?.defaultLabel)
-      .toBe("5 hour limit, from the OpenCode page");
+  it("names OpenCode windows plainly and hides unverified Cursor bars", () => {
+    expect(providerMeterPresentation("OPENCODE", "FIVE_HOUR")).toMatchObject({
+      labelKey: "opencodeFiveHour", defaultLabel: "5 hour limit", compactLabel: "5h",
+    });
+    expect(providerMeterPresentation("OPENCODE", "SEVEN_DAY")?.defaultLabel).toBe("Weekly limit");
+    expect(providerMeterPresentation("OPENCODE", "MONTHLY")?.defaultLabel).toBe("Monthly limit");
     for (const meter of ["AUTO", "API", "INCLUDED"]) {
       expect(providerMeterPresentation("CURSOR", meter)?.visible).toBe(false);
     }

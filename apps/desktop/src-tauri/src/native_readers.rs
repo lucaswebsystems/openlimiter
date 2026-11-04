@@ -3,7 +3,6 @@ use std::collections::BTreeMap;
 use chrono::{Datelike, TimeZone, Utc};
 use serde_json::{Map, Value};
 
-use crate::native_opencode::parse_opencode;
 use crate::native_snapshot::{
     future_epoch_seconds, future_rfc3339, iso_from_epoch_ms, ConnectorLabels, Snapshot,
     SnapshotWindow,
@@ -1101,6 +1100,59 @@ fn parse_kimi(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>
     Some(snapshots)
 }
 
+/// OpenCode Go's usage JSON: the rolling five hours and the week, always, and
+/// the month when the plan states one. A rate limited window keeps the
+/// percentage the server states: nothing here invents a number.
+fn parse_opencode(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
+    const WINDOWS: [(&str, &str, u64, bool); 3] = [
+        ("rolling", "FIVE_HOUR", 18_000, true),
+        ("weekly", "SEVEN_DAY", 604_800, true),
+        ("monthly", "MONTHLY", 2_592_000, false),
+    ];
+    let root: Value = serde_json::from_str(body).ok()?;
+    let usage = root.get("usage")?.as_object()?;
+    let observed_at = iso_from_epoch_ms(now_ms)?;
+    let expires_at = iso_from_epoch_ms(now_ms.saturating_add(60_000))?;
+    let connector_labels = labels("official-local-tool", "internal-endpoint", "high");
+    let mut snapshots = Vec::new();
+    for (name, meter, seconds, required) in WINDOWS {
+        let Some(window) = usage.get(name) else {
+            if required {
+                return None;
+            }
+            continue;
+        };
+        let window = window.as_object()?;
+        if !matches!(window.get("status")?.as_str()?, "ok" | "rate-limited") {
+            return None;
+        }
+        let percent = window.get("percent")?.as_f64()?;
+        if !percent.is_finite() || !(0.0..=100.0).contains(&percent) {
+            return None;
+        }
+        let reset_at = window.get("resetsAt").and_then(Value::as_str).and_then(|text| {
+            future_rfc3339(text, now_ms, seconds.saturating_mul(2).saturating_add(CLOCK_SKEW_SECONDS))
+        });
+        snapshots.push(base_snapshot(
+            "OPENCODE",
+            meter,
+            percent,
+            SnapshotWindow {
+                kind: "rolling".to_string(),
+                duration_seconds: Some(seconds),
+            },
+            reset_at,
+            "internal_payload",
+            "estimated",
+            &observed_at,
+            &expires_at,
+            connector_labels.clone(),
+            account_id,
+        ));
+    }
+    Some(snapshots)
+}
+
 pub fn parse_body(
     reader: ReaderId,
     body: &str,
@@ -1350,29 +1402,25 @@ mod tests {
     }
 
     #[test]
-    fn explicit_opencode_reader_stays_text_only_and_bounded() {
-        let body = concat!(
-            "<main>",
-            "<section><h2>Rolling Usage</h2><b>10%</b><p>Resets in 1 hour</p></section>",
-            "<section><h2>Weekly Usage</h2><b>20%</b><p>Resets in 1 day</p></section>",
-            "<section><h2>Monthly Usage</h2><b>30%</b><p>Resets in 5 days</p></section>",
-            "</main>"
-        );
-        let rows =
-            parse_body(ReaderId::OpencodeUsage, body, now(), ACCOUNT).expect("readable page");
+    fn opencode_reads_its_usage_json_and_refuses_anything_else() {
+        let body = r#"{"usage":{"rolling":{"status":"ok","percent":10,"resetsAt":"2026-08-16T15:00:00.000Z"},"weekly":{"status":"rate-limited","percent":97,"resetsAt":"2026-08-20T00:00:00.000Z"},"monthly":{"status":"ok","percent":30,"resetsAt":"2026-09-01T00:00:00.000Z"}}}"#;
+        let rows = parse_body(ReaderId::OpencodeUsage, body, now(), ACCOUNT).expect("readable");
         assert_eq!(rows.len(), 3);
-        assert!(rows.iter().all(|row| {
-            row.provider == "OPENCODE" && row.account_id.as_deref() == Some(ACCOUNT)
-        }));
-        assert!(rows
-            .iter()
-            .any(|row| row.meter == "FIVE_HOUR" && row.value == 10.0));
-        assert!(rows
-            .iter()
-            .any(|row| row.meter == "SEVEN_DAY" && row.value == 20.0));
-        assert!(rows
-            .iter()
-            .any(|row| row.meter == "MONTHLY" && row.value == 30.0));
+        assert!(rows.iter().all(|row| row.provider == "OPENCODE" && row.account_id.as_deref() == Some(ACCOUNT)));
+        assert!(rows.iter().any(|row| row.meter == "FIVE_HOUR" && row.value == 10.0 && row.reset_at.is_some()));
+        assert!(rows.iter().any(|row| row.meter == "SEVEN_DAY" && row.value == 97.0), "rate limited keeps its percent");
+        assert!(rows.iter().any(|row| row.meter == "MONTHLY" && row.value == 30.0));
+        let without_month = r#"{"usage":{"rolling":{"status":"ok","percent":1},"weekly":{"status":"ok","percent":2}}}"#;
+        assert_eq!(parse_body(ReaderId::OpencodeUsage, without_month, now(), ACCOUNT).expect("two windows").len(), 2);
+        for refused in [
+            "<html>Rolling Usage 10%</html>",
+            r#"{"usage":{"rolling":{"status":"ok","percent":10}}}"#,
+            r#"{"usage":{"rolling":{"status":"ok","percent":101},"weekly":{"status":"ok","percent":2}}}"#,
+            r#"{"usage":{"rolling":{"status":"paused","percent":1},"weekly":{"status":"ok","percent":2}}}"#,
+            r#"{"error":{"type":"authentication_error","code":"api_key_expired"}}"#,
+        ] {
+            assert!(parse_body(ReaderId::OpencodeUsage, refused, now(), ACCOUNT).is_none(), "{refused}");
+        }
     }
 
     #[test]

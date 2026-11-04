@@ -644,6 +644,9 @@ function nextStep(code, name, { flag, flags, records, detection, claude }) {
   if (CONNECTABLE.has(code) && (refused || flag?.fixKind === "reconnect")) return step("connect", "connect");
   if (records.some((record) => LIVE.has(record.state)) && flag === undefined) return waiting;
   if (code === "OPENROUTER") return records.length === 0 ? step("connect", "connect") : step("check", "fixOpenAppAction");
+  /* OpenCode reads its own sign in by itself. With none that works, Connect
+     opens its panel: the sign in command, Check again, or an API key. */
+  if (code === "OPENCODE" && detection?.state !== "present" && records.length === 0) return step("connect", "connect");
   if (loggedOut || flag?.fixKind === "sign_in") return signInAgain;
   if (detection?.state === "present" && flag === undefined) return waiting;
   return step("check", "fixOpenAppAction", title(flag?.fixKind === "open_app" ? "fixOpenAppDetail" : "fixToolDetail"));

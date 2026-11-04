@@ -1,0 +1,64 @@
+{
+  "expected": {
+    "outcome": "readings",
+    "readings": [
+      {
+        "provider": "OPENCODE",
+        "meter": "FIVE_HOUR",
+        "value": 0,
+        "unit": "PERCENT",
+        "window": {
+          "kind": "rolling",
+          "durationSeconds": 18000
+        },
+        "resetAt": "2026-08-07T17:00:00.000Z",
+        "precision": "estimated",
+        "source": "internal_payload",
+        "kind": null,
+        "availability": null,
+        "currency": null,
+        "usedAmount": null,
+        "limitAmount": null,
+        "observedAt": "2026-08-07T12:00:00.000Z"
+      },
+      {
+        "provider": "OPENCODE",
+        "meter": "MONTHLY",
+        "value": 0,
+        "unit": "PERCENT",
+        "window": {
+          "kind": "rolling",
+          "durationSeconds": 2592000
+        },
+        "resetAt": "2026-09-01T00:00:00.000Z",
+        "precision": "estimated",
+        "source": "internal_payload",
+        "kind": null,
+        "availability": null,
+        "currency": null,
+        "usedAmount": null,
+        "limitAmount": null,
+        "observedAt": "2026-08-07T12:00:00.000Z"
+      },
+      {
+        "provider": "OPENCODE",
+        "meter": "SEVEN_DAY",
+        "value": 0,
+        "unit": "PERCENT",
+        "window": {
+          "kind": "rolling",
+          "durationSeconds": 604800
+        },
+        "resetAt": "2026-08-14T00:00:00.000Z",
+        "precision": "estimated",
+        "source": "internal_payload",
+        "kind": null,
+        "availability": null,
+        "currency": null,
+        "usedAmount": null,
+        "limitAmount": null,
+        "observedAt": "2026-08-07T12:00:00.000Z"
+      }
+    ]
+  }
+}

@@ -96,7 +96,7 @@ Eight connectors ship in ${site.CURRENT_VERSION}, plus manual entry, and the des
 - \`gemini_cli\`: read only, from the login the Gemini CLI stored. Internal endpoint. High automation risk.
 - \`grok\`: reads the login the Grok CLI stored, with its weekly credit window. Internal endpoint. High automation risk.
 - \`kimi\`: reads the login the Kimi CLI stored, with its weekly summary and five hour limit. Internal endpoint. High automation risk.
-- \`opencode\`: reads a usage view behind a session you already signed in to, imported through \`openlimiter ingest --provider opencode\`. Authenticated page. High automation risk. May break.
+- \`opencode\`: desktop only. Connects automatically from the sign in the opencode CLI saved on this computer (read only, never refreshed), or from an OpenCode API key, and reads OpenCode Go's rolling, weekly and monthly usage. Internal endpoint, undocumented. High automation risk. May break.
 - \`manual\`: reads numbers you write yourself. Manual entry. Never breaks, never guesses.
 - \`cursor\`: experimental, desktop only. Reads the existing local Cursor session in place, sent only to Cursor. Internal endpoint. High automation risk.
 

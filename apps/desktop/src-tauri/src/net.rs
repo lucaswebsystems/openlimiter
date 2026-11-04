@@ -65,43 +65,19 @@ pub const GEMINI_CLI_LOAD_URL: &str =
 pub const GEMINI_CLI_QUOTA_URL: &str =
     "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota";
 
-/// The first of the two constant addresses the OpenCode reader uses: the
-/// authenticated entry point, whose redirect names the workspace.
+/// OpenCode Go's usage, as JSON, for the bearer of an OpenCode sign in or Go
+/// API key: rolling, weekly and monthly percentages with their resets.
 ///
-/// OpenCode publishes no usage interface at all. The plan percentages exist
-/// only on the logged in workspace page, which is why this provider is
-/// permanently labelled an authenticated scrape with a high automation risk.
-pub const OPENCODE_AUTH_URL: &str = "https://opencode.ai/auth";
-
-/// The prefix of the second constant address, before the workspace handle.
-pub const OPENCODE_WORKSPACE_URL_PREFIX: &str = "https://opencode.ai/workspace/";
-
-/// The suffix of the second constant address, after the workspace handle.
-pub const OPENCODE_WORKSPACE_URL_SUFFIX: &str = "/go";
+/// Not documented by OpenCode. It is the address OpenCode's own clients and
+/// several community meters read, so it carries the high automation risk of
+/// the other private reads.
+pub const OPENCODE_USAGE_URL: &str = "https://opencode.ai/zen/go/v1/usage";
 
 /// Every address this process may speak to. Adding a provider means adding a
-/// variant here, in code, in review; nothing at runtime can.
-///
-/// DECISION, ratified 2026-08-10, and settled: do not reopen it.
-///
-/// One variant is not necessarily one request. `OpencodeUsage` owns two
-/// constant addresses because its entry point names the workspace carrying
-/// the meters.
-///
-/// The rejected alternative was a sixth enum variant for the entry point. It
-/// was rejected because the endpoint vocabulary is the frozen contract shared
-/// with the registry and the webview, and widening it there to describe an
-/// implementation detail of one reader would have leaked a hop into a
-/// vocabulary that names DESTINATIONS. One reader, one variant; how many
-/// requests that reader takes is this file's business.
-///
-/// The closure property is unchanged and is what makes the concession safe.
-/// Both addresses are built here, from constants here. The workspace handle
-/// between them is a `WorkspaceHandle`, whose only constructor refuses anything
-/// that is not the provider's own opaque token, and which is obtained by
-/// parsing a redirect target rather than by following it. Nothing outside this
-/// file, and in particular nothing arriving over IPC, from YAML, or from a
-/// provider response body, can widen or redirect either address.
+/// variant here, in code, in review; nothing at runtime can. One variant is
+/// one constant address, and nothing outside this file, in particular nothing
+/// arriving over IPC, from YAML, or from a provider response body, can widen
+/// or redirect it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProviderEndpoint {
@@ -132,24 +108,19 @@ impl ProviderEndpoint {
         ProviderEndpoint::CursorUsage,
     ];
 
-    /// The address the first request of this endpoint goes to.
+    /// The address this endpoint's request goes to.
     pub const fn url(self) -> &'static str {
         match self {
             ProviderEndpoint::OpenrouterKey => OPENROUTER_KEY_URL,
             ProviderEndpoint::OpenrouterCredits => OPENROUTER_CREDITS_URL,
             ProviderEndpoint::GeminiCliLoad => GEMINI_CLI_LOAD_URL,
             ProviderEndpoint::GeminiCliQuota => GEMINI_CLI_QUOTA_URL,
-            ProviderEndpoint::OpencodeUsage => OPENCODE_AUTH_URL,
+            ProviderEndpoint::OpencodeUsage => OPENCODE_USAGE_URL,
             ProviderEndpoint::ClaudeOauthUsage => CLAUDE_OAUTH_USAGE_URL,
             ProviderEndpoint::GrokUsage => GROK_USAGE_URL,
             ProviderEndpoint::KimiUsage => KIMI_USAGE_URL,
             ProviderEndpoint::CursorUsage => CURSOR_USAGE_URL,
         }
-    }
-
-    /// Whether this endpoint's read takes a second hop through a workspace.
-    pub const fn needs_workspace(self) -> bool {
-        matches!(self, ProviderEndpoint::OpencodeUsage)
     }
 
     /// The HTTP verb this endpoint answers. A constant per variant, never a
@@ -260,32 +231,6 @@ pub const CLAUDE_OAUTH_USER_AGENT: &str = OPENLIMITER_USER_AGENT;
 // Antigravity quota now arrives only through the documented status line
 // payload, outside the native HTTP transport. */
 
-/// The user agent the OpenCode workspace page is addressed with.
-pub const OPENCODE_USER_AGENT: &str = OPENLIMITER_USER_AGENT;
-
-/// The path segment that precedes a workspace handle in a redirect target.
-const WORKSPACE_PATH_MARKER: &str = "/workspace/";
-
-/// The status this reader reports when OpenCode's entry point leads anywhere
-/// that is not a workspace.
-///
-/// DECISION, ratified 2026-08-10, and settled: do not reopen it.
-///
-/// The entry point answers a redirect to the workspace when the session is
-/// alive, and a login page or a redirect to the auth host when it is not.
-/// Neither of those carries a status that means "your session is dead" on its
-/// own, and the transport failure vocabulary is closed at five kinds, so there
-/// is no sixth to invent for this. 401 is reported because 401 is what the
-/// situation IS: unauthenticated. The alternatives were all worse. Reporting
-/// the raw first hop status would call a dead session a redirect and land the
-/// connection in DEGRADED, where the scheduler would retry a session that can
-/// only be fixed by a person. Reporting a transport failure would claim the
-/// network broke when it plainly did not.
-///
-/// The consequence is deliberate: the connection lands in AUTH_EXPIRED, which
-/// is the one state whose sentence tells a person to paste the session again.
-pub const OPENCODE_SESSION_DEAD_STATUS: u16 = 401;
-
 /// The two verbs the allowlist uses, closed so no third can be requested.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -325,81 +270,12 @@ impl GeminiProjectId {
     }
 }
 
-/// Longest a workspace handle may be, in characters.
-const MAX_WORKSPACE_HANDLE_CHARS: usize = 64;
-
-/// The provider's own opaque handle for one workspace, validated on the way in.
-///
-/// This is the only value in the network layer that is not a compile time
-/// constant, and it exists because OpenCode's meters live behind a per
-/// workspace path. It is therefore the narrowest possible type: it can only be
-/// built from text matching `wrk_` followed by ASCII alphanumerics, so a path
-/// traversal, a host, a query string, or a scheme cannot survive construction,
-/// and the value can only be joined between two constants by `workspace_url`.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct WorkspaceHandle(String);
-
-impl WorkspaceHandle {
-    /// The handle, or nothing at all. Nothing is trimmed, repaired or escaped:
-    /// text that is not already a handle is not a handle.
-    pub fn parse(text: &str) -> Option<Self> {
-        let rest = text.strip_prefix("wrk_")?;
-        if rest.is_empty() || text.len() > MAX_WORKSPACE_HANDLE_CHARS {
-            return None;
-        }
-        if !rest.bytes().all(|byte| byte.is_ascii_alphanumeric()) {
-            return None;
-        }
-        Some(Self(text.to_string()))
-    }
-
-    /// The workspace page address for this handle: two constants and a handle
-    /// that has already been proven to be one.
-    pub fn workspace_url(&self) -> String {
-        let mut url = String::with_capacity(
-            OPENCODE_WORKSPACE_URL_PREFIX.len()
-                + self.0.len()
-                + OPENCODE_WORKSPACE_URL_SUFFIX.len(),
-        );
-        url.push_str(OPENCODE_WORKSPACE_URL_PREFIX);
-        url.push_str(&self.0);
-        url.push_str(OPENCODE_WORKSPACE_URL_SUFFIX);
-        url
-    }
-
-    #[cfg_attr(not(test), allow(dead_code))]
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-
-    /// The workspace named by a redirect target, if it names one.
-    ///
-    /// The only thing ever read out of a `Location` header, and the header text
-    /// goes no further than this function: what comes back is either a handle
-    /// that has already been proven to be one, or nothing. A target pointing at
-    /// another host, at a login page, or at a path this does not recognise
-    /// yields nothing, which the caller reads as a dead session.
-    pub fn from_redirect_target(target: &str) -> Option<Self> {
-        let after = target.split_once(WORKSPACE_PATH_MARKER)?.1;
-        let candidate = after.split(['/', '?', '#']).next().unwrap_or_default();
-        Self::parse(candidate)
-    }
-}
-
 /// What a transport hands back. The body is present only for a status in the
 /// 200 range; the transport drops every other body without reading it.
 pub struct TransportReply {
     pub status: u16,
     pub body: Vec<u8>,
     pub retry_after_seconds: Option<u64>,
-    /// The workspace a redirect named, when it named one.
-    ///
-    /// Deliberately a parsed handle rather than the header text. Redirects stay
-    /// disabled, so this is how the OpenCode reader learns where its meters
-    /// live without ever following an address the provider chose: it reads one
-    /// opaque token out of the target, validates it, and builds the second
-    /// address from its own constants.
-    pub location_workspace: Option<WorkspaceHandle>,
 }
 
 /// Transport failure with everything identifying removed. No payloads, so
@@ -421,8 +297,7 @@ pub enum TransportFailure {
 ///
 /// There is no public constructor that takes a caller supplied URL. Every value
 /// of this type is built by `fetch_endpoint` below out of a `ProviderEndpoint`,
-/// its constant method, its constant body, and at most one `WorkspaceHandle`
-/// that the transport itself parsed out of a redirect. `auth` names a scheme
+/// its constant method and its constant body. `auth` names a scheme
 /// rather than carrying a header map, so no caller can decide which header a
 /// secret is written into.
 pub struct EndpointRequest<'a> {
@@ -538,9 +413,6 @@ async fn fetch_endpoint_inner<T: Transport>(
         };
         return outcome_of(transport.send(&request, secret).await.map_err(NetError::from)?);
     }
-    if endpoint.needs_workspace() {
-        return fetch_through_workspace(transport, endpoint, auth, secret).await;
-    }
     if auth == AuthApplication::CodexSessionBearer {
         return Err(NetError::Protocol);
     }
@@ -635,65 +507,6 @@ pub async fn fetch_gemini_cli_quota<T: Transport>(
     }))
     .map_err(|_| NetError::Protocol)?;
     fetch_gemini_cli(transport, ProviderEndpoint::GeminiCliQuota, secret, &body).await
-}
-
-/// The two hop read, for the one provider that publishes no interface at all.
-///
-/// OpenCode's meters live only on a logged in workspace page, and the workspace
-/// is per account, so one constant address cannot reach them. This is the whole
-/// concession, and it is kept as narrow as it can be:
-///
-///   both addresses are built here, from constants here;
-///   redirects stay disabled, so the entry point cannot forward the session
-///     cookie anywhere; instead the redirect TARGET is read for one opaque
-///     token and discarded;
-///   the token must satisfy `WorkspaceHandle`, so a host, a scheme, a query or
-///     a traversal cannot survive into the second address;
-///   an entry point that names no workspace is a dead session, reported as an
-///     authentication status rather than as a successful read of nothing.
-async fn fetch_through_workspace<T: Transport>(
-    transport: &T,
-    endpoint: ProviderEndpoint,
-    auth: AuthApplication,
-    secret: &str,
-) -> Result<EndpointOutcome, NetError> {
-    let discovery = EndpointRequest {
-        url: endpoint.url(),
-        method: endpoint.method(),
-        auth,
-        provider_account_id: None,
-        body: None,
-    };
-    let found = transport
-        .send(&discovery, secret)
-        .await
-        .map_err(NetError::from)?;
-    let Some(workspace) = found.location_workspace.clone() else {
-        /* Login HTML and redirects without a workspace mean the session is
-        dead. A real HTTP failure must keep its own status and Retry-After so
-        the shared request policy can back off instead of inventing a 401. */
-        if !(200..=399).contains(&found.status) {
-            return outcome_of(found);
-        }
-        return Ok(EndpointOutcome {
-            status: OPENCODE_SESSION_DEAD_STATUS,
-            body: None,
-            retry_after_seconds: found.retry_after_seconds,
-        });
-    };
-    let url = workspace.workspace_url();
-    let request = EndpointRequest {
-        url: &url,
-        method: endpoint.method(),
-        auth,
-        provider_account_id: None,
-        body: None,
-    };
-    let reply = transport
-        .send(&request, secret)
-        .await
-        .map_err(NetError::from)?;
-    outcome_of(reply)
 }
 
 /// One transport reply as an outcome, with the same rules for every endpoint.
@@ -807,16 +620,6 @@ fn parse_retry_after_at(headers: &reqwest::header::HeaderMap, now: SystemTime) -
     }
 }
 
-/// The workspace a response's `Location` header names, if it names one.
-///
-/// The header value is read here and nowhere else, and only a validated handle
-/// leaves this function. A header that is not valid text, or that points at
-/// anything other than a workspace path, yields nothing.
-fn location_workspace(headers: &reqwest::header::HeaderMap) -> Option<WorkspaceHandle> {
-    let value = headers.get(reqwest::header::LOCATION)?.to_str().ok()?;
-    WorkspaceHandle::from_redirect_target(value)
-}
-
 /// Build the authenticated request without sending it. Keeping construction
 /// separate lets tests inspect header presence while no socket is opened.
 fn authenticated_builder(
@@ -851,7 +654,6 @@ fn authenticated_builder(
             credential.push_str(secret);
         }
         AuthApplication::CodexSessionBearer => return Err(TransportFailure::Protocol),
-        AuthApplication::BrowserSessionCookie => credential.push_str(secret),
     }
     let mut header_value = reqwest::header::HeaderValue::from_str(&credential)
         .map_err(|_| TransportFailure::Protocol)?;
@@ -897,10 +699,6 @@ fn authenticated_builder(
             .header(reqwest::header::COOKIE, header_value)
             .header(reqwest::header::USER_AGENT, OPENLIMITER_USER_AGENT)
             .header(reqwest::header::ACCEPT, "application/json"),
-        AuthApplication::BrowserSessionCookie => builder
-            .header(reqwest::header::COOKIE, header_value)
-            .header(reqwest::header::USER_AGENT, OPENCODE_USER_AGENT)
-            .header(reqwest::header::ACCEPT, "text/html"),
     };
     if let Some(body) = request.body {
         builder = builder.body(body.to_string());
@@ -921,16 +719,13 @@ impl Transport for ReqwestTransport {
         let response = builder.send().await.map_err(|error| classify(&error))?;
         let status = response.status().as_u16();
         let retry_after_seconds = parse_retry_after(response.headers());
-        let discovered = location_workspace(response.headers());
         if !(200..=299).contains(&status) {
             /* Dropped unread: the connection is closed with the body still on
-            the wire. The redirect target is not a body, and only one validated
-            token of it survives. */
+            the wire. */
             return Ok(TransportReply {
                 status,
                 body: Vec::new(),
                 retry_after_seconds,
-                location_workspace: discovered,
             });
         }
         let mut body = Vec::new();
@@ -945,7 +740,6 @@ impl Transport for ReqwestTransport {
             status,
             body,
             retry_after_seconds,
-            location_workspace: discovered,
         })
     }
 }
@@ -1048,10 +842,7 @@ mod tests {
             vec![
                 OPENROUTER_KEY_URL.to_string(),
                 OPENROUTER_CREDITS_URL.to_string(),
-                /* Two hops, both built here from constants and one validated
-                handle. */
-                OPENCODE_AUTH_URL.to_string(),
-                "https://opencode.ai/workspace/wrk_testworkspace/go".to_string(),
+                OPENCODE_USAGE_URL.to_string(),
                 CLAUDE_OAUTH_USAGE_URL.to_string(),
                 GROK_USAGE_URL.to_string(),
                 KIMI_USAGE_URL.to_string(),
@@ -1064,16 +855,11 @@ mod tests {
 
     #[test]
     fn every_allowlisted_address_is_https() {
-        /* Every address the process can reach, including the one built from a
-        workspace handle, and none of them may be plain HTTP. */
+        /* Every address the process can reach, and none of them may be plain
+        HTTP. */
         for endpoint in ProviderEndpoint::ALL {
             assert!(endpoint.url().starts_with("https://"));
         }
-        let handle = WorkspaceHandle::parse("wrk_abc123").expect("a handle");
-        assert!(handle
-            .workspace_url()
-            .starts_with("https://opencode.ai/workspace/"));
-        assert!(handle.workspace_url().ends_with("/go"));
     }
 
     #[test]
@@ -1090,16 +876,6 @@ mod tests {
             Some(GEMINI_CLI_LOAD_BODY)
         );
         assert_eq!(ProviderEndpoint::GeminiCliQuota.body(), None);
-    }
-
-    #[test]
-    fn only_opencode_needs_a_second_hop() {
-        for endpoint in ProviderEndpoint::ALL {
-            assert_eq!(
-                endpoint.needs_workspace(),
-                endpoint == ProviderEndpoint::OpencodeUsage
-            );
-        }
     }
 
     #[tokio::test]
@@ -1350,7 +1126,6 @@ mod tests {
             ),
             (AuthApplication::KimiSessionBearer, None),
             (AuthApplication::GeminiCliBearer, None),
-            (AuthApplication::BrowserSessionCookie, None),
         ] {
             let request = EndpointRequest {
                 url: OPENROUTER_KEY_URL,
@@ -1395,117 +1170,6 @@ mod tests {
     ///
     /// This used to assert the opposite: that the request carried
     /* -------------------------------------------------- the workspace hop */
-
-    #[test]
-    fn a_workspace_handle_refuses_everything_that_is_not_one() {
-        /* The one non constant part of any address, so the hostile cases are
-        stated rather than assumed: traversal, a host, a query, a scheme, an
-        empty handle, a wrong prefix, and anything over the bound. */
-        for hostile in [
-            "",
-            "wrk_",
-            "workspace",
-            "wrk-abc",
-            "wrk_abc/../../evil",
-            "wrk_abc?x=1",
-            "wrk_abc#frag",
-            "wrk_abc def",
-            "https://evil.test/wrk_abc",
-            "wrk_\u{e9}vil",
-            "../wrk_abc",
-        ] {
-            assert!(
-                WorkspaceHandle::parse(hostile).is_none(),
-                "a hostile workspace handle was accepted"
-            );
-        }
-        assert!(WorkspaceHandle::parse(&("wrk_".to_string() + &"a".repeat(61))).is_none());
-        assert!(WorkspaceHandle::parse(&("wrk_".to_string() + &"a".repeat(60))).is_some());
-        let handle = WorkspaceHandle::parse("wrk_Abc123").expect("a handle");
-        assert_eq!(handle.as_str(), "wrk_Abc123");
-    }
-
-    #[test]
-    fn a_redirect_target_yields_a_handle_or_nothing_at_all() {
-        /* What the reader may learn from a redirect: one opaque token, and only
-        when the target actually names a workspace. Everything else is a dead
-        session, not a new address. */
-        let accepted = [
-            ("/workspace/wrk_abc123", "wrk_abc123"),
-            ("/workspace/wrk_abc123/go", "wrk_abc123"),
-            ("https://opencode.ai/workspace/wrk_abc123/go", "wrk_abc123"),
-            ("/workspace/wrk_abc123?tab=go", "wrk_abc123"),
-        ];
-        for (target, expected) in accepted {
-            assert_eq!(
-                WorkspaceHandle::from_redirect_target(target).map(|it| it.as_str().to_string()),
-                Some(expected.to_string())
-            );
-        }
-        for refused in [
-            "/auth",
-            "https://auth.example.test/authorize?next=/workspace/",
-            "/workspace/",
-            "/workspace/not-a-handle",
-            "/workspace/../../evil",
-            "https://evil.test/",
-            "",
-        ] {
-            assert!(
-                WorkspaceHandle::from_redirect_target(refused).is_none(),
-                "a redirect target named a workspace it should not have"
-            );
-        }
-    }
-
-    #[tokio::test]
-    async fn an_entry_point_naming_no_workspace_is_an_authentication_status() {
-        /* A dead OpenCode session: the entry point leads to a login rather than
-        to a workspace. Reported as unauthenticated, with no body and with the
-        second hop never made. */
-        let transport = RecordingTransport::replying(302, b"<html>login</html>".to_vec(), None)
-            .without_workspace();
-        let outcome = fetch_endpoint(
-            &transport,
-            ProviderEndpoint::OpencodeUsage,
-            auth_for(ProviderEndpoint::OpencodeUsage),
-            "fake",
-            None,
-        )
-        .await
-        .expect("fetch");
-        assert_eq!(outcome.status, OPENCODE_SESSION_DEAD_STATUS);
-        assert_eq!(outcome.body, None);
-        assert_eq!(
-            transport.recorded_urls(),
-            vec![OPENCODE_AUTH_URL.to_string()],
-            "the second hop must not be made without a workspace"
-        );
-    }
-
-    #[tokio::test]
-    async fn opencode_discovery_keeps_rate_limit_and_service_backoff() {
-        for status in [429, 503] {
-            let transport =
-                RecordingTransport::replying(status, Vec::new(), Some(120)).without_workspace();
-            let outcome = fetch_endpoint(
-                &transport,
-                ProviderEndpoint::OpencodeUsage,
-                auth_for(ProviderEndpoint::OpencodeUsage),
-                "fake",
-                None,
-            )
-            .await
-            .expect("fetch");
-            assert_eq!(outcome.status, status);
-            assert_eq!(outcome.body, None);
-            assert_eq!(outcome.retry_after_seconds, Some(120));
-            assert_eq!(
-                transport.recorded_urls(),
-                vec![OPENCODE_AUTH_URL.to_string()]
-            );
-        }
-    }
 
     /* -------------------------------------------------------- the outcome */
 
@@ -1601,10 +1265,9 @@ mod tests {
     }
 
     #[test]
-    fn no_address_is_assembled_from_anything_but_constants_and_a_handle() {
-        /* The closure claim: the only string concatenation that produces a URL
-        in this file is workspace_url, and it joins two constants around a
-        validated handle. */
+    fn no_address_is_assembled_from_anything_but_constants() {
+        /* The closure claim: every address in this file is a constant, plus the
+        project identity in the user agent; nothing is concatenated. */
         let source = include_str!("net.rs");
         let head = source
             .split("mod tests")
@@ -1612,7 +1275,7 @@ mod tests {
             .expect("the module has a body before its tests");
         assert_eq!(
             head.matches("https://").count(),
-            11,
+            10,
             "an address appeared outside the constants"
         );
     }
@@ -1673,25 +1336,6 @@ mod tests {
     }
 
     #[test]
-    fn a_location_header_yields_only_a_handle() {
-        let mut headers = reqwest::header::HeaderMap::new();
-        headers.insert(
-            reqwest::header::LOCATION,
-            "/workspace/wrk_abc123/go".parse().unwrap(),
-        );
-        assert_eq!(
-            location_workspace(&headers).map(|it| it.as_str().to_string()),
-            Some("wrk_abc123".to_string())
-        );
-        headers.insert(
-            reqwest::header::LOCATION,
-            "https://auth.example.test/authorize".parse().unwrap(),
-        );
-        assert_eq!(location_workspace(&headers), None);
-        assert_eq!(location_workspace(&reqwest::header::HeaderMap::new()), None);
-    }
-
-    #[test]
     fn the_user_agent_names_this_build_and_is_written_in_one_place() {
         /* Every provider request that accepts a third party client says who
         it is, and it says so with the version this binary actually is. The
@@ -1707,7 +1351,6 @@ mod tests {
             )
         );
         assert_eq!(CLAUDE_OAUTH_USER_AGENT, OPENLIMITER_USER_AGENT);
-        assert_eq!(OPENCODE_USER_AGENT, OPENLIMITER_USER_AGENT);
         let written_by_hand = concat!("\"OpenLimiter/", "1.");
         for source in [include_str!("net.rs"), include_str!("api_spend.rs")] {
             assert!(!source.contains(written_by_hand));

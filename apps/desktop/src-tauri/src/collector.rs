@@ -622,21 +622,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn opencode_fixture_covers_cookie_two_hops_parse_and_cache() {
+    async fn opencode_key_fixture_covers_one_address_parse_and_cache() {
         let (urls, secrets, cache) = collect_fixture(
             ProviderId::Opencode,
-            CredentialKind::OpencodeBrowserSession,
-            include_bytes!("../../../../packages/connectors/fixtures/opencode.workspace.html"),
+            CredentialKind::OpencodeApiKey,
+            include_bytes!("../../../../packages/connectors/fixtures/opencode.usage.json"),
         )
         .await;
-        assert_eq!(
-            urls,
-            vec![
-                crate::net::OPENCODE_AUTH_URL.to_string(),
-                "https://opencode.ai/workspace/wrk_testworkspace/go".to_string()
-            ]
-        );
-        assert_eq!(secrets, vec![FIXTURE_SECRET, FIXTURE_SECRET]);
+        assert_eq!(urls, vec![crate::net::OPENCODE_USAGE_URL.to_string()]);
+        assert_eq!(secrets, vec![FIXTURE_SECRET]);
         assert!(cache.contains("OPENCODE"));
         assert!(cache.contains("FIVE_HOUR"));
         assert!(cache.contains("SEVEN_DAY"));

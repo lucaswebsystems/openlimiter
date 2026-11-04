@@ -285,17 +285,8 @@ export type ConnectorResult =
       connection?: ConnectionStatus;
     };
 
-/**
- * What a connector's payload IS, before its parser sees it.
- *
- * Almost every provider answers JSON. OpenCode answers a logged in HTML page,
- * because it publishes no usage interface at all. That difference cannot live
- * only in the reader that happens to know about it: the desktop pipeline, the
- * ingest command and the web engine all hand payloads to parsers, and any one
- * of them that assumes JSON silently breaks the text reader. So the connector
- * declares it, and every payload boundary asks.
- */
-export type ConnectorEncoding = "json" | "text";
+/** What a connector's payload IS before its parser sees it. Every provider answers JSON. */
+export type ConnectorEncoding = "json";
 
 /**
  * How much the INTERFACE behind a reader can be relied on.

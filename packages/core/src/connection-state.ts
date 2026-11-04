@@ -431,11 +431,7 @@ const catalogueCapabilities = {
   codex: { windows: supported, macos: supported, linux: supported },
   // The label states what this UI can do today; discovery returns only when its result reaches this surface.
   antigravity: { windows: manualExperimental, macos: manual, linux: manual },
-  opencode: {
-    windows: manualExperimental,
-    macos: manualExperimental,
-    linux: manualExperimental
-  },
+  opencode: { windows: supported, macos: supported, linux: supported },
   grok: { windows: supported, macos: supported, linux: supported },
   kimi: { windows: supported, macos: supported, linux: supported }
 } as const satisfies Record<

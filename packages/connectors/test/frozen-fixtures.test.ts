@@ -55,7 +55,7 @@ interface ManifestProvider {
   provider: string;
   connector: string;
   file: string;
-  encoding: "json" | "text";
+  encoding: "json";
   parser: string;
   evidence: string;
   expectedMeters: number;
@@ -73,10 +73,10 @@ const manifest = JSON.parse(
 
 const clock = manifest.captureClock;
 
-/** The raw file, decoded the way the manifest says its parser wants it. */
+/** The raw file, parsed as the JSON the manifest says it is. */
 function loadFixture(entry: ManifestProvider): unknown {
   const raw = readFileSync(resolve(FIXTURE_DIR, entry.file), "utf8");
-  return entry.encoding === "text" ? raw : JSON.parse(raw);
+  return JSON.parse(raw);
 }
 
 describe("frozen provider fixtures", () => {

@@ -130,7 +130,6 @@ import {
   MANUAL_PROVENANCE,
   STATUSLINE_PROVENANCE,
   environmentWithLocalMarkers,
-  STDIN_BYTE_LIMIT,
   parseAntigravityStatuslinePayload,
   antigravityStatuslineAccount,
   parseGrokStatuslinePayload,
@@ -1441,15 +1440,6 @@ async function ingestCommand(
   if (text === null || text.trim() === "") {
     return fail(EXIT_USAGE, "openlimiter ingest: no input was supplied on standard input.");
   }
-  /*
-   * The connector says what its payload IS, and this boundary obeys it.
-   *
-   * Assuming JSON here made the OpenCode reader unreachable from this command
-   * entirely: its payload is a logged in HTML page, so every real capture died
-   * at JSON.parse with "input is not valid JSON" and no page could ever be
-   * ingested. A text connector is handed the raw text, bounded exactly as the
-   * JSON path is bounded, and nothing is parsed on its behalf.
-   */
   let meters: readonly RawMeter[] | null;
   if (provider === undefined) {
     const document = parseJsonText(text);
@@ -1462,21 +1452,12 @@ async function ingestCommand(
     if (connector === undefined) {
       return fail(EXIT_USAGE, "openlimiter ingest: unknown provider.");
     }
-    let payload: unknown;
-    if (connector.encoding === "text") {
-      if (text.length > STDIN_BYTE_LIMIT) {
-        return fail(EXIT_FAILURE, "openlimiter ingest: input is larger than accepted.");
-      }
-      payload = text;
-    } else {
-      const document = parseJsonText(text);
-      if (!document.ok) {
-        return fail(EXIT_FAILURE, "openlimiter ingest: input is not valid JSON.");
-      }
-      payload = document.value;
+    const document = parseJsonText(text);
+    if (!document.ok) {
+      return fail(EXIT_FAILURE, "openlimiter ingest: input is not valid JSON.");
     }
     const result = await connector.read({
-      payload,
+      payload: document.value,
       now,
       environment: dependencies.environment
     });

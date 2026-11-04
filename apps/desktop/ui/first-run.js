@@ -90,7 +90,7 @@ export const CONNECT_PROVIDERS = Object.freeze([
   Object.freeze({ code: "ANTIGRAVITY", name: "Antigravity", line: GEMINI_DISCLOSURE }),
   Object.freeze({ code: "GROK", name: "Grok (xAI)", line: "Reads the Grok Build login on this machine." }),
   Object.freeze({ code: "KIMI", name: "Kimi", line: "Reads the Kimi CLI login on this machine." }),
-  Object.freeze({ code: "OPENCODE", name: "OpenCode", line: "Reads the OpenCode session on this machine." }),
+  Object.freeze({ code: "OPENCODE", name: "OpenCode", line: "Reads the OpenCode sign in on this machine." }),
   Object.freeze({
     code: "OPENROUTER",
     name: "OpenRouter",

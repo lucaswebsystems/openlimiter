@@ -317,7 +317,7 @@ const PROVIDER_ORIGIN: Record<ProviderCode, string> = {
   CODEX: "Provider managed payload",
   ANTIGRAVITY: "Provider managed payload",
   GEMINI_CLI: "Provider managed payload",
-  OPENCODE: "Authenticated page",
+  OPENCODE: "Official local CLI session",
   GROK: "Official local CLI session",
   KIMI: "Official local CLI session",
   CURSOR: "Local editor session",
@@ -489,7 +489,7 @@ export const CONNECTION_FACTS: readonly ConnectionFact[] = [
   {
     provider: "OPENCODE",
     state: "IMPORT_ONLY",
-    line: "The usage view behind an existing session parses. Nothing here opens or holds that session.",
+    line: "The reply of OpenCode's undocumented usage endpoint parses. This page holds no sign in or key and makes no request, so supply the reply. A live OpenCode connection is the desktop application's job.",
     browserState: "IMPORT_ONLY",
     documentPath: null,
   },

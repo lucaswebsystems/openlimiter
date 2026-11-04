@@ -99,8 +99,8 @@ const cases: readonly {
     provider: "OPENCODE",
     huge: {
       usage: {
-        percent: 9e300,
-        reset_at: "2026-01-02T00:00:00.000Z"
+        rolling: { status: "ok", percent: 9e300 },
+        weekly: { status: "ok", percent: 9e300 }
       }
     }
   },
@@ -207,7 +207,7 @@ describe("connector contracts", () => {
     expect(codexConnector.detect({ CODEX_USAGE_PAYLOAD: "1" })).toBe(true);
     expect(antigravityConnector.detect({ ANTIGRAVITY_STATUSLINE_PAYLOAD: "1" })).toBe(true);
     expect(geminiCliConnector.detect({ GEMINI_CLI_USAGE_PAYLOAD: "1" })).toBe(true);
-    expect(opencodeConnector.detect({ OPENCODE_SESSION_PRESENT: "1" })).toBe(true);
+    expect(opencodeConnector.detect({ OPENCODE_USAGE_PAYLOAD: "1" })).toBe(true);
     expect(grokConnector.detect({ GROK_USAGE_PAYLOAD: "1" })).toBe(true);
     expect(kimiConnector.detect({ KIMI_USAGE_PAYLOAD: "1" })).toBe(true);
     expect(manualConnector.detect({ [MANUAL_FILE_MARKER]: "available" })).toBe(true);
@@ -269,14 +269,8 @@ describe("connector contracts", () => {
     }
   });
 
-  it("declares what its payload is, and only OpenCode reads text", () => {
-    /* Every payload boundary in the product asks a connector this rather than
-       assuming JSON. Assuming it made the OpenCode reader unreachable from the
-       ingest command entirely, because a logged in HTML page is not JSON. */
-    for (const connector of connectors) {
-      const expected = connector.id === "opencode" ? "text" : "json";
-      expect(connector.encoding).toBe(expected);
-    }
+  it("declares that every payload is JSON", () => {
+    for (const connector of connectors) expect(connector.encoding).toBe("json");
   });
 
   it("returns unknown for missing input", async () => {
@@ -348,29 +342,6 @@ describe("connector contracts", () => {
     expect(parseGrokPayload(grokFixture(FIXTURE_NOW), later)).toBeNull();
     expect(parseKimiPayload(kimiFixture(FIXTURE_NOW), later)).toBeNull();
     expect(parseManualPayload(manualFixture(FIXTURE_NOW), later)).toBeNull();
-  });
-
-  it("cannot expire an OpenCode page by its reset, and expires it by age instead", () => {
-    /* OpenCode is the one source that states a COUNTDOWN rather than an
-       instant: its page prints "Resets in 20 hours", so a page read a year
-       late still yields a reset twenty hours from whenever it was read. The
-       reset therefore cannot detect staleness for this provider, and pretending
-       otherwise would be the wrong kind of confidence.
-       What does detect it is the snapshot's own expiry, which every source
-       carries and which is stamped from the reading clock. This states both
-       halves so the gap is documented rather than discovered. */
-    const later = "2027-01-01T00:00:00.000Z";
-    const meters = parseOpencodePayload(opencodeFixture(FIXTURE_NOW), later);
-    expect(meters).toHaveLength(3);
-    const reading = meters?.[0];
-    expect(Date.parse(String(reading?.resetAt))).toBeGreaterThan(Date.parse(later));
-    /* Read at the clock it was observed at, it is fresh; a minute later it is
-       stale, whatever its countdown says. */
-    expect(freshness(String(reading?.observedAt), String(reading?.expiresAt), later))
-      .toBe("fresh");
-    const stale = new Date(Date.parse(later) + 120_000).toISOString();
-    expect(freshness(String(reading?.observedAt), String(reading?.expiresAt), stale))
-      .toBe("stale");
   });
 
   it("keeps every fixture valid against the real clock", () => {

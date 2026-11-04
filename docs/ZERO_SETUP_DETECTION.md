@@ -74,7 +74,8 @@ $XDG_DATA_HOME
 
 Each XDG root is checked for provider folders named `claude`, `claude-code`,
 `codex`, `antigravity`, `opencode` and `openrouter` as applicable. An explicit
-`CODEX_HOME` is checked before the default Codex home.
+`CODEX_HOME` is checked before the default Codex home, and an explicit
+`OPENCODE_DB` before OpenCode's own `opencode.db` in its data folder.
 
 The executable scan checks `claude`, `codex`, `antigravity`, `opencode` and
 `openrouter` in the inherited executable path. Windows also checks the ordinary

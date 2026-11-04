@@ -6,7 +6,7 @@
  *   node scripts/sanitize-capture.mjs --provider codex --in raw.json
  *     --provider-version "codex-cli 0.152.0" --write
  *
- * WHY THIS EXISTS. The three live readers ship on a request contract that was
+ * WHY THIS EXISTS. The live readers ship on a request contract that was
  * observed against real accounts, and on no captured RESPONSE at all. The
  * registry says so on every run, and `--require-captures` fails because of it.
  * The gap closes by capturing real payloads, and a real payload is exactly the
@@ -35,9 +35,6 @@
  *                as SECONDS FROM CAPTURE rather than as a wall clock instant
  *   antigravity  per bucket: the pool prefix, the window name, the remaining
  *                fraction, and the reset as seconds from capture
- *   opencode     per window: the label, the percentage, and the countdown in
- *                seconds. The page itself is discarded; a page is rebuilt from
- *                those three numbers when a test needs one
  *
  * Timestamps become DURATIONS on purpose. A wall clock instant dates the
  * capture, and a fixture that pins a real instant either expires or quietly
@@ -54,7 +51,6 @@
  *
  *   Codex        the result of account/rateLimits/read from codex app-server
  *   Antigravity  the JSON body of the retrieveUserQuotaSummary POST
- *   OpenCode     the HTML of the logged in workspace page, saved as .html
  *
  * Then read the printed object before writing it. It is small enough to read in
  * full, and that reading is the actual safety mechanism; this script is only
@@ -182,7 +178,7 @@ function windowLength(value, what) {
 }
 
 /* ------------------------------------------------------------------ *
- * The three reducers
+ * The reducers
  * ------------------------------------------------------------------ */
 
 /**
@@ -291,87 +287,6 @@ function reduceAntigravity(raw, capturedAtSeconds) {
  */
 const ANTIGRAVITY_WINDOW_SECONDS = { "5h": 18_000, weekly: 604_800 };
 
-/** The window labels the OpenCode page renders, in the parser's own order. */
-const OPENCODE_LABELS = ["Rolling Usage", "Weekly Usage", "Monthly Usage"];
-
-/**
- * How far past the last label the reduction may read.
- *
- * The same bound the production parser applies, and for the same reason: this
- * used to scan from the monthly label to the end of the saved page, so any
- * percentage below it, an invoice line, a discount, a storage bar, would be
- * captured as the monthly reading and frozen into a fixture.
- */
-const OPENCODE_MAX_SEGMENT_CHARS = 2_000;
-
-
-const UNITS = { day: 86_400, hour: 3_600, minute: 60, second: 1 };
-
-function flatten(fragment) {
-  return fragment.replace(/<!--[\s\S]*?-->|<[^>]*>/gu, " ").split(/\s+/u)
-    .filter(Boolean).join(" ");
-}
-
-/**
- * OpenCode, reduced.
- *
- * The page is thrown away entirely. Three labels, three percentages and three
- * countdowns come out, and a page is rebuilt from those when a test wants one.
- * A saved workspace page carries the account's name, its workspace handle, its
- * billing and its history; none of that can survive being reduced to numbers.
- */
-function reduceOpencode(raw) {
-  if (typeof raw !== "string") fail("the OpenCode capture must be the page as text");
-  const found = [];
-  for (const label of OPENCODE_LABELS) {
-    const at = raw.indexOf(label);
-    if (at < 0) fail(`the page does not contain "${label}", so it cannot be reduced`);
-    found.push({ at, label });
-  }
-  found.sort((left, right) => left.at - right.at);
-  const windows = [];
-  for (let index = 0; index < found.length; index += 1) {
-    const next = found[index + 1];
-    const end = next === undefined
-      ? Math.min(raw.length, found[index].at + OPENCODE_MAX_SEGMENT_CHARS)
-      : next.at;
-    const segment = flatten(raw.slice(found[index].at, end));
-    const percent = /(\d{1,3})\s*%/u.exec(segment);
-    if (percent === null) fail(`no percentage under "${found[index].label}"`);
-    /* Named for what it is, and not `countdown`, which is the bounding function
-       above: shadowing it made every OpenCode reduction throw. */
-    const resetWords = /Resets in\s+((?:\d{1,6}\s*(?:day|hour|minute|second)s?\s*)+)/iu
-      .exec(segment);
-    let seconds = null;
-    if (resetWords !== null) {
-      seconds = 0;
-      for (const [, count, unit] of resetWords[1]
-        .matchAll(/(\d{1,6})\s*(day|hour|minute|second)s?/giu)) {
-        seconds += Number.parseInt(count, 10) * UNITS[unit.toLowerCase()];
-      }
-    }
-    windows.push({
-      label: found[index].label,
-      percent: percentage(
-        Number.parseInt(percent[1], 10),
-        `the percentage under "${found[index].label}"`
-      ),
-      /*
-       * No window horizon here, deliberately, because parseOpencodePayload
-       * applies none: it bounds the countdown only at a year, through
-       * durationSecondsFromWords. Mirroring production means matching it in both
-       * directions. A horizon was tried and it refused the demo page's own
-       * twenty hour rolling figure, which the reader accepts, and a sanitizer
-       * stricter than its parser rejects captures that would have worked.
-       */
-      resetsInSeconds: seconds === null
-        ? null
-        : countdown(seconds, `the countdown under "${found[index].label}"`)
-    });
-  }
-  return { windows };
-}
-
 /* ------------------------------------------------------------------ *
  * How many meters the frozen capture will produce
  *
@@ -418,11 +333,6 @@ function countAntigravityMeters(reduced) {
   return tracked[0].buckets.length;
 }
 
-/** OpenCode reports one meter per window label it found on the page. */
-function countOpencodeMeters(reduced) {
-  return reduced.windows.length;
-}
-
 /**
  * The client version a capture was taken with, as stated on the command line.
  *
@@ -449,7 +359,6 @@ const PROVIDERS = {
   codex: {
     reduce: reduceCodex,
     meters: countCodexMeters,
-    json: true,
     connector: "codex",
     constant: "codexSanitizedLive",
     rebuilder: "rebuildCodexCapture",
@@ -458,20 +367,10 @@ const PROVIDERS = {
   antigravity: {
     reduce: reduceAntigravity,
     meters: countAntigravityMeters,
-    json: true,
     connector: "antigravity",
     constant: "antigravitySanitizedLive",
     rebuilder: "rebuildAntigravityCapture",
     fixtureId: "antigravity.sanitized_live.quota"
-  },
-  opencode: {
-    reduce: reduceOpencode,
-    meters: countOpencodeMeters,
-    json: false,
-    connector: "opencode",
-    constant: "opencodeSanitizedLive",
-    rebuilder: "rebuildOpencodeCapture",
-    fixtureId: "opencode.sanitized_live.usage"
   }
 };
 
@@ -553,7 +452,6 @@ function allowedStringsFor(provider, reduced) {
     }
     return allowed;
   }
-  if (provider === "opencode") return new Set(OPENCODE_LABELS);
   return new Set();
 }
 
@@ -626,8 +524,8 @@ async function main() {
   const write = process.argv.includes("--write");
   if (provider === null || input === null) {
     process.stderr.write(
-      "usage: node scripts/sanitize-capture.mjs --provider <codex|antigravity|" +
-        "opencode> --in <file> [--provider-version <client version> --write]\n"
+      "usage: node scripts/sanitize-capture.mjs --provider <codex|antigravity> " +
+        "--in <file> [--provider-version <client version> --write]\n"
     );
     process.exitCode = 1;
     return;
@@ -658,8 +556,7 @@ async function main() {
   const capturedAtSeconds = Math.floor(Date.now() / 1_000);
   let reduced;
   try {
-    const parsed = spec.json ? JSON.parse(raw) : raw;
-    reduced = spec.reduce(parsed, capturedAtSeconds);
+    reduced = spec.reduce(JSON.parse(raw), capturedAtSeconds);
     refuseAnythingButNumbersAndKnownWords(reduced, allowedStringsFor(provider, reduced));
   } catch (error) {
     process.stderr.write(

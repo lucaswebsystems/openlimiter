@@ -76,7 +76,7 @@ const cases: readonly Case[] = [
     provider: "OPENCODE",
     good: opencodeFixture(NOW),
     goodMeters: 3,
-    /* OpenCode wants HTML text; a JSON object is the wrong shape entirely. */
+    /* One flat percent instead of one block per window. */
     wrongShape: { usage: { percent: 40 } }
   },
   {
