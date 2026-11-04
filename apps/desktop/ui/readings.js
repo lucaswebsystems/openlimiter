@@ -97,6 +97,7 @@ export function alertSamples(snapshots, now) {
       windowName: snapshot.meter,
       windowId: snapshot.resetAt ?? `meter:${snapshot.meter}`,
       windowIsAuthoritative: snapshot.resetAt !== null && snapshot.resetAt !== undefined,
+      windowDurationSeconds: snapshot.window?.durationSeconds ?? null,
       value: snapshot.value,
       observedAt: snapshot.observedAt,
     }));

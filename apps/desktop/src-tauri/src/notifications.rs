@@ -60,6 +60,8 @@ pub struct NotificationSample {
     window_id: String,
     #[serde(default)]
     window_is_authoritative: bool,
+    #[serde(default)]
+    window_duration_seconds: Option<i64>,
     value: f64,
     observed_at: String,
 }
@@ -132,6 +134,7 @@ struct MeterState {
     window_name: String,
     window_id: String,
     window_is_authoritative: bool,
+    window_duration_seconds: Option<i64>,
     reset_id: u64,
     last_observed_at: i64,
     last_value: f64,
@@ -276,6 +279,7 @@ fn valid_document(document: &NotificationDocument) -> bool {
                 && (0.0..=state.meter.maximum()).contains(&state.last_value)
                 && state.peak_value.is_finite()
                 && state.peak_value >= state.last_value
+                && state.window_duration_seconds.map_or(true, |value| value >= 0)
         })
 }
 
@@ -474,12 +478,24 @@ fn authoritative_window_advanced(previous: &MeterState, sample: &NotificationSam
     hours, a week). Two writers of the same window can disagree by seconds
     (the status line rounds, the usage poll does not) or a host can slide the
     end by a second per render; neither may count as a new window, or every
-    render raises a reset alert (2026-10-08, one toast per second). */
+    render raises a reset alert (2026-10-08, one toast per second). A reset
+    now needs the window end to advance by at least half a window, so a drift
+    of seconds or minutes never counts, while a real rollover does. */
+    let duration = sample
+        .window_duration_seconds
+        .or(previous.window_duration_seconds)
+        .unwrap_or(0);
     match (
         parse_observed_at(&previous.window_id),
         parse_observed_at(&sample.window_id),
     ) {
-        (Some(old), Some(new)) => new - old >= MIN_WINDOW_ADVANCE_SECONDS,
+        (Some(old), Some(new)) if new > old => {
+            if duration > 0 {
+                (new - old) * 2 >= duration
+            } else {
+                new - old >= MIN_WINDOW_ADVANCE_SECONDS
+            }
+        }
         _ => false,
     }
 }
@@ -490,6 +506,13 @@ fn hysteresis_reset(
     observed_at: i64,
 ) -> bool {
     if sample.window_is_authoritative {
+        previous.low_candidate = None;
+        return false;
+    }
+    /* A reading without a window (a money percentage, or any meter that
+    states no duration) has no reset to infer: a drop in such a reading is
+    not a window turning over, so it never raises a reset alert. */
+    if sample.window_duration_seconds.unwrap_or(0) <= 0 {
         previous.low_candidate = None;
         return false;
     }
@@ -617,6 +640,7 @@ fn evaluate_document(
                     window_name: sample.window_name,
                     window_id: sample.window_id,
                     window_is_authoritative: sample.window_is_authoritative,
+                    window_duration_seconds: sample.window_duration_seconds,
                     reset_id: 0,
                     last_observed_at: observed_at,
                     last_value: sample.value,
@@ -737,6 +761,9 @@ fn evaluate_document(
         let drops_end = previous.window_is_authoritative && !sample.window_is_authoritative;
         if !moves_back && !drops_end {
             previous.window_id = sample.window_id;
+            if sample.window_duration_seconds.is_some() {
+                previous.window_duration_seconds = sample.window_duration_seconds;
+            }
         }
         let sample_is_authoritative = sample.window_is_authoritative;
         previous.window_is_authoritative = sample_is_authoritative || previous.window_is_authoritative;
@@ -933,6 +960,7 @@ mod tests {
             window_name: "WEEKLY".to_string(),
             window_id: "2026-09-08T00:00:00Z".to_string(),
             window_is_authoritative: true,
+            window_duration_seconds: Some(600),
             value,
             observed_at: observed_at.to_string(),
         }
@@ -1130,6 +1158,7 @@ mod tests {
             let mut reading = sample(value, observed);
             reading.window_is_authoritative = false;
             reading.window_id = "weekly".to_string();
+            reading.window_duration_seconds = Some(604_800);
             let result = evaluate_document(&mut document, vec![reading], "UTC", now).unwrap();
             assert_eq!(result.popups.len(), expected);
         }
@@ -1281,10 +1310,12 @@ mod tests {
         let mut high = sample(80.0, "2026-09-01T10:00:00Z");
         high.window_is_authoritative = false;
         high.window_id = "weekly".to_string();
+        high.window_duration_seconds = Some(604_800);
         evaluate_document(&mut document, vec![high], "UTC", 1_788_278_400).unwrap();
         let mut first = sample(5.0, "2026-09-01T10:01:00Z");
         first.window_is_authoritative = false;
         first.window_id = "weekly".to_string();
+        first.window_duration_seconds = Some(604_800);
         assert!(
             evaluate_document(&mut document, vec![first], "UTC", 1_788_278_460)
                 .unwrap()
@@ -1294,6 +1325,7 @@ mod tests {
         let mut second = sample(4.0, "2026-09-01T10:06:00Z");
         second.window_is_authoritative = false;
         second.window_id = "weekly".to_string();
+        second.window_duration_seconds = Some(604_800);
         let result = evaluate_document(&mut document, vec![second], "UTC", 1_788_278_760).unwrap();
         assert_eq!(result.created.len(), 1);
         assert_eq!(result.created[0].kind, "reset");
