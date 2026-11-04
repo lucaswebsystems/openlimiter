@@ -358,7 +358,7 @@ describe("P2 launcher trust and migration", () => {
     const runtime = path.join(state, "terminal-runtime");
     const node = path.join(runtime, process.platform === "win32" ? "node.exe" : "node");
     await mkdir(runtime, { recursive: true });
-    try { await link(process.execPath, node); } catch { await cp(process.execPath, node); }
+    await cp(process.execPath, node);
     await writeFile(path.join(runtime, "openlimiter.cjs"), 'process.stdout.write("foreign");\n');
 
     const launcher = await installLauncher(state, compiledLauncherSource);

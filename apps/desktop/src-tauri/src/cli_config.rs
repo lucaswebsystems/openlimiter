@@ -125,7 +125,12 @@ fn lock(directory: &Path) -> Result<ConfigLock, String> {
     let path = lock_path(directory);
     crate::fsx::reject_symlink(&path).map_err(|_| "config_refused".to_string())?;
     let token = Uuid::new_v4().to_string();
+    let mut attempts = 0u32;
     loop {
+        attempts = attempts.saturating_add(1);
+        if attempts > 1000 {
+            return Err("config_write_failed".to_string());
+        }
         match fs::create_dir(&path) {
             Ok(()) => {
                 let stamp = canonical_json(&owner_stamp(&token))?;
@@ -149,7 +154,12 @@ fn lock(directory: &Path) -> Result<ConfigLock, String> {
                 }
                 thread::sleep(Duration::from_millis(50));
             }
-            Err(_) => return Err("config_write_failed".to_string()),
+            // A concurrent create/remove (or a half-removed lock directory) can
+            // surface as something other than AlreadyExists. Retry instead of
+            // failing the write; the cap above keeps this bounded.
+            Err(_) => {
+                thread::sleep(Duration::from_millis(5));
+            }
         }
     }
 }
