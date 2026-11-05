@@ -215,17 +215,17 @@ mod tests {
             .stderr(Stdio::null())
             .spawn()
             .expect("spawn parent");
-        for _ in 0..100 {
-            if child_pid_file.exists() {
-                break;
+        let mut child_pid = None;
+        for _ in 0..500 {
+            if let Ok(contents) = std::fs::read_to_string(&child_pid_file) {
+                if let Ok(parsed) = contents.trim().parse::<i32>() {
+                    child_pid = Some(parsed);
+                    break;
+                }
             }
             std::thread::sleep(Duration::from_millis(10));
         }
-        let child_pid: i32 = std::fs::read_to_string(&child_pid_file)
-            .expect("child pid file")
-            .trim()
-            .parse()
-            .expect("child pid");
+        let child_pid = child_pid.expect("child pid");
         std::thread::sleep(Duration::from_millis(50));
         end_tree(&mut parent);
         assert!(parent.try_wait().unwrap().is_some(), "parent ended");
@@ -260,17 +260,17 @@ mod tests {
             .stderr(Stdio::null())
             .spawn()
             .expect("spawn parent");
-        for _ in 0..100 {
-            if child_pid_file.exists() {
-                break;
+        let mut child_pid = None;
+        for _ in 0..500 {
+            if let Ok(contents) = std::fs::read_to_string(&child_pid_file) {
+                if let Ok(parsed) = contents.trim().parse::<u32>() {
+                    child_pid = Some(parsed);
+                    break;
+                }
             }
             std::thread::sleep(Duration::from_millis(10));
         }
-        let child_pid: u32 = std::fs::read_to_string(&child_pid_file)
-            .expect("child pid file")
-            .trim()
-            .parse()
-            .expect("child pid");
+        let child_pid = child_pid.expect("child pid");
         std::thread::sleep(Duration::from_millis(50));
         end_tree(&mut parent);
         assert!(parent.try_wait().unwrap().is_some(), "parent ended");
