@@ -72,7 +72,7 @@ fn command_for(step: &[&str]) -> Command {
 /// End a step and everything it started: npx runs node under a shell or
 /// `cmd`, and killing only the first process would leave the installer
 /// writing settings after the panel already said it failed.
-fn end_tree(child: &mut Child) {
+pub fn end_tree(child: &mut Child) {
     let pid = child.id().to_string();
     #[cfg(windows)]
     {
@@ -191,5 +191,102 @@ mod tests {
         assert!(serde_json::from_str::<SetupHost>("\"claude\"").is_ok());
         assert!(serde_json::from_str::<SetupHost>("\"antigravity\"").is_ok());
         assert!(serde_json::from_str::<SetupHost>("\"claude; rm -rf /\"").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn end_tree_ends_the_whole_process_tree() {
+        use std::os::unix::process::CommandExt;
+        let child_pid_file = std::env::temp_dir().join(format!(
+            "openlimiter-tree-child-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&child_pid_file);
+        let script = format!(
+            "sleep 300 & child=$!; printf '%s\\n' \"$child\" > '{}'; wait",
+            child_pid_file.display()
+        );
+        let mut parent = Command::new("sh")
+            .arg("-c")
+            .arg(&script)
+            .process_group(0)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("spawn parent");
+        let mut child_pid = None;
+        for _ in 0..500 {
+            if let Ok(contents) = std::fs::read_to_string(&child_pid_file) {
+                if let Ok(parsed) = contents.trim().parse::<i32>() {
+                    child_pid = Some(parsed);
+                    break;
+                }
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let child_pid = child_pid.expect("child pid");
+        std::thread::sleep(Duration::from_millis(50));
+        end_tree(&mut parent);
+        assert!(parent.try_wait().unwrap().is_some(), "parent ended");
+        let alive = Command::new("kill")
+            .arg("-0")
+            .arg(child_pid.to_string())
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false);
+        assert!(!alive, "child ended");
+        let _ = std::fs::remove_file(&child_pid_file);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn end_tree_ends_the_whole_process_tree() {
+        let child_pid_file = std::env::temp_dir().join(format!(
+            "openlimiter-tree-child-{}.txt",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&child_pid_file);
+        let script = format!(
+            "$p = Start-Process -FilePath 'ping' -ArgumentList '-t','127.0.0.1' -WindowStyle Hidden -PassThru; \
+             $p.Id | Out-File -FilePath '{}' -Encoding ascii; \
+             Wait-Process -Id $p.Id",
+            child_pid_file.display()
+        );
+        let mut parent = Command::new("powershell.exe")
+            .args(["-NoProfile", "-Command", &script])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("spawn parent");
+        let mut child_pid = None;
+        for _ in 0..500 {
+            if let Ok(contents) = std::fs::read_to_string(&child_pid_file) {
+                if let Ok(parsed) = contents.trim().parse::<u32>() {
+                    child_pid = Some(parsed);
+                    break;
+                }
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let child_pid = child_pid.expect("child pid");
+        std::thread::sleep(Duration::from_millis(50));
+        end_tree(&mut parent);
+        assert!(parent.try_wait().unwrap().is_some(), "parent ended");
+        let alive = Command::new("powershell.exe")
+            .args([
+                "-NoProfile",
+                "-Command",
+                &format!(
+                    "if (Get-Process -Id {} -ErrorAction SilentlyContinue) {{ exit 0 }} else {{ exit 1 }}",
+                    child_pid
+                ),
+            ])
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(true);
+        assert!(!alive, "child ended");
+        let _ = std::fs::remove_file(&child_pid_file);
     }
 }
