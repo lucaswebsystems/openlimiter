@@ -8,7 +8,7 @@ Signing in works on Windows again. A sign in session, a Google one especially, i
 
 Updates are easy to see: OpenLimiter checks at start, every two hours and when you come back to it, an Update button appears in the header on every tab, the tray menu gets Install update, and one desktop notification says a new version is ready. One click installs it and restarts.
 
-The "usage window reset" alert no longer repeats every few minutes. An unused OpenCode 5 hour window reports its end as five hours from now, so every check moved the end a little and counted as a new window. A reset now needs the window end to jump further than what was left of the old window, and a window you never used turns over without an alert. A new window already past 60, 80 or 90 percent on its first reading raises that alert.
+The "usage window reset" alert no longer repeats every few minutes. An unused OpenCode 5 hour window reports its end as five hours from now, so every check moved the end a little and counted as a new window. When a provider reports when its window ends, a reset now needs that end to jump further than what was left of the old window, and a window you never used turns over without an alert. After a window turns over, a first reading already past 60, 80 or 90 percent raises that alert, and two windows of one account that end at the same moment each raise their own.
 
 ## [2.1.13]
 

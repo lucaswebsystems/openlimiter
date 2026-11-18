@@ -446,10 +446,13 @@ fn uniqueness_key(
     reset_id: u64,
     threshold: &str,
 ) -> String {
+    /* The window name keeps sibling meters of one account apart: every row
+    carries the same meter code, and two windows can share an end. */
     serde_json::to_string(&(
         &sample.account_id,
         &sample.provider,
         sample.meter.code(),
+        &sample.window_name,
         window_id,
         reset_id,
         threshold,
@@ -1401,6 +1404,9 @@ mod tests {
                 observed += 6 * 60;
             }
             assert_eq!(alerts, 0, "a sliding estimate at {value} percent is one window");
+            let meter = document.meters.values().next().unwrap();
+            assert_eq!(meter.reset_id, 0, "a slide never turns the window over, even silently");
+            assert_eq!(meter.window_id, rfc(observed - 6 * 60 + FIVE_HOURS + 31), "the later estimate is still adopted");
             /* Use begins: the end stops sliding, a few minutes past the last estimate. */
             let fixed = observed + FIVE_HOURS - 3 * 60;
             for _ in 0..5 {
@@ -1441,5 +1447,38 @@ mod tests {
             assert_eq!(result.popups.len(), expected.len());
             assert_eq!(document.meters.values().next().unwrap().reset_id, 1, "the window still turned over");
         }
+    }
+
+    #[test]
+    fn a_used_window_that_rolls_into_a_busy_one_raises_the_reset_and_the_threshold_once() {
+        let mut document = NotificationDocument::default();
+        let end = 1_795_000_000;
+        feed(&mut document, window_reading(50.0, end, end - 3600));
+        assert_eq!(feed(&mut document, window_reading(85.0, end, end - 1800)).created[0].kind, "threshold_80");
+        /* The new window is first read at 85 too: without counting from zero
+        it would look like no crossing at all. */
+        let result = feed(&mut document, window_reading(85.0, end + FIVE_HOURS, end + 600));
+        let mut kinds = result.created.iter().map(|event| event.kind.as_str()).collect::<Vec<_>>();
+        kinds.sort_unstable();
+        assert_eq!(kinds, ["reset", "threshold_80"], "60 is recorded as coalesced, not created");
+        let mut popups = result.popups.iter().map(|popup| popup.threshold.as_str()).collect::<Vec<_>>();
+        popups.sort_unstable();
+        assert_eq!(popups, ["80", "reset"], "60 coalesces into 80");
+        assert!(feed(&mut document, window_reading(86.0, end + FIVE_HOURS, end + 960)).created.is_empty());
+    }
+
+    #[test]
+    fn sibling_meters_sharing_a_window_end_alert_separately() {
+        let mut document = NotificationDocument::default();
+        let end = 1_795_000_000;
+        let named = |name: &str, value: f64, observed: i64| NotificationSample {
+            window_name: name.to_string(),
+            ..window_reading(value, end, observed)
+        };
+        feed(&mut document, named("FIVE_HOUR", 50.0, end - 3600));
+        feed(&mut document, named("THIRD_PARTY_SESSION", 50.0, end - 3600));
+        let first = feed(&mut document, named("FIVE_HOUR", 85.0, end - 1800));
+        let second = feed(&mut document, named("THIRD_PARTY_SESSION", 85.0, end - 1800));
+        assert_eq!(first.popups.len() + second.popups.len(), 2, "one 80 percent alert per meter");
     }
 }
