@@ -1215,7 +1215,21 @@ initFirstRun({
 });
 
 void refresh();
-void runUpdateCheck(true);
+/* Updates are looked for at start, every two hours, and whenever the window
+   comes back after half an hour: one check at start left a window that stays
+   open for days never offering the release that came out meanwhile. */
+const UPDATE_CHECK_EVERY = 2 * 60 * 60 * 1000;
+const UPDATE_RECHECK_AFTER = 30 * 60 * 1000;
+let lastUpdateCheck = 0;
+const checkForUpdatesQuietly = () => {
+  lastUpdateCheck = Date.now();
+  void runUpdateCheck(true);
+};
+checkForUpdatesQuietly();
+window.setInterval(checkForUpdatesQuietly, UPDATE_CHECK_EVERY);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && Date.now() - lastUpdateCheck > UPDATE_RECHECK_AFTER) checkForUpdatesQuietly();
+});
 window.addEventListener("openlimiter:providers-changed", () => {
   void accountSyncConfiguredSnapshot(readConfiguredProviders());
   void refresh();

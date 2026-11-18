@@ -234,12 +234,13 @@ test("a release the manifest has no installer for links to the download page (ma
   const out = "Version 2.1.7 is out. Download it from openlimiter.com.";
   assert.equal(DOWNLOAD_URL, "https://openlimiter.com/download");
   assert.deepEqual(updateView({ version: "2.1.7", currentVersion: "2.1.6", manual: true }), {
-    menu: out, banner: out, href: DOWNLOAD_URL,
+    menu: out, banner: "Get 2.1.7", title: out, href: DOWNLOAD_URL,
   });
   assert.deepEqual(updateView({ version: "2.1.7", currentVersion: "2.1.6", manual: false }), {
-    menu: "Install OpenLimiter 2.1.7", banner: "OpenLimiter 2.1.7 is ready. Install now.", href: null,
+    menu: "Install OpenLimiter 2.1.7", banner: "Update to 2.1.7",
+    title: "OpenLimiter 2.1.7 is ready. Click to install; OpenLimiter restarts by itself.", href: null,
   });
-  assert.deepEqual(updateView(null), { menu: "OpenLimiter is current", banner: null, href: null });
+  assert.deepEqual(updateView(null), { menu: "OpenLimiter is current", banner: null, title: null, href: null });
 });
 
 function updateControls(update) {
@@ -262,7 +263,8 @@ test("both update controls open the download page through the native action for 
   const controls = updateControls({ version: "2.1.7", currentVersion: "2.1.6", manual: true });
   await controls.run(true);
   assert.equal(controls.banner.hidden, false);
-  assert.equal(controls.banner.textContent, "Version 2.1.7 is out. Download it from openlimiter.com.");
+  assert.equal(controls.banner.textContent, "Get 2.1.7");
+  assert.equal(controls.banner.title, "Version 2.1.7 is out. Download it from openlimiter.com.");
   assert.equal(controls.menu.textContent, "Version 2.1.7 is out. Download it from openlimiter.com.");
   controls.banner.handlers.click();
   controls.menu.handlers.click();
@@ -272,9 +274,9 @@ test("both update controls open the download page through the native action for 
 test("an installable release keeps the banner's install and the menu's fresh check", async () => {
   const controls = updateControls({ version: "2.1.7", currentVersion: "2.1.6", manual: false });
   await controls.run(true);
-  assert.equal(controls.banner.textContent, "OpenLimiter 2.1.7 is ready. Install now.");
+  assert.equal(controls.banner.textContent, "Update to 2.1.7");
   controls.banner.handlers.click();
-  assert.equal(controls.banner.textContent, "Installing update");
+  assert.equal(controls.banner.textContent, "Installing");
   controls.menu.handlers.click();
   assert.deepEqual(controls.calls, ["check", "install", "check"]);
 });

@@ -446,10 +446,13 @@ fn uniqueness_key(
     reset_id: u64,
     threshold: &str,
 ) -> String {
+    /* The window name keeps sibling meters of one account apart: every row
+    carries the same meter code, and two windows can share an end. */
     serde_json::to_string(&(
         &sample.account_id,
         &sample.provider,
         sample.meter.code(),
+        &sample.window_name,
         window_id,
         reset_id,
         threshold,
@@ -463,7 +466,11 @@ fn uniqueness_key(
     .unwrap_or_default()
 }
 
-fn authoritative_window_advanced(previous: &MeterState, sample: &NotificationSample) -> bool {
+fn authoritative_window_advanced(
+    previous: &MeterState,
+    sample: &NotificationSample,
+    observed_at: i64,
+) -> bool {
     if !previous.window_is_authoritative
         || !sample.window_is_authoritative
         || previous.window_id == sample.window_id
@@ -474,12 +481,22 @@ fn authoritative_window_advanced(previous: &MeterState, sample: &NotificationSam
     hours, a week). Two writers of the same window can disagree by seconds
     (the status line rounds, the usage poll does not) or a host can slide the
     end by a second per render; neither may count as a new window, or every
-    render raises a reset alert (2026-10-08, one toast per second). */
+    render raises a reset alert (2026-10-08, one toast per second).
+    The jump must also be larger than what was left of the old window. An idle
+    rolling window reported as "now plus five hours" (OpenCode) slides minutes
+    per poll while hours remain, and is the same window (2026-11-18, one toast
+    per poll). A rollover after the end, or one announced minutes early, jumps
+    further than what was left, so it still counts.
+    ponytail: a correction larger than the time left, made just before the
+    end, counts as one reset; telling it apart needs the window's duration,
+    which samples do not carry. */
     match (
         parse_observed_at(&previous.window_id),
         parse_observed_at(&sample.window_id),
     ) {
-        (Some(old), Some(new)) => new - old >= MIN_WINDOW_ADVANCE_SECONDS,
+        (Some(old), Some(new)) => {
+            new - old >= MIN_WINDOW_ADVANCE_SECONDS && old - observed_at < new - old
+        }
         _ => false,
     }
 }
@@ -631,26 +648,28 @@ fn evaluate_document(
             continue;
         }
 
-        let authoritative_reset = authoritative_window_advanced(&previous, &sample);
+        let authoritative_reset = authoritative_window_advanced(&previous, &sample, observed_at);
         let inferred_reset = hysteresis_reset(&mut previous, &sample, observed_at);
         if authoritative_reset || inferred_reset {
+            /* A window nobody used turning over is not news: the reset still
+            re-arms the thresholds, but raises no alert (2026-11-18). */
+            let was_used = previous.peak_value > 0.0;
             previous.reset_id = previous.reset_id.saturating_add(1);
             previous.low_candidate = None;
             previous.peak_value = sample.value;
+            /* The new window's first reading is checked for crossings from zero. */
+            previous.last_value = 0.0;
             let status = if popup_allowed(&document.settings, "reset", now) {
                 "queued"
             } else {
                 "suppressed"
             };
-            if let Some(event) = record_event(
-                document,
-                &sample,
-                previous.reset_id,
-                "reset",
-                status,
-                observed_at,
-                now,
-            ) {
+            let event = if was_used {
+                record_event(document, &sample, previous.reset_id, "reset", status, observed_at, now)
+            } else {
+                None
+            };
+            if let Some(event) = event {
                 if status == "queued" {
                     popups.push(Popup {
                         event_id: event.id.clone(),
@@ -660,67 +679,66 @@ fn evaluate_document(
                 }
                 created.push(event);
             }
-        } else {
-            let crossed = THRESHOLDS
-                .into_iter()
-                .filter(|threshold| {
-                    previous.last_value < f64::from(*threshold)
-                        && sample.value >= f64::from(*threshold)
-                })
-                .collect::<Vec<_>>();
-            let highest = crossed
-                .iter()
-                .rev()
-                .copied()
-                .find(|threshold| threshold_enabled(&document.settings, *threshold));
-            for threshold in crossed
-                .iter()
-                .copied()
-                .filter(|value| Some(*value) != highest)
-            {
-                let status = if threshold_enabled(&document.settings, threshold) {
-                    "coalesced"
-                } else {
-                    "suppressed"
-                };
-                let _ = record_event(
-                    document,
-                    &sample,
-                    previous.reset_id,
-                    &threshold.to_string(),
-                    status,
-                    observed_at,
-                    now,
-                );
-            }
-            if let Some(highest) = highest {
-                let highest_text = highest.to_string();
-                let status = if popup_allowed(&document.settings, &highest_text, now) {
-                    "queued"
-                } else {
-                    "suppressed"
-                };
-                if let Some(event) = record_event(
-                    document,
-                    &sample,
-                    previous.reset_id,
-                    &highest_text,
-                    status,
-                    observed_at,
-                    now,
-                ) {
-                    if status == "queued" {
-                        popups.push(Popup {
-                            event_id: event.id.clone(),
-                            provider: event.provider.clone(),
-                            threshold: highest_text,
-                        });
-                    }
-                    created.push(event);
-                }
-            }
-            previous.peak_value = previous.peak_value.max(sample.value);
         }
+        let crossed = THRESHOLDS
+            .into_iter()
+            .filter(|threshold| {
+                previous.last_value < f64::from(*threshold)
+                    && sample.value >= f64::from(*threshold)
+            })
+            .collect::<Vec<_>>();
+        let highest = crossed
+            .iter()
+            .rev()
+            .copied()
+            .find(|threshold| threshold_enabled(&document.settings, *threshold));
+        for threshold in crossed
+            .iter()
+            .copied()
+            .filter(|value| Some(*value) != highest)
+        {
+            let status = if threshold_enabled(&document.settings, threshold) {
+                "coalesced"
+            } else {
+                "suppressed"
+            };
+            let _ = record_event(
+                document,
+                &sample,
+                previous.reset_id,
+                &threshold.to_string(),
+                status,
+                observed_at,
+                now,
+            );
+        }
+        if let Some(highest) = highest {
+            let highest_text = highest.to_string();
+            let status = if popup_allowed(&document.settings, &highest_text, now) {
+                "queued"
+            } else {
+                "suppressed"
+            };
+            if let Some(event) = record_event(
+                document,
+                &sample,
+                previous.reset_id,
+                &highest_text,
+                status,
+                observed_at,
+                now,
+            ) {
+                if status == "queued" {
+                    popups.push(Popup {
+                        event_id: event.id.clone(),
+                        provider: event.provider.clone(),
+                        threshold: highest_text,
+                    });
+                }
+                created.push(event);
+            }
+        }
+        previous.peak_value = previous.peak_value.max(sample.value);
         previous.window_name = sample.window_name;
         /* An authoritative window end only moves forward. A second writer
         still reporting an earlier end (a stale source, the window before) is
@@ -1344,5 +1362,123 @@ mod tests {
             parsed.snoozed_until.as_deref(),
             Some("2026-09-01T11:00:00Z")
         );
+    }
+
+    /* 2026-11-18, the second reset storm: OpenCode reports an idle rolling
+    window's end as "now plus five hours", so every six minute poll moved the
+    end six minutes and raised "OpenCode reset" (1,656 toasts in four days). */
+    fn rfc(seconds: i64) -> String {
+        time::OffsetDateTime::from_unix_timestamp(seconds)
+            .unwrap()
+            .format(&time::format_description::well_known::Rfc3339)
+            .unwrap()
+    }
+
+    fn window_reading(value: f64, end: i64, observed: i64) -> NotificationSample {
+        NotificationSample {
+            provider: "OPENCODE".to_string(),
+            window_name: "FIVE_HOUR".to_string(),
+            window_id: rfc(end),
+            ..sample(value, &rfc(observed))
+        }
+    }
+
+    fn feed(document: &mut NotificationDocument, reading: NotificationSample) -> Evaluation {
+        let now = parse_observed_at(&reading.observed_at).unwrap();
+        evaluate_document(document, vec![reading], "UTC", now).unwrap()
+    }
+
+    const FIVE_HOURS: i64 = 5 * 3600;
+
+    #[test]
+    fn an_idle_rolling_window_that_slides_never_raises_a_reset() {
+        /* At 65 percent too, so the timing rule is under test and not only
+        the unused window rule. */
+        for value in [0.0, 65.0] {
+            let mut document = NotificationDocument::default();
+            let mut alerts = 0;
+            let mut observed = 1_795_000_000;
+            for _ in 0..50 {
+                let result = feed(&mut document, window_reading(value, observed + FIVE_HOURS + 31, observed));
+                alerts += result.created.len() + result.popups.len();
+                observed += 6 * 60;
+            }
+            assert_eq!(alerts, 0, "a sliding estimate at {value} percent is one window");
+            let meter = document.meters.values().next().unwrap();
+            assert_eq!(meter.reset_id, 0, "a slide never turns the window over, even silently");
+            assert_eq!(meter.window_id, rfc(observed - 6 * 60 + FIVE_HOURS + 31), "the later estimate is still adopted");
+            /* Use begins: the end stops sliding, a few minutes past the last estimate. */
+            let fixed = observed + FIVE_HOURS - 3 * 60;
+            for _ in 0..5 {
+                let result = feed(&mut document, window_reading(value + 2.0, fixed, observed));
+                alerts += result.created.len() + result.popups.len();
+                observed += 6 * 60;
+            }
+            assert_eq!(alerts, 0, "use starting on a sliding estimate is the same window");
+            let after = fixed + 120;
+            let result = feed(&mut document, window_reading(0.0, after + FIVE_HOURS + 31, after));
+            assert_eq!(result.created.iter().filter(|event| event.kind == "reset").count(), 1, "the window that ended is one reset");
+            assert_eq!(result.popups.len(), 1);
+        }
+    }
+
+    #[test]
+    fn an_early_replacement_of_the_window_end_still_raises_one_reset() {
+        let mut document = NotificationDocument::default();
+        let end = 1_795_000_000;
+        feed(&mut document, window_reading(40.0, end, end - 3600));
+        let early = feed(&mut document, window_reading(1.0, end + FIVE_HOURS, end - 120));
+        assert_eq!(early.created.iter().filter(|event| event.kind == "reset").count(), 1, "two minutes left, five hours ahead");
+        for observed in [end + 240, end + 600] {
+            assert!(feed(&mut document, window_reading(1.0, end + FIVE_HOURS, observed)).created.is_empty());
+        }
+    }
+
+    #[test]
+    fn an_unused_window_that_ends_raises_no_alert_but_rearms_thresholds() {
+        for (first_value, expected) in [(0.0, Vec::<&str>::new()), (85.0, vec!["threshold_80"])] {
+            let mut document = NotificationDocument::default();
+            let end = 1_795_000_000;
+            feed(&mut document, window_reading(0.0, end, end - 3600));
+            /* The laptop slept through the end; the new window is first read two hours in. */
+            let result = feed(&mut document, window_reading(first_value, end + 7 * 3600, end + 2 * 3600));
+            let kinds = result.created.iter().map(|event| event.kind.as_str()).collect::<Vec<_>>();
+            assert_eq!(kinds, expected, "first reading {first_value}");
+            assert_eq!(result.popups.len(), expected.len());
+            assert_eq!(document.meters.values().next().unwrap().reset_id, 1, "the window still turned over");
+        }
+    }
+
+    #[test]
+    fn a_used_window_that_rolls_into_a_busy_one_raises_the_reset_and_the_threshold_once() {
+        let mut document = NotificationDocument::default();
+        let end = 1_795_000_000;
+        feed(&mut document, window_reading(50.0, end, end - 3600));
+        assert_eq!(feed(&mut document, window_reading(85.0, end, end - 1800)).created[0].kind, "threshold_80");
+        /* The new window is first read at 85 too: without counting from zero
+        it would look like no crossing at all. */
+        let result = feed(&mut document, window_reading(85.0, end + FIVE_HOURS, end + 600));
+        let mut kinds = result.created.iter().map(|event| event.kind.as_str()).collect::<Vec<_>>();
+        kinds.sort_unstable();
+        assert_eq!(kinds, ["reset", "threshold_80"], "60 is recorded as coalesced, not created");
+        let mut popups = result.popups.iter().map(|popup| popup.threshold.as_str()).collect::<Vec<_>>();
+        popups.sort_unstable();
+        assert_eq!(popups, ["80", "reset"], "60 coalesces into 80");
+        assert!(feed(&mut document, window_reading(86.0, end + FIVE_HOURS, end + 960)).created.is_empty());
+    }
+
+    #[test]
+    fn sibling_meters_sharing_a_window_end_alert_separately() {
+        let mut document = NotificationDocument::default();
+        let end = 1_795_000_000;
+        let named = |name: &str, value: f64, observed: i64| NotificationSample {
+            window_name: name.to_string(),
+            ..window_reading(value, end, observed)
+        };
+        feed(&mut document, named("FIVE_HOUR", 50.0, end - 3600));
+        feed(&mut document, named("THIRD_PARTY_SESSION", 50.0, end - 3600));
+        let first = feed(&mut document, named("FIVE_HOUR", 85.0, end - 1800));
+        let second = feed(&mut document, named("THIRD_PARTY_SESSION", 85.0, end - 1800));
+        assert_eq!(first.popups.len() + second.popups.len(), 2, "one 80 percent alert per meter");
     }
 }

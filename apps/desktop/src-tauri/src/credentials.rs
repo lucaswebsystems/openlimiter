@@ -270,45 +270,211 @@ fn keyring_error(error: keyring::Error) -> CredentialError {
     }
 }
 
-impl SecretStore for KeyringStore {
-    fn store_secret(&self, connection_id: &str, secret: &str) -> Result<(), CredentialError> {
-        entry(CREDENTIAL_SERVICE, connection_id)?
-            .set_password(secret)
-            .map_err(keyring_error)
+/// The most one vault entry holds, in UTF-16 code units. Windows keeps 2,560
+/// bytes of UTF-16 per credential, so 1,280 units; a longer value is refused
+/// outright. A sign in session is longer than that (a Google sign in token
+/// carries the profile picture address and names), which made every such sign
+/// in fail at save. Keychain and Secret Service have no such bound.
+const ENTRY_LIMIT_UNITS: usize = if cfg!(windows) { 1_280 } else { usize::MAX };
+
+/// One part of a long value, with room to spare under the Windows bound.
+const PART_UNITS: usize = 1_200;
+
+/// The most parts one value may span: about 75 KB, far beyond any secret here.
+const MAX_PARTS: usize = 64;
+
+/// What the main entry holds when its value lives in parts. The leading
+/// control character means no real secret can be mistaken for it.
+const PARTS_PREFIX: &str = "\u{1}openlimiter-parts:v1:";
+
+/// The three raw verbs on one service of the operating system's vault.
+trait RawVault {
+    fn set(&self, id: &str, value: &str) -> Result<(), CredentialError>;
+    fn get(&self, id: &str) -> Result<Zeroizing<String>, CredentialError>;
+    fn delete(&self, id: &str) -> Result<(), CredentialError>;
+}
+
+struct Keyring(&'static str);
+
+impl RawVault for Keyring {
+    fn set(&self, id: &str, value: &str) -> Result<(), CredentialError> {
+        entry(self.0, id)?.set_password(value).map_err(keyring_error)
     }
 
-    fn read_secret(&self, connection_id: &str) -> Result<Zeroizing<String>, CredentialError> {
-        entry(CREDENTIAL_SERVICE, connection_id)?
+    fn get(&self, id: &str) -> Result<Zeroizing<String>, CredentialError> {
+        entry(self.0, id)?
             .get_password()
             .map(Zeroizing::new)
             .map_err(keyring_error)
     }
 
+    fn delete(&self, id: &str) -> Result<(), CredentialError> {
+        entry(self.0, id)?.delete_credential().map_err(keyring_error)
+    }
+}
+
+struct Parts {
+    generation: String,
+    count: usize,
+    digest: String,
+}
+
+fn parts_of(head: &str) -> Option<Parts> {
+    let mut fields = head.strip_prefix(PARTS_PREFIX)?.split(':');
+    let generation = fields.next()?.to_string();
+    let count = fields.next()?.parse::<usize>().ok()?;
+    let digest = fields.next()?.to_string();
+    let valid = fields.next().is_none()
+        && (1..=MAX_PARTS).contains(&count)
+        && !generation.is_empty()
+        && generation.bytes().all(|byte| byte.is_ascii_alphanumeric())
+        && digest.len() == 64;
+    valid.then_some(Parts { generation, count, digest })
+}
+
+fn part_id(id: &str, generation: &str, index: usize) -> String {
+    format!("{id}.part.{generation}.{index}")
+}
+
+fn digest_of(value: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut digest = Sha256::new();
+    digest.update(value.as_bytes());
+    format!("{:x}", digest.finalize())
+}
+
+/// Cut a value into pieces of at most `units` UTF-16 code units, never inside
+/// a character.
+fn pieces(value: &str, units: usize) -> Vec<&str> {
+    let mut out = Vec::new();
+    let (mut start, mut used) = (0, 0);
+    for (at, character) in value.char_indices() {
+        let width = character.len_utf16();
+        if used + width > units {
+            out.push(&value[start..at]);
+            start = at;
+            used = 0;
+        }
+        used += width;
+    }
+    out.push(&value[start..]);
+    out
+}
+
+fn drop_parts(vault: &dyn RawVault, id: &str, parts: &Parts) -> Result<(), CredentialError> {
+    let mut outcome = Ok(());
+    for index in 0..parts.count {
+        match vault.delete(&part_id(id, &parts.generation, index)) {
+            Ok(()) | Err(CredentialError::NotFound) => {}
+            Err(error) => outcome = Err(error),
+        }
+    }
+    outcome
+}
+
+/// One vault operation at a time in this process: a session refresh in the
+/// background and a read from the window must never see a manifest whose parts
+/// the other just replaced, and two writers must never strand a generation.
+/// ponytail: one process wide lock; per id locks if vault traffic ever matters.
+fn vault_lock() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+/// Store a value whole when it fits one entry, otherwise in parts under a new
+/// generation, written before the main entry that names them: a store that
+/// fails half way leaves the previous value readable, never half of a new one.
+fn store_value(vault: &dyn RawVault, id: &str, value: &str, limit: usize) -> Result<(), CredentialError> {
+    let _held = vault_lock();
+    let previous = vault.get(id).ok().and_then(|head| parts_of(&head));
+    if value.encode_utf16().count() <= limit && !value.starts_with(PARTS_PREFIX) {
+        vault.set(id, value)?;
+    } else {
+        let split = pieces(value, PART_UNITS.min(limit));
+        if split.len() > MAX_PARTS {
+            return Err(CredentialError::Store);
+        }
+        let parts = Parts {
+            generation: uuid::Uuid::new_v4().simple().to_string()[..12].to_string(),
+            count: split.len(),
+            digest: digest_of(value),
+        };
+        for (index, piece) in split.iter().enumerate() {
+            if let Err(error) = vault.set(&part_id(id, &parts.generation, index), piece) {
+                let _ = drop_parts(vault, id, &parts);
+                return Err(error);
+            }
+        }
+        let head = format!("{PARTS_PREFIX}{}:{}:{}", parts.generation, parts.count, parts.digest);
+        if let Err(error) = vault.set(id, &head) {
+            let _ = drop_parts(vault, id, &parts);
+            return Err(error);
+        }
+    }
+    /* The new value is already readable; an old part that will not go is
+    left for the next store or delete of this id to try again. */
+    if let Some(previous) = previous {
+        let _ = drop_parts(vault, id, &previous);
+    }
+    Ok(())
+}
+
+/// Read a value back whole; parts that are missing or do not add up to the
+/// digest the main entry names are a store failure, never a partial secret.
+fn read_value(vault: &dyn RawVault, id: &str) -> Result<Zeroizing<String>, CredentialError> {
+    let _held = vault_lock();
+    let head = vault.get(id)?;
+    let Some(parts) = parts_of(&head) else {
+        return Ok(head);
+    };
+    let mut whole = Zeroizing::new(String::new());
+    for index in 0..parts.count {
+        let piece = vault
+            .get(&part_id(id, &parts.generation, index))
+            .map_err(|_| CredentialError::Store)?;
+        whole.push_str(&piece);
+    }
+    if digest_of(&whole) != parts.digest {
+        return Err(CredentialError::Store);
+    }
+    Ok(whole)
+}
+
+/// Delete the parts first and the main entry last, so a part that will not go
+/// keeps its manifest and a later delete can find it again.
+fn delete_value(vault: &dyn RawVault, id: &str) -> Result<(), CredentialError> {
+    let _held = vault_lock();
+    if let Some(parts) = vault.get(id).ok().and_then(|head| parts_of(&head)) {
+        drop_parts(vault, id, &parts)?;
+    }
+    vault.delete(id)
+}
+
+impl SecretStore for KeyringStore {
+    fn store_secret(&self, connection_id: &str, secret: &str) -> Result<(), CredentialError> {
+        store_value(&Keyring(CREDENTIAL_SERVICE), connection_id, secret, ENTRY_LIMIT_UNITS)
+    }
+
+    fn read_secret(&self, connection_id: &str) -> Result<Zeroizing<String>, CredentialError> {
+        read_value(&Keyring(CREDENTIAL_SERVICE), connection_id)
+    }
+
     fn delete_secret(&self, connection_id: &str) -> Result<(), CredentialError> {
-        entry(CREDENTIAL_SERVICE, connection_id)?
-            .delete_credential()
-            .map_err(keyring_error)
+        delete_value(&Keyring(CREDENTIAL_SERVICE), connection_id)
     }
 }
 
 impl SecretStore for ApiSpendKeyringStore {
     fn store_secret(&self, entry_id: &str, secret: &str) -> Result<(), CredentialError> {
-        entry(API_SPEND_CREDENTIAL_SERVICE, entry_id)?
-            .set_password(secret)
-            .map_err(keyring_error)
+        store_value(&Keyring(API_SPEND_CREDENTIAL_SERVICE), entry_id, secret, ENTRY_LIMIT_UNITS)
     }
 
     fn read_secret(&self, entry_id: &str) -> Result<Zeroizing<String>, CredentialError> {
-        entry(API_SPEND_CREDENTIAL_SERVICE, entry_id)?
-            .get_password()
-            .map(Zeroizing::new)
-            .map_err(keyring_error)
+        read_value(&Keyring(API_SPEND_CREDENTIAL_SERVICE), entry_id)
     }
 
     fn delete_secret(&self, entry_id: &str) -> Result<(), CredentialError> {
-        entry(API_SPEND_CREDENTIAL_SERVICE, entry_id)?
-            .delete_credential()
-            .map_err(keyring_error)
+        delete_value(&Keyring(API_SPEND_CREDENTIAL_SERVICE), entry_id)
     }
 }
 
@@ -319,6 +485,97 @@ mod tests {
 
     const TOKEN_CANARY: &str = "codex-token-canary-never-print-123456789";
     const ACCOUNT_CANARY: &str = "account-canary-never-print-987654321";
+
+    /// The real Windows vault, the way a sign in writes it: a session record the
+    /// size a Google sign in produces (its access token carries the profile
+    /// picture address and names) must store and read back whole.
+    #[cfg(windows)]
+    #[test]
+    fn a_sign_in_sized_session_round_trips_through_the_real_vault() {
+        let vault = Keyring("com.openlimiter.desktop.test");
+        let id = format!("session-size-{}", std::process::id());
+        let session = format!("{{\"version\":2,\"access_token\":\"{}\",\"refresh_token\":\"{}\"}}", "a".repeat(2_400), "r".repeat(40));
+        let stored = store_value(&vault, &id, &session, ENTRY_LIMIT_UNITS);
+        let read = read_value(&vault, &id).map(|value| value.len());
+        let deleted = delete_value(&vault, &id);
+        assert!(stored.is_ok(), "storing a {} byte session failed: {stored:?}", session.len());
+        assert_eq!(read.ok(), Some(session.len()));
+        assert_eq!(deleted, Ok(()));
+        assert_eq!(read_value(&vault, &id).map(|_| ()), Err(CredentialError::NotFound), "nothing left behind");
+    }
+
+
+
+    /// A vault double with the Windows bound, so the parts logic is proved on
+    /// every platform.
+    #[derive(Default)]
+    struct BoundedVault {
+        entries: std::sync::Mutex<std::collections::BTreeMap<String, String>>,
+        refuse_after: std::sync::Mutex<Option<usize>>,
+    }
+
+    impl RawVault for BoundedVault {
+        fn set(&self, id: &str, value: &str) -> Result<(), CredentialError> {
+            if value.encode_utf16().count() > 1_280 {
+                return Err(CredentialError::Store);
+            }
+            let mut budget = self.refuse_after.lock().unwrap();
+            if let Some(left) = budget.as_mut() {
+                if *left == 0 {
+                    return Err(CredentialError::Store);
+                }
+                *left -= 1;
+            }
+            self.entries.lock().unwrap().insert(id.to_string(), value.to_string());
+            Ok(())
+        }
+
+        fn get(&self, id: &str) -> Result<Zeroizing<String>, CredentialError> {
+            self.entries.lock().unwrap().get(id).cloned().map(Zeroizing::new).ok_or(CredentialError::NotFound)
+        }
+
+        fn delete(&self, id: &str) -> Result<(), CredentialError> {
+            self.entries.lock().unwrap().remove(id).map(|_| ()).ok_or(CredentialError::NotFound)
+        }
+    }
+
+    #[test]
+    fn a_value_longer_than_one_entry_round_trips_in_parts_and_leaves_nothing_behind() {
+        let vault = BoundedVault::default();
+        let long = format!("{}\u{e9}{}", "a".repeat(1_500), "\u{1F600}".repeat(700));
+        store_value(&vault, "account", &long, 1_280).expect("stored in parts");
+        assert_eq!(read_value(&vault, "account").expect("read").as_str(), long);
+        assert!(vault.entries.lock().unwrap().len() > 2, "parts beside the main entry");
+        store_value(&vault, "account", "short-value", 1_280).expect("short again");
+        assert_eq!(vault.entries.lock().unwrap().len(), 1, "the old parts are gone");
+        assert_eq!(read_value(&vault, "account").expect("read").as_str(), "short-value");
+        store_value(&vault, "account", &long, 1_280).expect("long again");
+        delete_value(&vault, "account").expect("deleted");
+        assert!(vault.entries.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_store_that_fails_half_way_keeps_the_previous_value() {
+        let vault = BoundedVault::default();
+        store_value(&vault, "account", "the-previous-session", 1_280).expect("first");
+        *vault.refuse_after.lock().unwrap() = Some(1);
+        assert!(store_value(&vault, "account", &"n".repeat(3_000), 1_280).is_err());
+        *vault.refuse_after.lock().unwrap() = None;
+        assert_eq!(read_value(&vault, "account").expect("read").as_str(), "the-previous-session");
+        assert_eq!(vault.entries.lock().unwrap().len(), 1, "no stray parts");
+    }
+
+    #[test]
+    fn missing_or_altered_parts_read_as_a_store_failure_never_a_partial_secret() {
+        let vault = BoundedVault::default();
+        store_value(&vault, "account", &"p".repeat(2_600), 1_280).expect("stored");
+        let first_part = vault.entries.lock().unwrap().keys().find(|key| key.contains(".part.")).cloned().unwrap();
+        vault.entries.lock().unwrap().insert(first_part.clone(), "q".repeat(1_200));
+        assert_eq!(read_value(&vault, "account").map(|_| ()), Err(CredentialError::Store));
+        vault.entries.lock().unwrap().remove(&first_part);
+        assert_eq!(read_value(&vault, "account").map(|_| ()), Err(CredentialError::Store));
+        assert!(parts_of("\u{1}openlimiter-parts:v1:abc:0:x").is_none());
+    }
 
     #[test]
     fn api_spend_uses_a_distinct_fixed_keyring_namespace() {
