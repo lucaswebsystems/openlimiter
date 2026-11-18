@@ -52,7 +52,7 @@ jobs:
             cache_target: x86_64-pc-windows-msvc
             updater: true
             args: "--bundles nsis,msi"
-          - os: macos-14
+          - os: macos-latest
             label: macOS universal unsigned
             rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
             cache_target: universal-apple-darwin
@@ -186,7 +186,7 @@ jobs:
           bash .github/scripts/verify-linux-package.sh "$package_file"
 
       - name: Verify the macOS app's ad hoc signature and that no updater artifact exists
-        if: matrix.os == 'macos-14'
+        if: matrix.os == 'macos-latest'
         shell: bash
         run: |
           set -euo pipefail
@@ -259,7 +259,7 @@ jobs:
           - os: windows-latest
             label: Windows
             pattern: "*_x64-setup.exe"
-          - os: macos-14
+          - os: macos-latest
             label: macOS unsigned
             pattern: "*.dmg"
 
@@ -333,7 +333,7 @@ jobs:
           bash .github/scripts/verify-linux-package.sh "$package_file"
 
       - name: Verify the existing macOS disk image is present
-        if: matrix.os == 'macos-14'
+        if: matrix.os == 'macos-latest'
         shell: bash
         run: |
           set -euo pipefail
